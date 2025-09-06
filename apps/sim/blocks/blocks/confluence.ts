@@ -55,6 +55,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       title: 'Select Page',
       type: 'file-selector',
       layout: 'full',
+      canonicalParamId: 'pageId',
       provider: 'confluence',
       serviceId: 'confluence',
       placeholder: 'Select Confluence page',
@@ -67,6 +68,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       title: 'Page ID',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'pageId',
       placeholder: 'Enter Confluence page ID',
       mode: 'advanced',
     },
@@ -102,17 +104,16 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
         }
       },
       params: (params) => {
-        const { credential, pageId, manualPageId, ...rest } = params
+        const { credential, pageId, ...rest } = params
 
-        // Use the selected page ID or the manually entered one
-        const effectivePageId = (pageId || manualPageId || '').trim()
+        const effectivePageId = pageId?.trim()
 
         if (!effectivePageId) {
-          throw new Error('Page ID is required. Please select a page or enter a page ID manually.')
+          throw new Error('Page ID is required.')
         }
 
         return {
-          accessToken: credential,
+          credential,
           pageId: effectivePageId,
           ...rest,
         }

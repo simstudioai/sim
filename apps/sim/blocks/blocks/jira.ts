@@ -59,6 +59,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       title: 'Select Project',
       type: 'project-selector',
       layout: 'full',
+      canonicalParamId: 'projectId',
       provider: 'jira',
       serviceId: 'jira',
       placeholder: 'Select Jira project',
@@ -71,6 +72,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       title: 'Project ID',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'projectId',
       placeholder: 'Enter Jira project ID',
       dependsOn: ['credential', 'domain'],
       mode: 'advanced',
@@ -81,6 +83,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       title: 'Select Issue',
       type: 'file-selector',
       layout: 'full',
+      canonicalParamId: 'issueKey',
       provider: 'jira',
       serviceId: 'jira',
       placeholder: 'Select Jira issue',
@@ -94,6 +97,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       title: 'Issue Key',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'issueKey',
       placeholder: 'Enter Jira issue key',
       dependsOn: ['credential', 'domain', 'projectId'],
       condition: { field: 'operation', value: ['read', 'update'] },
@@ -137,92 +141,74 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
         }
       },
       params: (params) => {
-        const { credential, projectId, manualProjectId, issueKey, manualIssueKey, ...rest } = params
+        const { credential, projectId, issueKey, ...rest } = params
 
-        // Base params that are always needed
         const baseParams = {
-          accessToken: credential,
+          credential,
           domain: params.domain,
         }
 
-        // Use the selected project ID or the manually entered one
-        const effectiveProjectId = (projectId || manualProjectId || '').trim()
-
-        // Use the selected issue key or the manually entered one
-        const effectiveIssueKey = (issueKey || manualIssueKey || '').trim()
-
-        // Define allowed parameters for each operation
         switch (params.operation) {
           case 'write': {
-            if (!effectiveProjectId) {
+            if (!projectId?.trim()) {
               throw new Error(
                 'Project ID is required. Please select a project or enter a project ID manually.'
               )
             }
-
-            // For write operations, only include write-specific fields
             const writeParams = {
-              projectId: effectiveProjectId,
+              projectId: projectId.trim(),
               summary: params.summary || '',
               description: params.description || '',
               issueType: params.issueType || 'Task',
               parent: params.parentIssue ? { key: params.parentIssue } : undefined,
             }
-
             return {
               ...baseParams,
               ...writeParams,
             }
           }
           case 'update': {
-            if (!effectiveProjectId) {
+            if (!projectId?.trim()) {
               throw new Error(
                 'Project ID is required. Please select a project or enter a project ID manually.'
               )
             }
-            if (!effectiveIssueKey) {
+            if (!issueKey?.trim()) {
               throw new Error(
                 'Issue Key is required. Please select an issue or enter an issue key manually.'
               )
             }
-
-            // For update operations, only include update-specific fields
             const updateParams = {
-              projectId: effectiveProjectId,
-              issueKey: effectiveIssueKey,
+              projectId: projectId.trim(),
+              issueKey: issueKey.trim(),
               summary: params.summary || '',
               description: params.description || '',
             }
-
             return {
               ...baseParams,
               ...updateParams,
             }
           }
           case 'read': {
-            if (!effectiveIssueKey) {
+            if (!issueKey?.trim()) {
               throw new Error(
                 'Issue Key is required. Please select an issue or enter an issue key manually.'
               )
             }
-
-            // For read operations, only include read-specific fields
             return {
               ...baseParams,
-              issueKey: effectiveIssueKey,
+              issueKey: issueKey.trim(),
             }
           }
           case 'read-bulk': {
-            if (!effectiveProjectId) {
+            if (!projectId?.trim()) {
               throw new Error(
                 'Project ID is required. Please select a project or enter a project ID manually.'
               )
             }
-
-            // For read-bulk operations, only include read-bulk-specific fields
             return {
               ...baseParams,
-              projectId: effectiveProjectId,
+              projectId: projectId.trim(),
             }
           }
           default:

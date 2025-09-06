@@ -154,7 +154,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
 
         // Construct parameters based on operation
         const baseParams = {
-          accessToken: credential,
+          credential,
           ...rest,
         }
 

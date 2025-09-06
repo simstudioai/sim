@@ -282,7 +282,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
 
         return {
           ...rest,
-          accessToken: credential,
+          credential,
           ...(parsedProperties ? { properties: parsedProperties } : {}),
           ...(parsedFilter ? { filter: JSON.stringify(parsedFilter) } : {}),
           ...(parsedSorts ? { sorts: JSON.stringify(parsedSorts) } : {}),

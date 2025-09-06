@@ -99,6 +99,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       title: 'Label',
       type: 'folder-selector',
       layout: 'full',
+      canonicalParamId: 'folder',
       provider: 'google-email',
       serviceId: 'gmail',
       requiredScopes: [
@@ -116,6 +117,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       title: 'Label/Folder',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'folder',
       placeholder: 'Enter Gmail label name (e.g., INBOX, SENT, or custom label)',
       mode: 'advanced',
       condition: { field: 'operation', value: 'read_gmail' },
@@ -195,15 +197,10 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
         }
       },
       params: (params) => {
-        // Pass the credential directly from the credential field
-        const { credential, folder, manualFolder, ...rest } = params
+        const { credential, folder, ...rest } = params
 
-        // Handle folder input (selector or manual)
-        const effectiveFolder = (folder || manualFolder || '').trim()
-
-        // Ensure folder is always provided for read_gmail operation
         if (rest.operation === 'read_gmail') {
-          rest.folder = effectiveFolder || 'INBOX'
+          rest.folder = folder?.trim() || 'INBOX'
         }
 
         return {

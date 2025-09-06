@@ -49,6 +49,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       title: 'Select Site',
       type: 'file-selector',
       layout: 'full',
+      canonicalParamId: 'siteId',
       provider: 'microsoft',
       serviceId: 'sharepoint',
       requiredScopes: [
@@ -99,6 +100,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       title: 'Site ID',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'siteId',
       placeholder: 'Enter site ID (leave empty for root site)',
       dependsOn: ['credential'],
       mode: 'advanced',
@@ -121,14 +123,11 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
         }
       },
       params: (params) => {
-        const { credential, siteSelector, manualSiteId, mimeType, ...rest } = params
-
-        // Use siteSelector if provided, otherwise use manualSiteId
-        const effectiveSiteId = (siteSelector || manualSiteId || '').trim()
+        const { credential, siteId, mimeType, ...rest } = params
 
         return {
-          accessToken: credential,
-          siteId: effectiveSiteId,
+          credential,
+          siteId: siteId ? String(siteId).trim() : undefined,
           pageSize: rest.pageSize ? Number.parseInt(rest.pageSize as string, 10) : undefined,
           mimeType: mimeType,
           ...rest,

@@ -221,7 +221,7 @@ export function DiscordChannelSelector({
             role='combobox'
             aria-expanded={open}
             className='h-10 w-full min-w-0 justify-between'
-            disabled={disabled || !botToken || !serverId}
+            disabled={disabled}
           >
             <div className='flex min-w-0 items-center gap-2 overflow-hidden'>
               {selectedChannel ? (

@@ -142,6 +142,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       title: 'Folder',
       type: 'folder-selector',
       layout: 'full',
+      canonicalParamId: 'folder',
       provider: 'outlook',
       serviceId: 'outlook',
       requiredScopes: ['Mail.ReadWrite', 'Mail.ReadBasic', 'Mail.Read'],
@@ -156,6 +157,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       title: 'Folder',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'folder',
       placeholder: 'Enter Outlook folder name (e.g., INBOX, SENT, or custom folder)',
       mode: 'advanced',
       condition: { field: 'operation', value: 'read_outlook' },
@@ -196,15 +198,9 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
         }
       },
       params: (params) => {
-        // Pass the credential directly from the credential field
-        const { credential, folder, manualFolder, ...rest } = params
-
-        // Handle folder input (selector or manual)
-        const effectiveFolder = (folder || manualFolder || '').trim()
-
-        // Set default folder to INBOX if not specified
+        const { credential, folder, ...rest } = params
         if (rest.operation === 'read_outlook') {
-          rest.folder = effectiveFolder || 'INBOX'
+          rest.folder = folder?.trim() || 'INBOX'
         }
 
         return {

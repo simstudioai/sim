@@ -41,6 +41,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       title: 'Select Sheet',
       type: 'file-selector',
       layout: 'full',
+      canonicalParamId: 'spreadsheetId',
       provider: 'microsoft-excel',
       serviceId: 'microsoft-excel',
       requiredScopes: [],
@@ -54,6 +55,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       title: 'Spreadsheet ID',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'spreadsheetId',
       placeholder: 'Enter spreadsheet ID',
       dependsOn: ['credential'],
       mode: 'advanced',
@@ -144,8 +146,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
         }
       },
       params: (params) => {
-        const { credential, values, spreadsheetId, manualSpreadsheetId, tableName, ...rest } =
-          params
+        const { credential, values, spreadsheetId, tableName, ...rest } = params
 
         // Parse values from JSON string to array if it exists
         let parsedValues
@@ -155,13 +156,8 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
           throw new Error('Invalid JSON format for values')
         }
 
-        // Use the selected spreadsheet ID or the manually entered one
-        const effectiveSpreadsheetId = (spreadsheetId || manualSpreadsheetId || '').trim()
-
-        if (!effectiveSpreadsheetId) {
-          throw new Error(
-            'Spreadsheet ID is required. Please select a spreadsheet or enter an ID manually.'
-          )
+        if (!spreadsheetId || !String(spreadsheetId).trim()) {
+          throw new Error('Spreadsheet ID is required.')
         }
 
         // For table operations, ensure tableName is provided
@@ -171,7 +167,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
 
         const baseParams = {
           ...rest,
-          spreadsheetId: effectiveSpreadsheetId,
+          spreadsheetId: String(spreadsheetId).trim(),
           values: parsedValues,
           credential,
         }

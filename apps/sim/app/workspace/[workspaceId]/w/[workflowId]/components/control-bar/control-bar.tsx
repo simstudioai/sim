@@ -45,6 +45,7 @@ import {
   useKeyboardShortcuts,
 } from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
 import { useFolderStore } from '@/stores/folders/store'
+import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import { usePanelStore } from '@/stores/panel/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useSubscriptionStore } from '@/stores/subscription/store'
@@ -258,17 +259,23 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
 
   // Get current store state for change detection
   const currentBlocks = useWorkflowStore((state) => state.blocks)
+  const currentEdges = useWorkflowStore((state) => state.edges)
   const subBlockValues = useSubBlockStore((state) =>
     activeWorkflowId ? state.workflowValues[activeWorkflowId] : null
   )
 
   useEffect(() => {
+    // Avoid off-by-one false positives: wait until operation queue is idle
+    const { operations, isProcessing } = useOperationQueueStore.getState()
+    const hasPendingOps =
+      isProcessing || operations.some((op) => op.status === 'pending' || op.status === 'processing')
+
     if (!activeWorkflowId || !deployedState) {
       setChangeDetected(false)
       return
     }
 
-    if (isLoadingDeployedState) {
+    if (isLoadingDeployedState || hasPendingOps) {
       return
     }
 
@@ -291,7 +298,16 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     }
 
     checkForChanges()
-  }, [activeWorkflowId, deployedState, currentBlocks, subBlockValues, isLoadingDeployedState])
+  }, [
+    activeWorkflowId,
+    deployedState,
+    currentBlocks,
+    currentEdges,
+    subBlockValues,
+    isLoadingDeployedState,
+    useOperationQueueStore.getState().isProcessing,
+    useOperationQueueStore.getState().operations.length,
+  ])
 
   useEffect(() => {
     if (session?.user?.id && !isRegistryLoading) {

@@ -48,6 +48,7 @@ export function ProjectSelectorInput({
   // Use the proper hook to get the current value and setter
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
   const [connectedCredential] = useSubBlockValue(blockId, 'credential')
+  const [botTokenFromStore] = useSubBlockValue(blockId, 'botToken')
   const { isForeignCredential } = useForeignCredential(
     subBlock.provider || subBlock.serviceId || 'jira',
     (connectedCredential as string) || ''
@@ -67,7 +68,7 @@ export function ProjectSelectorInput({
   const [jiraDomain] = useSubBlockValue(blockId, 'domain')
   const [jiraCredential] = useSubBlockValue(blockId, 'credential')
   const domain = (jiraDomain as string) || ''
-  const botToken = ''
+  const botToken = (botTokenFromStore as string) || ''
 
   // Verify Jira credential belongs to current user; if not, treat as absent
 
@@ -108,7 +109,7 @@ export function ProjectSelectorInput({
                 }}
                 botToken={botToken}
                 label={subBlock.placeholder || 'Select Discord server'}
-                disabled={disabled || !botToken}
+                disabled={finalDisabled}
                 showPreview={true}
               />
             </div>

@@ -57,6 +57,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       title: 'Select Team',
       type: 'file-selector',
       layout: 'full',
+      canonicalParamId: 'teamId',
       provider: 'microsoft-teams',
       serviceId: 'microsoft-teams',
       requiredScopes: [],
@@ -70,6 +71,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       title: 'Team ID',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'teamId',
       placeholder: 'Enter team ID',
       mode: 'advanced',
       condition: { field: 'operation', value: ['read_channel', 'write_channel'] },
@@ -79,6 +81,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       title: 'Select Chat',
       type: 'file-selector',
       layout: 'full',
+      canonicalParamId: 'chatId',
       provider: 'microsoft-teams',
       serviceId: 'microsoft-teams',
       requiredScopes: [],
@@ -92,6 +95,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       title: 'Chat ID',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'chatId',
       placeholder: 'Enter chat ID',
       mode: 'advanced',
       condition: { field: 'operation', value: ['read_chat', 'write_chat'] },
@@ -101,6 +105,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       title: 'Select Channel',
       type: 'file-selector',
       layout: 'full',
+      canonicalParamId: 'channelId',
       provider: 'microsoft-teams',
       serviceId: 'microsoft-teams',
       requiredScopes: [],
@@ -114,6 +119,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       title: 'Channel ID',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'channelId',
       placeholder: 'Enter channel ID',
       mode: 'advanced',
       condition: { field: 'operation', value: ['read_channel', 'write_channel'] },
@@ -160,59 +166,28 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
         }
       },
       params: (params) => {
-        const {
-          credential,
-          operation,
-          teamId,
-          manualTeamId,
-          chatId,
-          manualChatId,
-          channelId,
-          manualChannelId,
-          ...rest
-        } = params
+        const { credential, operation, teamId, chatId, channelId, ...rest } = params
 
-        // Use the selected IDs or the manually entered ones
-        const effectiveTeamId = (teamId || manualTeamId || '').trim()
-        const effectiveChatId = (chatId || manualChatId || '').trim()
-        const effectiveChannelId = (channelId || manualChannelId || '').trim()
-
-        // Build the parameters based on operation type
         const baseParams = {
           ...rest,
           credential,
         }
 
-        // For chat operations, we need chatId
         if (operation === 'read_chat' || operation === 'write_chat') {
-          if (!effectiveChatId) {
-            throw new Error(
-              'Chat ID is required for chat operations. Please select a chat or enter a chat ID manually.'
-            )
+          if (!chatId?.trim()) {
+            throw new Error('Chat ID is required for chat operations.')
           }
-          return {
-            ...baseParams,
-            chatId: effectiveChatId,
-          }
+          return { ...baseParams, chatId: chatId.trim() }
         }
 
-        // For channel operations, we need teamId and channelId
         if (operation === 'read_channel' || operation === 'write_channel') {
-          if (!effectiveTeamId) {
-            throw new Error(
-              'Team ID is required for channel operations. Please select a team or enter a team ID manually.'
-            )
+          if (!teamId?.trim()) {
+            throw new Error('Team ID is required for channel operations.')
           }
-          if (!effectiveChannelId) {
-            throw new Error(
-              'Channel ID is required for channel operations. Please select a channel or enter a channel ID manually.'
-            )
+          if (!channelId?.trim()) {
+            throw new Error('Channel ID is required for channel operations.')
           }
-          return {
-            ...baseParams,
-            teamId: effectiveTeamId,
-            channelId: effectiveChannelId,
-          }
+          return { ...baseParams, teamId: teamId.trim(), channelId: channelId.trim() }
         }
 
         return baseParams

@@ -201,7 +201,7 @@ export function DiscordServerSelector({
             role='combobox'
             aria-expanded={open}
             className='w-full justify-between'
-            disabled={disabled || !botToken}
+            disabled={disabled}
           >
             {selectedServer ? (
               <div className='flex items-center gap-2 overflow-hidden'>

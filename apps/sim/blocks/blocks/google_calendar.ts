@@ -44,6 +44,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       title: 'Calendar',
       type: 'file-selector',
       layout: 'full',
+      canonicalParamId: 'calendarId',
       provider: 'google-calendar',
       serviceId: 'google-calendar',
       requiredScopes: ['https://www.googleapis.com/auth/calendar'],
@@ -57,6 +58,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       title: 'Calendar ID',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'calendarId',
       placeholder: 'Enter calendar ID (e.g., primary or calendar@gmail.com)',
       mode: 'advanced',
     },
@@ -227,22 +229,11 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
         }
       },
       params: (params) => {
-        const {
-          credential,
-          operation,
-          attendees,
-          replaceExisting,
-          calendarId,
-          manualCalendarId,
-          ...rest
-        } = params
-
-        // Handle calendar ID (selector or manual)
-        const effectiveCalendarId = (calendarId || manualCalendarId || '').trim()
+        const { credential, operation, attendees, replaceExisting, calendarId, ...rest } = params
 
         const processedParams: Record<string, any> = {
           ...rest,
-          calendarId: effectiveCalendarId || 'primary',
+          calendarId: calendarId?.trim() || 'primary',
         }
 
         // Convert comma-separated attendees string to array, only if it has content
@@ -269,7 +260,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
         }
 
         return {
-          accessToken: credential,
+          credential,
           ...processedParams,
         }
       },

@@ -44,6 +44,7 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       title: 'Select Document',
       type: 'file-selector',
       layout: 'full',
+      canonicalParamId: 'documentId',
       provider: 'google-drive',
       serviceId: 'google-drive',
       requiredScopes: [],
@@ -59,6 +60,7 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       title: 'Document ID',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'documentId',
       placeholder: 'Enter document ID',
       dependsOn: ['credential'],
       mode: 'advanced',
@@ -80,6 +82,7 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       title: 'Select Parent Folder',
       type: 'file-selector',
       layout: 'full',
+      canonicalParamId: 'folderId',
       provider: 'google-drive',
       serviceId: 'google-drive',
       requiredScopes: [],
@@ -95,6 +98,7 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       title: 'Parent Folder ID',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'folderId',
       placeholder: 'Enter parent folder ID (leave empty for root folder)',
       dependsOn: ['credential'],
       mode: 'advanced',
@@ -136,16 +140,12 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
         }
       },
       params: (params) => {
-        const { credential, documentId, manualDocumentId, folderSelector, folderId, ...rest } =
-          params
-
-        const effectiveDocumentId = (documentId || manualDocumentId || '').trim()
-        const effectiveFolderId = (folderSelector || folderId || '').trim()
+        const { credential, documentId, folderId, ...rest } = params
 
         return {
           ...rest,
-          documentId: effectiveDocumentId,
-          folderId: effectiveFolderId,
+          documentId: documentId?.trim(),
+          folderId: folderId?.trim(),
           credential,
         }
       },

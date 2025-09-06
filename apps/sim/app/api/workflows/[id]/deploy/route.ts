@@ -195,14 +195,31 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Process blocks
     blocks.forEach((block) => {
+      const parentId = block.parentId || null
+      const extent = block.extent || null
+      const blockData = {
+        ...(block.data || {}),
+        ...(parentId && { parentId }),
+        ...(extent && { extent }),
+      }
+
       blocksMap[block.id] = {
         id: block.id,
         type: block.type,
         name: block.name,
         position: { x: Number(block.positionX), y: Number(block.positionY) },
-        data: block.data,
+        data: blockData,
         enabled: block.enabled,
         subBlocks: block.subBlocks || {},
+        // Preserve execution-relevant flags so serializer behavior matches manual runs
+        isWide: block.isWide ?? false,
+        advancedMode: block.advancedMode ?? false,
+        triggerMode: block.triggerMode ?? false,
+        outputs: block.outputs || {},
+        horizontalHandles: block.horizontalHandles ?? true,
+        height: Number(block.height || 0),
+        parentId,
+        extent,
       }
     })
 

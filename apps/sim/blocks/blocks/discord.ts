@@ -40,6 +40,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       title: 'Server',
       type: 'project-selector',
       layout: 'full',
+      canonicalParamId: 'serverId',
       provider: 'discord',
       serviceId: 'discord',
       placeholder: 'Select Discord server',
@@ -56,6 +57,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       title: 'Server ID',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'serverId',
       placeholder: 'Enter Discord server ID',
       mode: 'advanced',
       condition: {
@@ -69,6 +71,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       title: 'Channel',
       type: 'file-selector',
       layout: 'full',
+      canonicalParamId: 'channelId',
       provider: 'discord',
       serviceId: 'discord',
       placeholder: 'Select Discord channel',
@@ -82,6 +85,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       title: 'Channel ID',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'channelId',
       placeholder: 'Enter Discord channel ID',
       mode: 'advanced',
       condition: { field: 'operation', value: ['discord_send_message', 'discord_get_messages'] },
@@ -139,56 +143,42 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
         if (!params.botToken) throw new Error('Bot token required for this operation')
         commonParams.botToken = params.botToken
 
-        // Handle server ID (selector or manual)
-        const effectiveServerId = (params.serverId || params.manualServerId || '').trim()
-
-        // Handle channel ID (selector or manual)
-        const effectiveChannelId = (params.channelId || params.manualChannelId || '').trim()
+        const { serverId, channelId } = params
 
         switch (params.operation) {
           case 'discord_send_message':
-            if (!effectiveServerId) {
-              throw new Error(
-                'Server ID is required. Please select a server or enter a server ID manually.'
-              )
+            if (!serverId?.trim()) {
+              throw new Error('Server ID is required.')
             }
-            if (!effectiveChannelId) {
-              throw new Error(
-                'Channel ID is required. Please select a channel or enter a channel ID manually.'
-              )
+            if (!channelId?.trim()) {
+              throw new Error('Channel ID is required.')
             }
             return {
               ...commonParams,
-              serverId: effectiveServerId,
-              channelId: effectiveChannelId,
+              serverId: serverId.trim(),
+              channelId: channelId.trim(),
               content: params.content,
             }
           case 'discord_get_messages':
-            if (!effectiveServerId) {
-              throw new Error(
-                'Server ID is required. Please select a server or enter a server ID manually.'
-              )
+            if (!serverId?.trim()) {
+              throw new Error('Server ID is required.')
             }
-            if (!effectiveChannelId) {
-              throw new Error(
-                'Channel ID is required. Please select a channel or enter a channel ID manually.'
-              )
+            if (!channelId?.trim()) {
+              throw new Error('Channel ID is required.')
             }
             return {
               ...commonParams,
-              serverId: effectiveServerId,
-              channelId: effectiveChannelId,
+              serverId: serverId.trim(),
+              channelId: channelId.trim(),
               limit: params.limit ? Math.min(Math.max(1, Number(params.limit)), 100) : 10,
             }
           case 'discord_get_server':
-            if (!effectiveServerId) {
-              throw new Error(
-                'Server ID is required. Please select a server or enter a server ID manually.'
-              )
+            if (!serverId?.trim()) {
+              throw new Error('Server ID is required.')
             }
             return {
               ...commonParams,
-              serverId: effectiveServerId,
+              serverId: serverId.trim(),
             }
           case 'discord_get_user':
             return {

@@ -76,6 +76,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       title: 'Select Parent Folder',
       type: 'file-selector',
       layout: 'full',
+      canonicalParamId: 'folderId',
       provider: 'google-drive',
       serviceId: 'google-drive',
       requiredScopes: ['https://www.googleapis.com/auth/drive.file'],
@@ -90,6 +91,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       title: 'Parent Folder ID',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'folderId',
       placeholder: 'Enter parent folder ID (leave empty for root folder)',
       mode: 'advanced',
       condition: { field: 'operation', value: 'upload' },
@@ -150,6 +152,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       title: 'Select Parent Folder',
       type: 'file-selector',
       layout: 'full',
+      canonicalParamId: 'folderId',
       provider: 'google-drive',
       serviceId: 'google-drive',
       requiredScopes: ['https://www.googleapis.com/auth/drive.file'],
@@ -165,6 +168,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       title: 'Parent Folder ID',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'folderId',
       placeholder: 'Enter parent folder ID (leave empty for root folder)',
       mode: 'advanced',
       condition: { field: 'operation', value: 'create_folder' },
@@ -175,6 +179,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       title: 'Select Folder',
       type: 'file-selector',
       layout: 'full',
+      canonicalParamId: 'folderId',
       provider: 'google-drive',
       serviceId: 'google-drive',
       requiredScopes: ['https://www.googleapis.com/auth/drive.file'],
@@ -190,6 +195,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       title: 'Folder ID',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'folderId',
       placeholder: 'Enter folder ID (leave empty for root folder)',
       mode: 'advanced',
       condition: { field: 'operation', value: 'list' },
@@ -227,14 +233,11 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
         }
       },
       params: (params) => {
-        const { credential, folderSelector, manualFolderId, mimeType, ...rest } = params
-
-        // Use folderSelector if provided, otherwise use manualFolderId
-        const effectiveFolderId = (folderSelector || manualFolderId || '').trim()
+        const { credential, folderId, mimeType, ...rest } = params
 
         return {
-          accessToken: credential,
-          folderId: effectiveFolderId,
+          credential,
+          folderId: folderId ? String(folderId).trim() : undefined,
           pageSize: rest.pageSize ? Number.parseInt(rest.pageSize as string, 10) : undefined,
           mimeType: mimeType,
           ...rest,
