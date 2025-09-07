@@ -181,19 +181,7 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
       output: collected.slice(0, MAX_TOTAL).map((issue: any) => ({
         ts: new Date().toISOString(),
         summary: issue.fields?.summary,
-        description: ((): string => {
-          try {
-            return (
-              issue.fields?.description?.content?.[0]?.content?.[0]?.text ||
-              issue.fields?.description?.content
-                ?.flatMap((c: any) => c?.content || [])
-                ?.find((c: any) => c?.text)?.text ||
-              ''
-            )
-          } catch (_e) {
-            return ''
-          }
-        })(),
+        description: extractDescription(issue.fields?.description),
         created: issue.fields?.created,
         updated: issue.fields?.updated,
       })),
