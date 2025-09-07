@@ -3,10 +3,6 @@
 import { useEffect, useState } from 'react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
-  type DiscordServerInfo,
-  DiscordServerSelector,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/project-selector/components/discord-server-selector'
-import {
   type JiraProjectInfo,
   JiraProjectSelector,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/project-selector/components/jira-project-selector'
@@ -44,7 +40,7 @@ export function ProjectSelectorInput({
 }: ProjectSelectorInputProps) {
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const [selectedProjectId, setSelectedProjectId] = useState<string>('')
-  const [_projectInfo, setProjectInfo] = useState<JiraProjectInfo | DiscordServerInfo | null>(null)
+  const [_projectInfo, setProjectInfo] = useState<any | null>(null)
   // Use the proper hook to get the current value and setter
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
   const [connectedCredential] = useSubBlockValue(blockId, 'credential')
@@ -60,14 +56,12 @@ export function ProjectSelectorInput({
 
   // Get provider-specific values
   const provider = subBlock.provider || 'jira'
-  const isDiscord = provider === 'discord'
   const isLinear = provider === 'linear'
 
   // Jira/Discord upstream fields
   const [jiraDomain] = useSubBlockValue(blockId, 'domain')
   const [jiraCredential] = useSubBlockValue(blockId, 'credential')
   const domain = (jiraDomain as string) || ''
-  const botToken = ''
 
   // Verify Jira credential belongs to current user; if not, treat as absent
 
@@ -85,7 +79,7 @@ export function ProjectSelectorInput({
   // Handle project selection
   const handleProjectChange = (
     projectId: string,
-    info?: JiraProjectInfo | DiscordServerInfo | LinearTeamInfo | LinearProjectInfo
+    info?: JiraProjectInfo | LinearTeamInfo | LinearProjectInfo
   ) => {
     setSelectedProjectId(projectId)
     setProjectInfo(info || null)
@@ -94,34 +88,7 @@ export function ProjectSelectorInput({
     onProjectSelect?.(projectId)
   }
 
-  // Render Discord server selector if provider is discord
-  if (isDiscord) {
-    return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className='w-full'>
-              <DiscordServerSelector
-                value={selectedProjectId}
-                onChange={(serverId: string, serverInfo?: DiscordServerInfo) => {
-                  handleProjectChange(serverId, serverInfo)
-                }}
-                botToken={botToken}
-                label={subBlock.placeholder || 'Select Discord server'}
-                disabled={disabled || !botToken}
-                showPreview={true}
-              />
-            </div>
-          </TooltipTrigger>
-          {!botToken && (
-            <TooltipContent side='top'>
-              <p>Please enter a Bot Token first</p>
-            </TooltipContent>
-          )}
-        </Tooltip>
-      </TooltipProvider>
-    )
-  }
+  // Discord no longer uses a server selector; fall through to other providers
 
   // Render Linear team/project selector if provider is linear
   if (isLinear) {

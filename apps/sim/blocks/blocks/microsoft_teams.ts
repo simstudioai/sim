@@ -57,6 +57,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       title: 'Select Team',
       type: 'file-selector',
       layout: 'full',
+      canonicalParamId: 'teamId',
       provider: 'microsoft-teams',
       serviceId: 'microsoft-teams',
       requiredScopes: [],
@@ -70,6 +71,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       title: 'Team ID',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'teamId',
       placeholder: 'Enter team ID',
       mode: 'advanced',
       condition: { field: 'operation', value: ['read_channel', 'write_channel'] },
@@ -79,6 +81,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       title: 'Select Chat',
       type: 'file-selector',
       layout: 'full',
+      canonicalParamId: 'chatId',
       provider: 'microsoft-teams',
       serviceId: 'microsoft-teams',
       requiredScopes: [],
@@ -92,6 +95,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       title: 'Chat ID',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'chatId',
       placeholder: 'Enter chat ID',
       mode: 'advanced',
       condition: { field: 'operation', value: ['read_chat', 'write_chat'] },
@@ -101,6 +105,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       title: 'Select Channel',
       type: 'file-selector',
       layout: 'full',
+      canonicalParamId: 'channelId',
       provider: 'microsoft-teams',
       serviceId: 'microsoft-teams',
       requiredScopes: [],
@@ -114,6 +119,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       title: 'Channel ID',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'channelId',
       placeholder: 'Enter channel ID',
       mode: 'advanced',
       condition: { field: 'operation', value: ['read_channel', 'write_channel'] },
@@ -177,42 +183,27 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
         const effectiveChatId = (chatId || manualChatId || '').trim()
         const effectiveChannelId = (channelId || manualChannelId || '').trim()
 
-        // Build the parameters based on operation type
         const baseParams = {
           ...rest,
           credential,
         }
 
-        // For chat operations, we need chatId
         if (operation === 'read_chat' || operation === 'write_chat') {
+          // Don't pass empty chatId - let the tool handle the error
           if (!effectiveChatId) {
-            throw new Error(
-              'Chat ID is required for chat operations. Please select a chat or enter a chat ID manually.'
-            )
+            throw new Error('Chat ID is required. Please select a chat or enter a chat ID.')
           }
-          return {
-            ...baseParams,
-            chatId: effectiveChatId,
-          }
+          return { ...baseParams, chatId: effectiveChatId }
         }
 
-        // For channel operations, we need teamId and channelId
         if (operation === 'read_channel' || operation === 'write_channel') {
           if (!effectiveTeamId) {
-            throw new Error(
-              'Team ID is required for channel operations. Please select a team or enter a team ID manually.'
-            )
+            throw new Error('Team ID is required for channel operations.')
           }
           if (!effectiveChannelId) {
-            throw new Error(
-              'Channel ID is required for channel operations. Please select a channel or enter a channel ID manually.'
-            )
+            throw new Error('Channel ID is required for channel operations.')
           }
-          return {
-            ...baseParams,
-            teamId: effectiveTeamId,
-            channelId: effectiveChannelId,
-          }
+          return { ...baseParams, teamId: effectiveTeamId, channelId: effectiveChannelId }
         }
 
         return baseParams

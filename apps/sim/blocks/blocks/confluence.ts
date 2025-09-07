@@ -55,6 +55,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       title: 'Select Page',
       type: 'file-selector',
       layout: 'full',
+      canonicalParamId: 'pageId',
       provider: 'confluence',
       serviceId: 'confluence',
       placeholder: 'Select Confluence page',
@@ -67,6 +68,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       title: 'Page ID',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'pageId',
       placeholder: 'Enter Confluence page ID',
       mode: 'advanced',
     },
@@ -112,7 +114,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
         }
 
         return {
-          accessToken: credential,
+          credential,
           pageId: effectivePageId,
           ...rest,
         }

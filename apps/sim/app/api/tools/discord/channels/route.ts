@@ -85,7 +85,8 @@ export async function POST(request: Request) {
 
     logger.info(`Fetching all Discord channels for server: ${serverId}`)
 
-    // Fetch all channels from Discord API
+    // Listing guild channels with a bot token is allowed if the bot is in the guild.
+    // Keep the request, but if unauthorized, return an empty list so the selector doesn't hard fail.
     const response = await fetch(`https://discord.com/api/v10/guilds/${serverId}/channels`, {
       method: 'GET',
       headers: {
@@ -95,20 +96,14 @@ export async function POST(request: Request) {
     })
 
     if (!response.ok) {
-      logger.error('Discord API error:', {
-        status: response.status,
-        statusText: response.statusText,
-      })
-
-      let errorMessage
-      try {
-        const errorData = await response.json()
-        logger.error('Error details:', errorData)
-        errorMessage = errorData.message || `Failed to fetch channels (${response.status})`
-      } catch (_e) {
-        errorMessage = `Failed to fetch channels: ${response.status} ${response.statusText}`
-      }
-      return NextResponse.json({ error: errorMessage }, { status: response.status })
+      logger.warn(
+        'Discord API returned non-OK for channels; returning empty list to avoid UX break',
+        {
+          status: response.status,
+          statusText: response.statusText,
+        }
+      )
+      return NextResponse.json({ channels: [] })
     }
 
     const channels = (await response.json()) as DiscordChannel[]

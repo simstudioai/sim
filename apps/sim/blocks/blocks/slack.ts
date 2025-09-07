@@ -78,6 +78,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       title: 'Channel',
       type: 'channel-selector',
       layout: 'full',
+      canonicalParamId: 'channel',
       provider: 'slack',
       placeholder: 'Select Slack channel',
       mode: 'basic',
@@ -89,6 +90,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       title: 'Channel ID',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'channel',
       placeholder: 'Enter Slack channel ID (e.g., C1234567890)',
       mode: 'advanced',
     },
@@ -192,13 +194,11 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
           ...rest
         } = params
 
-        // Handle channel input (selector or manual)
+        // Handle both selector and manual channel input
         const effectiveChannel = (channel || manualChannel || '').trim()
 
         if (!effectiveChannel) {
-          throw new Error(
-            'Channel is required. Please select a channel or enter a channel ID manually.'
-          )
+          throw new Error('Channel is required.')
         }
 
         const baseParams: Record<string, any> = {

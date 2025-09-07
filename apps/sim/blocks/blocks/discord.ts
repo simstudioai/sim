@@ -34,56 +34,30 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       password: true,
       required: true,
     },
-    // Server selector (basic mode)
     {
       id: 'serverId',
-      title: 'Server',
-      type: 'project-selector',
-      layout: 'full',
-      provider: 'discord',
-      serviceId: 'discord',
-      placeholder: 'Select Discord server',
-      dependsOn: ['botToken'],
-      mode: 'basic',
-      condition: {
-        field: 'operation',
-        value: ['discord_send_message', 'discord_get_messages', 'discord_get_server'],
-      },
-    },
-    // Manual server ID input (advanced mode)
-    {
-      id: 'manualServerId',
       title: 'Server ID',
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter Discord server ID',
-      mode: 'advanced',
+      required: true,
+      provider: 'discord',
+      serviceId: 'discord',
       condition: {
         field: 'operation',
         value: ['discord_send_message', 'discord_get_messages', 'discord_get_server'],
       },
     },
-    // Channel selector (basic mode)
+    // Channel ID (single input used in all modes)
     {
       id: 'channelId',
-      title: 'Channel',
-      type: 'file-selector',
-      layout: 'full',
-      provider: 'discord',
-      serviceId: 'discord',
-      placeholder: 'Select Discord channel',
-      dependsOn: ['botToken', 'serverId'],
-      mode: 'basic',
-      condition: { field: 'operation', value: ['discord_send_message', 'discord_get_messages'] },
-    },
-    // Manual channel ID input (advanced mode)
-    {
-      id: 'manualChannelId',
       title: 'Channel ID',
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter Discord channel ID',
-      mode: 'advanced',
+      required: true,
+      provider: 'discord',
+      serviceId: 'discord',
       condition: { field: 'operation', value: ['discord_send_message', 'discord_get_messages'] },
     },
     {
@@ -139,56 +113,44 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
         if (!params.botToken) throw new Error('Bot token required for this operation')
         commonParams.botToken = params.botToken
 
-        // Handle server ID (selector or manual)
-        const effectiveServerId = (params.serverId || params.manualServerId || '').trim()
-
-        // Handle channel ID (selector or manual)
-        const effectiveChannelId = (params.channelId || params.manualChannelId || '').trim()
+        // Single inputs
+        const serverId = (params.serverId || '').trim()
+        const channelId = (params.channelId || '').trim()
 
         switch (params.operation) {
           case 'discord_send_message':
-            if (!effectiveServerId) {
-              throw new Error(
-                'Server ID is required. Please select a server or enter a server ID manually.'
-              )
+            if (!serverId) {
+              throw new Error('Server ID is required.')
             }
-            if (!effectiveChannelId) {
-              throw new Error(
-                'Channel ID is required. Please select a channel or enter a channel ID manually.'
-              )
+            if (!channelId) {
+              throw new Error('Channel ID is required.')
             }
             return {
               ...commonParams,
-              serverId: effectiveServerId,
-              channelId: effectiveChannelId,
+              serverId,
+              channelId,
               content: params.content,
             }
           case 'discord_get_messages':
-            if (!effectiveServerId) {
-              throw new Error(
-                'Server ID is required. Please select a server or enter a server ID manually.'
-              )
+            if (!serverId) {
+              throw new Error('Server ID is required.')
             }
-            if (!effectiveChannelId) {
-              throw new Error(
-                'Channel ID is required. Please select a channel or enter a channel ID manually.'
-              )
+            if (!channelId) {
+              throw new Error('Channel ID is required.')
             }
             return {
               ...commonParams,
-              serverId: effectiveServerId,
-              channelId: effectiveChannelId,
+              serverId,
+              channelId,
               limit: params.limit ? Math.min(Math.max(1, Number(params.limit)), 100) : 10,
             }
           case 'discord_get_server':
-            if (!effectiveServerId) {
-              throw new Error(
-                'Server ID is required. Please select a server or enter a server ID manually.'
-              )
+            if (!serverId) {
+              throw new Error('Server ID is required.')
             }
             return {
               ...commonParams,
-              serverId: effectiveServerId,
+              serverId,
             }
           case 'discord_get_user':
             return {
@@ -205,9 +167,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
     operation: { type: 'string', description: 'Operation to perform' },
     botToken: { type: 'string', description: 'Discord bot token' },
     serverId: { type: 'string', description: 'Discord server identifier' },
-    manualServerId: { type: 'string', description: 'Manual server identifier' },
     channelId: { type: 'string', description: 'Discord channel identifier' },
-    manualChannelId: { type: 'string', description: 'Manual channel identifier' },
     content: { type: 'string', description: 'Message content' },
     limit: { type: 'number', description: 'Message limit' },
     userId: { type: 'string', description: 'Discord user identifier' },

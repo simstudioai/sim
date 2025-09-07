@@ -44,6 +44,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       title: 'Calendar',
       type: 'file-selector',
       layout: 'full',
+      canonicalParamId: 'calendarId',
       provider: 'google-calendar',
       serviceId: 'google-calendar',
       requiredScopes: ['https://www.googleapis.com/auth/calendar'],
@@ -57,6 +58,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       title: 'Calendar ID',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'calendarId',
       placeholder: 'Enter calendar ID (e.g., primary or calendar@gmail.com)',
       mode: 'advanced',
     },
@@ -269,7 +271,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
         }
 
         return {
-          accessToken: credential,
+          credential,
           ...processedParams,
         }
       },

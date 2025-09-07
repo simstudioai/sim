@@ -248,13 +248,52 @@ export class Serializer {
     blockConfig.subBlocks.forEach((subBlockConfig) => {
       const id = subBlockConfig.id
       if (
-        params[id] === null &&
+        (params[id] === null || params[id] === undefined) &&
         subBlockConfig.value &&
         shouldIncludeField(subBlockConfig, isAdvancedMode)
       ) {
-        // If the value is null and there's a default value function, use it
+        // If the value is absent and there's a default value function, use it
         params[id] = subBlockConfig.value(params)
       }
+    })
+
+    // Finally, consolidate canonical parameters (e.g., selector and manual ID into a single param)
+    const canonicalGroups: Record<string, { basic?: string; advanced: string[] }> = {}
+    blockConfig.subBlocks.forEach((sb) => {
+      if (!sb.canonicalParamId) return
+      const key = sb.canonicalParamId
+      if (!canonicalGroups[key]) canonicalGroups[key] = { basic: undefined, advanced: [] }
+      if (sb.mode === 'advanced') canonicalGroups[key].advanced.push(sb.id)
+      else canonicalGroups[key].basic = sb.id
+    })
+
+    Object.entries(canonicalGroups).forEach(([canonicalKey, group]) => {
+      const basicId = group.basic
+      const advancedIds = group.advanced
+      const basicVal = basicId ? params[basicId] : undefined
+      const advancedVal = advancedIds
+        .map((id) => params[id])
+        .find(
+          (v) => v !== undefined && v !== null && (typeof v !== 'string' || v.trim().length > 0)
+        )
+
+      let chosen: any
+      if (advancedVal !== undefined && basicVal !== undefined) {
+        chosen = isAdvancedMode ? advancedVal : basicVal
+      } else if (advancedVal !== undefined) {
+        chosen = advancedVal
+      } else if (basicVal !== undefined) {
+        chosen = isAdvancedMode ? undefined : basicVal
+      } else {
+        chosen = undefined
+      }
+
+      const sourceIds = [basicId, ...advancedIds].filter(Boolean) as string[]
+      sourceIds.forEach((id) => {
+        if (id !== canonicalKey) delete params[id]
+      })
+      if (chosen !== undefined) params[canonicalKey] = chosen
+      else delete params[canonicalKey]
     })
 
     return params
