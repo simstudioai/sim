@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { setBlockDragData, logDragEvent } from '@/lib/drag-drop-utils'
 import type { BlockConfig } from '@/blocks/types'
 
 export type ToolbarBlockProps = {
@@ -17,8 +18,10 @@ export function ToolbarBlock({ config, disabled = false }: ToolbarBlockProps) {
       e.preventDefault()
       return
     }
-    e.dataTransfer.setData('application/json', JSON.stringify({ type: config.type }))
-    e.dataTransfer.effectAllowed = 'move'
+    
+    // Use robust drag data setting with multiple MIME type fallbacks
+    setBlockDragData(e.dataTransfer, { type: config.type })
+    logDragEvent('handleDragStart', e)
   }
 
   // Handle click to add block

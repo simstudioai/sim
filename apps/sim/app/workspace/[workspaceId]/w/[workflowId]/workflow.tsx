@@ -14,6 +14,12 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateUUID } from '@/lib/uuid'
+import { 
+  hasValidBlockDragData, 
+  extractBlockDragData, 
+  logDragEvent,
+  type BlockDragData 
+} from '@/lib/drag-drop-utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ControlBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/control-bar'
 import { DiffControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/diff-controls'
@@ -600,9 +606,26 @@ const WorkflowContent = React.memo(() => {
   const onDrop = useCallback(
     (event: React.DragEvent) => {
       event.preventDefault()
+      logDragEvent('onDrop', event)
 
       try {
-        const data = JSON.parse(event.dataTransfer.getData('application/json'))
+        // Use robust data extraction with fallback MIME types
+        const extractionResult = extractBlockDragData(event)
+        
+        if (!extractionResult.success) {
+          logger.warn('Failed to extract block drag data:', {
+            error: extractionResult.error,
+            availableTypes: Array.from(event.dataTransfer?.types || [])
+          })
+          return
+        }
+
+        const data = extractionResult.data!
+        logger.debug('Block drop successful:', { 
+          blockType: data.type, 
+          mimeTypeUsed: extractionResult.mimeTypeUsed 
+        })
+
         if (data.type === 'connectionBlock') return
 
         const reactFlowBounds = event.currentTarget.getBoundingClientRect()
@@ -819,8 +842,11 @@ const WorkflowContent = React.memo(() => {
     (event: React.DragEvent) => {
       event.preventDefault()
 
-      // Only handle toolbar items
-      if (!event.dataTransfer?.types.includes('application/json')) return
+      // Only handle valid block drag data with fallback MIME type support
+      if (!hasValidBlockDragData(event)) {
+        logDragEvent('onDragOver-rejected', event)
+        return
+      }
 
       try {
         const reactFlowBounds = event.currentTarget.getBoundingClientRect()
