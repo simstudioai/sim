@@ -90,12 +90,18 @@ function PricingCard({ tier, index }: { tier: PricingTier; index: number }) {
       className={cn(
         `${inter.className}`,
         'relative flex h-full flex-col justify-between bg-[#FEFEFE]',
-        // Apply different padding based on card position
-        index === 0 ? 'py-5 pr-5' : index === 3 ? 'py-5 pl-5' : 'p-5',
-        // Add right border to all cards except the last one in each row
+        // Mobile padding: only featured cards have padding, non-featured have no padding
+        tier.featured ? 'px-5 pt-4 pb-5' : 'px-0 py-0',
+        // Desktop padding remains the same for all cards
+        index === 0
+          ? 'sm:px-5 sm:pt-4 sm:pb-4 lg:pt-4 lg:pr-5 lg:pb-4 lg:pl-0'
+          : index === 3
+            ? 'sm:px-5 sm:pt-4 sm:pb-4 lg:pt-4 lg:pr-0 lg:pb-4 lg:pl-5'
+            : 'sm:px-5 sm:pt-4 sm:pb-4 lg:px-5 lg:pt-4 lg:pb-4',
+        // Add right border only on desktop (sm and above) for non-featured cards
         tier.featured
           ? '' // Featured cards will handle their own borders
-          : 'border-[#E7E4EF] border-r-2 last:border-r-0',
+          : 'sm:border-[#E7E4EF] sm:border-r-2 sm:last:border-r-0',
         // On larger screens (4 columns), remove right border from every 4th card
         !tier.featured && 'lg:[&:nth-child(4n)]:border-r-0',
         // On medium screens (2 columns), remove right border from every 2nd card
@@ -127,7 +133,7 @@ function PricingCard({ tier, index }: { tier: PricingTier; index: number }) {
           </span>
         </div>
 
-        <ul className='space-y-3'>
+        <ul className='mb-[2px] space-y-3'>
           {tier.features.map((feature, idx) => (
             <li key={idx} className='flex items-start gap-2'>
               <feature.icon
@@ -144,7 +150,7 @@ function PricingCard({ tier, index }: { tier: PricingTier; index: number }) {
         </ul>
       </div>
 
-      <div className='mt-8'>
+      <div className='mt-9'>
         {tier.featured ? (
           <button
             onClick={handleCtaClick}
@@ -189,9 +195,13 @@ function PricingCard({ tier, index }: { tier: PricingTier; index: number }) {
 
 export default function LandingPricing() {
   return (
-    <section id='pricing' className='px-[32px]' aria-label='Pricing plans'>
+    <section
+      id='pricing'
+      className='px-4 pt-[19px] sm:px-[32px] sm:pt-0'
+      aria-label='Pricing plans'
+    >
       <h2 className='sr-only'>Pricing Plans</h2>
-      <div className='grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-4'>
+      <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-0 lg:grid-cols-4'>
         {pricingTiers.map((tier, index) => (
           <PricingCard key={tier.name} tier={tier} index={index} />
         ))}

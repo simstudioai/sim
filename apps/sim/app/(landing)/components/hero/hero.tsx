@@ -147,6 +147,12 @@ export default function Hero() {
   const isEmpty = textValue.trim().length === 0
 
   /**
+   * State for responsive icon display
+   */
+  const [visibleIconCount, setVisibleIconCount] = React.useState(13)
+  const [isMobile, setIsMobile] = React.useState(false)
+
+  /**
    * React Flow state for workflow preview canvas
    */
   const [rfNodes, setRfNodes] = React.useState<Node[]>([])
@@ -169,6 +175,24 @@ export default function Hero() {
   const handleServiceClick = (service: keyof typeof SERVICE_TEMPLATES) => {
     setTextValue(SERVICE_TEMPLATES[service])
   }
+
+  /**
+   * Set visible icon count based on screen size
+   */
+  React.useEffect(() => {
+    const updateVisibleIcons = () => {
+      if (typeof window !== 'undefined') {
+        const mobile = window.innerWidth < 640
+        setVisibleIconCount(mobile ? 6 : 13)
+        setIsMobile(mobile)
+      }
+    }
+
+    updateVisibleIcons()
+    window.addEventListener('resize', updateVisibleIcons)
+
+    return () => window.removeEventListener('resize', updateVisibleIcons)
+  }, [])
 
   /**
    * Service icons array for easier indexing
@@ -201,7 +225,7 @@ export default function Hero() {
     // Start the interval when component mounts
     const startInterval = () => {
       intervalRef.current = setInterval(() => {
-        setAutoHoverIndex((prev) => (prev + 1) % serviceIcons.length)
+        setAutoHoverIndex((prev) => (prev + 1) % visibleIconCount)
       }, 2000)
     }
 
@@ -216,7 +240,7 @@ export default function Hero() {
         clearInterval(intervalRef.current)
       }
     }
-  }, [isUserHovering, serviceIcons.length])
+  }, [isUserHovering, visibleIconCount])
 
   /**
    * Handle mouse enter on icon container
@@ -235,7 +259,7 @@ export default function Hero() {
     setIsUserHovering(false)
     // Start from the next icon after the last hovered one
     if (lastHoveredIndex !== null) {
-      setAutoHoverIndex((lastHoveredIndex + 1) % serviceIcons.length)
+      setAutoHoverIndex((lastHoveredIndex + 1) % visibleIconCount)
     }
   }
 
@@ -353,22 +377,25 @@ export default function Hero() {
 
   return (
     <section
-      className={`${soehne.className} flex w-full flex-col items-center justify-center pt-[80px]`}
+      className={`${soehne.className} flex w-full flex-col items-center justify-center pt-[36px] sm:pt-[80px]`}
       aria-labelledby='hero-heading'
     >
-      <h1 id='hero-heading' className='font-medium text-[74px] leading-none tracking-tight'>
+      <h1
+        id='hero-heading'
+        className='px-4 text-center font-medium text-[36px] leading-none tracking-tight sm:px-0 sm:text-[74px]'
+      >
         Workflows for LLMs
       </h1>
-      <p className='pt-[10px] text-center text-[22px] opacity-70'>
+      <p className='px-4 pt-[6px] text-center text-[18px] opacity-70 sm:px-0 sm:pt-[10px] sm:text-[22px]'>
         Build and deploy AI agent workflows
       </p>
       <div
-        className='flex items-center justify-center gap-[2px] pt-[32px]'
+        className='flex items-center justify-center gap-[2px] pt-[18px] sm:pt-[32px]'
         onMouseEnter={handleIconContainerMouseEnter}
         onMouseLeave={handleIconContainerMouseLeave}
       >
         {/* Service integration buttons */}
-        {serviceIcons.map((service, index) => {
+        {serviceIcons.slice(0, visibleIconCount).map((service, index) => {
           const Icon = service.icon
           return (
             <IconButton
@@ -379,72 +406,76 @@ export default function Hero() {
               style={service.style}
               isAutoHovered={!isUserHovering && index === autoHoverIndex}
             >
-              <Icon className='h-6 w-6' />
+              <Icon className='h-5 w-5 sm:h-6 sm:w-6' />
             </IconButton>
           )
         })}
       </div>
-      <div className='relative flex items-center justify-center pt-[12px]'>
-        <label htmlFor='agent-description' className='sr-only'>
-          Describe the AI agent you want to build
-        </label>
-        <textarea
-          id='agent-description'
-          placeholder='Ask Sim to build an agent to read my emails...'
-          className='h-[120px] w-[640px] resize-none px-4 py-3'
-          value={textValue}
-          onChange={(e) => setTextValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          style={{
-            borderRadius: 16,
-            border: 'var(--border-width-border, 1px) solid #E5E5E5',
-            outline: 'none',
-            background: '#FFFFFF',
-            boxShadow:
-              'var(--shadow-xs-offset-x, 0) var(--shadow-xs-offset-y, 2px) var(--shadow-xs-blur-radius, 4px) var(--shadow-xs-spread-radius, 0) var(--shadow-xs-color, rgba(0, 0, 0, 0.08))',
-          }}
-        />
-        <button
-          key={isEmpty ? 'empty' : 'filled'}
-          type='button'
-          aria-label='Submit description'
-          className='absolute right-3 bottom-3 flex items-center justify-center transition-all duration-200'
-          disabled={isEmpty}
-          onClick={handleSubmit}
-          style={{
-            width: 34,
-            height: 34,
-            padding: '3.75px 3.438px 3.75px 4.063px',
-            borderRadius: 55,
-            ...(isEmpty
-              ? {
-                  border: '0.625px solid #E0E0E0',
-                  background: '#E5E5E5',
-                  boxShadow: 'none',
-                  cursor: 'not-allowed',
-                }
-              : {
-                  border: '0.625px solid #343434',
-                  background: 'linear-gradient(180deg, #060606 0%, #323232 100%)',
-                  boxShadow: '0 1.25px 2.5px 0 #9B77FF inset',
-                  cursor: 'pointer',
-                }),
-          }}
-        >
-          <ArrowUp size={20} color={isEmpty ? '#999999' : '#FFFFFF'} />
-        </button>
+      <div className='flex w-full items-center justify-center px-4 pt-[8px] sm:px-8 sm:pt-[12px] md:px-[50px]'>
+        <div className='relative w-full sm:w-[640px]'>
+          <label htmlFor='agent-description' className='sr-only'>
+            Describe the AI agent you want to build
+          </label>
+          <textarea
+            id='agent-description'
+            placeholder={
+              isMobile ? 'Build an AI agent...' : 'Ask Sim to build an agent to read my emails...'
+            }
+            className='h-[100px] w-full resize-none px-3 py-2.5 text-sm sm:h-[120px] sm:px-4 sm:py-3 sm:text-base'
+            value={textValue}
+            onChange={(e) => setTextValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            style={{
+              borderRadius: 16,
+              border: 'var(--border-width-border, 1px) solid #E5E5E5',
+              outline: 'none',
+              background: '#FFFFFF',
+              boxShadow:
+                'var(--shadow-xs-offset-x, 0) var(--shadow-xs-offset-y, 2px) var(--shadow-xs-blur-radius, 4px) var(--shadow-xs-spread-radius, 0) var(--shadow-xs-color, rgba(0, 0, 0, 0.08))',
+            }}
+          />
+          <button
+            key={isEmpty ? 'empty' : 'filled'}
+            type='button'
+            aria-label='Submit description'
+            className='absolute right-2.5 bottom-4 flex h-[30px] w-[30px] items-center justify-center transition-all duration-200 sm:right-[11px] sm:bottom-[16px] sm:h-[34px] sm:w-[34px]'
+            disabled={isEmpty}
+            onClick={handleSubmit}
+            style={{
+              padding: '3.75px 3.438px 3.75px 4.063px',
+              borderRadius: 55,
+              ...(isEmpty
+                ? {
+                    border: '0.625px solid #E0E0E0',
+                    background: '#E5E5E5',
+                    boxShadow: 'none',
+                    cursor: 'not-allowed',
+                  }
+                : {
+                    border: '0.625px solid #343434',
+                    background: 'linear-gradient(180deg, #060606 0%, #323232 100%)',
+                    boxShadow: '0 1.25px 2.5px 0 #9B77FF inset',
+                    cursor: 'pointer',
+                  }),
+            }}
+          >
+            <ArrowUp size={18} className='sm:h-5 sm:w-5' color={isEmpty ? '#999999' : '#FFFFFF'} />
+          </button>
+        </div>
       </div>
 
-      {/* Canvas */}
-      <div className='mt-[134px] w-full max-w-[1308px]'>
-        <LandingCanvas
-          nodes={rfNodes}
-          edges={rfEdges}
-          groupBox={groupBox}
-          worldWidth={worldWidth}
-          viewportApiRef={viewportApiRef}
-        />
-      </div>
+      {/* Canvas - hidden on mobile */}
+      {!isMobile && (
+        <div className='mt-[60px] w-full max-w-[1308px] sm:mt-[127.5px]'>
+          <LandingCanvas
+            nodes={rfNodes}
+            edges={rfEdges}
+            groupBox={groupBox}
+            worldWidth={worldWidth}
+            viewportApiRef={viewportApiRef}
+          />
+        </div>
+      )}
     </section>
   )
 }

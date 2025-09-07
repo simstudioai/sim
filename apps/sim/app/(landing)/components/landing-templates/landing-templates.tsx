@@ -81,18 +81,18 @@ export default function LandingTemplates() {
   return (
     <section
       id='templates'
-      className={`${inter.className} flex flex-col px-[50px] pt-[34px]`}
+      className={`${inter.className} flex flex-col px-4 pt-[40px] sm:px-[50px] sm:pt-[34px]`}
       aria-labelledby='templates-heading'
     >
       <h2
         id='templates-heading'
-        className='mb-[24px] font-medium text-[28px] text-foreground tracking-tight'
+        className='mb-[16px] font-medium text-[28px] text-foreground tracking-tight sm:mb-[24px]'
       >
         Templates
       </h2>
 
       {/* Templates Grid */}
-      <div className='grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3'>
+      <div className='grid grid-cols-1 gap-6 sm:gap-8 md:grid-cols-2 lg:grid-cols-3'>
         {templates.map((template, index) => (
           <div
             key={template.id}

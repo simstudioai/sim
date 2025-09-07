@@ -32,7 +32,7 @@ export default function LandingEnterprise() {
   return (
     <section
       id='enterprise'
-      className='flex h-[182px] items-center pt-[34px]'
+      className='flex hidden h-[182px] items-center pt-[34px] sm:block'
       aria-label='Enterprise customers'
     >
       <div className='relative flex h-full w-full items-center justify-between'>

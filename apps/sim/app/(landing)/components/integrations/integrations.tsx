@@ -163,21 +163,21 @@ export default function Integrations() {
   return (
     <section
       id='integrations'
-      className={`${inter.className} flex flex-col pt-[32px] pb-[20px]`}
+      className={`${inter.className} flex flex-col pt-[40px] pb-[21px] sm:pt-[32px]`}
       aria-labelledby='integrations-heading'
     >
       <h2
         id='integrations-heading'
-        className='mb-[4px] pl-[50px] font-medium text-[28px] text-foreground tracking-tight'
+        className='mb-[4px] px-4 font-medium text-[28px] text-foreground tracking-tight sm:pl-[50px]'
       >
         Integrations
       </h2>
-      <p className='mb-[24px] pl-[50px] text-[#515151] text-[18px]'>
+      <p className='mb-[24px] px-4 text-[#515151] text-[18px] sm:pl-[50px]'>
         Immediately connect to 100+ models and apps
       </p>
 
       {/* Sliding tickers */}
-      <div className='flex w-full flex-col px-[12px]'>
+      <div className='flex w-full flex-col sm:px-[12px]'>
         <TickerRow direction='left' offset={0} showOdd={false} icons={modelProviderIcons} />
         <TickerRow direction='right' offset={0.5} showOdd={true} icons={communicationIcons} />
         <TickerRow direction='left' offset={1} showOdd={false} icons={dataStorageIcons} />

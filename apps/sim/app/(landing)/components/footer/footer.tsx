@@ -94,7 +94,7 @@ const tools = [
 export default function Footer() {
   return (
     <footer className={`${inter.className} relative w-full overflow-hidden bg-white`}>
-      <div className='px-[50px] pt-[34px] pb-[340px]'>
+      <div className='px-4 pt-[40px] pb-[40px] sm:px-[50px] sm:pt-[34px] sm:pb-[340px]'>
         <div className='flex gap-[80px]'>
           {/* Logo and social links */}
           <div className='flex flex-col gap-[24px]'>
@@ -218,7 +218,7 @@ export default function Footer() {
           </div>
 
           {/* Blocks section */}
-          <div>
+          <div className='hidden sm:block'>
             <h2 className='mb-[16px] font-medium text-[14px] text-foreground'>Blocks</h2>
             <div className='flex flex-col gap-[12px]'>
               {blocks.map((block) => (
@@ -236,7 +236,7 @@ export default function Footer() {
           </div>
 
           {/* Tools section - split into columns */}
-          <div>
+          <div className='hidden sm:block'>
             <h2 className='mb-[16px] font-medium text-[14px] text-foreground'>Tools</h2>
             <div className='flex gap-[80px]'>
               {/* First column */}
@@ -305,7 +305,7 @@ export default function Footer() {
       </div>
 
       {/* Large SIM logo at bottom - half cut off */}
-      <div className='-translate-x-1/2 pointer-events-none absolute bottom-[-240px] left-1/2'>
+      <div className='-translate-x-1/2 pointer-events-none absolute bottom-[-240px] left-1/2 hidden sm:block'>
         <svg
           xmlns='http://www.w3.org/2000/svg'
           width='1128'

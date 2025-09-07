@@ -11,10 +11,10 @@ export default function Background({ className, children }: BackgroundProps) {
       <svg
         aria-hidden='true'
         focusable='false'
-        className='-translate-x-1/2 pointer-events-none absolute top-0 left-1/2 z-10 h-full min-h-full w-[1308px]'
+        className='-translate-x-1/2 pointer-events-none absolute top-0 left-1/2 z-10 hidden h-full min-h-full w-[1308px] sm:block'
         width='1308'
         height='4942'
-        viewBox='0 10 1308 4942'
+        viewBox='0 18 1308 4942'
         fill='none'
         xmlns='http://www.w3.org/2000/svg'
         preserveAspectRatio='xMidYMin slice'
@@ -180,8 +180,8 @@ export default function Background({ className, children }: BackgroundProps) {
           stroke='#E7E4EF'
           strokeWidth='1.90903'
         />
-        <path d='M10.7967 10V1226.51' stroke='#E7E4EF' strokeWidth='2' />
-        <path d='M1297.76 10V1227.59' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M10.7967 18V1226.51' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M1297.76 18V1227.59' stroke='#E7E4EF' strokeWidth='2' />
         <path d='M6.71704 78.533H1300.76' stroke='#E7E4EF' strokeWidth='2' />
         <circle
           cx='10.7967'

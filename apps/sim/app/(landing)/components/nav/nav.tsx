@@ -1,111 +1,104 @@
+'use client'
+
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { GithubIcon } from '@/components/icons'
-import { env } from '@/lib/env'
+import { createLogger } from '@/lib/logs/console/logger'
 import { soehne } from '@/app/fonts/soehne/soehne'
 
-function formatStarCount(num: number): string {
-  if (num < 1000) return String(num)
-  const formatted = (Math.round(num / 100) / 10).toFixed(1)
-  return formatted.endsWith('.0') ? `${formatted.slice(0, -2)}k` : `${formatted}k`
-}
+const logger = createLogger('nav')
 
-async function fetchGitHubStars(): Promise<string> {
-  // Only fetch on server-side to avoid CSP issues
-  if (typeof window !== 'undefined') {
-    return formatStarCount(13000)
-  }
+export default function Nav() {
+  const [githubStars, setGithubStars] = useState('14.5k')
 
-  try {
-    const token = env.GITHUB_TOKEN
-    const response = await fetch('https://api.github.com/repos/simstudioai/sim', {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent': 'SimStudio/1.0',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      next: { revalidate: 3600 },
-      cache: 'force-cache',
-    })
-
-    if (!response.ok) {
-      console.warn('GitHub API request failed:', response.status)
-      return formatStarCount(13000)
+  useEffect(() => {
+    const fetchStars = async () => {
+      try {
+        const response = await fetch('/api/github-stars')
+        const data = await response.json()
+        setGithubStars(data.stars)
+      } catch (error) {
+        logger.warn('Error fetching GitHub stars:', error)
+      }
     }
 
-    const data = await response.json()
-    return formatStarCount(Number(data?.stargazers_count ?? 13000))
-  } catch (error) {
-    console.warn('Error fetching GitHub stars:', error)
-    return formatStarCount(13000)
-  }
-}
+    fetchStars()
+  }, [])
 
-export default async function Nav() {
-  const formattedStars = await fetchGitHubStars()
-  return (
-    <nav
-      aria-label='Primary'
-      className={`${soehne.className} flex w-full items-center justify-between px-[50px] pt-[11.5px] pb-[26px]`}
-    >
-      <div className='flex items-center gap-[40px]'>
-        <Link href='/' aria-label='Sim home'>
-          <Image
-            src='/logo/b&w/text/b&w.svg'
-            alt='Sim - Workflows for LLMs'
-            width={49.78314}
-            height={24.276}
-            priority
-          />
-        </Link>
-        <ul className='flex items-center justify-center gap-[22px] pt-[4px]'>
-          <li>
-            <Link
-              href='https://docs.sim.ai'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-[16px] text-muted-foreground'
-            >
-              Docs
-            </Link>
-          </li>
-          <li>
-            <Link href='#pricing' className='text-[16px] text-muted-foreground'>
-              Pricing
-            </Link>
-          </li>
-          <li>
-            <Link href='#enterprise' className='text-[16px] text-muted-foreground'>
-              Enterprise
-            </Link>
-          </li>
-          <li>
-            <a
-              href='https://github.com/simstudioai/sim'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='flex items-center gap-2 text-[16px] text-muted-foreground'
-              aria-label={`GitHub repository - ${formattedStars} stars`}
-            >
-              <GithubIcon className='h-[16px] w-[16px]' aria-hidden='true' />
-              <span>{formattedStars}</span>
-            </a>
-          </li>
-        </ul>
-      </div>
-      <div className='flex items-center justify-center gap-[20px] pt-[2px]'>
-        <Link href='/login' className='text-[#2E2E2E] text-[16px]'>
-          Log in
-        </Link>
+  const NavLinks = () => (
+    <>
+      <li>
         <Link
-          href='/signup'
-          className='inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#6F3DFA] bg-gradient-to-b from-[#8357FF] to-[#6F3DFA] px-3 py-[6px] text-[16px] text-white shadow-[inset_0_2px_4px_0_#9B77FF]'
-          aria-label='Get started with Sim'
+          href='https://docs.sim.ai'
+          target='_blank'
+          rel='noopener noreferrer'
+          className='text-[16px] text-muted-foreground'
         >
-          Get started
+          Docs
         </Link>
-      </div>
-    </nav>
+      </li>
+      <li>
+        <Link href='#pricing' className='text-[16px] text-muted-foreground'>
+          Pricing
+        </Link>
+      </li>
+      <li>
+        <Link href='#enterprise' className='text-[16px] text-muted-foreground'>
+          Enterprise
+        </Link>
+      </li>
+      <li>
+        <a
+          href='https://github.com/simstudioai/sim'
+          target='_blank'
+          rel='noopener noreferrer'
+          className='flex items-center gap-2 text-[16px] text-muted-foreground'
+          aria-label={`GitHub repository - ${githubStars} stars`}
+        >
+          <GithubIcon className='h-[16px] w-[16px]' aria-hidden='true' />
+          <span>{githubStars}</span>
+        </a>
+      </li>
+    </>
+  )
+
+  return (
+    <>
+      <nav
+        aria-label='Primary'
+        className={`${soehne.className} flex w-full items-center justify-between px-4 pt-[12px] pb-[21px] sm:px-8 sm:pt-[8.5px] md:px-[44px]`}
+      >
+        <div className='flex items-center gap-[34px]'>
+          <Link href='/' aria-label='Sim home'>
+            <Image
+              src='/logo/b&w/text/b&w.svg'
+              alt='Sim - Workflows for LLMs'
+              width={49.78314}
+              height={24.276}
+              priority
+            />
+          </Link>
+          {/* Desktop Navigation Links - same position as original */}
+          <ul className='hidden items-center justify-center gap-[20px] pt-[4px] md:flex'>
+            <NavLinks />
+          </ul>
+        </div>
+
+        {/* Auth Buttons - Desktop shows both, Mobile shows only Get started */}
+        <div className='flex items-center justify-center gap-[20px] pt-[1.5px]'>
+          <Link href='/login' className='hidden text-[#2E2E2E] text-[16px] md:block'>
+            Log in
+          </Link>
+          <Link
+            href='/signup'
+            className='inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#6F3DFA] bg-gradient-to-b from-[#8357FF] to-[#6F3DFA] px-3 py-[6px] text-[14px] text-white shadow-[inset_0_2px_4px_0_#9B77FF] sm:text-[16px]'
+            aria-label='Get started with Sim'
+          >
+            Get started
+          </Link>
+        </div>
+      </nav>
+    </>
   )
 }
