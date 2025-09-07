@@ -42,10 +42,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Summary is required' }, { status: 400 })
     }
 
-    if (!issueType) {
-      logger.error('Missing issue type in request')
-      return NextResponse.json({ error: 'Issue type is required' }, { status: 400 })
-    }
+    const normalizedIssueType = issueType || 'Task'
 
     // Use provided cloudId or fetch it if not provided
     const cloudId = providedCloudId || (await getJiraCloudId(domain, accessToken))
@@ -62,7 +59,7 @@ export async function POST(request: Request) {
         id: projectId,
       },
       issuetype: {
-        name: issueType,
+        name: normalizedIssueType,
       },
       summary: summary,
     }
