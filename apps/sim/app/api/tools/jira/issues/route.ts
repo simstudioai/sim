@@ -6,17 +6,32 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('JiraIssuesAPI')
 
+// Helper functions
+const createErrorResponse = async (response: Response, defaultMessage: string) => {
+  try {
+    const errorData = await response.json()
+    return errorData.message || errorData.errorMessages?.[0] || defaultMessage
+  } catch {
+    return defaultMessage
+  }
+}
+
+const validateRequiredParams = (domain: string | null, accessToken: string | null) => {
+  if (!domain) {
+    return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
+  }
+  if (!accessToken) {
+    return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
+  }
+  return null
+}
+
 export async function POST(request: Request) {
   try {
     const { domain, accessToken, issueKeys = [], cloudId: providedCloudId } = await request.json()
 
-    if (!domain) {
-      return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
-    }
-
-    if (!accessToken) {
-      return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
-    }
+    const validationError = validateRequiredParams(domain || null, accessToken || null)
+    if (validationError) return validationError
 
     if (issueKeys.length === 0) {
       logger.info('No issue keys provided, returning empty result')
@@ -24,7 +39,7 @@ export async function POST(request: Request) {
     }
 
     // Use provided cloudId or fetch it if not provided
-    const cloudId = providedCloudId || (await getJiraCloudId(domain, accessToken))
+    const cloudId = providedCloudId || (await getJiraCloudId(domain!, accessToken!))
 
     // Build the URL using cloudId for Jira API
     const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/bulkfetch`
@@ -53,47 +68,24 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       logger.error(`Jira API error: ${response.status} ${response.statusText}`)
-      let errorMessage
-
-      try {
-        const errorData = await response.json()
-        logger.error('Error details:', JSON.stringify(errorData, null, 2))
-        errorMessage = errorData.message || `Failed to fetch Jira issues (${response.status})`
-      } catch (e) {
-        logger.error('Could not parse error response as JSON:', e)
-
-        try {
-          const _text = await response.text()
-          errorMessage = `Failed to fetch Jira issues: ${response.status} ${response.statusText}`
-        } catch (_textError) {
-          errorMessage = `Failed to fetch Jira issues: ${response.status} ${response.statusText}`
-        }
-      }
-
+      const errorMessage = await createErrorResponse(
+        response,
+        `Failed to fetch Jira issues (${response.status})`
+      )
       return NextResponse.json({ error: errorMessage }, { status: response.status })
     }
 
     const data = await response.json()
+    const issues = (data.issues || []).map((issue: any) => ({
+      id: issue.key,
+      name: issue.fields.summary,
+      mimeType: 'jira/issue',
+      url: `https://${domain}/browse/${issue.key}`,
+      modifiedTime: issue.fields.updated,
+      webViewLink: `https://${domain}/browse/${issue.key}`,
+    }))
 
-    if (data.issues && data.issues.length > 0) {
-      data.issues.slice(0, 3).forEach((issue: any) => {
-        logger.info(`- ${issue.key}: ${issue.fields.summary}`)
-      })
-    }
-
-    return NextResponse.json({
-      issues: data.issues
-        ? data.issues.map((issue: any) => ({
-            id: issue.key,
-            name: issue.fields.summary,
-            mimeType: 'jira/issue',
-            url: `https://${domain}/browse/${issue.key}`,
-            modifiedTime: issue.fields.updated,
-            webViewLink: `https://${domain}/browse/${issue.key}`,
-          }))
-        : [],
-      cloudId, // Return the cloudId so it can be cached
-    })
+    return NextResponse.json({ issues, cloudId })
   } catch (error) {
     logger.error('Error fetching Jira issues:', error)
     return NextResponse.json(
@@ -111,83 +103,79 @@ export async function GET(request: Request) {
     const providedCloudId = url.searchParams.get('cloudId')
     const query = url.searchParams.get('query') || ''
     const projectId = url.searchParams.get('projectId') || ''
+    const manualProjectId = url.searchParams.get('manualProjectId') || ''
+    const all = url.searchParams.get('all')?.toLowerCase() === 'true'
+    const limitParam = Number.parseInt(url.searchParams.get('limit') || '', 10)
+    const limit = Number.isFinite(limitParam) && limitParam > 0 ? limitParam : 0
 
-    if (!domain) {
-      return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
-    }
+    const validationError = validateRequiredParams(domain || null, accessToken || null)
+    if (validationError) return validationError
 
-    if (!accessToken) {
-      return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
-    }
-
-    // Use provided cloudId or fetch it if not provided
-    const cloudId = providedCloudId || (await getJiraCloudId(domain, accessToken))
-    logger.info('Using cloud ID:', cloudId)
-
-    // Build query parameters
-    const params = new URLSearchParams()
-
-    // Only add query if it exists
-    if (query) {
-      params.append('query', query)
-    }
-
+    const cloudId = providedCloudId || (await getJiraCloudId(domain!, accessToken!))
     let data: any
 
     if (query) {
-      const apiUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/picker?${params.toString()}`
-      logger.info(`Fetching Jira issue suggestions from: ${apiUrl}`)
+      const params = new URLSearchParams({ query })
+      const apiUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/picker?${params}`
       const response = await fetch(apiUrl, {
-        method: 'GET',
         headers: {
           Authorization: `Bearer ${accessToken}`,
           Accept: 'application/json',
         },
       })
-      logger.info('Response status:', response.status, response.statusText)
+
       if (!response.ok) {
-        logger.error(`Jira API error: ${response.status} ${response.statusText}`)
-        let errorMessage
-        try {
-          const errorData = await response.json()
-          logger.error('Error details:', errorData)
-          errorMessage =
-            errorData.message || `Failed to fetch issue suggestions (${response.status})`
-        } catch (_e) {
-          errorMessage = `Failed to fetch issue suggestions: ${response.status} ${response.statusText}`
-        }
+        const errorMessage = await createErrorResponse(
+          response,
+          `Failed to fetch issue suggestions (${response.status})`
+        )
         return NextResponse.json({ error: errorMessage }, { status: response.status })
       }
       data = await response.json()
-    } else if (projectId) {
-      // When no query, list latest issues for the selected project using Search API
-      const searchParams = new URLSearchParams()
-      searchParams.append('jql', `project=${projectId} ORDER BY updated DESC`)
-      searchParams.append('maxResults', '25')
-      searchParams.append('fields', 'summary,key')
-      const searchUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search?${searchParams.toString()}`
-      logger.info(`Fetching Jira issues via search from: ${searchUrl}`)
-      const response = await fetch(searchUrl, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: 'application/json',
-        },
-      })
-      if (!response.ok) {
-        let errorMessage
-        try {
-          const errorData = await response.json()
-          logger.error('Jira Search API error details:', errorData)
-          errorMessage =
-            errorData.errorMessages?.[0] || `Failed to fetch issues (${response.status})`
-        } catch (_e) {
-          errorMessage = `Failed to fetch issues: ${response.status} ${response.statusText}`
-        }
-        return NextResponse.json({ error: errorMessage }, { status: response.status })
+    } else if (projectId || manualProjectId) {
+      const SAFETY_CAP = 1000
+      const PAGE_SIZE = 100
+      const target = Math.min(all ? limit || SAFETY_CAP : 25, SAFETY_CAP)
+      const projectKey = (projectId || manualProjectId).trim()
+
+      const buildSearchUrl = (startAt: number) => {
+        const params = new URLSearchParams({
+          jql: `project=${projectKey} ORDER BY updated DESC`,
+          maxResults: String(Math.min(PAGE_SIZE, target)),
+          startAt: String(startAt),
+          fields: 'summary,key,updated',
+        })
+        return `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search?${params}`
       }
-      const searchData = await response.json()
-      const issues = (searchData.issues || []).map((it: any) => ({
+
+      let startAt = 0
+      let collected: any[] = []
+      let total = 0
+
+      do {
+        const response = await fetch(buildSearchUrl(startAt), {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/json',
+          },
+        })
+
+        if (!response.ok) {
+          const errorMessage = await createErrorResponse(
+            response,
+            `Failed to fetch issues (${response.status})`
+          )
+          return NextResponse.json({ error: errorMessage }, { status: response.status })
+        }
+
+        const page = await response.json()
+        const issues = page.issues || []
+        total = page.total || issues.length
+        collected = collected.concat(issues)
+        startAt += PAGE_SIZE
+      } while (all && collected.length < Math.min(total, target))
+
+      const issues = collected.slice(0, target).map((it: any) => ({
         key: it.key,
         summary: it.fields?.summary || it.key,
       }))
@@ -196,10 +184,7 @@ export async function GET(request: Request) {
       data = { sections: [], cloudId }
     }
 
-    return NextResponse.json({
-      ...data,
-      cloudId, // Return the cloudId so it can be cached
-    })
+    return NextResponse.json({ ...data, cloudId })
   } catch (error) {
     logger.error('Error fetching Jira issue suggestions:', error)
     return NextResponse.json(

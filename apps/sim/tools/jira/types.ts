@@ -4,7 +4,7 @@ export interface JiraRetrieveParams {
   accessToken: string
   issueKey: string
   domain: string
-  cloudId: string
+  cloudId?: string
 }
 
 export interface JiraRetrieveResponse extends ToolResponse {
@@ -22,7 +22,7 @@ export interface JiraRetrieveBulkParams {
   accessToken: string
   domain: string
   projectId: string
-  cloudId: string
+  cloudId?: string
 }
 
 export interface JiraRetrieveResponseBulk extends ToolResponse {
