@@ -20,7 +20,6 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       layout: 'full',
       options: [
         { label: 'Read Issue', id: 'read' },
-        { label: 'Read Issues', id: 'read-bulk' },
         { label: 'Update Issue', id: 'update' },
         { label: 'Write Issue', id: 'write' },
       ],
