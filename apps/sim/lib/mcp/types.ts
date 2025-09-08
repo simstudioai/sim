@@ -108,6 +108,7 @@ export interface McpToolCall {
   arguments: Record<string, any>
 }
 
+// Standard MCP protocol response format
 export interface McpToolResult {
   content?: Array<{
     type: 'text' | 'image' | 'resource'
@@ -116,6 +117,8 @@ export interface McpToolResult {
     mimeType?: string
   }>
   isError?: boolean
+  // Allow additional fields that some MCP servers return
+  [key: string]: any
 }
 
 // MCP Resource Types

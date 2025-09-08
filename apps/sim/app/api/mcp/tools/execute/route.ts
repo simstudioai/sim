@@ -113,10 +113,23 @@ export async function POST(request: NextRequest) {
       ),
     ])
 
+    // Debug log the actual MCP result structure to understand why isError might be true
+    logger.info(`[${requestId}] Raw MCP result structure:`, {
+      isError: result.isError,
+      hasContent: !!result.content,
+      contentLength: result.content?.length || 0,
+      resultKeys: Object.keys(result),
+      firstContentItem: result.content?.[0],
+    })
+
     const transformedResult = transformToolResult(result)
 
     if (result.isError) {
       logger.warn(`[${requestId}] Tool execution returned error for ${toolName} on ${serverId}`)
+      logger.warn(`[${requestId}] Error details:`, {
+        errorContent: result.content,
+        fullResult: result,
+      })
       return createMcpErrorResponse(transformedResult, 'Tool execution failed', 400)
     }
     logger.info(`[${requestId}] Successfully executed tool ${toolName} on server ${serverId}`)
@@ -183,6 +196,7 @@ function validateToolArguments(tool: any, args: any): string | null {
 
 /**
  * Transform MCP tool result to platform format
+ * Preserves the exact MCP response structure without modification
  */
 function transformToolResult(result: McpToolResult): any {
   if (result.isError) {
@@ -193,17 +207,10 @@ function transformToolResult(result: McpToolResult): any {
     }
   }
 
-  const textContent =
-    result.content
-      ?.filter((c) => c.type === 'text')
-      .map((c) => c.text)
-      .join('\n') || ''
-
+  // Return the exact MCP response structure as-is
+  // This preserves the standard MCP format: { content: [...], isError: false, ...any other fields }
   return {
     success: true,
-    output: {
-      text: textContent,
-      content: result.content || [],
-    },
+    output: result, // Preserve exact structure that came from the MCP server
   }
 }

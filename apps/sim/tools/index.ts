@@ -767,10 +767,26 @@ async function executeUncheckedMcpTool(
     }
 
     // Execute MCP tool via API
+    // Extract just the arguments parameter - MCP blocks store tool arguments in the 'arguments' field
+    // The arguments are stored as a JSON string by mcp-dynamic-args component
+    let toolArguments = {}
+    if (params.arguments) {
+      if (typeof params.arguments === 'string') {
+        try {
+          toolArguments = JSON.parse(params.arguments)
+        } catch (error) {
+          logger.warn(`[${actualRequestId}] Failed to parse MCP arguments JSON:`, params.arguments)
+          toolArguments = {}
+        }
+      } else {
+        toolArguments = params.arguments
+      }
+    }
+
     const requestBody = {
       serverId,
       toolName,
-      arguments: params,
+      arguments: toolArguments,
       workflowId: params._context?.workflowId || executionContext?.workflowId, // Pass workflow context for user resolution
     }
 
@@ -834,9 +850,11 @@ async function executeUncheckedMcpTool(
     logger.info(`[${actualRequestId}] MCP tool ${toolId} executed successfully`)
 
     // Return result in standard ToolResponse format
+    // The MCP API returns { success: true, data: transformedResult }
+    // where transformedResult is { success: true, output: mcpResult }
     return {
       success: true,
-      output: result.data.output || {},
+      output: result.data?.output || result.output || result.data || {},
       timing: {
         startTime: actualStartTime,
         endTime: endTimeISO,

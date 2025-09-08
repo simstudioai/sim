@@ -3,20 +3,7 @@ import type { BlockConfig } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
 
 export interface McpResponse extends ToolResponse {
-  output: {
-    text: string
-    content?: Array<{
-      type: 'text' | 'image' | 'resource'
-      text?: string
-      data?: string
-      mimeType?: string
-    }>
-    metadata?: {
-      hasImages: boolean
-      hasResources: boolean
-      contentTypes: string[]
-    }
-  }
+  output: any // Raw structured response from MCP tool
 }
 
 export const McpBlock: BlockConfig<McpResponse> = {
@@ -67,15 +54,29 @@ export const McpBlock: BlockConfig<McpResponse> = {
       },
     },
   ],
+  // MCP blocks use the tools framework with dynamic tool IDs
   tools: {
-    access: ['mcp_execute'], // Custom tool identifier for MCP execution
+    access: ['mcp-dynamic'], // Placeholder - actual tool ID determined by config.tool function
     config: {
-      tool: () => 'mcp_execute',
-      params: (params: Record<string, any>) => ({
-        serverId: params.server,
-        toolName: params.tool,
-        arguments: params.arguments ? JSON.parse(params.arguments) : {},
-      }),
+      tool: (params: any) => {
+        // Build MCP tool ID from server and tool selections
+        if (params.server && params.tool) {
+          // Server ID is in format "mcp-timestamp"
+          const serverId = params.server
+          let toolName = params.tool
+
+          // Handle case where tool selection might include the full MCP tool ID
+          // If tool contains the server ID, extract just the tool name
+          if (toolName.startsWith(`${serverId}-`)) {
+            toolName = toolName.substring(`${serverId}-`.length)
+          }
+
+          // Format: "mcp-timestamp-toolName"
+          return `${serverId}-${toolName}`
+        }
+        // Fallback when no selection is made yet
+        return 'mcp-dynamic'
+      },
     },
   },
   inputs: {
@@ -98,33 +99,11 @@ export const McpBlock: BlockConfig<McpResponse> = {
     },
   },
   outputs: {
-    text: {
-      type: 'string',
-      description: 'Primary text output from the MCP tool',
-    },
-    content: {
-      type: 'json',
-      description: 'Full content array with all response types',
-    },
-    hasImages: {
-      type: 'boolean',
-      description: 'Whether the response contains image content',
-    },
-    hasResources: {
-      type: 'boolean',
-      description: 'Whether the response contains resource references',
-    },
-    contentTypes: {
-      type: 'array',
-      description: 'Array of content types present in the response',
-    },
-    success: {
-      type: 'boolean',
-      description: 'Whether the tool execution was successful',
-    },
-    error: {
-      type: 'string',
-      description: 'Error message if execution failed',
+    // Raw structured response from MCP tool - access any field directly
+    // Examples: <blockName.requestId>, <blockName.results>, <blockName.content>, <blockName.autopromptString>
+    '*': {
+      type: 'any',
+      description: 'Raw structured response from the MCP tool - access any field directly',
     },
   },
 }

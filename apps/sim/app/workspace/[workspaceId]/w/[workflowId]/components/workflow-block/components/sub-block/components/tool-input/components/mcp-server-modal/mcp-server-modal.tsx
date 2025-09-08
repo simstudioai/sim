@@ -272,7 +272,7 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
                 visible={showEnvVars}
                 onSelect={handleEnvVarSelect}
                 searchTerm={searchTerm}
-                inputValue={formData.url}
+                inputValue={formData.url || ''}
                 cursorPosition={cursorPosition}
                 workspaceId={workspaceId}
                 onClose={() => {
@@ -413,7 +413,10 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
           >
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={isLoading || !formData.name.trim()}>
+          <Button
+            onClick={handleSubmit}
+            disabled={isLoading || !formData.name.trim() || !formData.url?.trim()}
+          >
             {isLoading ? 'Adding...' : 'Add Server'}
           </Button>
         </DialogFooter>

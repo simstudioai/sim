@@ -10,6 +10,7 @@ export enum BlockType {
   FUNCTION = 'function',
   AGENT = 'agent',
   API = 'api',
+  MCP = 'mcp',
   EVALUATOR = 'evaluator',
   RESPONSE = 'response',
   WORKFLOW = 'workflow',

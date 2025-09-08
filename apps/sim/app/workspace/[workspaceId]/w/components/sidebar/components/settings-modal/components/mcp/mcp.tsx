@@ -310,7 +310,7 @@ export function MCP() {
                           visible={showEnvVars}
                           onSelect={handleEnvVarSelect}
                           searchTerm={envSearchTerm}
-                          inputValue={formData.url}
+                          inputValue={formData.url || ''}
                           cursorPosition={cursorPosition}
                           workspaceId={workspaceId}
                           onClose={() => {
@@ -470,7 +470,9 @@ export function MCP() {
                         <Button
                           size='sm'
                           onClick={handleAddServer}
-                          disabled={serversLoading || !formData.name.trim()}
+                          disabled={
+                            serversLoading || !formData.name.trim() || !formData.url?.trim()
+                          }
                         >
                           {serversLoading ? 'Adding...' : 'Add Server'}
                         </Button>
@@ -610,7 +612,7 @@ export function MCP() {
                             visible={showEnvVars}
                             onSelect={handleEnvVarSelect}
                             searchTerm={envSearchTerm}
-                            inputValue={formData.url}
+                            inputValue={formData.url || ''}
                             cursorPosition={cursorPosition}
                             workspaceId={workspaceId}
                             onClose={() => {
@@ -772,7 +774,9 @@ export function MCP() {
                           <Button
                             size='sm'
                             onClick={handleAddServer}
-                            disabled={serversLoading || !formData.name.trim()}
+                            disabled={
+                              serversLoading || !formData.name.trim() || !formData.url?.trim()
+                            }
                           >
                             {serversLoading ? 'Adding...' : 'Add Server'}
                           </Button>

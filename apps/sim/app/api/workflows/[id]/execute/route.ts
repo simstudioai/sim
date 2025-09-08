@@ -201,8 +201,50 @@ async function executeWorkflow(
       }
     }
 
+    // Apply parameter transformations for blocks that need them (like MCP)
+    const transformedBlockStates = await Object.entries(currentBlockStates).reduce(
+      async (accPromise, [blockId, blockState]) => {
+        const acc = await accPromise
+
+        // Find the corresponding block in merged states to get its type
+        const blockData = mergedStates[blockId]
+        if (blockData?.type) {
+          try {
+            const { getBlock } = await import('@/blocks')
+            const blockConfig = getBlock(blockData.type)
+
+            // Apply parameter transformation if the block has one
+            if (blockConfig?.tools?.config?.params) {
+              const transformedParams = blockConfig.tools.config.params(blockState)
+              logger.debug(
+                `[${requestId}] Applied parameter transformation for block ${blockId} (${blockData.type})`,
+                {
+                  original: Object.keys(blockState),
+                  transformed: Object.keys(transformedParams),
+                }
+              )
+              acc[blockId] = transformedParams
+            } else {
+              acc[blockId] = blockState
+            }
+          } catch (error) {
+            logger.warn(
+              `[${requestId}] Failed to apply parameter transformation for block ${blockId}:`,
+              error
+            )
+            acc[blockId] = blockState
+          }
+        } else {
+          acc[blockId] = blockState
+        }
+
+        return acc
+      },
+      Promise.resolve({} as Record<string, Record<string, any>>)
+    )
+
     // Process the block states to ensure response formats are properly parsed
-    const processedBlockStates = Object.entries(currentBlockStates).reduce(
+    const processedBlockStates = Object.entries(transformedBlockStates).reduce(
       (acc, [blockId, blockState]) => {
         // Check if this block has a responseFormat that needs to be parsed
         if (blockState.responseFormat && typeof blockState.responseFormat === 'string') {
@@ -262,10 +304,61 @@ async function executeWorkflow(
       logger.debug(`[${requestId}] No workflow variables found for: ${workflowId}`)
     }
 
+    // Create merged states that combine block metadata with transformed parameters
+    const finalMergedStates = Object.entries(mergedStates).reduce(
+      (acc, [blockId, blockData]) => {
+        const transformedParams = processedBlockStates[blockId]
+        if (transformedParams) {
+          // Update the block's subBlocks with transformed parameters
+          const updatedSubBlocks = Object.entries(transformedParams).reduce(
+            (subAcc, [key, value]) => {
+              // Preserve original subBlock structure but update the value
+              const originalSubBlock = blockData.subBlocks[key]
+              subAcc[key] = {
+                id: originalSubBlock?.id || key,
+                type: originalSubBlock?.type || 'text',
+                value,
+              }
+              return subAcc
+            },
+            {} as Record<string, any>
+          )
+
+          acc[blockId] = {
+            ...blockData,
+            subBlocks: updatedSubBlocks,
+          }
+        } else {
+          acc[blockId] = blockData
+        }
+        return acc
+      },
+      {} as typeof mergedStates
+    )
+
+    // Debug: Log the final merged states to verify transformation
+    const mcpBlock = Object.entries(finalMergedStates).find(
+      ([_, blockData]) => blockData.type === 'mcp'
+    )
+    if (mcpBlock) {
+      const [blockId, blockData] = mcpBlock
+      logger.debug(`[${requestId}] Final MCP block state before serialization:`, {
+        blockId,
+        subBlocks: Object.keys(blockData.subBlocks),
+        subBlockValues: Object.entries(blockData.subBlocks).reduce(
+          (acc, [key, subBlock]) => {
+            acc[key] = subBlock.value
+            return acc
+          },
+          {} as Record<string, any>
+        ),
+      })
+    }
+
     // Serialize and execute the workflow
     logger.debug(`[${requestId}] Serializing workflow: ${workflowId}`)
     const serializedWorkflow = new Serializer().serializeWorkflow(
-      mergedStates,
+      finalMergedStates,
       edges,
       loops,
       parallels,

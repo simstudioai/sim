@@ -1,13 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { AlertCircle } from 'lucide-react'
+import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import {
-  Dropdown,
-  LongInput,
-  ShortInput,
-  SliderInput,
-  Switch,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import { useMcpTools } from '@/hooks/use-mcp-tools'
 import { formatParameterLabel } from '@/tools/params'
@@ -68,7 +61,7 @@ export function McpDynamicArgs({
     [currentArgs, setToolArgs, disabled]
   )
 
-  // Validate current arguments against schema
+  // Validate current arguments against schema (but don't show error - asterisk already indicates required)
   useEffect(() => {
     if (!toolSchema?.properties || !toolArgs) return
 
@@ -80,11 +73,8 @@ export function McpDynamicArgs({
           !Object.hasOwn(parsed, req) || parsed[req] === undefined || parsed[req] === ''
       )
 
-      if (missing.length > 0) {
-        setError(`Missing required parameters: ${missing.join(', ')}`)
-      } else {
-        setError(null)
-      }
+      // We don't show the error message anymore since asterisk already indicates required fields
+      setError(null)
     } catch (err) {
       setError('Invalid JSON format')
     }
@@ -117,97 +107,123 @@ export function McpDynamicArgs({
 
     const inputType = getInputType()
 
+    // Custom props that override the default useSubBlockValue behavior
+    // We manage all parameters in a single JSON field, not separate fields
     const commonProps = {
       blockId,
-      subBlockId: paramName,
+      subBlockId: paramName, // This is ignored since we override with custom onChange
       disabled,
-      isPreview,
+      isPreview: true, // Force preview mode to use our custom values
       previewValue: value,
     }
 
     switch (inputType) {
       case 'switch':
         return (
-          <Switch
-            {...commonProps}
-            title={formatParameterLabel(paramName)}
-            // Override the hook to use our custom update
-            key={`${paramName}-switch`}
-          />
+          <div key={`${paramName}-switch`}>
+            <label className='flex cursor-pointer items-center gap-2'>
+              <input
+                type='checkbox'
+                checked={!!value}
+                onChange={(e) => updateParameter(paramName, e.target.checked)}
+                disabled={disabled}
+                className='sr-only'
+              />
+              <div
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  value ? 'bg-primary' : 'bg-gray-200 dark:bg-gray-700'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    value ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </div>
+              <span className='text-sm'>{formatParameterLabel(paramName)}</span>
+            </label>
+          </div>
         )
 
       case 'dropdown':
         return (
-          <Dropdown
-            {...commonProps}
-            options={
-              paramSchema.enum?.map((val: any) => ({ label: String(val), id: String(val) })) || []
-            }
-            placeholder={`Select ${formatParameterLabel(paramName).toLowerCase()}`}
-            defaultValue={value}
-            config={{
-              id: paramName,
-              type: 'dropdown',
-              title: formatParameterLabel(paramName),
-              required: isRequired,
-            }}
-            key={`${paramName}-dropdown`}
-          />
+          <div key={`${paramName}-dropdown`}>
+            <select
+              value={value || ''}
+              onChange={(e) => updateParameter(paramName, e.target.value)}
+              disabled={disabled}
+              className='flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50'
+            >
+              <option value=''>{`Select ${formatParameterLabel(paramName).toLowerCase()}`}</option>
+              {paramSchema.enum?.map((option: any) => (
+                <option key={String(option)} value={String(option)}>
+                  {String(option)}
+                </option>
+              ))}
+            </select>
+          </div>
         )
 
       case 'slider':
         return (
-          <SliderInput
-            {...commonProps}
-            min={paramSchema.minimum || 0}
-            max={paramSchema.maximum || 100}
-            step={paramSchema.type === 'integer' ? 1 : 0.1}
-            integer={paramSchema.type === 'integer'}
-            defaultValue={value || paramSchema.minimum || 0}
-            key={`${paramName}-slider`}
-          />
+          <div key={`${paramName}-slider`} className='space-y-2'>
+            <div className='flex items-center justify-between'>
+              <span className='text-sm'>{formatParameterLabel(paramName)}</span>
+              <span className='text-gray-500 text-sm'>{value || paramSchema.minimum || 0}</span>
+            </div>
+            <input
+              type='range'
+              min={paramSchema.minimum || 0}
+              max={paramSchema.maximum || 100}
+              step={paramSchema.type === 'integer' ? 1 : 0.1}
+              value={value || paramSchema.minimum || 0}
+              onChange={(e) =>
+                updateParameter(
+                  paramName,
+                  paramSchema.type === 'integer'
+                    ? Number.parseInt(e.target.value)
+                    : Number.parseFloat(e.target.value)
+                )
+              }
+              disabled={disabled}
+              className='w-full'
+            />
+          </div>
         )
 
       case 'long-input':
         return (
-          <LongInput
-            {...commonProps}
-            placeholder={
-              paramSchema.description || `Enter ${formatParameterLabel(paramName).toLowerCase()}`
-            }
-            rows={4}
-            config={{
-              id: paramName,
-              type: 'long-input',
-              title: formatParameterLabel(paramName),
-              required: isRequired,
-            }}
-            isConnecting={false}
-            key={`${paramName}-long`}
-          />
+          <div key={`${paramName}-long`}>
+            <textarea
+              value={value || ''}
+              onChange={(e) => updateParameter(paramName, e.target.value)}
+              placeholder={
+                paramSchema.description || `Enter ${formatParameterLabel(paramName).toLowerCase()}`
+              }
+              disabled={disabled}
+              rows={4}
+              className='flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50'
+            />
+          </div>
         )
 
-      default:
+      default: {
+        const isPassword =
+          paramName.toLowerCase().includes('password') || paramName.toLowerCase().includes('token')
         return (
-          <ShortInput
-            {...commonProps}
-            placeholder={
-              paramSchema.description || `Enter ${formatParameterLabel(paramName).toLowerCase()}`
-            }
-            password={
-              paramName.toLowerCase().includes('password') ||
-              paramName.toLowerCase().includes('token')
-            }
-            config={{
-              id: paramName,
-              type: 'short-input',
-              title: formatParameterLabel(paramName),
-              required: isRequired,
-            }}
-            isConnecting={false}
-            key={`${paramName}-short`}
-          />
+          <div key={`${paramName}-short`}>
+            <Input
+              type={isPassword ? 'password' : 'text'}
+              value={value || ''}
+              onChange={(e) => updateParameter(paramName, e.target.value)}
+              placeholder={
+                paramSchema.description || `Enter ${formatParameterLabel(paramName).toLowerCase()}`
+              }
+              disabled={disabled}
+            />
+          </div>
         )
+      }
     }
   }
 
@@ -231,14 +247,6 @@ export function McpDynamicArgs({
 
   return (
     <div className='space-y-4'>
-      {/* Error display */}
-      {error && (
-        <div className='flex items-center gap-2 rounded-lg bg-red-50 p-3 text-red-700 text-sm dark:bg-red-900/20 dark:text-red-400'>
-          <AlertCircle className='h-4 w-4' />
-          {error}
-        </div>
-      )}
-
       {/* Dynamic parameter inputs */}
       <div className='space-y-4'>
         {Object.entries(toolSchema.properties).map(([paramName, paramSchema]) => (

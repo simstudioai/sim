@@ -140,16 +140,23 @@ export class McpClient {
 
     try {
       logger.info(`Calling tool ${toolCall.name} on server ${this.config.name}`)
+      logger.info(`Tool call arguments:`, {
+        toolName: toolCall.name,
+        arguments: toolCall.arguments,
+        argumentsType: typeof toolCall.arguments,
+        argumentsKeys: toolCall.arguments ? Object.keys(toolCall.arguments) : 'null',
+      })
 
       const response = await this.sendRequest('tools/call', {
         name: toolCall.name,
         arguments: toolCall.arguments,
       })
 
-      return {
-        content: response.content || [],
-        isError: response.isError || false,
-      }
+      // The response is the JSON-RPC 'result' field, which can be:
+      // 1. Standard MCP format: { content: [...], isError?: boolean }
+      // 2. Rich format with additional fields like requestId, results, etc.
+      // We preserve the full response to allow rich data to flow through
+      return response as McpToolResult
     } catch (error) {
       logger.error(`Failed to call tool ${toolCall.name} on server ${this.config.name}:`, error)
       throw error
