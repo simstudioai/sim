@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
-import { workflow as workflowTable, workflowCheckpoints } from '@/db/schema'
+import { workflow as workflowTable, workflowCheckpoints, customTools } from '@/db/schema'
 import { getAllBlocks, getBlock } from '@/blocks'
 import type { BlockConfig } from '@/blocks/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
@@ -137,6 +137,105 @@ async function createWorkflowCheckpoint(
   }
 }
 
+async function upsertCustomToolsFromBlocks(
+  userId: string,
+  blocks: Record<string, any>,
+  requestId: string
+): Promise<{ created: number; updated: number }> {
+  try {
+    // Collect custom tools from all agent blocks
+    const collected: Array<{ title: string; schema: any; code: string }> = []
+
+    for (const block of Object.values(blocks)) {
+      if (!block || block.type !== 'agent') continue
+      const toolsSub = block.subBlocks?.tools
+      if (!toolsSub) continue
+
+      let value = toolsSub.value
+      if (!value) continue
+      if (typeof value === 'string') {
+        try {
+          value = JSON.parse(value)
+        } catch {
+          continue
+        }
+      }
+      if (!Array.isArray(value)) continue
+
+      for (const tool of value) {
+        if (
+          tool &&
+          tool.type === 'custom-tool' &&
+          tool.schema &&
+          tool.schema.function &&
+          tool.schema.function.name &&
+          typeof tool.code === 'string'
+        ) {
+          collected.push({ title: tool.title || tool.schema.function.name, schema: tool.schema, code: tool.code })
+        }
+      }
+    }
+
+    if (collected.length === 0) return { created: 0, updated: 0 }
+
+    // Ensure unique by function name
+    const byName = new Map<string, { title: string; schema: any; code: string }>()
+    for (const t of collected) {
+      const name = t.schema.function.name
+      if (!byName.has(name)) byName.set(name, t)
+    }
+
+    // Load existing user's tools
+    const existing = await db
+      .select()
+      .from(customTools)
+      .where(eq(customTools.userId, userId))
+
+    const existingByName = new Map<string, (typeof existing)[number]>()
+    for (const row of existing) {
+      try {
+        const fnName = (row.schema as any)?.function?.name
+        if (fnName) existingByName.set(fnName, row as any)
+      } catch {}
+    }
+
+    let created = 0
+    let updated = 0
+    const now = new Date()
+
+    // Upsert by function name
+    for (const [name, tool] of byName.entries()) {
+      const match = existingByName.get(name)
+      if (!match) {
+        await db.insert(customTools).values({
+          id: crypto.randomUUID(),
+          userId,
+          title: tool.title,
+          schema: tool.schema,
+          code: tool.code,
+          createdAt: now,
+          updatedAt: now,
+        })
+        created++
+      } else {
+        await db
+          .update(customTools)
+          .set({ title: tool.title, schema: tool.schema, code: tool.code, updatedAt: now })
+          .where(eq(customTools.id, match.id))
+        updated++
+      }
+    }
+
+    logger.info(`[${requestId}] Upserted custom tools from YAML`, { created, updated })
+    return { created, updated }
+  } catch (err) {
+    logger.warn(`[${requestId}] Failed to upsert custom tools from YAML`, {
+      error: err instanceof Error ? err.message : String(err),
+    })
+    return { created: 0, updated: 0 }
+  }
+}
+
 /**
  * PUT /api/workflows/[id]/yaml
  * Consolidated YAML workflow saving endpoint
@@ -226,7 +325,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const conversionResult = await conversionResponse.json()
 
-    if (!conversionResult.success || !conversionResult.workflowState) {
+    const workflowState =
+      conversionResult.workflowState || (conversionResult.diff && conversionResult.diff.proposedState)
+
+    if (!conversionResult.success || !workflowState) {
       logger.error(`[${requestId}] YAML conversion failed`, {
         errors: conversionResult.errors,
         warnings: conversionResult.warnings,
@@ -238,8 +340,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         warnings: conversionResult.warnings || [],
       })
     }
-
-    const { workflowState } = conversionResult
 
     // Ensure all blocks have required fields
     Object.values(workflowState.blocks).forEach((block: any) => {
@@ -544,6 +644,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
     newWorkflowState.blocks = sanitizedBlocks
+
+    // Upsert custom tools from blocks
+    await upsertCustomToolsFromBlocks(userId, newWorkflowState.blocks, requestId)
 
     // Save to database
     const saveResult = await saveWorkflowToNormalizedTables(workflowId, newWorkflowState)
