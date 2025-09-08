@@ -24,9 +24,10 @@ function isValidCustomToolSchema(tool: any): boolean {
   }
 }
 
-export function sanitizeAgentToolsInBlocks(
+export function sanitizeAgentToolsInBlocks(blocks: Record<string, any>): {
   blocks: Record<string, any>
-): { blocks: Record<string, any>; warnings: string[] } {
+  warnings: string[]
+} {
   const warnings: string[] = []
 
   // Shallow clone to avoid mutating callers
@@ -46,7 +47,9 @@ export function sanitizeAgentToolsInBlocks(
         try {
           value = JSON.parse(value)
         } catch (_e) {
-          warnings.push(`Block ${block.name || blockId}: invalid tools JSON; resetting tools to empty array`)
+          warnings.push(
+            `Block ${block.name || blockId}: invalid tools JSON; resetting tools to empty array`
+          )
           value = []
         }
       }
@@ -103,4 +106,4 @@ export function sanitizeAgentToolsInBlocks(
   }
 
   return { blocks: sanitizedBlocks, warnings }
-} 
+}

@@ -4,16 +4,19 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { workflow as workflowTable, workflowCheckpoints, customTools } from '@/db/schema'
+import { simAgentClient } from '@/lib/sim-agent'
+import {
+  loadWorkflowFromNormalizedTables,
+  saveWorkflowToNormalizedTables,
+} from '@/lib/workflows/db-helpers'
+import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/validation'
+import { getUserId } from '@/app/api/auth/oauth/utils'
 import { getAllBlocks, getBlock } from '@/blocks'
 import type { BlockConfig } from '@/blocks/types'
-import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { resolveOutputType } from '@/blocks/utils'
-import { getUserId } from '@/app/api/auth/oauth/utils'
-import { simAgentClient } from '@/lib/sim-agent'
-import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/validation'
-import { loadWorkflowFromNormalizedTables, saveWorkflowToNormalizedTables } from '@/lib/workflows/db-helpers'
+import { db } from '@/db'
+import { customTools, workflowCheckpoints, workflow as workflowTable } from '@/db/schema'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('YamlWorkflowAPI')
 
@@ -35,9 +38,7 @@ function updateBlockReferences(
     // Replace references in string values
     for (const [oldId, newId] of blockIdMapping.entries()) {
       if (value.includes(oldId)) {
-        value = value
-          .replaceAll(`<${oldId}.`, `<${newId}.`)
-          .replaceAll(`%${oldId}.`, `%${newId}.`)
+        value = value.replaceAll(`<${oldId}.`, `<${newId}.`).replaceAll(`%${oldId}.`, `%${newId}.`)
       }
     }
     return value
@@ -171,7 +172,11 @@ async function upsertCustomToolsFromBlocks(
           tool.schema.function.name &&
           typeof tool.code === 'string'
         ) {
-          collected.push({ title: tool.title || tool.schema.function.name, schema: tool.schema, code: tool.code })
+          collected.push({
+            title: tool.title || tool.schema.function.name,
+            schema: tool.schema,
+            code: tool.code,
+          })
         }
       }
     }
@@ -186,10 +191,7 @@ async function upsertCustomToolsFromBlocks(
     }
 
     // Load existing user's tools
-    const existing = await db
-      .select()
-      .from(customTools)
-      .where(eq(customTools.userId, userId))
+    const existing = await db.select().from(customTools).where(eq(customTools.userId, userId))
 
     const existingByName = new Map<string, (typeof existing)[number]>()
     for (const row of existing) {
@@ -325,8 +327,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const conversionResult = await conversionResponse.json()
 
-    const workflowState =
-      conversionResult.workflowState || (conversionResult.diff && conversionResult.diff.proposedState)
+    const workflowState = conversionResult.workflowState || conversionResult.diff?.proposedState
 
     if (!conversionResult.success || !workflowState) {
       logger.error(`[${requestId}] YAML conversion failed`, {
@@ -639,9 +640,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       newWorkflowState.blocks
     )
     if (sanitationWarnings.length > 0) {
-      logger.warn(
-        `[${requestId}] Tool sanitation produced ${sanitationWarnings.length} warning(s)`
-      )
+      logger.warn(`[${requestId}] Tool sanitation produced ${sanitationWarnings.length} warning(s)`)
     }
     newWorkflowState.blocks = sanitizedBlocks
 

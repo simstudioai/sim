@@ -5,9 +5,9 @@ import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/db-helpers'
+import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/validation'
 import { db } from '@/db'
 import { workflow } from '@/db/schema'
-import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/validation'
 
 const logger = createLogger('WorkflowStateAPI')
 
@@ -229,10 +229,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const elapsed = Date.now() - startTime
     logger.info(`[${requestId}] Successfully saved workflow ${workflowId} state in ${elapsed}ms`)
 
-    return NextResponse.json(
-      { success: true, warnings },
-      { status: 200 }
-    )
+    return NextResponse.json({ success: true, warnings }, { status: 200 })
   } catch (error: any) {
     const elapsed = Date.now() - startTime
     logger.error(
@@ -241,7 +238,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     )
 
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Invalid request body', details: error.errors }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Invalid request body', details: error.errors },
+        { status: 400 }
+      )
     }
 
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
