@@ -1,39 +1,62 @@
+import crypto from 'crypto'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getUserEntityPermissions } from '@/lib/permissions/utils'
-import { SIM_AGENT_API_URL_DEFAULT, simAgentClient } from '@/lib/sim-agent'
-import {
-  loadWorkflowFromNormalizedTables,
-  saveWorkflowToNormalizedTables,
-} from '@/lib/workflows/db-helpers'
-import { getUserId as getOAuthUserId } from '@/app/api/auth/oauth/utils'
-import { getBlock } from '@/blocks'
-import { getAllBlocks } from '@/blocks/registry'
-import type { BlockConfig } from '@/blocks/types'
-import { resolveOutputType } from '@/blocks/utils'
 import { db } from '@/db'
-import { workflowCheckpoints, workflow as workflowTable } from '@/db/schema'
+import { workflow as workflowTable, workflowCheckpoints } from '@/db/schema'
+import { getAllBlocks, getBlock } from '@/blocks'
+import type { BlockConfig } from '@/blocks/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
+import { resolveOutputType } from '@/blocks/utils'
+import { getUserId } from '@/app/api/auth/oauth/utils'
+import { simAgentClient } from '@/lib/sim-agent'
+import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/validation'
+import { loadWorkflowFromNormalizedTables, saveWorkflowToNormalizedTables } from '@/lib/workflows/db-helpers'
 
-const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
-
-export const dynamic = 'force-dynamic'
-
-const logger = createLogger('WorkflowYamlAPI')
+const logger = createLogger('YamlWorkflowAPI')
 
 const YamlWorkflowRequestSchema = z.object({
   yamlContent: z.string().min(1, 'YAML content is required'),
   description: z.string().optional(),
-  chatId: z.string().optional(), // For copilot checkpoints
-  source: z.enum(['copilot', 'import', 'editor']).default('editor'),
-  applyAutoLayout: z.boolean().default(true),
-  createCheckpoint: z.boolean().default(false),
+  chatId: z.string().optional(),
+  source: z.enum(['copilot', 'editor', 'import']).default('editor'),
+  applyAutoLayout: z.boolean().optional().default(false),
+  createCheckpoint: z.boolean().optional().default(false),
 })
 
-type YamlWorkflowRequest = z.infer<typeof YamlWorkflowRequestSchema>
+function updateBlockReferences(
+  value: any,
+  blockIdMapping: Map<string, string>,
+  requestId: string
+): any {
+  if (typeof value === 'string') {
+    // Replace references in string values
+    for (const [oldId, newId] of blockIdMapping.entries()) {
+      if (value.includes(oldId)) {
+        value = value
+          .replaceAll(`<${oldId}.`, `<${newId}.`)
+          .replaceAll(`%${oldId}.`, `%${newId}.`)
+      }
+    }
+    return value
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => updateBlockReferences(item, blockIdMapping, requestId))
+  }
+
+  if (value && typeof value === 'object') {
+    const result: Record<string, any> = {}
+    for (const [key, val] of Object.entries(value)) {
+      result[key] = updateBlockReferences(val, blockIdMapping, requestId)
+    }
+    return result
+  }
+
+  return value
+}
 
 /**
  * Helper function to create a checkpoint before workflow changes
@@ -68,7 +91,7 @@ async function createWorkflowCheckpoint(
         {} as Record<string, BlockConfig>
       )
 
-      const generateResponse = await fetch(`${SIM_AGENT_API_URL}/api/workflow/to-yaml`, {
+      const generateResponse = await fetch(`${env.SIM_AGENT_API_URL}/api/workflow/to-yaml`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -112,120 +135,6 @@ async function createWorkflowCheckpoint(
     logger.error(`[${requestId}] Failed to create checkpoint:`, error)
     return false
   }
-}
-
-/**
- * Helper function to get user ID with proper authentication for both tool calls and direct requests
- */
-async function getUserId(requestId: string, workflowId: string): Promise<string | null> {
-  // Use the OAuth utils function that handles both session and workflow-based auth
-  const userId = await getOAuthUserId(requestId, workflowId)
-
-  if (!userId) {
-    logger.warn(`[${requestId}] Could not determine user ID for workflow ${workflowId}`)
-    return null
-  }
-
-  // For additional security, verify the user has permission to access this workflow
-  const workflowData = await db
-    .select()
-    .from(workflowTable)
-    .where(eq(workflowTable.id, workflowId))
-    .then((rows) => rows[0])
-
-  if (!workflowData) {
-    logger.warn(`[${requestId}] Workflow ${workflowId} not found`)
-    return null
-  }
-
-  // Check if user has permission to update this workflow
-  let canUpdate = false
-
-  // Case 1: User owns the workflow
-  if (workflowData.userId === userId) {
-    canUpdate = true
-  }
-
-  // Case 2: Workflow belongs to a workspace and user has write or admin permission
-  if (!canUpdate && workflowData.workspaceId) {
-    try {
-      const userPermission = await getUserEntityPermissions(
-        userId,
-        'workspace',
-        workflowData.workspaceId
-      )
-      if (userPermission === 'write' || userPermission === 'admin') {
-        canUpdate = true
-      }
-    } catch (error) {
-      logger.warn(`[${requestId}] Error checking workspace permissions:`, error)
-    }
-  }
-
-  if (!canUpdate) {
-    logger.warn(`[${requestId}] User ${userId} denied permission to update workflow ${workflowId}`)
-    return null
-  }
-
-  return userId
-}
-
-/**
- * Helper function to update block references in values with new mapped IDs
- */
-function updateBlockReferences(
-  value: any,
-  blockIdMapping: Map<string, string>,
-  requestId: string
-): any {
-  if (typeof value === 'string' && value.includes('<') && value.includes('>')) {
-    let processedValue = value
-    const blockMatches = value.match(/<([^>]+)>/g)
-
-    if (blockMatches) {
-      for (const match of blockMatches) {
-        const path = match.slice(1, -1)
-        const [blockRef] = path.split('.')
-
-        // Skip system references (start, loop, parallel, variable)
-        if (['start', 'loop', 'parallel', 'variable'].includes(blockRef.toLowerCase())) {
-          continue
-        }
-
-        // Check if this references an old block ID that needs mapping
-        const newMappedId = blockIdMapping.get(blockRef)
-        if (newMappedId) {
-          logger.info(`[${requestId}] Updating block reference: ${blockRef} -> ${newMappedId}`)
-          processedValue = processedValue.replace(
-            new RegExp(`<${blockRef}\\.`, 'g'),
-            `<${newMappedId}.`
-          )
-          processedValue = processedValue.replace(
-            new RegExp(`<${blockRef}>`, 'g'),
-            `<${newMappedId}>`
-          )
-        }
-      }
-    }
-
-    return processedValue
-  }
-
-  // Handle arrays
-  if (Array.isArray(value)) {
-    return value.map((item) => updateBlockReferences(item, blockIdMapping, requestId))
-  }
-
-  // Handle objects
-  if (value !== null && typeof value === 'object') {
-    const result = { ...value }
-    for (const key in result) {
-      result[key] = updateBlockReferences(result[key], blockIdMapping, requestId)
-    }
-    return result
-  }
-
-  return value
 }
 
 /**
@@ -281,7 +190,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       {} as Record<string, BlockConfig>
     )
 
-    const conversionResponse = await fetch(`${SIM_AGENT_API_URL}/api/yaml/to-workflow`, {
+    const conversionResponse = await fetch(`${env.SIM_AGENT_API_URL}/api/yaml/to-workflow`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -541,7 +450,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
-    // Debug: Log block parent-child relationships before generating loops
     // Generate loop and parallel configurations
     const loops = generateLoopBlocks(newWorkflowState.blocks)
     const parallels = generateParallelBlocks(newWorkflowState.blocks)
@@ -626,6 +534,17 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
+    // Sanitize custom tools in agent blocks before saving
+    const { blocks: sanitizedBlocks, warnings: sanitationWarnings } = sanitizeAgentToolsInBlocks(
+      newWorkflowState.blocks
+    )
+    if (sanitationWarnings.length > 0) {
+      logger.warn(
+        `[${requestId}] Tool sanitation produced ${sanitationWarnings.length} warning(s)`
+      )
+    }
+    newWorkflowState.blocks = sanitizedBlocks
+
     // Save to database
     const saveResult = await saveWorkflowToNormalizedTables(workflowId, newWorkflowState)
 
@@ -635,7 +554,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         success: false,
         message: `Database save failed: ${saveResult.error || 'Unknown error'}`,
         errors: [saveResult.error || 'Database save failed'],
-        warnings,
+        warnings: [...warnings, ...sanitationWarnings],
       })
     }
 
@@ -687,7 +606,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         parallelsCount: Object.keys(parallels).length,
       },
       errors: [],
-      warnings,
+      warnings: [...warnings, ...sanitationWarnings],
     })
   } catch (error) {
     const elapsed = Date.now() - startTime
