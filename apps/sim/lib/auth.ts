@@ -1229,6 +1229,17 @@ export const auth = betterAuth({
                     error,
                   })
                 }
+
+                // Send welcome email for Pro and Team plans
+                try {
+                  const { sendPlanWelcomeEmail } = await import('@/lib/billing')
+                  await sendPlanWelcomeEmail(subscription)
+                } catch (error) {
+                  logger.error('[onSubscriptionComplete] Failed to send plan welcome email', {
+                    error,
+                    subscriptionId: subscription.id,
+                  })
+                }
               },
               onSubscriptionUpdate: async ({
                 subscription,

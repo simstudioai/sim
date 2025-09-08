@@ -1,7 +1,6 @@
 'use client'
-
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Skeleton } from '@/components/ui'
+import { Skeleton, Switch } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
 import { useSubscriptionUpgrade } from '@/lib/subscription/upgrade'
 import { cn } from '@/lib/utils'
@@ -500,6 +499,9 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
           </div>
         )}
 
+        {/* Billing usage notifications toggle */}
+        {subscription.isPaid && <BillingUsageNotificationsToggle />}
+
         {subscription.isEnterprise && (
           <div className='text-center'>
             <p className='text-muted-foreground text-xs'>
@@ -524,6 +526,45 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function BillingUsageNotificationsToggle() {
+  const [enabled, setEnabled] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    let isMounted = true
+    const load = async () => {
+      const res = await fetch('/api/users/me/settings')
+      const json = await res.json()
+      const current = json?.data?.billingUsageNotificationsEnabled
+      if (isMounted) setEnabled(current !== false)
+    }
+    load()
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const update = async (next: boolean) => {
+    setEnabled(next)
+    await fetch('/api/users/me/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ billingUsageNotificationsEnabled: next }),
+    })
+  }
+
+  if (enabled === null) return null
+
+  return (
+    <div className='mt-4 flex items-center justify-between'>
+      <div className='flex flex-col'>
+        <span className='font-medium text-sm'>Usage notifications</span>
+        <span className='text-muted-foreground text-xs'>Email me when I reach 80% usage</span>
+      </div>
+      <Switch checked={enabled} onCheckedChange={(v: boolean) => update(v)} />
     </div>
   )
 }

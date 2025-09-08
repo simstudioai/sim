@@ -32,6 +32,8 @@ export const useGeneralStore = create<GeneralStore>()(
           isConsoleExpandedByDefaultLoading: false,
           isThemeLoading: false, // Keep for compatibility but not used
           isTelemetryLoading: false,
+          isBillingUsageNotificationsLoading: false,
+          isBillingUsageNotificationsEnabled: true,
         }
 
         // Optimistic update helper
@@ -133,6 +135,16 @@ export const useGeneralStore = create<GeneralStore>()(
             )
           },
 
+          setBillingUsageNotificationsEnabled: async (enabled: boolean) => {
+            if (get().isBillingUsageNotificationsLoading) return
+            await updateSettingOptimistic(
+              'isBillingUsageNotificationsEnabled',
+              enabled,
+              'isBillingUsageNotificationsLoading',
+              'isBillingUsageNotificationsEnabled'
+            )
+          },
+
           // API Actions
           loadSettings: async (force = false) => {
             // Skip if we've already loaded from DB and not forcing
@@ -193,6 +205,7 @@ export const useGeneralStore = create<GeneralStore>()(
                 isConsoleExpandedByDefault: data.consoleExpandedByDefault ?? true,
                 theme: data.theme || 'system',
                 telemetryEnabled: data.telemetryEnabled,
+                isBillingUsageNotificationsEnabled: data.billingUsageNotificationsEnabled ?? true,
                 isLoading: false,
               })
 
