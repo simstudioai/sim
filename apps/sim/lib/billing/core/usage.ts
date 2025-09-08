@@ -86,7 +86,7 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
       }
     }
 
-    const percentUsed = limit > 0 ? Math.min(Math.floor((currentUsage / limit) * 100), 100) : 0
+    const percentUsed = limit > 0 ? Math.min((currentUsage / limit) * 100, 100) : 0
     const isWarning = percentUsed >= 80
     const isExceeded = currentUsage >= limit
 
@@ -556,8 +556,25 @@ export async function maybeSendUsageThresholdEmail(params: {
 }): Promise<void> {
   try {
     if (!isBillingEnabled) return
+
+    logger.info('Checking usage threshold email conditions', {
+      percentBefore: params.percentBefore,
+      percentAfter: params.percentAfter,
+      condition: params.percentBefore < 80 && params.percentAfter >= 80,
+      scope: params.scope,
+      userId: params.userId,
+    })
+
     // Only on upward crossing to >= 80%
-    if (!(params.percentBefore < 80 && params.percentAfter >= 80)) return
+    if (!(params.percentBefore < 80 && params.percentAfter >= 80)) {
+      logger.info('Threshold condition not met, skipping email', {
+        percentBefore: params.percentBefore,
+        percentAfter: params.percentAfter,
+        belowThreshold: params.percentBefore < 80,
+        aboveThreshold: params.percentAfter >= 80,
+      })
+      return
+    }
     if (params.limit <= 0 || params.currentUsageAfter <= 0) return
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'

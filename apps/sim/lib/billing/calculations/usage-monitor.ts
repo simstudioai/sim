@@ -35,7 +35,7 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
           : 0
 
       return {
-        percentUsed: Math.min(Math.round((currentUsage / 1000) * 100), 100),
+        percentUsed: Math.min((currentUsage / 1000) * 100, 100),
         isWarning: false,
         isExceeded: false,
         currentUsage,
@@ -68,8 +68,8 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
       statsRecords[0].currentPeriodCost?.toString() || statsRecords[0].totalCost.toString()
     )
 
-    // Calculate percentage used
-    const percentUsed = Math.min(Math.floor((currentUsage / limit) * 100), 100)
+    // Calculate percentage used with higher precision to avoid missing threshold crossings
+    const percentUsed = Math.min((currentUsage / limit) * 100, 100)
 
     // Check org-level cap for team/enterprise pooled usage
     let isExceeded = currentUsage >= limit
