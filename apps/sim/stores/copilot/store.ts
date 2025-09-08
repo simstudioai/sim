@@ -1266,7 +1266,7 @@ async function* parseSSEStream(
 // Initial state (subset required for UI/streaming)
 const initialState = {
   mode: 'agent' as const,
-  agentDepth: 0 as 0 | 1 | 2 | 3,
+  agentDepth: 1 as 0 | 1 | 2 | 3,
   agentPrefetch: true,
   currentChat: null as CopilotChat | null,
   chats: [] as CopilotChat[],
@@ -1292,6 +1292,7 @@ const initialState = {
   planTodos: [] as Array<{ id: string; content: string; completed?: boolean; executing?: boolean }>,
   showPlanTodos: false,
   toolCallsById: {} as Record<string, CopilotToolCall>,
+  suppressAutoSelect: false,
 }
 
 export const useCopilotStore = create<CopilotStore>()(
@@ -1351,13 +1352,30 @@ export const useCopilotStore = create<CopilotStore>()(
         useWorkflowDiffStore.getState().clearDiff()
       } catch {}
 
+      // Capture previous chat/messages for optimistic background save
+      const previousChat = currentChat
+      const previousMessages = get().messages
+
       // Optimistically set selected chat and normalize messages for UI
       set({
         currentChat: chat,
         messages: normalizeMessagesForUI(chat.messages || []),
         planTodos: [],
         showPlanTodos: false,
+        suppressAutoSelect: false,
       })
+
+      // Background-save the previous chat's latest messages before switching (optimistic)
+      try {
+        if (previousChat && previousChat.id !== chat.id) {
+          const dbMessages = validateMessagesForLLM(previousMessages)
+          fetch('/api/copilot/chat/update-messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chatId: previousChat.id, messages: dbMessages }),
+          }).catch(() => {})
+        }
+      } catch {}
 
       // Refresh selected chat from server to ensure we have latest messages/tool calls
       try {
@@ -1392,12 +1410,27 @@ export const useCopilotStore = create<CopilotStore>()(
         useWorkflowDiffStore.getState().clearDiff()
       } catch {}
 
+      // Background-save the current chat before clearing (optimistic)
+      try {
+        const { currentChat } = get()
+        if (currentChat) {
+          const currentMessages = get().messages
+          const dbMessages = validateMessagesForLLM(currentMessages)
+          fetch('/api/copilot/chat/update-messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chatId: currentChat.id, messages: dbMessages }),
+          }).catch(() => {})
+        }
+      } catch {}
+
       set({
         currentChat: null,
         messages: [],
         messageCheckpoints: {},
         planTodos: [],
         showPlanTodos: false,
+        suppressAutoSelect: true,
       })
     },
 
@@ -1432,7 +1465,7 @@ export const useCopilotStore = create<CopilotStore>()(
           })
 
           if (data.chats.length > 0) {
-            const { currentChat, isSendingMessage } = get()
+            const { currentChat, isSendingMessage, suppressAutoSelect } = get()
             const currentChatStillExists =
               currentChat && data.chats.some((c: CopilotChat) => c.id === currentChat.id)
 
@@ -1451,7 +1484,7 @@ export const useCopilotStore = create<CopilotStore>()(
               try {
                 await get().loadMessageCheckpoints(updatedCurrentChat.id)
               } catch {}
-            } else if (!isSendingMessage) {
+            } else if (!isSendingMessage && !suppressAutoSelect) {
               const mostRecentChat: CopilotChat = data.chats[0]
               set({
                 currentChat: mostRecentChat,
@@ -1506,7 +1539,17 @@ export const useCopilotStore = create<CopilotStore>()(
       }
 
       const isFirstMessage = get().messages.length === 0 && !currentChat?.title
-      set({ messages: newMessages })
+      // Capture send-time meta for reliable stats
+      const sendDepth = get().agentDepth
+      const sendMaxEnabled = sendDepth >= 2 && !get().agentPrefetch
+      set((state) => ({
+        messages: newMessages,
+        currentUserMessageId: userMessage.id,
+        messageMetaById: {
+          ...(state.messageMetaById || {}),
+          [userMessage.id]: { depth: sendDepth, maxEnabled: sendMaxEnabled },
+        },
+      }))
 
       if (isFirstMessage) {
         const optimisticTitle = message.length > 50 ? `${message.substring(0, 47)}...` : message
@@ -1550,7 +1593,12 @@ export const useCopilotStore = create<CopilotStore>()(
         })
 
         if (result.success && result.stream) {
-          await get().handleStreamingResponse(result.stream, streamingMessage.id)
+          await get().handleStreamingResponse(
+            result.stream,
+            streamingMessage.id,
+            false,
+            userMessage.id
+          )
           set({ chatsLastLoadedAt: null, chatsLoadedForWorkflow: null })
         } else {
           if (result.error === 'Request was aborted') {
@@ -1565,6 +1613,9 @@ export const useCopilotStore = create<CopilotStore>()(
           } else if (result.status === 402) {
             errorContent =
               '_Usage limit exceeded. To continue using this service, upgrade your plan or top up on credits._'
+          } else if (result.status === 403) {
+            errorContent =
+              '_Provider config not allowed for non-enterprise users. Please remove the provider config and try again_'
           }
 
           const errorMessage = createErrorMessage(streamingMessage.id, errorContent)
@@ -1945,14 +1996,16 @@ export const useCopilotStore = create<CopilotStore>()(
     // Handle streaming response
     handleStreamingResponse: async (
       stream: ReadableStream,
-      messageId: string,
-      isContinuation = false
+      assistantMessageId: string,
+      isContinuation = false,
+      triggerUserMessageId?: string
     ) => {
       const reader = stream.getReader()
       const decoder = new TextDecoder()
+      const startTimeMs = Date.now()
 
       const context: StreamingContext = {
-        messageId,
+        messageId: assistantMessageId,
         accumulatedContent: new StringBuilder(),
         contentBlocks: [],
         currentTextBlock: null,
@@ -1964,7 +2017,7 @@ export const useCopilotStore = create<CopilotStore>()(
 
       if (isContinuation) {
         const { messages } = get()
-        const existingMessage = messages.find((m) => m.id === messageId)
+        const existingMessage = messages.find((m) => m.id === assistantMessageId)
         if (existingMessage) {
           if (existingMessage.content) context.accumulatedContent.append(existingMessage.content)
           context.contentBlocks = existingMessage.contentBlocks
@@ -2006,7 +2059,7 @@ export const useCopilotStore = create<CopilotStore>()(
         const finalContent = context.accumulatedContent.toString()
         set((state) => ({
           messages: state.messages.map((msg) =>
-            msg.id === messageId
+            msg.id === assistantMessageId
               ? {
                   ...msg,
                   content: finalContent,
@@ -2016,6 +2069,7 @@ export const useCopilotStore = create<CopilotStore>()(
           ),
           isSendingMessage: false,
           abortController: null,
+          currentUserMessageId: null,
         }))
 
         if (context.newChatId && !get().currentChat) {
@@ -2035,6 +2089,11 @@ export const useCopilotStore = create<CopilotStore>()(
             })
           } catch {}
         }
+
+        // Post copilot_stats record (input/output tokens can be null for now)
+        try {
+          // Removed: stats sending now occurs only on accept/reject with minimal payload
+        } catch {}
       } finally {
         clearTimeout(timeoutId)
       }
@@ -2065,6 +2124,7 @@ export const useCopilotStore = create<CopilotStore>()(
         chatsLoadedForWorkflow: null,
         planTodos: [],
         showPlanTodos: false,
+        suppressAutoSelect: false,
       })
     },
 

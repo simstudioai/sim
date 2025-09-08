@@ -4,6 +4,8 @@ import { NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { checkServerSideUsageLimits } from '@/lib/billing'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -17,17 +19,10 @@ import { decryptSecret } from '@/lib/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { db } from '@/db'
-import {
-  environment as environmentTable,
-  subscription,
-  userStats,
-  workflow,
-  workflowSchedule,
-} from '@/db/schema'
+import { userStats, workflow, workflowSchedule } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 import { RateLimiter } from '@/services/queue'
-import type { SubscriptionPlan } from '@/services/queue/types'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
 
 // Add dynamic export to prevent caching
@@ -113,19 +108,13 @@ export async function GET() {
           continue
         }
 
-        // Check rate limits for scheduled execution
-        const [subscriptionRecord] = await db
-          .select({ plan: subscription.plan })
-          .from(subscription)
-          .where(eq(subscription.referenceId, workflowRecord.userId))
-          .limit(1)
-
-        const subscriptionPlan = (subscriptionRecord?.plan || 'free') as SubscriptionPlan
+        // Check rate limits for scheduled execution (checks both personal and org subscriptions)
+        const userSubscription = await getHighestPrioritySubscription(workflowRecord.userId)
 
         const rateLimiter = new RateLimiter()
-        const rateLimitCheck = await rateLimiter.checkRateLimit(
+        const rateLimitCheck = await rateLimiter.checkRateLimitWithSubscription(
           workflowRecord.userId,
-          subscriptionPlan,
+          userSubscription,
           'schedule',
           false // schedules are always sync
         )
@@ -236,20 +225,15 @@ export async function GET() {
 
               const mergedStates = mergeSubblockState(blocks)
 
-              // Retrieve environment variables for this user (if any).
-              const [userEnv] = await db
-                .select()
-                .from(environmentTable)
-                .where(eq(environmentTable.userId, workflowRecord.userId))
-                .limit(1)
-
-              if (!userEnv) {
-                logger.debug(
-                  `[${requestId}] No environment record found for user ${workflowRecord.userId}. Proceeding with empty variables.`
-                )
-              }
-
-              const variables = EnvVarsSchema.parse(userEnv?.variables ?? {})
+              // Retrieve environment variables with workspace precedence
+              const { personalEncrypted, workspaceEncrypted } = await getPersonalAndWorkspaceEnv(
+                workflowRecord.userId,
+                workflowRecord.workspaceId || undefined
+              )
+              const variables = EnvVarsSchema.parse({
+                ...personalEncrypted,
+                ...workspaceEncrypted,
+              })
 
               const currentBlockStates = await Object.entries(mergedStates).reduce(
                 async (accPromise, [id, block]) => {

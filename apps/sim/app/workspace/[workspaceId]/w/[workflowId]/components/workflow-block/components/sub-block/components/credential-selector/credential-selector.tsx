@@ -279,7 +279,10 @@ export function CredentialSelector({
         </PopoverTrigger>
         <PopoverContent className='w-[250px] p-0' align='start'>
           <Command>
-            <CommandInput placeholder='Search credentials...' />
+            <CommandInput
+              placeholder='Search credentials...'
+              className='text-foreground placeholder:text-muted-foreground'
+            />
             <CommandList>
               <CommandEmpty>
                 {isLoading ? (

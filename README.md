@@ -159,7 +159,7 @@ bun run dev:sockets
 Copilot is a Sim-managed service. To use Copilot on a self-hosted instance:
 
 - Go to https://sim.ai → Settings → Copilot and generate a Copilot API key
-- Set `COPILOT_API_KEY` in your self-hosted environment to that value
+- Set `COPILOT_API_KEY` environment variable in your self-hosted apps/sim/.env file to that value
 
 ## Tech Stack
 

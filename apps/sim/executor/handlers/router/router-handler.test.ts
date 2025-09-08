@@ -119,7 +119,7 @@ describe('RouterBlockHandler', () => {
     const inputs = {
       prompt: 'Choose the best option.',
       model: 'gpt-4o',
-      temperature: 0.5,
+      temperature: 0.1,
     }
 
     const expectedTargetBlocks = [
@@ -168,11 +168,11 @@ describe('RouterBlockHandler', () => {
       model: 'gpt-4o',
       systemPrompt: 'Generated System Prompt',
       context: JSON.stringify([{ role: 'user', content: 'Choose the best option.' }]),
-      temperature: 0.5,
+      temperature: 0.1,
     })
 
     expect(result).toEqual({
-      content: 'Choose the best option.',
+      prompt: 'Choose the best option.',
       model: 'mock-model',
       tokens: { prompt: 100, completion: 5, total: 105 },
       cost: {
@@ -233,7 +233,7 @@ describe('RouterBlockHandler', () => {
     const requestBody = JSON.parse(fetchCallArgs[1].body)
     expect(requestBody).toMatchObject({
       model: 'gpt-4o',
-      temperature: 0,
+      temperature: 0.1,
     })
   })
 

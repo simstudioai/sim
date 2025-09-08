@@ -1,7 +1,18 @@
 import { TranslateIcon } from '@/components/icons'
+import { isHosted } from '@/lib/environment'
 import type { BlockConfig } from '@/blocks/types'
-import type { ProviderId } from '@/providers/types'
-import { getBaseModelProviders } from '@/providers/utils'
+import {
+  getAllModelProviders,
+  getBaseModelProviders,
+  getHostedModels,
+  getProviderIcon,
+  providers,
+} from '@/providers/utils'
+import { useProvidersStore } from '@/stores/providers/store'
+
+const getCurrentOllamaModels = () => {
+  return useProvidersStore.getState().providers.ollama.models
+}
 
 const getTranslationPrompt = (
   targetLanguage: string
@@ -44,10 +55,22 @@ export const TranslateBlock: BlockConfig = {
     {
       id: 'model',
       title: 'Model',
-      type: 'dropdown',
+      type: 'combobox',
       layout: 'half',
-      options: Object.keys(getBaseModelProviders()).map((key) => ({ label: key, id: key })),
+      placeholder: 'Type or select a model...',
       required: true,
+      options: () => {
+        const providersState = useProvidersStore.getState()
+        const ollamaModels = providersState.providers.ollama.models
+        const openrouterModels = providersState.providers.openrouter.models
+        const baseModels = Object.keys(getBaseModelProviders())
+        const allModels = Array.from(new Set([...baseModels, ...ollamaModels, ...openrouterModels]))
+
+        return allModels.map((model) => {
+          const icon = getProviderIcon(model)
+          return { label: model, id: model, ...(icon && { icon }) }
+        })
+      },
     },
     {
       id: 'apiKey',
@@ -58,6 +81,43 @@ export const TranslateBlock: BlockConfig = {
       password: true,
       connectionDroppable: false,
       required: true,
+      // Hide API key for hosted models and Ollama models
+      condition: isHosted
+        ? {
+            field: 'model',
+            value: getHostedModels(),
+            not: true, // Show for all models EXCEPT those listed
+          }
+        : () => ({
+            field: 'model',
+            value: getCurrentOllamaModels(),
+            not: true, // Show for all models EXCEPT Ollama models
+          }),
+    },
+    {
+      id: 'azureEndpoint',
+      title: 'Azure OpenAI Endpoint',
+      type: 'short-input',
+      layout: 'full',
+      password: true,
+      placeholder: 'https://your-resource.openai.azure.com',
+      connectionDroppable: false,
+      condition: {
+        field: 'model',
+        value: providers['azure-openai'].models,
+      },
+    },
+    {
+      id: 'azureApiVersion',
+      title: 'Azure API Version',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: '2024-07-01-preview',
+      connectionDroppable: false,
+      condition: {
+        field: 'model',
+        value: providers['azure-openai'].models,
+      },
     },
     {
       id: 'systemPrompt',
@@ -75,17 +135,13 @@ export const TranslateBlock: BlockConfig = {
     config: {
       tool: (params: Record<string, any>) => {
         const model = params.model || 'gpt-4o'
-
         if (!model) {
           throw new Error('No model selected')
         }
-
-        const tool = getBaseModelProviders()[model as ProviderId]
-
+        const tool = getAllModelProviders()[model]
         if (!tool) {
           throw new Error(`Invalid model selected: ${model}`)
         }
-
         return tool
       },
     },
@@ -94,6 +150,8 @@ export const TranslateBlock: BlockConfig = {
     context: { type: 'string', description: 'Text to translate' },
     targetLanguage: { type: 'string', description: 'Target language' },
     apiKey: { type: 'string', description: 'Provider API key' },
+    azureEndpoint: { type: 'string', description: 'Azure OpenAI endpoint URL' },
+    azureApiVersion: { type: 'string', description: 'Azure API version' },
     systemPrompt: { type: 'string', description: 'Translation instructions' },
   },
   outputs: {

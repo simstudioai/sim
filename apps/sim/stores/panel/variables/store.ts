@@ -97,6 +97,34 @@ export const useVariablesStore = create<VariablesStore>()(
     error: null,
     isEditing: null,
 
+    async loadForWorkflow(workflowId) {
+      try {
+        set({ isLoading: true, error: null })
+        const res = await fetch(`/api/workflows/${workflowId}/variables`, { method: 'GET' })
+        if (!res.ok) {
+          const text = await res.text().catch(() => '')
+          throw new Error(text || `Failed to load variables: ${res.statusText}`)
+        }
+        const data = await res.json()
+        const variables = (data?.data as Record<string, Variable>) || {}
+        set((state) => {
+          const withoutWorkflow = Object.fromEntries(
+            Object.entries(state.variables).filter(
+              (entry): entry is [string, Variable] => entry[1].workflowId !== workflowId
+            )
+          )
+          return {
+            variables: { ...withoutWorkflow, ...variables },
+            isLoading: false,
+            error: null,
+          }
+        })
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'Unknown error'
+        set({ isLoading: false, error: message })
+      }
+    },
+
     addVariable: (variable, providedId?: string) => {
       const id = providedId || crypto.randomUUID()
 

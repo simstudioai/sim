@@ -1,7 +1,7 @@
 'use client'
 
 import React, { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2, X } from 'lucide-react'
+import { Loader2, RotateCw, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   AlertDialog,
@@ -60,6 +60,7 @@ interface PermissionsTableProps {
   onPermissionChange: (userId: string, permissionType: PermissionType) => void
   onRemoveMember?: (userId: string, email: string) => void
   onRemoveInvitation?: (invitationId: string, email: string) => void
+  onResendInvitation?: (invitationId: string, email: string) => void
   disabled?: boolean
   existingUserPermissionChanges: Record<string, Partial<UserPermissions>>
   isSaving?: boolean
@@ -67,6 +68,9 @@ interface PermissionsTableProps {
   permissionsLoading: boolean
   pendingInvitations: UserPermissions[]
   isPendingInvitationsLoading: boolean
+  resendingInvitationIds?: Record<string, boolean>
+  resentInvitationIds?: Record<string, boolean>
+  resendCooldowns?: Record<string, number>
 }
 
 interface PendingInvitation {
@@ -159,13 +163,18 @@ PermissionSelector.displayName = 'PermissionSelector'
 
 const PermissionsTableSkeleton = React.memo(() => (
   <div className='scrollbar-hide max-h-[300px] overflow-y-auto'>
-    <div className='flex items-center justify-between gap-2 py-2'>
-      {/* Email skeleton - matches the actual email span dimensions */}
-      <Skeleton className='h-5 w-40' />
-
-      {/* Permission selector skeleton - matches PermissionSelector exact height */}
-      <Skeleton className='h-[30px] w-32 flex-shrink-0 rounded-[12px]' />
-    </div>
+    {Array.from({ length: 5 }).map((_, idx) => (
+      <div key={idx} className='flex items-center justify-between gap-2 py-2'>
+        <Skeleton className='h-5 w-40' />
+        <div className='flex items-center gap-2'>
+          <Skeleton className='h-[30px] w-32 flex-shrink-0 rounded-[12px]' />
+          <div className='flex w-10 items-center gap-1 sm:w-12'>
+            <Skeleton className='h-4 w-4 rounded' />
+            <Skeleton className='h-4 w-4 rounded' />
+          </div>
+        </div>
+      </div>
+    ))}
   </div>
 ))
 
@@ -183,6 +192,10 @@ const PermissionsTable = ({
   permissionsLoading,
   pendingInvitations,
   isPendingInvitationsLoading,
+  onResendInvitation,
+  resendingInvitationIds,
+  resentInvitationIds,
+  resendCooldowns,
 }: PermissionsTableProps) => {
   const { data: session } = useSession()
   const userPerms = useUserPermissionsContext()
@@ -309,8 +322,21 @@ const PermissionsTable = ({
                   <div className='flex items-center gap-2'>
                     <span className='font-medium text-card-foreground text-sm'>{user.email}</span>
                     {isPendingInvitation && (
-                      <span className='inline-flex items-center rounded-[8px] bg-gray-100 px-2 py-1 font-medium text-gray-700 text-xs dark:bg-gray-800 dark:text-gray-300'>
-                        Sent
+                      <span className='inline-flex items-center gap-1 rounded-[8px] bg-gray-100 px-2 py-1 font-medium text-gray-700 text-xs dark:bg-gray-800 dark:text-gray-300'>
+                        {resendingInvitationIds &&
+                        user.invitationId &&
+                        resendingInvitationIds[user.invitationId] ? (
+                          <>
+                            <Loader2 className='h-3.5 w-3.5 animate-spin' />
+                            <span>Sending...</span>
+                          </>
+                        ) : resentInvitationIds &&
+                          user.invitationId &&
+                          resentInvitationIds[user.invitationId] ? (
+                          <span>Resent</span>
+                        ) : (
+                          <span>Sent</span>
+                        )}
                       </span>
                     )}
                     {hasChanges && (
@@ -321,7 +347,7 @@ const PermissionsTable = ({
                   </div>
                 </div>
 
-                {/* Permission selector and remove button container */}
+                {/* Permission selector and fixed-width action area to keep rows aligned */}
                 <div className='flex flex-shrink-0 items-center gap-2'>
                   <PermissionSelector
                     value={user.permissionType}
@@ -335,8 +361,45 @@ const PermissionsTable = ({
                     className='w-auto'
                   />
 
-                  {/* X button with consistent spacing - always reserve space */}
-                  <div className='flex h-4 w-4 items-center justify-center'>
+                  {/* Fixed-width action area so selector stays inline across rows */}
+                  <div className='flex h-4 w-10 items-center justify-center gap-1 sm:w-12'>
+                    {isPendingInvitation &&
+                      currentUserIsAdmin &&
+                      user.invitationId &&
+                      onResendInvitation && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className='inline-flex'>
+                              <Button
+                                variant='ghost'
+                                size='icon'
+                                onClick={() => onResendInvitation(user.invitationId!, user.email)}
+                                disabled={
+                                  disabled ||
+                                  isSaving ||
+                                  resendingInvitationIds?.[user.invitationId!] ||
+                                  (resendCooldowns && resendCooldowns[user.invitationId!] > 0)
+                                }
+                                className='h-4 w-4 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground'
+                              >
+                                {resendingInvitationIds?.[user.invitationId!] ? (
+                                  <Loader2 className='h-3.5 w-3.5 animate-spin' />
+                                ) : (
+                                  <RotateCw className='h-3.5 w-3.5' />
+                                )}
+                                <span className='sr-only'>Resend invite</span>
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>
+                              {resendCooldowns?.[user.invitationId!]
+                                ? `Resend in ${resendCooldowns[user.invitationId!]}s`
+                                : 'Resend invite'}
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
                     {((canShowRemoveButton && onRemoveMember) ||
                       (isPendingInvitation &&
                         currentUserIsAdmin &&
@@ -408,6 +471,9 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     email: string
   } | null>(null)
   const [isRemovingInvitation, setIsRemovingInvitation] = useState(false)
+  const [resendingInvitationIds, setResendingInvitationIds] = useState<Record<string, boolean>>({})
+  const [resendCooldowns, setResendCooldowns] = useState<Record<string, number>>({})
+  const [resentInvitationIds, setResentInvitationIds] = useState<Record<string, boolean>>({})
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -416,6 +482,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     workspacePermissions,
     permissionsLoading,
     updatePermissions,
+    refetchPermissions,
     userPermissions: userPerms,
   } = useWorkspacePermissionsContext()
 
@@ -455,8 +522,9 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
   useEffect(() => {
     if (open && workspaceId) {
       fetchPendingInvitations()
+      refetchPermissions()
     }
-  }, [open, workspaceId, fetchPendingInvitations])
+  }, [open, workspaceId, fetchPendingInvitations, refetchPermissions])
 
   // Clear errors when modal opens
   useEffect(() => {
@@ -746,6 +814,72 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     setInvitationToRemove(null)
   }, [])
 
+  const handleResendInvitation = useCallback(
+    async (invitationId: string, email: string) => {
+      if (!workspaceId || !userPerms.canAdmin) return
+
+      const secondsLeft = resendCooldowns[invitationId]
+      if (secondsLeft && secondsLeft > 0) return
+
+      setResendingInvitationIds((prev) => ({ ...prev, [invitationId]: true }))
+      setErrorMessage(null)
+
+      try {
+        const response = await fetch(`/api/workspaces/invitations/${invitationId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        })
+
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to resend invitation')
+        }
+
+        setSuccessMessage(`Invitation resent to ${email}`)
+        setTimeout(() => setSuccessMessage(null), 3000)
+
+        setResentInvitationIds((prev) => ({ ...prev, [invitationId]: true }))
+        setTimeout(() => {
+          setResentInvitationIds((prev) => {
+            const next = { ...prev }
+            delete next[invitationId]
+            return next
+          })
+        }, 4000)
+      } catch (error) {
+        logger.error('Error resending invitation:', error)
+        const errorMsg =
+          error instanceof Error ? error.message : 'Failed to resend invitation. Please try again.'
+        setErrorMessage(errorMsg)
+      } finally {
+        setResendingInvitationIds((prev) => {
+          const next = { ...prev }
+          delete next[invitationId]
+          return next
+        })
+        // Start 60s cooldown
+        setResendCooldowns((prev) => ({ ...prev, [invitationId]: 60 }))
+        const interval = setInterval(() => {
+          setResendCooldowns((prev) => {
+            const current = prev[invitationId]
+            if (current === undefined) return prev
+            if (current <= 1) {
+              const next = { ...prev }
+              delete next[invitationId]
+              clearInterval(interval)
+              return next
+            }
+            return { ...prev, [invitationId]: current - 1 }
+          })
+        }, 1000)
+      }
+    },
+    [workspaceId, userPerms.canAdmin, resendCooldowns]
+  )
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
       if (['Enter', ',', ' '].includes(e.key) && inputValue.trim()) {
@@ -987,6 +1121,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
               onPermissionChange={handlePermissionChange}
               onRemoveMember={handleRemoveMemberClick}
               onRemoveInvitation={handleRemoveInvitationClick}
+              onResendInvitation={handleResendInvitation}
               disabled={isSubmitting || isSaving || isRemovingMember || isRemovingInvitation}
               existingUserPermissionChanges={existingUserPermissionChanges}
               isSaving={isSaving}
@@ -994,6 +1129,9 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
               permissionsLoading={permissionsLoading}
               pendingInvitations={pendingInvitations}
               isPendingInvitationsLoading={isPendingInvitationsLoading}
+              resendingInvitationIds={resendingInvitationIds}
+              resentInvitationIds={resentInvitationIds}
+              resendCooldowns={resendCooldowns}
             />
           </form>
 

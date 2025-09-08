@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Trash2 } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
 import { formatDisplayText } from '@/components/ui/formatted-text'
@@ -30,6 +31,8 @@ export function Table({
   previewValue,
   disabled = false,
 }: TableProps) {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
   const [storeValue, setStoreValue] = useSubBlockValue<TableRow[]>(blockId, subBlockId)
 
   // Use preview value when in preview mode, otherwise use store value
@@ -287,6 +290,7 @@ export function Table({
             searchTerm={activeCell.searchTerm}
             inputValue={rows[activeCell.rowIndex].cells[activeCell.column] || ''}
             cursorPosition={activeCell.cursorPosition}
+            workspaceId={workspaceId}
             onClose={() => {
               setActiveCell((prev) => (prev ? { ...prev, showEnvVars: false } : null))
             }}

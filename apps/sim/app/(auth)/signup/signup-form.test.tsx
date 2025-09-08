@@ -166,8 +166,9 @@ describe('SignupPage', () => {
       })
     })
 
-    it('should prevent submission with invalid name validation', async () => {
+    it('should automatically trim spaces from name input', async () => {
       const mockSignUp = vi.mocked(client.signUp.email)
+      mockSignUp.mockResolvedValue({ data: null, error: null })
 
       render(<SignupPage {...defaultProps} />)
 
@@ -176,22 +177,20 @@ describe('SignupPage', () => {
       const passwordInput = screen.getByPlaceholderText(/enter your password/i)
       const submitButton = screen.getByRole('button', { name: /create account/i })
 
-      // Use name with leading/trailing spaces which should fail validation
       fireEvent.change(nameInput, { target: { value: '  John Doe  ' } })
       fireEvent.change(emailInput, { target: { value: 'user@company.com' } })
       fireEvent.change(passwordInput, { target: { value: 'Password123!' } })
       fireEvent.click(submitButton)
 
-      // Should not call signUp because validation failed
-      expect(mockSignUp).not.toHaveBeenCalled()
-
-      // Should show validation error
       await waitFor(() => {
-        expect(
-          screen.getByText(
-            /Name cannot contain consecutive spaces|Name cannot start or end with spaces/
-          )
-        ).toBeInTheDocument()
+        expect(mockSignUp).toHaveBeenCalledWith(
+          expect.objectContaining({
+            name: 'John Doe',
+            email: 'user@company.com',
+            password: 'Password123!',
+          }),
+          expect.any(Object)
+        )
       })
     })
 

@@ -47,7 +47,7 @@ export function useWorkflowExecution() {
   const currentWorkflow = useCurrentWorkflow()
   const { activeWorkflowId, workflows } = useWorkflowRegistry()
   const { toggleConsole } = useConsoleStore()
-  const { getAllVariables } = useEnvironmentStore()
+  const { getAllVariables, loadWorkspaceEnvironment } = useEnvironmentStore()
   const { isDebugModeEnabled } = useGeneralStore()
   const { getVariablesByWorkflowId, variables } = useVariablesStore()
   const {
@@ -500,6 +500,7 @@ export function useWorkflowExecution() {
       currentWorkflow,
       toggleConsole,
       getAllVariables,
+      loadWorkspaceEnvironment,
       getVariablesByWorkflowId,
       isDebugModeEnabled,
       setIsExecuting,
@@ -598,15 +599,32 @@ export function useWorkflowExecution() {
       {} as Record<string, Record<string, any>>
     )
 
-    // Get environment variables
-    const envVars = getAllVariables()
-    const envVarValues = Object.entries(envVars).reduce(
+    // Get workspaceId from workflow metadata
+    const workspaceId = activeWorkflowId ? workflows[activeWorkflowId]?.workspaceId : undefined
+
+    // Get environment variables with workspace precedence
+    const personalEnvVars = getAllVariables()
+    const personalEnvValues = Object.entries(personalEnvVars).reduce(
       (acc, [key, variable]) => {
         acc[key] = variable.value
         return acc
       },
       {} as Record<string, string>
     )
+
+    // Load workspace environment variables if workspaceId exists
+    let workspaceEnvValues: Record<string, string> = {}
+    if (workspaceId) {
+      try {
+        const workspaceData = await loadWorkspaceEnvironment(workspaceId)
+        workspaceEnvValues = workspaceData.workspace || {}
+      } catch (error) {
+        logger.warn('Failed to load workspace environment variables:', error)
+      }
+    }
+
+    // Merge with workspace taking precedence over personal
+    const envVarValues = { ...personalEnvValues, ...workspaceEnvValues }
 
     // Get workflow variables
     const workflowVars = activeWorkflowId ? getVariablesByWorkflowId(activeWorkflowId) : []
@@ -643,9 +661,6 @@ export function useWorkflowExecution() {
       const chatStore = await import('@/stores/panel/chat/store').then((mod) => mod.useChatStore)
       selectedOutputIds = chatStore.getState().getSelectedWorkflowOutput(activeWorkflowId)
     }
-
-    // Get workspaceId from workflow metadata
-    const workspaceId = activeWorkflowId ? workflows[activeWorkflowId]?.workspaceId : undefined
 
     // Create executor options
     const executorOptions: ExecutorOptions = {

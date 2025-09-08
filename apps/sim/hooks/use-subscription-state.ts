@@ -153,7 +153,7 @@ export function useUsageLimit() {
       setIsLoading(true)
       setError(null)
 
-      const response = await fetch('/api/usage-limits?context=user')
+      const response = await fetch('/api/usage?context=user')
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
@@ -180,7 +180,7 @@ export function useUsageLimit() {
 
   const updateLimit = async (newLimit: number) => {
     try {
-      const response = await fetch('/api/usage-limits?context=user', {
+      const response = await fetch('/api/usage?context=user', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

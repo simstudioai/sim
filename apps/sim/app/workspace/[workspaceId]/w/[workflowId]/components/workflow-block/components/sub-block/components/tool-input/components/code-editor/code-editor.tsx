@@ -4,8 +4,9 @@ import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/components/prism-json'
 import 'prismjs/themes/prism.css'
-
+import { Wand2 } from 'lucide-react'
 import Editor from 'react-simple-code-editor'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 interface CodeEditorProps {
@@ -19,6 +20,9 @@ interface CodeEditorProps {
   onKeyDown?: (e: React.KeyboardEvent) => void
   disabled?: boolean
   schemaParameters?: Array<{ name: string; type: string; description: string; required: boolean }>
+  showWandButton?: boolean
+  onWandClick?: () => void
+  wandButtonDisabled?: boolean
 }
 
 export function CodeEditor({
@@ -32,6 +36,9 @@ export function CodeEditor({
   onKeyDown,
   disabled = false,
   schemaParameters = [],
+  showWandButton = false,
+  onWandClick,
+  wandButtonDisabled = false,
 }: CodeEditorProps) {
   const [code, setCode] = useState(value)
   const [visualLineHeights, setVisualLineHeights] = useState<number[]>([])
@@ -206,7 +213,20 @@ export function CodeEditor({
         className
       )}
     >
-      {code.split('\n').length > 5 && (
+      {showWandButton && onWandClick && (
+        <Button
+          variant='ghost'
+          size='icon'
+          onClick={onWandClick}
+          disabled={wandButtonDisabled}
+          aria-label='Generate with AI'
+          className='absolute top-2 right-3 z-10 h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground opacity-0 shadow-sm transition-all duration-200 hover:border-primary/20 hover:bg-muted hover:text-foreground hover:shadow group-hover:opacity-100'
+        >
+          <Wand2 className='h-4 w-4' />
+        </Button>
+      )}
+
+      {!showWandButton && code.split('\n').length > 5 && (
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
           className={cn(

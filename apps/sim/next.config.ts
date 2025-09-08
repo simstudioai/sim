@@ -186,22 +186,6 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     const redirects = []
-    // Add whitelabel redirects for terms and privacy pages if external URLs are configured
-    if (env.NEXT_PUBLIC_TERMS_URL?.startsWith('http')) {
-      redirects.push({
-        source: '/terms',
-        destination: env.NEXT_PUBLIC_TERMS_URL,
-        permanent: false,
-      })
-    }
-
-    if (env.NEXT_PUBLIC_PRIVACY_URL?.startsWith('http')) {
-      redirects.push({
-        source: '/privacy',
-        destination: env.NEXT_PUBLIC_PRIVACY_URL,
-        permanent: false,
-      })
-    }
 
     // Only enable domain redirects for the hosted version
     if (isHosted) {

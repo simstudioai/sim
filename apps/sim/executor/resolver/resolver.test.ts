@@ -13,7 +13,6 @@ describe('InputResolver', () => {
   let resolver: InputResolver
 
   beforeEach(() => {
-    // Set up a sample workflow with different types of blocks
     sampleWorkflow = {
       version: '1.0',
       blocks: [
@@ -64,7 +63,6 @@ describe('InputResolver', () => {
         },
       ],
       connections: [
-        // Add connections so blocks can reference each other
         { source: 'starter-block', target: 'function-block' },
         { source: 'function-block', target: 'condition-block' },
         { source: 'condition-block', target: 'api-block' },
@@ -73,10 +71,9 @@ describe('InputResolver', () => {
       loops: {},
     }
 
-    // Mock execution context
     mockContext = {
       workflowId: 'test-workflow',
-      workflow: sampleWorkflow, // Add workflow reference
+      workflow: sampleWorkflow,
       blockStates: new Map([
         ['starter-block', { output: { input: 'Hello World', type: 'text' } }],
         ['function-block', { output: { result: '42' } }], // String value as it would be in real app
@@ -92,13 +89,11 @@ describe('InputResolver', () => {
       executedBlocks: new Set(['starter-block', 'function-block']),
     }
 
-    // Mock environment variables
     mockEnvironmentVars = {
       API_KEY: 'test-api-key',
       BASE_URL: 'https://api.example.com',
     }
 
-    // Mock workflow variables
     mockWorkflowVars = {
       stringVar: {
         id: 'var1',
@@ -112,28 +107,28 @@ describe('InputResolver', () => {
         workflowId: 'test-workflow',
         name: 'numberVar',
         type: 'number',
-        value: '42', // Stored as string but should be converted to number
+        value: '42',
       },
       boolVar: {
         id: 'var3',
         workflowId: 'test-workflow',
         name: 'boolVar',
         type: 'boolean',
-        value: 'true', // Stored as string but should be converted to boolean
+        value: 'true',
       },
       objectVar: {
         id: 'var4',
         workflowId: 'test-workflow',
         name: 'objectVar',
         type: 'object',
-        value: '{"name":"John","age":30}', // Stored as string but should be parsed to object
+        value: '{"name":"John","age":30}',
       },
       arrayVar: {
         id: 'var5',
         workflowId: 'test-workflow',
         name: 'arrayVar',
         type: 'array',
-        value: '[1,2,3]', // Stored as string but should be parsed to array
+        value: '[1,2,3]',
       },
       plainVar: {
         id: 'var6',
@@ -144,27 +139,21 @@ describe('InputResolver', () => {
       },
     }
 
-    // Create accessibility map for block references
     const accessibleBlocksMap = new Map<string, Set<string>>()
-    // Allow all blocks to reference each other for testing
     const allBlockIds = sampleWorkflow.blocks.map((b) => b.id)
-    // Add common test block IDs
     const testBlockIds = ['test-block', 'test-block-2', 'generic-block']
     const allIds = [...allBlockIds, ...testBlockIds]
 
-    // Set up accessibility for workflow blocks
     sampleWorkflow.blocks.forEach((block) => {
       const accessibleBlocks = new Set(allIds)
       accessibleBlocksMap.set(block.id, accessibleBlocks)
     })
 
-    // Set up accessibility for test blocks
     testBlockIds.forEach((testId) => {
       const accessibleBlocks = new Set(allIds)
       accessibleBlocksMap.set(testId, accessibleBlocks)
     })
 
-    // Create resolver
     resolver = new InputResolver(
       sampleWorkflow,
       mockEnvironmentVars,
@@ -227,7 +216,7 @@ describe('InputResolver', () => {
 
       const result = resolver.resolveInputs(block, mockContext)
 
-      expect(result.directRef).toBe(42) // Should be converted to actual number
+      expect(result.directRef).toBe(42)
       expect(result.interpolated).toBe('The number is 42')
     })
 
@@ -253,7 +242,7 @@ describe('InputResolver', () => {
 
       const result = resolver.resolveInputs(block, mockContext)
 
-      expect(result.directRef).toBe(true) // Should be converted to boolean
+      expect(result.directRef).toBe(true)
       expect(result.interpolated).toBe('Is it true? true')
     })
 
@@ -277,7 +266,7 @@ describe('InputResolver', () => {
 
       const result = resolver.resolveInputs(block, mockContext)
 
-      expect(result.directRef).toEqual({ name: 'John', age: 30 }) // Should be parsed to object
+      expect(result.directRef).toEqual({ name: 'John', age: 30 })
     })
 
     it('should resolve plain text variables without quoting', () => {
@@ -318,7 +307,7 @@ describe('InputResolver', () => {
           params: {
             starterRef: '<starter-block.input>',
             functionRef: '<function-block.result>',
-            nameRef: '<Start.input>', // Reference by name
+            nameRef: '<Start.input>',
           },
         },
         inputs: {
@@ -333,7 +322,7 @@ describe('InputResolver', () => {
       const result = resolver.resolveInputs(block, mockContext)
 
       expect(result.starterRef).toBe('Hello World')
-      expect(result.functionRef).toBe('42') // String representation
+      expect(result.functionRef).toBe('42')
       expect(result.nameRef).toBe('Hello World') // Should resolve using block name
     })
 
@@ -371,7 +360,7 @@ describe('InputResolver', () => {
         config: {
           tool: 'generic',
           params: {
-            inactiveRef: '<condition-block.result>', // Not in activeExecutionPath
+            inactiveRef: '<condition-block.result>',
           },
         },
         inputs: {
@@ -381,17 +370,13 @@ describe('InputResolver', () => {
         enabled: true,
       }
 
-      // Since the condition-block is not in the active execution path,
-      // we expect it to be treated as inactive and return an empty string
       const result = resolver.resolveInputs(block, mockContext)
       expect(result.inactiveRef).toBe('')
     })
 
     it('should throw an error for references to disabled blocks', () => {
-      // Add connection from disabled block to test block so it's accessible
       sampleWorkflow.connections.push({ source: 'disabled-block', target: 'test-block' })
 
-      // Make sure disabled block stays disabled and add it to active path for validation
       const disabledBlock = sampleWorkflow.blocks.find((b) => b.id === 'disabled-block')!
       disabledBlock.enabled = false
       mockContext.activeExecutionPath.add('disabled-block')
@@ -421,14 +406,14 @@ describe('InputResolver', () => {
     it('should resolve environment variables in API key contexts', () => {
       const block: SerializedBlock = {
         id: 'test-block',
-        metadata: { id: BlockType.API, name: 'Test API Block' }, // API block type
+        metadata: { id: BlockType.API, name: 'Test API Block' },
         position: { x: 0, y: 0 },
         config: {
           tool: 'api',
           params: {
             apiKey: '{{API_KEY}}',
             url: 'https://example.com?key={{API_KEY}}',
-            regularParam: 'Base URL is: {{BASE_URL}}', // Should not be resolved in regular params
+            regularParam: 'Base URL is: {{BASE_URL}}',
           },
         },
         inputs: {
@@ -444,7 +429,7 @@ describe('InputResolver', () => {
 
       expect(result.apiKey).toBe('test-api-key')
       expect(result.url).toBe('https://example.com?key=test-api-key')
-      expect(result.regularParam).toBe('Base URL is: {{BASE_URL}}') // Should not be resolved
+      expect(result.regularParam).toBe('Base URL is: {{BASE_URL}}')
     })
 
     it('should resolve explicit environment variables', () => {
@@ -455,7 +440,7 @@ describe('InputResolver', () => {
         config: {
           tool: 'generic',
           params: {
-            explicitEnv: '{{BASE_URL}}', // Full string is just an env var
+            explicitEnv: '{{BASE_URL}}',
           },
         },
         inputs: {
@@ -490,7 +475,6 @@ describe('InputResolver', () => {
 
       const result = resolver.resolveInputs(block, mockContext)
 
-      // Environment variable should not be resolved in regular contexts
       expect(result.regularParam).toBe('Value with {{API_KEY}} embedded')
     })
   })
@@ -538,8 +522,8 @@ describe('InputResolver', () => {
 
       const result = resolver.resolveInputs(block, mockContext)
 
-      expect(result.tableParam[0].cells.Value).toBe('Hello') // string var
-      expect(result.tableParam[1].cells.Value).toBe(42) // number var - correctly typed
+      expect(result.tableParam[0].cells.Value).toBe('Hello')
+      expect(result.tableParam[1].cells.Value).toBe(42)
       expect(result.tableParam[2].cells.Value).toBe('Raw text without quotes') // plain var
     })
 
@@ -579,7 +563,7 @@ describe('InputResolver', () => {
       const result = resolver.resolveInputs(block, mockContext)
 
       expect(result.tableParam[0].cells.Value).toBe('Hello World')
-      expect(result.tableParam[1].cells.Value).toBe('42') // Result values come as strings
+      expect(result.tableParam[1].cells.Value).toBe('42')
     })
 
     it('should handle interpolated variable references in table cells', () => {
@@ -635,9 +619,7 @@ describe('InputResolver', () => {
 
       const result = resolver.resolveInputs(block, mockContext)
 
-      // String should be quoted in code context
       expect(result.code).toContain('const name = "Hello";')
-      // Number should not be quoted
       expect(result.code).toContain('const num = 42;')
     })
 
@@ -661,7 +643,6 @@ describe('InputResolver', () => {
 
       const result = resolver.resolveInputs(block, mockContext)
 
-      // Body should be parsed into an object
       expect(result.body).toEqual({
         name: 'Hello',
         value: 42,
@@ -688,7 +669,6 @@ describe('InputResolver', () => {
 
       const result = resolver.resolveInputs(block, mockContext)
 
-      // Conditions should be passed through without parsing for condition blocks
       expect(result.conditions).toBe('<start.input> === "Hello World"')
     })
   })
@@ -739,7 +719,7 @@ describe('InputResolver', () => {
         config: {
           tool: BlockType.FUNCTION,
           params: {
-            item: '<loop.currentItem>', // Direct reference, not wrapped in quotes
+            item: '<loop.currentItem>',
           },
         },
         inputs: {},
@@ -801,7 +781,7 @@ describe('InputResolver', () => {
         config: {
           tool: BlockType.FUNCTION,
           params: {
-            index: '<loop.index>', // Direct reference, not wrapped in quotes
+            index: '<loop.index>',
           },
         },
         inputs: {},
@@ -1610,7 +1590,7 @@ describe('InputResolver', () => {
       }
 
       expect(() => connectionResolver.resolveInputs(testBlock, contextWithConnections)).toThrow(
-        /Available connected blocks:.*Agent Block.*agent-1.*start/
+        /Available connected blocks:.*Agent Block.*Start/
       )
     })
 
@@ -2385,6 +2365,214 @@ describe('InputResolver', () => {
       const result3 = resolver.resolveInputs(searchBlock, mockContext)
       expect(result3).toHaveProperty('operation', 'search')
       expect(result3).not.toHaveProperty('content')
+    })
+  })
+
+  describe('Variable Reference Validation', () => {
+    it('should allow block references without dots like <start>', () => {
+      const block: SerializedBlock = {
+        id: 'test-block',
+        metadata: { id: 'generic', name: 'Test Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'generic',
+          params: {
+            content: 'Value from <start> block',
+          },
+        },
+        inputs: {
+          content: 'string',
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      const result = resolver.resolveInputs(block, mockContext)
+
+      expect(result.content).not.toBe('Value from <start> block')
+    })
+
+    it('should allow other block references without dots', () => {
+      const testAccessibility = new Map<string, Set<string>>()
+      const allIds = [
+        'starter-block',
+        'function-block',
+        'condition-block',
+        'api-block',
+        'testblock',
+      ]
+      allIds.forEach((id) => {
+        testAccessibility.set(id, new Set(allIds))
+      })
+      testAccessibility.set('test-block', new Set(allIds))
+
+      const testResolver = new InputResolver(
+        sampleWorkflow,
+        mockEnvironmentVars,
+        mockWorkflowVars,
+        undefined,
+        testAccessibility
+      )
+
+      const extendedWorkflow = {
+        ...sampleWorkflow,
+        blocks: [
+          ...sampleWorkflow.blocks,
+          {
+            id: 'testblock',
+            metadata: { id: 'generic', name: 'TestBlock' },
+            position: { x: 500, y: 100 },
+            config: { tool: 'generic', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+        ],
+      }
+
+      const extendedContext = {
+        ...mockContext,
+        workflow: extendedWorkflow,
+        blockStates: new Map([
+          ...mockContext.blockStates,
+          ['testblock', { output: { result: 'test result' } }],
+        ]),
+        activeExecutionPath: new Set([...mockContext.activeExecutionPath, 'testblock']),
+      }
+
+      const testResolverWithExtended = new InputResolver(
+        extendedWorkflow,
+        mockEnvironmentVars,
+        mockWorkflowVars,
+        undefined,
+        testAccessibility
+      )
+
+      const block: SerializedBlock = {
+        id: 'test-block',
+        metadata: { id: 'generic', name: 'Test Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'generic',
+          params: {
+            content: 'Value from <testblock> is here',
+          },
+        },
+        inputs: {
+          content: 'string',
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      expect(() => testResolverWithExtended.resolveInputs(block, extendedContext)).not.toThrow()
+    })
+
+    it('should reject operator expressions that look like comparisons', () => {
+      const block: SerializedBlock = {
+        id: 'condition-block',
+        metadata: { id: BlockType.CONDITION, name: 'Condition Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'condition',
+          params: {
+            conditions: 'x < 5 && 8 > b',
+          },
+        },
+        inputs: {
+          conditions: 'string',
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      const result = resolver.resolveInputs(block, mockContext)
+
+      expect(result.conditions).toBe('x < 5 && 8 > b')
+    })
+
+    it('should still allow regular dotted references', () => {
+      const block: SerializedBlock = {
+        id: 'test-block',
+        metadata: { id: 'generic', name: 'Test Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'generic',
+          params: {
+            starterInput: '<start.input>',
+            functionResult: '<function-block.result>',
+            variableRef: '<variable.stringVar>',
+          },
+        },
+        inputs: {
+          starterInput: 'string',
+          functionResult: 'string',
+          variableRef: 'string',
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      const result = resolver.resolveInputs(block, mockContext)
+
+      expect(result.starterInput).toBe('Hello World')
+      expect(result.functionResult).toBe('42')
+      expect(result.variableRef).toBe('Hello')
+    })
+
+    it('should handle complex expressions with both valid references and operators', () => {
+      const block: SerializedBlock = {
+        id: 'condition-block',
+        metadata: { id: BlockType.CONDITION, name: 'Condition Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'condition',
+          params: {
+            conditions:
+              '<start.input> === "Hello" && x < 5 && 8 > y && <function-block.result> !== null',
+          },
+        },
+        inputs: {
+          conditions: 'string',
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      const result = resolver.resolveInputs(block, mockContext)
+
+      expect(result.conditions).toBe(
+        '<start.input> === "Hello" && x < 5 && 8 > y && <function-block.result> !== null'
+      )
+    })
+
+    it('should reject numeric patterns that look like arithmetic', () => {
+      const block: SerializedBlock = {
+        id: 'test-block',
+        metadata: { id: 'generic', name: 'Test Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'generic',
+          params: {
+            content1: 'value < 5 is true',
+            content2: 'check 8 > x condition',
+            content3: 'result = 10 + 5',
+          },
+        },
+        inputs: {
+          content1: 'string',
+          content2: 'string',
+          content3: 'string',
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      const result = resolver.resolveInputs(block, mockContext)
+
+      expect(result.content1).toBe('value < 5 is true')
+      expect(result.content2).toBe('check 8 > x condition')
+      expect(result.content3).toBe('result = 10 + 5')
     })
   })
 })

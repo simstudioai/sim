@@ -141,17 +141,6 @@ describe('File Parsers', () => {
       })),
     }))
 
-    vi.doMock('@/lib/file-parsers/raw-pdf-parser', () => ({
-      RawPdfParser: vi.fn().mockImplementation(() => ({
-        parseFile: vi.fn().mockResolvedValue({
-          content: 'Raw parsed PDF content',
-          metadata: {
-            pageCount: 3,
-          },
-        }),
-      })),
-    }))
-
     vi.doMock('@/lib/file-parsers/txt-parser', () => ({
       TxtParser: vi.fn().mockImplementation(() => ({
         parseFile: mockTxtParseFile,

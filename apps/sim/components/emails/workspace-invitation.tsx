@@ -39,8 +39,11 @@ export const WorkspaceInvitationEmail = ({
   let enhancedLink = invitationLink
 
   try {
-    // If the link is pointing to the API endpoint directly, update it to use the client route
-    if (invitationLink.includes('/api/workspaces/invitations/accept')) {
+    // If the link is pointing to any API endpoint directly, update it to use the client route
+    if (
+      invitationLink.includes('/api/workspaces/invitations/accept') ||
+      invitationLink.match(/\/api\/workspaces\/invitations\/[^?]+\?token=/)
+    ) {
       const url = new URL(invitationLink)
       const token = url.searchParams.get('token')
       if (token) {

@@ -12,6 +12,12 @@ interface EnvVarDropdownProps {
   cursorPosition: number
   onClose?: () => void
   style?: React.CSSProperties
+  workspaceId?: string
+}
+
+interface EnvVarGroup {
+  label: string
+  variables: string[]
 }
 
 export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
@@ -23,14 +29,64 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
   cursorPosition,
   onClose,
   style,
+  workspaceId,
 }) => {
-  const envVars = useEnvironmentStore((state) => Object.keys(state.variables))
+  const loadWorkspaceEnvironment = useEnvironmentStore((state) => state.loadWorkspaceEnvironment)
+  const userEnvVars = useEnvironmentStore((state) => Object.keys(state.variables))
+  const [workspaceEnvData, setWorkspaceEnvData] = useState<{
+    workspace: Record<string, string>
+    personal: Record<string, string>
+    conflicts: string[]
+  }>({ workspace: {}, personal: {}, conflicts: [] })
   const [selectedIndex, setSelectedIndex] = useState(0)
 
+  // Load workspace environment variables when workspaceId changes
+  useEffect(() => {
+    if (workspaceId && visible) {
+      loadWorkspaceEnvironment(workspaceId).then((data) => {
+        setWorkspaceEnvData(data)
+      })
+    }
+  }, [workspaceId, visible, loadWorkspaceEnvironment])
+
+  // Combine and organize environment variables
+  const envVarGroups: EnvVarGroup[] = []
+
+  if (workspaceId) {
+    // When workspaceId is provided, show both workspace and user env vars
+    const workspaceVars = Object.keys(workspaceEnvData.workspace)
+    const personalVars = Object.keys(workspaceEnvData.personal)
+
+    if (workspaceVars.length > 0) {
+      envVarGroups.push({ label: 'Workspace', variables: workspaceVars })
+    }
+    if (personalVars.length > 0) {
+      envVarGroups.push({ label: 'Personal', variables: personalVars })
+    }
+  } else {
+    // Fallback to user env vars only
+    if (userEnvVars.length > 0) {
+      envVarGroups.push({ label: 'Personal', variables: userEnvVars })
+    }
+  }
+
+  // Flatten all variables for filtering and selection
+  const allEnvVars = envVarGroups.flatMap((group) => group.variables)
+
   // Filter env vars based on search term
-  const filteredEnvVars = envVars.filter((envVar) =>
+  const filteredEnvVars = allEnvVars.filter((envVar) =>
     envVar.toLowerCase().includes(searchTerm.toLowerCase())
   )
+
+  // Create filtered groups for display
+  const filteredGroups = envVarGroups
+    .map((group) => ({
+      ...group,
+      variables: group.variables.filter((envVar) =>
+        envVar.toLowerCase().includes(searchTerm.toLowerCase())
+      ),
+    }))
+    .filter((group) => group.variables.length > 0)
 
   // Reset selection when filtered results change
   useEffect(() => {
@@ -125,23 +181,35 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
         </div>
       ) : (
         <div className='py-1'>
-          {filteredEnvVars.map((envVar, index) => (
-            <button
-              key={envVar}
-              className={cn(
-                'w-full px-3 py-1.5 text-left text-sm',
-                'hover:bg-accent hover:text-accent-foreground',
-                'focus:bg-accent focus:text-accent-foreground focus:outline-none',
-                index === selectedIndex && 'bg-accent text-accent-foreground'
+          {filteredGroups.map((group) => (
+            <div key={group.label}>
+              {filteredGroups.length > 1 && (
+                <div className='border-border/50 border-b px-3 py-1 font-medium text-muted-foreground/70 text-xs uppercase tracking-wide'>
+                  {group.label}
+                </div>
               )}
-              onMouseEnter={() => setSelectedIndex(index)}
-              onMouseDown={(e) => {
-                e.preventDefault() // Prevent input blur
-                handleEnvVarSelect(envVar)
-              }}
-            >
-              {envVar}
-            </button>
+              {group.variables.map((envVar) => {
+                const globalIndex = filteredEnvVars.indexOf(envVar)
+                return (
+                  <button
+                    key={`${group.label}-${envVar}`}
+                    className={cn(
+                      'w-full px-3 py-1.5 text-left text-sm',
+                      'hover:bg-accent hover:text-accent-foreground',
+                      'focus:bg-accent focus:text-accent-foreground focus:outline-none',
+                      globalIndex === selectedIndex && 'bg-accent text-accent-foreground'
+                    )}
+                    onMouseEnter={() => setSelectedIndex(globalIndex)}
+                    onMouseDown={(e) => {
+                      e.preventDefault() // Prevent input blur
+                      handleEnvVarSelect(envVar)
+                    }}
+                  >
+                    {envVar}
+                  </button>
+                )
+              })}
+            </div>
           ))}
         </div>
       )}

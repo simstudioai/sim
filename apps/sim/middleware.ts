@@ -83,6 +83,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
+  // Handle whitelabel redirects for terms and privacy pages
+  if (url.pathname === '/terms') {
+    const termsUrl = process.env.NEXT_PUBLIC_TERMS_URL
+    if (termsUrl?.startsWith('http')) {
+      return NextResponse.redirect(termsUrl)
+    }
+  }
+
+  if (url.pathname === '/privacy') {
+    const privacyUrl = process.env.NEXT_PUBLIC_PRIVACY_URL
+    if (privacyUrl?.startsWith('http')) {
+      return NextResponse.redirect(privacyUrl)
+    }
+  }
+
   // Legacy redirect: /w -> /workspace (will be handled by workspace layout)
   if (url.pathname === '/w' || url.pathname.startsWith('/w/')) {
     // Extract workflow ID if present
@@ -195,6 +210,8 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     '/', // Root path for self-hosted redirect logic
+    '/terms', // Whitelabel terms redirect
+    '/privacy', // Whitelabel privacy redirect
     '/w', // Legacy /w redirect
     '/w/:path*', // Legacy /w/* redirects
     '/workspace/:path*', // New workspace routes

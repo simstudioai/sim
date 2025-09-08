@@ -161,7 +161,7 @@ export default function Logs() {
     Promise.all(
       idsToFetch.map(async ({ id, merge }) => {
         try {
-          const res = await fetch(`/api/logs/by-id/${id}`, { signal: controller.signal })
+          const res = await fetch(`/api/logs/${id}`, { signal: controller.signal })
           if (!res.ok) return
           const body = await res.json()
           const detailed = body?.data
@@ -216,7 +216,7 @@ export default function Logs() {
         Promise.all(
           idsToFetch.map(async ({ id, merge }) => {
             try {
-              const res = await fetch(`/api/logs/by-id/${id}`, { signal: controller.signal })
+              const res = await fetch(`/api/logs/${id}`, { signal: controller.signal })
               if (!res.ok) return
               const body = await res.json()
               const detailed = body?.data
@@ -274,7 +274,7 @@ export default function Logs() {
         Promise.all(
           idsToFetch.map(async ({ id, merge }) => {
             try {
-              const res = await fetch(`/api/logs/by-id/${id}`, { signal: controller.signal })
+              const res = await fetch(`/api/logs/${id}`, { signal: controller.signal })
               if (!res.ok) return
               const body = await res.json()
               const detailed = body?.data

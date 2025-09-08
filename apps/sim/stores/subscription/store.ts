@@ -142,7 +142,7 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
 
       loadUsageLimitData: async () => {
         try {
-          const response = await fetch('/api/usage-limits?context=user')
+          const response = await fetch('/api/usage?context=user')
 
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`)
@@ -168,7 +168,7 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
 
       updateUsageLimit: async (newLimit: number) => {
         try {
-          const response = await fetch('/api/usage-limits?context=user', {
+          const response = await fetch('/api/usage?context=user', {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
@@ -240,7 +240,7 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
           // Load both subscription and usage limit data in parallel
           const [subscriptionResponse, usageLimitResponse] = await Promise.all([
             fetch('/api/billing?context=user'),
-            fetch('/api/usage-limits?context=user'),
+            fetch('/api/usage?context=user'),
           ])
 
           if (!subscriptionResponse.ok) {

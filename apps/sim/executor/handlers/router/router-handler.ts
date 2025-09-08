@@ -51,7 +51,7 @@ export class RouterBlockHandler implements BlockHandler {
         model: routerConfig.model,
         systemPrompt: systemPrompt,
         context: JSON.stringify(messages),
-        temperature: routerConfig.temperature,
+        temperature: 0.1,
         apiKey: routerConfig.apiKey,
         workflowId: context.workflowId,
       }
@@ -102,7 +102,7 @@ export class RouterBlockHandler implements BlockHandler {
       )
 
       return {
-        content: inputs.prompt,
+        prompt: inputs.prompt,
         model: result.model,
         tokens: {
           prompt: tokens.prompt || 0,

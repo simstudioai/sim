@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Wand2 } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { useReactFlow } from 'reactflow'
 import { Button } from '@/components/ui/button'
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
@@ -84,6 +85,9 @@ export function ShortInput({
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
 
   const emitTagSelection = useTagSelection(blockId, subBlockId)
+
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
 
   // Get ReactFlow instance for zoom control
   const reactFlowInstance = useReactFlow()
@@ -199,7 +203,7 @@ export function ShortInput({
   }, [value])
 
   // Handle paste events to ensure long values are handled correctly
-  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+  const handlePaste = (_e: React.ClipboardEvent<HTMLInputElement>) => {
     // Let the paste happen normally
     // Then ensure scroll positions are synced after the content is updated
     setTimeout(() => {
@@ -432,7 +436,7 @@ export function ShortInput({
               }
               disabled={wandHook.isLoading || wandHook.isStreaming || disabled}
               aria-label='Generate content with AI'
-              className='h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover:border-primary/20 hover:bg-muted hover:text-primary hover:shadow'
+              className='h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover:border-primary/20 hover:bg-muted hover:text-foreground hover:shadow'
             >
               <Wand2 className='h-4 w-4' />
             </Button>
@@ -447,6 +451,7 @@ export function ShortInput({
               searchTerm={searchTerm}
               inputValue={value?.toString() ?? ''}
               cursorPosition={cursorPosition}
+              workspaceId={workspaceId}
               onClose={() => {
                 setShowEnvVars(false)
                 setSearchTerm('')

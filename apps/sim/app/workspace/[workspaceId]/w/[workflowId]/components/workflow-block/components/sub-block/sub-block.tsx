@@ -34,6 +34,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components'
 import type { SubBlockConfig } from '@/blocks/types'
 import { DocumentTagEntry } from './components/document-tag-entry/document-tag-entry'
+import { E2BSwitch } from './components/e2b-switch'
 import { KnowledgeTagFilters } from './components/knowledge-tag-filters/knowledge-tag-filters'
 
 interface SubBlockProps {
@@ -203,6 +204,18 @@ export function SubBlock({
           />
         )
       case 'switch':
+        if (config.id === 'remoteExecution') {
+          return (
+            <E2BSwitch
+              blockId={blockId}
+              subBlockId={config.id}
+              title={config.title ?? ''}
+              isPreview={isPreview}
+              previewValue={previewValue}
+              disabled={isDisabled}
+            />
+          )
+        }
         return (
           <Switch
             blockId={blockId}

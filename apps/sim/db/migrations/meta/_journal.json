@@ -554,6 +554,41 @@
       "when": 1756246702112,
       "tag": "0079_shocking_shriek",
       "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1756581886683,
+      "tag": "0080_left_riptide",
+      "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1756602783877,
+      "tag": "0081_yellow_shadow_king",
+      "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1756767479124,
+      "tag": "0082_light_blockbuster",
+      "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1756768177306,
+      "tag": "0083_ambiguous_dreadnoughts",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1757046301281,
+      "tag": "0084_even_lockheed",
+      "breakpoints": true
     }
   ]
 }

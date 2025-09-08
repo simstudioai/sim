@@ -502,7 +502,7 @@ export function FrozenCanvas({
         setLoading(true)
         setError(null)
 
-        const response = await fetch(`/api/logs/${executionId}/frozen-canvas`)
+        const response = await fetch(`/api/logs/execution/${executionId}`)
         if (!response.ok) {
           throw new Error(`Failed to fetch frozen canvas data: ${response.statusText}`)
         }

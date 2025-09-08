@@ -125,6 +125,12 @@ export function useSubBlockValue<T = any>(
         return
       }
 
+      const currentActiveWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+      if (!currentActiveWorkflowId) {
+        logger.warn('No active workflow ID when setting value', { blockId, subBlockId })
+        return
+      }
+
       // Use deep comparison to avoid unnecessary updates for complex objects
       if (!isEqual(valueRef.current, newValue)) {
         valueRef.current = newValue
@@ -147,10 +153,10 @@ export function useSubBlockValue<T = any>(
         useSubBlockStore.setState((state) => ({
           workflowValues: {
             ...state.workflowValues,
-            [activeWorkflowId || '']: {
-              ...state.workflowValues[activeWorkflowId || ''],
+            [currentActiveWorkflowId]: {
+              ...state.workflowValues[currentActiveWorkflowId],
               [blockId]: {
-                ...state.workflowValues[activeWorkflowId || '']?.[blockId],
+                ...state.workflowValues[currentActiveWorkflowId]?.[blockId],
                 [subBlockId]: newValue,
               },
             },
@@ -194,7 +200,6 @@ export function useSubBlockValue<T = any>(
       isStreaming,
       emitValue,
       isShowingDiff,
-      activeWorkflowId,
     ]
   )
 

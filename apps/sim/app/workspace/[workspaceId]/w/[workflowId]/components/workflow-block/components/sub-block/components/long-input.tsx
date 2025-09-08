@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronsUpDown, Wand2 } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { useReactFlow } from 'reactflow'
 import { Button } from '@/components/ui/button'
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
@@ -49,6 +50,8 @@ export function LongInput({
   onChange,
   disabled,
 }: LongInputProps) {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
   // Local state for immediate UI updates during streaming
   const [localContent, setLocalContent] = useState<string>('')
 
@@ -423,7 +426,7 @@ export function LongInput({
               }
               disabled={wandHook.isLoading || wandHook.isStreaming || disabled}
               aria-label='Generate content with AI'
-              className='h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover:border-primary/20 hover:bg-muted hover:text-primary hover:shadow'
+              className='h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover:border-primary/20 hover:bg-muted hover:text-foreground hover:shadow'
             >
               <Wand2 className='h-4 w-4' />
             </Button>
@@ -457,6 +460,7 @@ export function LongInput({
               searchTerm={searchTerm}
               inputValue={value?.toString() ?? ''}
               cursorPosition={cursorPosition}
+              workspaceId={workspaceId}
               onClose={() => {
                 setShowEnvVars(false)
                 setSearchTerm('')

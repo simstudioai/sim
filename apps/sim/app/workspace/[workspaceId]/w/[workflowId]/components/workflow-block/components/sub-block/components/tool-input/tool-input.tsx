@@ -1415,7 +1415,7 @@ export function ToolInput({
                             </Toggle>
                           </TooltipTrigger>
                           <TooltipContent className='max-w-[280px] p-2' side='top'>
-                            <p className='text-muted-foreground text-xs'>
+                            <p className='text-xs'>
                               Control how the model uses this tool in its response.
                               {tool.usageControl === 'auto' && (
                                 <span>

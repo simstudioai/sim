@@ -26,7 +26,7 @@ export default function Workflow() {
     const fetchWorkflows = async () => {
       try {
         setLoading(true)
-        const response = await fetch('/api/workflows/sync')
+        const response = await fetch('/api/workflows')
         if (response.ok) {
           const { data } = await response.json()
           const workflowOptions: WorkflowOption[] = data.map((workflow: any) => ({
