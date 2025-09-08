@@ -267,7 +267,7 @@ export async function getSimplifiedBillingSummary(
     }
 
     const overageAmount = Math.max(0, currentUsage - basePrice)
-    const percentUsed = usageData.limit > 0 ? Math.round((currentUsage / usageData.limit) * 100) : 0
+    const percentUsed = usageData.limit > 0 ? (currentUsage / usageData.limit) * 100 : 0
 
     // Calculate days remaining in billing period
     const daysRemaining = usageData.billingPeriodEnd
