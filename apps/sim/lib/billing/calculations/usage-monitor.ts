@@ -68,7 +68,7 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
       statsRecords[0].currentPeriodCost?.toString() || statsRecords[0].totalCost.toString()
     )
 
-    // Calculate percentage used with higher precision to avoid missing threshold crossings
+    // Calculate percentage used
     const percentUsed = Math.min((currentUsage / limit) * 100, 100)
 
     // Check org-level cap for team/enterprise pooled usage

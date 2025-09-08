@@ -212,26 +212,10 @@ export class ExecutionLogger implements IExecutionLoggerService {
             )
 
             const limit = before.usageData.limit
-            logger.info('Limit', { limit })
             const percentBefore = before.usageData.percentUsed
-            logger.info('Percent before', { percentBefore })
             const percentAfter =
               limit > 0 ? Math.min(100, percentBefore + (costDelta / limit) * 100) : percentBefore
-            logger.info('Percent after', { percentAfter })
             const currentUsageAfter = before.usageData.currentUsage + costDelta
-
-            logger.info('Calling maybeSendUsageThresholdEmail with params', {
-              scope: 'user',
-              userId: usr.id,
-              userEmail: usr.email,
-              planName,
-              percentBefore,
-              percentAfter,
-              currentUsageAfter,
-              limit,
-              costDelta,
-              beforeCurrentUsage: before.usageData.currentUsage,
-            })
 
             await maybeSendUsageThresholdEmail({
               scope: 'user',
