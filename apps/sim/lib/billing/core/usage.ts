@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm'
+import { getEmailSubject, renderUsageThresholdEmail } from '@/components/emails/render-email'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import {
   canEditUsageLimit,
@@ -6,9 +7,12 @@ import {
   getPerUserMinimumLimit,
 } from '@/lib/billing/subscriptions/utils'
 import type { BillingData, UsageData, UsageLimitInfo } from '@/lib/billing/types'
+import { sendEmail } from '@/lib/email/mailer'
+import { getEmailPreferences } from '@/lib/email/unsubscribe'
+import { isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
-import { member, organization, user, userStats } from '@/db/schema'
+import { member, organization, settings, user, userStats } from '@/db/schema'
 
 const logger = createLogger('UsageManagement')
 
@@ -82,7 +86,7 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
       }
     }
 
-    const percentUsed = limit > 0 ? Math.min(Math.floor((currentUsage / limit) * 100), 100) : 0
+    const percentUsed = limit > 0 ? Math.min((currentUsage / limit) * 100, 100) : 0
     const isWarning = percentUsed >= 80
     const isExceeded = currentUsage >= limit
 
@@ -529,5 +533,91 @@ export async function calculateBillingProjection(userId: string): Promise<Billin
   } catch (error) {
     logger.error('Failed to calculate billing projection', { userId, error })
     throw error
+  }
+}
+
+/**
+ * Send usage threshold notification when crossing from <80% to ≥80%.
+ * - Skips when billing is disabled.
+ * - Respects user-level notifications toggle and unsubscribe preferences.
+ * - For organization plans, emails owners/admins who have notifications enabled.
+ */
+export async function maybeSendUsageThresholdEmail(params: {
+  scope: 'user' | 'organization'
+  planName: string
+  percentBefore: number
+  percentAfter: number
+  userId?: string
+  userEmail?: string
+  userName?: string
+  organizationId?: string
+  currentUsageAfter: number
+  limit: number
+}): Promise<void> {
+  try {
+    if (!isBillingEnabled) return
+    // Only on upward crossing to >= 80%
+    if (!(params.percentBefore < 80 && params.percentAfter >= 80)) return
+    if (params.limit <= 0 || params.currentUsageAfter <= 0) return
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
+    const ctaLink = `${baseUrl}/workspace?billing=usage`
+    const sendTo = async (email: string, name?: string) => {
+      const prefs = await getEmailPreferences(email)
+      if (prefs?.unsubscribeAll || prefs?.unsubscribeNotifications) return
+
+      const html = await renderUsageThresholdEmail({
+        userName: name,
+        planName: params.planName,
+        percentUsed: Math.min(100, Math.round(params.percentAfter)),
+        currentUsage: params.currentUsageAfter,
+        limit: params.limit,
+        ctaLink,
+      })
+
+      await sendEmail({
+        to: email,
+        subject: getEmailSubject('usage-threshold'),
+        html,
+        emailType: 'notifications',
+      })
+    }
+
+    if (params.scope === 'user' && params.userId && params.userEmail) {
+      const rows = await db
+        .select({ enabled: settings.billingUsageNotificationsEnabled })
+        .from(settings)
+        .where(eq(settings.userId, params.userId))
+        .limit(1)
+      if (rows.length > 0 && rows[0].enabled === false) return
+      await sendTo(params.userEmail, params.userName)
+    } else if (params.scope === 'organization' && params.organizationId) {
+      const admins = await db
+        .select({
+          email: user.email,
+          name: user.name,
+          enabled: settings.billingUsageNotificationsEnabled,
+          role: member.role,
+        })
+        .from(member)
+        .innerJoin(user, eq(member.userId, user.id))
+        .leftJoin(settings, eq(settings.userId, member.userId))
+        .where(eq(member.organizationId, params.organizationId))
+
+      for (const a of admins) {
+        const isAdmin = a.role === 'owner' || a.role === 'admin'
+        if (!isAdmin) continue
+        if (a.enabled === false) continue
+        if (!a.email) continue
+        await sendTo(a.email, a.name || undefined)
+      }
+    }
+  } catch (error) {
+    logger.error('Failed to send usage threshold email', {
+      scope: params.scope,
+      userId: params.userId,
+      organizationId: params.organizationId,
+      error,
+    })
   }
 }

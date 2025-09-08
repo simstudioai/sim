@@ -435,7 +435,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, 'Remove connection')
         get().updateLastSaved()
-        // get().sync.markDirty() // Disabled: Using socket-based sync
       },
 
       clear: () => {

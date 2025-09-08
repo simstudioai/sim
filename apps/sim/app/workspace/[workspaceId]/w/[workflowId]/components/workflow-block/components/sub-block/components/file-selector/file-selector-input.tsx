@@ -6,7 +6,6 @@ import { getEnv } from '@/lib/env'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import {
   ConfluenceFileSelector,
-  DiscordChannelSelector,
   GoogleCalendarSelector,
   GoogleDrivePicker,
   JiraIssueSelector,
@@ -70,8 +69,6 @@ export function FileSelectorInput({
   const [planIdValue] = useSubBlockValue(blockId, 'planId')
   const [teamIdValue] = useSubBlockValue(blockId, 'teamId')
   const [operationValue] = useSubBlockValue(blockId, 'operation')
-  const [serverIdValue] = useSubBlockValue(blockId, 'serverId')
-  const [botTokenValue] = useSubBlockValue(blockId, 'botToken')
 
   // Determine if the persisted credential belongs to the current viewer
   // Use service providerId where available (e.g., onedrive/sharepoint) instead of base provider ("microsoft")
@@ -87,7 +84,6 @@ export function FileSelectorInput({
   const provider = subBlock.provider || 'google-drive'
   const isConfluence = provider === 'confluence'
   const isJira = provider === 'jira'
-  const isDiscord = provider === 'discord'
   const isMicrosoftTeams = provider === 'microsoft-teams'
   const isMicrosoftExcel = provider === 'microsoft-excel'
   const isMicrosoftWord = provider === 'microsoft-word'
@@ -108,13 +104,7 @@ export function FileSelectorInput({
       ''
     : ''
 
-  // For Discord, we need the bot token and server ID
-  const botToken = isDiscord
-    ? (isPreview && previewContextValues?.botToken?.value) || (botTokenValue as string) || ''
-    : ''
-  const serverId = isDiscord
-    ? (isPreview && previewContextValues?.serverId?.value) || (serverIdValue as string) || ''
-    : ''
+  // Discord channel selector removed; no special values used here
 
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
@@ -146,31 +136,6 @@ export function FileSelectorInput({
                 showPreview={true}
                 credentialId={credential}
                 workflowId={workflowIdFromUrl}
-              />
-            </div>
-          </TooltipTrigger>
-        </Tooltip>
-      </TooltipProvider>
-    )
-  }
-
-  // Render Discord channel selector
-  if (isDiscord) {
-    return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className='w-full'>
-              <DiscordChannelSelector
-                value={coerceToIdString(
-                  (isPreview && previewValue !== undefined ? previewValue : storeValue) as any
-                )}
-                onChange={(channelId) => setStoreValue(channelId)}
-                botToken={botToken}
-                serverId={serverId}
-                label={subBlock.placeholder || 'Select Discord channel'}
-                disabled={finalDisabled}
-                showPreview={true}
               />
             </div>
           </TooltipTrigger>

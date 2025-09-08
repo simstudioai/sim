@@ -7,12 +7,13 @@ export interface General {
   telemetryEnabled: boolean
   isLoading: boolean
   error: string | null
-  // Individual loading states for optimistic updates
   isAutoConnectLoading: boolean
   isAutoPanLoading: boolean
   isConsoleExpandedByDefaultLoading: boolean
   isThemeLoading: boolean
   isTelemetryLoading: boolean
+  isBillingUsageNotificationsLoading: boolean
+  isBillingUsageNotificationsEnabled: boolean
 }
 
 export interface GeneralActions {
@@ -23,6 +24,7 @@ export interface GeneralActions {
   toggleDebugMode: () => void
   setTheme: (theme: 'system' | 'light' | 'dark') => Promise<void>
   setTelemetryEnabled: (enabled: boolean) => Promise<void>
+  setBillingUsageNotificationsEnabled: (enabled: boolean) => Promise<void>
   loadSettings: (force?: boolean) => Promise<void>
   updateSetting: <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => Promise<void>
 }
@@ -35,4 +37,5 @@ export type UserSettings = {
   autoPan: boolean
   consoleExpandedByDefault: boolean
   telemetryEnabled: boolean
+  isBillingUsageNotificationsEnabled: boolean
 }

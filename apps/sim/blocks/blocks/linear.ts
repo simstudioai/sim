@@ -1,6 +1,8 @@
 import { LinearIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockIcon } from '@/blocks/types'
 import type { LinearResponse } from '@/tools/linear/types'
+
+const LinearBlockIcon: BlockIcon = (props) => LinearIcon(props as any)
 
 export const LinearBlock: BlockConfig<LinearResponse> = {
   type: 'linear',
@@ -9,7 +11,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
   longDescription:
     'Integrate with Linear to fetch, filter, and create issues directly from your workflow.',
   category: 'tools',
-  icon: LinearIcon,
+  icon: LinearBlockIcon,
   bgColor: '#5E6AD2',
   subBlocks: [
     {
@@ -39,6 +41,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       title: 'Team',
       type: 'project-selector',
       layout: 'full',
+      canonicalParamId: 'teamId',
       provider: 'linear',
       serviceId: 'linear',
       placeholder: 'Select a team',
@@ -50,6 +53,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       title: 'Project',
       type: 'project-selector',
       layout: 'full',
+      canonicalParamId: 'projectId',
       provider: 'linear',
       serviceId: 'linear',
       placeholder: 'Select a project',
@@ -62,6 +66,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       title: 'Team ID',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'teamId',
       placeholder: 'Enter Linear team ID',
       mode: 'advanced',
     },
@@ -71,6 +76,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       title: 'Project ID',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'projectId',
       placeholder: 'Enter Linear project ID',
       mode: 'advanced',
     },
@@ -96,19 +102,15 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       tool: (params) =>
         params.operation === 'write' ? 'linear_create_issue' : 'linear_read_issues',
       params: (params) => {
-        // Handle team ID (selector or manual)
+        // Handle both selector and manual inputs
         const effectiveTeamId = (params.teamId || params.manualTeamId || '').trim()
-
-        // Handle project ID (selector or manual)
         const effectiveProjectId = (params.projectId || params.manualProjectId || '').trim()
 
         if (!effectiveTeamId) {
-          throw new Error('Team ID is required. Please select a team or enter a team ID manually.')
+          throw new Error('Team ID is required.')
         }
         if (!effectiveProjectId) {
-          throw new Error(
-            'Project ID is required. Please select a project or enter a project ID manually.'
-          )
+          throw new Error('Project ID is required.')
         }
 
         if (params.operation === 'write') {

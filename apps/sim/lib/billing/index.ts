@@ -13,6 +13,7 @@ export {
   isEnterprisePlan as hasEnterprisePlan,
   isProPlan as hasProPlan,
   isTeamPlan as hasTeamPlan,
+  sendPlanWelcomeEmail,
 } from '@/lib/billing/core/subscription'
 export * from '@/lib/billing/core/usage'
 export {

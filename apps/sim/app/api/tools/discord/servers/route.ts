@@ -64,46 +64,14 @@ export async function POST(request: Request) {
       })
     }
 
-    // Otherwise, fetch all servers the bot is in
-    logger.info('Fetching all Discord servers')
-
-    const response = await fetch('https://discord.com/api/v10/users/@me/guilds', {
-      method: 'GET',
-      headers: {
-        Authorization: `Bot ${botToken}`,
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      logger.error('Discord API error:', {
-        status: response.status,
-        statusText: response.statusText,
-      })
-
-      let errorMessage
-      try {
-        const errorData = await response.json()
-        logger.error('Error details:', errorData)
-        errorMessage = errorData.message || `Failed to fetch servers (${response.status})`
-      } catch (_e) {
-        errorMessage = `Failed to fetch servers: ${response.status} ${response.statusText}`
-      }
-      return NextResponse.json({ error: errorMessage }, { status: response.status })
-    }
-
-    const servers = (await response.json()) as DiscordServer[]
-    logger.info(`Successfully fetched ${servers.length} servers`)
-
-    return NextResponse.json({
-      servers: servers.map((server: DiscordServer) => ({
-        id: server.id,
-        name: server.name,
-        icon: server.icon
-          ? `https://cdn.discordapp.com/icons/${server.id}/${server.icon}.png`
-          : null,
-      })),
-    })
+    // Listing guilds via REST requires a user OAuth2 access token with the 'guilds' scope.
+    // A bot token cannot call /users/@me/guilds and will return 401.
+    // Since this selector only has a bot token, return an empty list instead of erroring
+    // and let users provide a Server ID in advanced mode.
+    logger.info(
+      'Skipping guild listing: bot token cannot list /users/@me/guilds; returning empty list'
+    )
+    return NextResponse.json({ servers: [] })
   } catch (error) {
     logger.error('Error processing request:', error)
     return NextResponse.json(

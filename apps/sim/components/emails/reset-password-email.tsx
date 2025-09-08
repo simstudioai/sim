@@ -14,7 +14,6 @@ import {
 import { format } from 'date-fns'
 import { getBrandConfig } from '@/lib/branding/branding'
 import { env } from '@/lib/env'
-import { getAssetUrl } from '@/lib/utils'
 import { baseStyles } from './base-styles'
 import EmailFooter from './footer'
 
@@ -43,7 +42,7 @@ export const ResetPasswordEmail = ({
             <Row>
               <Column style={{ textAlign: 'center' }}>
                 <Img
-                  src={brand.logoUrl || getAssetUrl('static/sim.png')}
+                  src={brand.logoUrl || '/logo/reverse/text/medium.png'}
                   width='114'
                   alt={brand.name}
                   style={{

@@ -101,6 +101,7 @@ export interface SubBlockConfig {
   type: SubBlockType
   layout?: SubBlockLayout
   mode?: 'basic' | 'advanced' | 'both' // Default is 'both' if not specified
+  canonicalParamId?: string
   required?: boolean
   options?:
     | { label: string; id: string; icon?: React.ComponentType<{ className?: string }> }[]

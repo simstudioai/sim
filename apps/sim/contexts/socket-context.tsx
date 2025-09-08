@@ -514,16 +514,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       `URL workflow changed from ${currentWorkflowId} to ${urlWorkflowId}, switching rooms`
     )
 
-    try {
-      const { useOperationQueueStore } = require('@/stores/operation-queue/store')
-      // Flush debounced updates for the old workflow before switching rooms
-      if (currentWorkflowId) {
-        useOperationQueueStore.getState().flushDebouncedForWorkflow(currentWorkflowId)
-      } else {
-        useOperationQueueStore.getState().flushAllDebounced()
-      }
-    } catch {}
-
     // Leave current workflow first if we're in one
     if (currentWorkflowId) {
       logger.info(`Leaving current workflow ${currentWorkflowId} before joining ${urlWorkflowId}`)
@@ -583,7 +573,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       logger.info(`Leaving workflow: ${currentWorkflowId}`)
       try {
         const { useOperationQueueStore } = require('@/stores/operation-queue/store')
-        useOperationQueueStore.getState().flushDebouncedForWorkflow(currentWorkflowId)
         useOperationQueueStore.getState().cancelOperationsForWorkflow(currentWorkflowId)
       } catch {}
       socket.emit('leave-workflow')

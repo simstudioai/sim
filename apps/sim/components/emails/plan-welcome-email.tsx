@@ -3,6 +3,7 @@ import {
   Column,
   Container,
   Head,
+  Hr,
   Html,
   Img,
   Link,
@@ -11,34 +12,35 @@ import {
   Section,
   Text,
 } from '@react-email/components'
-import { format } from 'date-fns'
+import EmailFooter from '@/components/emails/footer'
 import { getBrandConfig } from '@/lib/branding/branding'
 import { env } from '@/lib/env'
 import { baseStyles } from './base-styles'
-import EmailFooter from './footer'
 
-interface EnterpriseSubscriptionEmailProps {
+interface PlanWelcomeEmailProps {
+  planName: 'Pro' | 'Team'
   userName?: string
-  userEmail?: string
   loginLink?: string
   createdDate?: Date
 }
 
-const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
-
-export const EnterpriseSubscriptionEmail = ({
-  userName = 'Valued User',
-  userEmail = '',
-  loginLink = `${baseUrl}/login`,
+export function PlanWelcomeEmail({
+  planName,
+  userName,
+  loginLink,
   createdDate = new Date(),
-}: EnterpriseSubscriptionEmailProps) => {
+}: PlanWelcomeEmailProps) {
   const brand = getBrandConfig()
+  const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
+  const cta = loginLink || `${baseUrl}/login`
+
+  const previewText = `${brand.name}: Your ${planName} plan is active`
 
   return (
     <Html>
       <Head />
+      <Preview>{previewText}</Preview>
       <Body style={baseStyles.main}>
-        <Preview>Your Enterprise Plan is now active on Sim</Preview>
         <Container style={baseStyles.container}>
           <Section style={{ padding: '30px 0', textAlign: 'center' }}>
             <Row>
@@ -64,32 +66,31 @@ export const EnterpriseSubscriptionEmail = ({
           </Section>
 
           <Section style={baseStyles.content}>
-            <Text style={baseStyles.paragraph}>Hello {userName},</Text>
+            <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
+              {userName ? `Hi ${userName},` : 'Hi,'}
+            </Text>
             <Text style={baseStyles.paragraph}>
-              Great news! Your <strong>Enterprise Plan</strong> has been activated on Sim. You now
-              have access to advanced features and increased capacity for your workflows.
+              Welcome to the <strong>{planName}</strong> plan on {brand.name}. You're all set to
+              build, test, and scale your agentic workflows.
             </Text>
 
-            <Text style={baseStyles.paragraph}>
-              Your account has been set up with full access to your organization. Click below to log
-              in and start exploring your new Enterprise features:
-            </Text>
-
-            <Link href={loginLink} style={{ textDecoration: 'none' }}>
-              <Text style={baseStyles.button}>Access Your Enterprise Account</Text>
+            <Link href={cta} style={{ textDecoration: 'none' }}>
+              <Text style={baseStyles.button}>Open {brand.name}</Text>
             </Link>
 
             <Text style={baseStyles.paragraph}>
-              <strong>What's next?</strong>
-            </Text>
-            <Text style={baseStyles.paragraph}>
-              • Invite team members to your organization
-              <br />• Begin building your workflows
+              Want to discuss your plan or get personalized help getting started?{' '}
+              <Link href='https://cal.com/waleedlatif/15min' style={baseStyles.link}>
+                Schedule a 15-minute call
+              </Link>{' '}
+              with our team.
             </Text>
 
+            <Hr />
+
             <Text style={baseStyles.paragraph}>
-              If you have any questions or need assistance getting started, our support team is here
-              to help.
+              Need to invite teammates, adjust usage limits, or manage billing? You can do that from
+              Settings → Subscription.
             </Text>
 
             <Text style={baseStyles.paragraph}>
@@ -98,24 +99,15 @@ export const EnterpriseSubscriptionEmail = ({
               The Sim Team
             </Text>
 
-            <Text
-              style={{
-                ...baseStyles.footerText,
-                marginTop: '40px',
-                textAlign: 'left',
-                color: '#666666',
-              }}
-            >
-              This email was sent on {format(createdDate, 'MMMM do, yyyy')} to {userEmail}
-              regarding your Enterprise plan activation on Sim.
+            <Text style={{ ...baseStyles.paragraph, fontSize: '12px', color: '#666' }}>
+              Sent on {createdDate.toLocaleDateString()}
             </Text>
           </Section>
         </Container>
-
         <EmailFooter baseUrl={baseUrl} />
       </Body>
     </Html>
   )
 }
 
-export default EnterpriseSubscriptionEmail
+export default PlanWelcomeEmail

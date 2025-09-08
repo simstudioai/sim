@@ -1,7 +1,5 @@
 export type { ConfluenceFileInfo } from './confluence-file-selector'
 export { ConfluenceFileSelector } from './confluence-file-selector'
-export type { DiscordChannelInfo } from './discord-channel-selector'
-export { DiscordChannelSelector } from './discord-channel-selector'
 export type { GoogleCalendarInfo } from './google-calendar-selector'
 export { GoogleCalendarSelector } from './google-calendar-selector'
 export type { FileInfo } from './google-drive-picker'

@@ -20,7 +20,6 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       layout: 'full',
       options: [
         { label: 'Read Issue', id: 'read' },
-        { label: 'Read Issues', id: 'read-bulk' },
         { label: 'Update Issue', id: 'update' },
         { label: 'Write Issue', id: 'write' },
       ],
@@ -59,6 +58,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       title: 'Select Project',
       type: 'project-selector',
       layout: 'full',
+      canonicalParamId: 'projectId',
       provider: 'jira',
       serviceId: 'jira',
       placeholder: 'Select Jira project',
@@ -71,6 +71,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       title: 'Project ID',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'projectId',
       placeholder: 'Enter Jira project ID',
       dependsOn: ['credential', 'domain'],
       mode: 'advanced',
@@ -81,6 +82,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       title: 'Select Issue',
       type: 'file-selector',
       layout: 'full',
+      canonicalParamId: 'issueKey',
       provider: 'jira',
       serviceId: 'jira',
       placeholder: 'Select Jira issue',
@@ -94,8 +96,9 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       title: 'Issue Key',
       type: 'short-input',
       layout: 'full',
+      canonicalParamId: 'issueKey',
       placeholder: 'Enter Jira issue key',
-      dependsOn: ['credential', 'domain', 'projectId'],
+      dependsOn: ['credential', 'domain', 'projectId', 'manualProjectId'],
       condition: { field: 'operation', value: ['read', 'update'] },
       mode: 'advanced',
     },
@@ -123,8 +126,15 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
     access: ['jira_retrieve', 'jira_update', 'jira_write', 'jira_bulk_read'],
     config: {
       tool: (params) => {
+        const effectiveProjectId = (params.projectId || params.manualProjectId || '').trim()
+        const effectiveIssueKey = (params.issueKey || params.manualIssueKey || '').trim()
+
         switch (params.operation) {
           case 'read':
+            // If a project is selected but no issue is chosen, route to bulk read
+            if (effectiveProjectId && !effectiveIssueKey) {
+              return 'jira_bulk_read'
+            }
             return 'jira_retrieve'
           case 'update':
             return 'jira_update'
@@ -139,19 +149,15 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       params: (params) => {
         const { credential, projectId, manualProjectId, issueKey, manualIssueKey, ...rest } = params
 
-        // Base params that are always needed
+        // Use the selected IDs or the manually entered ones
+        const effectiveProjectId = (projectId || manualProjectId || '').trim()
+        const effectiveIssueKey = (issueKey || manualIssueKey || '').trim()
+
         const baseParams = {
-          accessToken: credential,
+          credential,
           domain: params.domain,
         }
 
-        // Use the selected project ID or the manually entered one
-        const effectiveProjectId = (projectId || manualProjectId || '').trim()
-
-        // Use the selected issue key or the manually entered one
-        const effectiveIssueKey = (issueKey || manualIssueKey || '').trim()
-
-        // Define allowed parameters for each operation
         switch (params.operation) {
           case 'write': {
             if (!effectiveProjectId) {
@@ -159,8 +165,6 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
                 'Project ID is required. Please select a project or enter a project ID manually.'
               )
             }
-
-            // For write operations, only include write-specific fields
             const writeParams = {
               projectId: effectiveProjectId,
               summary: params.summary || '',
@@ -168,7 +172,6 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
               issueType: params.issueType || 'Task',
               parent: params.parentIssue ? { key: params.parentIssue } : undefined,
             }
-
             return {
               ...baseParams,
               ...writeParams,
@@ -185,44 +188,46 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
                 'Issue Key is required. Please select an issue or enter an issue key manually.'
               )
             }
-
-            // For update operations, only include update-specific fields
             const updateParams = {
               projectId: effectiveProjectId,
               issueKey: effectiveIssueKey,
               summary: params.summary || '',
               description: params.description || '',
             }
-
             return {
               ...baseParams,
               ...updateParams,
             }
           }
           case 'read': {
-            if (!effectiveIssueKey) {
+            // Check for project ID from either source
+            const projectForRead = (params.projectId || params.manualProjectId || '').trim()
+            const issueForRead = (params.issueKey || params.manualIssueKey || '').trim()
+
+            if (!issueForRead) {
               throw new Error(
-                'Issue Key is required. Please select an issue or enter an issue key manually.'
+                'Select a project to read issues, or provide an issue key to read a single issue.'
               )
             }
-
-            // For read operations, only include read-specific fields
             return {
               ...baseParams,
-              issueKey: effectiveIssueKey,
+              issueKey: issueForRead,
+              // Include projectId if available for context
+              ...(projectForRead && { projectId: projectForRead }),
             }
           }
           case 'read-bulk': {
-            if (!effectiveProjectId) {
+            // Check both projectId and manualProjectId directly from params
+            const finalProjectId = params.projectId || params.manualProjectId || ''
+
+            if (!finalProjectId) {
               throw new Error(
                 'Project ID is required. Please select a project or enter a project ID manually.'
               )
             }
-
-            // For read-bulk operations, only include read-bulk-specific fields
             return {
               ...baseParams,
-              projectId: effectiveProjectId,
+              projectId: finalProjectId.trim(),
             }
           }
           default:
