@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useState } from 'react'
-import { Plus, X } from 'lucide-react'
+import { useCallback, useRef, useState } from 'react'
+import { X } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -11,6 +12,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
+import { formatDisplayText } from '@/components/ui/formatted-text'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -39,14 +42,26 @@ interface McpServerFormData {
 }
 
 export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServerModalProps) {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
   const [formData, setFormData] = useState<McpServerFormData>({
     name: '',
     transport: 'http',
     url: '',
-    headers: {},
+    headers: { '': '' },
   })
   const { createServer, isLoading, error: storeError, clearError } = useMcpServersStore()
   const [localError, setLocalError] = useState<string | null>(null)
+
+  // Environment variable dropdown state
+  const [showEnvVars, setShowEnvVars] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [cursorPosition, setCursorPosition] = useState(0)
+  const [activeInputField, setActiveInputField] = useState<
+    'url' | 'header-key' | 'header-value' | null
+  >(null)
+  const [activeHeaderIndex, setActiveHeaderIndex] = useState<number | null>(null)
+  const urlInputRef = useRef<HTMLInputElement>(null)
 
   const error = localError || storeError
 
@@ -55,11 +70,98 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
       name: '',
       transport: 'http',
       url: '',
-      headers: {},
+      headers: { '': '' },
     })
     setLocalError(null)
     clearError()
+    setShowEnvVars(false)
+    setActiveInputField(null)
+    setActiveHeaderIndex(null)
   }
+
+  // Handle environment variable selection
+  const handleEnvVarSelect = useCallback(
+    (newValue: string) => {
+      if (activeInputField === 'url') {
+        setFormData((prev) => ({ ...prev, url: newValue }))
+      } else if (activeInputField === 'header-key' && activeHeaderIndex !== null) {
+        const headerEntries = Object.entries(formData.headers || {})
+        const [oldKey, value] = headerEntries[activeHeaderIndex]
+        const newHeaders = { ...formData.headers }
+        delete newHeaders[oldKey]
+        newHeaders[newValue.replace(/[{}]/g, '')] = value
+        setFormData((prev) => ({ ...prev, headers: newHeaders }))
+      } else if (activeInputField === 'header-value' && activeHeaderIndex !== null) {
+        const headerEntries = Object.entries(formData.headers || {})
+        const [key] = headerEntries[activeHeaderIndex]
+        setFormData((prev) => ({
+          ...prev,
+          headers: { ...prev.headers, [key]: newValue },
+        }))
+      }
+      setShowEnvVars(false)
+      setActiveInputField(null)
+      setActiveHeaderIndex(null)
+    },
+    [activeInputField, activeHeaderIndex, formData.headers]
+  )
+
+  // Handle input change with env var detection
+  const handleInputChange = useCallback(
+    (field: 'url' | 'header-key' | 'header-value', value: string, headerIndex?: number) => {
+      const input = document.activeElement as HTMLInputElement
+      const pos = input?.selectionStart || 0
+
+      setCursorPosition(pos)
+
+      // Check if we should show the environment variables dropdown
+      const envVarTrigger = checkEnvVarTrigger(value, pos)
+      setShowEnvVars(envVarTrigger.show)
+      setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
+
+      if (envVarTrigger.show) {
+        setActiveInputField(field)
+        setActiveHeaderIndex(headerIndex ?? null)
+      } else {
+        setActiveInputField(null)
+        setActiveHeaderIndex(null)
+      }
+
+      // Update form data
+      if (field === 'url') {
+        setFormData((prev) => ({ ...prev, url: value }))
+      } else if (field === 'header-key' && headerIndex !== undefined) {
+        const headerEntries = Object.entries(formData.headers || {})
+        const [oldKey, headerValue] = headerEntries[headerIndex]
+        const newHeaders = { ...formData.headers }
+        delete newHeaders[oldKey]
+        newHeaders[value] = headerValue
+
+        // Add a new empty header row if this is the last row and both key and value have content
+        const isLastRow = headerIndex === headerEntries.length - 1
+        const hasContent = value.trim() !== '' && headerValue.trim() !== ''
+        if (isLastRow && hasContent) {
+          newHeaders[''] = ''
+        }
+
+        setFormData((prev) => ({ ...prev, headers: newHeaders }))
+      } else if (field === 'header-value' && headerIndex !== undefined) {
+        const headerEntries = Object.entries(formData.headers || {})
+        const [key] = headerEntries[headerIndex]
+        const newHeaders = { ...formData.headers, [key]: value }
+
+        // Add a new empty header row if this is the last row and both key and value have content
+        const isLastRow = headerIndex === headerEntries.length - 1
+        const hasContent = key.trim() !== '' && value.trim() !== ''
+        if (isLastRow && hasContent) {
+          newHeaders[''] = ''
+        }
+
+        setFormData((prev) => ({ ...prev, headers: newHeaders }))
+      }
+    },
+    [formData.headers]
+  )
 
   const handleSubmit = useCallback(async () => {
     if (!formData.name.trim()) {
@@ -75,13 +177,20 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
     setLocalError(null)
     clearError()
 
+    // Filter out empty headers
+    const cleanHeaders = Object.fromEntries(
+      Object.entries(formData.headers || {}).filter(
+        ([key, value]) => key.trim() !== '' && value.trim() !== ''
+      )
+    )
+
     try {
       await createServer({
         name: formData.name.trim(),
         transport: formData.transport,
         url: formData.url,
         timeout: 30000,
-        headers: formData.headers,
+        headers: cleanHeaders,
         enabled: true,
       })
 
@@ -138,71 +247,151 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
             </div>
           </div>
 
-          <div>
+          <div className='relative'>
             <Label htmlFor='server-url'>Server URL</Label>
-            <Input
-              id='server-url'
-              placeholder='https://mcp.firecrawl.dev/YOUR_API_KEY/sse'
-              value={formData.url}
-              onChange={(e) => setFormData((prev) => ({ ...prev, url: e.target.value }))}
-            />
+            <div className='relative'>
+              <Input
+                ref={urlInputRef}
+                id='server-url'
+                placeholder='https://mcp.firecrawl.dev/{{YOUR_API_KEY}}/sse'
+                value={formData.url}
+                onChange={(e) => handleInputChange('url', e.target.value)}
+                className='text-transparent caret-foreground placeholder:text-muted-foreground/50'
+              />
+              {/* Overlay for styled text display */}
+              <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm'>
+                <div className='whitespace-nowrap'>
+                  {formatDisplayText(formData.url || '', true)}
+                </div>
+              </div>
+            </div>
+
+            {/* Environment Variables Dropdown */}
+            {showEnvVars && activeInputField === 'url' && (
+              <EnvVarDropdown
+                visible={showEnvVars}
+                onSelect={handleEnvVarSelect}
+                searchTerm={searchTerm}
+                inputValue={formData.url}
+                cursorPosition={cursorPosition}
+                workspaceId={workspaceId}
+                onClose={() => {
+                  setShowEnvVars(false)
+                  setActiveInputField(null)
+                }}
+                className='w-full'
+              />
+            )}
           </div>
 
           <div>
             <Label>Headers (Optional)</Label>
             <div className='space-y-2'>
               {Object.entries(formData.headers || {}).map(([key, value], index) => (
-                <div key={index} className='flex gap-2'>
-                  <Input
-                    placeholder='Header name'
-                    value={key}
-                    onChange={(e) => {
-                      const newHeaders = { ...formData.headers }
-                      delete newHeaders[key]
-                      newHeaders[e.target.value] = value
-                      setFormData((prev) => ({ ...prev, headers: newHeaders }))
-                    }}
-                    className='flex-1'
-                  />
-                  <Input
-                    placeholder='Header value'
-                    value={value}
-                    onChange={(e) => {
-                      setFormData((prev) => ({
-                        ...prev,
-                        headers: { ...prev.headers, [key]: e.target.value },
-                      }))
-                    }}
-                    className='flex-1'
-                  />
+                <div key={index} className='relative flex gap-2'>
+                  {/* Header Name Input */}
+                  <div className='relative flex-1'>
+                    <Input
+                      placeholder='Header name'
+                      value={key}
+                      onChange={(e) => handleInputChange('header-key', e.target.value, index)}
+                      className='text-transparent caret-foreground placeholder:text-muted-foreground/50'
+                    />
+                    <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm'>
+                      <div className='whitespace-nowrap'>{formatDisplayText(key || '', true)}</div>
+                    </div>
+                  </div>
+
+                  {/* Header Value Input */}
+                  <div className='relative flex-1'>
+                    <Input
+                      placeholder='Header value'
+                      value={value}
+                      onChange={(e) => handleInputChange('header-value', e.target.value, index)}
+                      className='text-transparent caret-foreground placeholder:text-muted-foreground/50'
+                    />
+                    <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm'>
+                      <div className='whitespace-nowrap'>
+                        {formatDisplayText(value || '', true)}
+                      </div>
+                    </div>
+                  </div>
+
                   <Button
                     type='button'
-                    variant='outline'
-                    size='sm'
+                    variant='ghost'
                     onClick={() => {
-                      const newHeaders = { ...formData.headers }
-                      delete newHeaders[key]
-                      setFormData((prev) => ({ ...prev, headers: newHeaders }))
+                      const headerEntries = Object.entries(formData.headers || {})
+                      if (headerEntries.length === 1) {
+                        // If this is the only header, just clear it instead of deleting
+                        setFormData((prev) => ({ ...prev, headers: { '': '' } }))
+                      } else {
+                        // Delete this header
+                        const newHeaders = { ...formData.headers }
+                        delete newHeaders[key]
+                        setFormData((prev) => ({ ...prev, headers: newHeaders }))
+                      }
                     }}
+                    className='h-9 w-9 p-0 text-muted-foreground hover:text-foreground'
                   >
-                    <X className='h-4 w-4' />
+                    <X className='h-3 w-3' />
                   </Button>
+
+                  {/* Environment Variables Dropdown for Header Key */}
+                  {showEnvVars &&
+                    activeInputField === 'header-key' &&
+                    activeHeaderIndex === index && (
+                      <EnvVarDropdown
+                        visible={showEnvVars}
+                        onSelect={handleEnvVarSelect}
+                        searchTerm={searchTerm}
+                        inputValue={key}
+                        cursorPosition={cursorPosition}
+                        workspaceId={workspaceId}
+                        onClose={() => {
+                          setShowEnvVars(false)
+                          setActiveInputField(null)
+                          setActiveHeaderIndex(null)
+                        }}
+                        className='w-full'
+                        maxHeight='200px'
+                        style={{
+                          position: 'absolute',
+                          top: '100%',
+                          left: 0,
+                          zIndex: 9999,
+                        }}
+                      />
+                    )}
+
+                  {/* Environment Variables Dropdown for Header Value */}
+                  {showEnvVars &&
+                    activeInputField === 'header-value' &&
+                    activeHeaderIndex === index && (
+                      <EnvVarDropdown
+                        visible={showEnvVars}
+                        onSelect={handleEnvVarSelect}
+                        searchTerm={searchTerm}
+                        inputValue={value}
+                        cursorPosition={cursorPosition}
+                        workspaceId={workspaceId}
+                        onClose={() => {
+                          setShowEnvVars(false)
+                          setActiveInputField(null)
+                          setActiveHeaderIndex(null)
+                        }}
+                        className='w-full'
+                        maxHeight='200px'
+                        style={{
+                          position: 'absolute',
+                          top: '100%',
+                          right: 0,
+                          zIndex: 9999,
+                        }}
+                      />
+                    )}
                 </div>
               ))}
-              <Button
-                type='button'
-                variant='outline'
-                size='sm'
-                onClick={() => {
-                  setFormData((prev) => ({
-                    ...prev,
-                    headers: { ...prev.headers, '': '' },
-                  }))
-                }}
-              >
-                <Plus className='mr-2 h-4 w-4' />
-                Add Header
-              </Button>
             </div>
           </div>
 

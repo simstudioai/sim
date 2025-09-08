@@ -33,7 +33,7 @@ export interface JsonRpcError {
 }
 
 // MCP Transport Types
-export type McpTransport = 'http' | 'sse' | 'stdio'
+export type McpTransport = 'http' | 'sse'
 
 export interface McpServerConfig {
   id: string
@@ -44,11 +44,6 @@ export interface McpServerConfig {
   // HTTP/SSE transport config
   url?: string
   headers?: Record<string, string>
-
-  // STDIO transport config (local only)
-  command?: string
-  args?: string[]
-  env?: Record<string, string>
 
   // Common config
   timeout?: number

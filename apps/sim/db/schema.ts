@@ -1305,9 +1305,6 @@ export const mcpServers = pgTable(
 
     transport: text('transport').notNull(),
     url: text('url'),
-    command: text('command'),
-    args: json('args'),
-    env: json('env'),
 
     headers: json('headers').default('{}'),
     timeout: integer('timeout').default(30000),

@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertCircle, Plus, Search, X } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import {
   Alert,
   AlertDescription,
@@ -15,6 +16,8 @@ import {
   SelectValue,
   Skeleton,
 } from '@/components/ui'
+import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
+import { formatDisplayText } from '@/components/ui/formatted-text'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useMcpTools } from '@/hooks/use-mcp-tools'
 import { useMcpServersStore } from '@/stores/mcp-servers/store'
@@ -30,6 +33,8 @@ interface McpServerFormData {
 }
 
 export function MCP() {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
   const { mcpTools, isLoading: toolsLoading, error: toolsError, refreshTools } = useMcpTools()
   const {
     servers,
@@ -50,6 +55,86 @@ export function MCP() {
     timeout: 30000,
     headers: {},
   })
+
+  // Environment variable dropdown state
+  const [showEnvVars, setShowEnvVars] = useState(false)
+  const [envSearchTerm, setEnvSearchTerm] = useState('')
+  const [cursorPosition, setCursorPosition] = useState(0)
+  const [activeInputField, setActiveInputField] = useState<
+    'url' | 'header-key' | 'header-value' | null
+  >(null)
+  const [activeHeaderIndex, setActiveHeaderIndex] = useState<number | null>(null)
+  const urlInputRef = useRef<HTMLInputElement>(null)
+
+  // Handle environment variable selection
+  const handleEnvVarSelect = useCallback(
+    (newValue: string) => {
+      if (activeInputField === 'url') {
+        setFormData((prev) => ({ ...prev, url: newValue }))
+      } else if (activeInputField === 'header-key' && activeHeaderIndex !== null) {
+        const headerEntries = Object.entries(formData.headers || {})
+        const [oldKey, value] = headerEntries[activeHeaderIndex]
+        const newHeaders = { ...formData.headers }
+        delete newHeaders[oldKey]
+        newHeaders[newValue.replace(/[{}]/g, '')] = value
+        setFormData((prev) => ({ ...prev, headers: newHeaders }))
+      } else if (activeInputField === 'header-value' && activeHeaderIndex !== null) {
+        const headerEntries = Object.entries(formData.headers || {})
+        const [key] = headerEntries[activeHeaderIndex]
+        setFormData((prev) => ({
+          ...prev,
+          headers: { ...prev.headers, [key]: newValue },
+        }))
+      }
+      setShowEnvVars(false)
+      setActiveInputField(null)
+      setActiveHeaderIndex(null)
+    },
+    [activeInputField, activeHeaderIndex, formData.headers]
+  )
+
+  // Handle input change with env var detection
+  const handleInputChange = useCallback(
+    (field: 'url' | 'header-key' | 'header-value', value: string, headerIndex?: number) => {
+      const input = document.activeElement as HTMLInputElement
+      const pos = input?.selectionStart || 0
+
+      setCursorPosition(pos)
+
+      // Check if we should show the environment variables dropdown
+      const envVarTrigger = checkEnvVarTrigger(value, pos)
+      setShowEnvVars(envVarTrigger.show)
+      setEnvSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
+
+      if (envVarTrigger.show) {
+        setActiveInputField(field)
+        setActiveHeaderIndex(headerIndex ?? null)
+      } else {
+        setActiveInputField(null)
+        setActiveHeaderIndex(null)
+      }
+
+      // Update form data
+      if (field === 'url') {
+        setFormData((prev) => ({ ...prev, url: value }))
+      } else if (field === 'header-key' && headerIndex !== undefined) {
+        const headerEntries = Object.entries(formData.headers || {})
+        const [oldKey, headerValue] = headerEntries[headerIndex]
+        const newHeaders = { ...formData.headers }
+        delete newHeaders[oldKey]
+        newHeaders[value] = headerValue
+        setFormData((prev) => ({ ...prev, headers: newHeaders }))
+      } else if (field === 'header-value' && headerIndex !== undefined) {
+        const headerEntries = Object.entries(formData.headers || {})
+        const [key] = headerEntries[headerIndex]
+        setFormData((prev) => ({
+          ...prev,
+          headers: { ...prev.headers, [key]: value },
+        }))
+      }
+    },
+    [formData.headers]
+  )
 
   const handleAddServer = useCallback(async () => {
     if (!formData.name.trim()) return
@@ -73,6 +158,9 @@ export function MCP() {
         headers: {},
       })
       setShowAddForm(false)
+      setShowEnvVars(false)
+      setActiveInputField(null)
+      setActiveHeaderIndex(null)
       await refreshTools(true) // Force refresh after adding server
 
       logger.info(`Added MCP server: ${formData.name}`)
@@ -159,9 +247,245 @@ export function MCP() {
               <McpServerSkeleton />
             </div>
           ) : !servers || servers.length === 0 ? (
-            <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
-              Click "Add Server" below to get started
-            </div>
+            showAddForm ? (
+              <div className='rounded-[8px] border bg-background p-4 shadow-xs'>
+                <div className='space-y-4'>
+                  <div className='flex items-center justify-between'>
+                    <div className='flex items-center gap-2'>
+                      <Label className='font-normal'>Server Name</Label>
+                    </div>
+                    <div className='w-[320px]'>
+                      <Input
+                        placeholder='e.g., Firecrawl MCP'
+                        value={formData.name}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+                        className='h-9'
+                      />
+                    </div>
+                  </div>
+
+                  <div className='flex items-center justify-between'>
+                    <div className='flex items-center gap-2'>
+                      <Label className='font-normal'>Transport</Label>
+                    </div>
+                    <div className='w-[320px]'>
+                      <Select
+                        value={formData.transport}
+                        onValueChange={(value: 'http' | 'sse') =>
+                          setFormData((prev) => ({ ...prev, transport: value }))
+                        }
+                      >
+                        <SelectTrigger className='h-9'>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value='http'>HTTP</SelectItem>
+                          <SelectItem value='sse'>Server-Sent Events</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className='flex items-center justify-between'>
+                    <div className='flex items-center gap-2'>
+                      <Label className='font-normal'>Server URL</Label>
+                    </div>
+                    <div className='relative w-[320px]'>
+                      <Input
+                        ref={urlInputRef}
+                        placeholder='https://mcp.server.dev/{{YOUR_API_KEY}}/sse'
+                        value={formData.url}
+                        onChange={(e) => handleInputChange('url', e.target.value)}
+                        className='h-9 text-transparent caret-foreground placeholder:text-muted-foreground/50'
+                      />
+                      <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm'>
+                        <div className='whitespace-nowrap'>
+                          {formatDisplayText(formData.url || '', true)}
+                        </div>
+                      </div>
+
+                      {/* Environment Variables Dropdown */}
+                      {showEnvVars && activeInputField === 'url' && (
+                        <EnvVarDropdown
+                          visible={showEnvVars}
+                          onSelect={handleEnvVarSelect}
+                          searchTerm={envSearchTerm}
+                          inputValue={formData.url}
+                          cursorPosition={cursorPosition}
+                          workspaceId={workspaceId}
+                          onClose={() => {
+                            setShowEnvVars(false)
+                            setActiveInputField(null)
+                          }}
+                          className='w-full'
+                          maxHeight='200px'
+                          style={{
+                            position: 'absolute',
+                            top: '100%',
+                            left: 0,
+                            zIndex: 9999,
+                          }}
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  {Object.entries(formData.headers || {}).map(([key, value], index) => (
+                    <div key={index} className='relative flex items-center justify-between'>
+                      <div className='flex items-center gap-2'>
+                        <Label className='font-normal'>Header</Label>
+                      </div>
+                      <div className='relative flex w-[320px] gap-1'>
+                        {/* Header Key Input */}
+                        <div className='relative flex-1'>
+                          <Input
+                            placeholder='Name'
+                            value={key}
+                            onChange={(e) => handleInputChange('header-key', e.target.value, index)}
+                            className='h-9 text-transparent caret-foreground placeholder:text-muted-foreground/50'
+                          />
+                          <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm'>
+                            <div className='whitespace-nowrap'>
+                              {formatDisplayText(key || '', true)}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Header Value Input */}
+                        <div className='relative flex-1'>
+                          <Input
+                            placeholder='Value'
+                            value={value}
+                            onChange={(e) =>
+                              handleInputChange('header-value', e.target.value, index)
+                            }
+                            className='h-9 text-transparent caret-foreground placeholder:text-muted-foreground/50'
+                          />
+                          <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm'>
+                            <div className='whitespace-nowrap'>
+                              {formatDisplayText(value || '', true)}
+                            </div>
+                          </div>
+                        </div>
+
+                        <Button
+                          type='button'
+                          variant='ghost'
+                          size='sm'
+                          onClick={() => {
+                            const newHeaders = { ...formData.headers }
+                            delete newHeaders[key]
+                            setFormData((prev) => ({ ...prev, headers: newHeaders }))
+                          }}
+                          className='h-9 w-9 p-0 text-muted-foreground hover:text-foreground'
+                        >
+                          <X className='h-3 w-3' />
+                        </Button>
+
+                        {/* Environment Variables Dropdown for Header Key */}
+                        {showEnvVars &&
+                          activeInputField === 'header-key' &&
+                          activeHeaderIndex === index && (
+                            <EnvVarDropdown
+                              visible={showEnvVars}
+                              onSelect={handleEnvVarSelect}
+                              searchTerm={envSearchTerm}
+                              inputValue={key}
+                              cursorPosition={cursorPosition}
+                              workspaceId={workspaceId}
+                              onClose={() => {
+                                setShowEnvVars(false)
+                                setActiveInputField(null)
+                                setActiveHeaderIndex(null)
+                              }}
+                              className='w-[320px]'
+                              maxHeight='200px'
+                              style={{
+                                position: 'absolute',
+                                top: '100%',
+                                left: 0,
+                                zIndex: 99999,
+                              }}
+                            />
+                          )}
+
+                        {/* Environment Variables Dropdown for Header Value */}
+                        {showEnvVars &&
+                          activeInputField === 'header-value' &&
+                          activeHeaderIndex === index && (
+                            <EnvVarDropdown
+                              visible={showEnvVars}
+                              onSelect={handleEnvVarSelect}
+                              searchTerm={envSearchTerm}
+                              inputValue={value}
+                              cursorPosition={cursorPosition}
+                              workspaceId={workspaceId}
+                              onClose={() => {
+                                setShowEnvVars(false)
+                                setActiveInputField(null)
+                                setActiveHeaderIndex(null)
+                              }}
+                              className='w-[320px]'
+                              maxHeight='200px'
+                              style={{
+                                position: 'absolute',
+                                top: '100%',
+                                left: 0,
+                                zIndex: 99999,
+                              }}
+                            />
+                          )}
+                      </div>
+                    </div>
+                  ))}
+
+                  <div className='flex items-center justify-between'>
+                    <div />
+                    <div className='w-[320px]'>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        size='sm'
+                        onClick={() => {
+                          setFormData((prev) => ({
+                            ...prev,
+                            headers: { ...prev.headers, '': '' },
+                          }))
+                        }}
+                        className='h-9 text-muted-foreground hover:text-foreground'
+                      >
+                        <Plus className='mr-2 h-3 w-3' />
+                        Add Header
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className='border-t pt-4'>
+                    <div className='flex items-center justify-between'>
+                      <div />
+                      <div className='flex gap-2'>
+                        <Button variant='ghost' size='sm' onClick={() => setShowAddForm(false)}>
+                          Cancel
+                        </Button>
+                        <Button
+                          size='sm'
+                          onClick={handleAddServer}
+                          disabled={serversLoading || !formData.name.trim()}
+                        >
+                          {serversLoading ? 'Adding...' : 'Add Server'}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              !showAddForm && (
+                <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
+                  Click "Add Server" below to get started
+                </div>
+              )
+            )
           ) : (
             <div className='space-y-4'>
               {filteredServers.map((server: any) => {
@@ -219,149 +543,245 @@ export function MCP() {
                   No servers found matching "{searchTerm}"
                 </div>
               )}
-            </div>
-          )}
 
-          {/* Add Server Form */}
-          {showAddForm && (
-            <div className='rounded-[8px] border bg-background p-4 shadow-xs'>
-              <div className='space-y-4'>
-                <div className='flex items-center justify-between'>
-                  <div className='flex items-center gap-2'>
-                    <Label className='font-normal'>Server Name</Label>
-                  </div>
-                  <div className='w-[320px]'>
-                    <Input
-                      placeholder='e.g., Firecrawl MCP'
-                      value={formData.name}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
-                      className='h-9'
-                    />
-                  </div>
-                </div>
-
-                <div className='flex items-center justify-between'>
-                  <div className='flex items-center gap-2'>
-                    <Label className='font-normal'>Transport</Label>
-                  </div>
-                  <div className='w-[320px]'>
-                    <Select
-                      value={formData.transport}
-                      onValueChange={(value: 'http' | 'sse') =>
-                        setFormData((prev) => ({ ...prev, transport: value }))
-                      }
-                    >
-                      <SelectTrigger className='h-9'>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value='http'>HTTP</SelectItem>
-                        <SelectItem value='sse'>Server-Sent Events</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className='flex items-center justify-between'>
-                  <div className='flex items-center gap-2'>
-                    <Label className='font-normal'>Server URL</Label>
-                  </div>
-                  <div className='w-[320px]'>
-                    <Input
-                      placeholder='https://mcp.server.dev/sse'
-                      value={formData.url}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, url: e.target.value }))}
-                      className='h-9'
-                    />
-                  </div>
-                </div>
-
-                {Object.entries(formData.headers || {}).map(([key, value], index) => (
-                  <div key={index} className='flex items-center justify-between'>
-                    <div className='flex items-center gap-2'>
-                      <Label className='font-normal'>Header</Label>
+              {/* Add Server Form for when servers exist */}
+              {showAddForm && (
+                <div className='mt-4 rounded-[8px] border bg-background p-4 shadow-xs'>
+                  <div className='space-y-4'>
+                    <div className='flex items-center justify-between'>
+                      <div className='flex items-center gap-2'>
+                        <Label className='font-normal'>Server Name</Label>
+                      </div>
+                      <div className='w-[320px]'>
+                        <Input
+                          placeholder='e.g., Firecrawl MCP'
+                          value={formData.name}
+                          onChange={(e) =>
+                            setFormData((prev) => ({ ...prev, name: e.target.value }))
+                          }
+                          className='h-9'
+                        />
+                      </div>
                     </div>
-                    <div className='flex w-[320px] gap-1'>
-                      <Input
-                        placeholder='Name'
-                        value={key}
-                        onChange={(e) => {
-                          const newHeaders = { ...formData.headers }
-                          delete newHeaders[key]
-                          newHeaders[e.target.value] = value
-                          setFormData((prev) => ({ ...prev, headers: newHeaders }))
-                        }}
-                        className='h-9 flex-1'
-                      />
-                      <Input
-                        placeholder='Value'
-                        value={value}
-                        onChange={(e) => {
-                          setFormData((prev) => ({
-                            ...prev,
-                            headers: { ...prev.headers, [key]: e.target.value },
-                          }))
-                        }}
-                        className='h-9 flex-1'
-                      />
-                      <Button
-                        type='button'
-                        variant='ghost'
-                        size='sm'
-                        onClick={() => {
-                          const newHeaders = { ...formData.headers }
-                          delete newHeaders[key]
-                          setFormData((prev) => ({ ...prev, headers: newHeaders }))
-                        }}
-                        className='h-9 w-9 p-0 text-muted-foreground hover:text-foreground'
-                      >
-                        <X className='h-3 w-3' />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
 
-                <div className='flex items-center justify-between'>
-                  <div />
-                  <div className='w-[320px]'>
-                    <div className='flex gap-2'>
-                      <Button
-                        type='button'
-                        variant='ghost'
-                        size='sm'
-                        onClick={() => {
-                          setFormData((prev) => ({
-                            ...prev,
-                            headers: { ...prev.headers, '': '' },
-                          }))
-                        }}
-                        className='h-9 text-muted-foreground hover:text-foreground'
-                      >
-                        <Plus className='mr-2 h-3 w-3' />
-                        Add Header
-                      </Button>
+                    <div className='flex items-center justify-between'>
+                      <div className='flex items-center gap-2'>
+                        <Label className='font-normal'>Transport</Label>
+                      </div>
+                      <div className='w-[320px]'>
+                        <Select
+                          value={formData.transport}
+                          onValueChange={(value: 'http' | 'sse') =>
+                            setFormData((prev) => ({ ...prev, transport: value }))
+                          }
+                        >
+                          <SelectTrigger className='h-9'>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value='http'>HTTP</SelectItem>
+                            <SelectItem value='sse'>Server-Sent Events</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className='flex items-center justify-between'>
+                      <div className='flex items-center gap-2'>
+                        <Label className='font-normal'>Server URL</Label>
+                      </div>
+                      <div className='relative w-[320px]'>
+                        <Input
+                          ref={urlInputRef}
+                          placeholder='https://mcp.server.dev/{{YOUR_API_KEY}}/sse'
+                          value={formData.url}
+                          onChange={(e) => handleInputChange('url', e.target.value)}
+                          className='h-9 text-transparent caret-foreground placeholder:text-muted-foreground/50'
+                        />
+                        <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm'>
+                          <div className='whitespace-nowrap'>
+                            {formatDisplayText(formData.url || '', true)}
+                          </div>
+                        </div>
+
+                        {/* Environment Variables Dropdown */}
+                        {showEnvVars && activeInputField === 'url' && (
+                          <EnvVarDropdown
+                            visible={showEnvVars}
+                            onSelect={handleEnvVarSelect}
+                            searchTerm={envSearchTerm}
+                            inputValue={formData.url}
+                            cursorPosition={cursorPosition}
+                            workspaceId={workspaceId}
+                            onClose={() => {
+                              setShowEnvVars(false)
+                              setActiveInputField(null)
+                            }}
+                            className='w-full'
+                            maxHeight='200px'
+                            style={{
+                              position: 'absolute',
+                              top: '100%',
+                              left: 0,
+                              zIndex: 9999,
+                            }}
+                          />
+                        )}
+                      </div>
+                    </div>
+
+                    {Object.entries(formData.headers || {}).map(([key, value], index) => (
+                      <div key={index} className='relative flex items-center justify-between'>
+                        <div className='flex items-center gap-2'>
+                          <Label className='font-normal'>Header</Label>
+                        </div>
+                        <div className='relative flex w-[320px] gap-1'>
+                          {/* Header Key Input */}
+                          <div className='relative flex-1'>
+                            <Input
+                              placeholder='Name'
+                              value={key}
+                              onChange={(e) =>
+                                handleInputChange('header-key', e.target.value, index)
+                              }
+                              className='h-9 text-transparent caret-foreground placeholder:text-muted-foreground/50'
+                            />
+                            <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm'>
+                              <div className='whitespace-nowrap'>
+                                {formatDisplayText(key || '', true)}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Header Value Input */}
+                          <div className='relative flex-1'>
+                            <Input
+                              placeholder='Value'
+                              value={value}
+                              onChange={(e) =>
+                                handleInputChange('header-value', e.target.value, index)
+                              }
+                              className='h-9 text-transparent caret-foreground placeholder:text-muted-foreground/50'
+                            />
+                            <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm'>
+                              <div className='whitespace-nowrap'>
+                                {formatDisplayText(value || '', true)}
+                              </div>
+                            </div>
+                          </div>
+
+                          <Button
+                            type='button'
+                            variant='ghost'
+                            size='sm'
+                            onClick={() => {
+                              const newHeaders = { ...formData.headers }
+                              delete newHeaders[key]
+                              setFormData((prev) => ({ ...prev, headers: newHeaders }))
+                            }}
+                            className='h-9 w-9 p-0 text-muted-foreground hover:text-foreground'
+                          >
+                            <X className='h-3 w-3' />
+                          </Button>
+
+                          {/* Environment Variables Dropdown for Header Key */}
+                          {showEnvVars &&
+                            activeInputField === 'header-key' &&
+                            activeHeaderIndex === index && (
+                              <EnvVarDropdown
+                                visible={showEnvVars}
+                                onSelect={handleEnvVarSelect}
+                                searchTerm={envSearchTerm}
+                                inputValue={key}
+                                cursorPosition={cursorPosition}
+                                workspaceId={workspaceId}
+                                onClose={() => {
+                                  setShowEnvVars(false)
+                                  setActiveInputField(null)
+                                  setActiveHeaderIndex(null)
+                                }}
+                                className='w-[320px]'
+                                maxHeight='200px'
+                                style={{
+                                  position: 'absolute',
+                                  top: '100%',
+                                  left: 0,
+                                  zIndex: 99999,
+                                }}
+                              />
+                            )}
+
+                          {/* Environment Variables Dropdown for Header Value */}
+                          {showEnvVars &&
+                            activeInputField === 'header-value' &&
+                            activeHeaderIndex === index && (
+                              <EnvVarDropdown
+                                visible={showEnvVars}
+                                onSelect={handleEnvVarSelect}
+                                searchTerm={envSearchTerm}
+                                inputValue={value}
+                                cursorPosition={cursorPosition}
+                                workspaceId={workspaceId}
+                                onClose={() => {
+                                  setShowEnvVars(false)
+                                  setActiveInputField(null)
+                                  setActiveHeaderIndex(null)
+                                }}
+                                className='w-[320px]'
+                                maxHeight='200px'
+                                style={{
+                                  position: 'absolute',
+                                  top: '100%',
+                                  left: 0,
+                                  zIndex: 99999,
+                                }}
+                              />
+                            )}
+                        </div>
+                      </div>
+                    ))}
+
+                    <div className='flex items-center justify-between'>
+                      <div />
+                      <div className='w-[320px]'>
+                        <Button
+                          type='button'
+                          variant='outline'
+                          size='sm'
+                          onClick={() => {
+                            setFormData((prev) => ({
+                              ...prev,
+                              headers: { ...prev.headers, '': '' },
+                            }))
+                          }}
+                          className='h-9 text-muted-foreground hover:text-foreground'
+                        >
+                          <Plus className='mr-2 h-3 w-3' />
+                          Add Header
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className='border-t pt-4'>
+                      <div className='flex items-center justify-between'>
+                        <div />
+                        <div className='flex gap-2'>
+                          <Button variant='ghost' size='sm' onClick={() => setShowAddForm(false)}>
+                            Cancel
+                          </Button>
+                          <Button
+                            size='sm'
+                            onClick={handleAddServer}
+                            disabled={serversLoading || !formData.name.trim()}
+                          >
+                            {serversLoading ? 'Adding...' : 'Add Server'}
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
-
-                <div className='border-t pt-4'>
-                  <div className='flex items-center justify-between'>
-                    <div />
-                    <div className='flex gap-2'>
-                      <Button variant='ghost' size='sm' onClick={() => setShowAddForm(false)}>
-                        Cancel
-                      </Button>
-                      <Button
-                        size='sm'
-                        onClick={handleAddServer}
-                        disabled={serversLoading || !formData.name.trim()}
-                      >
-                        {serversLoading ? 'Adding...' : 'Add Server'}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
           )}
         </div>
