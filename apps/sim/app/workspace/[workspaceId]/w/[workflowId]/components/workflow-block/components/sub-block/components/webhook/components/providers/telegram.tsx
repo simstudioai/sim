@@ -70,7 +70,7 @@ export function TelegramConfig({
               href='https://t.me/BotFather'
               target='_blank'
               rel='noopener noreferrer'
-              className='link text-primary underline transition-colors hover:text-primary/80'
+              className='link text-muted-foreground underline transition-colors hover:text-muted-foreground/80'
               onClick={(e) => {
                 e.stopPropagation()
                 window.open('https://t.me/BotFather', '_blank', 'noopener,noreferrer')

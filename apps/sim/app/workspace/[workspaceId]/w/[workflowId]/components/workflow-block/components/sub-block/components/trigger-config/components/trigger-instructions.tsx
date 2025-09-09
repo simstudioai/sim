@@ -20,7 +20,7 @@ export function TriggerInstructions({
     <div className='space-y-4'>
       <div className={cn('mt-4 rounded-md border border-border bg-card/50 p-4 shadow-sm')}>
         <h4 className='mb-3 font-medium text-base'>Setup Instructions</h4>
-        <div className='space-y-1 text-muted-foreground text-sm [&_a]:text-primary [&_a]:underline [&_a]:hover:text-primary/80 [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-xs'>
+        <div className='space-y-1 text-muted-foreground text-sm [&_a]:text-muted-foreground [&_a]:underline [&_a]:hover:text-muted-foreground/80 [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-xs'>
           <ol className='list-inside list-decimal space-y-2'>
             {instructions.map((instruction, index) => (
               <li key={index} dangerouslySetInnerHTML={{ __html: instruction }} />

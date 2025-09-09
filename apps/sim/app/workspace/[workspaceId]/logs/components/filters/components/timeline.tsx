@@ -39,7 +39,7 @@ export default function Timeline() {
           className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
         >
           <span>All time</span>
-          {timeRange === 'All time' && <Check className='h-4 w-4 text-primary' />}
+          {timeRange === 'All time' && <Check className='h-4 w-4 text-muted-foreground' />}
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
@@ -54,7 +54,7 @@ export default function Timeline() {
             className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
           >
             <span>{range}</span>
-            {timeRange === range && <Check className='h-4 w-4 text-primary' />}
+            {timeRange === range && <Check className='h-4 w-4 text-muted-foreground' />}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
