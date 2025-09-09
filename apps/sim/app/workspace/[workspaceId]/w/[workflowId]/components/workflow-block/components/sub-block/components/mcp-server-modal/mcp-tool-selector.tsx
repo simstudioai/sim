@@ -61,9 +61,14 @@ export function McpToolSelector({
   // Get the selected tool
   const selectedTool = availableTools.find((tool) => tool.id === selectedToolId)
 
-  // Clear tool selection when server changes
+  // Clear tool selection when server changes (but not when tools are still loading)
   useEffect(() => {
-    if (storeValue && !availableTools.find((tool) => tool.id === storeValue)) {
+    // Only clear if we have a stored value, tools are loaded, and the tool doesn't exist
+    if (
+      storeValue &&
+      availableTools.length > 0 &&
+      !availableTools.find((tool) => tool.id === storeValue)
+    ) {
       if (!isPreview) {
         setStoreValue('')
       }

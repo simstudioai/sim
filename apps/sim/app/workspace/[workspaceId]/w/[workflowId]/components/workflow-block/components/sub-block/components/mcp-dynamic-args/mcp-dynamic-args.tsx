@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
@@ -21,7 +21,7 @@ export function McpDynamicArgs({
   previewValue,
 }: McpDynamicArgsProps) {
   const { mcpTools } = useMcpTools()
-  const [selectedTool] = useSubBlockValue(blockId, 'tool') ?? [undefined, () => {}]
+  const [selectedTool] = useSubBlockValue(blockId, 'tool')
   const [toolArgs, setToolArgs] = useSubBlockValue(blockId, subBlockId)
   const [error, setError] = useState<string | null>(null)
 
@@ -61,30 +61,10 @@ export function McpDynamicArgs({
     [currentArgs, setToolArgs, disabled]
   )
 
-  // Validate current arguments against schema (but don't show error - asterisk already indicates required)
-  useEffect(() => {
-    if (!toolSchema?.properties || !toolArgs) return
-
-    try {
-      const parsed = currentArgs()
-      const required = toolSchema.required || []
-      const missing = required.filter(
-        (req: string) =>
-          !Object.hasOwn(parsed, req) || parsed[req] === undefined || parsed[req] === ''
-      )
-
-      // We don't show the error message anymore since asterisk already indicates required fields
-      setError(null)
-    } catch (err) {
-      setError('Invalid JSON format')
-    }
-  }, [toolArgs, toolSchema, currentArgs])
-
   // Render parameter input based on schema type
   const renderParameterInput = (paramName: string, paramSchema: any) => {
     const current = currentArgs()
     const value = current[paramName]
-    const isRequired = toolSchema?.required?.includes(paramName)
 
     // Determine input type based on schema
     const getInputType = () => {
@@ -106,16 +86,6 @@ export function McpDynamicArgs({
     }
 
     const inputType = getInputType()
-
-    // Custom props that override the default useSubBlockValue behavior
-    // We manage all parameters in a single JSON field, not separate fields
-    const commonProps = {
-      blockId,
-      subBlockId: paramName, // This is ignored since we override with custom onChange
-      disabled,
-      isPreview: true, // Force preview mode to use our custom values
-      previewValue: value,
-    }
 
     switch (inputType) {
       case 'switch':
@@ -210,12 +180,24 @@ export function McpDynamicArgs({
       default: {
         const isPassword =
           paramName.toLowerCase().includes('password') || paramName.toLowerCase().includes('token')
+        const isNumeric = paramSchema.type === 'number' || paramSchema.type === 'integer'
+
         return (
           <div key={`${paramName}-short`}>
             <Input
-              type={isPassword ? 'password' : 'text'}
+              type={isPassword ? 'password' : isNumeric ? 'number' : 'text'}
               value={value || ''}
-              onChange={(e) => updateParameter(paramName, e.target.value)}
+              onChange={(e) => {
+                let processedValue: any = e.target.value
+                // Convert to appropriate type for numeric fields
+                if (isNumeric && processedValue !== '') {
+                  processedValue =
+                    paramSchema.type === 'integer'
+                      ? Number.parseInt(processedValue)
+                      : Number.parseFloat(processedValue)
+                }
+                updateParameter(paramName, processedValue)
+              }}
               placeholder={
                 paramSchema.description || `Enter ${formatParameterLabel(paramName).toLowerCase()}`
               }

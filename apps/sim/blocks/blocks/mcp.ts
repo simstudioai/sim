@@ -14,7 +14,7 @@ export const McpBlock: BlockConfig<McpResponse> = {
     'Connect to MCP servers to execute tools and access external services. Supports HTTP/SSE and Streamable HTTP transports for secure server-side execution. Configure MCP servers in workspace settings.',
   docsLink: 'https://docs.sim.ai/tools/mcp',
   category: 'tools',
-  bgColor: '#E0E0E0',
+  bgColor: '#181C1E',
   icon: ServerIcon,
   subBlocks: [
     {

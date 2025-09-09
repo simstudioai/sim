@@ -166,10 +166,6 @@ export async function POST(request: NextRequest) {
       result.success = true
       result.negotiatedVersion = client.getNegotiatedVersion()
 
-      // Get server capabilities
-      const capabilities = Object.keys(client.serverCapabilities || {})
-      result.supportedCapabilities = capabilities
-
       // Try to discover tools (with timeout)
       try {
         const tools = await client.listTools()

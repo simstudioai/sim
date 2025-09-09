@@ -8,11 +8,11 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
+import { formatDisplayText } from '@/components/ui/formatted-text'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -65,6 +65,8 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
   >(null)
   const [activeHeaderIndex, setActiveHeaderIndex] = useState<number | null>(null)
   const urlInputRef = useRef<HTMLInputElement>(null)
+  const [urlScrollLeft, setUrlScrollLeft] = useState(0)
+  const [headerScrollLeft, setHeaderScrollLeft] = useState<Record<string, number>>({})
 
   const error = localError || storeError
 
@@ -278,6 +280,7 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
                   if (testResult) clearTestResult()
                   setFormData((prev) => ({ ...prev, name: e.target.value }))
                 }}
+                className='h-9'
               />
             </div>
             <div>
@@ -292,7 +295,7 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
                   }))
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger className='h-9'>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -306,13 +309,34 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
 
           <div className='relative'>
             <Label htmlFor='server-url'>Server URL</Label>
-            <Input
-              ref={urlInputRef}
-              id='server-url'
-              placeholder='https://mcp.firecrawl.dev/{{YOUR_API_KEY}}/sse'
-              value={formData.url}
-              onChange={(e) => handleInputChange('url', e.target.value)}
-            />
+            <div className='relative'>
+              <Input
+                ref={urlInputRef}
+                id='server-url'
+                placeholder='https://mcp.firecrawl.dev/{{YOUR_API_KEY}}/sse'
+                value={formData.url}
+                onChange={(e) => handleInputChange('url', e.target.value)}
+                onScroll={(e) => {
+                  const scrollLeft = e.currentTarget.scrollLeft
+                  setUrlScrollLeft(scrollLeft)
+                }}
+                onInput={(e) => {
+                  const scrollLeft = e.currentTarget.scrollLeft
+                  setUrlScrollLeft(scrollLeft)
+                }}
+                className='h-9 text-transparent caret-foreground placeholder:text-muted-foreground/50'
+              />
+
+              {/* Overlay for styled text display */}
+              <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm'>
+                <div
+                  className='whitespace-nowrap'
+                  style={{ transform: `translateX(-${urlScrollLeft}px)` }}
+                >
+                  {formatDisplayText(formData.url || '', true)}
+                </div>
+              </div>
+            </div>
 
             {/* Environment Variables Dropdown */}
             {showEnvVars && activeInputField === 'url' && (
@@ -338,21 +362,59 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
               {Object.entries(formData.headers || {}).map(([key, value], index) => (
                 <div key={index} className='relative flex gap-2'>
                   {/* Header Name Input */}
-                  <div className='flex-1'>
+                  <div className='relative flex-1'>
                     <Input
                       placeholder='Header name'
                       value={key}
                       onChange={(e) => handleInputChange('header-key', e.target.value, index)}
+                      onScroll={(e) => {
+                        const scrollLeft = e.currentTarget.scrollLeft
+                        setHeaderScrollLeft((prev) => ({ ...prev, [`key-${index}`]: scrollLeft }))
+                      }}
+                      onInput={(e) => {
+                        const scrollLeft = e.currentTarget.scrollLeft
+                        setHeaderScrollLeft((prev) => ({ ...prev, [`key-${index}`]: scrollLeft }))
+                      }}
+                      className='h-9 text-transparent caret-foreground placeholder:text-muted-foreground/50'
                     />
+                    <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm'>
+                      <div
+                        className='whitespace-nowrap'
+                        style={{
+                          transform: `translateX(-${headerScrollLeft[`key-${index}`] || 0}px)`,
+                        }}
+                      >
+                        {formatDisplayText(key || '', true)}
+                      </div>
+                    </div>
                   </div>
 
                   {/* Header Value Input */}
-                  <div className='flex-1'>
+                  <div className='relative flex-1'>
                     <Input
                       placeholder='Header value'
                       value={value}
                       onChange={(e) => handleInputChange('header-value', e.target.value, index)}
+                      onScroll={(e) => {
+                        const scrollLeft = e.currentTarget.scrollLeft
+                        setHeaderScrollLeft((prev) => ({ ...prev, [`value-${index}`]: scrollLeft }))
+                      }}
+                      onInput={(e) => {
+                        const scrollLeft = e.currentTarget.scrollLeft
+                        setHeaderScrollLeft((prev) => ({ ...prev, [`value-${index}`]: scrollLeft }))
+                      }}
+                      className='h-9 text-transparent caret-foreground placeholder:text-muted-foreground/50'
                     />
+                    <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm'>
+                      <div
+                        className='whitespace-nowrap'
+                        style={{
+                          transform: `translateX(-${headerScrollLeft[`value-${index}`] || 0}px)`,
+                        }}
+                      >
+                        {formatDisplayText(value || '', true)}
+                      </div>
+                    </div>
                   </div>
 
                   <Button
@@ -392,7 +454,6 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
                           setActiveHeaderIndex(null)
                         }}
                         className='w-full'
-                        maxHeight='200px'
                         style={{
                           position: 'absolute',
                           top: '100%',
@@ -419,7 +480,6 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
                           setActiveHeaderIndex(null)
                         }}
                         className='w-full'
-                        maxHeight='200px'
                         style={{
                           position: 'absolute',
                           top: '100%',
@@ -439,52 +499,57 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
             </div>
           )}
 
-          {/* Test Connection */}
+          {/* Test Connection and Actions */}
           <div className='border-t pt-4'>
-            <div className='space-y-2'>
-              <div className='flex items-center gap-2'>
+            <div className='flex items-center justify-between'>
+              <div className='space-y-2'>
+                <div className='flex items-center gap-2'>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='sm'
+                    onClick={handleTestConnection}
+                    disabled={isTestingConnection || !formData.name.trim() || !formData.url?.trim()}
+                    className='text-muted-foreground hover:text-foreground'
+                  >
+                    {isTestingConnection ? 'Testing...' : 'Test Connection'}
+                  </Button>
+                  {testResult?.success && (
+                    <span className='text-green-600 text-xs'>✓ Connected</span>
+                  )}
+                </div>
+                {testResult && !testResult.success && (
+                  <div className='rounded border border-red-200 bg-red-50 px-2 py-1.5 text-red-600 text-xs dark:border-red-800 dark:bg-red-950/20'>
+                    <div className='font-medium'>Connection failed</div>
+                    <div className='text-red-500 dark:text-red-400'>
+                      {testResult.error || testResult.message}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className='flex gap-2'>
                 <Button
-                  type='button'
                   variant='ghost'
                   size='sm'
-                  onClick={handleTestConnection}
-                  disabled={isTestingConnection || !formData.name.trim() || !formData.url?.trim()}
-                  className='text-muted-foreground hover:text-foreground'
+                  onClick={() => {
+                    resetForm()
+                    onOpenChange(false)
+                  }}
+                  disabled={isLoading}
                 >
-                  {isTestingConnection ? 'Testing...' : 'Test Connection'}
+                  Cancel
                 </Button>
-                {testResult?.success && <span className='text-green-600 text-xs'>✓ Connected</span>}
+                <Button
+                  size='sm'
+                  onClick={handleSubmit}
+                  disabled={isLoading || !formData.name.trim() || !formData.url?.trim()}
+                >
+                  {isLoading ? 'Adding...' : 'Add Server'}
+                </Button>
               </div>
-              {testResult && !testResult.success && (
-                <div className='rounded border border-red-200 bg-red-50 px-2 py-1.5 text-red-600 text-xs dark:border-red-800 dark:bg-red-950/20'>
-                  <div className='font-medium'>Connection failed</div>
-                  <div className='text-red-500 dark:text-red-400'>
-                    {testResult.error || testResult.message}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
-
-        <DialogFooter>
-          <Button
-            variant='outline'
-            onClick={() => {
-              resetForm()
-              onOpenChange(false)
-            }}
-            disabled={isLoading}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={isLoading || !formData.name.trim() || !formData.url?.trim()}
-          >
-            {isLoading ? 'Adding...' : 'Add Server'}
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
