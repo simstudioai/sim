@@ -5,7 +5,6 @@ import {
   Integrations,
   LandingEnterprise,
   LandingPricing,
-  LandingTemplates,
   Nav,
 } from '@/app/(landing)/components'
 
@@ -15,7 +14,7 @@ export default function Landing() {
       <Nav />
       <main className='relative'>
         <Hero />
-        <LandingTemplates />
+        {/* <LandingTemplates /> */}
         <LandingEnterprise />
         <Integrations />
         <LandingPricing />

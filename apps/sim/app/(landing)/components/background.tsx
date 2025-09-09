@@ -14,12 +14,12 @@ export default function Background({ className, children }: BackgroundProps) {
         className='-translate-x-1/2 pointer-events-none absolute top-0 left-1/2 z-10 hidden h-full min-h-full w-[1308px] sm:block'
         width='1308'
         height='4942'
-        viewBox='0 18 1308 4942'
+        viewBox='0 18 1308 4066'
         fill='none'
         xmlns='http://www.w3.org/2000/svg'
         preserveAspectRatio='xMidYMin slice'
       >
-        <path d='M6.71704 1236.22H1300.76' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M6.71704 1236.22H1291.05' stroke='#E7E4EF' strokeWidth='2' />
         <circle
           cx='11.0557'
           cy='1236.48'
@@ -36,12 +36,12 @@ export default function Background({ className, children }: BackgroundProps) {
           stroke='#E7E4EF'
           strokeWidth='2'
         />
-        <path d='M10.7967 1245.94V2130.24' stroke='#E7E4EF' strokeWidth='2' />
-        <path d='M1297.76 1245.94V2130.24' stroke='#E7E4EF' strokeWidth='2' />
-        <path d='M6.71704 2111.96H1291.05' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M10.7967 1245.94V1399.74' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M1297.76 1245.94V1399.74' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M6.71704 1385.22H1300.76' stroke='#E7E4EF' strokeWidth='2' />
         <circle
           cx='11.0557'
-          cy='2112.22'
+          cy='1385.48'
           r='8.07846'
           fill='white'
           stroke='#E7E4EF'
@@ -49,18 +49,28 @@ export default function Background({ className, children }: BackgroundProps) {
         />
         <circle
           cx='1298.02'
-          cy='2112.22'
+          cy='1385.48'
           r='8.07846'
           fill='white'
           stroke='#E7E4EF'
           strokeWidth='2'
         />
-        <path d='M10.7967 2121.68V2275.48' stroke='#E7E4EF' strokeWidth='2' />
-        <path d='M1297.76 2121.68V2275.48' stroke='#E7E4EF' strokeWidth='2' />
-        <path d='M6.71704 2260.96H1300.76' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M10.7967 1394.93V1789.26' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M6.71704 1797.92H1300.76' stroke='#E7E4EF' strokeWidth='2' />
         <circle
           cx='11.0557'
-          cy='2261.22'
+          cy='1798.18'
+          r='8.07846'
+          fill='white'
+          stroke='#E7E4EF'
+          strokeWidth='2'
+        />
+        <path d='M10.7967 1807.10V2194.59' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M1297.76 1807.64V2194.59' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M6.71704 2177.37H1300.76' stroke='#E7E4EF' strokeWidth='2' />
+        <circle
+          cx='11.0557'
+          cy='2177.63'
           r='8.07846'
           fill='white'
           stroke='#E7E4EF'
@@ -68,43 +78,14 @@ export default function Background({ className, children }: BackgroundProps) {
         />
         <circle
           cx='1298.02'
-          cy='2261.22'
+          cy='2177.63'
           r='8.07846'
           fill='white'
           stroke='#E7E4EF'
           strokeWidth='2'
         />
-        <path d='M10.7967 2270.67V2665.00' stroke='#E7E4EF' strokeWidth='2' />
-        <path d='M6.71704 2673.66H1300.76' stroke='#E7E4EF' strokeWidth='2' />
-        <circle
-          cx='11.0557'
-          cy='2673.92'
-          r='8.07846'
-          fill='white'
-          stroke='#E7E4EF'
-          strokeWidth='2'
-        />
-        <path d='M10.7967 2682.84V3070.33' stroke='#E7E4EF' strokeWidth='2' />
-        <path d='M1297.76 2683.38V3070.33' stroke='#E7E4EF' strokeWidth='2' />
-        <path d='M6.71704 3053.11H1300.76' stroke='#E7E4EF' strokeWidth='2' />
-        <circle
-          cx='11.0557'
-          cy='3053.37'
-          r='8.07846'
-          fill='white'
-          stroke='#E7E4EF'
-          strokeWidth='2'
-        />
-        <circle
-          cx='1298.02'
-          cy='3053.37'
-          r='8.07846'
-          fill='white'
-          stroke='#E7E4EF'
-          strokeWidth='2'
-        />
-        <path d='M10.7967 3062.83V4965.99' stroke='#E7E4EF' strokeWidth='2' />
-        <path d='M1297.76 3062.83V4965.99' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M10.7967 2187.09V4090.25' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M1297.76 2187.09V4090.25' stroke='#E7E4EF' strokeWidth='2' />
         <path
           d='M959.828 116.604C1064.72 187.189 1162.61 277.541 1293.45 536.597'
           stroke='#E7E4EF'
@@ -256,10 +237,10 @@ export default function Background({ className, children }: BackgroundProps) {
           stroke='#E7E4EF'
           strokeWidth='2'
         />
-        <path d='M1297.76 2270.67V2672.95' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M1297.76 1394.93V1797.21' stroke='#E7E4EF' strokeWidth='2' />
         <circle
           cx='1298.02'
-          cy='2673.92'
+          cy='1798.18'
           r='8.07846'
           fill='white'
           stroke='#E7E4EF'
