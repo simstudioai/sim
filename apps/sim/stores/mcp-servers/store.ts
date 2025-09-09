@@ -10,11 +10,11 @@ export const useMcpServersStore = create<McpServersState & McpServersActions>()(
     (set, get) => ({
       ...initialState,
 
-      fetchServers: async () => {
+      fetchServers: async (workspaceId: string) => {
         set({ isLoading: true, error: null })
 
         try {
-          const response = await fetch('/api/mcp/servers')
+          const response = await fetch(`/api/mcp/servers?workspaceId=${workspaceId}`)
           const data = await response.json()
 
           if (!response.ok) {
@@ -22,7 +22,9 @@ export const useMcpServersStore = create<McpServersState & McpServersActions>()(
           }
 
           set({ servers: data.data?.servers || [], isLoading: false })
-          logger.info(`Fetched ${data.data?.servers?.length || 0} MCP servers`)
+          logger.info(
+            `Fetched ${data.data?.servers?.length || 0} MCP servers for workspace ${workspaceId}`
+          )
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Failed to fetch servers'
           logger.error('Failed to fetch MCP servers:', error)
@@ -30,12 +32,13 @@ export const useMcpServersStore = create<McpServersState & McpServersActions>()(
         }
       },
 
-      createServer: async (config) => {
+      createServer: async (workspaceId: string, config) => {
         set({ isLoading: true, error: null })
 
         try {
           const serverData = {
             ...config,
+            workspaceId,
             id: `mcp-${Date.now()}`,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
@@ -59,7 +62,7 @@ export const useMcpServersStore = create<McpServersState & McpServersActions>()(
             isLoading: false,
           }))
 
-          logger.info(`Created MCP server: ${config.name}`)
+          logger.info(`Created MCP server: ${config.name} in workspace: ${workspaceId}`)
           return newServer
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Failed to create server'
@@ -69,35 +72,21 @@ export const useMcpServersStore = create<McpServersState & McpServersActions>()(
         }
       },
 
-      updateServer: async (id, updates) => {
+      updateServer: async (workspaceId: string, id: string, updates) => {
         set({ isLoading: true, error: null })
 
         try {
-          const response = await fetch(`/api/mcp/servers/${id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              ...updates,
-              updatedAt: new Date().toISOString(),
-            }),
-          })
-
-          const data = await response.json()
-
-          if (!response.ok) {
-            throw new Error(data.error || 'Failed to update server')
-          }
-
+          // For now, update locally only - server updates would require a PATCH endpoint
           set((state) => ({
             servers: state.servers.map((server) =>
-              server.id === id
+              server.id === id && server.workspaceId === workspaceId
                 ? { ...server, ...updates, updatedAt: new Date().toISOString() }
                 : server
             ),
             isLoading: false,
           }))
 
-          logger.info(`Updated MCP server: ${id}`)
+          logger.info(`Updated MCP server: ${id} in workspace: ${workspaceId}`)
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Failed to update server'
           logger.error('Failed to update MCP server:', error)
@@ -106,13 +95,16 @@ export const useMcpServersStore = create<McpServersState & McpServersActions>()(
         }
       },
 
-      deleteServer: async (id) => {
+      deleteServer: async (workspaceId: string, id: string) => {
         set({ isLoading: true, error: null })
 
         try {
-          const response = await fetch(`/api/mcp/servers?serverId=${id}`, {
-            method: 'DELETE',
-          })
+          const response = await fetch(
+            `/api/mcp/servers?serverId=${id}&workspaceId=${workspaceId}`,
+            {
+              method: 'DELETE',
+            }
+          )
 
           const data = await response.json()
 
@@ -125,7 +117,7 @@ export const useMcpServersStore = create<McpServersState & McpServersActions>()(
             isLoading: false,
           }))
 
-          logger.info(`Deleted MCP server: ${id}`)
+          logger.info(`Deleted MCP server: ${id} from workspace: ${workspaceId}`)
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Failed to delete server'
           logger.error('Failed to delete MCP server:', error)
@@ -134,44 +126,30 @@ export const useMcpServersStore = create<McpServersState & McpServersActions>()(
         }
       },
 
-      refreshServer: async (id) => {
-        const server = get().servers.find((s) => s.id === id)
+      refreshServer: async (workspaceId: string, id: string) => {
+        const server = get().servers.find((s) => s.id === id && s.workspaceId === workspaceId)
         if (!server) return
 
         try {
-          const response = await fetch(`/api/mcp/servers/${id}/refresh`, {
-            method: 'POST',
-          })
-
-          if (!response.ok) {
-            const data = await response.json()
-            throw new Error(data.error || 'Failed to refresh server')
-          }
-
-          const refreshedData = await response.json()
-
+          // For now, just update the last refresh time - actual refresh would require an endpoint
           set((state) => ({
             servers: state.servers.map((s) =>
-              s.id === id
+              s.id === id && s.workspaceId === workspaceId
                 ? {
                     ...s,
-                    connectionStatus: refreshedData.status || 'disconnected',
-                    toolCount: refreshedData.toolCount || 0,
-                    lastConnected: refreshedData.lastConnected,
-                    lastError: refreshedData.error,
                     lastToolsRefresh: new Date().toISOString(),
                   }
                 : s
             ),
           }))
 
-          logger.info(`Refreshed MCP server: ${id}`)
+          logger.info(`Refreshed MCP server: ${id} in workspace: ${workspaceId}`)
         } catch (error) {
           logger.error(`Failed to refresh MCP server ${id}:`, error)
 
           set((state) => ({
             servers: state.servers.map((s) =>
-              s.id === id
+              s.id === id && s.workspaceId === workspaceId
                 ? {
                     ...s,
                     connectionStatus: 'error',

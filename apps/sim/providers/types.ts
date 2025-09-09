@@ -148,6 +148,7 @@ export interface ProviderRequest {
   }
   local_execution?: boolean
   workflowId?: string // Optional workflow ID for authentication context
+  workspaceId?: string // Optional workspace ID for MCP tool scoping
   chatId?: string // Optional chat ID for checkpoint context
   userId?: string // Optional user ID for tool execution context
   stream?: boolean

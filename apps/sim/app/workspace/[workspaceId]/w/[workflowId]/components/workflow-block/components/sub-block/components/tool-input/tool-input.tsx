@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { PlusIcon, Server, WrenchIcon, XIcon } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
@@ -380,6 +381,8 @@ export function ToolInput({
   disabled = false,
   allowExpandInPreview,
 }: ToolInputProps) {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const [open, setOpen] = useState(false)
   const [customToolModalOpen, setCustomToolModalOpen] = useState(false)
@@ -393,7 +396,12 @@ export function ToolInput({
   const subBlockStore = useSubBlockStore()
 
   // MCP tools integration
-  const { mcpTools, isLoading: mcpLoading, error: mcpError, refreshTools } = useMcpTools()
+  const {
+    mcpTools,
+    isLoading: mcpLoading,
+    error: mcpError,
+    refreshTools,
+  } = useMcpTools(workspaceId)
 
   // Get the current model from the 'model' subblock
   const modelValue = useSubBlockStore.getState().getValue(blockId, 'model')

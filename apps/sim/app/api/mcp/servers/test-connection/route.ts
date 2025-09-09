@@ -1,10 +1,11 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { McpClient } from '@/lib/mcp/client'
 import type { McpServerConfig } from '@/lib/mcp/types'
 import { validateMcpServerUrl } from '@/lib/mcp/url-validator'
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { generateRequestId } from '@/lib/utils'
 
 const logger = createLogger('McpServerTestAPI')
@@ -39,7 +40,7 @@ interface TestConnectionRequest {
   url?: string
   headers?: Record<string, string>
   timeout?: number
-  workspaceId?: string
+  workspaceId: string
 }
 
 interface TestConnectionResult {
@@ -62,12 +63,12 @@ export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
+    const auth = await checkHybridAuth(request, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Authentication required',
+          error: auth.error || 'Authentication required',
         },
         { status: 401 }
       )
@@ -75,10 +76,38 @@ export async function POST(request: NextRequest) {
 
     const body: TestConnectionRequest = await request.json()
 
+    if (!body.workspaceId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'workspaceId is required',
+        },
+        { status: 400 }
+      )
+    }
+
+    // Validate user has write permission to test MCP server connections (testing is part of creation)
+    const userPermissions = await getUserEntityPermissions(
+      auth.userId,
+      'workspace',
+      body.workspaceId
+    )
+    if (!userPermissions || (userPermissions !== 'write' && userPermissions !== 'admin')) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'Insufficient permissions - write or admin permission required to test MCP servers',
+        },
+        { status: 403 }
+      )
+    }
+
     logger.info(`[${requestId}] Testing MCP server connection:`, {
       name: body.name,
       transport: body.transport,
       url: body.url ? `${body.url.substring(0, 50)}...` : undefined, // Partial URL for security
+      workspaceId: body.workspaceId,
     })
 
     // Validate required fields
@@ -117,7 +146,7 @@ export async function POST(request: NextRequest) {
     let resolvedHeaders = body.headers || {}
 
     try {
-      const envVars = await getEffectiveDecryptedEnv(session.user.id, body.workspaceId)
+      const envVars = await getEffectiveDecryptedEnv(auth.userId, body.workspaceId)
 
       if (resolvedUrl) {
         resolvedUrl = resolveEnvVars(resolvedUrl, envVars)

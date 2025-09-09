@@ -1,10 +1,11 @@
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { mcpService } from '@/lib/mcp/service'
 import type { McpApiResponse } from '@/lib/mcp/types'
 import { validateMcpServerUrl } from '@/lib/mcp/url-validator'
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { generateRequestId } from '@/lib/utils'
 import { db } from '@/db'
 import { mcpServers } from '@/db/schema'
@@ -14,40 +15,54 @@ const logger = createLogger('McpServersAPI')
 export const dynamic = 'force-dynamic'
 
 /**
- * GET - List all registered MCP servers for the current user
+ * GET - List all registered MCP servers for the workspace
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    logger.info(`[${requestId}] Listing MCP servers`)
-
-    const session = await getSession()
-    if (!session) {
+    const auth = await checkHybridAuth(request, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Authentication required',
+          error: auth.error || 'Authentication required',
         },
         { status: 401 }
       )
     }
 
-    const userId = session.user.id
-    if (!userId) {
+    const { searchParams } = new URL(request.url)
+    const workspaceId = searchParams.get('workspaceId')
+
+    if (!workspaceId) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Authentication required',
+          error: 'workspaceId is required',
         },
-        { status: 401 }
+        { status: 400 }
       )
     }
+
+    // Validate user has permission to access MCP servers in this workspace (any permission level)
+    const hasWorkspaceAccess = await getUserEntityPermissions(auth.userId, 'workspace', workspaceId)
+    if (!hasWorkspaceAccess) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Access denied to workspace',
+        },
+        { status: 403 }
+      )
+    }
+
+    logger.info(`[${requestId}] Listing MCP servers for workspace ${workspaceId}`)
 
     const servers = await db
       .select()
       .from(mcpServers)
-      .where(and(eq(mcpServers.userId, userId), isNull(mcpServers.deletedAt)))
+      .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt)))
 
     const response: McpApiResponse = {
       success: true,
@@ -56,7 +71,7 @@ export async function GET() {
       },
     }
 
-    logger.info(`[${requestId}] Listed ${servers.length} MCP servers for user ${userId}`)
+    logger.info(`[${requestId}] Listed ${servers.length} MCP servers for workspace ${workspaceId}`)
     return NextResponse.json(response)
   } catch (error) {
     logger.error(`[${requestId}] Error listing MCP servers:`, error)
@@ -71,39 +86,53 @@ export async function GET() {
 }
 
 /**
- * POST - Register a new MCP server for the current user
+ * POST - Register a new MCP server for the workspace (requires write permission)
  */
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
+    const auth = await checkHybridAuth(request, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: auth.error || 'Authentication required',
+        },
+        { status: 401 }
+      )
+    }
+
     const body = await request.json()
+    const { workspaceId } = body
+
+    if (!workspaceId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'workspaceId is required',
+        },
+        { status: 400 }
+      )
+    }
+
+    // Validate user has write permission to add MCP servers to this workspace
+    const userPermissions = await getUserEntityPermissions(auth.userId, 'workspace', workspaceId)
+    if (!userPermissions || (userPermissions !== 'write' && userPermissions !== 'admin')) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Insufficient permissions - write or admin permission required to add MCP servers',
+        },
+        { status: 403 }
+      )
+    }
+
     logger.info(`[${requestId}] Registering new MCP server:`, {
       name: body.name,
       transport: body.transport,
+      workspaceId,
     })
-
-    const session = await getSession()
-    if (!session) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Authentication required',
-        },
-        { status: 401 }
-      )
-    }
-
-    const userId = session.user.id
-    if (!userId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Authentication required',
-        },
-        { status: 401 }
-      )
-    }
 
     if (!body.name || !body.transport) {
       return NextResponse.json(
@@ -140,7 +169,8 @@ export async function POST(request: NextRequest) {
       .insert(mcpServers)
       .values({
         id: serverId,
-        userId,
+        workspaceId,
+        createdBy: auth.userId,
         name: body.name,
         description: body.description,
         transport: body.transport,
@@ -154,7 +184,7 @@ export async function POST(request: NextRequest) {
       })
       .returning()
 
-    mcpService.clearCache(session.user.id)
+    mcpService.clearCache(workspaceId)
 
     const response: McpApiResponse = {
       success: true,
@@ -176,14 +206,26 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * DELETE - Delete an MCP server for the current user (hard delete)
+ * DELETE - Delete an MCP server from the workspace (requires admin permission)
  */
 export async function DELETE(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
+    const auth = await checkHybridAuth(request, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: auth.error || 'Authentication required',
+        },
+        { status: 401 }
+      )
+    }
+
     const { searchParams } = new URL(request.url)
     const serverId = searchParams.get('serverId')
+    const workspaceId = searchParams.get('workspaceId')
 
     if (!serverId) {
       return NextResponse.json(
@@ -195,33 +237,33 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    const session = await getSession()
-    if (!session) {
+    if (!workspaceId) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Authentication required',
+          error: 'workspaceId parameter is required',
         },
-        { status: 401 }
+        { status: 400 }
       )
     }
 
-    const userId = session.user.id
-    if (!userId) {
+    // Validate user has admin permission to delete MCP servers from this workspace
+    const userPermissions = await getUserEntityPermissions(auth.userId, 'workspace', workspaceId)
+    if (!userPermissions || userPermissions !== 'admin') {
       return NextResponse.json(
         {
           success: false,
-          error: 'Authentication required',
+          error: 'Insufficient permissions - admin permission required to delete MCP servers',
         },
-        { status: 401 }
+        { status: 403 }
       )
     }
 
-    logger.info(`[${requestId}] Deleting MCP server: ${serverId}`)
+    logger.info(`[${requestId}] Deleting MCP server: ${serverId} from workspace: ${workspaceId}`)
 
     const [deletedServer] = await db
       .delete(mcpServers)
-      .where(and(eq(mcpServers.id, serverId), eq(mcpServers.userId, userId)))
+      .where(and(eq(mcpServers.id, serverId), eq(mcpServers.workspaceId, workspaceId)))
       .returning()
 
     if (!deletedServer) {
@@ -234,7 +276,7 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    mcpService.clearCache(session.user.id)
+    mcpService.clearCache(workspaceId)
 
     const response: McpApiResponse = {
       success: true,

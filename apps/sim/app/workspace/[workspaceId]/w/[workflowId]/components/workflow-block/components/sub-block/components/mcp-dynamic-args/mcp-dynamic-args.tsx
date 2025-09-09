@@ -1,4 +1,5 @@
-import { useCallback, useState } from 'react'
+import { useCallback } from 'react'
+import { useParams } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
@@ -20,10 +21,11 @@ export function McpDynamicArgs({
   isPreview = false,
   previewValue,
 }: McpDynamicArgsProps) {
-  const { mcpTools } = useMcpTools()
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
+  const { mcpTools } = useMcpTools(workspaceId)
   const [selectedTool] = useSubBlockValue(blockId, 'tool')
   const [toolArgs, setToolArgs] = useSubBlockValue(blockId, subBlockId)
-  const [error, setError] = useState<string | null>(null)
 
   // Find the selected tool's schema
   // Note: selectedTool is the full tool ID (serverId-toolName), not just the name
@@ -56,7 +58,6 @@ export function McpDynamicArgs({
       // Convert back to JSON string for storage
       const jsonString = JSON.stringify(updated, null, 2)
       setToolArgs(jsonString)
-      setError(null)
     },
     [currentArgs, setToolArgs, disabled]
   )

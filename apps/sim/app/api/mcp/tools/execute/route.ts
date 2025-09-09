@@ -10,6 +10,7 @@ import {
   MCP_CONSTANTS,
   validateStringParam,
 } from '@/lib/mcp/utils'
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { generateRequestId } from '@/lib/utils'
 
 const logger = createLogger('McpToolExecutionAPI')
@@ -49,6 +50,24 @@ export async function POST(request: NextRequest) {
     })
 
     const { serverId, toolName, arguments: args, workspaceId } = body
+
+    if (!workspaceId) {
+      return createMcpErrorResponse(
+        new Error('workspaceId is required'),
+        'Missing required parameter',
+        400
+      )
+    }
+
+    // Validate user has permission to execute tools in this workspace (any permission level)
+    const hasWorkspaceAccess = await getUserEntityPermissions(userId, 'workspace', workspaceId)
+    if (!hasWorkspaceAccess) {
+      return createMcpErrorResponse(
+        new Error('Access denied to workspace'),
+        'Insufficient permissions',
+        403
+      )
+    }
 
     const serverIdValidation = validateStringParam(serverId, 'serverId')
     if (!serverIdValidation.isValid) {

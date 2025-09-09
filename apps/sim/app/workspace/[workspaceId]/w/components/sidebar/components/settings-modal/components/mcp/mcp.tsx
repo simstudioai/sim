@@ -36,7 +36,7 @@ interface McpServerFormData {
 export function MCP() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const { mcpTools, error: toolsError, refreshTools } = useMcpTools()
+  const { mcpTools, error: toolsError, refreshTools } = useMcpTools(workspaceId)
   const {
     servers,
     isLoading: serversLoading,
@@ -161,8 +161,9 @@ export function MCP() {
       url: formData.url,
       headers: formData.headers,
       timeout: formData.timeout,
+      workspaceId,
     })
-  }, [formData, testConnection])
+  }, [formData, testConnection, workspaceId])
 
   const handleAddServer = useCallback(async () => {
     if (!formData.name.trim()) return
@@ -177,6 +178,7 @@ export function MCP() {
           url: formData.url,
           headers: formData.headers,
           timeout: formData.timeout,
+          workspaceId,
         })
 
         // If test fails, don't proceed
@@ -190,7 +192,7 @@ export function MCP() {
         return
       }
 
-      await createServer({
+      await createServer(workspaceId, {
         name: formData.name.trim(),
         transport: formData.transport,
         url: formData.url,
@@ -222,7 +224,15 @@ export function MCP() {
     } finally {
       setIsAddingServer(false)
     }
-  }, [formData, testResult, testConnection, createServer, refreshTools, clearTestResult])
+  }, [
+    formData,
+    testResult,
+    testConnection,
+    createServer,
+    refreshTools,
+    clearTestResult,
+    workspaceId,
+  ])
 
   const handleRemoveServer = useCallback(
     async (serverId: string) => {
@@ -230,7 +240,7 @@ export function MCP() {
       setDeletingServers((prev) => new Set(prev).add(serverId))
 
       try {
-        await deleteServer(serverId)
+        await deleteServer(workspaceId, serverId)
         await refreshTools(true) // Force refresh after removing server
 
         logger.info(`Removed MCP server: ${serverId}`)
@@ -251,14 +261,14 @@ export function MCP() {
         })
       }
     },
-    [deleteServer, refreshTools]
+    [deleteServer, refreshTools, workspaceId]
   )
 
   // Load data on mount only
   useEffect(() => {
-    fetchServers()
+    fetchServers(workspaceId)
     refreshTools() // Don't force refresh on mount
-  }, [fetchServers, refreshTools])
+  }, [fetchServers, refreshTools, workspaceId])
 
   const toolsByServer = (mcpTools || []).reduce(
     (acc, tool) => {

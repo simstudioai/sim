@@ -153,6 +153,16 @@ export class AgentBlockHandler implements BlockHandler {
   private async formatTools(inputTools: ToolInput[], context: ExecutionContext): Promise<any[]> {
     if (!Array.isArray(inputTools)) return []
 
+    logger.info(`[AgentHandler] formatTools called with ${inputTools.length} tools`, {
+      tools: inputTools.map((t) => ({
+        type: t.type,
+        usageControl: t.usageControl,
+        params: t.params,
+      })),
+      hasWorkspaceId: !!context.workspaceId,
+      workspaceId: context.workspaceId,
+    })
+
     const tools = await Promise.all(
       inputTools
         .filter((tool) => {
@@ -160,19 +170,26 @@ export class AgentBlockHandler implements BlockHandler {
           return usageControl !== 'none'
         })
         .map(async (tool) => {
-          if (tool.type === 'custom-tool' && tool.schema) {
-            return await this.createCustomTool(tool, context)
+          try {
+            if (tool.type === 'custom-tool' && tool.schema) {
+              return await this.createCustomTool(tool, context)
+            }
+            if (tool.type === 'mcp') {
+              return await this.createMcpTool(tool, context)
+            }
+            return this.transformBlockTool(tool, context)
+          } catch (error) {
+            logger.error(`[AgentHandler] Error creating tool:`, { tool, error })
+            return null
           }
-          if (tool.type === 'mcp') {
-            return await this.createMcpTool(tool, context)
-          }
-          return this.transformBlockTool(tool, context)
         })
     )
 
-    return tools.filter(
+    const filteredTools = tools.filter(
       (tool): tool is NonNullable<typeof tool> => tool !== null && tool !== undefined
     )
+
+    return filteredTools
   }
 
   private async createCustomTool(tool: ToolInput, context: ExecutionContext): Promise<any> {
@@ -216,7 +233,10 @@ export class AgentBlockHandler implements BlockHandler {
             blockData,
             blockNameMapping,
             isCustomTool: true,
-            _context: { workflowId: context.workflowId },
+            _context: {
+              workflowId: context.workflowId,
+              workspaceId: context.workspaceId, // Include workspaceId for MCP tools
+            },
           },
           false, // skipProxy
           false, // skipPostProcess
@@ -259,11 +279,19 @@ export class AgentBlockHandler implements BlockHandler {
         }
       }
 
-      // Add workflowId to the URL for user context resolution (like execute endpoint)
+      // Add workspaceId and workflowId to the URL for workspace scoping (required by MCP API)
       const url = new URL(`${process.env.NEXT_PUBLIC_APP_URL}/api/mcp/tools/discover`)
       url.searchParams.set('serverId', serverId)
+      if (context.workspaceId) {
+        url.searchParams.set('workspaceId', context.workspaceId)
+      } else {
+        throw new Error('workspaceId is required for MCP tool discovery')
+      }
+      // Add workflowId for internal JWT authentication context
       if (context.workflowId) {
         url.searchParams.set('workflowId', context.workflowId)
+      } else {
+        throw new Error('workflowId is required for internal JWT authentication')
       }
 
       const response = await fetch(url.toString(), {
@@ -324,7 +352,7 @@ export class AgentBlockHandler implements BlockHandler {
                 serverId,
                 toolName,
                 arguments: { ...params, ...callParams },
-                workflowId: context.workflowId, // Pass workflow context for user resolution
+                workspaceId: context.workspaceId, // Pass workspace context for scoping
               }),
             }
           )
@@ -530,6 +558,7 @@ export class AgentBlockHandler implements BlockHandler {
       azureApiVersion: inputs.azureApiVersion,
       responseFormat,
       workflowId: context.workflowId,
+      workspaceId: context.workspaceId, // Include workspaceId for MCP tools
       stream: streaming,
       messages,
       environmentVariables: context.environmentVariables || {},
@@ -561,19 +590,7 @@ export class AgentBlockHandler implements BlockHandler {
     providerRequest: any,
     messages: Message[] | undefined,
     _streamingConfig: StreamingConfig
-  ) {
-    logger.info('Provider request prepared', {
-      model: providerRequest.model,
-      hasMessages: !!messages?.length,
-      hasSystemPrompt: !messages?.length && !!providerRequest.systemPrompt,
-      hasContext: !messages?.length && !!providerRequest.context,
-      hasTools: !!providerRequest.tools,
-      hasApiKey: !!providerRequest.apiKey,
-      workflowId: providerRequest.workflowId,
-      stream: providerRequest.stream,
-      messagesCount: messages?.length || 0,
-    })
-  }
+  ) {}
 
   private async executeProviderRequest(
     providerRequest: any,
@@ -621,8 +638,6 @@ export class AgentBlockHandler implements BlockHandler {
     context: ExecutionContext,
     providerStartTime: number
   ) {
-    logger.info('Using direct provider execution (server environment)')
-
     const finalApiKey = this.getApiKey(providerId, model, providerRequest.apiKey)
 
     // Collect block outputs for runtime resolution
@@ -640,6 +655,7 @@ export class AgentBlockHandler implements BlockHandler {
       azureApiVersion: providerRequest.azureApiVersion,
       responseFormat: providerRequest.responseFormat,
       workflowId: providerRequest.workflowId,
+      workspaceId: providerRequest.workspaceId, // Include workspaceId for MCP tools
       stream: providerRequest.stream,
       messages: 'messages' in providerRequest ? providerRequest.messages : undefined,
       environmentVariables: context.environmentVariables || {},

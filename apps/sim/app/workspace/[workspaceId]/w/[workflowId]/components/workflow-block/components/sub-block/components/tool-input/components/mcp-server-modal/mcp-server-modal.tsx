@@ -183,8 +183,9 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
       url: formData.url,
       headers: formData.headers,
       timeout: 30000,
+      workspaceId,
     })
-  }, [formData, testConnection])
+  }, [formData, testConnection, workspaceId])
 
   const handleSubmit = useCallback(async () => {
     if (!formData.name.trim()) {
@@ -209,6 +210,7 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
           url: formData.url,
           headers: formData.headers,
           timeout: 30000,
+          workspaceId,
         })
 
         // If test fails, don't proceed
@@ -229,7 +231,7 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
         )
       )
 
-      await createServer({
+      await createServer(workspaceId, {
         name: formData.name.trim(),
         transport: formData.transport,
         url: formData.url,
@@ -256,6 +258,7 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
     onServerCreated,
     createServer,
     clearError,
+    workspaceId,
   ])
 
   return (

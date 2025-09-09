@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
       azureApiVersion,
       responseFormat,
       workflowId,
+      workspaceId, // Extract workspaceId for MCP tools
       stream,
       messages,
       environmentVariables,
@@ -105,6 +106,7 @@ export async function POST(request: NextRequest) {
       azureApiVersion,
       responseFormat,
       workflowId,
+      workspaceId, // Pass workspaceId for MCP tools
       stream,
       messages,
       environmentVariables,

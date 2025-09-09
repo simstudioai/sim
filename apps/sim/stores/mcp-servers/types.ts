@@ -21,7 +21,7 @@ export interface McpServerWithStatus {
   lastUsed?: string
   lastToolsRefresh?: string
   deletedAt?: string
-  workspaceId?: string
+  workspaceId: string
 }
 
 export interface McpServersState {
@@ -31,8 +31,9 @@ export interface McpServersState {
 }
 
 export interface McpServersActions {
-  fetchServers: () => Promise<void>
+  fetchServers: (workspaceId: string) => Promise<void>
   createServer: (
+    workspaceId: string,
     config: Omit<
       McpServerWithStatus,
       | 'id'
@@ -49,9 +50,13 @@ export interface McpServersActions {
       | 'workspaceId'
     >
   ) => Promise<McpServerWithStatus>
-  updateServer: (id: string, updates: Partial<McpServerWithStatus>) => Promise<void>
-  deleteServer: (id: string) => Promise<void>
-  refreshServer: (id: string) => Promise<void>
+  updateServer: (
+    workspaceId: string,
+    id: string,
+    updates: Partial<McpServerWithStatus>
+  ) => Promise<void>
+  deleteServer: (workspaceId: string, id: string) => Promise<void>
+  refreshServer: (workspaceId: string, id: string) => Promise<void>
   clearError: () => void
   reset: () => void
 }

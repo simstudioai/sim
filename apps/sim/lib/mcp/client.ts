@@ -26,6 +26,7 @@ import {
   type McpTool,
   type McpToolCall,
   type McpToolResult,
+  type McpVersionInfo,
 } from '@/lib/mcp/types'
 
 const logger = createLogger('McpClient')

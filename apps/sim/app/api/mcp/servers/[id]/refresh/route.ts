@@ -1,9 +1,10 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { mcpService } from '@/lib/mcp/service'
 import type { McpApiResponse } from '@/lib/mcp/types'
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { generateRequestId } from '@/lib/utils'
 import { db } from '@/db'
 import { mcpServers } from '@/db/schema'
@@ -13,41 +14,63 @@ const logger = createLogger('McpServerRefreshAPI')
 export const dynamic = 'force-dynamic'
 
 /**
- * POST - Refresh an MCP server connection
+ * POST - Refresh an MCP server connection (requires any workspace permission)
  */
-export async function POST(_request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   const requestId = generateRequestId()
   const serverId = params.id
 
   try {
-    logger.info(`[${requestId}] Refreshing MCP server: ${serverId}`)
-
-    const session = await getSession()
-    if (!session) {
+    const auth = await checkHybridAuth(request, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Authentication required',
+          error: auth.error || 'Authentication required',
         },
         { status: 401 }
       )
     }
 
-    const userId = session.user.id
-    if (!userId) {
+    const { searchParams } = new URL(request.url)
+    const workspaceId = searchParams.get('workspaceId')
+
+    if (!workspaceId) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Authentication required',
+          error: 'workspaceId parameter is required',
         },
-        { status: 401 }
+        { status: 400 }
       )
     }
+
+    // Validate user has permission to refresh MCP servers in this workspace (any permission level)
+    const hasWorkspaceAccess = await getUserEntityPermissions(auth.userId, 'workspace', workspaceId)
+    if (!hasWorkspaceAccess) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Access denied to workspace',
+        },
+        { status: 403 }
+      )
+    }
+
+    logger.info(`[${requestId}] Refreshing MCP server: ${serverId} in workspace: ${workspaceId}`, {
+      userId: auth.userId,
+    })
 
     const [server] = await db
       .select()
       .from(mcpServers)
-      .where(and(eq(mcpServers.id, serverId), eq(mcpServers.userId, userId)))
+      .where(
+        and(
+          eq(mcpServers.id, serverId),
+          eq(mcpServers.workspaceId, workspaceId),
+          isNull(mcpServers.deletedAt)
+        )
+      )
       .limit(1)
 
     if (!server) {
@@ -65,7 +88,7 @@ export async function POST(_request: NextRequest, { params }: { params: { id: st
     let lastError: string | null = null
 
     try {
-      const tools = await mcpService.discoverServerTools(userId, serverId, true) // Force refresh
+      const tools = await mcpService.discoverServerTools(auth.userId, serverId, workspaceId, true) // Force refresh
       connectionStatus = 'connected'
       toolCount = tools.length
       logger.info(
@@ -84,6 +107,7 @@ export async function POST(_request: NextRequest, { params }: { params: { id: st
         connectionStatus,
         lastError,
         lastConnected: connectionStatus === 'connected' ? new Date() : server.lastConnected,
+        toolCount,
         updatedAt: new Date(),
       })
       .where(eq(mcpServers.id, serverId))
@@ -94,7 +118,7 @@ export async function POST(_request: NextRequest, { params }: { params: { id: st
       data: {
         status: connectionStatus,
         toolCount,
-        lastConnected: refreshedServer.lastConnected?.toISOString() || null,
+        lastConnected: refreshedServer?.lastConnected?.toISOString() || null,
         error: lastError,
       },
     }

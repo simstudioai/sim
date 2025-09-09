@@ -89,14 +89,17 @@ class McpService {
   /**
    * Get server configuration from database
    */
-  private async getServerConfig(serverId: string, userId: string): Promise<McpServerConfig | null> {
+  private async getServerConfig(
+    serverId: string,
+    workspaceId: string
+  ): Promise<McpServerConfig | null> {
     const [server] = await db
       .select()
       .from(mcpServers)
       .where(
         and(
           eq(mcpServers.id, serverId),
-          eq(mcpServers.userId, userId),
+          eq(mcpServers.workspaceId, workspaceId),
           eq(mcpServers.enabled, true),
           isNull(mcpServers.deletedAt)
         )
@@ -123,18 +126,14 @@ class McpService {
   }
 
   /**
-   * Get all enabled servers for a user
+   * Get all enabled servers for a workspace
    */
-  private async getUserServers(userId: string, workspaceId?: string): Promise<McpServerConfig[]> {
+  private async getWorkspaceServers(workspaceId: string): Promise<McpServerConfig[]> {
     const whereConditions = [
-      eq(mcpServers.userId, userId),
+      eq(mcpServers.workspaceId, workspaceId),
       eq(mcpServers.enabled, true),
       isNull(mcpServers.deletedAt),
     ]
-
-    if (workspaceId) {
-      whereConditions.push(eq(mcpServers.workspaceId, workspaceId))
-    }
 
     const servers = await db
       .select()
@@ -189,7 +188,11 @@ class McpService {
         `[${requestId}] Executing MCP tool ${toolCall.name} on server ${serverId} for user ${userId}`
       )
 
-      const config = await this.getServerConfig(serverId, userId)
+      if (!workspaceId) {
+        throw new Error('workspaceId is required for MCP tool execution')
+      }
+
+      const config = await this.getServerConfig(serverId, workspaceId)
       if (!config) {
         throw new Error(`Server ${serverId} not found or not accessible`)
       }
@@ -216,7 +219,7 @@ class McpService {
   }
 
   /**
-   * Discover tools from all user servers
+   * Discover tools from all workspace servers
    */
   async discoverTools(
     userId: string,
@@ -224,7 +227,12 @@ class McpService {
     forceRefresh = false
   ): Promise<McpTool[]> {
     const requestId = generateRequestId()
-    const cacheKey = `${userId}${workspaceId ? `:${workspaceId}` : ''}`
+
+    if (!workspaceId) {
+      throw new Error('workspaceId is required for MCP tool discovery')
+    }
+
+    const cacheKey = `workspace:${workspaceId}`
 
     try {
       if (!forceRefresh) {
@@ -235,12 +243,12 @@ class McpService {
         }
       }
 
-      logger.info(`[${requestId}] Discovering MCP tools for user ${userId}`)
+      logger.info(`[${requestId}] Discovering MCP tools for workspace ${workspaceId}`)
 
-      const servers = await this.getUserServers(userId, workspaceId)
+      const servers = await this.getWorkspaceServers(workspaceId)
 
       if (servers.length === 0) {
-        logger.info(`[${requestId}] No servers found for user ${userId}`)
+        logger.info(`[${requestId}] No servers found for workspace ${workspaceId}`)
         return []
       }
 
@@ -302,7 +310,11 @@ class McpService {
     try {
       logger.info(`[${requestId}] Discovering tools from server ${serverId} for user ${userId}`)
 
-      const config = await this.getServerConfig(serverId, userId)
+      if (!workspaceId) {
+        throw new Error('workspaceId is required for MCP server tool discovery')
+      }
+
+      const config = await this.getServerConfig(serverId, workspaceId)
       if (!config) {
         throw new Error(`Server ${serverId} not found or not accessible`)
       }
@@ -332,9 +344,13 @@ class McpService {
     const requestId = generateRequestId()
 
     try {
-      logger.info(`[${requestId}] Getting server summaries for user ${userId}`)
+      if (!workspaceId) {
+        throw new Error('workspaceId is required for MCP server summaries')
+      }
 
-      const servers = await this.getUserServers(userId, workspaceId)
+      logger.info(`[${requestId}] Getting server summaries for workspace ${workspaceId}`)
+
+      const servers = await this.getWorkspaceServers(workspaceId)
       const summaries: McpServerSummary[] = []
 
       for (const config of servers) {
@@ -377,16 +393,13 @@ class McpService {
   }
 
   /**
-   * Clear tool cache for a user or all users
+   * Clear tool cache for a workspace or all workspaces
    */
-  clearCache(userId?: string): void {
-    if (userId) {
-      for (const [key] of this.toolCache) {
-        if (key.startsWith(userId)) {
-          this.toolCache.delete(key)
-        }
-      }
-      logger.debug(`Cleared MCP tool cache for user ${userId}`)
+  clearCache(workspaceId?: string): void {
+    if (workspaceId) {
+      const workspaceCacheKey = `workspace:${workspaceId}`
+      this.toolCache.delete(workspaceCacheKey)
+      logger.debug(`Cleared MCP tool cache for workspace ${workspaceId}`)
     } else {
       this.toolCache.clear()
       logger.debug('Cleared all MCP tool cache')

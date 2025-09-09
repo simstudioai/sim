@@ -66,7 +66,10 @@ export class GenericBlockHandler implements BlockHandler {
         block.config.tool,
         {
           ...finalInputs,
-          _context: { workflowId: context.workflowId },
+          _context: {
+            workflowId: context.workflowId,
+            workspaceId: context.workspaceId, // Include workspaceId for MCP tools
+          },
         },
         false, // skipProxy
         false, // skipPostProcess

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Check, ChevronDown, RefreshCw } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -35,6 +36,8 @@ export function McpServerSelector({
   isPreview = false,
   previewValue,
 }: McpServerSelectorProps) {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
   const [open, setOpen] = useState(false)
 
   // Get MCP servers from store
@@ -56,14 +59,14 @@ export function McpServerSelector({
 
   // Fetch servers on initial mount
   useEffect(() => {
-    fetchServers()
-  }, [fetchServers])
+    fetchServers(workspaceId)
+  }, [fetchServers, workspaceId])
 
   // Handle popover open to fetch fresh servers
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen)
     if (isOpen) {
-      fetchServers()
+      fetchServers(workspaceId)
     }
   }
 

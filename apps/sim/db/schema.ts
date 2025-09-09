@@ -1296,9 +1296,12 @@ export const mcpServers = pgTable(
   'mcp_servers',
   {
     id: text('id').primaryKey(),
-    userId: text('user_id')
+    workspaceId: text('workspace_id')
       .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+
+    // Track who created the server, but workspace owns it
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
 
     name: text('name').notNull(),
     description: text('description'),
@@ -1320,18 +1323,22 @@ export const mcpServers = pgTable(
     totalRequests: integer('total_requests').default(0),
     lastUsed: timestamp('last_used'),
 
-    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
-
     deletedAt: timestamp('deleted_at'),
 
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    userIdIdx: index('mcp_servers_user_id_idx').on(table.userId),
-    userWorkspaceIdx: index('mcp_servers_user_workspace_idx').on(table.userId, table.workspaceId),
-    userEnabledIdx: index('mcp_servers_user_enabled_idx').on(table.userId, table.enabled),
-    connectionStatusIdx: index('mcp_servers_connection_status_idx').on(table.connectionStatus),
-    deletedAtIdx: index('mcp_servers_deleted_at_idx').on(table.deletedAt),
+    // Primary access pattern - active servers by workspace
+    workspaceEnabledIdx: index('mcp_servers_workspace_enabled_idx').on(
+      table.workspaceId,
+      table.enabled
+    ),
+
+    // Soft delete pattern - workspace + not deleted
+    workspaceDeletedIdx: index('mcp_servers_workspace_deleted_idx').on(
+      table.workspaceId,
+      table.deletedAt
+    ),
   })
 )

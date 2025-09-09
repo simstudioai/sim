@@ -97,7 +97,10 @@ export class ApiBlockHandler implements BlockHandler {
         block.config.tool,
         {
           ...processedInputs,
-          _context: { workflowId: context.workflowId },
+          _context: {
+            workflowId: context.workflowId,
+            workspaceId: context.workspaceId, // Include workspaceId for MCP tools
+          },
         },
         false, // skipProxy
         false, // skipPostProcess

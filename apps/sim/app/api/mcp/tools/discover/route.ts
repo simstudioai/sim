@@ -4,6 +4,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { mcpService } from '@/lib/mcp/service'
 import type { McpToolDiscoveryResponse } from '@/lib/mcp/types'
 import { categorizeError, createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { generateRequestId } from '@/lib/utils'
 
 const logger = createLogger('McpToolDiscoveryAPI')
@@ -30,8 +31,26 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const serverId = searchParams.get('serverId')
-    const workspaceId = searchParams.get('workspaceId') || undefined
+    const workspaceId = searchParams.get('workspaceId')
     const forceRefresh = searchParams.get('refresh') === 'true'
+
+    if (!workspaceId) {
+      return createMcpErrorResponse(
+        new Error('workspaceId is required'),
+        'Missing required parameter',
+        400
+      )
+    }
+
+    // Validate user has permission to discover tools in this workspace (any permission level)
+    const hasWorkspaceAccess = await getUserEntityPermissions(userId, 'workspace', workspaceId)
+    if (!hasWorkspaceAccess) {
+      return createMcpErrorResponse(
+        new Error('Access denied to workspace'),
+        'Insufficient permissions',
+        403
+      )
+    }
 
     logger.info(`[${requestId}] Discovering MCP tools for user ${userId}`, {
       serverId,
@@ -86,6 +105,24 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const { serverIds, workspaceId } = body
+
+    if (!workspaceId) {
+      return createMcpErrorResponse(
+        new Error('workspaceId is required'),
+        'Missing required parameter',
+        400
+      )
+    }
+
+    // Validate user has permission to discover tools in this workspace (any permission level)
+    const hasWorkspaceAccess = await getUserEntityPermissions(auth.userId, 'workspace', workspaceId)
+    if (!hasWorkspaceAccess) {
+      return createMcpErrorResponse(
+        new Error('Access denied to workspace'),
+        'Insufficient permissions',
+        403
+      )
+    }
 
     if (!Array.isArray(serverIds)) {
       return createMcpErrorResponse(

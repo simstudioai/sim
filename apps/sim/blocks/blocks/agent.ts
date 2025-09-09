@@ -433,6 +433,7 @@ Example 3 (Array Input):
                 params: tool.params || {},
                 parameters: tool.type === 'custom-tool' ? tool.schema?.function?.parameters : {}, // We'd need to get actual parameters for non-custom tools
                 usageControl: tool.usageControl || 'auto',
+                type: tool.type, // Preserve tool type for agent handler processing
               }
               return toolConfig
             })
@@ -444,13 +445,6 @@ Example 3 (Array Input):
 
           if (filteredOutTools.length > 0) {
             logger.info('Filtered out tools set to none', { tools: filteredOutTools.join(', ') })
-          }
-
-          logger.info('Transformed tools', { tools: transformedTools })
-          if (transformedTools.length === 0) {
-            logger.info('No tools will be passed to the provider after filtering')
-          } else {
-            logger.info('Tools passed to provider', { count: transformedTools.length })
           }
 
           return { ...params, tools: transformedTools }

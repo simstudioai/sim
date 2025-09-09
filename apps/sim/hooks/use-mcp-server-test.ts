@@ -11,6 +11,7 @@ export interface McpServerTestConfig {
   url?: string
   headers?: Record<string, string>
   timeout?: number
+  workspaceId: string
 }
 
 export interface McpServerTestResult {
@@ -29,11 +30,11 @@ export function useMcpServerTest() {
 
   const testConnection = useCallback(
     async (config: McpServerTestConfig): Promise<McpServerTestResult> => {
-      if (!config.name || !config.transport) {
+      if (!config.name || !config.transport || !config.workspaceId) {
         const result: McpServerTestResult = {
           success: false,
           message: 'Missing required configuration',
-          error: 'Please provide both server name and transport method',
+          error: 'Please provide server name, transport method, and workspace ID',
         }
         setTestResult(result)
         return result

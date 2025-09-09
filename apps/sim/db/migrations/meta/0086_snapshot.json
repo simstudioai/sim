@@ -2366,11 +2366,17 @@
           "primaryKey": true,
           "notNull": true
         },
-        "user_id": {
-          "name": "user_id",
+        "workspace_id": {
+          "name": "workspace_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "name": {
           "name": "name",
@@ -2393,24 +2399,6 @@
         "url": {
           "name": "url",
           "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "command": {
-          "name": "command",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "args": {
-          "name": "args",
-          "type": "json",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "env": {
-          "name": "env",
-          "type": "json",
           "primaryKey": false,
           "notNull": false
         },
@@ -2487,12 +2475,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "deleted_at": {
           "name": "deleted_at",
           "type": "timestamp",
@@ -2515,47 +2497,11 @@
         }
       },
       "indexes": {
-        "mcp_servers_user_id_idx": {
-          "name": "mcp_servers_user_id_idx",
+        "mcp_servers_workspace_enabled_idx": {
+          "name": "mcp_servers_workspace_enabled_idx",
           "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "mcp_servers_user_workspace_idx": {
-          "name": "mcp_servers_user_workspace_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
             {
               "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "mcp_servers_user_enabled_idx": {
-          "name": "mcp_servers_user_enabled_idx",
-          "columns": [
-            {
-              "expression": "user_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2572,24 +2518,15 @@
           "method": "btree",
           "with": {}
         },
-        "mcp_servers_connection_status_idx": {
-          "name": "mcp_servers_connection_status_idx",
+        "mcp_servers_workspace_deleted_idx": {
+          "name": "mcp_servers_workspace_deleted_idx",
           "columns": [
             {
-              "expression": "connection_status",
+              "expression": "workspace_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "mcp_servers_deleted_at_idx": {
-          "name": "mcp_servers_deleted_at_idx",
-          "columns": [
+            },
             {
               "expression": "deleted_at",
               "isExpression": false,
@@ -2604,15 +2541,6 @@
         }
       },
       "foreignKeys": {
-        "mcp_servers_user_id_user_id_fk": {
-          "name": "mcp_servers_user_id_user_id_fk",
-          "tableFrom": "mcp_servers",
-          "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
         "mcp_servers_workspace_id_workspace_id_fk": {
           "name": "mcp_servers_workspace_id_workspace_id_fk",
           "tableFrom": "mcp_servers",
@@ -2620,6 +2548,15 @@
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "mcp_servers_created_by_user_id_fk": {
+          "name": "mcp_servers_created_by_user_id_fk",
+          "tableFrom": "mcp_servers",
+          "tableTo": "user",
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },

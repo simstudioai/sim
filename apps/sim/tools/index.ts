@@ -793,14 +793,34 @@ async function executeMcpTool(
       )
     }
 
+    const workspaceId = params._context?.workspaceId || executionContext?.workspaceId
+    const workflowId = params._context?.workflowId || executionContext?.workflowId
+
+    if (!workspaceId) {
+      return {
+        success: false,
+        output: {},
+        error: `Missing workspaceId in execution context for MCP tool ${toolName}`,
+        timing: {
+          startTime: actualStartTime,
+          endTime: new Date().toISOString(),
+          duration: Date.now() - new Date(actualStartTime).getTime(),
+        },
+      }
+    }
+
     const requestBody = {
       serverId,
       toolName,
       arguments: toolArguments,
-      workflowId: params._context?.workflowId || executionContext?.workflowId, // Pass workflow context for user resolution
+      workflowId, // Pass workflow context for user resolution
+      workspaceId, // Pass workspace context for scoping
     }
 
-    logger.info(`[${actualRequestId}] Making MCP tool request to ${toolName} on ${serverId}`)
+    logger.info(`[${actualRequestId}] Making MCP tool request to ${toolName} on ${serverId}`, {
+      hasWorkspaceId: !!workspaceId,
+      hasWorkflowId: !!workflowId,
+    })
 
     const response = await fetch(`${baseUrl}/api/mcp/tools/execute`, {
       method: 'POST',

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Check, ChevronDown, RefreshCw } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -34,10 +35,12 @@ export function McpToolSelector({
   isPreview = false,
   previewValue,
 }: McpToolSelectorProps) {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
   const [open, setOpen] = useState(false)
 
   // Get MCP tools from hook
-  const { mcpTools, isLoading, error, refreshTools, getToolsByServer } = useMcpTools()
+  const { mcpTools, isLoading, error, refreshTools, getToolsByServer } = useMcpTools(workspaceId)
 
   // Use collaborative state management via useSubBlockValue hook
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
