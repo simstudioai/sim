@@ -12,6 +12,7 @@ import {
   StepForward,
   Store,
   Trash2,
+  Webhook,
   WifiOff,
   X,
 } from 'lucide-react'
@@ -31,6 +32,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
+import { getEnv, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -38,6 +40,7 @@ import {
   DeploymentControls,
   ExportControls,
   TemplateModal,
+  WebhookSettings,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import {
@@ -111,6 +114,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   const [, forceUpdate] = useState({})
   const [isExpanded, setIsExpanded] = useState(false)
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
+  const [isWebhookSettingsOpen, setIsWebhookSettingsOpen] = useState(false)
   const [isAutoLayouting, setIsAutoLayouting] = useState(false)
 
   // Delete workflow state - grouped for better organization
@@ -706,6 +710,41 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   )
 
   /**
+   * Render webhook settings button
+   */
+  const renderWebhookButton = () => {
+    // Only show webhook button if Trigger.dev is enabled
+    const isTriggerEnabled = isTruthy(getEnv('NEXT_PUBLIC_TRIGGER_DEV_ENABLED'))
+    if (!isTriggerEnabled) return null
+
+    const canEdit = userPermissions.canEdit
+    const isDisabled = !canEdit
+
+    const getTooltipText = () => {
+      if (!canEdit) return 'Admin permission required to configure webhooks'
+      return 'Configure webhook notifications'
+    }
+
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant='outline'
+            size='icon'
+            disabled={isDisabled}
+            onClick={() => setIsWebhookSettingsOpen(true)}
+            className='h-12 w-12 rounded-[11px] border bg-card text-card-foreground shadow-xs hover:bg-secondary'
+          >
+            <Webhook className='h-5 w-5' />
+            <span className='sr-only'>Webhook Settings</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{getTooltipText()}</TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  /**
    * Render workflow duplicate button
    */
   const renderDuplicateButton = () => {
@@ -1215,6 +1254,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     <div className='fixed top-4 right-4 z-20 flex items-center gap-1'>
       {renderDisconnectionNotice()}
       {renderToggleButton()}
+      {isExpanded && renderWebhookButton()}
       {isExpanded && <ExportControls />}
       {isExpanded && renderAutoLayoutButton()}
       {isExpanded && renderPublishButton()}
@@ -1229,6 +1269,15 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
         <TemplateModal
           open={isTemplateModalOpen}
           onOpenChange={setIsTemplateModalOpen}
+          workflowId={activeWorkflowId}
+        />
+      )}
+
+      {/* Webhook Settings */}
+      {activeWorkflowId && (
+        <WebhookSettings
+          open={isWebhookSettingsOpen}
+          onOpenChange={setIsWebhookSettingsOpen}
           workflowId={activeWorkflowId}
         />
       )}
