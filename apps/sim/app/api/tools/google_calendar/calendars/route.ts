@@ -21,7 +21,7 @@ interface CalendarListItem {
  * Get calendars from Google Calendar
  */
 export async function GET(request: NextRequest) {
-  const requestId = generateRequestId() // Generate a short request ID for correlation
+  const requestId = generateRequestId()
   logger.info(`[${requestId}] Google Calendar calendars request received`)
 
   try {

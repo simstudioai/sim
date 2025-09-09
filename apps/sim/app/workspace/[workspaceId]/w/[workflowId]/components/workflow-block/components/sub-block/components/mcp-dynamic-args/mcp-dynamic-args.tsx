@@ -32,7 +32,15 @@ export function McpDynamicArgs({
 
   const currentArgs = useCallback(() => {
     if (isPreview && previewValue) {
-      return typeof previewValue === 'string' ? JSON.parse(previewValue) : previewValue
+      if (typeof previewValue === 'string') {
+        try {
+          return JSON.parse(previewValue)
+        } catch (error) {
+          console.warn('Failed to parse preview value as JSON:', error)
+          return previewValue
+        }
+      }
+      return previewValue
     }
     if (typeof toolArgs === 'string') {
       try {

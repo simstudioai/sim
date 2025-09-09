@@ -38,8 +38,7 @@ type AuthValidationResult = AuthResult | AuthFailure
  */
 async function validateMcpAuth(
   request: NextRequest,
-  permissionLevel: McpPermissionLevel,
-  params?: Record<string, any>
+  permissionLevel: McpPermissionLevel
 ): Promise<AuthValidationResult> {
   const requestId = generateRequestId()
 
@@ -179,7 +178,7 @@ export function withMcpAuth(permissionLevel: McpPermissionLevel = 'read') {
     ): Promise<NextResponse> {
       const routeParams = args[0]?.params || {}
 
-      const authResult = await validateMcpAuth(request, permissionLevel, routeParams)
+      const authResult = await validateMcpAuth(request, permissionLevel)
 
       if (!authResult.success) {
         return (authResult as AuthFailure).errorResponse

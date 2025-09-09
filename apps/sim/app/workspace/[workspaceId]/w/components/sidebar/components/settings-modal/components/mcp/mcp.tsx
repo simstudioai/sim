@@ -743,7 +743,7 @@ export function MCP() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value='streamable-http'>Streamable HTTP </SelectItem>
+                            <SelectItem value='streamable-http'>Streamable HTTP</SelectItem>
                             <SelectItem value='http'>HTTP</SelectItem>
                             <SelectItem value='sse'>Server-Sent Events</SelectItem>
                           </SelectContent>

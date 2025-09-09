@@ -132,7 +132,7 @@ export function createMcpToolId(serverId: string, toolName: string): string {
 export function parseMcpToolId(toolId: string): { serverId: string; toolName: string } {
   const parts = toolId.split('-')
   if (parts.length < 3 || parts[0] !== 'mcp') {
-    throw new Error(`Invalid MCP tool ID format: ${toolId}. Expected: mcp-timestamp-toolName`)
+    throw new Error(`Invalid MCP tool ID format: ${toolId}. Expected: mcp-serverId-toolName`)
   }
 
   const serverId = `${parts[0]}-${parts[1]}`

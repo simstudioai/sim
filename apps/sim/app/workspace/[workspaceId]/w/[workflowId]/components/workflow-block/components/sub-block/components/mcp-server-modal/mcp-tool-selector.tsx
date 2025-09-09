@@ -13,12 +13,9 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { createLogger } from '@/lib/logs/console/logger'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useMcpTools } from '@/hooks/use-mcp-tools'
-
-const logger = createLogger('McpToolSelector')
 
 interface McpToolSelectorProps {
   blockId: string

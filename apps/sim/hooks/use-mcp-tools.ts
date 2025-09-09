@@ -123,7 +123,7 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
 
   useEffect(() => {
     refreshTools()
-  }, [])
+  }, [refreshTools])
 
   // Refresh tools when servers change
   useEffect(() => {
@@ -136,7 +136,7 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
 
     lastProcessedFingerprintRef.current = serversFingerprint
     refreshTools()
-  }, [serversFingerprint])
+  }, [serversFingerprint, refreshTools])
 
   // Auto-refresh every 5 minutes
   useEffect(() => {

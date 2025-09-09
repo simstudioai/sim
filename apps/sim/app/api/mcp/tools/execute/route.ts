@@ -54,7 +54,7 @@ export const POST = withMcpAuth('read')(
 
       let tool = null
       try {
-        const tools = await mcpService.discoverServerTools(userId, serverId, workspaceId, false) // Use cache
+        const tools = await mcpService.discoverServerTools(userId, serverId, workspaceId)
         tool = tools.find((t) => t.name === toolName)
 
         if (!tool) {

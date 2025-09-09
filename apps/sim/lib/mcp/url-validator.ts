@@ -129,7 +129,7 @@ export function validateMcpServerUrl(urlString: string): UrlValidationResult {
     }
   }
 
-  if (urlString.length > 2048) {
+  if (url.toString().length > 2048) {
     return {
       isValid: false,
       error: 'URL is too long (maximum 2048 characters)',

@@ -43,7 +43,7 @@ export class GenericBlockHandler implements BlockHandler {
       if (blockConfig?.tools?.config?.params) {
         try {
           const transformedParams = blockConfig.tools.config.params(inputs)
-          finalInputs = { ...transformedParams }
+          finalInputs = { ...inputs, ...transformedParams }
           logger.info(`Applied parameter transformation for block type: ${blockType}`, {
             original: inputs,
             transformed: transformedParams,

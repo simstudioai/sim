@@ -56,7 +56,7 @@ export const useMcpServersStore = create<McpServersState & McpServersActions>()(
             throw new Error(data.error || 'Failed to create server')
           }
 
-          const newServer = { ...serverData, connectionStatus: 'connected' as const }
+          const newServer = { ...serverData, connectionStatus: 'disconnected' as const }
           set((state) => ({
             servers: [...state.servers, newServer],
             isLoading: false,
