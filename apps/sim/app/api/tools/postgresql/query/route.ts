@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console/logger'
-import { createPostgresConnection, executeQuery } from '@/app/api/tools/postgresql/utils'
+import { createPostgresConnection, executeQuery, validateQuery } from '@/app/api/tools/postgresql/utils'
 
 const logger = createLogger('PostgreSQLQueryAPI')
 
@@ -26,6 +26,16 @@ export async function POST(request: NextRequest) {
     logger.info(
       `[${requestId}] Executing PostgreSQL query on ${params.host}:${params.port}/${params.database}`
     )
+
+    // Validate query for security
+    const queryValidation = validateQuery(params.query)
+    if (!queryValidation.isValid) {
+      logger.warn(`[${requestId}] Query validation failed: ${queryValidation.error}`)
+      return NextResponse.json(
+        { error: `Query validation failed: ${queryValidation.error}` },
+        { status: 400 }
+      )
+    }
 
     const sql = createPostgresConnection({
       host: params.host,

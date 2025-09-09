@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateUUID } from '@/lib/uuid'
 import type { Variable, VariablesStore } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -126,7 +127,7 @@ export const useVariablesStore = create<VariablesStore>()(
     },
 
     addVariable: (variable, providedId?: string) => {
-      const id = providedId || crypto.randomUUID()
+      const id = providedId || generateUUID()
 
       // Get variables for this workflow
       const workflowVariables = get().getVariablesByWorkflowId(variable.workflowId)
@@ -327,7 +328,7 @@ export const useVariablesStore = create<VariablesStore>()(
       if (!state.variables[id]) return ''
 
       const variable = state.variables[id]
-      const newId = providedId || crypto.randomUUID()
+      const newId = providedId || generateUUID()
 
       // Ensure the duplicated name is unique
       const workflowVariables = get().getVariablesByWorkflowId(variable.workflowId)
