@@ -113,25 +113,19 @@ export function FieldFormat({
     setStoreValue((fields || []).filter((field: Field) => field.id !== id))
   }
 
-  // Validate field name for API safety
   const validateFieldName = (name: string): string => {
-    // Remove only truly problematic characters for JSON/API usage
-    // Allow most characters but remove control characters, quotes, and backslashes
     return name.replace(/[\x00-\x1F"\\]/g, '').trim()
   }
 
   const handleValueInputChange = (fieldId: string, newValue: string, caretPosition?: number) => {
     setLocalValues((prev) => ({ ...prev, [fieldId]: newValue }))
 
-    // Trigger tag dropdown when user types '<'
     const position = typeof caretPosition === 'number' ? caretPosition : newValue.length
     setCursorPosition(position)
     setActiveFieldId(fieldId)
     const trigger = checkTagTrigger(newValue, position)
     setShowTags(trigger.show)
   }
-
-  // Value normalization: keep it simple for string types
 
   const handleValueInputBlur = (field: Field) => {
     if (isPreview || disabled) return
@@ -163,7 +157,6 @@ export function FieldFormat({
     const input = valueInputRefs.current[fieldId]
     input?.focus()
 
-    // Insert '<' to trigger TagDropdown, preserve caret
     if (input) {
       const currentValue =
         localValues[fieldId] ?? (fields.find((f) => f.id === fieldId)?.value as string) ?? ''
