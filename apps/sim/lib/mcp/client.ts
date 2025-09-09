@@ -344,14 +344,16 @@ export class McpClient {
     ]
 
     let lastError: Error | null = null
+    const originalUrl = this.config.url
 
     for (const [index, url] of urlsToTry.entries()) {
       try {
         await this.attemptHttpRequest(request, url, index === 0)
 
         if (index > 0) {
-          logger.info(`[${this.config.name}] Updated URL from ${this.config.url} to ${url}`)
-          this.config.url = url
+          logger.info(
+            `[${this.config.name}] Successfully used alternative URL format: ${url} (original: ${originalUrl})`
+          )
         }
         return
       } catch (error) {
