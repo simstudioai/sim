@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
-import { withMcpAuth } from '@/lib/mcp/middleware'
+import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
 import type { McpToolDiscoveryResponse } from '@/lib/mcp/types'
 import { categorizeError, createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
@@ -61,7 +61,7 @@ export const GET = withMcpAuth('read')(
 export const POST = withMcpAuth('read')(
   async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
-      const body = await request.json()
+      const body = getParsedBody(request) || (await request.json())
       const { serverIds } = body
 
       if (!Array.isArray(serverIds)) {

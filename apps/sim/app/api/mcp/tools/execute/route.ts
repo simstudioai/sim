@@ -104,7 +104,11 @@ export const POST = withMcpAuth('read')(
 
       if (result.isError) {
         logger.warn(`[${requestId}] Tool execution returned error for ${toolName} on ${serverId}`)
-        return createMcpErrorResponse(transformedResult, 'Tool execution failed', 400)
+        return createMcpErrorResponse(
+          transformedResult,
+          transformedResult.error || 'Tool execution failed',
+          400
+        )
       }
       logger.info(`[${requestId}] Successfully executed tool ${toolName} on server ${serverId}`)
       return createMcpSuccessResponse(transformedResult)
@@ -112,7 +116,7 @@ export const POST = withMcpAuth('read')(
       logger.error(`[${requestId}] Error executing MCP tool:`, error)
 
       const { message, status } = categorizeError(error)
-      return createMcpErrorResponse(new Error(message), 'Tool execution failed', status)
+      return createMcpErrorResponse(new Error(message), message, status)
     }
   }
 )

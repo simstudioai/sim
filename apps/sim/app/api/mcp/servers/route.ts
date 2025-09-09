@@ -1,7 +1,7 @@
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
-import { withMcpAuth } from '@/lib/mcp/middleware'
+import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
 import { validateMcpServerUrl } from '@/lib/mcp/url-validator'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
@@ -46,7 +46,7 @@ export const GET = withMcpAuth('read')(
 export const POST = withMcpAuth('write')(
   async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
-      const body = await request.json()
+      const body = getParsedBody(request) || (await request.json())
 
       logger.info(`[${requestId}] Registering new MCP server:`, {
         name: body.name,

@@ -37,17 +37,27 @@ class McpService {
     if (!envMatches) return value
 
     let resolvedValue = value
+    const missingVars: string[] = []
+
     for (const match of envMatches) {
       const envKey = match.slice(2, -2).trim()
       const envValue = envVars[envKey]
 
       if (envValue === undefined) {
-        logger.warn(`Environment variable "${envKey}" not found in MCP server config`)
+        missingVars.push(envKey)
         continue
       }
 
       resolvedValue = resolvedValue.replace(match, envValue)
     }
+
+    if (missingVars.length > 0) {
+      throw new Error(
+        `Missing required environment variable${missingVars.length > 1 ? 's' : ''}: ${missingVars.join(', ')}. ` +
+          `Please set ${missingVars.length > 1 ? 'these variables' : 'this variable'} in your workspace or personal environment settings.`
+      )
+    }
+
     return resolvedValue
   }
 
