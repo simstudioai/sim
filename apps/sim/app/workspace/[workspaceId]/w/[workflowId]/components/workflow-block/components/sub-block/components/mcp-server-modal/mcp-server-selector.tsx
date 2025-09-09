@@ -13,13 +13,9 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { createLogger } from '@/lib/logs/console/logger'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useEnabledServers, useMcpServersStore } from '@/stores/mcp-servers/store'
-import type { McpServerWithStatus } from '@/stores/mcp-servers/types'
-
-const logger = createLogger('McpServerSelector')
 
 interface McpServerSelectorProps {
   blockId: string
@@ -40,29 +36,22 @@ export function McpServerSelector({
   const workspaceId = params.workspaceId as string
   const [open, setOpen] = useState(false)
 
-  // Get MCP servers from store
   const { fetchServers, isLoading, error } = useMcpServersStore()
   const enabledServers = useEnabledServers()
 
-  // Use collaborative state management via useSubBlockValue hook
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
 
-  // Extract config values
   const label = subBlock.placeholder || 'Select MCP server'
 
-  // Get the effective value (preview or store value)
   const effectiveValue = isPreview && previewValue !== undefined ? previewValue : storeValue
   const selectedServerId = effectiveValue || ''
 
-  // Get the selected server
   const selectedServer = enabledServers.find((server) => server.id === selectedServerId)
 
-  // Fetch servers on initial mount
   useEffect(() => {
     fetchServers(workspaceId)
   }, [fetchServers, workspaceId])
 
-  // Handle popover open to fetch fresh servers
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen)
     if (isOpen) {
@@ -70,7 +59,6 @@ export function McpServerSelector({
     }
   }
 
-  // Handle server selection
   const handleSelect = (serverId: string) => {
     if (!isPreview) {
       setStoreValue(serverId)
@@ -78,19 +66,6 @@ export function McpServerSelector({
     setOpen(false)
   }
 
-  // Get server status indicator
-  const getStatusIndicator = (server: McpServerWithStatus) => {
-    switch (server.connectionStatus) {
-      case 'connected':
-        return <div className='h-2 w-2 rounded-full bg-green-500' />
-      case 'error':
-        return <div className='h-2 w-2 rounded-full bg-red-500' />
-      default:
-        return <div className='h-2 w-2 rounded-full bg-gray-400' />
-    }
-  }
-
-  // Get display text for selected server
   const getDisplayText = () => {
     if (selectedServer) {
       return <span className='truncate font-normal'>{selectedServer.name}</span>

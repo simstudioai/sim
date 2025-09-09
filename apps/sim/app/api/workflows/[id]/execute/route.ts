@@ -201,11 +201,8 @@ async function executeWorkflow(
       }
     }
 
-    // Use the current block states as-is - parameter transformation will happen in the handlers
-    const transformedBlockStates = currentBlockStates
-
     // Process the block states to ensure response formats are properly parsed
-    const processedBlockStates = Object.entries(transformedBlockStates).reduce(
+    const processedBlockStates = Object.entries(currentBlockStates).reduce(
       (acc, [blockId, blockState]) => {
         // Check if this block has a responseFormat that needs to be parsed
         if (blockState.responseFormat && typeof blockState.responseFormat === 'string') {
@@ -265,42 +262,10 @@ async function executeWorkflow(
       logger.debug(`[${requestId}] No workflow variables found for: ${workflowId}`)
     }
 
-    // Create merged states that combine block metadata with transformed parameters
-    const finalMergedStates = Object.entries(mergedStates).reduce(
-      (acc, [blockId, blockData]) => {
-        const transformedParams = processedBlockStates[blockId]
-        if (transformedParams) {
-          // Update the block's subBlocks with transformed parameters
-          const updatedSubBlocks = Object.entries(transformedParams).reduce(
-            (subAcc, [key, value]) => {
-              // Preserve original subBlock structure but update the value
-              const originalSubBlock = blockData.subBlocks[key]
-              subAcc[key] = {
-                id: originalSubBlock?.id || key,
-                type: originalSubBlock?.type || 'text',
-                value,
-              }
-              return subAcc
-            },
-            {} as Record<string, any>
-          )
-
-          acc[blockId] = {
-            ...blockData,
-            subBlocks: updatedSubBlocks,
-          }
-        } else {
-          acc[blockId] = blockData
-        }
-        return acc
-      },
-      {} as typeof mergedStates
-    )
-
     // Serialize and execute the workflow
     logger.debug(`[${requestId}] Serializing workflow: ${workflowId}`)
     const serializedWorkflow = new Serializer().serializeWorkflow(
-      finalMergedStates,
+      mergedStates,
       edges,
       loops,
       parallels,

@@ -35,7 +35,7 @@ export const McpBlock: BlockConfig<McpResponse> = {
       required: true,
       placeholder: 'Select a tool',
       description: 'Available tools from the selected MCP server',
-      dependsOn: ['server'], // Tool options depend on selected server
+      dependsOn: ['server'],
       condition: {
         field: 'server',
         value: '',
@@ -55,25 +55,20 @@ export const McpBlock: BlockConfig<McpResponse> = {
       },
     },
   ],
-  // MCP blocks use the tools framework with dynamic tool IDs
   tools: {
     access: [], // No static tool access needed - tools are dynamically resolved
     config: {
       tool: (params: any) => {
-        // Build MCP tool ID from server and tool selections
         if (params.server && params.tool) {
           const serverId = params.server
           let toolName = params.tool
 
-          // Handle case where tool selection might include the full MCP tool ID
-          // If tool contains the server ID, extract just the tool name
           if (toolName.startsWith(`${serverId}-`)) {
             toolName = toolName.substring(`${serverId}-`.length)
           }
 
           return createMcpToolId(serverId, toolName)
         }
-        // Fallback when no selection is made yet
         return 'mcp-dynamic'
       },
     },

@@ -138,7 +138,6 @@ export async function executeTool(
         logger.error(`[${requestId}] Custom tool not found: ${toolId}`)
       }
     } else if (toolId.startsWith('mcp-')) {
-      // Handle MCP tools via server-side proxy
       return await executeMcpTool(toolId, params, executionContext, requestId, startTimeISO)
     } else {
       // For built-in tools, use the synchronous version
@@ -731,27 +730,21 @@ async function executeMcpTool(
   try {
     logger.info(`[${actualRequestId}] Executing MCP tool: ${toolId}`)
 
-    // Parse MCP tool ID to extract server ID and tool name
     const { serverId, toolName } = parseMcpToolId(toolId)
 
-    // Get base URL for API calls
     const baseUrl = getBaseUrl()
 
-    // Prepare headers for internal API call
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
 
-    // Add internal authorization if running on server
     if (typeof window === 'undefined') {
       try {
         const internalToken = await generateInternalToken()
         headers.Authorization = `Bearer ${internalToken}`
       } catch (error) {
         logger.error(`[${actualRequestId}] Failed to generate internal token:`, error)
-        // Still continue with the request, but it will likely fail auth
       }
     }
 
-    // Execute MCP tool via API
     // Handle two different parameter structures:
     // 1. Direct MCP blocks: arguments are stored as JSON string in 'arguments' field
     // 2. Agent blocks: arguments are passed directly as top-level parameters

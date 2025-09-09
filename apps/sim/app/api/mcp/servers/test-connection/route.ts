@@ -70,7 +70,6 @@ export const POST = withMcpAuth('write')(
         workspaceId,
       })
 
-      // Validate required fields
       if (!body.name || !body.transport) {
         return createMcpErrorResponse(
           new Error('Missing required fields: name and transport are required'),
@@ -79,7 +78,6 @@ export const POST = withMcpAuth('write')(
         )
       }
 
-      // Validate URL if provided
       if (
         (body.transport === 'http' ||
           body.transport === 'sse' ||
@@ -97,7 +95,6 @@ export const POST = withMcpAuth('write')(
         body.url = urlValidation.normalizedUrl
       }
 
-      // Resolve environment variables in config
       let resolvedUrl = body.url
       let resolvedHeaders = body.headers || {}
 
@@ -120,38 +117,33 @@ export const POST = withMcpAuth('write')(
         )
       }
 
-      // Create temporary server config for testing
       const testConfig: McpServerConfig = {
         id: `test-${requestId}`,
         name: body.name,
         transport: body.transport,
         url: resolvedUrl,
         headers: resolvedHeaders,
-        timeout: body.timeout || 10000, // Shorter timeout for testing
+        timeout: body.timeout || 10000,
         retries: 1, // Only one retry for tests
         enabled: true,
       }
 
-      // Test security policy (restrictive for testing)
       const testSecurityPolicy = {
-        requireConsent: false, // Skip consent for connection testing
+        requireConsent: false,
         auditLevel: 'none' as const,
-        maxToolExecutionsPerHour: 0, // Don't allow tool execution during tests
+        maxToolExecutionsPerHour: 0,
       }
 
       const result: TestConnectionResult = { success: false }
       let client: McpClient | null = null
 
       try {
-        // Create and connect to the test client
         client = new McpClient(testConfig, testSecurityPolicy)
         await client.connect()
 
-        // If we get here, connection was successful
         result.success = true
         result.negotiatedVersion = client.getNegotiatedVersion()
 
-        // Try to discover tools (with timeout)
         try {
           const tools = await client.listTools()
           result.toolCount = tools.length
@@ -161,7 +153,6 @@ export const POST = withMcpAuth('write')(
           result.warnings.push('Could not list tools from server')
         }
 
-        // Check for version compatibility warnings
         const clientVersionInfo = McpClient.getVersionInfo()
         if (result.negotiatedVersion !== clientVersionInfo.preferred) {
           result.warnings = result.warnings || []
@@ -186,7 +177,6 @@ export const POST = withMcpAuth('write')(
           result.error = 'Unknown connection error'
         }
       } finally {
-        // Always disconnect the test client
         if (client) {
           try {
             await client.disconnect()

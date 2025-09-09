@@ -27,12 +27,9 @@ export function McpDynamicArgs({
   const [selectedTool] = useSubBlockValue(blockId, 'tool')
   const [toolArgs, setToolArgs] = useSubBlockValue(blockId, subBlockId)
 
-  // Find the selected tool's schema
-  // Note: selectedTool is the full tool ID (serverId-toolName), not just the name
   const selectedToolConfig = mcpTools.find((tool) => tool.id === selectedTool)
   const toolSchema = selectedToolConfig?.inputSchema
 
-  // Parse current arguments
   const currentArgs = useCallback(() => {
     if (isPreview && previewValue) {
       return typeof previewValue === 'string' ? JSON.parse(previewValue) : previewValue
@@ -47,7 +44,6 @@ export function McpDynamicArgs({
     return toolArgs || {}
   }, [toolArgs, previewValue, isPreview])
 
-  // Update a specific parameter
   const updateParameter = useCallback(
     (paramName: string, value: any) => {
       if (disabled) return
@@ -55,19 +51,16 @@ export function McpDynamicArgs({
       const current = currentArgs()
       const updated = { ...current, [paramName]: value }
 
-      // Convert back to JSON string for storage
       const jsonString = JSON.stringify(updated, null, 2)
       setToolArgs(jsonString)
     },
     [currentArgs, setToolArgs, disabled]
   )
 
-  // Render parameter input based on schema type
   const renderParameterInput = (paramName: string, paramSchema: any) => {
     const current = currentArgs()
     const value = current[paramName]
 
-    // Determine input type based on schema
     const getInputType = () => {
       if (paramSchema.enum) return 'dropdown'
       if (paramSchema.type === 'boolean') return 'switch'
@@ -190,7 +183,6 @@ export function McpDynamicArgs({
               value={value || ''}
               onChange={(e) => {
                 let processedValue: any = e.target.value
-                // Convert to appropriate type for numeric fields
                 if (isNumeric && processedValue !== '') {
                   processedValue =
                     paramSchema.type === 'integer'
@@ -210,7 +202,6 @@ export function McpDynamicArgs({
     }
   }
 
-  // Show message when no tool is selected
   if (!selectedTool) {
     return (
       <div className='rounded-lg border border-gray-300 border-dashed p-8 text-center dark:border-gray-600'>
@@ -219,7 +210,6 @@ export function McpDynamicArgs({
     )
   }
 
-  // Show message when tool has no parameters
   if (!toolSchema?.properties || Object.keys(toolSchema.properties).length === 0) {
     return (
       <div className='rounded-lg border border-gray-300 border-dashed p-8 text-center dark:border-gray-600'>

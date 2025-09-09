@@ -132,7 +132,7 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
     onClose?.()
   }
 
-  // Add and remove keyboard event listener with smooth scrolling
+  // Add and remove keyboard event listener
   useEffect(() => {
     if (visible) {
       const handleKeyboardEvent = (e: KeyboardEvent) => {
@@ -144,7 +144,6 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
             e.stopPropagation()
             setSelectedIndex((prev) => {
               const newIndex = prev < filteredEnvVars.length - 1 ? prev + 1 : prev
-              // Scroll to the newly selected item
               setTimeout(() => {
                 const selectedElement = document.querySelector(`[data-env-var-index="${newIndex}"]`)
                 if (selectedElement) {
@@ -159,7 +158,6 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
             e.stopPropagation()
             setSelectedIndex((prev) => {
               const newIndex = prev > 0 ? prev - 1 : prev
-              // Scroll to the newly selected item
               setTimeout(() => {
                 const selectedElement = document.querySelector(`[data-env-var-index="${newIndex}"]`)
                 if (selectedElement) {

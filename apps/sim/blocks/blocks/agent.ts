@@ -422,7 +422,6 @@ Example 3 (Array Input):
               return usageControl !== 'none'
             })
             .map((tool: any) => {
-              // Get the base tool configuration
               const toolConfig = {
                 id:
                   tool.type === 'custom-tool'
@@ -431,9 +430,9 @@ Example 3 (Array Input):
                 name: tool.title,
                 description: tool.type === 'custom-tool' ? tool.schema?.function?.description : '',
                 params: tool.params || {},
-                parameters: tool.type === 'custom-tool' ? tool.schema?.function?.parameters : {}, // We'd need to get actual parameters for non-custom tools
+                parameters: tool.type === 'custom-tool' ? tool.schema?.function?.parameters : {},
                 usageControl: tool.usageControl || 'auto',
-                type: tool.type, // Preserve tool type for agent handler processing
+                type: tool.type,
               }
               return toolConfig
             })
