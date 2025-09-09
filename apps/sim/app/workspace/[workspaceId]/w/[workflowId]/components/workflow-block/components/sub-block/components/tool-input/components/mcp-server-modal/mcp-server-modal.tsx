@@ -313,7 +313,7 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
               <Input
                 ref={urlInputRef}
                 id='server-url'
-                placeholder='https://mcp.firecrawl.dev/{{YOUR_API_KEY}}/sse'
+                placeholder='https://mcp.server.dev/{{YOUR_API_KEY}}/sse'
                 value={formData.url}
                 onChange={(e) => handleInputChange('url', e.target.value)}
                 onScroll={(e) => {
@@ -352,6 +352,7 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
                   setActiveInputField(null)
                 }}
                 className='w-full'
+                maxHeight='250px'
               />
             )}
           </div>
@@ -364,7 +365,7 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
                   {/* Header Name Input */}
                   <div className='relative flex-1'>
                     <Input
-                      placeholder='Header name'
+                      placeholder='Name'
                       value={key}
                       onChange={(e) => handleInputChange('header-key', e.target.value, index)}
                       onScroll={(e) => {
@@ -392,7 +393,7 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
                   {/* Header Value Input */}
                   <div className='relative flex-1'>
                     <Input
-                      placeholder='Header value'
+                      placeholder='Value'
                       value={value}
                       onChange={(e) => handleInputChange('header-value', e.target.value, index)}
                       onScroll={(e) => {
@@ -454,6 +455,7 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
                           setActiveHeaderIndex(null)
                         }}
                         className='w-full'
+                        maxHeight='150px'
                         style={{
                           position: 'absolute',
                           top: '100%',
@@ -480,6 +482,7 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
                           setActiveHeaderIndex(null)
                         }}
                         className='w-full'
+                        maxHeight='250px'
                         style={{
                           position: 'absolute',
                           top: '100%',

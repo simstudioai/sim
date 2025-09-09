@@ -48,6 +48,7 @@ export function MCP() {
 
   const [showAddForm, setShowAddForm] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [deletingServers, setDeletingServers] = useState<Set<string>>(new Set())
   const [formData, setFormData] = useState<McpServerFormData>({
     name: '',
     transport: 'streamable-http',
@@ -225,6 +226,9 @@ export function MCP() {
 
   const handleRemoveServer = useCallback(
     async (serverId: string) => {
+      // Add server to deleting set
+      setDeletingServers((prev) => new Set(prev).add(serverId))
+
       try {
         await deleteServer(serverId)
         await refreshTools(true) // Force refresh after removing server
@@ -232,6 +236,19 @@ export function MCP() {
         logger.info(`Removed MCP server: ${serverId}`)
       } catch (error) {
         logger.error('Failed to remove MCP server:', error)
+        // Remove from deleting set on error so user can try again
+        setDeletingServers((prev) => {
+          const newSet = new Set(prev)
+          newSet.delete(serverId)
+          return newSet
+        })
+      } finally {
+        // Remove from deleting set after successful deletion
+        setDeletingServers((prev) => {
+          const newSet = new Set(prev)
+          newSet.delete(serverId)
+          return newSet
+        })
       }
     },
     [deleteServer, refreshTools]
@@ -571,33 +588,28 @@ export function MCP() {
 
                   <div className='border-t pt-4'>
                     <div className='flex items-center justify-between'>
-                      <div className='space-y-2'>
-                        <div className='flex items-center gap-2'>
-                          <Button
-                            variant='ghost'
-                            size='sm'
-                            onClick={handleTestConnection}
-                            disabled={
-                              isTestingConnection || !formData.name.trim() || !formData.url?.trim()
-                            }
-                            className='text-muted-foreground hover:text-foreground'
-                          >
-                            {isTestingConnection ? 'Testing...' : 'Test Connection'}
-                          </Button>
-                          {testResult?.success && (
-                            <span className='text-green-600 text-xs'>✓ Connected</span>
-                          )}
-                        </div>
-                        {testResult && !testResult.success && (
-                          <div className='rounded border border-red-200 bg-red-50 px-2 py-1.5 text-red-600 text-xs dark:border-red-800 dark:bg-red-950/20'>
-                            <div className='font-medium'>Connection failed</div>
-                            <div className='text-red-500 dark:text-red-400'>
-                              {testResult.error || testResult.message}
-                            </div>
-                          </div>
+                      <div className='flex items-center gap-2'>
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          onClick={handleTestConnection}
+                          disabled={
+                            isTestingConnection || !formData.name.trim() || !formData.url?.trim()
+                          }
+                          className='text-muted-foreground hover:text-foreground'
+                        >
+                          {isTestingConnection ? 'Testing...' : 'Test Connection'}
+                        </Button>
+                        {testResult?.success && (
+                          <span className='text-green-600 text-xs'>✓ Connected</span>
                         )}
                       </div>
-                      <div className='flex gap-2'>
+                      <div className='flex items-center gap-2'>
+                        {testResult && !testResult.success && (
+                          <span className='ml-4 text-red-600 text-xs'>
+                            {testResult.error || testResult.message}
+                          </span>
+                        )}
                         <Button variant='ghost' size='sm' onClick={() => setShowAddForm(false)}>
                           Cancel
                         </Button>
@@ -656,9 +668,10 @@ export function MCP() {
                         variant='ghost'
                         size='sm'
                         onClick={() => handleRemoveServer(server.id)}
+                        disabled={deletingServers.has(server.id)}
                         className='h-8 text-muted-foreground hover:text-foreground'
                       >
-                        Delete
+                        {deletingServers.has(server.id) ? 'Deleting...' : 'Delete'}
                       </Button>
                     </div>
                     {tools.length > 0 && (
@@ -772,7 +785,7 @@ export function MCP() {
                               setActiveInputField(null)
                             }}
                             className='w-[380px]'
-                            maxHeight='200px'
+                            maxHeight='180px'
                             style={{
                               position: 'absolute',
                               top: '100%',
@@ -956,35 +969,28 @@ export function MCP() {
 
                     <div className='border-t pt-4'>
                       <div className='flex items-center justify-between'>
-                        <div className='space-y-2'>
-                          <div className='flex items-center gap-2'>
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              onClick={handleTestConnection}
-                              disabled={
-                                isTestingConnection ||
-                                !formData.name.trim() ||
-                                !formData.url?.trim()
-                              }
-                              className='text-muted-foreground hover:text-foreground'
-                            >
-                              {isTestingConnection ? 'Testing...' : 'Test Connection'}
-                            </Button>
-                            {testResult?.success && (
-                              <span className='text-green-600 text-xs'>✓ Connected</span>
-                            )}
-                          </div>
-                          {testResult && !testResult.success && (
-                            <div className='rounded border border-red-200 bg-red-50 px-2 py-1.5 text-red-600 text-xs dark:border-red-800 dark:bg-red-950/20'>
-                              <div className='font-medium'>Connection failed</div>
-                              <div className='text-red-500 dark:text-red-400'>
-                                {testResult.error || testResult.message}
-                              </div>
-                            </div>
+                        <div className='flex items-center gap-2'>
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            onClick={handleTestConnection}
+                            disabled={
+                              isTestingConnection || !formData.name.trim() || !formData.url?.trim()
+                            }
+                            className='text-muted-foreground hover:text-foreground'
+                          >
+                            {isTestingConnection ? 'Testing...' : 'Test Connection'}
+                          </Button>
+                          {testResult?.success && (
+                            <span className='text-green-600 text-xs'>✓ Connected</span>
                           )}
                         </div>
-                        <div className='flex gap-2'>
+                        <div className='flex items-center gap-2'>
+                          {testResult && !testResult.success && (
+                            <span className='ml-4 text-red-600 text-xs'>
+                              {testResult.error || testResult.message}
+                            </span>
+                          )}
                           <Button variant='ghost' size='sm' onClick={() => setShowAddForm(false)}>
                             Cancel
                           </Button>
@@ -1044,14 +1050,19 @@ export function MCP() {
 function McpServerSkeleton() {
   return (
     <div className='flex flex-col gap-2'>
-      <Skeleton className='h-4 w-24' /> {/* Server label */}
       <div className='flex items-center justify-between gap-4'>
         <div className='flex items-center gap-3'>
           <Skeleton className='h-8 w-40 rounded-[8px]' /> {/* Server name */}
-          <Skeleton className='h-5 w-12 rounded' /> {/* Transport badge */}
-          <Skeleton className='h-4 w-16' /> {/* Tool count */}
+          <Skeleton className='h-4 w-16' /> {/* Transport type */}
+          <Skeleton className='h-1 w-1 rounded-full' /> {/* Dot separator */}
+          <Skeleton className='h-4 w-12' /> {/* Tool count */}
         </div>
         <Skeleton className='h-8 w-16' /> {/* Delete button */}
+      </div>
+      <div className='mt-1 ml-2 flex flex-wrap gap-1'>
+        <Skeleton className='h-5 w-16 rounded' /> {/* Tool name 1 */}
+        <Skeleton className='h-5 w-20 rounded' /> {/* Tool name 2 */}
+        <Skeleton className='h-5 w-14 rounded' /> {/* Tool name 3 */}
       </div>
     </div>
   )

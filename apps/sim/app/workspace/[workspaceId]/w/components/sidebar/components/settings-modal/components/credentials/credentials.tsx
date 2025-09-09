@@ -375,9 +375,9 @@ export function Credentials({ onOpenChange, registerCloseHandler }: CredentialsP
               </div>
               <div className='flex flex-1 flex-col'>
                 <p className='text-muted-foreground'>
-                  <span className='font-medium text-primary'>Action Required:</span> Please connect
-                  your account to enable the requested features. The required service is highlighted
-                  below.
+                  <span className='font-medium text-foreground'>Action Required:</span> Please
+                  connect your account to enable the requested features. The required service is
+                  highlighted below.
                 </p>
                 <Button
                   variant='outline'
