@@ -1,5 +1,6 @@
 import { getEnv } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { createMcpToolId } from '@/lib/mcp/utils'
 import { getAllBlocks } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/consts'
@@ -183,10 +184,8 @@ export class AgentBlockHandler implements BlockHandler {
   private async createCustomTool(tool: ToolInput, context: ExecutionContext): Promise<any> {
     const userProvidedParams = tool.params || {}
 
-    // Import the utility function
     const { filterSchemaForLLM, mergeToolParameters } = await import('@/tools/params')
 
-    // Create schema excluding user-provided parameters
     const filteredSchema = filterSchemaForLLM(tool.schema.function.parameters, userProvidedParams)
 
     const toolId = `${CUSTOM_TOOL_PREFIX}${tool.title}`
@@ -294,9 +293,7 @@ export class AgentBlockHandler implements BlockHandler {
         throw new Error(`MCP tool ${toolName} not found on server ${serverId}`)
       }
 
-      const toolId = serverId.startsWith('mcp-')
-        ? `${serverId}-${toolName}`
-        : `mcp-${serverId}-${toolName}`
+      const toolId = createMcpToolId(serverId, toolName)
 
       return {
         id: toolId,

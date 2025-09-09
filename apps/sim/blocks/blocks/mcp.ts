@@ -1,4 +1,5 @@
 import { ServerIcon } from '@/components/icons'
+import { createMcpToolId } from '@/lib/mcp/utils'
 import type { BlockConfig } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
 
@@ -56,12 +57,11 @@ export const McpBlock: BlockConfig<McpResponse> = {
   ],
   // MCP blocks use the tools framework with dynamic tool IDs
   tools: {
-    access: ['mcp-dynamic'], // Placeholder - actual tool ID determined by config.tool function
+    access: [], // No static tool access needed - tools are dynamically resolved
     config: {
       tool: (params: any) => {
         // Build MCP tool ID from server and tool selections
         if (params.server && params.tool) {
-          // Server ID is in format "mcp-timestamp"
           const serverId = params.server
           let toolName = params.tool
 
@@ -71,8 +71,7 @@ export const McpBlock: BlockConfig<McpResponse> = {
             toolName = toolName.substring(`${serverId}-`.length)
           }
 
-          // Format: "mcp-timestamp-toolName"
-          return `${serverId}-${toolName}`
+          return createMcpToolId(serverId, toolName)
         }
         // Fallback when no selection is made yet
         return 'mcp-dynamic'

@@ -1,5 +1,6 @@
 import { generateInternalToken } from '@/lib/auth/internal'
 import { createLogger } from '@/lib/logs/console/logger'
+import { parseMcpToolId } from '@/lib/mcp/utils'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { generateRequestId } from '@/lib/utils'
 import type { ExecutionContext } from '@/executor/types'
@@ -731,15 +732,7 @@ async function executeMcpTool(
     logger.info(`[${actualRequestId}] Executing MCP tool: ${toolId}`)
 
     // Parse MCP tool ID to extract server ID and tool name
-    // Format: "mcp-timestamp-toolName" where serverId is "mcp-timestamp"
-    const parts = toolId.split('-')
-    if (parts.length < 3 || parts[0] !== 'mcp') {
-      throw new Error(`Invalid MCP tool ID format: ${toolId}. Expected: mcp-timestamp-toolName`)
-    }
-
-    // Server ID is "mcp-timestamp" (first two parts)
-    const serverId = `${parts[0]}-${parts[1]}`
-    const toolName = parts.slice(2).join('-') // Handle tool names with dashes
+    const { serverId, toolName } = parseMcpToolId(toolId)
 
     // Get base URL for API calls
     const baseUrl = getBaseUrl()

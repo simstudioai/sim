@@ -201,47 +201,8 @@ async function executeWorkflow(
       }
     }
 
-    // Apply parameter transformations for blocks that need them (like MCP)
-    const transformedBlockStates = await Object.entries(currentBlockStates).reduce(
-      async (accPromise, [blockId, blockState]) => {
-        const acc = await accPromise
-
-        // Find the corresponding block in merged states to get its type
-        const blockData = mergedStates[blockId]
-        if (blockData?.type) {
-          try {
-            const { getBlock } = await import('@/blocks')
-            const blockConfig = getBlock(blockData.type)
-
-            // Apply parameter transformation if the block has one
-            if (blockConfig?.tools?.config?.params) {
-              const transformedParams = blockConfig.tools.config.params(blockState)
-              logger.debug(
-                `[${requestId}] Applied parameter transformation for block ${blockId} (${blockData.type})`,
-                {
-                  original: Object.keys(blockState),
-                  transformed: Object.keys(transformedParams),
-                }
-              )
-              acc[blockId] = transformedParams
-            } else {
-              acc[blockId] = blockState
-            }
-          } catch (error) {
-            logger.warn(
-              `[${requestId}] Failed to apply parameter transformation for block ${blockId}:`,
-              error
-            )
-            acc[blockId] = blockState
-          }
-        } else {
-          acc[blockId] = blockState
-        }
-
-        return acc
-      },
-      Promise.resolve({} as Record<string, Record<string, any>>)
-    )
+    // Use the current block states as-is - parameter transformation will happen in the handlers
+    const transformedBlockStates = currentBlockStates
 
     // Process the block states to ensure response formats are properly parsed
     const processedBlockStates = Object.entries(transformedBlockStates).reduce(
@@ -335,25 +296,6 @@ async function executeWorkflow(
       },
       {} as typeof mergedStates
     )
-
-    // Debug: Log the final merged states to verify transformation
-    const mcpBlock = Object.entries(finalMergedStates).find(
-      ([_, blockData]) => blockData.type === 'mcp'
-    )
-    if (mcpBlock) {
-      const [blockId, blockData] = mcpBlock
-      logger.debug(`[${requestId}] Final MCP block state before serialization:`, {
-        blockId,
-        subBlocks: Object.keys(blockData.subBlocks),
-        subBlockValues: Object.entries(blockData.subBlocks).reduce(
-          (acc, [key, subBlock]) => {
-            acc[key] = subBlock.value
-            return acc
-          },
-          {} as Record<string, any>
-        ),
-      })
-    }
 
     // Serialize and execute the workflow
     logger.debug(`[${requestId}] Serializing workflow: ${workflowId}`)

@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { WrenchIcon } from 'lucide-react'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { McpTool } from '@/lib/mcp/types'
+import { createMcpToolId } from '@/lib/mcp/utils'
 import { useMcpServersStore } from '@/stores/mcp-servers/store'
 
 const logger = createLogger('useMcpTools')
@@ -78,7 +79,7 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
 
         const tools = data.data.tools || []
         const transformedTools = tools.map((tool: McpTool) => ({
-          id: `${tool.serverId}-${tool.name}`,
+          id: createMcpToolId(tool.serverId, tool.name),
           name: tool.name,
           description: tool.description,
           serverId: tool.serverId,
@@ -149,7 +150,7 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
     )
 
     return () => clearInterval(interval)
-  }, [isLoading])
+  }, [refreshTools])
 
   return {
     mcpTools,

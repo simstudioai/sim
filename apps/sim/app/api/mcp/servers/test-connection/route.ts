@@ -1,12 +1,11 @@
-import { type NextRequest, NextResponse } from 'next/server'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import type { NextRequest } from 'next/server'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { McpClient } from '@/lib/mcp/client'
+import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import type { McpServerConfig } from '@/lib/mcp/types'
 import { validateMcpServerUrl } from '@/lib/mcp/url-validator'
-import { getUserEntityPermissions } from '@/lib/permissions/utils'
-import { generateRequestId } from '@/lib/utils'
+import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
 
 const logger = createLogger('McpServerTestAPI')
 
@@ -59,196 +58,152 @@ interface TestConnectionResult {
 /**
  * POST - Test connection to an MCP server before registering it
  */
-export async function POST(request: NextRequest) {
-  const requestId = generateRequestId()
-
-  try {
-    const auth = await checkHybridAuth(request, { requireWorkflowId: false })
-    if (!auth.success || !auth.userId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: auth.error || 'Authentication required',
-        },
-        { status: 401 }
-      )
-    }
-
-    const body: TestConnectionRequest = await request.json()
-
-    if (!body.workspaceId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'workspaceId is required',
-        },
-        { status: 400 }
-      )
-    }
-
-    // Validate user has write permission to test MCP server connections (testing is part of creation)
-    const userPermissions = await getUserEntityPermissions(
-      auth.userId,
-      'workspace',
-      body.workspaceId
-    )
-    if (!userPermissions || (userPermissions !== 'write' && userPermissions !== 'admin')) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            'Insufficient permissions - write or admin permission required to test MCP servers',
-        },
-        { status: 403 }
-      )
-    }
-
-    logger.info(`[${requestId}] Testing MCP server connection:`, {
-      name: body.name,
-      transport: body.transport,
-      url: body.url ? `${body.url.substring(0, 50)}...` : undefined, // Partial URL for security
-      workspaceId: body.workspaceId,
-    })
-
-    // Validate required fields
-    if (!body.name || !body.transport) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Missing required fields: name and transport are required',
-        },
-        { status: 400 }
-      )
-    }
-
-    // Validate URL if provided
-    if (
-      (body.transport === 'http' ||
-        body.transport === 'sse' ||
-        body.transport === 'streamable-http') &&
-      body.url
-    ) {
-      const urlValidation = validateMcpServerUrl(body.url)
-      if (!urlValidation.isValid) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Invalid MCP server URL: ${urlValidation.error}`,
-          },
-          { status: 400 }
-        )
-      }
-      body.url = urlValidation.normalizedUrl
-    }
-
-    // Resolve environment variables in config
-    let resolvedUrl = body.url
-    let resolvedHeaders = body.headers || {}
-
+export const POST = withMcpAuth('write')(
+  async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
-      const envVars = await getEffectiveDecryptedEnv(auth.userId, body.workspaceId)
+      const body: TestConnectionRequest = getParsedBody(request) || (await request.json())
 
-      if (resolvedUrl) {
-        resolvedUrl = resolveEnvVars(resolvedUrl, envVars)
-      }
-
-      const resolvedHeadersObj: Record<string, string> = {}
-      for (const [key, value] of Object.entries(resolvedHeaders)) {
-        resolvedHeadersObj[key] = resolveEnvVars(value, envVars)
-      }
-      resolvedHeaders = resolvedHeadersObj
-    } catch (envError) {
-      logger.warn(
-        `[${requestId}] Failed to resolve environment variables, using raw values:`,
-        envError
-      )
-    }
-
-    // Create temporary server config for testing
-    const testConfig: McpServerConfig = {
-      id: `test-${requestId}`,
-      name: body.name,
-      transport: body.transport,
-      url: resolvedUrl,
-      headers: resolvedHeaders,
-      timeout: body.timeout || 10000, // Shorter timeout for testing
-      retries: 1, // Only one retry for tests
-      enabled: true,
-    }
-
-    // Test security policy (restrictive for testing)
-    const testSecurityPolicy = {
-      requireConsent: false, // Skip consent for connection testing
-      auditLevel: 'none' as const,
-      maxToolExecutionsPerHour: 0, // Don't allow tool execution during tests
-    }
-
-    const result: TestConnectionResult = { success: false }
-    let client: McpClient | null = null
-
-    try {
-      // Create and connect to the test client
-      client = new McpClient(testConfig, testSecurityPolicy)
-      await client.connect()
-
-      // If we get here, connection was successful
-      result.success = true
-      result.negotiatedVersion = client.getNegotiatedVersion()
-
-      // Try to discover tools (with timeout)
-      try {
-        const tools = await client.listTools()
-        result.toolCount = tools.length
-      } catch (toolError) {
-        logger.warn(`[${requestId}] Could not list tools from test server:`, toolError)
-        result.warnings = result.warnings || []
-        result.warnings.push('Could not list tools from server')
-      }
-
-      // Check for version compatibility warnings
-      const clientVersionInfo = McpClient.getVersionInfo()
-      if (result.negotiatedVersion !== clientVersionInfo.preferred) {
-        result.warnings = result.warnings || []
-        result.warnings.push(
-          `Server uses protocol version '${result.negotiatedVersion}' instead of preferred '${clientVersionInfo.preferred}'`
-        )
-      }
-
-      logger.info(`[${requestId}] MCP server test successful:`, {
+      logger.info(`[${requestId}] Testing MCP server connection:`, {
         name: body.name,
-        negotiatedVersion: result.negotiatedVersion,
-        toolCount: result.toolCount,
-        capabilities: result.supportedCapabilities,
+        transport: body.transport,
+        url: body.url ? `${body.url.substring(0, 50)}...` : undefined, // Partial URL for security
+        workspaceId,
       })
-    } catch (error) {
-      logger.warn(`[${requestId}] MCP server test failed:`, error)
 
-      result.success = false
-      if (error instanceof Error) {
-        result.error = error.message
-      } else {
-        result.error = 'Unknown connection error'
+      // Validate required fields
+      if (!body.name || !body.transport) {
+        return createMcpErrorResponse(
+          new Error('Missing required fields: name and transport are required'),
+          'Missing required fields',
+          400
+        )
       }
-    } finally {
-      // Always disconnect the test client
-      if (client) {
+
+      // Validate URL if provided
+      if (
+        (body.transport === 'http' ||
+          body.transport === 'sse' ||
+          body.transport === 'streamable-http') &&
+        body.url
+      ) {
+        const urlValidation = validateMcpServerUrl(body.url)
+        if (!urlValidation.isValid) {
+          return createMcpErrorResponse(
+            new Error(`Invalid MCP server URL: ${urlValidation.error}`),
+            'Invalid server URL',
+            400
+          )
+        }
+        body.url = urlValidation.normalizedUrl
+      }
+
+      // Resolve environment variables in config
+      let resolvedUrl = body.url
+      let resolvedHeaders = body.headers || {}
+
+      try {
+        const envVars = await getEffectiveDecryptedEnv(userId, workspaceId)
+
+        if (resolvedUrl) {
+          resolvedUrl = resolveEnvVars(resolvedUrl, envVars)
+        }
+
+        const resolvedHeadersObj: Record<string, string> = {}
+        for (const [key, value] of Object.entries(resolvedHeaders)) {
+          resolvedHeadersObj[key] = resolveEnvVars(value, envVars)
+        }
+        resolvedHeaders = resolvedHeadersObj
+      } catch (envError) {
+        logger.warn(
+          `[${requestId}] Failed to resolve environment variables, using raw values:`,
+          envError
+        )
+      }
+
+      // Create temporary server config for testing
+      const testConfig: McpServerConfig = {
+        id: `test-${requestId}`,
+        name: body.name,
+        transport: body.transport,
+        url: resolvedUrl,
+        headers: resolvedHeaders,
+        timeout: body.timeout || 10000, // Shorter timeout for testing
+        retries: 1, // Only one retry for tests
+        enabled: true,
+      }
+
+      // Test security policy (restrictive for testing)
+      const testSecurityPolicy = {
+        requireConsent: false, // Skip consent for connection testing
+        auditLevel: 'none' as const,
+        maxToolExecutionsPerHour: 0, // Don't allow tool execution during tests
+      }
+
+      const result: TestConnectionResult = { success: false }
+      let client: McpClient | null = null
+
+      try {
+        // Create and connect to the test client
+        client = new McpClient(testConfig, testSecurityPolicy)
+        await client.connect()
+
+        // If we get here, connection was successful
+        result.success = true
+        result.negotiatedVersion = client.getNegotiatedVersion()
+
+        // Try to discover tools (with timeout)
         try {
-          await client.disconnect()
-        } catch (disconnectError) {
-          logger.debug(`[${requestId}] Test client disconnect error (expected):`, disconnectError)
+          const tools = await client.listTools()
+          result.toolCount = tools.length
+        } catch (toolError) {
+          logger.warn(`[${requestId}] Could not list tools from test server:`, toolError)
+          result.warnings = result.warnings || []
+          result.warnings.push('Could not list tools from server')
+        }
+
+        // Check for version compatibility warnings
+        const clientVersionInfo = McpClient.getVersionInfo()
+        if (result.negotiatedVersion !== clientVersionInfo.preferred) {
+          result.warnings = result.warnings || []
+          result.warnings.push(
+            `Server uses protocol version '${result.negotiatedVersion}' instead of preferred '${clientVersionInfo.preferred}'`
+          )
+        }
+
+        logger.info(`[${requestId}] MCP server test successful:`, {
+          name: body.name,
+          negotiatedVersion: result.negotiatedVersion,
+          toolCount: result.toolCount,
+          capabilities: result.supportedCapabilities,
+        })
+      } catch (error) {
+        logger.warn(`[${requestId}] MCP server test failed:`, error)
+
+        result.success = false
+        if (error instanceof Error) {
+          result.error = error.message
+        } else {
+          result.error = 'Unknown connection error'
+        }
+      } finally {
+        // Always disconnect the test client
+        if (client) {
+          try {
+            await client.disconnect()
+          } catch (disconnectError) {
+            logger.debug(`[${requestId}] Test client disconnect error (expected):`, disconnectError)
+          }
         }
       }
-    }
 
-    return NextResponse.json(result)
-  } catch (error) {
-    logger.error(`[${requestId}] Error testing MCP server connection:`, error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to test server connection',
-      },
-      { status: 500 }
-    )
+      return createMcpSuccessResponse(result, result.success ? 200 : 400)
+    } catch (error) {
+      logger.error(`[${requestId}] Error testing MCP server connection:`, error)
+      return createMcpErrorResponse(
+        error instanceof Error ? error : new Error('Failed to test server connection'),
+        'Failed to test server connection',
+        500
+      )
+    }
   }
-}
+)

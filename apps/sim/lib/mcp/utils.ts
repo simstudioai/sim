@@ -3,22 +3,24 @@ import type { McpApiResponse } from '@/lib/mcp/types'
 
 /**
  * MCP-specific constants
- * Consolidates hardcoded values found across MCP files
  */
 export const MCP_CONSTANTS = {
-  /** Default timeout for MCP tool execution (60 seconds) */
   EXECUTION_TIMEOUT: 60000,
-  /** Cache timeout for tool discovery (5 minutes) */
   CACHE_TIMEOUT: 5 * 60 * 1000,
-  /** Default number of retries for failed operations */
   DEFAULT_RETRIES: 3,
-  /** Default connection timeout for MCP servers */
   DEFAULT_CONNECTION_TIMEOUT: 30000,
 } as const
 
 /**
+ * Client-safe MCP constants
+ */
+export const MCP_CLIENT_CONSTANTS = {
+  CLIENT_TIMEOUT: 60000,
+  AUTO_REFRESH_INTERVAL: 5 * 60 * 1000,
+} as const
+
+/**
  * Create standardized MCP error response
- * Consolidates error handling patterns found across MCP routes
  */
 export function createMcpErrorResponse(
   error: unknown,
@@ -66,7 +68,6 @@ export function validateStringParam(
 
 /**
  * Validate required fields in request body
- * Consolidates validation patterns from multiple routes
  */
 export function validateRequiredFields(
   body: Record<string, unknown>,
@@ -86,7 +87,6 @@ export function validateRequiredFields(
 
 /**
  * Enhanced error categorization for more specific HTTP status codes
- * Based on error message patterns found in existing code
  */
 export function categorizeError(error: unknown): { message: string; status: number } {
   if (!(error instanceof Error)) {
@@ -116,4 +116,27 @@ export function categorizeError(error: unknown): { message: string; status: numb
   }
 
   return { message: error.message, status: 500 }
+}
+
+/**
+ * Create standardized MCP tool ID from server ID and tool name
+ */
+export function createMcpToolId(serverId: string, toolName: string): string {
+  const normalizedServerId = serverId.startsWith('mcp-') ? serverId : `mcp-${serverId}`
+  return `${normalizedServerId}-${toolName}`
+}
+
+/**
+ * Parse MCP tool ID to extract server ID and tool name
+ */
+export function parseMcpToolId(toolId: string): { serverId: string; toolName: string } {
+  const parts = toolId.split('-')
+  if (parts.length < 3 || parts[0] !== 'mcp') {
+    throw new Error(`Invalid MCP tool ID format: ${toolId}. Expected: mcp-timestamp-toolName`)
+  }
+
+  const serverId = `${parts[0]}-${parts[1]}`
+  const toolName = parts.slice(2).join('-')
+
+  return { serverId, toolName }
 }
