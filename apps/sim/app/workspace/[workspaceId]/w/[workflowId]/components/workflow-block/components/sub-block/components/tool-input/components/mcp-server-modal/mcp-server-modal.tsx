@@ -13,7 +13,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
-import { formatDisplayText } from '@/components/ui/formatted-text'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -24,6 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useMcpServerTest } from '@/hooks/use-mcp-server-test'
 import { useMcpServersStore } from '@/stores/mcp-servers/store'
 
 const logger = createLogger('McpServerModal')
@@ -36,7 +36,7 @@ interface McpServerModalProps {
 
 interface McpServerFormData {
   name: string
-  transport: 'http' | 'sse'
+  transport: 'http' | 'sse' | 'streamable-http'
   url?: string
   headers?: Record<string, string>
 }
@@ -46,12 +46,15 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
   const workspaceId = params.workspaceId as string
   const [formData, setFormData] = useState<McpServerFormData>({
     name: '',
-    transport: 'http',
+    transport: 'streamable-http',
     url: '',
     headers: { '': '' },
   })
   const { createServer, isLoading, error: storeError, clearError } = useMcpServersStore()
   const [localError, setLocalError] = useState<string | null>(null)
+
+  // MCP server testing
+  const { testResult, isTestingConnection, testConnection, clearTestResult } = useMcpServerTest()
 
   // Environment variable dropdown state
   const [showEnvVars, setShowEnvVars] = useState(false)
@@ -68,7 +71,7 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
   const resetForm = () => {
     setFormData({
       name: '',
-      transport: 'http',
+      transport: 'streamable-http',
       url: '',
       headers: { '': '' },
     })
@@ -77,6 +80,7 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
     setShowEnvVars(false)
     setActiveInputField(null)
     setActiveHeaderIndex(null)
+    clearTestResult()
   }
 
   // Handle environment variable selection
@@ -113,6 +117,11 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
       const pos = input?.selectionStart || 0
 
       setCursorPosition(pos)
+
+      // Clear test result when any field changes
+      if (testResult) {
+        clearTestResult()
+      }
 
       // Check if we should show the environment variables dropdown
       const envVarTrigger = checkEnvVarTrigger(value, pos)
@@ -163,6 +172,18 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
     [formData.headers]
   )
 
+  const handleTestConnection = useCallback(async () => {
+    if (!formData.name.trim() || !formData.url?.trim()) return
+
+    await testConnection({
+      name: formData.name,
+      transport: formData.transport,
+      url: formData.url,
+      headers: formData.headers,
+      timeout: 30000,
+    })
+  }, [formData, testConnection])
+
   const handleSubmit = useCallback(async () => {
     if (!formData.name.trim()) {
       setLocalError('Server name is required')
@@ -177,14 +198,35 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
     setLocalError(null)
     clearError()
 
-    // Filter out empty headers
-    const cleanHeaders = Object.fromEntries(
-      Object.entries(formData.headers || {}).filter(
-        ([key, value]) => key.trim() !== '' && value.trim() !== ''
-      )
-    )
-
     try {
+      // If no test has been done, test first
+      if (!testResult) {
+        const result = await testConnection({
+          name: formData.name,
+          transport: formData.transport,
+          url: formData.url,
+          headers: formData.headers,
+          timeout: 30000,
+        })
+
+        // If test fails, don't proceed
+        if (!result.success) {
+          return
+        }
+      }
+
+      // If we have a failed test result, don't proceed
+      if (testResult && !testResult.success) {
+        return
+      }
+
+      // Filter out empty headers
+      const cleanHeaders = Object.fromEntries(
+        Object.entries(formData.headers || {}).filter(
+          ([key, value]) => key.trim() !== '' && value.trim() !== ''
+        )
+      )
+
       await createServer({
         name: formData.name.trim(),
         transport: formData.transport,
@@ -195,6 +237,8 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
       })
 
       logger.info(`Added MCP server: ${formData.name}`)
+
+      // Close modal and reset form immediately after successful creation
       resetForm()
       onOpenChange(false)
       onServerCreated?.()
@@ -202,7 +246,15 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
       logger.error('Failed to add MCP server:', error)
       setLocalError(error instanceof Error ? error.message : 'Failed to add MCP server')
     }
-  }, [formData, onOpenChange, onServerCreated, createServer, clearError])
+  }, [
+    formData,
+    testResult,
+    testConnection,
+    onOpenChange,
+    onServerCreated,
+    createServer,
+    clearError,
+  ])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -220,26 +272,31 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
               <Label htmlFor='server-name'>Server Name</Label>
               <Input
                 id='server-name'
-                placeholder='e.g., Firecrawl MCP'
+                placeholder='e.g., My MCP Server'
                 value={formData.name}
-                onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+                onChange={(e) => {
+                  if (testResult) clearTestResult()
+                  setFormData((prev) => ({ ...prev, name: e.target.value }))
+                }}
               />
             </div>
             <div>
               <Label htmlFor='transport'>Transport Type</Label>
               <Select
                 value={formData.transport}
-                onValueChange={(value: 'http' | 'sse') =>
+                onValueChange={(value: 'http' | 'sse' | 'streamable-http') => {
+                  if (testResult) clearTestResult()
                   setFormData((prev) => ({
                     ...prev,
                     transport: value,
                   }))
-                }
+                }}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value='streamable-http'>Streamable HTTP</SelectItem>
                   <SelectItem value='http'>HTTP</SelectItem>
                   <SelectItem value='sse'>Server-Sent Events</SelectItem>
                 </SelectContent>
@@ -249,22 +306,13 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
 
           <div className='relative'>
             <Label htmlFor='server-url'>Server URL</Label>
-            <div className='relative'>
-              <Input
-                ref={urlInputRef}
-                id='server-url'
-                placeholder='https://mcp.firecrawl.dev/{{YOUR_API_KEY}}/sse'
-                value={formData.url}
-                onChange={(e) => handleInputChange('url', e.target.value)}
-                className='text-transparent caret-foreground placeholder:text-muted-foreground/50'
-              />
-              {/* Overlay for styled text display */}
-              <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm'>
-                <div className='whitespace-nowrap'>
-                  {formatDisplayText(formData.url || '', true)}
-                </div>
-              </div>
-            </div>
+            <Input
+              ref={urlInputRef}
+              id='server-url'
+              placeholder='https://mcp.firecrawl.dev/{{YOUR_API_KEY}}/sse'
+              value={formData.url}
+              onChange={(e) => handleInputChange('url', e.target.value)}
+            />
 
             {/* Environment Variables Dropdown */}
             {showEnvVars && activeInputField === 'url' && (
@@ -290,31 +338,21 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
               {Object.entries(formData.headers || {}).map(([key, value], index) => (
                 <div key={index} className='relative flex gap-2'>
                   {/* Header Name Input */}
-                  <div className='relative flex-1'>
+                  <div className='flex-1'>
                     <Input
                       placeholder='Header name'
                       value={key}
                       onChange={(e) => handleInputChange('header-key', e.target.value, index)}
-                      className='text-transparent caret-foreground placeholder:text-muted-foreground/50'
                     />
-                    <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm'>
-                      <div className='whitespace-nowrap'>{formatDisplayText(key || '', true)}</div>
-                    </div>
                   </div>
 
                   {/* Header Value Input */}
-                  <div className='relative flex-1'>
+                  <div className='flex-1'>
                     <Input
                       placeholder='Header value'
                       value={value}
                       onChange={(e) => handleInputChange('header-value', e.target.value, index)}
-                      className='text-transparent caret-foreground placeholder:text-muted-foreground/50'
                     />
-                    <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm'>
-                      <div className='whitespace-nowrap'>
-                        {formatDisplayText(value || '', true)}
-                      </div>
-                    </div>
                   </div>
 
                   <Button
@@ -400,6 +438,33 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
               {error}
             </div>
           )}
+
+          {/* Test Connection */}
+          <div className='border-t pt-4'>
+            <div className='space-y-2'>
+              <div className='flex items-center gap-2'>
+                <Button
+                  type='button'
+                  variant='ghost'
+                  size='sm'
+                  onClick={handleTestConnection}
+                  disabled={isTestingConnection || !formData.name.trim() || !formData.url?.trim()}
+                  className='text-muted-foreground hover:text-foreground'
+                >
+                  {isTestingConnection ? 'Testing...' : 'Test Connection'}
+                </Button>
+                {testResult?.success && <span className='text-green-600 text-xs'>✓ Connected</span>}
+              </div>
+              {testResult && !testResult.success && (
+                <div className='rounded border border-red-200 bg-red-50 px-2 py-1.5 text-red-600 text-xs dark:border-red-800 dark:bg-red-950/20'>
+                  <div className='font-medium'>Connection failed</div>
+                  <div className='text-red-500 dark:text-red-400'>
+                    {testResult.error || testResult.message}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         <DialogFooter>

@@ -17,7 +17,6 @@ export async function GET(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    // Get authenticated user using hybrid auth
     const auth = await checkHybridAuth(request, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
       return createMcpErrorResponse(
@@ -42,14 +41,11 @@ export async function GET(request: NextRequest) {
 
     let tools
     if (serverId) {
-      // Discover tools from specific server
-      tools = await mcpService.discoverServerTools(userId, serverId, forceRefresh)
+      tools = await mcpService.discoverServerTools(userId, serverId, workspaceId, forceRefresh)
     } else {
-      // Discover tools from all user servers
       tools = await mcpService.discoverTools(userId, workspaceId, forceRefresh)
     }
 
-    // Group tools by server for statistics
     const byServer: Record<string, number> = {}
     for (const tool of tools) {
       byServer[tool.serverId] = (byServer[tool.serverId] || 0) + 1
@@ -79,7 +75,6 @@ export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    // Get authenticated user using hybrid auth
     const auth = await checkHybridAuth(request, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
       return createMcpErrorResponse(
@@ -90,7 +85,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { serverIds } = body
+    const { serverIds, workspaceId } = body
 
     if (!Array.isArray(serverIds)) {
       return createMcpErrorResponse(
@@ -107,7 +102,12 @@ export async function POST(request: NextRequest) {
 
     const results = await Promise.allSettled(
       serverIds.map(async (serverId: string) => {
-        const tools = await mcpService.discoverServerTools(auth.userId!, serverId, true)
+        const tools = await mcpService.discoverServerTools(
+          auth.userId!,
+          serverId,
+          workspaceId,
+          true
+        )
         return { serverId, toolCount: tools.length }
       })
     )

@@ -44,7 +44,6 @@ export async function GET() {
       )
     }
 
-    // Fetch servers from database
     const servers = await db
       .select()
       .from(mcpServers)
@@ -106,7 +105,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Basic validation
     if (!body.name || !body.transport) {
       return NextResponse.json(
         {
@@ -117,8 +115,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate URL for HTTP/SSE transports
-    if ((body.transport === 'http' || body.transport === 'sse') && body.url) {
+    if (
+      (body.transport === 'http' ||
+        body.transport === 'sse' ||
+        body.transport === 'streamable-http') &&
+      body.url
+    ) {
       const urlValidation = validateMcpServerUrl(body.url)
       if (!urlValidation.isValid) {
         return NextResponse.json(
@@ -129,13 +131,11 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         )
       }
-      // Use normalized URL
       body.url = urlValidation.normalizedUrl
     }
 
     const serverId = body.id || crypto.randomUUID()
 
-    // Insert into database
     await db
       .insert(mcpServers)
       .values({
@@ -154,7 +154,6 @@ export async function POST(request: NextRequest) {
       })
       .returning()
 
-    // Clear user's tool cache since we added a new server
     mcpService.clearCache(session.user.id)
 
     const response: McpApiResponse = {
@@ -177,7 +176,7 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * DELETE - Unregister an MCP server for the current user
+ * DELETE - Delete an MCP server for the current user (hard delete)
  */
 export async function DELETE(request: NextRequest) {
   const requestId = generateRequestId()
@@ -218,11 +217,10 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    logger.info(`[${requestId}] Unregistering MCP server: ${serverId}`)
+    logger.info(`[${requestId}] Deleting MCP server: ${serverId}`)
 
     const [deletedServer] = await db
-      .update(mcpServers)
-      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .delete(mcpServers)
       .where(and(eq(mcpServers.id, serverId), eq(mcpServers.userId, userId)))
       .returning()
 
@@ -240,17 +238,17 @@ export async function DELETE(request: NextRequest) {
 
     const response: McpApiResponse = {
       success: true,
-      data: { message: `Server ${serverId} unregistered successfully` },
+      data: { message: `Server ${serverId} deleted successfully` },
     }
 
-    logger.info(`[${requestId}] Successfully unregistered MCP server: ${serverId}`)
+    logger.info(`[${requestId}] Successfully deleted MCP server: ${serverId}`)
     return NextResponse.json(response)
   } catch (error) {
-    logger.error(`[${requestId}] Error unregistering MCP server:`, error)
+    logger.error(`[${requestId}] Error deleting MCP server:`, error)
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to unregister MCP server',
+        error: error instanceof Error ? error.message : 'Failed to delete MCP server',
       },
       { status: 500 }
     )

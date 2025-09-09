@@ -33,7 +33,7 @@ export interface JsonRpcError {
 }
 
 // MCP Transport Types
-export type McpTransport = 'http' | 'sse'
+export type McpTransport = 'http' | 'sse' | 'streamable-http'
 
 export interface McpServerConfig {
   id: string
@@ -77,6 +77,22 @@ export interface McpInitializeParams {
   }
 }
 
+// Version negotiation support
+export interface McpVersionInfo {
+  supported: string[] // List of supported protocol versions
+  preferred: string // Preferred version to use
+}
+
+export interface McpVersionNegotiationError extends JsonRpcError {
+  code: -32000 // Custom error code for version negotiation failures
+  message: 'Version negotiation failed'
+  data: {
+    clientVersions: string[]
+    serverVersions: string[]
+    reason: string
+  }
+}
+
 export interface McpInitializeResult {
   protocolVersion: string
   capabilities: McpCapabilities
@@ -84,6 +100,35 @@ export interface McpInitializeResult {
     name: string
     version: string
   }
+}
+
+// Security and Consent Framework
+export interface McpConsentRequest {
+  type: 'tool_execution' | 'resource_access' | 'data_sharing'
+  context: {
+    serverId: string
+    serverName: string
+    action: string // Tool name or resource path
+    description?: string // Human-readable description
+    dataAccess?: string[] // Types of data being accessed
+    sideEffects?: string[] // Potential side effects
+  }
+  expires?: number // Consent expiration timestamp
+}
+
+export interface McpConsentResponse {
+  granted: boolean
+  expires?: number
+  restrictions?: Record<string, any> // Any access restrictions
+  auditId?: string // For audit trail
+}
+
+export interface McpSecurityPolicy {
+  requireConsent: boolean
+  allowedOrigins?: string[]
+  blockedOrigins?: string[]
+  maxToolExecutionsPerHour?: number
+  auditLevel: 'none' | 'basic' | 'detailed'
 }
 
 // MCP Tool Types

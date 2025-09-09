@@ -99,11 +99,9 @@ export const McpBlock: BlockConfig<McpResponse> = {
     },
   },
   outputs: {
-    // Raw structured response from MCP tool - access any field directly
-    // Examples: <blockName.requestId>, <blockName.results>, <blockName.content>, <blockName.autopromptString>
-    '*': {
-      type: 'any',
-      description: 'Raw structured response from the MCP tool - access any field directly',
+    content: {
+      type: 'array',
+      description: 'Content array from MCP tool response - the standard format for all MCP tools',
     },
   },
 }

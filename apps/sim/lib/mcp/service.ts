@@ -3,6 +3,7 @@
  */
 
 import { and, eq, isNull } from 'drizzle-orm'
+import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { McpClient } from '@/lib/mcp/client'
 import type {
@@ -27,6 +28,63 @@ interface ToolCache {
 class McpService {
   private toolCache = new Map<string, ToolCache>()
   private readonly cacheTimeout = MCP_CONSTANTS.CACHE_TIMEOUT
+
+  /**
+   * Resolve environment variables in strings
+   */
+  private resolveEnvVars(value: string, envVars: Record<string, string>): string {
+    const envMatches = value.match(/\{\{([^}]+)\}\}/g)
+    if (!envMatches) return value
+
+    let resolvedValue = value
+    for (const match of envMatches) {
+      const envKey = match.slice(2, -2).trim()
+      const envValue = envVars[envKey]
+
+      if (envValue === undefined) {
+        logger.warn(`Environment variable "${envKey}" not found in MCP server config`)
+        continue
+      }
+
+      resolvedValue = resolvedValue.replace(match, envValue)
+    }
+    return resolvedValue
+  }
+
+  /**
+   * Resolve environment variables in server config
+   */
+  private async resolveConfigEnvVars(
+    config: McpServerConfig,
+    userId: string,
+    workspaceId?: string
+  ): Promise<McpServerConfig> {
+    try {
+      const envVars = await getEffectiveDecryptedEnv(userId, workspaceId)
+
+      const resolvedConfig = { ...config }
+
+      // Resolve URL
+      if (resolvedConfig.url) {
+        resolvedConfig.url = this.resolveEnvVars(resolvedConfig.url, envVars)
+      }
+
+      // Resolve headers
+      if (resolvedConfig.headers) {
+        const resolvedHeaders: Record<string, string> = {}
+        for (const [key, value] of Object.entries(resolvedConfig.headers)) {
+          resolvedHeaders[key] = this.resolveEnvVars(value, envVars)
+        }
+        resolvedConfig.headers = resolvedHeaders
+      }
+
+      return resolvedConfig
+    } catch (error) {
+      logger.error('Failed to resolve environment variables for MCP server config:', error)
+      // Return original config if env var resolution fails
+      return config
+    }
+  }
 
   /**
    * Get server configuration from database
@@ -99,10 +157,18 @@ class McpService {
   }
 
   /**
-   * Create and connect to an MCP client
+   * Create and connect to an MCP client with security policy
    */
   private async createClient(config: McpServerConfig): Promise<McpClient> {
-    const client = new McpClient(config)
+    // Apply security policy per MCP specification
+    const securityPolicy = {
+      requireConsent: true,
+      auditLevel: 'basic' as const,
+      maxToolExecutionsPerHour: 1000,
+      allowedOrigins: config.url ? [new URL(config.url).origin] : undefined,
+    }
+
+    const client = new McpClient(config, securityPolicy)
     await client.connect()
     return client
   }
@@ -113,7 +179,8 @@ class McpService {
   async executeTool(
     userId: string,
     serverId: string,
-    toolCall: McpToolCall
+    toolCall: McpToolCall,
+    workspaceId?: string
   ): Promise<McpToolResult> {
     const requestId = generateRequestId()
 
@@ -122,21 +189,21 @@ class McpService {
         `[${requestId}] Executing MCP tool ${toolCall.name} on server ${serverId} for user ${userId}`
       )
 
-      // Get server configuration
       const config = await this.getServerConfig(serverId, userId)
       if (!config) {
         throw new Error(`Server ${serverId} not found or not accessible`)
       }
 
-      // Create client and execute
-      const client = await this.createClient(config)
+      // Resolve environment variables in the config
+      const resolvedConfig = await this.resolveConfigEnvVars(config, userId, workspaceId)
+
+      const client = await this.createClient(resolvedConfig)
 
       try {
         const result = await client.callTool(toolCall)
         logger.info(`[${requestId}] Successfully executed tool ${toolCall.name}`)
         return result
       } finally {
-        // Clean up connection
         await client.disconnect()
       }
     } catch (error) {
@@ -149,7 +216,7 @@ class McpService {
   }
 
   /**
-   * Discover tools from all user servers (with caching)
+   * Discover tools from all user servers
    */
   async discoverTools(
     userId: string,
@@ -160,7 +227,6 @@ class McpService {
     const cacheKey = `${userId}${workspaceId ? `:${workspaceId}` : ''}`
 
     try {
-      // Check cache first
       if (!forceRefresh) {
         const cached = this.toolCache.get(cacheKey)
         if (cached && cached.expiry > new Date()) {
@@ -171,7 +237,6 @@ class McpService {
 
       logger.info(`[${requestId}] Discovering MCP tools for user ${userId}`)
 
-      // Get user servers
       const servers = await this.getUserServers(userId, workspaceId)
 
       if (servers.length === 0) {
@@ -182,7 +247,9 @@ class McpService {
       const allTools: McpTool[] = []
       const results = await Promise.allSettled(
         servers.map(async (config) => {
-          const client = await this.createClient(config)
+          // Resolve environment variables in the config
+          const resolvedConfig = await this.resolveConfigEnvVars(config, userId, workspaceId)
+          const client = await this.createClient(resolvedConfig)
           try {
             const tools = await client.listTools()
             logger.debug(
@@ -227,6 +294,7 @@ class McpService {
   async discoverServerTools(
     userId: string,
     serverId: string,
+    workspaceId?: string,
     _forceRefresh = false
   ): Promise<McpTool[]> {
     const requestId = generateRequestId()
@@ -234,14 +302,15 @@ class McpService {
     try {
       logger.info(`[${requestId}] Discovering tools from server ${serverId} for user ${userId}`)
 
-      // Get server configuration
       const config = await this.getServerConfig(serverId, userId)
       if (!config) {
         throw new Error(`Server ${serverId} not found or not accessible`)
       }
 
-      // Create client and discover tools
-      const client = await this.createClient(config)
+      // Resolve environment variables in the config
+      const resolvedConfig = await this.resolveConfigEnvVars(config, userId, workspaceId)
+
+      const client = await this.createClient(resolvedConfig)
 
       try {
         const tools = await client.listTools()
@@ -270,7 +339,9 @@ class McpService {
 
       for (const config of servers) {
         try {
-          const client = await this.createClient(config)
+          // Resolve environment variables in the config
+          const resolvedConfig = await this.resolveConfigEnvVars(config, userId, workspaceId)
+          const client = await this.createClient(resolvedConfig)
           const tools = await client.listTools()
           await client.disconnect()
 
@@ -310,7 +381,6 @@ class McpService {
    */
   clearCache(userId?: string): void {
     if (userId) {
-      // Clear all cache entries for this user
       for (const [key] of this.toolCache) {
         if (key.startsWith(userId)) {
           this.toolCache.delete(key)

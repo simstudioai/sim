@@ -15,9 +15,12 @@ import {
   type McpCapabilities,
   McpConnectionError,
   type McpConnectionStatus,
+  type McpConsentRequest,
+  type McpConsentResponse,
   McpError,
   type McpInitializeParams,
   type McpInitializeResult,
+  type McpSecurityPolicy,
   type McpServerConfig,
   McpTimeoutError,
   type McpTool,
@@ -41,10 +44,26 @@ export class McpClient {
   >()
   private serverCapabilities?: McpCapabilities
   private mcpSessionId?: string // MCP Session ID from server
+  private negotiatedVersion?: string // Successfully negotiated protocol version
+  private securityPolicy: McpSecurityPolicy
 
-  constructor(config: McpServerConfig) {
+  // Supported protocol versions (latest first)
+  private static readonly SUPPORTED_VERSIONS = [
+    '2025-06-18', // Latest stable with elicitation and OAuth 2.1
+    '2025-03-26', // Streamable HTTP support
+    '2024-11-05', // Initial stable release
+  ]
+
+  constructor(config: McpServerConfig, securityPolicy?: McpSecurityPolicy) {
     this.config = config
     this.connectionStatus = { connected: false }
+
+    // Default security policy per MCP specification
+    this.securityPolicy = securityPolicy ?? {
+      requireConsent: true,
+      auditLevel: 'basic',
+      maxToolExecutionsPerHour: 1000,
+    }
   }
 
   /**
@@ -59,6 +78,9 @@ export class McpClient {
           await this.connectStreamableHttp()
           break
         case 'sse':
+          await this.connectStreamableHttp()
+          break
+        case 'streamable-http':
           await this.connectStreamableHttp()
           break
         default:
@@ -138,13 +160,31 @@ export class McpClient {
       throw new McpConnectionError('Not connected to server', this.config.id)
     }
 
+    // Request consent for tool execution per MCP security guidelines
+    const consentRequest: McpConsentRequest = {
+      type: 'tool_execution',
+      context: {
+        serverId: this.config.id,
+        serverName: this.config.name,
+        action: toolCall.name,
+        description: `Execute tool '${toolCall.name}' on ${this.config.name}`,
+        dataAccess: Object.keys(toolCall.arguments || {}),
+        sideEffects: ['tool_execution'], // Tools may have side effects
+      },
+      expires: Date.now() + 5 * 60 * 1000, // 5 minute consent window
+    }
+
+    const consentResponse = await this.requestConsent(consentRequest)
+    if (!consentResponse.granted) {
+      throw new McpError(`User consent denied for tool execution: ${toolCall.name}`, -32000, {
+        consentAuditId: consentResponse.auditId,
+      })
+    }
+
     try {
-      logger.info(`Calling tool ${toolCall.name} on server ${this.config.name}`)
-      logger.info(`Tool call arguments:`, {
-        toolName: toolCall.name,
-        arguments: toolCall.arguments,
-        argumentsType: typeof toolCall.arguments,
-        argumentsKeys: toolCall.arguments ? Object.keys(toolCall.arguments) : 'null',
+      logger.info(`Calling tool ${toolCall.name} on server ${this.config.name}`, {
+        consentAuditId: consentResponse.auditId,
+        protocolVersion: this.negotiatedVersion,
       })
 
       const response = await this.sendRequest('tools/call', {
@@ -188,15 +228,19 @@ export class McpClient {
   }
 
   /**
-   * Initialize connection with capability negotiation
+   * Initialize connection with capability and version negotiation
    */
   private async initialize(): Promise<void> {
+    // Start with latest supported version for negotiation
+    const preferredVersion = McpClient.SUPPORTED_VERSIONS[0]
+
     const initParams: McpInitializeParams = {
-      protocolVersion: '2025-03-26',
+      protocolVersion: preferredVersion,
       capabilities: {
-        tools: {},
-        resources: {},
-        prompts: {},
+        tools: { listChanged: true },
+        resources: { subscribe: true, listChanged: true },
+        prompts: { listChanged: true },
+        logging: { level: 'info' },
       },
       clientInfo: {
         name: 'sim-platform',
@@ -204,12 +248,62 @@ export class McpClient {
       },
     }
 
-    const result: McpInitializeResult = await this.sendRequest('initialize', initParams)
+    try {
+      const result: McpInitializeResult = await this.sendRequest('initialize', initParams)
 
-    this.serverCapabilities = result.capabilities
-    this.connectionStatus.serverInfo = result.serverInfo
+      // Handle version negotiation per MCP specification
+      if (result.protocolVersion !== preferredVersion) {
+        // Server proposed a different version - check if we support it
+        if (!McpClient.SUPPORTED_VERSIONS.includes(result.protocolVersion)) {
+          // Per MCP spec: client SHOULD disconnect if it cannot support proposed version
+          throw new McpError(
+            `Version negotiation failed: Server proposed unsupported version '${result.protocolVersion}'. ` +
+              `This client supports versions: ${McpClient.SUPPORTED_VERSIONS.join(', ')}. ` +
+              `To use this server, you may need to update your client or find a compatible version of the server.`
+          )
+        }
 
-    logger.info(`Initialized MCP server ${this.config.name}:`, result.serverInfo)
+        logger.info(
+          `Version negotiation: Server proposed version '${result.protocolVersion}' ` +
+            `instead of requested '${preferredVersion}'. Using server version.`
+        )
+      }
+
+      this.negotiatedVersion = result.protocolVersion
+      this.serverCapabilities = result.capabilities
+
+      logger.info(`MCP initialization successful with protocol version '${this.negotiatedVersion}'`)
+    } catch (error) {
+      // Enhanced error handling for common connection issues
+      if (error instanceof McpError) {
+        throw error // Re-throw MCP errors as-is
+      }
+
+      // Handle network/transport errors
+      if (error instanceof Error) {
+        if (error.message.includes('fetch') || error.message.includes('network')) {
+          throw new McpError(
+            `Failed to connect to MCP server '${this.config.name}': ${error.message}. ` +
+              `Please check the server URL and ensure the server is running.`
+          )
+        }
+
+        if (error.message.includes('timeout')) {
+          throw new McpError(
+            `Connection timeout to MCP server '${this.config.name}'. ` +
+              `The server may be slow to respond or unreachable.`
+          )
+        }
+
+        // Generic connection error
+        throw new McpError(
+          `Connection to MCP server '${this.config.name}' failed: ${error.message}. ` +
+            `Please verify the server configuration and try again.`
+        )
+      }
+
+      throw new McpError(`Unexpected error during MCP initialization: ${String(error)}`)
+    }
 
     await this.sendNotification('notifications/initialized', {})
   }
@@ -293,13 +387,6 @@ export class McpClient {
       logger.info(`[${this.config.name}] Trying alternative URL format: ${url}`)
     }
 
-    logger.info(`[${this.config.name}] Sending HTTP request:`, {
-      method: 'POST',
-      url,
-      requestId: request.id,
-      requestMethod: request.method,
-    })
-
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       Accept: 'application/json, text/event-stream',
@@ -314,12 +401,6 @@ export class McpClient {
       method: 'POST',
       headers,
       body: JSON.stringify(request),
-    })
-
-    logger.info(`[${this.config.name}] HTTP response:`, {
-      status: response.status,
-      statusText: response.statusText,
-      contentType: response.headers.get('Content-Type'),
     })
 
     if (!response.ok) {
@@ -346,19 +427,15 @@ export class McpClient {
         const responseData: JsonRpcResponse = await response.json()
         this.handleResponse(responseData)
       } else if (contentType?.includes('text/event-stream')) {
-        logger.info(`[${this.config.name}] Parsing SSE response for request ${request.id}`)
         const responseText = await response.text()
         this.handleSseResponse(responseText, request.id)
       } else {
-        logger.info(`[${this.config.name}] Received non-JSON response for request ${request.id}`, {
-          contentType,
-        })
       }
     }
   }
 
   /**
-   * Handle JSON-RPC responsef
+   * Handle JSON-RPC response
    */
   private handleResponse(response: JsonRpcResponse): void {
     const pending = this.pendingRequests.get(response.id)
@@ -413,11 +490,6 @@ export class McpClient {
       // Parse the JSON data
       const responseData: JsonRpcResponse = JSON.parse(jsonData)
 
-      logger.info(`[${this.config.name}] Parsed SSE response for request ${requestId}:`, {
-        hasResult: !!responseData.result,
-        hasError: !!responseData.error,
-      })
-
       this.pendingRequests.delete(requestId)
       clearTimeout(pending.timeout)
 
@@ -455,5 +527,63 @@ export class McpClient {
    */
   getConfig(): McpServerConfig {
     return { ...this.config }
+  }
+
+  /**
+   * Get version information for this client
+   */
+  static getVersionInfo(): McpVersionInfo {
+    return {
+      supported: [...McpClient.SUPPORTED_VERSIONS],
+      preferred: McpClient.SUPPORTED_VERSIONS[0],
+    }
+  }
+
+  /**
+   * Get the negotiated protocol version for this connection
+   */
+  getNegotiatedVersion(): string | undefined {
+    return this.negotiatedVersion
+  }
+
+  /**
+   * Request user consent for tool execution (per MCP security guidelines)
+   */
+  async requestConsent(consentRequest: McpConsentRequest): Promise<McpConsentResponse> {
+    // For now, implement a basic consent mechanism
+    // In a full implementation, this would show UI to the user
+    if (!this.securityPolicy.requireConsent) {
+      return { granted: true, auditId: `audit-${Date.now()}` }
+    }
+
+    // Basic security checks
+    const { serverId, serverName, action, sideEffects } = consentRequest.context
+
+    // Check if server is in blocked origins
+    if (this.securityPolicy.blockedOrigins?.includes(this.config.url || '')) {
+      logger.warn(`Tool execution blocked: Server ${serverName} is in blocked origins`)
+      return {
+        granted: false,
+        auditId: `audit-blocked-${Date.now()}`,
+      }
+    }
+
+    // For high-risk operations, log detailed audit trail
+    if (this.securityPolicy.auditLevel === 'detailed') {
+      logger.info(`Consent requested for ${action} on ${serverName}`, {
+        serverId,
+        action,
+        sideEffects,
+        timestamp: new Date().toISOString(),
+      })
+    }
+
+    // TODO: In production, show actual consent UI to user
+    // For now, grant consent with audit logging
+    return {
+      granted: true,
+      expires: consentRequest.expires,
+      auditId: `audit-${serverId}-${Date.now()}`,
+    }
   }
 }

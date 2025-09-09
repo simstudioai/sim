@@ -138,13 +138,7 @@ export async function executeTool(
       }
     } else if (toolId.startsWith('mcp-')) {
       // Handle MCP tools via server-side proxy
-      return await executeUncheckedMcpTool(
-        toolId,
-        params,
-        executionContext,
-        requestId,
-        startTimeISO
-      )
+      return await executeMcpTool(toolId, params, executionContext, requestId, startTimeISO)
     } else {
       // For built-in tools, use the synchronous version
       tool = getTool(toolId)
@@ -723,7 +717,7 @@ async function handleProxyRequest(
  * @param requestId - Request ID for logging
  * @param startTimeISO - Start time for timing
  */
-async function executeUncheckedMcpTool(
+async function executeMcpTool(
   toolId: string,
   params: Record<string, any>,
   executionContext?: ExecutionContext,
@@ -747,8 +741,6 @@ async function executeUncheckedMcpTool(
     const serverId = `${parts[0]}-${parts[1]}`
     const toolName = parts.slice(2).join('-') // Handle tool names with dashes
 
-    logger.info(`[${actualRequestId}] Parsed MCP tool: server=${serverId}, tool=${toolName}`)
-
     // Get base URL for API calls
     const baseUrl = getBaseUrl()
 
@@ -767,9 +759,12 @@ async function executeUncheckedMcpTool(
     }
 
     // Execute MCP tool via API
-    // Extract just the arguments parameter - MCP blocks store tool arguments in the 'arguments' field
-    // The arguments are stored as a JSON string by mcp-dynamic-args component
+    // Handle two different parameter structures:
+    // 1. Direct MCP blocks: arguments are stored as JSON string in 'arguments' field
+    // 2. Agent blocks: arguments are passed directly as top-level parameters
     let toolArguments = {}
+
+    // First check if we have the 'arguments' field (direct MCP block usage)
     if (params.arguments) {
       if (typeof params.arguments === 'string') {
         try {
@@ -781,6 +776,21 @@ async function executeUncheckedMcpTool(
       } else {
         toolArguments = params.arguments
       }
+    } else {
+      // Agent block usage: extract MCP-specific arguments by filtering out system parameters
+      const systemParams = new Set([
+        'serverId',
+        'toolName',
+        'serverName',
+        '_context',
+        'envVars',
+        'workflowVariables',
+        'blockData',
+        'blockNameMapping',
+      ])
+      toolArguments = Object.fromEntries(
+        Object.entries(params).filter(([key]) => !systemParams.has(key))
+      )
     }
 
     const requestBody = {
@@ -790,13 +800,7 @@ async function executeUncheckedMcpTool(
       workflowId: params._context?.workflowId || executionContext?.workflowId, // Pass workflow context for user resolution
     }
 
-    logger.info(`[${actualRequestId}] Making MCP tool request`, {
-      hasAuthHeader: !!headers.Authorization,
-      serverId,
-      toolName,
-      hasWorkflowId: !!requestBody.workflowId,
-      workflowId: requestBody.workflowId,
-    })
+    logger.info(`[${actualRequestId}] Making MCP tool request to ${toolName} on ${serverId}`)
 
     const response = await fetch(`${baseUrl}/api/mcp/tools/execute`, {
       method: 'POST',
@@ -849,9 +853,6 @@ async function executeUncheckedMcpTool(
 
     logger.info(`[${actualRequestId}] MCP tool ${toolId} executed successfully`)
 
-    // Return result in standard ToolResponse format
-    // The MCP API returns { success: true, data: transformedResult }
-    // where transformedResult is { success: true, output: mcpResult }
     return {
       success: true,
       output: result.data?.output || result.output || result.data || {},

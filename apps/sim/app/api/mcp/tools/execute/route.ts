@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       userId: userId,
     })
 
-    const { serverId, toolName, arguments: args } = body
+    const { serverId, toolName, arguments: args, workspaceId } = body
 
     const serverIdValidation = validateStringParam(serverId, 'serverId')
     if (!serverIdValidation.isValid) {
@@ -63,12 +63,12 @@ export async function POST(request: NextRequest) {
     }
 
     logger.info(
-      `[${requestId}] Executing tool ${toolName} on server ${serverId} for user ${userId}`
+      `[${requestId}] Executing tool ${toolName} on server ${serverId} for user ${userId}${workspaceId ? ` in workspace ${workspaceId}` : ''}`
     )
 
     let tool = null
     try {
-      const tools = await mcpService.discoverServerTools(userId, serverId, false) // Use cache
+      const tools = await mcpService.discoverServerTools(userId, serverId, workspaceId, false) // Use cache
       tool = tools.find((t) => t.name === toolName)
 
       if (!tool) {
@@ -90,6 +90,7 @@ export async function POST(request: NextRequest) {
     if (tool) {
       const validationError = validateToolArguments(tool, args)
       if (validationError) {
+        logger.warn(`[${requestId}] Tool validation failed: ${validationError}`)
         return createMcpErrorResponse(
           new Error(`Invalid arguments for tool ${toolName}: ${validationError}`),
           'Invalid tool arguments',
@@ -104,7 +105,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await Promise.race([
-      mcpService.executeTool(userId, serverId, toolCall),
+      mcpService.executeTool(userId, serverId, toolCall, workspaceId),
       new Promise<never>((_, reject) =>
         setTimeout(
           () => reject(new Error('Tool execution timeout')),
@@ -113,23 +114,10 @@ export async function POST(request: NextRequest) {
       ),
     ])
 
-    // Debug log the actual MCP result structure to understand why isError might be true
-    logger.info(`[${requestId}] Raw MCP result structure:`, {
-      isError: result.isError,
-      hasContent: !!result.content,
-      contentLength: result.content?.length || 0,
-      resultKeys: Object.keys(result),
-      firstContentItem: result.content?.[0],
-    })
-
     const transformedResult = transformToolResult(result)
 
     if (result.isError) {
       logger.warn(`[${requestId}] Tool execution returned error for ${toolName} on ${serverId}`)
-      logger.warn(`[${requestId}] Error details:`, {
-        errorContent: result.content,
-        fullResult: result,
-      })
       return createMcpErrorResponse(transformedResult, 'Tool execution failed', 400)
     }
     logger.info(`[${requestId}] Successfully executed tool ${toolName} on server ${serverId}`)
@@ -152,7 +140,6 @@ function validateToolArguments(tool: any, args: any): string | null {
 
   const schema = tool.inputSchema
 
-  // Check required properties
   if (schema.required && Array.isArray(schema.required)) {
     for (const requiredProp of schema.required) {
       if (!(requiredProp in (args || {}))) {
@@ -161,7 +148,6 @@ function validateToolArguments(tool: any, args: any): string | null {
     }
   }
 
-  // Basic type checking for properties
   if (schema.properties && args) {
     for (const [propName, propSchema] of Object.entries(schema.properties)) {
       const propValue = args[propName]
@@ -196,7 +182,6 @@ function validateToolArguments(tool: any, args: any): string | null {
 
 /**
  * Transform MCP tool result to platform format
- * Preserves the exact MCP response structure without modification
  */
 function transformToolResult(result: McpToolResult): any {
   if (result.isError) {
@@ -207,10 +192,8 @@ function transformToolResult(result: McpToolResult): any {
     }
   }
 
-  // Return the exact MCP response structure as-is
-  // This preserves the standard MCP format: { content: [...], isError: false, ...any other fields }
   return {
     success: true,
-    output: result, // Preserve exact structure that came from the MCP server
+    output: result,
   }
 }

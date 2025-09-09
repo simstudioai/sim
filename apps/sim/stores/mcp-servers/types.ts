@@ -2,7 +2,7 @@ export interface McpServerWithStatus {
   id: string
   name: string
   description?: string
-  transport: 'http' | 'sse' | 'stdio'
+  transport: 'http' | 'sse' | 'streamable-http'
   url?: string
   headers?: Record<string, string>
   command?: string

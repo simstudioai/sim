@@ -19,6 +19,7 @@ import {
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
 import { formatDisplayText } from '@/components/ui/formatted-text'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useMcpServerTest } from '@/hooks/use-mcp-server-test'
 import { useMcpTools } from '@/hooks/use-mcp-tools'
 import { useMcpServersStore } from '@/stores/mcp-servers/store'
 
@@ -26,7 +27,7 @@ const logger = createLogger('McpSettings')
 
 interface McpServerFormData {
   name: string
-  transport: 'http' | 'sse'
+  transport: 'http' | 'sse' | 'streamable-http'
   url?: string
   timeout?: number
   headers?: Record<string, string>
@@ -35,7 +36,7 @@ interface McpServerFormData {
 export function MCP() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const { mcpTools, isLoading: toolsLoading, error: toolsError, refreshTools } = useMcpTools()
+  const { mcpTools, error: toolsError, refreshTools } = useMcpTools()
   const {
     servers,
     isLoading: serversLoading,
@@ -43,17 +44,16 @@ export function MCP() {
     fetchServers,
     createServer,
     deleteServer,
-    clearError,
   } = useMcpServersStore()
 
   const [showAddForm, setShowAddForm] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [formData, setFormData] = useState<McpServerFormData>({
     name: '',
-    transport: 'http',
+    transport: 'streamable-http',
     url: '',
     timeout: 30000,
-    headers: {},
+    headers: {}, // Start with no headers
   })
 
   // Environment variable dropdown state
@@ -65,6 +65,16 @@ export function MCP() {
   >(null)
   const [activeHeaderIndex, setActiveHeaderIndex] = useState<number | null>(null)
   const urlInputRef = useRef<HTMLInputElement>(null)
+
+  // MCP server testing
+  const { testResult, isTestingConnection, testConnection, clearTestResult } = useMcpServerTest()
+
+  // Loading state for adding server
+  const [isAddingServer, setIsAddingServer] = useState(false)
+
+  // State for tracking input scroll position
+  const [urlScrollLeft, setUrlScrollLeft] = useState(0)
+  const [headerScrollLeft, setHeaderScrollLeft] = useState<Record<string, number>>({})
 
   // Handle environment variable selection
   const handleEnvVarSelect = useCallback(
@@ -101,6 +111,11 @@ export function MCP() {
 
       setCursorPosition(pos)
 
+      // Clear test result when any field changes
+      if (testResult) {
+        clearTestResult()
+      }
+
       // Check if we should show the environment variables dropdown
       const envVarTrigger = checkEnvVarTrigger(value, pos)
       setShowEnvVars(envVarTrigger.show)
@@ -136,10 +151,44 @@ export function MCP() {
     [formData.headers]
   )
 
+  const handleTestConnection = useCallback(async () => {
+    if (!formData.name.trim() || !formData.url?.trim()) return
+
+    await testConnection({
+      name: formData.name,
+      transport: formData.transport,
+      url: formData.url,
+      headers: formData.headers,
+      timeout: formData.timeout,
+    })
+  }, [formData, testConnection])
+
   const handleAddServer = useCallback(async () => {
     if (!formData.name.trim()) return
 
+    setIsAddingServer(true)
     try {
+      // If no test has been done, test first
+      if (!testResult) {
+        const result = await testConnection({
+          name: formData.name,
+          transport: formData.transport,
+          url: formData.url,
+          headers: formData.headers,
+          timeout: formData.timeout,
+        })
+
+        // If test fails, don't proceed
+        if (!result.success) {
+          return
+        }
+      }
+
+      // If we have a failed test result, don't proceed
+      if (testResult && !testResult.success) {
+        return
+      }
+
       await createServer({
         name: formData.name.trim(),
         transport: formData.transport,
@@ -149,25 +198,30 @@ export function MCP() {
         enabled: true,
       })
 
-      // Reset form and refresh data
+      logger.info(`Added MCP server: ${formData.name}`)
+
+      // Reset form and hide form immediately after server creation
       setFormData({
         name: '',
-        transport: 'http',
+        transport: 'streamable-http',
         url: '',
         timeout: 30000,
-        headers: {},
+        headers: {}, // Reset with no headers
       })
       setShowAddForm(false)
       setShowEnvVars(false)
       setActiveInputField(null)
       setActiveHeaderIndex(null)
-      await refreshTools(true) // Force refresh after adding server
+      clearTestResult()
 
-      logger.info(`Added MCP server: ${formData.name}`)
+      // Refresh tools in the background without waiting
+      refreshTools(true) // Force refresh after adding server
     } catch (error) {
       logger.error('Failed to add MCP server:', error)
+    } finally {
+      setIsAddingServer(false)
     }
-  }, [formData, createServer, refreshTools])
+  }, [formData, testResult, testConnection, createServer, refreshTools, clearTestResult])
 
   const handleRemoveServer = useCallback(
     async (serverId: string) => {
@@ -249,16 +303,19 @@ export function MCP() {
           ) : !servers || servers.length === 0 ? (
             showAddForm ? (
               <div className='rounded-[8px] border bg-background p-4 shadow-xs'>
-                <div className='space-y-4'>
+                <div className='space-y-3'>
                   <div className='flex items-center justify-between'>
                     <div className='flex items-center gap-2'>
                       <Label className='font-normal'>Server Name</Label>
                     </div>
-                    <div className='w-[320px]'>
+                    <div className='w-[380px]'>
                       <Input
-                        placeholder='e.g., Firecrawl MCP'
+                        placeholder='e.g., My MCP Server'
                         value={formData.name}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+                        onChange={(e) => {
+                          if (testResult) clearTestResult()
+                          setFormData((prev) => ({ ...prev, name: e.target.value }))
+                        }}
                         className='h-9'
                       />
                     </div>
@@ -268,17 +325,19 @@ export function MCP() {
                     <div className='flex items-center gap-2'>
                       <Label className='font-normal'>Transport</Label>
                     </div>
-                    <div className='w-[320px]'>
+                    <div className='w-[380px]'>
                       <Select
                         value={formData.transport}
-                        onValueChange={(value: 'http' | 'sse') =>
+                        onValueChange={(value: 'http' | 'sse' | 'streamable-http') => {
+                          if (testResult) clearTestResult()
                           setFormData((prev) => ({ ...prev, transport: value }))
-                        }
+                        }}
                       >
                         <SelectTrigger className='h-9'>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value='streamable-http'>Streamable HTTP</SelectItem>
                           <SelectItem value='http'>HTTP</SelectItem>
                           <SelectItem value='sse'>Server-Sent Events</SelectItem>
                         </SelectContent>
@@ -290,16 +349,28 @@ export function MCP() {
                     <div className='flex items-center gap-2'>
                       <Label className='font-normal'>Server URL</Label>
                     </div>
-                    <div className='relative w-[320px]'>
+                    <div className='relative w-[380px]'>
                       <Input
                         ref={urlInputRef}
                         placeholder='https://mcp.server.dev/{{YOUR_API_KEY}}/sse'
                         value={formData.url}
                         onChange={(e) => handleInputChange('url', e.target.value)}
+                        onScroll={(e) => {
+                          const scrollLeft = e.currentTarget.scrollLeft
+                          setUrlScrollLeft(scrollLeft)
+                        }}
+                        onInput={(e) => {
+                          const scrollLeft = e.currentTarget.scrollLeft
+                          setUrlScrollLeft(scrollLeft)
+                        }}
                         className='h-9 text-transparent caret-foreground placeholder:text-muted-foreground/50'
                       />
+                      {/* Overlay for styled text display */}
                       <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm'>
-                        <div className='whitespace-nowrap'>
+                        <div
+                          className='whitespace-nowrap'
+                          style={{ transform: `translateX(-${urlScrollLeft}px)` }}
+                        >
                           {formatDisplayText(formData.url || '', true)}
                         </div>
                       </div>
@@ -317,13 +388,13 @@ export function MCP() {
                             setShowEnvVars(false)
                             setActiveInputField(null)
                           }}
-                          className='w-full'
+                          className='w-[380px]'
                           maxHeight='200px'
                           style={{
                             position: 'absolute',
                             top: '100%',
                             left: 0,
-                            zIndex: 9999,
+                            zIndex: 99999,
                           }}
                         />
                       )}
@@ -335,17 +406,36 @@ export function MCP() {
                       <div className='flex items-center gap-2'>
                         <Label className='font-normal'>Header</Label>
                       </div>
-                      <div className='relative flex w-[320px] gap-1'>
+                      <div className='relative flex w-[380px] gap-2'>
                         {/* Header Key Input */}
                         <div className='relative flex-1'>
                           <Input
                             placeholder='Name'
                             value={key}
                             onChange={(e) => handleInputChange('header-key', e.target.value, index)}
+                            onScroll={(e) => {
+                              const scrollLeft = e.currentTarget.scrollLeft
+                              setHeaderScrollLeft((prev) => ({
+                                ...prev,
+                                [`key-${index}`]: scrollLeft,
+                              }))
+                            }}
+                            onInput={(e) => {
+                              const scrollLeft = e.currentTarget.scrollLeft
+                              setHeaderScrollLeft((prev) => ({
+                                ...prev,
+                                [`key-${index}`]: scrollLeft,
+                              }))
+                            }}
                             className='h-9 text-transparent caret-foreground placeholder:text-muted-foreground/50'
                           />
                           <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm'>
-                            <div className='whitespace-nowrap'>
+                            <div
+                              className='whitespace-nowrap'
+                              style={{
+                                transform: `translateX(-${headerScrollLeft[`key-${index}`] || 0}px)`,
+                              }}
+                            >
                               {formatDisplayText(key || '', true)}
                             </div>
                           </div>
@@ -359,10 +449,29 @@ export function MCP() {
                             onChange={(e) =>
                               handleInputChange('header-value', e.target.value, index)
                             }
+                            onScroll={(e) => {
+                              const scrollLeft = e.currentTarget.scrollLeft
+                              setHeaderScrollLeft((prev) => ({
+                                ...prev,
+                                [`value-${index}`]: scrollLeft,
+                              }))
+                            }}
+                            onInput={(e) => {
+                              const scrollLeft = e.currentTarget.scrollLeft
+                              setHeaderScrollLeft((prev) => ({
+                                ...prev,
+                                [`value-${index}`]: scrollLeft,
+                              }))
+                            }}
                             className='h-9 text-transparent caret-foreground placeholder:text-muted-foreground/50'
                           />
                           <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm'>
-                            <div className='whitespace-nowrap'>
+                            <div
+                              className='whitespace-nowrap'
+                              style={{
+                                transform: `translateX(-${headerScrollLeft[`value-${index}`] || 0}px)`,
+                              }}
+                            >
                               {formatDisplayText(value || '', true)}
                             </div>
                           </div>
@@ -398,7 +507,7 @@ export function MCP() {
                                 setActiveInputField(null)
                                 setActiveHeaderIndex(null)
                               }}
-                              className='w-[320px]'
+                              className='w-[380px]'
                               maxHeight='200px'
                               style={{
                                 position: 'absolute',
@@ -425,7 +534,7 @@ export function MCP() {
                                 setActiveInputField(null)
                                 setActiveHeaderIndex(null)
                               }}
-                              className='w-[320px]'
+                              className='w-[380px]'
                               maxHeight='200px'
                               style={{
                                 position: 'absolute',
@@ -441,7 +550,7 @@ export function MCP() {
 
                   <div className='flex items-center justify-between'>
                     <div />
-                    <div className='w-[320px]'>
+                    <div className='w-[380px]'>
                       <Button
                         type='button'
                         variant='outline'
@@ -462,7 +571,32 @@ export function MCP() {
 
                   <div className='border-t pt-4'>
                     <div className='flex items-center justify-between'>
-                      <div />
+                      <div className='space-y-2'>
+                        <div className='flex items-center gap-2'>
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            onClick={handleTestConnection}
+                            disabled={
+                              isTestingConnection || !formData.name.trim() || !formData.url?.trim()
+                            }
+                            className='text-muted-foreground hover:text-foreground'
+                          >
+                            {isTestingConnection ? 'Testing...' : 'Test Connection'}
+                          </Button>
+                          {testResult?.success && (
+                            <span className='text-green-600 text-xs'>✓ Connected</span>
+                          )}
+                        </div>
+                        {testResult && !testResult.success && (
+                          <div className='rounded border border-red-200 bg-red-50 px-2 py-1.5 text-red-600 text-xs dark:border-red-800 dark:bg-red-950/20'>
+                            <div className='font-medium'>Connection failed</div>
+                            <div className='text-red-500 dark:text-red-400'>
+                              {testResult.error || testResult.message}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                       <div className='flex gap-2'>
                         <Button variant='ghost' size='sm' onClick={() => setShowAddForm(false)}>
                           Cancel
@@ -471,10 +605,13 @@ export function MCP() {
                           size='sm'
                           onClick={handleAddServer}
                           disabled={
-                            serversLoading || !formData.name.trim() || !formData.url?.trim()
+                            serversLoading ||
+                            isAddingServer ||
+                            !formData.name.trim() ||
+                            !formData.url?.trim()
                           }
                         >
-                          {serversLoading ? 'Adding...' : 'Add Server'}
+                          {serversLoading || isAddingServer ? 'Adding...' : 'Add Server'}
                         </Button>
                       </div>
                     </div>
@@ -549,18 +686,19 @@ export function MCP() {
               {/* Add Server Form for when servers exist */}
               {showAddForm && (
                 <div className='mt-4 rounded-[8px] border bg-background p-4 shadow-xs'>
-                  <div className='space-y-4'>
+                  <div className='space-y-3'>
                     <div className='flex items-center justify-between'>
                       <div className='flex items-center gap-2'>
                         <Label className='font-normal'>Server Name</Label>
                       </div>
-                      <div className='w-[320px]'>
+                      <div className='w-[380px]'>
                         <Input
-                          placeholder='e.g., Firecrawl MCP'
+                          placeholder='e.g., My MCP Server'
                           value={formData.name}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            if (testResult) clearTestResult()
                             setFormData((prev) => ({ ...prev, name: e.target.value }))
-                          }
+                          }}
                           className='h-9'
                         />
                       </div>
@@ -570,17 +708,19 @@ export function MCP() {
                       <div className='flex items-center gap-2'>
                         <Label className='font-normal'>Transport</Label>
                       </div>
-                      <div className='w-[320px]'>
+                      <div className='w-[380px]'>
                         <Select
                           value={formData.transport}
-                          onValueChange={(value: 'http' | 'sse') =>
+                          onValueChange={(value: 'http' | 'sse' | 'streamable-http') => {
+                            if (testResult) clearTestResult()
                             setFormData((prev) => ({ ...prev, transport: value }))
-                          }
+                          }}
                         >
                           <SelectTrigger className='h-9'>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value='streamable-http'>Streamable HTTP </SelectItem>
                             <SelectItem value='http'>HTTP</SelectItem>
                             <SelectItem value='sse'>Server-Sent Events</SelectItem>
                           </SelectContent>
@@ -592,16 +732,28 @@ export function MCP() {
                       <div className='flex items-center gap-2'>
                         <Label className='font-normal'>Server URL</Label>
                       </div>
-                      <div className='relative w-[320px]'>
+                      <div className='relative w-[380px]'>
                         <Input
                           ref={urlInputRef}
                           placeholder='https://mcp.server.dev/{{YOUR_API_KEY}}/sse'
                           value={formData.url}
                           onChange={(e) => handleInputChange('url', e.target.value)}
+                          onScroll={(e) => {
+                            const scrollLeft = e.currentTarget.scrollLeft
+                            setUrlScrollLeft(scrollLeft)
+                          }}
+                          onInput={(e) => {
+                            const scrollLeft = e.currentTarget.scrollLeft
+                            setUrlScrollLeft(scrollLeft)
+                          }}
                           className='h-9 text-transparent caret-foreground placeholder:text-muted-foreground/50'
                         />
+                        {/* Overlay for styled text display */}
                         <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm'>
-                          <div className='whitespace-nowrap'>
+                          <div
+                            className='whitespace-nowrap'
+                            style={{ transform: `translateX(-${urlScrollLeft}px)` }}
+                          >
                             {formatDisplayText(formData.url || '', true)}
                           </div>
                         </div>
@@ -619,13 +771,13 @@ export function MCP() {
                               setShowEnvVars(false)
                               setActiveInputField(null)
                             }}
-                            className='w-full'
+                            className='w-[380px]'
                             maxHeight='200px'
                             style={{
                               position: 'absolute',
                               top: '100%',
                               left: 0,
-                              zIndex: 9999,
+                              zIndex: 99999,
                             }}
                           />
                         )}
@@ -637,7 +789,7 @@ export function MCP() {
                         <div className='flex items-center gap-2'>
                           <Label className='font-normal'>Header</Label>
                         </div>
-                        <div className='relative flex w-[320px] gap-1'>
+                        <div className='relative flex w-[380px] gap-2'>
                           {/* Header Key Input */}
                           <div className='relative flex-1'>
                             <Input
@@ -646,10 +798,29 @@ export function MCP() {
                               onChange={(e) =>
                                 handleInputChange('header-key', e.target.value, index)
                               }
+                              onScroll={(e) => {
+                                const scrollLeft = e.currentTarget.scrollLeft
+                                setHeaderScrollLeft((prev) => ({
+                                  ...prev,
+                                  [`key2-${index}`]: scrollLeft,
+                                }))
+                              }}
+                              onInput={(e) => {
+                                const scrollLeft = e.currentTarget.scrollLeft
+                                setHeaderScrollLeft((prev) => ({
+                                  ...prev,
+                                  [`key2-${index}`]: scrollLeft,
+                                }))
+                              }}
                               className='h-9 text-transparent caret-foreground placeholder:text-muted-foreground/50'
                             />
                             <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm'>
-                              <div className='whitespace-nowrap'>
+                              <div
+                                className='whitespace-nowrap'
+                                style={{
+                                  transform: `translateX(-${headerScrollLeft[`key2-${index}`] || 0}px)`,
+                                }}
+                              >
                                 {formatDisplayText(key || '', true)}
                               </div>
                             </div>
@@ -663,10 +834,29 @@ export function MCP() {
                               onChange={(e) =>
                                 handleInputChange('header-value', e.target.value, index)
                               }
+                              onScroll={(e) => {
+                                const scrollLeft = e.currentTarget.scrollLeft
+                                setHeaderScrollLeft((prev) => ({
+                                  ...prev,
+                                  [`value2-${index}`]: scrollLeft,
+                                }))
+                              }}
+                              onInput={(e) => {
+                                const scrollLeft = e.currentTarget.scrollLeft
+                                setHeaderScrollLeft((prev) => ({
+                                  ...prev,
+                                  [`value2-${index}`]: scrollLeft,
+                                }))
+                              }}
                               className='h-9 text-transparent caret-foreground placeholder:text-muted-foreground/50'
                             />
                             <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm'>
-                              <div className='whitespace-nowrap'>
+                              <div
+                                className='whitespace-nowrap'
+                                style={{
+                                  transform: `translateX(-${headerScrollLeft[`value2-${index}`] || 0}px)`,
+                                }}
+                              >
                                 {formatDisplayText(value || '', true)}
                               </div>
                             </div>
@@ -702,7 +892,7 @@ export function MCP() {
                                   setActiveInputField(null)
                                   setActiveHeaderIndex(null)
                                 }}
-                                className='w-[320px]'
+                                className='w-[380px]'
                                 maxHeight='200px'
                                 style={{
                                   position: 'absolute',
@@ -729,7 +919,7 @@ export function MCP() {
                                   setActiveInputField(null)
                                   setActiveHeaderIndex(null)
                                 }}
-                                className='w-[320px]'
+                                className='w-[380px]'
                                 maxHeight='200px'
                                 style={{
                                   position: 'absolute',
@@ -745,7 +935,7 @@ export function MCP() {
 
                     <div className='flex items-center justify-between'>
                       <div />
-                      <div className='w-[320px]'>
+                      <div className='w-[380px]'>
                         <Button
                           type='button'
                           variant='outline'
@@ -766,7 +956,34 @@ export function MCP() {
 
                     <div className='border-t pt-4'>
                       <div className='flex items-center justify-between'>
-                        <div />
+                        <div className='space-y-2'>
+                          <div className='flex items-center gap-2'>
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              onClick={handleTestConnection}
+                              disabled={
+                                isTestingConnection ||
+                                !formData.name.trim() ||
+                                !formData.url?.trim()
+                              }
+                              className='text-muted-foreground hover:text-foreground'
+                            >
+                              {isTestingConnection ? 'Testing...' : 'Test Connection'}
+                            </Button>
+                            {testResult?.success && (
+                              <span className='text-green-600 text-xs'>✓ Connected</span>
+                            )}
+                          </div>
+                          {testResult && !testResult.success && (
+                            <div className='rounded border border-red-200 bg-red-50 px-2 py-1.5 text-red-600 text-xs dark:border-red-800 dark:bg-red-950/20'>
+                              <div className='font-medium'>Connection failed</div>
+                              <div className='text-red-500 dark:text-red-400'>
+                                {testResult.error || testResult.message}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                         <div className='flex gap-2'>
                           <Button variant='ghost' size='sm' onClick={() => setShowAddForm(false)}>
                             Cancel
@@ -775,10 +992,13 @@ export function MCP() {
                             size='sm'
                             onClick={handleAddServer}
                             disabled={
-                              serversLoading || !formData.name.trim() || !formData.url?.trim()
+                              serversLoading ||
+                              isAddingServer ||
+                              !formData.name.trim() ||
+                              !formData.url?.trim()
                             }
                           >
-                            {serversLoading ? 'Adding...' : 'Add Server'}
+                            {serversLoading || isAddingServer ? 'Adding...' : 'Add Server'}
                           </Button>
                         </div>
                       </div>
