@@ -258,11 +258,11 @@ export class AgentBlockHandler implements BlockHandler {
           headers.Authorization = `Bearer ${internalToken}`
         } catch (error) {
           logger.error(`Failed to generate internal token for MCP tool discovery:`, error)
-          // Still continue with the request, but it will likely fail auth
         }
       }
 
-      const url = new URL(`${process.env.NEXT_PUBLIC_APP_URL}/api/mcp/tools/discover`)
+      const appUrl = getEnv('NEXT_PUBLIC_APP_URL')
+      const url = new URL(`${appUrl}/api/mcp/tools/discover`)
       url.searchParams.set('serverId', serverId)
       if (context.workspaceId) {
         url.searchParams.set('workspaceId', context.workspaceId)
@@ -313,23 +313,19 @@ export class AgentBlockHandler implements BlockHandler {
               headers.Authorization = `Bearer ${internalToken}`
             } catch (error) {
               logger.error(`Failed to generate internal token for MCP tool ${toolName}:`, error)
-              // Still continue with the request, but it will likely fail auth
             }
           }
 
-          const execResponse = await fetch(
-            `${process.env.NEXT_PUBLIC_APP_URL}/api/mcp/tools/execute`,
-            {
-              method: 'POST',
-              headers,
-              body: JSON.stringify({
-                serverId,
-                toolName,
-                arguments: { ...params, ...callParams },
-                workspaceId: context.workspaceId,
-              }),
-            }
-          )
+          const execResponse = await fetch(`${appUrl}/api/mcp/tools/execute`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              serverId,
+              toolName,
+              arguments: { ...params, ...callParams },
+              workspaceId: context.workspaceId,
+            }),
+          })
 
           if (!execResponse.ok) {
             throw new Error(

@@ -25,7 +25,6 @@ export class GenericBlockHandler implements BlockHandler {
   ): Promise<any> {
     logger.info(`Executing block: ${block.id} (Type: ${block.metadata?.id})`)
 
-    // Handle MCP tools
     const isMcpTool = block.config.tool?.startsWith('mcp-')
     let tool = null
 
@@ -36,16 +35,13 @@ export class GenericBlockHandler implements BlockHandler {
       }
     }
 
-    // Apply block-level parameter transformation if available
     let finalInputs = { ...inputs }
 
-    // Get the block configuration to check for parameter transformation
     const blockType = block.metadata?.id
     if (blockType) {
       const blockConfig = getBlock(blockType)
       if (blockConfig?.tools?.config?.params) {
         try {
-          // Apply the block's parameter transformation
           const transformedParams = blockConfig.tools.config.params(inputs)
           finalInputs = { ...transformedParams }
           logger.info(`Applied parameter transformation for block type: ${blockType}`, {

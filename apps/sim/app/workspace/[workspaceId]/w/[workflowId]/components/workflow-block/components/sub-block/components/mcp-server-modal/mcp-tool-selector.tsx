@@ -39,34 +39,25 @@ export function McpToolSelector({
   const workspaceId = params.workspaceId as string
   const [open, setOpen] = useState(false)
 
-  // Get MCP tools from hook
   const { mcpTools, isLoading, error, refreshTools, getToolsByServer } = useMcpTools(workspaceId)
 
-  // Use collaborative state management via useSubBlockValue hook
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
 
-  // Get the server selection from the dependent field
   const [serverValue] = useSubBlockValue(blockId, 'server')
 
-  // Extract config values
   const label = subBlock.placeholder || 'Select tool'
 
-  // Get the effective value (preview or store value)
   const effectiveValue = isPreview && previewValue !== undefined ? previewValue : storeValue
   const selectedToolId = effectiveValue || ''
 
-  // Get available tools for the selected server
   const availableTools = useMemo(() => {
     if (!serverValue) return []
     return getToolsByServer(serverValue)
   }, [serverValue, getToolsByServer])
 
-  // Get the selected tool
   const selectedTool = availableTools.find((tool) => tool.id === selectedToolId)
 
-  // Clear tool selection when server changes (but not when tools are still loading)
   useEffect(() => {
-    // Only clear if we have a stored value, tools are loaded, and the tool doesn't exist
     if (
       storeValue &&
       availableTools.length > 0 &&
@@ -78,7 +69,6 @@ export function McpToolSelector({
     }
   }, [serverValue, availableTools, storeValue, setStoreValue, isPreview])
 
-  // Handle popover open to refresh tools
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen)
     if (isOpen && serverValue) {
@@ -86,7 +76,6 @@ export function McpToolSelector({
     }
   }
 
-  // Handle tool selection
   const handleSelect = (toolId: string) => {
     if (!isPreview) {
       setStoreValue(toolId)
@@ -94,7 +83,6 @@ export function McpToolSelector({
     setOpen(false)
   }
 
-  // Get display text for selected tool
   const getDisplayText = () => {
     if (selectedTool) {
       return <span className='truncate font-normal'>{selectedTool.name}</span>
@@ -106,7 +94,6 @@ export function McpToolSelector({
     )
   }
 
-  // Don't show anything if no server is selected
   const isDisabled = disabled || !serverValue
 
   return (

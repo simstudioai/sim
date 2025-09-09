@@ -59,7 +59,6 @@ export function useMcpServerTest() {
       setTestResult(null)
 
       try {
-        // Filter out empty headers before sending to API
         const cleanConfig = {
           ...config,
           headers: config.headers
@@ -134,7 +133,6 @@ export function getTestResultSummary(result: McpServerTestResult): string {
 export function isServerSafeToAdd(result: McpServerTestResult): boolean {
   if (!result.success) return false
 
-  // Check for version compatibility issues
   if (result.warnings?.some((w) => w.toLowerCase().includes('version'))) {
     return false
   }
