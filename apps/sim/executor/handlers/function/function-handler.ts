@@ -68,7 +68,7 @@ export class FunctionBlockHandler implements BlockHandler {
         blockNameMapping: blockNameMapping, // Pass block name to ID mapping
         _context: {
           workflowId: context.workflowId,
-          workspaceId: context.workspaceId, // Include workspaceId for MCP tools
+          workspaceId: context.workspaceId,
         },
       },
       false, // skipProxy

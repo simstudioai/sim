@@ -83,8 +83,6 @@ export class AgentBlockHandler implements BlockHandler {
       streaming: streamingConfig.shouldUseStreaming ?? false,
     })
 
-    this.logRequestDetails(providerRequest, messages, streamingConfig)
-
     return this.executeProviderRequest(providerRequest, block, responseFormat, context)
   }
 
@@ -152,16 +150,6 @@ export class AgentBlockHandler implements BlockHandler {
 
   private async formatTools(inputTools: ToolInput[], context: ExecutionContext): Promise<any[]> {
     if (!Array.isArray(inputTools)) return []
-
-    logger.info(`[AgentHandler] formatTools called with ${inputTools.length} tools`, {
-      tools: inputTools.map((t) => ({
-        type: t.type,
-        usageControl: t.usageControl,
-        params: t.params,
-      })),
-      hasWorkspaceId: !!context.workspaceId,
-      workspaceId: context.workspaceId,
-    })
 
     const tools = await Promise.all(
       inputTools
@@ -235,7 +223,7 @@ export class AgentBlockHandler implements BlockHandler {
             isCustomTool: true,
             _context: {
               workflowId: context.workflowId,
-              workspaceId: context.workspaceId, // Include workspaceId for MCP tools
+              workspaceId: context.workspaceId,
             },
           },
           false, // skipProxy
@@ -254,7 +242,6 @@ export class AgentBlockHandler implements BlockHandler {
   }
 
   private async createMcpTool(tool: ToolInput, context: ExecutionContext): Promise<any> {
-    // Extract MCP tool information from the tool input
     const { serverId, toolName, params } = tool.params || {}
 
     if (!serverId || !toolName) {
@@ -262,12 +249,9 @@ export class AgentBlockHandler implements BlockHandler {
       return null
     }
 
-    // Fetch tool schema from MCP server via API
     try {
-      // Prepare headers with internal authentication
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
 
-      // Add internal authorization for server-side calls
       if (typeof window === 'undefined') {
         try {
           const { generateInternalToken } = await import('@/lib/auth/internal')
@@ -279,7 +263,6 @@ export class AgentBlockHandler implements BlockHandler {
         }
       }
 
-      // Add workspaceId and workflowId to the URL for workspace scoping (required by MCP API)
       const url = new URL(`${process.env.NEXT_PUBLIC_APP_URL}/api/mcp/tools/discover`)
       url.searchParams.set('serverId', serverId)
       if (context.workspaceId) {
@@ -287,7 +270,6 @@ export class AgentBlockHandler implements BlockHandler {
       } else {
         throw new Error('workspaceId is required for MCP tool discovery')
       }
-      // Add workflowId for internal JWT authentication context
       if (context.workflowId) {
         url.searchParams.set('workflowId', context.workflowId)
       } else {
@@ -312,8 +294,6 @@ export class AgentBlockHandler implements BlockHandler {
         throw new Error(`MCP tool ${toolName} not found on server ${serverId}`)
       }
 
-      // Transform MCP tool schema to agent-compatible format
-      // Don't double-prefix if serverId already starts with 'mcp-'
       const toolId = serverId.startsWith('mcp-')
         ? `${serverId}-${toolName}`
         : `mcp-${serverId}-${toolName}`
@@ -327,10 +307,8 @@ export class AgentBlockHandler implements BlockHandler {
         executeFunction: async (callParams: Record<string, any>) => {
           logger.info(`Executing MCP tool ${toolName} on server ${serverId}`)
 
-          // Prepare headers with internal authentication
           const headers: Record<string, string> = { 'Content-Type': 'application/json' }
 
-          // Add internal authorization for server-side calls
           if (typeof window === 'undefined') {
             try {
               const { generateInternalToken } = await import('@/lib/auth/internal')
@@ -342,7 +320,6 @@ export class AgentBlockHandler implements BlockHandler {
             }
           }
 
-          // Call MCP tool execution API
           const execResponse = await fetch(
             `${process.env.NEXT_PUBLIC_APP_URL}/api/mcp/tools/execute`,
             {
@@ -352,7 +329,7 @@ export class AgentBlockHandler implements BlockHandler {
                 serverId,
                 toolName,
                 arguments: { ...params, ...callParams },
-                workspaceId: context.workspaceId, // Pass workspace context for scoping
+                workspaceId: context.workspaceId,
               }),
             }
           )
@@ -368,7 +345,6 @@ export class AgentBlockHandler implements BlockHandler {
             throw new Error(result.error || 'MCP tool execution failed')
           }
 
-          // Transform MCP result to standard tool output format
           return {
             success: true,
             output: result.data.output || {},
@@ -558,7 +534,7 @@ export class AgentBlockHandler implements BlockHandler {
       azureApiVersion: inputs.azureApiVersion,
       responseFormat,
       workflowId: context.workflowId,
-      workspaceId: context.workspaceId, // Include workspaceId for MCP tools
+      workspaceId: context.workspaceId,
       stream: streaming,
       messages,
       environmentVariables: context.environmentVariables || {},
@@ -585,12 +561,6 @@ export class AgentBlockHandler implements BlockHandler {
       )
     )
   }
-
-  private logRequestDetails(
-    providerRequest: any,
-    messages: Message[] | undefined,
-    _streamingConfig: StreamingConfig
-  ) {}
 
   private async executeProviderRequest(
     providerRequest: any,
@@ -655,7 +625,7 @@ export class AgentBlockHandler implements BlockHandler {
       azureApiVersion: providerRequest.azureApiVersion,
       responseFormat: providerRequest.responseFormat,
       workflowId: providerRequest.workflowId,
-      workspaceId: providerRequest.workspaceId, // Include workspaceId for MCP tools
+      workspaceId: providerRequest.workspaceId,
       stream: providerRequest.stream,
       messages: 'messages' in providerRequest ? providerRequest.messages : undefined,
       environmentVariables: context.environmentVariables || {},

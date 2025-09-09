@@ -99,7 +99,7 @@ export class ApiBlockHandler implements BlockHandler {
           ...processedInputs,
           _context: {
             workflowId: context.workflowId,
-            workspaceId: context.workspaceId, // Include workspaceId for MCP tools
+            workspaceId: context.workspaceId,
           },
         },
         false, // skipProxy

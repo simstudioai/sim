@@ -23,7 +23,7 @@ export interface McpToolForUI {
   type: 'mcp'
   inputSchema: any
   bgColor: string
-  icon: React.ComponentType<any> // React component for MCP tools
+  icon: React.ComponentType<any>
 }
 
 export interface UseMcpToolsResult {
@@ -40,16 +40,15 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Subscribe to server changes to refresh tools when servers are modified
   const servers = useMcpServersStore((state) => state.servers)
 
-  // Track the last fingerprint we processed to prevent infinite loops
+  // Track the last fingerprint
   const lastProcessedFingerprintRef = useRef<string>('')
 
-  // Create a stable server fingerprint to detect meaningful changes
+  // Create a stable server fingerprint
   const serversFingerprint = useMemo(() => {
     return servers
-      .filter((s) => s.enabled && !s.deletedAt) // Only consider active servers
+      .filter((s) => s.enabled && !s.deletedAt)
       .map((s) => `${s.id}-${s.enabled}-${s.updatedAt}`)
       .sort()
       .join('|')
@@ -86,8 +85,8 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
           serverName: tool.serverName,
           type: 'mcp' as const,
           inputSchema: tool.inputSchema,
-          bgColor: '#6366F1', // Indigo color to match MCP block
-          icon: WrenchIcon, // Standard icon for MCP tools
+          bgColor: '#6366F1',
+          icon: WrenchIcon,
         }))
 
         setMcpTools(transformedTools)
@@ -99,7 +98,7 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
         const errorMessage = err instanceof Error ? err.message : 'Failed to discover MCP tools'
         logger.error('Error discovering MCP tools:', err)
         setError(errorMessage)
-        setMcpTools([]) // Clear tools on error
+        setMcpTools([])
       } finally {
         setIsLoading(false)
       }
@@ -121,14 +120,12 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
     [mcpTools]
   )
 
-  // Initial load on mount
   useEffect(() => {
     refreshTools()
-  }, []) // Remove refreshTools dependency
+  }, [])
 
-  // Refresh tools when servers change (added/removed/updated)
+  // Refresh tools when servers change
   useEffect(() => {
-    // Skip if no active servers or we already processed this fingerprint
     if (!serversFingerprint || serversFingerprint === lastProcessedFingerprintRef.current) return
 
     logger.info('Active servers changed, refreshing MCP tools', {
@@ -136,12 +133,11 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
       fingerprint: serversFingerprint,
     })
 
-    // Update the ref to track this fingerprint as processed
     lastProcessedFingerprintRef.current = serversFingerprint
     refreshTools()
-  }, [serversFingerprint]) // Only watch for fingerprint changes
+  }, [serversFingerprint])
 
-  // Auto-refresh every 5 minutes to keep tools up-to-date
+  // Auto-refresh every 5 minutes
   useEffect(() => {
     const interval = setInterval(
       () => {
@@ -150,10 +146,10 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
         }
       },
       5 * 60 * 1000
-    ) // 5 minutes
+    )
 
     return () => clearInterval(interval)
-  }, [isLoading]) // Remove refreshTools dependency
+  }, [isLoading])
 
   return {
     mcpTools,
@@ -165,12 +161,6 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
   }
 }
 
-/**
- * Hook for executing MCP tools
- *
- * This provides a consistent interface for executing MCP tools
- * that matches the existing tool execution patterns
- */
 export function useMcpToolExecution(workspaceId: string) {
   const executeTool = useCallback(
     async (serverId: string, toolName: string, args: Record<string, any>) => {
@@ -212,9 +202,3 @@ export function useMcpToolExecution(workspaceId: string) {
 
   return { executeTool }
 }
-
-/**
- * Hook for MCP server management
- *
- * Provides functions to manage MCP server connections
- */

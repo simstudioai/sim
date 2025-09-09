@@ -13,7 +13,7 @@ const logger = createLogger('GenericBlockHandler')
  */
 export class GenericBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
-    // This handler can handle any block type as a fallback
+    // This handler can handle any block type
     // It should be the last handler checked.
     return true
   }
@@ -25,7 +25,7 @@ export class GenericBlockHandler implements BlockHandler {
   ): Promise<any> {
     logger.info(`Executing block: ${block.id} (Type: ${block.metadata?.id})`)
 
-    // Handle MCP tools specially - they're not in the static tools registry
+    // Handle MCP tools
     const isMcpTool = block.config.tool?.startsWith('mcp-')
     let tool = null
 
@@ -45,7 +45,7 @@ export class GenericBlockHandler implements BlockHandler {
       const blockConfig = getBlock(blockType)
       if (blockConfig?.tools?.config?.params) {
         try {
-          // Apply the block's parameter transformation function
+          // Apply the block's parameter transformation
           const transformedParams = blockConfig.tools.config.params(inputs)
           finalInputs = { ...transformedParams }
           logger.info(`Applied parameter transformation for block type: ${blockType}`, {
@@ -56,7 +56,6 @@ export class GenericBlockHandler implements BlockHandler {
           logger.warn(`Failed to apply parameter transformation for block type ${blockType}:`, {
             error: error instanceof Error ? error.message : String(error),
           })
-          // Continue with original inputs if transformation fails
         }
       }
     }
@@ -68,7 +67,7 @@ export class GenericBlockHandler implements BlockHandler {
           ...finalInputs,
           _context: {
             workflowId: context.workflowId,
-            workspaceId: context.workspaceId, // Include workspaceId for MCP tools
+            workspaceId: context.workspaceId,
           },
         },
         false, // skipProxy
@@ -85,10 +84,8 @@ export class GenericBlockHandler implements BlockHandler {
             ? errorDetails.join(' - ')
             : `Block execution of ${tool?.name || block.config.tool} failed with no error message`
 
-        // Create a detailed error object with formatted message
         const error = new Error(errorMessage)
 
-        // Add additional properties for debugging
         Object.assign(error, {
           toolId: block.config.tool,
           toolName: tool?.name || 'Unknown tool',
@@ -101,16 +98,13 @@ export class GenericBlockHandler implements BlockHandler {
         throw error
       }
 
-      // Extract cost information from tool response if available
       const output = result.output
       let cost = null
 
-      // Check if the tool is a knowledge tool and has cost information
       if (block.config.tool?.startsWith('knowledge_') && output?.cost) {
         cost = output.cost
       }
 
-      // Return the output with cost information if available
       if (cost) {
         return {
           ...output,
@@ -126,17 +120,13 @@ export class GenericBlockHandler implements BlockHandler {
 
       return output
     } catch (error: any) {
-      // Ensure we have a meaningful error message
       if (!error.message || error.message === 'undefined (undefined)') {
-        // Construct a detailed error message with available information
         let errorMessage = `Block execution of ${tool?.name || block.config.tool} failed`
 
-        // Add block name if available
         if (block.metadata?.name) {
           errorMessage += `: ${block.metadata.name}`
         }
 
-        // Add status code if available
         if (error.status) {
           errorMessage += ` (Status: ${error.status})`
         }
@@ -144,7 +134,6 @@ export class GenericBlockHandler implements BlockHandler {
         error.message = errorMessage
       }
 
-      // Add additional context to the error
       if (typeof error === 'object' && error !== null) {
         if (!error.toolId) error.toolId = block.config.tool
         if (!error.blockName) error.blockName = block.metadata?.name || 'Unnamed Block'

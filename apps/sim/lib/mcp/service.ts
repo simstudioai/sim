@@ -64,12 +64,10 @@ class McpService {
 
       const resolvedConfig = { ...config }
 
-      // Resolve URL
       if (resolvedConfig.url) {
         resolvedConfig.url = this.resolveEnvVars(resolvedConfig.url, envVars)
       }
 
-      // Resolve headers
       if (resolvedConfig.headers) {
         const resolvedHeaders: Record<string, string> = {}
         for (const [key, value] of Object.entries(resolvedConfig.headers)) {
@@ -81,7 +79,6 @@ class McpService {
       return resolvedConfig
     } catch (error) {
       logger.error('Failed to resolve environment variables for MCP server config:', error)
-      // Return original config if env var resolution fails
       return config
     }
   }
@@ -159,7 +156,6 @@ class McpService {
    * Create and connect to an MCP client with security policy
    */
   private async createClient(config: McpServerConfig): Promise<McpClient> {
-    // Apply security policy per MCP specification
     const securityPolicy = {
       requireConsent: true,
       auditLevel: 'basic' as const,
@@ -197,7 +193,6 @@ class McpService {
         throw new Error(`Server ${serverId} not found or not accessible`)
       }
 
-      // Resolve environment variables in the config
       const resolvedConfig = await this.resolveConfigEnvVars(config, userId, workspaceId)
 
       const client = await this.createClient(resolvedConfig)
@@ -255,7 +250,6 @@ class McpService {
       const allTools: McpTool[] = []
       const results = await Promise.allSettled(
         servers.map(async (config) => {
-          // Resolve environment variables in the config
           const resolvedConfig = await this.resolveConfigEnvVars(config, userId, workspaceId)
           const client = await this.createClient(resolvedConfig)
           try {
@@ -319,7 +313,6 @@ class McpService {
         throw new Error(`Server ${serverId} not found or not accessible`)
       }
 
-      // Resolve environment variables in the config
       const resolvedConfig = await this.resolveConfigEnvVars(config, userId, workspaceId)
 
       const client = await this.createClient(resolvedConfig)
@@ -355,7 +348,6 @@ class McpService {
 
       for (const config of servers) {
         try {
-          // Resolve environment variables in the config
           const resolvedConfig = await this.resolveConfigEnvVars(config, userId, workspaceId)
           const client = await this.createClient(resolvedConfig)
           const tools = await client.listTools()

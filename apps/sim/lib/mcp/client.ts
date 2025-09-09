@@ -44,11 +44,11 @@ export class McpClient {
     }
   >()
   private serverCapabilities?: McpCapabilities
-  private mcpSessionId?: string // MCP Session ID from server
-  private negotiatedVersion?: string // Successfully negotiated protocol version
+  private mcpSessionId?: string
+  private negotiatedVersion?: string
   private securityPolicy: McpSecurityPolicy
 
-  // Supported protocol versions (latest first)
+  // Supported protocol versions
   private static readonly SUPPORTED_VERSIONS = [
     '2025-06-18', // Latest stable with elicitation and OAuth 2.1
     '2025-03-26', // Streamable HTTP support
@@ -59,7 +59,6 @@ export class McpClient {
     this.config = config
     this.connectionStatus = { connected: false }
 
-    // Default security policy per MCP specification
     this.securityPolicy = securityPolicy ?? {
       requireConsent: true,
       auditLevel: 'basic',
@@ -161,7 +160,7 @@ export class McpClient {
       throw new McpConnectionError('Not connected to server', this.config.id)
     }
 
-    // Request consent for tool execution per MCP security guidelines
+    // Request consent for tool execution
     const consentRequest: McpConsentRequest = {
       type: 'tool_execution',
       context: {
@@ -170,7 +169,7 @@ export class McpClient {
         action: toolCall.name,
         description: `Execute tool '${toolCall.name}' on ${this.config.name}`,
         dataAccess: Object.keys(toolCall.arguments || {}),
-        sideEffects: ['tool_execution'], // Tools may have side effects
+        sideEffects: ['tool_execution'],
       },
       expires: Date.now() + 5 * 60 * 1000, // 5 minute consent window
     }
@@ -193,10 +192,7 @@ export class McpClient {
         arguments: toolCall.arguments,
       })
 
-      // The response is the JSON-RPC 'result' field, which can be:
-      // 1. Standard MCP format: { content: [...], isError?: boolean }
-      // 2. Rich format with additional fields like requestId, results, etc.
-      // We preserve the full response to allow rich data to flow through
+      // The response is the JSON-RPC 'result' field
       return response as McpToolResult
     } catch (error) {
       logger.error(`Failed to call tool ${toolCall.name} on server ${this.config.name}:`, error)
@@ -252,11 +248,11 @@ export class McpClient {
     try {
       const result: McpInitializeResult = await this.sendRequest('initialize', initParams)
 
-      // Handle version negotiation per MCP specification
+      // Handle version negotiation
       if (result.protocolVersion !== preferredVersion) {
         // Server proposed a different version - check if we support it
         if (!McpClient.SUPPORTED_VERSIONS.includes(result.protocolVersion)) {
-          // Per MCP spec: client SHOULD disconnect if it cannot support proposed version
+          // Client SHOULD disconnect if it cannot support proposed version
           throw new McpError(
             `Version negotiation failed: Server proposed unsupported version '${result.protocolVersion}'. ` +
               `This client supports versions: ${McpClient.SUPPORTED_VERSIONS.join(', ')}. ` +
@@ -275,12 +271,12 @@ export class McpClient {
 
       logger.info(`MCP initialization successful with protocol version '${this.negotiatedVersion}'`)
     } catch (error) {
-      // Enhanced error handling for common connection issues
+      // Enhanced error handling
       if (error instanceof McpError) {
         throw error // Re-throw MCP errors as-is
       }
 
-      // Handle network/transport errors
+      // Handle network errors
       if (error instanceof Error) {
         if (error.message.includes('fetch') || error.message.includes('network')) {
           throw new McpError(
@@ -296,7 +292,7 @@ export class McpClient {
           )
         }
 
-        // Generic connection error
+        // Generic error
         throw new McpError(
           `Connection to MCP server '${this.config.name}' failed: ${error.message}. ` +
             `Please verify the server configuration and try again.`
@@ -310,7 +306,7 @@ export class McpClient {
   }
 
   /**
-   * Send a notification (no response expected)
+   * Send a notification
    */
   private async sendNotification(method: string, params: any): Promise<void> {
     const notification = {
@@ -323,7 +319,7 @@ export class McpClient {
   }
 
   /**
-   * Connect using Streamable HTTP transport (MCP 2025-03-26)
+   * Connect using Streamable HTTP transport
    */
   private async connectStreamableHttp(): Promise<void> {
     if (!this.config.url) {
@@ -334,7 +330,7 @@ export class McpClient {
   }
 
   /**
-   * Send HTTP request with automatic retry for trailing slash handling
+   * Send HTTP request with automatic retry
    */
   private async sendHttpRequest(request: JsonRpcRequest | any): Promise<void> {
     if (!this.config.url) {
@@ -377,7 +373,7 @@ export class McpClient {
   }
 
   /**
-   * Attempt HTTP request with specific URL
+   * Attempt HTTP request
    */
   private async attemptHttpRequest(
     request: JsonRpcRequest | any,
@@ -410,7 +406,7 @@ export class McpClient {
         status: response.status,
         statusText: response.statusText,
         url,
-        responseBody: responseText.substring(0, 500), // Limit to 500 chars
+        responseBody: responseText.substring(0, 500),
       })
       throw new McpError(`HTTP request failed: ${response.status} ${response.statusText}`)
     }
@@ -507,7 +503,7 @@ export class McpClient {
     } catch (error) {
       logger.error(`[${this.config.name}] Failed to parse SSE response for request ${requestId}:`, {
         error: error instanceof Error ? error.message : 'Unknown error',
-        responseText: responseText.substring(0, 500), // First 500 chars for debugging
+        responseText: responseText.substring(0, 500),
       })
 
       this.pendingRequests.delete(requestId)
@@ -517,7 +513,7 @@ export class McpClient {
   }
 
   /**
-   * Check if server has specific capability
+   * Check if server has capability
    */
   hasCapability(capability: keyof McpCapabilities): boolean {
     return !!this.serverCapabilities?.[capability]
@@ -548,11 +544,9 @@ export class McpClient {
   }
 
   /**
-   * Request user consent for tool execution (per MCP security guidelines)
+   * Request user consent for tool execution
    */
   async requestConsent(consentRequest: McpConsentRequest): Promise<McpConsentResponse> {
-    // For now, implement a basic consent mechanism
-    // In a full implementation, this would show UI to the user
     if (!this.securityPolicy.requireConsent) {
       return { granted: true, auditId: `audit-${Date.now()}` }
     }
@@ -560,7 +554,7 @@ export class McpClient {
     // Basic security checks
     const { serverId, serverName, action, sideEffects } = consentRequest.context
 
-    // Check if server is in blocked origins
+    // Check if server is in blocked
     if (this.securityPolicy.blockedOrigins?.includes(this.config.url || '')) {
       logger.warn(`Tool execution blocked: Server ${serverName} is in blocked origins`)
       return {
@@ -569,7 +563,7 @@ export class McpClient {
       }
     }
 
-    // For high-risk operations, log detailed audit trail
+    // For high-risk operations, log detailed audit
     if (this.securityPolicy.auditLevel === 'detailed') {
       logger.info(`Consent requested for ${action} on ${serverName}`, {
         serverId,
@@ -579,8 +573,6 @@ export class McpClient {
       })
     }
 
-    // TODO: In production, show actual consent UI to user
-    // For now, grant consent with audit logging
     return {
       granted: true,
       expires: consentRequest.expires,

@@ -952,7 +952,7 @@ export function prepareToolExecution(
       ? {
           _context: {
             workflowId: request.workflowId,
-            ...(request.workspaceId ? { workspaceId: request.workspaceId } : {}), // Include workspaceId for MCP tools
+            ...(request.workspaceId ? { workspaceId: request.workspaceId } : {}),
             ...(request.chatId ? { chatId: request.chatId } : {}),
             ...(request.userId ? { userId: request.userId } : {}),
           },

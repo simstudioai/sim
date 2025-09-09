@@ -9,7 +9,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('McpUrlValidator')
 
-// Common private IP ranges (IPv4)
+// Blocked IPv4 ranges
 const PRIVATE_IP_RANGES = [
   /^127\./, // Loopback (127.0.0.0/8)
   /^10\./, // Private class A (10.0.0.0/8)
@@ -19,7 +19,7 @@ const PRIVATE_IP_RANGES = [
   /^0\./, // Invalid range
 ]
 
-// IPv6 private ranges
+// Blocked IPv6 ranges
 const PRIVATE_IPV6_RANGES = [
   /^::1$/, // Localhost
   /^::ffff:/, // IPv4-mapped IPv6
@@ -28,7 +28,7 @@ const PRIVATE_IPV6_RANGES = [
   /^fe80:/, // Link-local (fe80::/10)
 ]
 
-// Dangerous hostnames
+// Blocked hostnames
 const BLOCKED_HOSTNAMES = [
   'localhost',
   'metadata.google.internal', // Google Cloud metadata
@@ -38,7 +38,7 @@ const BLOCKED_HOSTNAMES = [
   'etcd', // etcd service
 ]
 
-// Blocked ports (common internal services)
+// Blocked ports
 const BLOCKED_PORTS = [
   22, // SSH
   23, // Telnet
@@ -63,9 +63,6 @@ export interface UrlValidationResult {
   normalizedUrl?: string
 }
 
-/**
- * Validate an MCP server URL for security and format
- */
 export function validateMcpServerUrl(urlString: string): UrlValidationResult {
   if (!urlString || typeof urlString !== 'string') {
     return {
@@ -161,18 +158,12 @@ export function validateMcpServerUrl(urlString: string): UrlValidationResult {
   }
 }
 
-/**
- * Check if a string is a valid IPv4 address
- */
 function isIPv4(hostname: string): boolean {
   const ipv4Regex =
     /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/
   return ipv4Regex.test(hostname)
 }
 
-/**
- * Check if a string is a valid IPv6 address
- */
 function isIPv6(hostname: string): boolean {
   const cleanHostname = hostname.replace(/^\[|\]$/g, '')
 
@@ -180,26 +171,4 @@ function isIPv6(hostname: string): boolean {
     /^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^::$|^::1$|^(?:[0-9a-fA-F]{1,4}:)*::[0-9a-fA-F]{1,4}(?::[0-9a-fA-F]{1,4})*$/
 
   return ipv6Regex.test(cleanHostname)
-}
-
-/**
- * Validate multiple URLs (for batch operations)
- */
-export function validateMcpServerUrls(urls: string[]): {
-  validUrls: string[]
-  errors: Array<{ url: string; error: string }>
-} {
-  const validUrls: string[] = []
-  const errors: Array<{ url: string; error: string }> = []
-
-  for (const url of urls) {
-    const result = validateMcpServerUrl(url)
-    if (result.isValid && result.normalizedUrl) {
-      validUrls.push(result.normalizedUrl)
-    } else {
-      errors.push({ url, error: result.error || 'Unknown validation error' })
-    }
-  }
-
-  return { validUrls, errors }
 }
