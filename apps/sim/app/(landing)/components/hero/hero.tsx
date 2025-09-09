@@ -11,6 +11,7 @@ import {
   MessageSquareIcon,
   VariableIcon,
 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { type Edge, type Node, Position } from 'reactflow'
 import {
   AgentIcon,
@@ -140,6 +141,8 @@ const SAMPLE_WORKFLOW_EDGES = [
  * Hero component for the landing page featuring service integrations and workflow preview
  */
 export default function Hero() {
+  const router = useRouter()
+
   /**
    * State management for the text input
    */
@@ -267,7 +270,9 @@ export default function Hero() {
    * Handle form submission
    */
   const handleSubmit = () => {
-    // Function left empty for now as requested
+    if (!isEmpty) {
+      router.push('/signup')
+    }
   }
 
   /**

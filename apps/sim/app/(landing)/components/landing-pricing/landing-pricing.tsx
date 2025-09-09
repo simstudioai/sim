@@ -11,6 +11,7 @@ import {
   Users,
   Workflow,
 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { inter } from '@/app/fonts/inter'
@@ -79,10 +80,18 @@ const pricingTiers: PricingTier[] = [
 
 function PricingCard({ tier, index }: { tier: PricingTier; index: number }) {
   const [isHovered, setIsHovered] = useState(false)
+  const router = useRouter()
 
   const handleCtaClick = () => {
     logger.info(`Pricing CTA clicked: ${tier.name}`)
-    // Add navigation logic here
+
+    if (tier.ctaText === 'Contact Sales') {
+      // Open enterprise form in new tab
+      window.open('https://form.typeform.com/to/jqCO12pF', '_blank')
+    } else {
+      // Navigate to signup page for all "Get Started" buttons
+      router.push('/signup')
+    }
   }
 
   return (

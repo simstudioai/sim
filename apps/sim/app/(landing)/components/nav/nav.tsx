@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { ArrowRight, ChevronRight } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { GithubIcon } from '@/components/icons'
@@ -11,6 +12,8 @@ const logger = createLogger('nav')
 
 export default function Nav() {
   const [githubStars, setGithubStars] = useState('14.5k')
+  const [isHovered, setIsHovered] = useState(false)
+  const [isLoginHovered, setIsLoginHovered] = useState(false)
 
   useEffect(() => {
     const fetchStars = async () => {
@@ -33,27 +36,33 @@ export default function Nav() {
           href='https://docs.sim.ai'
           target='_blank'
           rel='noopener noreferrer'
-          className='text-[16px] text-muted-foreground'
+          className='text-[16px] text-muted-foreground transition-colors hover:text-foreground'
         >
           Docs
         </Link>
       </li>
       <li>
-        <Link href='#pricing' className='text-[16px] text-muted-foreground'>
+        <Link
+          href='#pricing'
+          className='text-[16px] text-muted-foreground transition-colors hover:text-foreground'
+        >
           Pricing
         </Link>
       </li>
       <li>
-        <Link href='#enterprise' className='text-[16px] text-muted-foreground'>
+        <button
+          onClick={() => window.open('https://form.typeform.com/to/jqCO12pF', '_blank')}
+          className='text-[16px] text-muted-foreground transition-colors hover:text-foreground'
+        >
           Enterprise
-        </Link>
+        </button>
       </li>
       <li>
         <a
           href='https://github.com/simstudioai/sim'
           target='_blank'
           rel='noopener noreferrer'
-          className='flex items-center gap-2 text-[16px] text-muted-foreground'
+          className='flex items-center gap-2 text-[16px] text-muted-foreground transition-colors hover:text-foreground'
           aria-label={`GitHub repository - ${githubStars} stars`}
         >
           <GithubIcon className='h-[16px] w-[16px]' aria-hidden='true' />
@@ -86,16 +95,41 @@ export default function Nav() {
         </div>
 
         {/* Auth Buttons - Desktop shows both, Mobile shows only Get started */}
-        <div className='flex items-center justify-center gap-[20px] pt-[1.5px]'>
-          <Link href='/login' className='hidden text-[#2E2E2E] text-[16px] md:block'>
-            Log in
+        <div className='flex items-center justify-center gap-[16px] pt-[1.5px]'>
+          <Link
+            href='/login'
+            onMouseEnter={() => setIsLoginHovered(true)}
+            onMouseLeave={() => setIsLoginHovered(false)}
+            className='group hidden text-[#2E2E2E] text-[16px] transition-colors hover:text-foreground md:block'
+          >
+            <span className='flex items-center gap-1'>
+              Log in
+              <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
+                {isLoginHovered ? (
+                  <ArrowRight className='h-4 w-4' />
+                ) : (
+                  <ChevronRight className='h-4 w-4' />
+                )}
+              </span>
+            </span>
           </Link>
           <Link
             href='/signup'
-            className='inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#6F3DFA] bg-gradient-to-b from-[#8357FF] to-[#6F3DFA] px-3 py-[6px] text-[14px] text-white shadow-[inset_0_2px_4px_0_#9B77FF] sm:text-[16px]'
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            className='group inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#6F3DFA] bg-gradient-to-b from-[#8357FF] to-[#6F3DFA] px-3 py-[6px] text-[14px] text-white shadow-[inset_0_2px_4px_0_#9B77FF] transition-all sm:text-[16px]'
             aria-label='Get started with Sim'
           >
-            Get started
+            <span className='flex items-center gap-1'>
+              Get started
+              <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
+                {isHovered ? (
+                  <ArrowRight className='h-4 w-4' />
+                ) : (
+                  <ChevronRight className='h-4 w-4' />
+                )}
+              </span>
+            </span>
           </Link>
         </div>
       </nav>
