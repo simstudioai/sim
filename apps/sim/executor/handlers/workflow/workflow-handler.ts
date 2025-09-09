@@ -21,7 +21,6 @@ const MAX_WORKFLOW_DEPTH = 10
  */
 export class WorkflowBlockHandler implements BlockHandler {
   private serializer = new Serializer()
-  private static executionStack = new Set<string>()
 
   canHandle(block: SerializedBlock): boolean {
     return block.metadata?.id === BlockType.WORKFLOW
@@ -46,15 +45,6 @@ export class WorkflowBlockHandler implements BlockHandler {
       if (currentDepth >= MAX_WORKFLOW_DEPTH) {
         throw new Error(`Maximum workflow nesting depth of ${MAX_WORKFLOW_DEPTH} exceeded`)
       }
-
-      // Check for cycles - include block ID to differentiate parallel executions
-      const executionId = `${context.workflowId}_sub_${workflowId}_${block.id}`
-      if (WorkflowBlockHandler.executionStack.has(executionId)) {
-        throw new Error(`Cyclic workflow dependency detected: ${executionId}`)
-      }
-
-      // Add current execution to stack
-      WorkflowBlockHandler.executionStack.add(executionId)
 
       // Load the child workflow from API
       const childWorkflow = await this.loadChildWorkflow(workflowId)
@@ -102,9 +92,6 @@ export class WorkflowBlockHandler implements BlockHandler {
       const result = await subExecutor.execute(workflowId)
       const duration = performance.now() - startTime
 
-      // Remove current execution from stack after completion
-      WorkflowBlockHandler.executionStack.delete(executionId)
-
       logger.info(`Child workflow ${childWorkflowName} completed in ${Math.round(duration)}ms`)
 
       const childTraceSpans = this.captureChildWorkflowLogs(result, childWorkflowName, context)
@@ -131,8 +118,6 @@ export class WorkflowBlockHandler implements BlockHandler {
     } catch (error: any) {
       logger.error(`Error executing child workflow ${workflowId}:`, error)
 
-      const executionId = `${context.workflowId}_sub_${workflowId}_${block.id}`
-      WorkflowBlockHandler.executionStack.delete(executionId)
       const { workflows } = useWorkflowRegistry.getState()
       const workflowMetadata = workflows[workflowId]
       const childWorkflowName = workflowMetadata?.name || workflowId
