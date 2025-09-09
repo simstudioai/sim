@@ -290,7 +290,7 @@ export function UploadModal({
             <Button
               onClick={handleUpload}
               disabled={files.length === 0 || isUploading}
-              className='bg-[var(--brand-primary-hex)] font-[480] text-muted-foreground-foreground shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
+              className='bg-[var(--brand-primary-hex)] font-[480] text-muted-foreground shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
             >
               {isUploading
                 ? uploadProgress.stage === 'uploading'
