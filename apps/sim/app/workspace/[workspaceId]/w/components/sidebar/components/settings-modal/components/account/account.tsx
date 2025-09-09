@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { signOut, useSession } from '@/lib/auth-client'
+import { useBrandConfig } from '@/lib/branding/branding'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/account/hooks/use-profile-picture-upload'
 import { clearUserData } from '@/stores'
@@ -20,10 +21,11 @@ interface AccountProps {
   onOpenChange: (open: boolean) => void
 }
 
-export function Account({ onOpenChange }: AccountProps) {
+export function Account(_props: AccountProps) {
   const router = useRouter()
+  const brandConfig = useBrandConfig()
 
-  const { data: session, isPending, error } = useSession()
+  const { data: session, isPending } = useSession()
 
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -48,7 +50,6 @@ export function Account({ onOpenChange }: AccountProps) {
     fileInputRef: profilePictureInputRef,
     handleThumbnailClick: handleProfilePictureClick,
     handleFileChange: handleProfilePictureChange,
-    handleRemove: handleProfilePictureRemove,
     isUploading: isUploadingProfilePicture,
   } = useProfilePictureUpload({
     currentImage: userImage,
@@ -295,17 +296,20 @@ export function Account({ onOpenChange }: AccountProps) {
                   className='group relative flex h-12 w-12 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full bg-[#802FFF] transition-all hover:opacity-80'
                   onClick={handleProfilePictureClick}
                 >
-                  {profilePictureUrl || userImage ? (
-                    <Image
-                      src={profilePictureUrl || userImage || ''}
-                      alt={name || 'User'}
-                      width={48}
-                      height={48}
-                      className='h-full w-full object-cover'
-                    />
-                  ) : (
-                    <AgentIcon className='h-6 w-6 text-white' />
-                  )}
+                  {(() => {
+                    const imageUrl = profilePictureUrl || userImage || brandConfig.logoUrl
+                    return imageUrl ? (
+                      <Image
+                        src={imageUrl}
+                        alt={name || 'User'}
+                        width={48}
+                        height={48}
+                        className='h-full w-full object-cover'
+                      />
+                    ) : (
+                      <AgentIcon className='h-6 w-6 text-white' />
+                    )
+                  })()}
 
                   {/* Upload overlay */}
                   <div className='absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100'>
