@@ -12,9 +12,10 @@ const logger = createLogger('UpdateUserProfileAPI')
 const UpdateProfileSchema = z
   .object({
     name: z.string().min(1, 'Name is required').optional(),
+    image: z.string().url('Invalid image URL').optional(),
   })
-  .refine((data) => data.name !== undefined, {
-    message: 'Name field must be provided',
+  .refine((data) => data.name !== undefined || data.image !== undefined, {
+    message: 'At least one field (name or image) must be provided',
   })
 
 export const dynamic = 'force-dynamic'
@@ -38,6 +39,7 @@ export async function PATCH(request: NextRequest) {
     // Build update object
     const updateData: any = { updatedAt: new Date() }
     if (validatedData.name !== undefined) updateData.name = validatedData.name
+    if (validatedData.image !== undefined) updateData.image = validatedData.image
 
     // Update user profile
     const [updatedUser] = await db
