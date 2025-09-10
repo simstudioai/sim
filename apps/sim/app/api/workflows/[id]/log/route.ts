@@ -24,42 +24,48 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const body = await request.json()
     const { logs, executionId, result } = body
 
-    // If result is provided, use logging system for full tool call extraction
     if (result) {
       logger.info(`[${requestId}] Persisting execution result for workflow: ${id}`, {
         executionId,
         success: result.success,
       })
 
-      // Check if this execution is from chat using only the explicit source flag
       const isChatExecution = result.metadata?.source === 'chat'
 
-      // Also log to logging system
       const triggerType = isChatExecution ? 'chat' : 'manual'
       const loggingSession = new LoggingSession(id, executionId, triggerType, requestId)
 
+      const userId = validation.workflow.userId
+      const workspaceId = validation.workflow.workspaceId || ''
+
       await loggingSession.safeStart({
-        userId: '', // TODO: Get from session
-        workspaceId: '', // TODO: Get from workflow
+        userId,
+        workspaceId,
         variables: {},
       })
 
-      // Build trace spans from execution logs
-      const { traceSpans } = buildTraceSpans(result)
-
-      await loggingSession.safeComplete({
-        endedAt: new Date().toISOString(),
-        totalDurationMs: result.metadata?.duration || 0,
-        finalOutput: result.output || {},
-        traceSpans,
-      })
+      if (result.success === false) {
+        const message = result.error || 'Workflow execution failed'
+        await loggingSession.safeCompleteWithError({
+          endedAt: new Date().toISOString(),
+          totalDurationMs: result.metadata?.duration || 0,
+          error: { message },
+        })
+      } else {
+        const { traceSpans } = buildTraceSpans(result)
+        await loggingSession.safeComplete({
+          endedAt: new Date().toISOString(),
+          totalDurationMs: result.metadata?.duration || 0,
+          finalOutput: result.output || {},
+          traceSpans,
+        })
+      }
 
       return createSuccessResponse({
         message: 'Execution logs persisted successfully',
       })
     }
 
-    // Fall back to the original log format if 'result' isn't provided
     if (!logs || !Array.isArray(logs) || logs.length === 0) {
       logger.warn(`[${requestId}] No logs provided for workflow: ${id}`)
       return createErrorResponse('No logs provided', 400)

@@ -9,6 +9,21 @@ import { getTool } from '@/tools/utils'
 const logger = createLogger('Serializer')
 
 /**
+ * Structured validation error for pre-execution workflow validation
+ */
+export class WorkflowValidationError extends Error {
+  constructor(
+    message: string,
+    public blockId?: string,
+    public blockType?: string,
+    public blockName?: string
+  ) {
+    super(message)
+    this.name = 'WorkflowValidationError'
+  }
+}
+
+/**
  * Helper function to check if a subblock should be included in serialization based on current mode
  */
 function shouldIncludeField(subBlockConfig: SubBlockConfig, isAdvancedMode: boolean): boolean {
@@ -29,6 +44,11 @@ export class Serializer {
     parallels?: Record<string, Parallel>,
     validateRequired = false
   ): SerializedWorkflow {
+    // Validate subflow requirements (loops/parallels) before serialization if requested
+    if (validateRequired) {
+      this.validateSubflowsBeforeExecution(blocks, loops || {}, parallels || {})
+    }
+
     return {
       version: '1.0',
       blocks: Object.values(blocks).map((block) => this.serializeBlock(block, validateRequired)),
@@ -41,6 +61,99 @@ export class Serializer {
       loops,
       parallels,
     }
+  }
+
+  /**
+   * Validate loop and parallel subflows for required inputs when running in "each/collection" modes
+   */
+  private validateSubflowsBeforeExecution(
+    blocks: Record<string, BlockState>,
+    loops: Record<string, Loop>,
+    parallels: Record<string, Parallel>
+  ): void {
+    // Validate loops in forEach mode
+    Object.values(loops || {}).forEach((loop) => {
+      if (!loop) return
+      if (loop.loopType === 'forEach') {
+        const items = (loop as any).forEachItems
+
+        const hasNonEmptyCollection = (() => {
+          if (items === undefined || items === null) return false
+          if (Array.isArray(items)) return items.length > 0
+          if (typeof items === 'object') return Object.keys(items).length > 0
+          if (typeof items === 'string') {
+            const trimmed = items.trim()
+            if (trimmed.length === 0) return false
+            // If it looks like JSON, parse to confirm non-empty [] / {}
+            if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+              try {
+                const parsed = JSON.parse(trimmed)
+                if (Array.isArray(parsed)) return parsed.length > 0
+                if (parsed && typeof parsed === 'object') return Object.keys(parsed).length > 0
+              } catch {
+                // Non-JSON or invalid JSON string – allow non-empty string (could be a reference like <start.items>)
+                return true
+              }
+            }
+            // Non-JSON string – allow (may be a variable reference/expression)
+            return true
+          }
+          return false
+        })()
+
+        if (!hasNonEmptyCollection) {
+          const blockName = blocks[loop.id]?.name || 'Loop'
+          const error = new WorkflowValidationError(
+            `${blockName} requires a collection for forEach mode. Provide a non-empty array/object or a variable reference.`,
+            loop.id,
+            'loop',
+            blockName
+          )
+          throw error
+        }
+      }
+    })
+
+    // Validate parallels in collection mode
+    Object.values(parallels || {}).forEach((parallel) => {
+      if (!parallel) return
+      if ((parallel as any).parallelType === 'collection') {
+        const distribution = (parallel as any).distribution
+
+        const hasNonEmptyDistribution = (() => {
+          if (distribution === undefined || distribution === null) return false
+          if (Array.isArray(distribution)) return distribution.length > 0
+          if (typeof distribution === 'object') return Object.keys(distribution).length > 0
+          if (typeof distribution === 'string') {
+            const trimmed = distribution.trim()
+            if (trimmed.length === 0) return false
+            // If it looks like JSON, parse to confirm non-empty [] / {}
+            if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+              try {
+                const parsed = JSON.parse(trimmed)
+                if (Array.isArray(parsed)) return parsed.length > 0
+                if (parsed && typeof parsed === 'object') return Object.keys(parsed).length > 0
+              } catch {
+                return true
+              }
+            }
+            return true
+          }
+          return false
+        })()
+
+        if (!hasNonEmptyDistribution) {
+          const blockName = blocks[parallel.id]?.name || 'Parallel'
+          const error = new WorkflowValidationError(
+            `${blockName} requires a collection for collection mode. Provide a non-empty array/object or a variable reference.`,
+            parallel.id,
+            'parallel',
+            blockName
+          )
+          throw error
+        }
+      }
+    })
   }
 
   private serializeBlock(block: BlockState, validateRequired = false): SerializedBlock {
