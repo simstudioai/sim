@@ -35,6 +35,7 @@ import {
   CustomToolModal,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
 import { McpServerModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/tool-input/components/mcp-server-modal/mcp-server-modal'
+import { McpToolsList } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/tool-input/components/mcp-tools-list'
 import { ToolCommand } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/tool-input/components/tool-command/tool-command'
 import { ToolCredentialSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/tool-input/components/tool-credential-selector'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
@@ -808,6 +809,30 @@ export function ToolInput({
     setDragOverIndex(null)
   }
 
+  const handleMcpToolSelect = (newTool: StoredTool, closePopover = true) => {
+    if (isWide) {
+      setStoreValue([
+        ...selectedTools.map((tool, index) => ({
+          ...tool,
+          isExpanded: Math.floor(selectedTools.length / 2) === Math.floor(index / 2),
+        })),
+        newTool,
+      ])
+    } else {
+      setStoreValue([
+        ...selectedTools.map((tool) => ({
+          ...tool,
+          isExpanded: false,
+        })),
+        newTool,
+      ])
+    }
+
+    if (closePopover) {
+      setOpen(false)
+    }
+  }
+
   const handleDrop = (e: React.DragEvent, dropIndex: number) => {
     if (isPreview || disabled || draggedIndex === null || draggedIndex === dropIndex) return
     e.preventDefault()
@@ -1263,79 +1288,13 @@ export function ToolInput({
                   )}
 
                   {/* Display MCP tools */}
-                  {mcpTools.length > 0 &&
-                    mcpTools.some((tool) => customFilter(tool.name, searchQuery || '') > 0) && (
-                      <>
-                        <div className='px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs'>
-                          MCP Tools
-                        </div>
-                        <ToolCommand.Group className='-mx-1 -px-1'>
-                          {mcpTools
-                            .filter((tool) => customFilter(tool.name, searchQuery || '') > 0)
-                            .map((mcpTool) => (
-                              <ToolCommand.Item
-                                key={mcpTool.id}
-                                value={mcpTool.name}
-                                onSelect={() => {
-                                  if (isPreview || disabled) return
-
-                                  const newTool: StoredTool = {
-                                    type: 'mcp',
-                                    title: mcpTool.name,
-                                    toolId: mcpTool.id,
-                                    params: {
-                                      serverId: mcpTool.serverId,
-                                      toolName: mcpTool.name,
-                                      serverName: mcpTool.serverName,
-                                    },
-                                    isExpanded: true,
-                                    usageControl: 'auto',
-                                  }
-
-                                  if (isWide) {
-                                    setStoreValue([
-                                      ...selectedTools.map((tool, index) => ({
-                                        ...tool,
-                                        isExpanded:
-                                          Math.floor(selectedTools.length / 2) ===
-                                          Math.floor(index / 2),
-                                      })),
-                                      newTool,
-                                    ])
-                                  } else {
-                                    setStoreValue([
-                                      ...selectedTools.map((tool) => ({
-                                        ...tool,
-                                        isExpanded: false,
-                                      })),
-                                      newTool,
-                                    ])
-                                  }
-                                  setOpen(false)
-                                }}
-                                className='flex cursor-pointer items-center gap-2'
-                              >
-                                <div
-                                  className='flex h-6 w-6 items-center justify-center rounded'
-                                  style={{ backgroundColor: mcpTool.bgColor }}
-                                >
-                                  <IconComponent
-                                    icon={mcpTool.icon}
-                                    className='h-4 w-4 text-white'
-                                  />
-                                </div>
-                                <span
-                                  className='max-w-[140px] truncate'
-                                  title={`${mcpTool.name} (${mcpTool.serverName})`}
-                                >
-                                  {mcpTool.name}
-                                </span>
-                              </ToolCommand.Item>
-                            ))}
-                        </ToolCommand.Group>
-                        <ToolCommand.Separator />
-                      </>
-                    )}
+                  <McpToolsList
+                    mcpTools={mcpTools}
+                    searchQuery={searchQuery || ''}
+                    customFilter={customFilter}
+                    onToolSelect={handleMcpToolSelect}
+                    disabled={isPreview || disabled}
+                  />
 
                   {/* Display built-in tools */}
                   {toolBlocks.some((block) => customFilter(block.name, searchQuery || '') > 0) && (
@@ -1883,77 +1842,13 @@ export function ToolInput({
                     )}
 
                     {/* Display MCP tools */}
-                    {mcpTools.length > 0 &&
-                      mcpTools.some((tool) => customFilter(tool.name, searchQuery || '') > 0) && (
-                        <>
-                          <div className='px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs'>
-                            MCP Tools
-                          </div>
-                          <ToolCommand.Group className='-mx-1 -px-1'>
-                            {mcpTools
-                              .filter((tool) => customFilter(tool.name, searchQuery || '') > 0)
-                              .map((mcpTool) => (
-                                <ToolCommand.Item
-                                  key={mcpTool.id}
-                                  value={mcpTool.name}
-                                  onSelect={() => {
-                                    const newTool: StoredTool = {
-                                      type: 'mcp',
-                                      title: mcpTool.name,
-                                      toolId: mcpTool.id,
-                                      params: {
-                                        serverId: mcpTool.serverId,
-                                        toolName: mcpTool.name,
-                                        serverName: mcpTool.serverName,
-                                      },
-                                      isExpanded: true,
-                                      usageControl: 'auto',
-                                    }
-
-                                    if (isWide) {
-                                      setStoreValue([
-                                        ...selectedTools.map((tool, index) => ({
-                                          ...tool,
-                                          isExpanded:
-                                            Math.floor(selectedTools.length / 2) ===
-                                            Math.floor(index / 2),
-                                        })),
-                                        newTool,
-                                      ])
-                                    } else {
-                                      setStoreValue([
-                                        ...selectedTools.map((tool) => ({
-                                          ...tool,
-                                          isExpanded: false,
-                                        })),
-                                        newTool,
-                                      ])
-                                    }
-                                    setOpen(false)
-                                  }}
-                                  className='flex cursor-pointer items-center gap-2'
-                                >
-                                  <div
-                                    className='flex h-6 w-6 items-center justify-center rounded'
-                                    style={{ backgroundColor: mcpTool.bgColor }}
-                                  >
-                                    <IconComponent
-                                      icon={mcpTool.icon}
-                                      className='h-4 w-4 text-white'
-                                    />
-                                  </div>
-                                  <span
-                                    className='max-w-[140px] truncate'
-                                    title={`${mcpTool.name} (${mcpTool.serverName})`}
-                                  >
-                                    {mcpTool.name}
-                                  </span>
-                                </ToolCommand.Item>
-                              ))}
-                          </ToolCommand.Group>
-                          <ToolCommand.Separator />
-                        </>
-                      )}
+                    <McpToolsList
+                      mcpTools={mcpTools}
+                      searchQuery={searchQuery || ''}
+                      customFilter={customFilter}
+                      onToolSelect={(tool) => handleMcpToolSelect(tool, false)}
+                      disabled={false}
+                    />
 
                     {/* Display built-in tools */}
                     {toolBlocks.some(

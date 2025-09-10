@@ -14,6 +14,21 @@ import {
 
 const logger = createLogger('Tools')
 
+/**
+ * System parameters that should be filtered out when extracting tool arguments
+ * These are internal parameters used by the execution framework, not tool inputs
+ */
+const MCP_SYSTEM_PARAMETERS = new Set([
+  'serverId',
+  'toolName',
+  'serverName',
+  '_context',
+  'envVars',
+  'workflowVariables',
+  'blockData',
+  'blockNameMapping',
+])
+
 // Extract a concise, meaningful error message from diverse API error shapes
 function getDeepApiErrorMessage(errorInfo?: {
   status?: number
@@ -764,18 +779,8 @@ async function executeMcpTool(
       }
     } else {
       // Agent block usage: extract MCP-specific arguments by filtering out system parameters
-      const systemParams = new Set([
-        'serverId',
-        'toolName',
-        'serverName',
-        '_context',
-        'envVars',
-        'workflowVariables',
-        'blockData',
-        'blockNameMapping',
-      ])
       toolArguments = Object.fromEntries(
-        Object.entries(params).filter(([key]) => !systemParams.has(key))
+        Object.entries(params).filter(([key]) => !MCP_SYSTEM_PARAMETERS.has(key))
       )
     }
 

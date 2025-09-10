@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { createLogger } from '@/lib/logs/console/logger'
+import type { McpTransport } from '@/lib/mcp/types'
 import { useMcpServerTest } from '@/hooks/use-mcp-server-test'
 import { useMcpServersStore } from '@/stores/mcp-servers/store'
 
@@ -36,7 +37,7 @@ interface McpServerModalProps {
 
 interface McpServerFormData {
   name: string
-  transport: 'http' | 'sse' | 'streamable-http'
+  transport: McpTransport
   url?: string
   headers?: Record<string, string>
 }
@@ -171,7 +172,7 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
         setFormData((prev) => ({ ...prev, headers: newHeaders }))
       }
     },
-    [formData.headers]
+    [formData.headers, testResult, clearTestResult]
   )
 
   const handleTestConnection = useCallback(async () => {

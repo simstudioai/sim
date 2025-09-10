@@ -1,8 +1,10 @@
+import type { McpTransport } from '@/lib/mcp/types'
+
 export interface McpServerWithStatus {
   id: string
   name: string
   description?: string
-  transport: 'http' | 'sse' | 'streamable-http'
+  transport: McpTransport
   url?: string
   headers?: Record<string, string>
   command?: string

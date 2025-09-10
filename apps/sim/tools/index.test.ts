@@ -13,6 +13,23 @@ import { executeTool } from '@/tools/index'
 import { tools } from '@/tools/registry'
 import { getTool } from '@/tools/utils'
 
+// Helper function to create mock ExecutionContext
+const createMockExecutionContext = (overrides?: Partial<ExecutionContext>): ExecutionContext => ({
+  workflowId: 'test-workflow',
+  workspaceId: 'workspace-456',
+  blockStates: new Map(),
+  blockLogs: [],
+  metadata: { startTime: new Date().toISOString(), duration: 0 },
+  environmentVariables: {},
+  decisions: { router: new Map(), condition: new Map() },
+  loopIterations: new Map(),
+  loopItems: new Map(),
+  completedLoops: new Set(),
+  executedBlocks: new Set(),
+  activeExecutionPath: new Set(),
+  ...overrides,
+})
+
 describe('Tools Registry', () => {
   it.concurrent('should include all expected built-in tools', () => {
     expect(Object.keys(tools).length).toBeGreaterThan(10)
@@ -754,20 +771,7 @@ describe('MCP Tool Execution', () => {
       { preconnect: vi.fn() }
     ) as typeof fetch
 
-    const mockContext = {
-      workflowId: 'test-workflow',
-      workspaceId: 'workspace-456',
-      blockStates: new Map(),
-      blockLogs: [],
-      metadata: { startTime: new Date().toISOString(), duration: 0 },
-      environmentVariables: {},
-      decisions: { router: new Map(), condition: new Map() },
-      loopIterations: new Map(),
-      loopItems: new Map(),
-      completedLoops: new Set(),
-      executedBlocks: new Set(),
-      activeExecutionPath: new Set(),
-    } as ExecutionContext
+    const mockContext = createMockExecutionContext()
 
     const result = await executeTool(
       'mcp-123-list_files',
@@ -803,20 +807,7 @@ describe('MCP Tool Execution', () => {
       { preconnect: vi.fn() }
     ) as typeof fetch
 
-    const mockContext2 = {
-      workflowId: 'test-workflow',
-      workspaceId: 'workspace-456',
-      blockStates: new Map(),
-      blockLogs: [],
-      metadata: { startTime: new Date().toISOString(), duration: 0 },
-      environmentVariables: {},
-      decisions: { router: new Map(), condition: new Map() },
-      loopIterations: new Map(),
-      loopItems: new Map(),
-      completedLoops: new Set(),
-      executedBlocks: new Set(),
-      activeExecutionPath: new Set(),
-    } as ExecutionContext
+    const mockContext2 = createMockExecutionContext()
 
     await executeTool(
       'mcp-timestamp123-complex-tool-name',
@@ -846,20 +837,7 @@ describe('MCP Tool Execution', () => {
       { preconnect: vi.fn() }
     ) as typeof fetch
 
-    const mockContext3 = {
-      workflowId: 'test-workflow',
-      workspaceId: 'workspace-456',
-      blockStates: new Map(),
-      blockLogs: [],
-      metadata: { startTime: new Date().toISOString(), duration: 0 },
-      environmentVariables: {},
-      decisions: { router: new Map(), condition: new Map() },
-      loopIterations: new Map(),
-      loopItems: new Map(),
-      completedLoops: new Set(),
-      executedBlocks: new Set(),
-      activeExecutionPath: new Set(),
-    } as ExecutionContext
+    const mockContext3 = createMockExecutionContext()
 
     await executeTool(
       'mcp-123-read_file',
@@ -893,20 +871,7 @@ describe('MCP Tool Execution', () => {
       { preconnect: vi.fn() }
     ) as typeof fetch
 
-    const mockContext4 = {
-      workflowId: 'test-workflow',
-      workspaceId: 'workspace-456',
-      blockStates: new Map(),
-      blockLogs: [],
-      metadata: { startTime: new Date().toISOString(), duration: 0 },
-      environmentVariables: {},
-      decisions: { router: new Map(), condition: new Map() },
-      loopIterations: new Map(),
-      loopItems: new Map(),
-      completedLoops: new Set(),
-      executedBlocks: new Set(),
-      activeExecutionPath: new Set(),
-    } as ExecutionContext
+    const mockContext4 = createMockExecutionContext()
 
     await executeTool(
       'mcp-123-search',
@@ -940,20 +905,7 @@ describe('MCP Tool Execution', () => {
       { preconnect: vi.fn() }
     ) as typeof fetch
 
-    const mockContext5 = {
-      workflowId: 'test-workflow',
-      workspaceId: 'workspace-456',
-      blockStates: new Map(),
-      blockLogs: [],
-      metadata: { startTime: new Date().toISOString(), duration: 0 },
-      environmentVariables: {},
-      decisions: { router: new Map(), condition: new Map() },
-      loopIterations: new Map(),
-      loopItems: new Map(),
-      completedLoops: new Set(),
-      executedBlocks: new Set(),
-      activeExecutionPath: new Set(),
-    } as ExecutionContext
+    const mockContext5 = createMockExecutionContext()
 
     const result = await executeTool(
       'mcp-123-nonexistent_tool',
@@ -976,20 +928,7 @@ describe('MCP Tool Execution', () => {
   })
 
   it.concurrent('should handle invalid MCP tool ID format', async () => {
-    const mockContext6 = {
-      workflowId: 'test-workflow',
-      workspaceId: 'workspace-456',
-      blockStates: new Map(),
-      blockLogs: [],
-      metadata: { startTime: new Date().toISOString(), duration: 0 },
-      environmentVariables: {},
-      decisions: { router: new Map(), condition: new Map() },
-      loopIterations: new Map(),
-      loopItems: new Map(),
-      completedLoops: new Set(),
-      executedBlocks: new Set(),
-      activeExecutionPath: new Set(),
-    } as ExecutionContext
+    const mockContext6 = createMockExecutionContext()
 
     const result = await executeTool(
       'invalid-mcp-id',
@@ -1008,20 +947,7 @@ describe('MCP Tool Execution', () => {
       preconnect: vi.fn(),
     }) as typeof fetch
 
-    const mockContext7 = {
-      workflowId: 'test-workflow',
-      workspaceId: 'workspace-456',
-      blockStates: new Map(),
-      blockLogs: [],
-      metadata: { startTime: new Date().toISOString(), duration: 0 },
-      environmentVariables: {},
-      decisions: { router: new Map(), condition: new Map() },
-      loopIterations: new Map(),
-      loopItems: new Map(),
-      completedLoops: new Set(),
-      executedBlocks: new Set(),
-      activeExecutionPath: new Set(),
-    } as ExecutionContext
+    const mockContext7 = createMockExecutionContext()
 
     const result = await executeTool(
       'mcp-123-test_tool',

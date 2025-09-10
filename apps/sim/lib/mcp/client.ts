@@ -38,7 +38,7 @@ export class McpClient {
   private pendingRequests = new Map<
     string | number,
     {
-      resolve: (value: any) => void
+      resolve: (value: JsonRpcResponse) => void
       reject: (error: Error) => void
       timeout: NodeJS.Timeout
     }
@@ -337,11 +337,12 @@ export class McpClient {
       throw new McpError('URL required for HTTP transport')
     }
 
-    const urlsToTry = [
-      this.config.url,
-      ...(this.config.url.endsWith('/') ? [] : [`${this.config.url}/`]),
-      ...(this.config.url.endsWith('/') ? [this.config.url.slice(0, -1)] : []),
-    ]
+    const urlsToTry = [this.config.url]
+    if (!this.config.url.endsWith('/')) {
+      urlsToTry.push(`${this.config.url}/`)
+    } else {
+      urlsToTry.push(this.config.url.slice(0, -1))
+    }
 
     let lastError: Error | null = null
     const originalUrl = this.config.url
@@ -429,6 +430,18 @@ export class McpClient {
         const responseText = await response.text()
         this.handleSseResponse(responseText, request.id)
       } else {
+        const unexpectedType = contentType || 'unknown'
+        logger.warn(`[${this.config.name}] Unexpected response content type: ${unexpectedType}`)
+
+        const responseText = await response.text()
+        logger.debug(
+          `[${this.config.name}] Unexpected response body:`,
+          responseText.substring(0, 200)
+        )
+
+        throw new McpError(
+          `Unexpected response content type: ${unexpectedType}. Expected application/json or text/event-stream.`
+        )
       }
     }
   }

@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
+import type { McpTransport } from '@/lib/mcp/types'
 import { validateMcpServerUrl } from '@/lib/mcp/url-validator'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
 import { db } from '@/db'
@@ -11,6 +12,13 @@ import { mcpServers } from '@/db/schema'
 const logger = createLogger('McpServersAPI')
 
 export const dynamic = 'force-dynamic'
+
+/**
+ * Check if transport type requires a URL
+ */
+function isUrlBasedTransport(transport: McpTransport): boolean {
+  return transport === 'http' || transport === 'sse' || transport === 'streamable-http'
+}
 
 /**
  * GET - List all registered MCP servers for the workspace
@@ -62,12 +70,7 @@ export const POST = withMcpAuth('write')(
         )
       }
 
-      if (
-        (body.transport === 'http' ||
-          body.transport === 'sse' ||
-          body.transport === 'streamable-http') &&
-        body.url
-      ) {
+      if (isUrlBasedTransport(body.transport) && body.url) {
         const urlValidation = validateMcpServerUrl(body.url)
         if (!urlValidation.isValid) {
           return createMcpErrorResponse(

@@ -3,6 +3,7 @@
  */
 
 import { and, eq, isNull } from 'drizzle-orm'
+import { isTest } from '@/lib/environment'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { McpClient } from '@/lib/mcp/client'
@@ -12,6 +13,7 @@ import type {
   McpTool,
   McpToolCall,
   McpToolResult,
+  McpTransport,
 } from '@/lib/mcp/types'
 import { MCP_CONSTANTS } from '@/lib/mcp/utils'
 import { generateRequestId } from '@/lib/utils'
@@ -292,7 +294,7 @@ class McpService {
       id: server.id,
       name: server.name,
       description: server.description || undefined,
-      transport: server.transport as 'http' | 'sse',
+      transport: server.transport as McpTransport,
       url: server.url || undefined,
       headers: (server.headers as Record<string, string>) || {},
       timeout: server.timeout || 30000,
@@ -562,10 +564,23 @@ class McpService {
 
 export const mcpService = new McpService()
 
-process.on('SIGTERM', () => {
-  mcpService.dispose()
-})
+/**
+ * Setup process signal handlers for graceful shutdown
+ */
+export function setupMcpServiceCleanup() {
+  if (isTest) {
+    return
+  }
 
-process.on('SIGINT', () => {
-  mcpService.dispose()
-})
+  const cleanup = () => {
+    mcpService.dispose()
+  }
+
+  process.on('SIGTERM', cleanup)
+  process.on('SIGINT', cleanup)
+
+  return () => {
+    process.removeListener('SIGTERM', cleanup)
+    process.removeListener('SIGINT', cleanup)
+  }
+}

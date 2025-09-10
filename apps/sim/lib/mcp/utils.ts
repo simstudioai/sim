@@ -73,7 +73,7 @@ export function validateRequiredFields(
   body: Record<string, unknown>,
   requiredFields: string[]
 ): { isValid: true } | { isValid: false; error: string } {
-  const missingFields = requiredFields.filter((field) => !body[field])
+  const missingFields = requiredFields.filter((field) => !(field in body))
 
   if (missingFields.length > 0) {
     return {

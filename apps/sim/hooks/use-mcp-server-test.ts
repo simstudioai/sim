@@ -2,12 +2,20 @@
 
 import { useCallback, useState } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
+import type { McpTransport } from '@/lib/mcp/types'
 
 const logger = createLogger('useMcpServerTest')
 
+/**
+ * Check if transport type requires a URL
+ */
+function isUrlBasedTransport(transport: McpTransport): boolean {
+  return transport === 'http' || transport === 'sse' || transport === 'streamable-http'
+}
+
 export interface McpServerTestConfig {
   name: string
-  transport: 'http' | 'sse' | 'streamable-http'
+  transport: McpTransport
   url?: string
   headers?: Record<string, string>
   timeout?: number
@@ -40,12 +48,7 @@ export function useMcpServerTest() {
         return result
       }
 
-      if (
-        (config.transport === 'http' ||
-          config.transport === 'sse' ||
-          config.transport === 'streamable-http') &&
-        !config.url?.trim()
-      ) {
+      if (isUrlBasedTransport(config.transport) && !config.url?.trim()) {
         const result: McpServerTestResult = {
           success: false,
           message: 'Missing server URL',

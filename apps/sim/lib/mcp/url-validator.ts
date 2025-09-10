@@ -28,14 +28,18 @@ const PRIVATE_IPV6_RANGES = [
   /^fe80:/, // Link-local (fe80::/10)
 ]
 
-// Blocked hostnames
+// Blocked hostnames - SSRF protection
 const BLOCKED_HOSTNAMES = [
   'localhost',
+  // Cloud metadata endpoints
   'metadata.google.internal', // Google Cloud metadata
-  '169.254.169.254', // AWS/Azure metadata service
-  'metadata.azure.com', // Azure metadata
-  'consul', // Service discovery
-  'etcd', // etcd service
+  'metadata.gce.internal', // Google Compute Engine metadata (legacy)
+  '169.254.169.254', // AWS/Azure/GCP metadata service IP
+  'metadata.azure.com', // Azure Instance Metadata Service
+  'instance-data.ec2.internal', // AWS EC2 instance metadata (internal)
+  // Service discovery endpoints
+  'consul', // HashiCorp Consul
+  'etcd', // etcd key-value store
 ]
 
 // Blocked ports

@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
-import type { McpToolCall, McpToolResult } from '@/lib/mcp/types'
+import type { McpTool, McpToolCall, McpToolResult } from '@/lib/mcp/types'
 import {
   categorizeError,
   createMcpErrorResponse,
@@ -14,6 +14,29 @@ import {
 const logger = createLogger('McpToolExecutionAPI')
 
 export const dynamic = 'force-dynamic'
+
+// Type definitions for improved type safety
+interface SchemaProperty {
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array'
+  description?: string
+  enum?: unknown[]
+  format?: string
+  items?: SchemaProperty
+  properties?: Record<string, SchemaProperty>
+}
+
+interface ToolExecutionResult {
+  success: boolean
+  output?: McpToolResult
+  error?: string
+}
+
+/**
+ * Type guard to safely check if a schema property has a type field
+ */
+function hasType(prop: unknown): prop is SchemaProperty {
+  return typeof prop === 'object' && prop !== null && 'type' in prop
+}
 
 /**
  * POST - Execute a tool on an MCP server
@@ -65,6 +88,46 @@ export const POST = withMcpAuth('read')(
             'Tool not found',
             404
           )
+        }
+
+        // Parse array arguments based on tool schema
+        if (tool.inputSchema?.properties) {
+          for (const [paramName, paramSchema] of Object.entries(tool.inputSchema.properties)) {
+            const schema = paramSchema as any
+            if (
+              schema.type === 'array' &&
+              args[paramName] !== undefined &&
+              typeof args[paramName] === 'string'
+            ) {
+              const stringValue = args[paramName].trim()
+              if (stringValue) {
+                try {
+                  // Try to parse as JSON first (handles ["item1", "item2"])
+                  const parsed = JSON.parse(stringValue)
+                  if (Array.isArray(parsed)) {
+                    args[paramName] = parsed
+                  } else {
+                    // JSON parsed but not an array, wrap in array
+                    args[paramName] = [parsed]
+                  }
+                } catch (error) {
+                  // JSON parsing failed - treat as comma-separated if contains commas, otherwise single item
+                  if (stringValue.includes(',')) {
+                    args[paramName] = stringValue
+                      .split(',')
+                      .map((item) => item.trim())
+                      .filter((item) => item)
+                  } else {
+                    // Single item - wrap in array since schema expects array
+                    args[paramName] = [stringValue]
+                  }
+                }
+              } else {
+                // Empty string becomes empty array
+                args[paramName] = []
+              }
+            }
+          }
         }
       } catch (error) {
         logger.warn(
@@ -124,7 +187,7 @@ export const POST = withMcpAuth('read')(
 /**
  * Validate tool arguments against schema
  */
-function validateToolArguments(tool: any, args: any): string | null {
+function validateToolArguments(tool: McpTool, args: Record<string, unknown>): string | null {
   if (!tool.inputSchema) {
     return null // No schema to validate against
   }
@@ -142,8 +205,8 @@ function validateToolArguments(tool: any, args: any): string | null {
   if (schema.properties && args) {
     for (const [propName, propSchema] of Object.entries(schema.properties)) {
       const propValue = args[propName]
-      if (propValue !== undefined) {
-        const expectedType = (propSchema as any).type
+      if (propValue !== undefined && hasType(propSchema)) {
+        const expectedType = propSchema.type
         const actualType = typeof propValue
 
         if (expectedType === 'string' && actualType !== 'string') {
@@ -174,12 +237,11 @@ function validateToolArguments(tool: any, args: any): string | null {
 /**
  * Transform MCP tool result to platform format
  */
-function transformToolResult(result: McpToolResult): any {
+function transformToolResult(result: McpToolResult): ToolExecutionResult {
   if (result.isError) {
     return {
       success: false,
       error: result.content?.[0]?.text || 'Tool execution failed',
-      output: null,
     }
   }
 

@@ -176,8 +176,6 @@ export function withMcpAuth(permissionLevel: McpPermissionLevel = 'read') {
       request: NextRequest,
       ...args: any[]
     ): Promise<NextResponse> {
-      const routeParams = args[0]?.params || {}
-
       const authResult = await validateMcpAuth(request, permissionLevel)
 
       if (!authResult.success) {

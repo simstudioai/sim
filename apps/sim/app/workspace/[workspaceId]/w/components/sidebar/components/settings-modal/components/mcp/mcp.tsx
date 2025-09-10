@@ -19,6 +19,7 @@ import {
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
 import { formatDisplayText } from '@/components/ui/formatted-text'
 import { createLogger } from '@/lib/logs/console/logger'
+import type { McpTransport } from '@/lib/mcp/types'
 import { useMcpServerTest } from '@/hooks/use-mcp-server-test'
 import { useMcpTools } from '@/hooks/use-mcp-tools'
 import { useMcpServersStore } from '@/stores/mcp-servers/store'
@@ -27,7 +28,7 @@ const logger = createLogger('McpSettings')
 
 interface McpServerFormData {
   name: string
-  transport: 'http' | 'sse' | 'streamable-http'
+  transport: McpTransport
   url?: string
   timeout?: number
   headers?: Record<string, string>
@@ -825,14 +826,14 @@ export function MCP() {
                                 const scrollLeft = e.currentTarget.scrollLeft
                                 setHeaderScrollLeft((prev) => ({
                                   ...prev,
-                                  [`key2-${index}`]: scrollLeft,
+                                  [`key-${index}`]: scrollLeft,
                                 }))
                               }}
                               onInput={(e) => {
                                 const scrollLeft = e.currentTarget.scrollLeft
                                 setHeaderScrollLeft((prev) => ({
                                   ...prev,
-                                  [`key2-${index}`]: scrollLeft,
+                                  [`key-${index}`]: scrollLeft,
                                 }))
                               }}
                               className='h-9 text-transparent caret-foreground placeholder:text-muted-foreground/50'
@@ -841,7 +842,7 @@ export function MCP() {
                               <div
                                 className='whitespace-nowrap'
                                 style={{
-                                  transform: `translateX(-${headerScrollLeft[`key2-${index}`] || 0}px)`,
+                                  transform: `translateX(-${headerScrollLeft[`key-${index}`] || 0}px)`,
                                 }}
                               >
                                 {formatDisplayText(key || '', true)}
@@ -861,14 +862,14 @@ export function MCP() {
                                 const scrollLeft = e.currentTarget.scrollLeft
                                 setHeaderScrollLeft((prev) => ({
                                   ...prev,
-                                  [`value2-${index}`]: scrollLeft,
+                                  [`value-${index}`]: scrollLeft,
                                 }))
                               }}
                               onInput={(e) => {
                                 const scrollLeft = e.currentTarget.scrollLeft
                                 setHeaderScrollLeft((prev) => ({
                                   ...prev,
-                                  [`value2-${index}`]: scrollLeft,
+                                  [`value-${index}`]: scrollLeft,
                                 }))
                               }}
                               className='h-9 text-transparent caret-foreground placeholder:text-muted-foreground/50'
@@ -877,7 +878,7 @@ export function MCP() {
                               <div
                                 className='whitespace-nowrap'
                                 style={{
-                                  transform: `translateX(-${headerScrollLeft[`value2-${index}`] || 0}px)`,
+                                  transform: `translateX(-${headerScrollLeft[`value-${index}`] || 0}px)`,
                                 }}
                               >
                                 {formatDisplayText(value || '', true)}

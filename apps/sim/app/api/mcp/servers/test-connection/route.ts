@@ -3,13 +3,20 @@ import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { McpClient } from '@/lib/mcp/client'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
-import type { McpServerConfig } from '@/lib/mcp/types'
+import type { McpServerConfig, McpTransport } from '@/lib/mcp/types'
 import { validateMcpServerUrl } from '@/lib/mcp/url-validator'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
 
 const logger = createLogger('McpServerTestAPI')
 
 export const dynamic = 'force-dynamic'
+
+/**
+ * Check if transport type requires a URL
+ */
+function isUrlBasedTransport(transport: McpTransport): boolean {
+  return transport === 'http' || transport === 'sse' || transport === 'streamable-http'
+}
 
 /**
  * Resolve environment variables in strings
@@ -35,7 +42,7 @@ function resolveEnvVars(value: string, envVars: Record<string, string>): string 
 
 interface TestConnectionRequest {
   name: string
-  transport: 'http' | 'sse' | 'streamable-http'
+  transport: McpTransport
   url?: string
   headers?: Record<string, string>
   timeout?: number
@@ -78,12 +85,15 @@ export const POST = withMcpAuth('write')(
         )
       }
 
-      if (
-        (body.transport === 'http' ||
-          body.transport === 'sse' ||
-          body.transport === 'streamable-http') &&
-        body.url
-      ) {
+      if (isUrlBasedTransport(body.transport)) {
+        if (!body.url) {
+          return createMcpErrorResponse(
+            new Error('URL is required for HTTP-based transports'),
+            'Missing required URL',
+            400
+          )
+        }
+
         const urlValidation = validateMcpServerUrl(body.url)
         if (!urlValidation.isValid) {
           return createMcpErrorResponse(
