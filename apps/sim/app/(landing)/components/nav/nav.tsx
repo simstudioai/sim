@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { ArrowRight, ChevronRight } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { GithubIcon } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console/logger'
 import { soehne } from '@/app/fonts/soehne/soehne'
@@ -11,9 +12,10 @@ import { soehne } from '@/app/fonts/soehne/soehne'
 const logger = createLogger('nav')
 
 export default function Nav() {
-  const [githubStars, setGithubStars] = useState('14.5k')
+  const [githubStars, setGithubStars] = useState('14.7k')
   const [isHovered, setIsHovered] = useState(false)
   const [isLoginHovered, setIsLoginHovered] = useState(false)
+  const router = useRouter()
 
   useEffect(() => {
     const fetchStars = async () => {
@@ -28,6 +30,11 @@ export default function Nav() {
 
     fetchStars()
   }, [])
+
+  const handleLoginClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    router.push('/login')
+  }
 
   const NavLinks = () => (
     <>
@@ -96,8 +103,8 @@ export default function Nav() {
 
         {/* Auth Buttons - Desktop shows both, Mobile shows only Get started */}
         <div className='flex items-center justify-center gap-[16px] pt-[1.5px]'>
-          <Link
-            href='/login'
+          <button
+            onClick={handleLoginClick}
             onMouseEnter={() => setIsLoginHovered(true)}
             onMouseLeave={() => setIsLoginHovered(false)}
             className='group hidden text-[#2E2E2E] text-[16px] transition-colors hover:text-foreground md:block'
@@ -112,7 +119,7 @@ export default function Nav() {
                 )}
               </span>
             </span>
-          </Link>
+          </button>
           <Link
             href='/signup'
             onMouseEnter={() => setIsHovered(true)}

@@ -10,7 +10,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import '@/app/globals.css'
 
 import { SessionProvider } from '@/lib/session/session-context'
-import { ThemeProvider } from '@/app/theme-provider'
+import { ConditionalThemeProvider } from '@/app/conditional-theme-provider'
 import { ZoomPrevention } from '@/app/zoom-prevention'
 
 const logger = createLogger('RootLayout')
@@ -92,7 +92,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <PublicEnvScript />
       </head>
       <body suppressHydrationWarning>
-        <ThemeProvider>
+        <ConditionalThemeProvider>
           <SessionProvider>
             <BrandedLayout>
               <ZoomPrevention />
@@ -105,7 +105,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               )}
             </BrandedLayout>
           </SessionProvider>
-        </ThemeProvider>
+        </ConditionalThemeProvider>
       </body>
     </html>
   )
