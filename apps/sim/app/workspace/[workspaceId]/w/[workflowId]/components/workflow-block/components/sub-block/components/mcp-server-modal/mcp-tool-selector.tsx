@@ -54,7 +54,6 @@ export function McpToolSelector({
 
   const selectedTool = availableTools.find((tool) => tool.id === selectedToolId)
 
-  // Fetch tools on mount to ensure tool data is available for display (consistent with server selector)
   useEffect(() => {
     if (serverValue) {
       refreshTools()
@@ -67,7 +66,6 @@ export function McpToolSelector({
       availableTools.length > 0 &&
       !availableTools.find((tool) => tool.id === storeValue)
     ) {
-      // Only clear invalid selections if the user can actually edit (not disabled, not preview)
       if (!isPreview && !disabled) {
         setStoreValue('')
       }

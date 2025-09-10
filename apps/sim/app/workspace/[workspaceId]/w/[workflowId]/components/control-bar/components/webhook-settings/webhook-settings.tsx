@@ -388,7 +388,6 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
     setShowForm(false)
   }
 
-  // Check if there are actual changes when editing
   const hasChanges = () => {
     if (!originalWebhook) return false
     return (
@@ -401,7 +400,7 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
         JSON.stringify(originalWebhook.levelFilter.sort()) ||
       JSON.stringify(newWebhook.triggerFilter.sort()) !==
         JSON.stringify(originalWebhook.triggerFilter.sort()) ||
-      newWebhook.secret !== '' // If secret is provided, consider it a change
+      newWebhook.secret !== ''
     )
   }
 
