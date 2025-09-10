@@ -12,6 +12,7 @@ import { quickValidateEmail } from '@/lib/email/validation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
+import { soehne } from '@/app/fonts/soehne/soehne'
 
 const logger = createLogger('SignupForm')
 
@@ -361,14 +362,18 @@ function SignupFormContent({
   }
 
   return (
-    <div className='space-y-6'>
+    <div className={`${soehne.className} space-y-6 font-light`}>
       <div className='space-y-2 text-center'>
-        <h1 className='font-semibold text-[32px] text-white tracking-tight'>Create Account</h1>
-        <p className='text-neutral-400 text-sm'>Enter your details to create a new account</p>
+        <h1 className='auth-text-primary font-semibold text-[32px] tracking-tight'>
+          Create Account
+        </h1>
+        <p className='auth-text-secondary text-[16px]'>
+          Enter your details to create a new account
+        </p>
       </div>
 
       <div className='flex flex-col gap-6'>
-        <div className='rounded-xl border border-neutral-700/40 bg-neutral-800/50 p-6 backdrop-blur-sm'>
+        <div className='auth-card auth-card-shadow rounded-[10px] border p-6 backdrop-blur-sm'>
           <SocialLoginButtons
             githubAvailable={githubAvailable}
             googleAvailable={googleAvailable}
@@ -379,7 +384,7 @@ function SignupFormContent({
           {(githubAvailable || googleAvailable) && (
             <div className='relative mt-2 py-4'>
               <div className='absolute inset-0 flex items-center'>
-                <div className='w-full border-neutral-700/50 border-t' />
+                <div className='auth-divider w-full border-t' />
               </div>
             </div>
           )}
@@ -387,7 +392,7 @@ function SignupFormContent({
           <form onSubmit={onSubmit} className='space-y-5'>
             <div className='space-y-4'>
               <div className='space-y-2'>
-                <Label htmlFor='name' className='text-neutral-300'>
+                <Label htmlFor='name' className='auth-label'>
                   Full Name
                 </Label>
                 <Input
@@ -401,10 +406,10 @@ function SignupFormContent({
                   value={name}
                   onChange={handleNameChange}
                   className={cn(
-                    'border-neutral-700 bg-neutral-900 text-white placeholder:text-white/60',
+                    'auth-input rounded-[10px] transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
                     showNameValidationError &&
                       nameErrors.length > 0 &&
-                      'border-red-500 focus-visible:ring-red-500'
+                      'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
                   )}
                 />
                 {showNameValidationError && nameErrors.length > 0 && (
@@ -416,7 +421,7 @@ function SignupFormContent({
                 )}
               </div>
               <div className='space-y-2'>
-                <Label htmlFor='email' className='text-neutral-300'>
+                <Label htmlFor='email' className='auth-label'>
                   Email
                 </Label>
                 <Input
@@ -429,9 +434,9 @@ function SignupFormContent({
                   value={email}
                   onChange={handleEmailChange}
                   className={cn(
-                    'border-neutral-700 bg-neutral-900 text-white placeholder:text-white/60',
+                    'auth-input rounded-[10px] transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
                     (emailError || (showEmailValidationError && emailErrors.length > 0)) &&
-                      'border-red-500 focus-visible:ring-red-500'
+                      'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
                   )}
                 />
                 {showEmailValidationError && emailErrors.length > 0 && (
@@ -448,7 +453,7 @@ function SignupFormContent({
                 )}
               </div>
               <div className='space-y-2'>
-                <Label htmlFor='password' className='text-neutral-300'>
+                <Label htmlFor='password' className='auth-label'>
                   Password
                 </Label>
                 <div className='relative'>
@@ -462,12 +467,12 @@ function SignupFormContent({
                     autoCorrect='off'
                     value={password}
                     onChange={handlePasswordChange}
-                    className='border-neutral-700 bg-neutral-900 pr-10 text-white placeholder:text-white/60'
+                    className='auth-input rounded-[10px] pr-10 transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100'
                   />
                   <button
                     type='button'
                     onClick={() => setShowPassword(!showPassword)}
-                    className='-translate-y-1/2 absolute top-1/2 right-3 text-neutral-400 transition hover:text-white'
+                    className='-translate-y-1/2 absolute top-1/2 right-3 text-gray-500 transition hover:text-gray-700'
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -485,7 +490,7 @@ function SignupFormContent({
 
             <Button
               type='submit'
-              className='flex h-11 w-full items-center justify-center gap-2 bg-[var(--brand-primary-hex)] font-medium text-base text-white shadow-[var(--brand-primary-hex)]/20 shadow-lg transition-colors duration-200 hover:bg-[var(--brand-primary-hover-hex)]'
+              className='flex h-11 w-full items-center justify-center gap-2 rounded-[10px] border-brand-gradient bg-brand-gradient font-medium text-[16px] text-white shadow-brand-gradient transition-all duration-200 hover:bg-brand-gradient-hover'
               disabled={isLoading}
             >
               {isLoading ? 'Creating account...' : 'Create Account'}
@@ -493,8 +498,8 @@ function SignupFormContent({
           </form>
         </div>
 
-        <div className='text-center text-sm'>
-          <span className='text-neutral-400'>Already have an account? </span>
+        <div className='text-center text-[16px]'>
+          <span className='auth-text-secondary'>Already have an account? </span>
           <Link
             href={isInviteFlow ? `/login?invite_flow=true&callbackUrl=${redirectUrl}` : '/login'}
             className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
@@ -503,19 +508,13 @@ function SignupFormContent({
           </Link>
         </div>
 
-        <div className='text-center text-neutral-500/80 text-xs leading-relaxed'>
+        <div className='auth-text-muted text-center text-[14px] leading-relaxed'>
           By creating an account, you agree to our{' '}
-          <Link
-            href='/terms'
-            className='text-neutral-400 underline-offset-4 transition hover:text-neutral-300 hover:underline'
-          >
+          <Link href='/terms' className='auth-link underline-offset-4 transition hover:underline'>
             Terms of Service
           </Link>{' '}
           and{' '}
-          <Link
-            href='/privacy'
-            className='text-neutral-400 underline-offset-4 transition hover:text-neutral-300 hover:underline'
-          >
+          <Link href='/privacy' className='auth-link underline-offset-4 transition hover:underline'>
             Privacy Policy
           </Link>
         </div>

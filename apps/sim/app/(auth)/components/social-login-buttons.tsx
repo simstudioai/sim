@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { GithubIcon, GoogleIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { client } from '@/lib/auth-client'
+import { soehne } from '@/app/fonts/soehne/soehne'
 
 interface SocialLoginButtonsProps {
   githubAvailable: boolean
@@ -92,7 +93,7 @@ export function SocialLoginButtons({
   const githubButton = (
     <Button
       variant='outline'
-      className='w-full border-neutral-700 bg-neutral-900 text-white hover:bg-neutral-800 hover:text-white'
+      className='auth-social-button w-full rounded-[10px] font-light hover:bg-gray-50'
       disabled={!githubAvailable || isGithubLoading}
       onClick={signInWithGithub}
     >
@@ -104,7 +105,7 @@ export function SocialLoginButtons({
   const googleButton = (
     <Button
       variant='outline'
-      className='w-full border-neutral-700 bg-neutral-900 text-white hover:bg-neutral-800 hover:text-white'
+      className='auth-social-button w-full rounded-[10px] font-light hover:bg-gray-50'
       disabled={!googleAvailable || isGoogleLoading}
       onClick={signInWithGoogle}
     >
@@ -120,7 +121,7 @@ export function SocialLoginButtons({
   }
 
   return (
-    <div className='grid gap-3'>
+    <div className={`${soehne.className} grid gap-3 font-light`}>
       {githubAvailable && githubButton}
       {googleAvailable && googleButton}
     </div>

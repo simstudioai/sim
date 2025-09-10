@@ -120,12 +120,12 @@
     --gradient-secondary: 336 95% 65%; /* More vibrant pink */
 
     /* Brand Colors (Default Sim Theme) */
-    --brand-primary-hex: #701ffc; /* Primary brand purple */
-    --brand-primary-hover-hex: #802fff; /* Primary brand purple hover */
-    --brand-secondary-hex: #6518e6; /* Secondary brand purple */
+    --brand-primary-hex: #8357ff; /* Primary brand purple - matches Get Started gradient start */
+    --brand-primary-hover-hex: #9266ff; /* Primary brand purple hover - matches Get Started hover */
+    --brand-secondary-hex: #6f3dfa; /* Secondary brand purple - matches Get Started gradient end */
     --brand-accent-hex: #9d54ff; /* Accent purple for links */
     --brand-accent-hover-hex: #a66fff; /* Accent purple hover */
-    --brand-background-hex: #0c0c0c; /* Primary dark background */
+    --brand-background-hex: #ffffff; /* Primary light background */
 
     /* UI Surface Colors */
     --surface-elevated: #202020; /* Elevated surface background for dark mode */
@@ -190,10 +190,10 @@
     --gradient-primary: 263 90% 75%; /* More vibrant purple for dark mode */
     --gradient-secondary: 336 100% 72%; /* More vibrant pink for dark mode */
 
-    /* Brand Colors (Same in dark mode) */
-    --brand-primary-hex: #701ffc; /* Primary brand purple */
-    --brand-primary-hover-hex: #802fff; /* Primary brand purple hover */
-    --brand-secondary-hex: #6518e6; /* Secondary brand purple */
+    /* Brand Colors (Keep dark background for actual dark mode) */
+    --brand-primary-hex: #8357ff; /* Primary brand purple - matches Get Started gradient start */
+    --brand-primary-hover-hex: #9266ff; /* Primary brand purple hover - matches Get Started hover */
+    --brand-secondary-hex: #6f3dfa; /* Secondary brand purple - matches Get Started gradient end */
     --brand-accent-hex: #9d54ff; /* Accent purple for links */
     --brand-accent-hover-hex: #a66fff; /* Accent purple hover */
     --brand-background-hex: #0c0c0c; /* Primary dark background */
@@ -433,6 +433,124 @@ input[type="search"]::-ms-clear {
 
   .hover\:text-brand-accent-hover:hover {
     color: var(--brand-accent-hover-hex);
+  }
+
+  /* Gradient Button Utilities */
+  .bg-brand-gradient {
+    background: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--brand-primary-hex) 85%, white),
+      var(--brand-primary-hex)
+    );
+  }
+
+  .border-brand-gradient {
+    border-color: var(--brand-primary-hex);
+  }
+
+  .shadow-brand-gradient {
+    box-shadow: inset 0 2px 4px 0 color-mix(in srgb, var(--brand-primary-hex) 60%, transparent);
+  }
+
+  .hover\:bg-brand-gradient-hover:hover {
+    background: linear-gradient(
+      to bottom,
+      var(--brand-primary-hover-hex),
+      color-mix(in srgb, var(--brand-primary-hex) 90%, black)
+    );
+  }
+
+  /* Dark Background Adaptation - uses CSS custom property detection */
+  @supports (color: color-mix(in srgb, red, blue)) {
+    /* When brand background is dark, override auth colors */
+    body {
+      --auth-card-bg: color-mix(
+        in srgb,
+        var(--brand-background-hex, #ffffff) 0%,
+        rgba(255, 255, 255, 0.9)
+      );
+      --auth-card-border: color-mix(in srgb, var(--brand-background-hex, #e5e5e5) 0%, #e5e5e5);
+      --auth-text-primary: color-mix(in srgb, var(--brand-background-hex, #1a1a1a) 0%, #1a1a1a);
+      --auth-text-secondary: color-mix(in srgb, var(--brand-background-hex, #4a4a4a) 0%, #4a4a4a);
+      --auth-text-muted: color-mix(in srgb, var(--brand-background-hex, #737373) 0%, #737373);
+      --auth-input-bg: color-mix(in srgb, var(--brand-background-hex, #ffffff) 0%, #ffffff);
+      --auth-input-border: color-mix(in srgb, var(--brand-background-hex, #d1d5db) 0%, #d1d5db);
+      --auth-divider: color-mix(in srgb, var(--brand-background-hex, #e5e5e5) 0%, #e5e5e5);
+      --auth-grid-stroke: rgba(255, 255, 255, 0.6);
+      --auth-card-shadow: rgba(0, 0, 0, 0.05);
+      --auth-link-color: #737373;
+    }
+  }
+
+  .auth-dark-bg {
+    /* Dark theme overrides */
+    --auth-card-bg: rgba(42, 42, 42, 0.9);
+    --auth-card-border: #404040;
+    --auth-text-primary: #ffffff;
+    --auth-text-secondary: #e5e5e5;
+    --auth-text-muted: #a3a3a3;
+    --auth-input-bg: #333333;
+    --auth-input-border: #555555;
+    --auth-divider: #404040;
+    --auth-grid-stroke: rgba(255, 255, 255, 0.1);
+    --auth-card-shadow: rgba(0, 0, 0, 0.3);
+    --auth-link-color: #a3a3a3;
+  }
+
+  /* Apply the variables */
+  .auth-card {
+    background-color: var(--auth-card-bg, rgba(255, 255, 255, 0.9)) !important;
+    border-color: var(--auth-card-border, #e5e5e5) !important;
+  }
+
+  .auth-text-primary {
+    color: var(--auth-text-primary, #1a1a1a) !important;
+  }
+
+  .auth-text-secondary {
+    color: var(--auth-text-secondary, #4a4a4a) !important;
+  }
+
+  .auth-text-muted {
+    color: var(--auth-text-muted, #737373) !important;
+  }
+
+  .auth-input {
+    background-color: var(--auth-input-bg, #ffffff) !important;
+    border-color: var(--auth-input-border, #d1d5db) !important;
+    color: var(--auth-text-primary, #1a1a1a) !important;
+  }
+
+  .auth-input::placeholder {
+    color: var(--auth-text-muted, #737373) !important;
+  }
+
+  .auth-divider {
+    border-color: var(--auth-divider, #e5e5e5) !important;
+  }
+
+  .auth-social-button {
+    background-color: var(--auth-input-bg, #ffffff) !important;
+    border-color: var(--auth-input-border, #d1d5db) !important;
+    color: var(--auth-text-primary, #1a1a1a) !important;
+  }
+
+  .auth-label {
+    color: var(--auth-text-secondary, #4a4a4a) !important;
+  }
+
+  .auth-grid {
+    stroke: var(--auth-grid-stroke, rgba(128, 128, 128, 0.2)) !important;
+  }
+
+  .auth-card-shadow {
+    box-shadow:
+      0 10px 15px -3px var(--auth-card-shadow, rgba(0, 0, 0, 0.05)),
+      0 4px 6px -2px var(--auth-card-shadow, rgba(0, 0, 0, 0.05)) !important;
+  }
+
+  .auth-link {
+    color: var(--auth-link-color, #737373) !important;
   }
 
   /* Surface Utilities */

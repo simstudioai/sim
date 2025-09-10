@@ -6,16 +6,24 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { GithubIcon } from '@/components/icons'
+import { useBrandConfig } from '@/lib/branding/branding'
+import { isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { soehne } from '@/app/fonts/soehne/soehne'
 
 const logger = createLogger('nav')
 
-export default function Nav() {
+interface NavProps {
+  hideAuthButtons?: boolean
+  variant?: 'landing' | 'auth' | 'legal'
+}
+
+export default function Nav({ hideAuthButtons = false, variant = 'landing' }: NavProps = {}) {
   const [githubStars, setGithubStars] = useState('14.7k')
   const [isHovered, setIsHovered] = useState(false)
   const [isLoginHovered, setIsLoginHovered] = useState(false)
   const router = useRouter()
+  const brand = useBrandConfig()
 
   useEffect(() => {
     const fetchStars = async () => {
@@ -35,6 +43,27 @@ export default function Nav() {
     e.preventDefault()
     router.push('/login')
   }
+
+  // Self-hosted header for non-hosted instances
+  const SelfHostedHeader = () => (
+    <div className='relative z-10 px-6 pt-9'>
+      <div className='mx-auto flex max-w-7xl justify-center'>
+        <Link href='/' className='inline-flex'>
+          {brand.logoUrl ? (
+            <img
+              src={brand.logoUrl}
+              alt={`${brand.name} Logo`}
+              width={56}
+              height={56}
+              className='h-[56px] w-[56px] object-contain'
+            />
+          ) : (
+            <Image src='/sim.svg' alt={`${brand.name} Logo`} width={56} height={56} />
+          )}
+        </Link>
+      </div>
+    </div>
+  )
 
   const NavLinks = () => (
     <>
@@ -79,6 +108,12 @@ export default function Nav() {
     </>
   )
 
+  // If not hosted, show simple centered logo
+  if (!isHosted) {
+    return <SelfHostedHeader />
+  }
+
+  // For hosted instances, show full navigation
   return (
     <>
       <nav
@@ -86,59 +121,73 @@ export default function Nav() {
         className={`${soehne.className} flex w-full items-center justify-between px-4 pt-[12px] pb-[21px] sm:px-8 sm:pt-[8.5px] md:px-[44px]`}
       >
         <div className='flex items-center gap-[34px]'>
-          <Link href='/' aria-label='Sim home'>
-            <Image
-              src='/logo/b&w/text/b&w.svg'
-              alt='Sim - Workflows for LLMs'
-              width={49.78314}
-              height={24.276}
-              priority
-            />
+          <Link href='/' aria-label={`${brand.name} home`}>
+            {brand.logoUrl ? (
+              <img
+                src={brand.logoUrl}
+                alt={`${brand.name} Logo`}
+                width={49.78314}
+                height={24.276}
+                className='h-[24.276px] w-auto object-contain'
+              />
+            ) : (
+              <Image
+                src='/logo/b&w/text/b&w.svg'
+                alt='Sim - Workflows for LLMs'
+                width={49.78314}
+                height={24.276}
+                priority
+              />
+            )}
           </Link>
-          {/* Desktop Navigation Links - same position as original */}
-          <ul className='hidden items-center justify-center gap-[20px] pt-[4px] md:flex'>
-            <NavLinks />
-          </ul>
+          {/* Desktop Navigation Links - only show on landing */}
+          {variant === 'landing' && (
+            <ul className='hidden items-center justify-center gap-[20px] pt-[4px] md:flex'>
+              <NavLinks />
+            </ul>
+          )}
         </div>
 
-        {/* Auth Buttons - Desktop shows both, Mobile shows only Get started */}
-        <div className='flex items-center justify-center gap-[16px] pt-[1.5px]'>
-          <button
-            onClick={handleLoginClick}
-            onMouseEnter={() => setIsLoginHovered(true)}
-            onMouseLeave={() => setIsLoginHovered(false)}
-            className='group hidden text-[#2E2E2E] text-[16px] transition-colors hover:text-foreground md:block'
-          >
-            <span className='flex items-center gap-1'>
-              Log in
-              <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
-                {isLoginHovered ? (
-                  <ArrowRight className='h-4 w-4' />
-                ) : (
-                  <ChevronRight className='h-4 w-4' />
-                )}
+        {/* Auth Buttons - respect hideAuthButtons prop */}
+        {!hideAuthButtons && (
+          <div className='flex items-center justify-center gap-[16px] pt-[1.5px]'>
+            <button
+              onClick={handleLoginClick}
+              onMouseEnter={() => setIsLoginHovered(true)}
+              onMouseLeave={() => setIsLoginHovered(false)}
+              className='group hidden text-[#2E2E2E] text-[16px] transition-colors hover:text-foreground md:block'
+            >
+              <span className='flex items-center gap-1'>
+                Log in
+                <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
+                  {isLoginHovered ? (
+                    <ArrowRight className='h-4 w-4' />
+                  ) : (
+                    <ChevronRight className='h-4 w-4' />
+                  )}
+                </span>
               </span>
-            </span>
-          </button>
-          <Link
-            href='/signup'
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-            className='group inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#6F3DFA] bg-gradient-to-b from-[#8357FF] to-[#6F3DFA] py-[6px] pr-[10px] pl-[12px] text-[14px] text-white shadow-[inset_0_2px_4px_0_#9B77FF] transition-all sm:text-[16px]'
-            aria-label='Get started with Sim'
-          >
-            <span className='flex items-center gap-1'>
-              Get started
-              <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
-                {isHovered ? (
-                  <ArrowRight className='h-4 w-4' />
-                ) : (
-                  <ChevronRight className='h-4 w-4' />
-                )}
+            </button>
+            <Link
+              href='/signup'
+              onMouseEnter={() => setIsHovered(true)}
+              onMouseLeave={() => setIsHovered(false)}
+              className='group inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#6F3DFA] bg-gradient-to-b from-[#8357FF] to-[#6F3DFA] px-3 py-[6px] text-[14px] text-white shadow-[inset_0_2px_4px_0_#9B77FF] transition-all sm:text-[16px]'
+              aria-label='Get started with Sim'
+            >
+              <span className='flex items-center gap-1'>
+                Get started
+                <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
+                  {isHovered ? (
+                    <ArrowRight className='h-4 w-4' />
+                  ) : (
+                    <ChevronRight className='h-4 w-4' />
+                  )}
+                </span>
               </span>
-            </span>
-          </Link>
-        </div>
+            </Link>
+          </div>
+        )}
       </nav>
     </>
   )
