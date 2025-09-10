@@ -523,7 +523,7 @@ export function EnvironmentVariables({
               ))}
               {/* Show message when search has no results but there are variables */}
               {searchTerm.trim() && filteredEnvVars.length === 0 && envVars.length > 0 && (
-                <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
+                <div className='mt-6 flex justify-center break-all text-muted-foreground text-sm'>
                   No environment variables found matching "{searchTerm}"
                 </div>
               )}
