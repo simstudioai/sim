@@ -8,6 +8,7 @@ import {
   Eye,
   EyeOff,
   Pencil,
+  Play,
   Plus,
   RefreshCw,
   Search,
@@ -75,7 +76,7 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
   const [showSecret, setShowSecret] = useState(false)
   const [editingWebhookId, setEditingWebhookId] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
-  const [copySuccess, setCopySuccess] = useState(false)
+  const [copySuccess, setCopySuccess] = useState<Record<string, boolean>>({})
   const [searchTerm, setSearchTerm] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -342,16 +343,19 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
     setIsGenerating(false)
   }
 
-  const copyToClipboard = (text: string) => {
+  const copyToClipboard = (text: string, webhookId: string) => {
     navigator.clipboard.writeText(text)
-    setCopySuccess(true)
+    setCopySuccess((prev) => ({ ...prev, [webhookId]: true }))
     setTimeout(() => {
-      setCopySuccess(false)
+      setCopySuccess((prev) => ({ ...prev, [webhookId]: false }))
     }, 2000)
   }
 
+  const [originalWebhook, setOriginalWebhook] = useState<WebhookConfig | null>(null)
+
   const startEditWebhook = (webhook: WebhookConfig) => {
     setEditingWebhookId(webhook.id)
+    setOriginalWebhook(webhook)
     setNewWebhook({
       url: webhook.url,
       secret: '', // Don't expose the existing secret
@@ -368,6 +372,7 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
 
   const cancelEdit = () => {
     setEditingWebhookId(null)
+    setOriginalWebhook(null)
     setFieldErrors({})
     setOperationStatus({ type: null, message: '' })
     setNewWebhook({
@@ -381,6 +386,22 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
       triggerFilter: ['api', 'webhook', 'schedule', 'manual', 'chat'],
     })
     setShowForm(false)
+  }
+
+  const hasChanges = () => {
+    if (!originalWebhook) return false
+    return (
+      newWebhook.url !== originalWebhook.url ||
+      newWebhook.includeFinalOutput !== originalWebhook.includeFinalOutput ||
+      newWebhook.includeTraceSpans !== originalWebhook.includeTraceSpans ||
+      newWebhook.includeRateLimits !== (originalWebhook.includeRateLimits || false) ||
+      newWebhook.includeUsageData !== (originalWebhook.includeUsageData || false) ||
+      JSON.stringify([...newWebhook.levelFilter].sort()) !==
+        JSON.stringify([...originalWebhook.levelFilter].sort()) ||
+      JSON.stringify([...newWebhook.triggerFilter].sort()) !==
+        JSON.stringify([...originalWebhook.triggerFilter].sort()) ||
+      newWebhook.secret !== ''
+    )
   }
 
   const handleCloseModal = () => {
@@ -555,20 +576,44 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
                   ) : (
                     <>
                       {filteredWebhooks.map((webhook, index) => (
-                        <div key={webhook.id} className='relative flex flex-col gap-2'>
+                        <div key={webhook.id} className='relative mb-4 flex flex-col gap-2'>
                           <Label className='font-normal text-muted-foreground text-xs uppercase'>
                             Webhook {index + 1}
                           </Label>
                           <div className='flex flex-col gap-2'>
                             <div className='flex items-center justify-between gap-4'>
                               <div className='flex flex-1 items-center gap-3'>
-                                <div className='flex h-8 items-center rounded-[8px] bg-muted px-3'>
-                                  <code className='font-mono text-foreground text-xs'>
-                                    {webhook.url.length > 40
-                                      ? `${webhook.url.substring(0, 37)}...`
-                                      : webhook.url}
+                                <div className='flex h-8 max-w-[400px] items-center overflow-hidden rounded-[8px] bg-muted px-3'>
+                                  <code className='scrollbar-hide overflow-x-auto whitespace-nowrap font-mono text-foreground text-xs'>
+                                    {webhook.url}
                                   </code>
                                 </div>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant='ghost'
+                                      size='icon'
+                                      onClick={() => copyToClipboard(webhook.url, webhook.id)}
+                                      className={cn(
+                                        'group relative h-8 w-8 rounded-md border border-border/40 bg-background/80 backdrop-blur-sm',
+                                        'text-muted-foreground/70 shadow-sm transition-all duration-200',
+                                        'hover:border-border hover:bg-muted/50 hover:text-foreground hover:shadow-md',
+                                        'active:scale-95 active:shadow-sm',
+                                        'focus-visible:ring-2 focus-visible:ring-muted-foreground/20 focus-visible:ring-offset-1'
+                                      )}
+                                    >
+                                      {copySuccess[webhook.id] ? (
+                                        <Check className='h-3.5 w-3.5 text-foreground' />
+                                      ) : (
+                                        <Copy className='h-3.5 w-3.5 transition-transform duration-200 group-hover:scale-110' />
+                                      )}
+                                      <span className='sr-only'>Copy webhook URL</span>
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side='top' align='center'>
+                                    Copy webhook URL
+                                  </TooltipContent>
+                                </Tooltip>
 
                                 {/* Test Status inline for this specific webhook */}
                                 {testStatus &&
@@ -598,13 +643,7 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
                                         'focus-visible:ring-2 focus-visible:ring-muted-foreground/20 focus-visible:ring-offset-1'
                                       )}
                                     >
-                                      <RefreshCw
-                                        className={cn(
-                                          'h-3.5 w-3.5 transition-transform duration-200',
-                                          'group-hover:scale-110',
-                                          isTesting === webhook.id && 'animate-spin'
-                                        )}
-                                      />
+                                      <Play className='h-3.5 w-3.5 transition-transform duration-200 group-hover:scale-110' />
                                       <span className='sr-only'>Test webhook</span>
                                     </Button>
                                   </TooltipTrigger>
@@ -830,7 +869,7 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
                                 type='button'
                                 variant='ghost'
                                 size='sm'
-                                onClick={() => copyToClipboard(newWebhook.secret)}
+                                onClick={() => copyToClipboard(newWebhook.secret, 'form')}
                                 disabled={!newWebhook.secret}
                                 className={cn(
                                   'group h-7 w-7 rounded-md p-0',
@@ -841,7 +880,7 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
                                   'focus-visible:ring-2 focus-visible:ring-muted-foreground/20 focus-visible:ring-offset-1'
                                 )}
                               >
-                                {copySuccess ? (
+                                {copySuccess.form ? (
                                   <Check className='h-3.5 w-3.5 text-foreground' />
                                 ) : (
                                   <Copy className='h-3.5 w-3.5 transition-transform duration-200 group-hover:scale-110' />
@@ -1060,15 +1099,13 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
                     isCreating ||
                     !newWebhook.url ||
                     newWebhook.levelFilter.length === 0 ||
-                    newWebhook.triggerFilter.length === 0
+                    newWebhook.triggerFilter.length === 0 ||
+                    (!!editingWebhookId && !hasChanges())
                   }
                   className='h-9 rounded-[8px] bg-[var(--brand-primary-hex)] font-[480] text-white shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:opacity-50 disabled:hover:shadow-none'
                 >
                   {isCreating ? (
-                    <>
-                      <RefreshCw className='mr-2 h-4 w-4 animate-spin' />
-                      {editingWebhookId ? 'Updating...' : 'Creating...'}
-                    </>
+                    <>{editingWebhookId ? 'Updating...' : 'Creating...'}</>
                   ) : (
                     <>{editingWebhookId ? 'Update Webhook' : 'Create Webhook'}</>
                   )}

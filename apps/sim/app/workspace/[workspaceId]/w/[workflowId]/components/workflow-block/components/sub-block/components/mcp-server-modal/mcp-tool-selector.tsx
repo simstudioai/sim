@@ -55,16 +55,22 @@ export function McpToolSelector({
   const selectedTool = availableTools.find((tool) => tool.id === selectedToolId)
 
   useEffect(() => {
+    if (serverValue && selectedToolId && !selectedTool && availableTools.length === 0) {
+      refreshTools()
+    }
+  }, [serverValue, selectedToolId, selectedTool, availableTools.length, refreshTools])
+
+  useEffect(() => {
     if (
       storeValue &&
       availableTools.length > 0 &&
       !availableTools.find((tool) => tool.id === storeValue)
     ) {
-      if (!isPreview) {
+      if (!isPreview && !disabled) {
         setStoreValue('')
       }
     }
-  }, [serverValue, availableTools, storeValue, setStoreValue, isPreview])
+  }, [serverValue, availableTools, storeValue, setStoreValue, isPreview, disabled])
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen)
