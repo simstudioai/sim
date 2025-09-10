@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import { simAgentClient } from '@/lib/sim-agent'
+import { SIM_AGENT_API_URL_DEFAULT, simAgentClient } from '@/lib/sim-agent'
 import { generateRequestId } from '@/lib/utils'
 import {
   loadWorkflowFromNormalizedTables,
@@ -20,6 +20,7 @@ import { customTools, workflowCheckpoints, workflow as workflowTable } from '@/d
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('YamlWorkflowAPI')
+const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
 const YamlWorkflowRequestSchema = z.object({
   yamlContent: z.string().min(1, 'YAML content is required'),
@@ -292,7 +293,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       {} as Record<string, BlockConfig>
     )
 
-    const conversionResponse = await fetch(`${env.SIM_AGENT_API_URL}/api/yaml/to-workflow`, {
+    const conversionResponse = await fetch(`${SIM_AGENT_API_URL}/api/yaml/to-workflow`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
