@@ -15,8 +15,8 @@ export default function Landing() {
       <main className='relative'>
         <Hero />
         {/* <LandingTemplates /> */}
-        <Integrations />
         <LandingPricing />
+        <Integrations />
         <Testimonials />
       </main>
       <Footer />

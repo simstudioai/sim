@@ -19,32 +19,11 @@ export default function Background({ className, children }: BackgroundProps) {
         xmlns='http://www.w3.org/2000/svg'
         preserveAspectRatio='xMidYMin slice'
       >
-        {/* Integrations section (original height ~412 units) */}
-        <path d='M6.71704 1236.22H1291.05' stroke='#E7E4EF' strokeWidth='2' />
-        <circle
-          cx='11.0557'
-          cy='1236.48'
-          r='8.07846'
-          fill='white'
-          stroke='#E7E4EF'
-          strokeWidth='2'
-        />
-        <circle
-          cx='1298.02'
-          cy='1236.48'
-          r='8.07846'
-          fill='white'
-          stroke='#E7E4EF'
-          strokeWidth='2'
-        />
-        <path d='M10.7967 1245.94V1648.26' stroke='#E7E4EF' strokeWidth='2' />
-        <path d='M1297.76 1245.94V1648.26' stroke='#E7E4EF' strokeWidth='2' />
-
         {/* Pricing section (original height ~380 units) */}
-        <path d='M6.71704 1648.92H1300.76' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M6.71704 1236.22H1300.76' stroke='#E7E4EF' strokeWidth='2' />
         <circle
           cx='11.0557'
-          cy='1649.18'
+          cy='1236.48'
           r='8.07846'
           fill='white'
           stroke='#E7E4EF'
@@ -52,20 +31,41 @@ export default function Background({ className, children }: BackgroundProps) {
         />
         <circle
           cx='1298.02'
-          cy='1649.18'
+          cy='1236.48'
           r='8.07846'
           fill='white'
           stroke='#E7E4EF'
           strokeWidth='2'
         />
-        <path d='M10.7967 1658.10V2026.59' stroke='#E7E4EF' strokeWidth='2' />
-        <path d='M1297.76 1658.64V2026.59' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M10.7967 1245.42V1613.91' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M1297.76 1245.96V1613.91' stroke='#E7E4EF' strokeWidth='2' />
+
+        {/* Integrations section (original height ~412 units) */}
+        <path d='M6.71704 1614.89H1291.05' stroke='#E7E4EF' strokeWidth='2' />
+        <circle
+          cx='11.0557'
+          cy='1615.15'
+          r='8.07846'
+          fill='white'
+          stroke='#E7E4EF'
+          strokeWidth='2'
+        />
+        <circle
+          cx='1298.02'
+          cy='1615.15'
+          r='8.07846'
+          fill='white'
+          stroke='#E7E4EF'
+          strokeWidth='2'
+        />
+        <path d='M10.7967 1624.61V2026.93' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M1297.76 1624.61V2026.93' stroke='#E7E4EF' strokeWidth='2' />
 
         {/* Testimonials section (original short height ~149 units) */}
-        <path d='M6.71704 2026.37H1300.76' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M6.71704 2026.71H1300.76' stroke='#E7E4EF' strokeWidth='2' />
         <circle
           cx='11.0557'
-          cy='2026.63'
+          cy='2026.97'
           r='8.07846'
           fill='white'
           stroke='#E7E4EF'
@@ -73,20 +73,20 @@ export default function Background({ className, children }: BackgroundProps) {
         />
         <circle
           cx='1298.02'
-          cy='2026.63'
+          cy='2026.97'
           r='8.07846'
           fill='white'
           stroke='#E7E4EF'
           strokeWidth='2'
         />
-        <path d='M10.7967 2036.09V2177.09' stroke='#E7E4EF' strokeWidth='2' />
-        <path d='M1297.76 2036.09V2177.09' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M10.7967 2036.43V2177.43' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M1297.76 2036.43V2177.43' stroke='#E7E4EF' strokeWidth='2' />
 
         {/* Footer section line */}
-        <path d='M6.71704 2177.37H1300.76' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M6.71704 2177.71H1300.76' stroke='#E7E4EF' strokeWidth='2' />
         <circle
           cx='11.0557'
-          cy='2177.63'
+          cy='2177.97'
           r='8.07846'
           fill='white'
           stroke='#E7E4EF'
@@ -94,14 +94,14 @@ export default function Background({ className, children }: BackgroundProps) {
         />
         <circle
           cx='1298.02'
-          cy='2177.63'
+          cy='2177.97'
           r='8.07846'
           fill='white'
           stroke='#E7E4EF'
           strokeWidth='2'
         />
-        <path d='M10.7967 2187.09V4090.25' stroke='#E7E4EF' strokeWidth='2' />
-        <path d='M1297.76 2187.09V4090.25' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M10.7967 2187.43V4090.25' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M1297.76 2187.43V4090.25' stroke='#E7E4EF' strokeWidth='2' />
         <path
           d='M959.828 116.604C1064.72 187.189 1162.61 277.541 1293.45 536.597'
           stroke='#E7E4EF'
