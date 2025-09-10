@@ -55,10 +55,10 @@ export function McpToolSelector({
   const selectedTool = availableTools.find((tool) => tool.id === selectedToolId)
 
   useEffect(() => {
-    if (serverValue) {
+    if (serverValue && selectedToolId && !selectedTool && availableTools.length === 0) {
       refreshTools()
     }
-  }, [serverValue, refreshTools])
+  }, [serverValue, selectedToolId, selectedTool, availableTools.length, refreshTools])
 
   useEffect(() => {
     if (

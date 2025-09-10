@@ -396,10 +396,10 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
       newWebhook.includeTraceSpans !== originalWebhook.includeTraceSpans ||
       newWebhook.includeRateLimits !== (originalWebhook.includeRateLimits || false) ||
       newWebhook.includeUsageData !== (originalWebhook.includeUsageData || false) ||
-      JSON.stringify(newWebhook.levelFilter.sort()) !==
-        JSON.stringify(originalWebhook.levelFilter.sort()) ||
-      JSON.stringify(newWebhook.triggerFilter.sort()) !==
-        JSON.stringify(originalWebhook.triggerFilter.sort()) ||
+      JSON.stringify([...newWebhook.levelFilter].sort()) !==
+        JSON.stringify([...originalWebhook.levelFilter].sort()) ||
+      JSON.stringify([...newWebhook.triggerFilter].sort()) !==
+        JSON.stringify([...originalWebhook.triggerFilter].sort()) ||
       newWebhook.secret !== ''
     )
   }
