@@ -14,10 +14,6 @@ vi.mock('@/db', () => ({
   },
 }))
 
-vi.mock('@/lib/utils', () => ({
-  decryptSecret: vi.fn().mockResolvedValue({ decrypted: 'test-secret' }),
-}))
-
 vi.mock('@/lib/logs/execution/logging-session', () => ({
   LoggingSession: vi.fn().mockImplementation(() => ({
     safeStart: vi.fn().mockResolvedValue(undefined),
@@ -36,6 +32,13 @@ vi.mock('@/serializer', () => ({
 
 vi.mock('@/stores/workflows/server-utils', () => ({
   mergeSubblockState: vi.fn().mockReturnValue({}),
+}))
+
+const mockDecryptSecret = vi.fn()
+
+vi.mock('@/lib/utils', () => ({
+  decryptSecret: mockDecryptSecret,
+  generateRequestId: vi.fn(),
 }))
 
 describe('Chat API Utils', () => {
@@ -177,7 +180,10 @@ describe('Chat API Utils', () => {
   })
 
   describe('Chat auth validation', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
+      vi.clearAllMocks()
+      mockDecryptSecret.mockResolvedValue({ decrypted: 'correct-password' })
+
       vi.doMock('@/app/api/chat/utils', async (importOriginal) => {
         const original = (await importOriginal()) as any
         return {
@@ -190,13 +196,6 @@ describe('Chat API Utils', () => {
           }),
         }
       })
-
-      // Mock decryptSecret globally for all auth tests
-      vi.doMock('@/lib/utils', () => ({
-        decryptSecret: vi.fn((encryptedValue) => {
-          return Promise.resolve({ decrypted: 'correct-password' })
-        }),
-      }))
     })
 
     it.concurrent('should allow access to public chats', async () => {

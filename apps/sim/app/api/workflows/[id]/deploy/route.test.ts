@@ -12,6 +12,7 @@ describe('Workflow Deployment API Route', () => {
 
     vi.doMock('@/lib/utils', () => ({
       generateApiKey: vi.fn().mockReturnValue('sim_testkeygenerated12345'),
+      generateRequestId: vi.fn(() => 'test-request-id'),
     }))
 
     vi.doMock('uuid', () => ({

@@ -396,11 +396,9 @@ describe('executeRequest', () => {
   let mockFetch: any
 
   beforeEach(() => {
-    // Setup mock for global fetch
     mockFetch = vi.fn()
     global.fetch = mockFetch
 
-    // Create a mock tool config
     mockTool = {
       id: 'test-tool',
       name: 'Test Tool',
@@ -424,7 +422,6 @@ describe('executeRequest', () => {
   })
 
   it('should handle successful requests', async () => {
-    // Setup a successful mock response
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -450,10 +447,8 @@ describe('executeRequest', () => {
   })
 
   it.concurrent('should use default transform response if not provided', async () => {
-    // Remove custom transform response
     mockTool.transformResponse = undefined
 
-    // Setup a successful mock response
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -473,7 +468,6 @@ describe('executeRequest', () => {
   })
 
   it('should handle error responses', async () => {
-    // Setup an error response
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 400,
@@ -481,7 +475,6 @@ describe('executeRequest', () => {
       json: async () => ({ message: 'Invalid input' }),
     })
 
-    // We expect this to return a ToolResponse with success: false
     const result = await executeRequest('test-tool', mockTool, {
       url: 'https://api.example.com',
       method: 'GET',
@@ -496,7 +489,6 @@ describe('executeRequest', () => {
   })
 
   it.concurrent('should handle network errors', async () => {
-    // Setup a network error
     const networkError = new Error('Network error')
     mockFetch.mockRejectedValueOnce(networkError)
 
@@ -514,7 +506,6 @@ describe('executeRequest', () => {
   })
 
   it('should handle JSON parse errors in error response', async () => {
-    // Setup an error response that fails to parse as JSON
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 500,
@@ -601,7 +592,6 @@ describe('createParamSchema', () => {
 
 describe('getClientEnvVars', () => {
   it.concurrent('should return environment variables from store in browser environment', () => {
-    // Create a mock store for testing
     const mockStoreGetter = () => ({
       getAllVariables: () => ({
         API_KEY: { value: 'mock-api-key' },
@@ -618,7 +608,6 @@ describe('getClientEnvVars', () => {
   })
 
   it.concurrent('should return empty object in server environment', () => {
-    // Remove window to simulate server environment
     global.window = undefined as any
 
     const result = getClientEnvVars()
@@ -638,7 +627,6 @@ describe('createCustomToolRequestBody', () => {
       },
     }
 
-    // Create a mock store for testing
     const mockStoreGetter = () => ({
       getAllVariables: () => ({
         API_KEY: { value: 'mock-api-key' },

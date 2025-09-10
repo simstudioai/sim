@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateRequestId } from '@/lib/utils'
 import { getUserId } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { customTools } from '@/db/schema'
@@ -33,7 +34,7 @@ const CustomToolSchema = z.object({
 
 // GET - Fetch all custom tools for the user
 export async function GET(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const searchParams = request.nextUrl.searchParams
   const workflowId = searchParams.get('workflowId')
 
@@ -69,7 +70,7 @@ export async function GET(request: NextRequest) {
 
 // POST - Create or update custom tools
 export async function POST(req: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const session = await getSession()
@@ -162,7 +163,7 @@ export async function POST(req: NextRequest) {
 
 // DELETE - Delete a custom tool by ID
 export async function DELETE(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const searchParams = request.nextUrl.searchParams
   const toolId = searchParams.get('id')
 

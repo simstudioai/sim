@@ -6,9 +6,13 @@ vi.stubGlobal('crypto', {
   randomUUID: vi.fn(() => 'test-uuid-123'),
 })
 
-vi.mock('@/lib/utils', () => ({
-  redactApiKeys: vi.fn((obj) => obj), // Return object as-is for testing
-}))
+vi.mock('@/lib/utils', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/utils')>()
+  return {
+    ...actual,
+    redactApiKeys: vi.fn((obj) => obj), // Return object as-is for testing
+  }
+})
 
 describe('Console Store', () => {
   beforeEach(() => {

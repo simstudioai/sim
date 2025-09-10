@@ -156,7 +156,7 @@ export function ExampleCommand({
               onClick={() => setMode('sync')}
               className={`h-6 min-w-[50px] px-2 py-1 text-xs transition-none ${
                 mode === 'sync'
-                  ? 'border-primary bg-primary text-primary-foreground hover:border-primary hover:bg-primary hover:text-primary-foreground'
+                  ? 'border-primary bg-primary text-muted-foreground hover:border-primary hover:bg-primary hover:text-muted-foreground'
                   : ''
               }`}
             >
@@ -168,7 +168,7 @@ export function ExampleCommand({
               onClick={() => setMode('async')}
               className={`h-6 min-w-[50px] px-2 py-1 text-xs transition-none ${
                 mode === 'async'
-                  ? 'border-primary bg-primary text-primary-foreground hover:border-primary hover:bg-primary hover:text-primary-foreground'
+                  ? 'border-primary bg-primary text-muted-foreground hover:border-primary hover:bg-primary hover:text-muted-foreground'
                   : ''
               }`}
             >

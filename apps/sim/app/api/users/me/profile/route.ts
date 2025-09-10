@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateRequestId } from '@/lib/utils'
 import { db } from '@/db'
 import { user } from '@/db/schema'
 
@@ -27,7 +28,7 @@ interface UpdateData {
 export const dynamic = 'force-dynamic'
 
 export async function PATCH(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const session = await getSession()
@@ -90,7 +91,7 @@ export async function PATCH(request: NextRequest) {
 
 // GET endpoint to fetch current user profile
 export async function GET() {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const session = await getSession()

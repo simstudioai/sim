@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateRequestId } from '@/lib/utils'
 import {
   addCorsHeaders,
   executeWorkflowForChat,
@@ -20,7 +21,7 @@ export async function POST(
   { params }: { params: Promise<{ subdomain: string }> }
 ) {
   const { subdomain } = await params
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     logger.debug(`[${requestId}] Processing chat request for subdomain: ${subdomain}`)
@@ -141,7 +142,7 @@ export async function GET(
   { params }: { params: Promise<{ subdomain: string }> }
 ) {
   const { subdomain } = await params
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     logger.debug(`[${requestId}] Fetching chat info for subdomain: ${subdomain}`)

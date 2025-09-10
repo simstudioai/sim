@@ -88,7 +88,7 @@ export function TeamMembers({
               <div
                 className={`flex h-8 w-8 items-center justify-center rounded-full font-medium text-sm ${
                   item.type === 'member'
-                    ? 'bg-primary/10 text-primary'
+                    ? 'bg-primary/10 text-muted-foreground'
                     : 'bg-muted text-muted-foreground'
                 }`}
               >
@@ -104,7 +104,7 @@ export function TeamMembers({
                       className={`inline-flex h-[1.125rem] items-center rounded-[6px] px-2 py-0 font-medium text-xs ${
                         item.role === 'owner'
                           ? 'gradient-text border-gradient-primary/20 bg-gradient-to-b from-gradient-primary via-gradient-secondary to-gradient-primary'
-                          : 'bg-primary/10 text-primary'
+                          : 'bg-primary/10 text-muted-foreground'
                       } `}
                     >
                       {item.role.charAt(0).toUpperCase() + item.role.slice(1)}

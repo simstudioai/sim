@@ -116,7 +116,7 @@ export default function FolderFilter() {
           className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
         >
           <span>All folders</span>
-          {folderIds.length === 0 && <Check className='h-4 w-4 text-primary' />}
+          {folderIds.length === 0 && <Check className='h-4 w-4 text-muted-foreground' />}
         </DropdownMenuItem>
 
         {!loading && folders.length > 0 && <DropdownMenuSeparator />}
@@ -136,7 +136,7 @@ export default function FolderFilter() {
                   {folder.path}
                 </span>
               </div>
-              {isFolderSelected(folder.id) && <Check className='h-4 w-4 text-primary' />}
+              {isFolderSelected(folder.id) && <Check className='h-4 w-4 text-muted-foreground' />}
             </DropdownMenuItem>
           ))}
 

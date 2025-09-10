@@ -446,7 +446,7 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
                                         className={cn(
                                           'flex h-8 w-8 items-center justify-center rounded-md border transition-colors hover:bg-muted',
                                           field.value === icon.value &&
-                                            'bg-primary text-primary-foreground'
+                                            'bg-primary text-muted-foreground'
                                         )}
                                       >
                                         <IconComponent className='h-4 w-4' />

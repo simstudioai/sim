@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { validateImageUrl } from '@/lib/security/url-validation'
+import { generateRequestId } from '@/lib/utils'
 
 const logger = createLogger('ImageProxyAPI')
 
@@ -11,7 +12,7 @@ const logger = createLogger('ImageProxyAPI')
 export async function GET(request: NextRequest) {
   const url = new URL(request.url)
   const imageUrl = url.searchParams.get('url')
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   if (!imageUrl) {
     logger.error(`[${requestId}] Missing 'url' parameter`)

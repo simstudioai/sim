@@ -8,6 +8,7 @@ import {
   updateDocument,
 } from '@/lib/knowledge/documents/service'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateRequestId } from '@/lib/utils'
 import { checkDocumentAccess, checkDocumentWriteAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('DocumentByIdAPI')
@@ -36,7 +37,7 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; documentId: string }> }
 ) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const { id: knowledgeBaseId, documentId } = await params
 
   try {
@@ -79,7 +80,7 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; documentId: string }> }
 ) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const { id: knowledgeBaseId, documentId } = await params
 
   try {
@@ -209,7 +210,7 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; documentId: string }> }
 ) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const { id: knowledgeBaseId, documentId } = await params
 
   try {

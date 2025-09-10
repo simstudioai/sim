@@ -517,7 +517,7 @@ export function FileUpload({
         data-testid='file-input-element'
       />
 
-      <div className='bg-background'>
+      <div className='bg-card'>
         {/* File list with consistent spacing */}
         {(hasFiles || isUploading) && (
           <div className='mb-2 space-y-2'>
@@ -533,7 +533,11 @@ export function FileUpload({
               <>
                 {uploadingFiles.map(renderUploadingItem)}
                 <div className='mt-1'>
-                  <Progress value={uploadProgress} className='h-2 w-full' />
+                  <Progress
+                    value={uploadProgress}
+                    className='h-2 w-full'
+                    indicatorClassName='bg-white dark:bg-white'
+                  />
                   <div className='mt-1 text-center text-muted-foreground text-xs'>
                     {uploadProgress < 100 ? 'Uploading...' : 'Upload complete!'}
                   </div>
@@ -545,7 +549,7 @@ export function FileUpload({
 
         {/* Action buttons */}
         {(hasFiles || isUploading) && (
-          <div className='flex space-x-2'>
+          <div className='flex space-x-2 bg-card'>
             <Button
               type='button'
               variant='outline'
@@ -577,7 +581,7 @@ export function FileUpload({
           <Button
             type='button'
             variant='outline'
-            className='h-10 w-full justify-center bg-background text-center font-normal text-sm'
+            className='h-10 w-full justify-center bg-card text-center font-normal text-sm'
             onClick={handleOpenFileDialog}
           >
             <div className='flex w-full items-center justify-center gap-2'>

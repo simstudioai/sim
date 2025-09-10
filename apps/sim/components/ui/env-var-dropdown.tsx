@@ -13,6 +13,7 @@ interface EnvVarDropdownProps {
   onClose?: () => void
   style?: React.CSSProperties
   workspaceId?: string
+  maxHeight?: string
 }
 
 interface EnvVarGroup {
@@ -30,6 +31,7 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
   onClose,
   style,
   workspaceId,
+  maxHeight = 'none',
 }) => {
   const loadWorkspaceEnvironment = useEnvironmentStore((state) => state.loadWorkspaceEnvironment)
   const userEnvVars = useEnvironmentStore((state) => Object.keys(state.variables))
@@ -140,12 +142,30 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
           case 'ArrowDown':
             e.preventDefault()
             e.stopPropagation()
-            setSelectedIndex((prev) => (prev < filteredEnvVars.length - 1 ? prev + 1 : prev))
+            setSelectedIndex((prev) => {
+              const newIndex = prev < filteredEnvVars.length - 1 ? prev + 1 : prev
+              setTimeout(() => {
+                const selectedElement = document.querySelector(`[data-env-var-index="${newIndex}"]`)
+                if (selectedElement) {
+                  selectedElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                }
+              }, 0)
+              return newIndex
+            })
             break
           case 'ArrowUp':
             e.preventDefault()
             e.stopPropagation()
-            setSelectedIndex((prev) => (prev > 0 ? prev - 1 : prev))
+            setSelectedIndex((prev) => {
+              const newIndex = prev > 0 ? prev - 1 : prev
+              setTimeout(() => {
+                const selectedElement = document.querySelector(`[data-env-var-index="${newIndex}"]`)
+                if (selectedElement) {
+                  selectedElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                }
+              }, 0)
+              return newIndex
+            })
             break
           case 'Enter':
             e.preventDefault()
@@ -180,7 +200,12 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
           No matching environment variables
         </div>
       ) : (
-        <div className='py-1'>
+        <div
+          className={cn('py-1', maxHeight !== 'none' && 'overflow-y-auto')}
+          style={{
+            maxHeight: maxHeight !== 'none' ? maxHeight : undefined,
+          }}
+        >
           {filteredGroups.map((group) => (
             <div key={group.label}>
               {filteredGroups.length > 1 && (
@@ -193,9 +218,9 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
                 return (
                   <button
                     key={`${group.label}-${envVar}`}
+                    data-env-var-index={globalIndex}
                     className={cn(
                       'w-full px-3 py-1.5 text-left text-sm',
-                      'hover:bg-accent hover:text-accent-foreground',
                       'focus:bg-accent focus:text-accent-foreground focus:outline-none',
                       globalIndex === selectedIndex && 'bg-accent text-accent-foreground'
                     )}

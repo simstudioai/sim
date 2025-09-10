@@ -6,6 +6,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import type { OAuthService } from '@/lib/oauth/oauth'
 import { parseProvider } from '@/lib/oauth/oauth'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
+import { generateRequestId } from '@/lib/utils'
 import { db } from '@/db'
 import { account, user, workflow } from '@/db/schema'
 
@@ -23,7 +24,7 @@ interface GoogleIdToken {
  * Get credentials for a specific provider
  */
 export async function GET(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     // Get query params

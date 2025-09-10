@@ -2,8 +2,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateRequestId } from '@/lib/utils'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('GoogleDriveFilesAPI')
@@ -12,20 +12,17 @@ const logger = createLogger('GoogleDriveFilesAPI')
  * Get files from Google Drive
  */
 export async function GET(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8) // Generate a short request ID for correlation
+  const requestId = generateRequestId()
   logger.info(`[${requestId}] Google Drive files request received`)
 
   try {
-    // Get the session
     const session = await getSession()
 
-    // Check if the user is authenticated
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthenticated request rejected`)
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }
 
-    // Get the credential ID from the query params
     const { searchParams } = new URL(request.url)
     const credentialId = searchParams.get('credentialId')
     const mimeType = searchParams.get('mimeType')
@@ -38,14 +35,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
     }
 
-    // Authorize use of the credential (supports collaborator credentials via workflow)
     const authz = await authorizeCredentialUse(request, { credentialId: credentialId!, workflowId })
     if (!authz.ok || !authz.credentialOwnerUserId) {
       logger.warn(`[${requestId}] Unauthorized credential access attempt`, authz)
       return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
     }
 
-    // Refresh access token if needed using the utility function
     const accessToken = await refreshAccessTokenIfNeeded(
       credentialId!,
       authz.credentialOwnerUserId,
@@ -56,7 +51,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })
     }
 
-    // Build Drive 'q' expression safely
     const qParts: string[] = ['trashed = false']
     if (folderId) {
       qParts.push(`'${folderId.replace(/'/g, "\\'")}' in parents`)
@@ -69,7 +63,6 @@ export async function GET(request: NextRequest) {
     }
     const q = encodeURIComponent(qParts.join(' and '))
 
-    // Fetch files from Google Drive API with shared drives support
     const response = await fetch(
       `https://www.googleapis.com/drive/v3/files?q=${q}&supportsAllDrives=true&includeItemsFromAllDrives=true&spaces=drive&fields=files(id,name,mimeType,iconLink,webViewLink,thumbnailLink,createdTime,modifiedTime,size,owners,parents)`,
       {

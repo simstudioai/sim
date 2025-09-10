@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { hasAdminPermission } from '@/lib/permissions/utils'
+import { generateRequestId } from '@/lib/utils'
 import { db } from '@/db'
 import { templates, workflow } from '@/db/schema'
 
@@ -13,7 +14,7 @@ export const revalidate = 0
 
 // GET /api/templates/[id] - Retrieve a single template by ID
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const { id } = await params
 
   try {
@@ -77,7 +78,7 @@ const updateTemplateSchema = z.object({
 
 // PUT /api/templates/[id] - Update a template
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const { id } = await params
 
   try {
@@ -163,7 +164,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const { id } = await params
 
   try {

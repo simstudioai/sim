@@ -10,7 +10,7 @@ import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { hasAdminPermission } from '@/lib/permissions/utils'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import { getEmailDomain } from '@/lib/urls/utils'
-import { decryptSecret } from '@/lib/utils'
+import { decryptSecret, generateRequestId } from '@/lib/utils'
 import { getBlock } from '@/blocks'
 import { db } from '@/db'
 import { chat, userStats, workflow } from '@/db/schema'
@@ -303,7 +303,7 @@ export async function executeWorkflowForChat(
   input: string,
   conversationId?: string
 ): Promise<any> {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   logger.debug(
     `[${requestId}] Executing workflow for chat: ${chatId}${

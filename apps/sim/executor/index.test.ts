@@ -7,7 +7,7 @@
  * running workflow blocks in topological order, handling the execution flow,
  * resolving inputs and dependencies, and managing errors.
  */
-import { afterEach, beforeEach, describe, expect, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BlockOutput, ParamType } from '@/blocks/types'
 import { Executor } from '@/executor'
 import {
@@ -387,14 +387,11 @@ describe('Executor', () => {
    */
   describe('debug mode', () => {
     it('should detect debug mode from settings', async () => {
-      // Reset and reconfigure mocks for debug mode
       vi.resetModules()
       vi.clearAllMocks()
 
-      // Setup mocks with debug mode enabled
       setupAllMocks({ isDebugModeEnabled: true })
 
-      // Import Executor AFTER setting up mocks
       const { Executor } = await import('@/executor/index')
 
       const workflow = createMinimalWorkflow()
@@ -405,14 +402,11 @@ describe('Executor', () => {
     })
 
     it.concurrent('should work with debug mode disabled', async () => {
-      // Reset and reconfigure mocks for normal mode
       vi.resetModules()
       vi.clearAllMocks()
 
-      // Setup mocks with debug mode disabled (default)
       setupAllMocks({ isDebugModeEnabled: false })
 
-      // Import Executor AFTER setting up mocks
       const { Executor } = await import('@/executor/index')
 
       const workflow = createMinimalWorkflow()
@@ -426,7 +420,6 @@ describe('Executor', () => {
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
 
-      // Create a mock context for debug continuation
       const mockContext = createMockContext()
       mockContext.blockStates.set('starter', {
         output: { input: {} },
@@ -450,7 +443,6 @@ describe('Executor', () => {
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
 
-      // Test basic workflow execution
       expect(executor).toBeDefined()
       expect(typeof executor.execute).toBe('function')
     })
@@ -459,10 +451,8 @@ describe('Executor', () => {
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
 
-      // Test error handling functionality
       const extractErrorMessage = (executor as any).extractErrorMessage.bind(executor)
 
-      // Test error message extraction
       const error = new Error('Test error message')
       const errorMessage = extractErrorMessage(error)
       expect(errorMessage).toBe('Test error message')
@@ -477,7 +467,6 @@ describe('Executor', () => {
       const workflow = createWorkflowWithErrorPath()
       const executor = new Executor(workflow)
 
-      // Mock context
       const context = {
         executedBlocks: new Set<string>(['starter', 'block1']),
         activeExecutionPath: new Set<string>(['block1']),
@@ -485,7 +474,6 @@ describe('Executor', () => {
         workflow: workflow,
       } as any
 
-      // Add error state to the block
       context.blockStates.set('block1', {
         output: {
           error: 'Test error',
@@ -493,14 +481,11 @@ describe('Executor', () => {
         executed: true,
       })
 
-      // Call activateErrorPath method
       const activateErrorPath = (executor as any).activateErrorPath.bind(executor)
       const result = activateErrorPath('block1', context)
 
-      // Should return true since there is an error path
       expect(result).toBe(true)
 
-      // Error-handler block should be in active execution path
       expect(context.activeExecutionPath.has('error-handler')).toBe(true)
     })
 
@@ -508,7 +493,6 @@ describe('Executor', () => {
       const workflow = createWorkflowWithErrorPath()
       const executor = new Executor(workflow)
 
-      // Add condition block
       workflow.blocks.push({
         id: 'condition-block',
         position: { x: 300, y: 0 },
@@ -519,7 +503,6 @@ describe('Executor', () => {
         metadata: { id: BlockType.CONDITION, name: 'Condition Block' },
       })
 
-      // Mock context
       const context = {
         executedBlocks: new Set<string>(['starter', 'condition-block']),
         activeExecutionPath: new Set<string>(['condition-block']),
@@ -527,7 +510,6 @@ describe('Executor', () => {
         workflow: workflow,
       } as any
 
-      // Add error states
       context.blockStates.set('starter', {
         output: { error: 'Test error' },
         executed: true,
@@ -538,10 +520,8 @@ describe('Executor', () => {
         executed: true,
       })
 
-      // Call activateErrorPath method
       const activateErrorPath = (executor as any).activateErrorPath.bind(executor)
 
-      // Should return false for both blocks
       expect(activateErrorPath('starter', context)).toBe(false)
       expect(activateErrorPath('condition-block', context)).toBe(false)
     })
@@ -550,7 +530,6 @@ describe('Executor', () => {
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
 
-      // Mock context
       const context = {
         executedBlocks: new Set<string>(['starter', 'block1']),
         activeExecutionPath: new Set<string>(['block1']),
@@ -558,17 +537,14 @@ describe('Executor', () => {
         workflow: workflow,
       } as any
 
-      // Add error state to the block
       context.blockStates.set('block1', {
         output: { error: 'Test error' },
         executed: true,
       })
 
-      // Call activateErrorPath method
       const activateErrorPath = (executor as any).activateErrorPath.bind(executor)
       const result = activateErrorPath('block1', context)
 
-      // Should return false since there is no error path
       expect(result).toBe(false)
     })
 
@@ -576,13 +552,11 @@ describe('Executor', () => {
       const workflow = createWorkflowWithErrorPath()
       const executor = new Executor(workflow)
 
-      // Create an error with additional properties
       const testError = new Error('Test function execution error') as Error & {
         status?: number
       }
       testError.status = 400
 
-      // Create a context with blockLogs
       const _mockContext = {
         blockLogs: [],
         blockStates: new Map(),
@@ -591,20 +565,16 @@ describe('Executor', () => {
         workflow,
       }
 
-      // Call the extractErrorMessage method directly
       const extractErrorMessage = (executor as any).extractErrorMessage.bind(executor)
       const errorMessage = extractErrorMessage(testError)
 
-      // Verify the error message is extracted correctly
       expect(errorMessage).toBe('Test function execution error')
 
-      // Create an error output manually
       const errorOutput = {
         error: errorMessage,
         status: testError.status || 500,
       }
 
-      // Verify the error output structure
       expect(errorOutput).toHaveProperty('error')
       expect(errorOutput).toHaveProperty('status')
     })
@@ -615,7 +585,6 @@ describe('Executor', () => {
 
       const extractErrorMessage = (executor as any).extractErrorMessage.bind(executor)
 
-      // Test the specific "undefined (undefined)" error case
       const undefinedError = { message: 'undefined (undefined)' }
       const errorMessage = extractErrorMessage(undefinedError)
 
@@ -631,7 +600,6 @@ describe('Executor', () => {
       const workflow = createMinimalWorkflow()
       const mockOnStream = vi.fn()
 
-      // Mock a streaming execution result
       const mockStreamingResult = {
         stream: new ReadableStream({
           start(controller) {
@@ -657,7 +625,6 @@ describe('Executor', () => {
 
       const result = await executor.execute('test-workflow-id')
 
-      // Verify result structure
       if ('stream' in result) {
         expect(result.stream).toBeInstanceOf(ReadableStream)
         expect(result.execution).toBeDefined()
@@ -677,7 +644,6 @@ describe('Executor', () => {
         },
       })
 
-      // Test that execution context contains streaming properties
       const createContextSpy = vi.spyOn(executor as any, 'createExecutionContext')
 
       await executor.execute('test-workflow-id')
@@ -691,7 +657,6 @@ describe('Executor', () => {
    */
   describe('dependency checking', () => {
     it.concurrent('should handle multi-input blocks with inactive sources correctly', () => {
-      // Create workflow with router -> multiple APIs -> single agent
       const routerWorkflow = {
         version: '1.0',
         blocks: [
@@ -755,7 +720,6 @@ describe('Executor', () => {
       const executor = new Executor(routerWorkflow)
       const checkDependencies = (executor as any).checkDependencies.bind(executor)
 
-      // Mock context simulating: router selected api1, api1 executed, api2 not in active path
       const mockContext = {
         blockStates: new Map(),
         decisions: {
@@ -768,7 +732,6 @@ describe('Executor', () => {
 
       const executedBlocks = new Set(['start', 'router', 'api1'])
 
-      // Test agent's dependencies
       const agentConnections = [
         { source: 'api1', target: 'agent', sourceHandle: 'source' },
         { source: 'api2', target: 'agent', sourceHandle: 'source' },
@@ -776,9 +739,6 @@ describe('Executor', () => {
 
       const dependenciesMet = checkDependencies(agentConnections, executedBlocks, mockContext)
 
-      // Both dependencies should be met:
-      // - api1: in active path AND executed = met
-      // - api2: NOT in active path = automatically met
       expect(dependenciesMet).toBe(true)
     })
 
@@ -797,19 +757,15 @@ describe('Executor', () => {
 
       const executedBlocks = new Set(['block1'])
 
-      // Test error connection (should be handled before active path check)
       const errorConnections = [{ source: 'block2', target: 'block3', sourceHandle: 'error' }]
 
-      // Mock block2 with error state
       mockContext.blockStates.set('block2', {
         output: { error: 'test error' },
       })
 
-      // Even though block2 is not in active path, error connection should be handled specially
       const errorDepsResult = checkDependencies(errorConnections, new Set(['block2']), mockContext)
       expect(errorDepsResult).toBe(true) // source executed + has error = dependency met
 
-      // Test loop connection
       const loopConnections = [
         { source: 'block2', target: 'block3', sourceHandle: 'loop-end-source' },
       ]
@@ -824,7 +780,6 @@ describe('Executor', () => {
       const executor = new Executor(workflow)
       const checkDependencies = (executor as any).checkDependencies.bind(executor)
 
-      // Add router block to workflow
       workflow.blocks.push({
         id: 'router1',
         position: { x: 200, y: 0 },
@@ -847,12 +802,10 @@ describe('Executor', () => {
 
       const executedBlocks = new Set(['router1'])
 
-      // Test selected target
       const selectedConnections = [{ source: 'router1', target: 'target1', sourceHandle: 'source' }]
       const selectedResult = checkDependencies(selectedConnections, executedBlocks, mockContext)
-      expect(selectedResult).toBe(true) // router executed + target selected = dependency met
+      expect(selectedResult).toBe(true)
 
-      // Test non-selected target
       const nonSelectedConnections = [
         { source: 'router1', target: 'target2', sourceHandle: 'source' },
       ]
@@ -861,7 +814,7 @@ describe('Executor', () => {
         executedBlocks,
         mockContext
       )
-      expect(nonSelectedResult).toBe(false) // router executed + target NOT selected = dependency NOT met
+      expect(nonSelectedResult).toBe(false)
     })
 
     it.concurrent('should handle condition decisions correctly in dependency checking', () => {
@@ -873,7 +826,7 @@ describe('Executor', () => {
         blockStates: new Map(),
         decisions: {
           router: new Map(),
-          condition: new Map([['condition1', 'true']]), // condition selected true path
+          condition: new Map([['condition1', 'true']]),
         },
         activeExecutionPath: new Set(['condition1', 'trueTarget']),
         workflow: conditionWorkflow,
@@ -881,19 +834,17 @@ describe('Executor', () => {
 
       const executedBlocks = new Set(['condition1'])
 
-      // Test selected condition path
       const trueConnections = [
         { source: 'condition1', target: 'trueTarget', sourceHandle: 'condition-true' },
       ]
       const trueResult = checkDependencies(trueConnections, executedBlocks, mockContext)
       expect(trueResult).toBe(true)
 
-      // Test non-selected condition path
       const falseConnections = [
         { source: 'condition1', target: 'falseTarget', sourceHandle: 'condition-false' },
       ]
       const falseResult = checkDependencies(falseConnections, executedBlocks, mockContext)
-      expect(falseResult).toBe(true) // unselected condition paths are treated as "not applicable" to support multi-path scenarios
+      expect(falseResult).toBe(true)
     })
 
     it.concurrent('should handle regular sequential dependencies correctly', () => {
@@ -910,10 +861,8 @@ describe('Executor', () => {
 
       const executedBlocks = new Set(['block1'])
 
-      // Test normal sequential dependency
       const normalConnections = [{ source: 'block1', target: 'block2', sourceHandle: 'source' }]
 
-      // Without error
       const normalResult = checkDependencies(normalConnections, executedBlocks, mockContext)
       expect(normalResult).toBe(true) // source executed + no error = dependency met
 

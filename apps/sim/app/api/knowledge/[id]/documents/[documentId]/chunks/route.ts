@@ -1,9 +1,9 @@
-import crypto from 'crypto'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { batchChunkOperation, createChunk, queryChunks } from '@/lib/knowledge/chunks/service'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateRequestId } from '@/lib/utils'
 import { getUserId } from '@/app/api/auth/oauth/utils'
 import { checkDocumentAccess, checkDocumentWriteAccess } from '@/app/api/knowledge/utils'
 import { calculateCost } from '@/providers/utils'
@@ -34,7 +34,7 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; documentId: string }> }
 ) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const { id: knowledgeBaseId, documentId } = await params
 
   try {
@@ -106,7 +106,7 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; documentId: string }> }
 ) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const { id: knowledgeBaseId, documentId } = await params
 
   try {
@@ -229,7 +229,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; documentId: string }> }
 ) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const { id: knowledgeBaseId, documentId } = await params
 
   try {

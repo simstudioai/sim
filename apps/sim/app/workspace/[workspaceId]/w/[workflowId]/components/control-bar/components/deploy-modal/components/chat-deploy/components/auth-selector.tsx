@@ -119,7 +119,7 @@ export function AuthSelector({
 
             {isExistingChat && !password && (
               <div className='mb-2 flex items-center text-muted-foreground text-xs'>
-                <div className='mr-2 rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary'>
+                <div className='mr-2 rounded-full bg-primary/10 px-2 py-0.5 font-medium text-muted-foreground'>
                   Password set
                 </div>
                 <span>Current password is securely stored</span>

@@ -65,7 +65,7 @@ export default function Trigger() {
           className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
         >
           <span>All triggers</span>
-          {triggers.length === 0 && <Check className='h-4 w-4 text-primary' />}
+          {triggers.length === 0 && <Check className='h-4 w-4 text-muted-foreground' />}
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
@@ -85,7 +85,9 @@ export default function Trigger() {
               )}
               {triggerItem.label}
             </div>
-            {isTriggerSelected(triggerItem.value) && <Check className='h-4 w-4 text-primary' />}
+            {isTriggerSelected(triggerItem.value) && (
+              <Check className='h-4 w-4 text-muted-foreground' />
+            )}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

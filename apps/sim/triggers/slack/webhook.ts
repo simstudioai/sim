@@ -62,7 +62,7 @@ export const slackWebhookTrigger: TriggerConfig = {
   },
 
   instructions: [
-    'Go to <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer" class="text-primary underline transition-colors hover:text-primary/80">Slack Apps page</a>',
+    'Go to <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer" class="text-muted-foreground underline transition-colors hover:text-muted-foreground/80">Slack Apps page</a>',
     'If you don\'t have an app:<br><ul class="mt-1 ml-5 list-disc"><li>Create an app from scratch</li><li>Give it a name and select your workspace</li></ul>',
     'Go to "Basic Information", find the "Signing Secret", and paste it in the field above.',
     'Go to "OAuth & Permissions" and add bot token scopes:<br><ul class="mt-1 ml-5 list-disc"><li><code>app_mentions:read</code> - For viewing messages that tag your bot with an @</li><li><code>chat:write</code> - To send messages to channels your bot is a part of</li></ul>',

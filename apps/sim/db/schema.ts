@@ -1291,3 +1291,54 @@ export const copilotFeedback = pgTable(
     createdAtIdx: index('copilot_feedback_created_at_idx').on(table.createdAt),
   })
 )
+
+export const mcpServers = pgTable(
+  'mcp_servers',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+
+    // Track who created the server, but workspace owns it
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+
+    name: text('name').notNull(),
+    description: text('description'),
+
+    transport: text('transport').notNull(),
+    url: text('url'),
+
+    headers: json('headers').default('{}'),
+    timeout: integer('timeout').default(30000),
+    retries: integer('retries').default(3),
+
+    enabled: boolean('enabled').notNull().default(true),
+    lastConnected: timestamp('last_connected'),
+    connectionStatus: text('connection_status').default('disconnected'),
+    lastError: text('last_error'),
+
+    toolCount: integer('tool_count').default(0),
+    lastToolsRefresh: timestamp('last_tools_refresh'),
+    totalRequests: integer('total_requests').default(0),
+    lastUsed: timestamp('last_used'),
+
+    deletedAt: timestamp('deleted_at'),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Primary access pattern - active servers by workspace
+    workspaceEnabledIdx: index('mcp_servers_workspace_enabled_idx').on(
+      table.workspaceId,
+      table.enabled
+    ),
+
+    // Soft delete pattern - workspace + not deleted
+    workspaceDeletedIdx: index('mcp_servers_workspace_deleted_idx').on(
+      table.workspaceId,
+      table.deletedAt
+    ),
+  })
+)

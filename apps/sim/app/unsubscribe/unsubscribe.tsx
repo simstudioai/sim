@@ -178,7 +178,10 @@ function UnsubscribeContent() {
             <div className='mt-4 text-center'>
               <p className='text-muted-foreground text-xs'>
                 Need immediate help? Email us at{' '}
-                <a href={`mailto:${brand.supportEmail}`} className='text-primary hover:underline'>
+                <a
+                  href={`mailto:${brand.supportEmail}`}
+                  className='text-muted-foreground hover:underline'
+                >
                   {brand.supportEmail}
                 </a>
               </p>
@@ -258,7 +261,10 @@ function UnsubscribeContent() {
             <p className='text-muted-foreground text-sm'>
               If you change your mind, you can always update your email preferences in your account
               settings or contact us at{' '}
-              <a href={`mailto:${brand.supportEmail}`} className='text-primary hover:underline'>
+              <a
+                href={`mailto:${brand.supportEmail}`}
+                className='text-muted-foreground hover:underline'
+              >
                 {brand.supportEmail}
               </a>
             </p>
@@ -371,7 +377,10 @@ function UnsubscribeContent() {
 
             <p className='text-center text-muted-foreground text-xs'>
               Questions? Contact us at{' '}
-              <a href={`mailto:${brand.supportEmail}`} className='text-primary hover:underline'>
+              <a
+                href={`mailto:${brand.supportEmail}`}
+                className='text-muted-foreground hover:underline'
+              >
                 {brand.supportEmail}
               </a>
             </p>

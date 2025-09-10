@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -13,6 +12,7 @@ import {
   getSubBlockValue,
   validateCronExpression,
 } from '@/lib/schedules/utils'
+import { generateRequestId } from '@/lib/utils'
 import { db } from '@/db'
 import { workflow, workflowSchedule } from '@/db/schema'
 
@@ -65,7 +65,7 @@ function hasValidScheduleConfig(
  * Get schedule information for a workflow
  */
 export async function GET(req: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const url = new URL(req.url)
   const workflowId = url.searchParams.get('workflowId')
   const blockId = url.searchParams.get('blockId')
@@ -165,7 +165,7 @@ export async function GET(req: NextRequest) {
  * Create or update a schedule for a workflow
  */
 export async function POST(req: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const session = await getSession()

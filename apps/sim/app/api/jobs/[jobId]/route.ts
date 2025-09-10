@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateRequestId } from '@/lib/utils'
 import { createErrorResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
 import { apiKey as apiKeyTable } from '@/db/schema'
@@ -14,7 +15,7 @@ export async function GET(
   { params }: { params: Promise<{ jobId: string }> }
 ) {
   const { jobId: taskId } = await params
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     logger.debug(`[${requestId}] Getting status for task: ${taskId}`)

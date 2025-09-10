@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateRequestId } from '@/lib/utils'
 import { getCredential, refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
@@ -14,7 +15,7 @@ const logger = createLogger('OAuthTokenAPI')
  * and workflow-based authentication (for server-side requests)
  */
 export async function POST(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   logger.info(`[${requestId}] OAuth token API POST request received`)
 
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
  * Get the access token for a specific credential
  */
 export async function GET(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8) // Short request ID for correlation
+  const requestId = generateRequestId()
 
   try {
     // Get the credential ID from the query params
