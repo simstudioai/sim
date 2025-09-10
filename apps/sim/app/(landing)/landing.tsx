@@ -3,9 +3,9 @@ import {
   Footer,
   Hero,
   Integrations,
-  LandingEnterprise,
   LandingPricing,
   Nav,
+  Testimonials,
 } from '@/app/(landing)/components'
 
 export default function Landing() {
@@ -15,9 +15,9 @@ export default function Landing() {
       <main className='relative'>
         <Hero />
         {/* <LandingTemplates /> */}
-        <LandingEnterprise />
         <Integrations />
         <LandingPricing />
+        <Testimonials />
       </main>
       <Footer />
     </Background>

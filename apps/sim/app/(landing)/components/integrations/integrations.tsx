@@ -163,7 +163,7 @@ export default function Integrations() {
   return (
     <section
       id='integrations'
-      className={`${inter.className} flex flex-col pt-[40px] pb-[21px] sm:pt-[30px]`}
+      className={`${inter.className} flex flex-col pt-[40px] pb-[27px] sm:pt-[24px]`}
       aria-labelledby='integrations-heading'
     >
       <h2

@@ -187,15 +187,13 @@ export default function Footer() {
                 Docs
               </Link>
               <Link
-                href='/pricing'
-                target='_blank'
-                rel='noopener noreferrer'
+                href='#pricing'
                 className='text-[14px] text-muted-foreground transition-colors hover:text-foreground'
               >
                 Pricing
               </Link>
               <Link
-                href='/enterprise'
+                href='https://form.typeform.com/to/jqCO12pF'
                 target='_blank'
                 rel='noopener noreferrer'
                 className='text-[14px] text-muted-foreground transition-colors hover:text-foreground'

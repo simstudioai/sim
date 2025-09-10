@@ -19,6 +19,7 @@ export default function Background({ className, children }: BackgroundProps) {
         xmlns='http://www.w3.org/2000/svg'
         preserveAspectRatio='xMidYMin slice'
       >
+        {/* Integrations section (original height ~412 units) */}
         <path d='M6.71704 1236.22H1291.05' stroke='#E7E4EF' strokeWidth='2' />
         <circle
           cx='11.0557'
@@ -36,12 +37,14 @@ export default function Background({ className, children }: BackgroundProps) {
           stroke='#E7E4EF'
           strokeWidth='2'
         />
-        <path d='M10.7967 1245.94V1399.74' stroke='#E7E4EF' strokeWidth='2' />
-        <path d='M1297.76 1245.94V1399.74' stroke='#E7E4EF' strokeWidth='2' />
-        <path d='M6.71704 1385.22H1300.76' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M10.7967 1245.94V1648.26' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M1297.76 1245.94V1648.26' stroke='#E7E4EF' strokeWidth='2' />
+
+        {/* Pricing section (original height ~380 units) */}
+        <path d='M6.71704 1648.92H1300.76' stroke='#E7E4EF' strokeWidth='2' />
         <circle
           cx='11.0557'
-          cy='1385.48'
+          cy='1649.18'
           r='8.07846'
           fill='white'
           stroke='#E7E4EF'
@@ -49,24 +52,37 @@ export default function Background({ className, children }: BackgroundProps) {
         />
         <circle
           cx='1298.02'
-          cy='1385.48'
+          cy='1649.18'
           r='8.07846'
           fill='white'
           stroke='#E7E4EF'
           strokeWidth='2'
         />
-        <path d='M10.7967 1394.93V1789.26' stroke='#E7E4EF' strokeWidth='2' />
-        <path d='M6.71704 1797.92H1300.76' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M10.7967 1658.10V2026.59' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M1297.76 1658.64V2026.59' stroke='#E7E4EF' strokeWidth='2' />
+
+        {/* Testimonials section (original short height ~149 units) */}
+        <path d='M6.71704 2026.37H1300.76' stroke='#E7E4EF' strokeWidth='2' />
         <circle
           cx='11.0557'
-          cy='1798.18'
+          cy='2026.63'
           r='8.07846'
           fill='white'
           stroke='#E7E4EF'
           strokeWidth='2'
         />
-        <path d='M10.7967 1807.10V2194.59' stroke='#E7E4EF' strokeWidth='2' />
-        <path d='M1297.76 1807.64V2194.59' stroke='#E7E4EF' strokeWidth='2' />
+        <circle
+          cx='1298.02'
+          cy='2026.63'
+          r='8.07846'
+          fill='white'
+          stroke='#E7E4EF'
+          strokeWidth='2'
+        />
+        <path d='M10.7967 2036.09V2177.09' stroke='#E7E4EF' strokeWidth='2' />
+        <path d='M1297.76 2036.09V2177.09' stroke='#E7E4EF' strokeWidth='2' />
+
+        {/* Footer section line */}
         <path d='M6.71704 2177.37H1300.76' stroke='#E7E4EF' strokeWidth='2' />
         <circle
           cx='11.0557'
@@ -232,15 +248,6 @@ export default function Background({ className, children }: BackgroundProps) {
         <circle
           cx='244.805'
           cy='621.07'
-          r='8.07846'
-          fill='white'
-          stroke='#E7E4EF'
-          strokeWidth='2'
-        />
-        <path d='M1297.76 1394.93V1797.21' stroke='#E7E4EF' strokeWidth='2' />
-        <circle
-          cx='1298.02'
-          cy='1798.18'
           r='8.07846'
           fill='white'
           stroke='#E7E4EF'
