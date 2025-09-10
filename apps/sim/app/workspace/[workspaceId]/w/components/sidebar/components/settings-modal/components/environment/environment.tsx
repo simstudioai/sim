@@ -75,6 +75,18 @@ export function EnvironmentVariables({
       .filter(({ envVar }) => envVar.key.toLowerCase().includes(searchTerm.toLowerCase()))
   }, [envVars, searchTerm])
 
+  const filteredWorkspaceEntries = useMemo(() => {
+    const entries = Object.entries(workspaceVars)
+    if (!searchTerm.trim()) return entries
+    const term = searchTerm.toLowerCase()
+    return entries.filter(([key]) => key.toLowerCase().includes(term))
+  }, [workspaceVars, searchTerm])
+
+  const personalHeaderMarginClass = useMemo(() => {
+    if (!searchTerm.trim()) return 'mt-8'
+    return filteredWorkspaceEntries.length > 0 ? 'mt-8' : 'mt-0'
+  }, [searchTerm, filteredWorkspaceEntries])
+
   const hasChanges = useMemo(() => {
     const initialVars = initialVarsRef.current.filter((v) => v.key || v.value)
     const currentVars = envVars.filter((v) => v.key || v.value)
@@ -468,12 +480,58 @@ export function EnvironmentVariables({
           ) : (
             <>
               {/* Workspace section */}
-              <div className='mb-6 space-y-2'>
-                <div className='font-medium text-[13px] text-foreground'>Workspace</div>
-                {Object.keys(workspaceVars).length === 0 ? (
-                  <div className='text-muted-foreground text-sm'>No workspace variables yet.</div>
-                ) : (
-                  Object.entries(workspaceVars).map(([key, value]) => (
+              {!searchTerm.trim() ? (
+                <div className='mb-6 space-y-2'>
+                  <div className='font-medium text-[13px] text-foreground'>Workspace</div>
+                  {Object.keys(workspaceVars).length === 0 ? (
+                    <div className='text-muted-foreground text-sm'>No workspace variables yet.</div>
+                  ) : (
+                    Object.entries(workspaceVars).map(([key, value]) => (
+                      <div key={key} className={`${GRID_COLS} items-center`}>
+                        <Input
+                          value={renamingKey === key ? pendingKeyValue : key}
+                          onChange={(e) => {
+                            if (renamingKey !== key) setRenamingKey(key)
+                            setPendingKeyValue(e.target.value)
+                          }}
+                          onBlur={() => handleWorkspaceKeyRename(key, value)}
+                          className='h-9 rounded-[8px] border-none bg-muted px-3 text-sm'
+                        />
+                        <Input
+                          value={value ? '•'.repeat(value.length) : ''}
+                          readOnly
+                          className='h-9 rounded-[8px] border-none bg-muted px-3 text-sm'
+                        />
+                        <div className='flex justify-end'>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant='ghost'
+                                size='icon'
+                                onClick={() => {
+                                  setWorkspaceVars((prev) => {
+                                    const next = { ...prev }
+                                    delete next[key]
+                                    return next
+                                  })
+                                  setConflicts((prev) => prev.filter((k) => k !== key))
+                                }}
+                                className='h-9 w-9 rounded-[8px] bg-muted p-0 text-muted-foreground hover:bg-muted/70'
+                              >
+                                ×
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Delete environment variable</TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              ) : filteredWorkspaceEntries.length > 0 ? (
+                <div className='mb-6 space-y-2'>
+                  <div className='font-medium text-[13px] text-foreground'>Workspace</div>
+                  {filteredWorkspaceEntries.map(([key, value]) => (
                     <div key={key} className={`${GRID_COLS} items-center`}>
                       <Input
                         value={renamingKey === key ? pendingKeyValue : key}
@@ -512,21 +570,29 @@ export function EnvironmentVariables({
                         </Tooltip>
                       </div>
                     </div>
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              ) : null}
 
               {/* Personal section */}
-              <div className='mt-8 mb-2 font-medium text-[13px] text-foreground'> Personal </div>
+              <div
+                className={`${personalHeaderMarginClass} mb-2 font-medium text-[13px] text-foreground`}
+              >
+                {' '}
+                Personal{' '}
+              </div>
               {filteredEnvVars.map(({ envVar, originalIndex }) => (
                 <div key={envVar.id || originalIndex}>{renderEnvVarRow(envVar, originalIndex)}</div>
               ))}
-              {/* Show message when search has no results but there are variables */}
-              {searchTerm.trim() && filteredEnvVars.length === 0 && envVars.length > 0 && (
-                <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
-                  No environment variables found matching "{searchTerm}"
-                </div>
-              )}
+              {/* Show message when search has no results across both sections */}
+              {searchTerm.trim() &&
+                filteredEnvVars.length === 0 &&
+                filteredWorkspaceEntries.length === 0 &&
+                (envVars.length > 0 || Object.keys(workspaceVars).length > 0) && (
+                  <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
+                    No environment variables found matching "{searchTerm}"
+                  </div>
+                )}
             </>
           )}
         </div>

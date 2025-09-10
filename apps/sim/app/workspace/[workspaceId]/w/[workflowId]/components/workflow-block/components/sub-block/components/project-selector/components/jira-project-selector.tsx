@@ -542,7 +542,7 @@ export function JiraProjectSelector({
                   {credentials.length === 0 && (
                     <CommandGroup>
                       <CommandItem onSelect={handleAddCredential}>
-                        <div className='flex items-center gap-2 text-primary'>
+                        <div className='flex items-center gap-2 text-foreground'>
                           <JiraIcon className='h-4 w-4' />
                           <span>Connect Jira account</span>
                         </div>
@@ -592,7 +592,7 @@ export function JiraProjectSelector({
                     href={selectedProject.url}
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='flex items-center gap-1 text-primary text-xs hover:underline'
+                    className='flex items-center gap-1 text-foreground text-xs hover:underline'
                     onClick={(e) => e.stopPropagation()}
                   >
                     <span>Open in Jira</span>

@@ -272,12 +272,14 @@ export function ChatDeploy({
                 </span>
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogFooter className='flex'>
+              <AlertDialogCancel className='h-9 w-full rounded-[8px]' disabled={isDeleting}>
+                Cancel
+              </AlertDialogCancel>
               <AlertDialogAction
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className='bg-destructive hover:bg-destructive/90'
+                className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
               >
                 {isDeleting ? (
                   <span className='flex items-center'>
@@ -330,6 +332,7 @@ export function ChatDeploy({
               onChange={(e) => updateField('title', e.target.value)}
               required
               disabled={chatSubmitting}
+              className='h-10 rounded-[8px]'
             />
             {errors.title && <p className='text-destructive text-sm'>{errors.title}</p>}
           </div>
@@ -344,11 +347,12 @@ export function ChatDeploy({
               onChange={(e) => updateField('description', e.target.value)}
               rows={3}
               disabled={chatSubmitting}
+              className='min-h-[80px] resize-none rounded-[8px]'
             />
           </div>
           <div className='space-y-2'>
             <Label className='font-medium text-sm'>Chat Output</Label>
-            <Card className='rounded-md border-input shadow-none'>
+            <Card className='rounded-[8px] border-input shadow-none'>
               <CardContent className='p-1'>
                 <OutputSelect
                   workflowId={workflowId}
@@ -389,6 +393,7 @@ export function ChatDeploy({
               onChange={(e) => updateField('welcomeMessage', e.target.value)}
               rows={3}
               disabled={chatSubmitting}
+              className='min-h-[80px] resize-none rounded-[8px]'
             />
             <p className='text-muted-foreground text-xs'>
               This message will be displayed when users first open the chat
@@ -445,12 +450,14 @@ export function ChatDeploy({
               </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+          <AlertDialogFooter className='flex'>
+            <AlertDialogCancel className='h-9 w-full rounded-[8px]' disabled={isDeleting}>
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={isDeleting}
-              className='bg-destructive hover:bg-destructive/90'
+              className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
             >
               {isDeleting ? (
                 <span className='flex items-center'>

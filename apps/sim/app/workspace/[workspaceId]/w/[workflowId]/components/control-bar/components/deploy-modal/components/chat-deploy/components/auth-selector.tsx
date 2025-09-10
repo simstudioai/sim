@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Check, Copy, Eye, EyeOff, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { Button, Card, CardContent, Input, Label } from '@/components/ui'
-import { cn } from '@/lib/utils'
+import { cn, generatePassword } from '@/lib/utils'
 import type { AuthType } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/chat-deploy/hooks/use-chat-form'
 
 interface AuthSelectorProps {
@@ -32,16 +32,9 @@ export function AuthSelector({
   const [emailError, setEmailError] = useState('')
   const [copySuccess, setCopySuccess] = useState(false)
 
-  const generatePassword = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_-+='
-    let result = ''
-    const length = 24
-
-    for (let i = 0; i < length; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length))
-    }
-
-    onPasswordChange(result)
+  const handleGeneratePassword = () => {
+    const password = generatePassword(24)
+    onPasswordChange(password)
   }
 
   const copyToClipboard = (text: string) => {
@@ -80,7 +73,7 @@ export function AuthSelector({
           <Card
             key={type}
             className={cn(
-              'cursor-pointer overflow-hidden shadow-none transition-colors hover:bg-accent/30',
+              'cursor-pointer overflow-hidden rounded-[8px] shadow-none transition-all duration-200 hover:bg-accent/30',
               authType === type
                 ? 'border border-muted-foreground hover:bg-accent/50'
                 : 'border border-input'
@@ -113,13 +106,13 @@ export function AuthSelector({
 
       {/* Auth Settings */}
       {authType === 'password' && (
-        <Card className='shadow-none'>
+        <Card className='rounded-[8px] shadow-none'>
           <CardContent className='p-4'>
             <h3 className='mb-2 font-medium text-sm'>Password Settings</h3>
 
             {isExistingChat && !password && (
               <div className='mb-2 flex items-center text-muted-foreground text-xs'>
-                <div className='mr-2 rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary'>
+                <div className='mr-2 rounded-full bg-primary/10 px-2 py-0.5 font-medium text-muted-foreground'>
                   Password set
                 </div>
                 <span>Current password is securely stored</span>
@@ -137,42 +130,70 @@ export function AuthSelector({
                 value={password}
                 onChange={(e) => onPasswordChange(e.target.value)}
                 disabled={disabled}
-                className='pr-28'
+                className='h-10 rounded-[8px] pr-32'
                 required={!isExistingChat}
                 autoComplete='new-password'
               />
-              <div className='absolute top-0 right-0 flex h-full'>
+              <div className='absolute top-0.5 right-0.5 flex h-9 items-center gap-1 pr-1'>
                 <Button
                   type='button'
                   variant='ghost'
-                  size='icon'
-                  onClick={generatePassword}
+                  size='sm'
+                  onClick={handleGeneratePassword}
                   disabled={disabled}
-                  className='px-2'
+                  className={cn(
+                    'group h-7 w-7 rounded-md p-0',
+                    'text-muted-foreground/60 transition-all duration-200',
+                    'hover:scale-105 hover:bg-muted/50 hover:text-foreground',
+                    'active:scale-95',
+                    'disabled:cursor-not-allowed disabled:opacity-50',
+                    'focus-visible:ring-2 focus-visible:ring-muted-foreground/20 focus-visible:ring-offset-1'
+                  )}
                 >
-                  <RefreshCw className='h-4 w-4' />
+                  <RefreshCw className='h-3.5 w-3.5 transition-transform duration-200 group-hover:rotate-90' />
                   <span className='sr-only'>Generate password</span>
                 </Button>
                 <Button
                   type='button'
                   variant='ghost'
-                  size='icon'
+                  size='sm'
                   onClick={() => copyToClipboard(password)}
                   disabled={!password || disabled}
-                  className='px-2'
+                  className={cn(
+                    'group h-7 w-7 rounded-md p-0',
+                    'text-muted-foreground/60 transition-all duration-200',
+                    'hover:scale-105 hover:bg-muted/50 hover:text-foreground',
+                    'active:scale-95',
+                    'disabled:cursor-not-allowed disabled:opacity-30',
+                    'focus-visible:ring-2 focus-visible:ring-muted-foreground/20 focus-visible:ring-offset-1'
+                  )}
                 >
-                  {copySuccess ? <Check className='h-4 w-4' /> : <Copy className='h-4 w-4' />}
+                  {copySuccess ? (
+                    <Check className='h-3.5 w-3.5 text-foreground' />
+                  ) : (
+                    <Copy className='h-3.5 w-3.5 transition-transform duration-200 group-hover:scale-110' />
+                  )}
                   <span className='sr-only'>Copy password</span>
                 </Button>
                 <Button
                   type='button'
                   variant='ghost'
-                  size='icon'
+                  size='sm'
                   onClick={() => setShowPassword(!showPassword)}
                   disabled={disabled}
-                  className='px-2'
+                  className={cn(
+                    'group h-7 w-7 rounded-md p-0',
+                    'text-muted-foreground/60 transition-all duration-200',
+                    'hover:scale-105 hover:bg-muted/50 hover:text-foreground',
+                    'active:scale-95',
+                    'focus-visible:ring-2 focus-visible:ring-muted-foreground/20 focus-visible:ring-offset-1'
+                  )}
                 >
-                  {showPassword ? <EyeOff className='h-4 w-4' /> : <Eye className='h-4 w-4' />}
+                  {showPassword ? (
+                    <EyeOff className='h-3.5 w-3.5 transition-transform duration-200 group-hover:scale-110' />
+                  ) : (
+                    <Eye className='h-3.5 w-3.5 transition-transform duration-200 group-hover:scale-110' />
+                  )}
                   <span className='sr-only'>
                     {showPassword ? 'Hide password' : 'Show password'}
                   </span>
@@ -190,7 +211,7 @@ export function AuthSelector({
       )}
 
       {authType === 'email' && (
-        <Card className='shadow-none'>
+        <Card className='rounded-[8px] shadow-none'>
           <CardContent className='p-4'>
             <h3 className='mb-2 font-medium text-sm'>Email Access Settings</h3>
 
@@ -200,7 +221,7 @@ export function AuthSelector({
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
                 disabled={disabled}
-                className='flex-1'
+                className='h-10 flex-1 rounded-[8px]'
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault()
@@ -212,7 +233,7 @@ export function AuthSelector({
                 type='button'
                 onClick={handleAddEmail}
                 disabled={!newEmail.trim() || disabled}
-                className='shrink-0'
+                className='h-10 shrink-0 rounded-[8px]'
               >
                 <Plus className='h-4 w-4' />
                 Add
@@ -253,7 +274,7 @@ export function AuthSelector({
       )}
 
       {authType === 'public' && (
-        <Card className='shadow-none'>
+        <Card className='rounded-[8px] shadow-none'>
           <CardContent className='p-4'>
             <h3 className='mb-2 font-medium text-sm'>Public Access Settings</h3>
             <p className='text-muted-foreground text-xs'>

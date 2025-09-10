@@ -95,7 +95,7 @@ export default function Workflow() {
           className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
         >
           <span>All workflows</span>
-          {workflowIds.length === 0 && <Check className='h-4 w-4 text-primary' />}
+          {workflowIds.length === 0 && <Check className='h-4 w-4 text-muted-foreground' />}
         </DropdownMenuItem>
 
         {!loading && workflows.length > 0 && <DropdownMenuSeparator />}
@@ -117,7 +117,9 @@ export default function Workflow() {
                 />
                 {workflow.name}
               </div>
-              {isWorkflowSelected(workflow.id) && <Check className='h-4 w-4 text-primary' />}
+              {isWorkflowSelected(workflow.id) && (
+                <Check className='h-4 w-4 text-muted-foreground' />
+              )}
             </DropdownMenuItem>
           ))}
 

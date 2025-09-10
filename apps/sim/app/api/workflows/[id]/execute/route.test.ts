@@ -162,6 +162,7 @@ describe('Workflow Execution API Route', () => {
       }),
       isHosted: vi.fn().mockReturnValue(false),
       getRotatingApiKey: vi.fn().mockReturnValue('rotated-api-key'),
+      generateRequestId: vi.fn(() => 'test-request-id'),
     }))
 
     vi.doMock('@/lib/logs/execution/logging-session', () => ({

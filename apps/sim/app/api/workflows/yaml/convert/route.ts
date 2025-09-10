@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { simAgentClient } from '@/lib/sim-agent'
+import { generateRequestId } from '@/lib/utils'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { resolveOutputType } from '@/blocks/utils'
@@ -9,7 +10,7 @@ import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/w
 const logger = createLogger('WorkflowYamlAPI')
 
 export async function POST(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     logger.info(`[${requestId}] Converting workflow JSON to YAML`)

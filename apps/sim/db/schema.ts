@@ -434,6 +434,75 @@ export const webhook = pgTable(
   }
 )
 
+export const workflowLogWebhook = pgTable(
+  'workflow_log_webhook',
+  {
+    id: text('id').primaryKey(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    url: text('url').notNull(),
+    secret: text('secret'),
+    includeFinalOutput: boolean('include_final_output').notNull().default(false),
+    includeTraceSpans: boolean('include_trace_spans').notNull().default(false),
+    includeRateLimits: boolean('include_rate_limits').notNull().default(false),
+    includeUsageData: boolean('include_usage_data').notNull().default(false),
+    levelFilter: text('level_filter')
+      .array()
+      .notNull()
+      .default(sql`ARRAY['info', 'error']::text[]`),
+    triggerFilter: text('trigger_filter')
+      .array()
+      .notNull()
+      .default(sql`ARRAY['api', 'webhook', 'schedule', 'manual', 'chat']::text[]`),
+    active: boolean('active').notNull().default(true),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workflowIdIdx: index('workflow_log_webhook_workflow_id_idx').on(table.workflowId),
+    activeIdx: index('workflow_log_webhook_active_idx').on(table.active),
+  })
+)
+
+export const webhookDeliveryStatusEnum = pgEnum('webhook_delivery_status', [
+  'pending',
+  'in_progress',
+  'success',
+  'failed',
+])
+
+export const workflowLogWebhookDelivery = pgTable(
+  'workflow_log_webhook_delivery',
+  {
+    id: text('id').primaryKey(),
+    subscriptionId: text('subscription_id')
+      .notNull()
+      .references(() => workflowLogWebhook.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    executionId: text('execution_id').notNull(),
+    status: webhookDeliveryStatusEnum('status').notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    lastAttemptAt: timestamp('last_attempt_at'),
+    nextAttemptAt: timestamp('next_attempt_at'),
+    responseStatus: integer('response_status'),
+    responseBody: text('response_body'),
+    errorMessage: text('error_message'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    subscriptionIdIdx: index('workflow_log_webhook_delivery_subscription_id_idx').on(
+      table.subscriptionId
+    ),
+    executionIdIdx: index('workflow_log_webhook_delivery_execution_id_idx').on(table.executionId),
+    statusIdx: index('workflow_log_webhook_delivery_status_idx').on(table.status),
+    nextAttemptIdx: index('workflow_log_webhook_delivery_next_attempt_idx').on(table.nextAttemptAt),
+  })
+)
+
 export const apiKey = pgTable('api_key', {
   id: text('id').primaryKey(),
   userId: text('user_id')
@@ -536,6 +605,7 @@ export const userRateLimits = pgTable('user_rate_limits', {
   referenceId: text('reference_id').primaryKey(), // Can be userId or organizationId for pooling
   syncApiRequests: integer('sync_api_requests').notNull().default(0), // Sync API requests counter
   asyncApiRequests: integer('async_api_requests').notNull().default(0), // Async API requests counter
+  apiEndpointRequests: integer('api_endpoint_requests').notNull().default(0), // External API endpoint requests counter
   windowStart: timestamp('window_start').notNull().defaultNow(),
   lastRequestAt: timestamp('last_request_at').notNull().defaultNow(),
   isRateLimited: boolean('is_rate_limited').notNull().default(false),
@@ -1219,5 +1289,56 @@ export const copilotFeedback = pgTable(
 
     // Ordering indexes
     createdAtIdx: index('copilot_feedback_created_at_idx').on(table.createdAt),
+  })
+)
+
+export const mcpServers = pgTable(
+  'mcp_servers',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+
+    // Track who created the server, but workspace owns it
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+
+    name: text('name').notNull(),
+    description: text('description'),
+
+    transport: text('transport').notNull(),
+    url: text('url'),
+
+    headers: json('headers').default('{}'),
+    timeout: integer('timeout').default(30000),
+    retries: integer('retries').default(3),
+
+    enabled: boolean('enabled').notNull().default(true),
+    lastConnected: timestamp('last_connected'),
+    connectionStatus: text('connection_status').default('disconnected'),
+    lastError: text('last_error'),
+
+    toolCount: integer('tool_count').default(0),
+    lastToolsRefresh: timestamp('last_tools_refresh'),
+    totalRequests: integer('total_requests').default(0),
+    lastUsed: timestamp('last_used'),
+
+    deletedAt: timestamp('deleted_at'),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Primary access pattern - active servers by workspace
+    workspaceEnabledIdx: index('mcp_servers_workspace_enabled_idx').on(
+      table.workspaceId,
+      table.enabled
+    ),
+
+    // Soft delete pattern - workspace + not deleted
+    workspaceDeletedIdx: index('mcp_servers_workspace_deleted_idx').on(
+      table.workspaceId,
+      table.deletedAt
+    ),
   })
 )

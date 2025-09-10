@@ -175,6 +175,7 @@ Create a system prompt appropriately detailed for the request, using clear langu
       layout: 'half',
       min: 0,
       max: 1,
+      defaultValue: 0.5,
       condition: () => ({
         field: 'model',
         value: (() => {
@@ -192,6 +193,7 @@ Create a system prompt appropriately detailed for the request, using clear langu
       layout: 'half',
       min: 0,
       max: 2,
+      defaultValue: 1,
       condition: () => ({
         field: 'model',
         value: (() => {
@@ -289,6 +291,7 @@ Create a system prompt appropriately detailed for the request, using clear langu
       title: 'Tools',
       type: 'tool-input',
       layout: 'full',
+      defaultValue: [],
     },
     {
       id: 'responseFormat',
@@ -422,7 +425,6 @@ Example 3 (Array Input):
               return usageControl !== 'none'
             })
             .map((tool: any) => {
-              // Get the base tool configuration
               const toolConfig = {
                 id:
                   tool.type === 'custom-tool'
@@ -431,8 +433,9 @@ Example 3 (Array Input):
                 name: tool.title,
                 description: tool.type === 'custom-tool' ? tool.schema?.function?.description : '',
                 params: tool.params || {},
-                parameters: tool.type === 'custom-tool' ? tool.schema?.function?.parameters : {}, // We'd need to get actual parameters for non-custom tools
+                parameters: tool.type === 'custom-tool' ? tool.schema?.function?.parameters : {},
                 usageControl: tool.usageControl || 'auto',
+                type: tool.type,
               }
               return toolConfig
             })
@@ -444,13 +447,6 @@ Example 3 (Array Input):
 
           if (filteredOutTools.length > 0) {
             logger.info('Filtered out tools set to none', { tools: filteredOutTools.join(', ') })
-          }
-
-          logger.info('Transformed tools', { tools: transformedTools })
-          if (transformedTools.length === 0) {
-            logger.info('No tools will be passed to the provider after filtering')
-          } else {
-            logger.info('Tools passed to provider', { count: transformedTools.length })
           }
 
           return { ...params, tools: transformedTools }

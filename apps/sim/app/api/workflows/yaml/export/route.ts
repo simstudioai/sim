@@ -4,6 +4,7 @@ import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { simAgentClient } from '@/lib/sim-agent'
+import { generateRequestId } from '@/lib/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
@@ -15,7 +16,7 @@ import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/w
 const logger = createLogger('WorkflowYamlExportAPI')
 
 export async function GET(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const url = new URL(request.url)
   const workflowId = url.searchParams.get('workflowId')
 

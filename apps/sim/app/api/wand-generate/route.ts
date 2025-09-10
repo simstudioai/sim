@@ -4,6 +4,7 @@ import OpenAI, { AzureOpenAI } from 'openai'
 import { env } from '@/lib/env'
 import { getCostMultiplier, isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateRequestId } from '@/lib/utils'
 import { db } from '@/db'
 import { userStats, workflow } from '@/db/schema'
 import { getModelPricing } from '@/providers/utils'
@@ -138,7 +139,7 @@ async function updateUserStatsForWand(
 }
 
 export async function POST(req: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   logger.info(`[${requestId}] Received wand generation request`)
 
   if (!client) {

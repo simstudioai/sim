@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateRequestId } from '@/lib/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
 import { marketplace, workflow } from '@/db/schema'
@@ -11,7 +12,7 @@ const logger = createLogger('PublicWorkflowAPI')
 export const revalidate = 3600
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const { id } = await params

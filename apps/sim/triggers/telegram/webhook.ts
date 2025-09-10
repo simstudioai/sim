@@ -92,7 +92,7 @@ export const telegramWebhookTrigger: TriggerConfig = {
   },
 
   instructions: [
-    'Message "/newbot" to <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" class="text-primary underline transition-colors hover:text-primary/80">@BotFather</a> in Telegram to create a bot and copy its token.',
+    'Message "/newbot" to <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" class="text-muted-foreground underline transition-colors hover:text-muted-foreground/80">@BotFather</a> in Telegram to create a bot and copy its token.',
     'Enter your Bot Token above.',
     'Save settings and any message sent to your bot will trigger the workflow.',
   ],

@@ -12,10 +12,12 @@ import {
   BLOB_CONFIG,
   BLOB_COPILOT_CONFIG,
   BLOB_KB_CONFIG,
+  BLOB_PROFILE_PICTURES_CONFIG,
   S3_CHAT_CONFIG,
   S3_CONFIG,
   S3_COPILOT_CONFIG,
   S3_KB_CONFIG,
+  S3_PROFILE_PICTURES_CONFIG,
 } from '@/lib/uploads/setup'
 import { validateFileType } from '@/lib/uploads/validation'
 import { createErrorResponse, createOptionsResponse } from '@/app/api/files/utils'
@@ -30,7 +32,7 @@ interface PresignedUrlRequest {
   chatId?: string
 }
 
-type UploadType = 'general' | 'knowledge-base' | 'chat' | 'copilot'
+type UploadType = 'general' | 'knowledge-base' | 'chat' | 'copilot' | 'profile-pictures'
 
 class PresignedUrlError extends Error {
   constructor(
@@ -96,7 +98,9 @@ export async function POST(request: NextRequest) {
           ? 'chat'
           : uploadTypeParam === 'copilot'
             ? 'copilot'
-            : 'general'
+            : uploadTypeParam === 'profile-pictures'
+              ? 'profile-pictures'
+              : 'general'
 
     if (uploadType === 'knowledge-base') {
       const fileValidationError = validateFileType(fileName, contentType)
@@ -117,6 +121,21 @@ export async function POST(request: NextRequest) {
       if (!isImageFileType(contentType)) {
         throw new ValidationError(
           'Only image files (JPEG, PNG, GIF, WebP, SVG) are allowed for copilot uploads'
+        )
+      }
+    }
+
+    // Validate profile picture requirements
+    if (uploadType === 'profile-pictures') {
+      if (!sessionUserId?.trim()) {
+        throw new ValidationError(
+          'Authenticated user session is required for profile picture uploads'
+        )
+      }
+      // Only allow image uploads for profile pictures
+      if (!isImageFileType(contentType)) {
+        throw new ValidationError(
+          'Only image files (JPEG, PNG, GIF, WebP, SVG) are allowed for profile picture uploads'
         )
       }
     }
@@ -185,7 +204,9 @@ async function handleS3PresignedUrl(
           ? S3_CHAT_CONFIG
           : uploadType === 'copilot'
             ? S3_COPILOT_CONFIG
-            : S3_CONFIG
+            : uploadType === 'profile-pictures'
+              ? S3_PROFILE_PICTURES_CONFIG
+              : S3_CONFIG
 
     if (!config.bucket || !config.region) {
       throw new StorageConfigError(`S3 configuration missing for ${uploadType} uploads`)
@@ -199,6 +220,8 @@ async function handleS3PresignedUrl(
     } else if (uploadType === 'chat') {
       prefix = 'chat/'
     } else if (uploadType === 'copilot') {
+      prefix = `${userId}/`
+    } else if (uploadType === 'profile-pictures') {
       prefix = `${userId}/`
     }
 
@@ -218,6 +241,9 @@ async function handleS3PresignedUrl(
       metadata.purpose = 'chat'
     } else if (uploadType === 'copilot') {
       metadata.purpose = 'copilot'
+      metadata.userId = userId || ''
+    } else if (uploadType === 'profile-pictures') {
+      metadata.purpose = 'profile-pictures'
       metadata.userId = userId || ''
     }
 
@@ -239,9 +265,9 @@ async function handleS3PresignedUrl(
       )
     }
 
-    // For chat images and knowledge base files, use direct URLs since they need to be accessible by external services
+    // For chat images, knowledge base files, and profile pictures, use direct URLs since they need to be accessible by external services
     const finalPath =
-      uploadType === 'chat' || uploadType === 'knowledge-base'
+      uploadType === 'chat' || uploadType === 'knowledge-base' || uploadType === 'profile-pictures'
         ? `https://${config.bucket}.s3.${config.region}.amazonaws.com/${uniqueKey}`
         : `/api/files/serve/s3/${encodeURIComponent(uniqueKey)}`
 
@@ -285,7 +311,9 @@ async function handleBlobPresignedUrl(
           ? BLOB_CHAT_CONFIG
           : uploadType === 'copilot'
             ? BLOB_COPILOT_CONFIG
-            : BLOB_CONFIG
+            : uploadType === 'profile-pictures'
+              ? BLOB_PROFILE_PICTURES_CONFIG
+              : BLOB_CONFIG
 
     if (
       !config.accountName ||
@@ -303,6 +331,8 @@ async function handleBlobPresignedUrl(
     } else if (uploadType === 'chat') {
       prefix = 'chat/'
     } else if (uploadType === 'copilot') {
+      prefix = `${userId}/`
+    } else if (uploadType === 'profile-pictures') {
       prefix = `${userId}/`
     }
 
@@ -339,10 +369,10 @@ async function handleBlobPresignedUrl(
 
     const presignedUrl = `${blockBlobClient.url}?${sasToken}`
 
-    // For chat images, use direct Blob URLs since they need to be permanently accessible
+    // For chat images and profile pictures, use direct Blob URLs since they need to be permanently accessible
     // For other files, use serve path for access control
     const finalPath =
-      uploadType === 'chat'
+      uploadType === 'chat' || uploadType === 'profile-pictures'
         ? blockBlobClient.url
         : `/api/files/serve/blob/${encodeURIComponent(uniqueKey)}`
 
@@ -361,6 +391,9 @@ async function handleBlobPresignedUrl(
       uploadHeaders['x-ms-meta-purpose'] = 'chat'
     } else if (uploadType === 'copilot') {
       uploadHeaders['x-ms-meta-purpose'] = 'copilot'
+      uploadHeaders['x-ms-meta-userid'] = encodeURIComponent(userId || '')
+    } else if (uploadType === 'profile-pictures') {
+      uploadHeaders['x-ms-meta-purpose'] = 'profile-pictures'
       uploadHeaders['x-ms-meta-userid'] = encodeURIComponent(userId || '')
     }
 

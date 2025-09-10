@@ -319,7 +319,7 @@ export function CredentialSelector({
               {credentials.length === 0 && (
                 <CommandGroup>
                   <CommandItem onSelect={handleAddCredential}>
-                    <div className='flex items-center gap-2 text-primary'>
+                    <div className='flex items-center gap-2 text-foreground'>
                       {getProviderIcon(provider)}
                       <span>Connect {getProviderName(provider)} account</span>
                     </div>

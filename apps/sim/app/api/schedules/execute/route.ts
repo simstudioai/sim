@@ -15,7 +15,7 @@ import {
   getScheduleTimeValues,
   getSubBlockValue,
 } from '@/lib/schedules/utils'
-import { decryptSecret } from '@/lib/utils'
+import { decryptSecret, generateRequestId } from '@/lib/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { db } from '@/db'
@@ -25,7 +25,6 @@ import { Serializer } from '@/serializer'
 import { RateLimiter } from '@/services/queue'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
 
-// Add dynamic export to prevent caching
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('ScheduledExecuteAPI')
@@ -66,7 +65,7 @@ const runningExecutions = new Set<string>()
 
 export async function GET() {
   logger.info(`Scheduled execution triggered at ${new Date().toISOString()}`)
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const now = new Date()
 
   let dueSchedules: (typeof workflowSchedule.$inferSelect)[] = []

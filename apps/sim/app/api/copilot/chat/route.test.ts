@@ -99,6 +99,7 @@ describe('Copilot Chat API Route', () => {
 
     vi.doMock('@/lib/utils', () => ({
       getRotatingApiKey: mockGetRotatingApiKey,
+      generateRequestId: vi.fn(() => 'test-request-id'),
     }))
 
     vi.doMock('@/lib/env', () => ({

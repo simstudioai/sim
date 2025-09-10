@@ -931,7 +931,7 @@ export function MicrosoftFileSelector({
                   {credentials.length === 0 && (
                     <CommandGroup>
                       <CommandItem onSelect={handleAddCredential}>
-                        <div className='flex items-center gap-2 text-primary'>
+                        <div className='flex items-center gap-2 text-foreground'>
                           {getProviderIcon(provider)}
                           <span>Connect {getProviderName(provider)} account</span>
                         </div>
@@ -975,7 +975,7 @@ export function MicrosoftFileSelector({
                     href={selectedFile.webViewLink}
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='flex items-center gap-1 text-primary text-xs hover:underline'
+                    className='flex items-center gap-1 text-foreground text-xs hover:underline'
                     onClick={(e) => e.stopPropagation()}
                   >
                     <span>
@@ -992,7 +992,7 @@ export function MicrosoftFileSelector({
                     href={`https://graph.microsoft.com/v1.0/me/drive/items/${selectedFile.id}`}
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='flex items-center gap-1 text-primary text-xs hover:underline'
+                    className='flex items-center gap-1 text-foreground text-xs hover:underline'
                     onClick={(e) => e.stopPropagation()}
                   >
                     <span>

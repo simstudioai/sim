@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateRequestId } from '@/lib/utils'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
     }
 
     try {
-      const requestId = crypto.randomUUID().slice(0, 8)
+      const requestId = generateRequestId()
       const authz = await authorizeCredentialUse(request as any, {
         credentialId: credential,
         workflowId,
