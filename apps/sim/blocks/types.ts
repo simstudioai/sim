@@ -103,6 +103,7 @@ export interface SubBlockConfig {
   mode?: 'basic' | 'advanced' | 'both' // Default is 'both' if not specified
   canonicalParamId?: string
   required?: boolean
+  defaultValue?: string | number | boolean | Record<string, unknown> | Array<unknown>
   options?:
     | { label: string; id: string; icon?: React.ComponentType<{ className?: string }> }[]
     | (() => { label: string; id: string; icon?: React.ComponentType<{ className?: string }> }[])

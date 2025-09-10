@@ -175,6 +175,7 @@ Create a system prompt appropriately detailed for the request, using clear langu
       layout: 'half',
       min: 0,
       max: 1,
+      defaultValue: 0.5,
       condition: () => ({
         field: 'model',
         value: (() => {
@@ -192,6 +193,7 @@ Create a system prompt appropriately detailed for the request, using clear langu
       layout: 'half',
       min: 0,
       max: 2,
+      defaultValue: 1,
       condition: () => ({
         field: 'model',
         value: (() => {
@@ -289,6 +291,7 @@ Create a system prompt appropriately detailed for the request, using clear langu
       title: 'Tools',
       type: 'tool-input',
       layout: 'full',
+      defaultValue: [],
     },
     {
       id: 'responseFormat',
