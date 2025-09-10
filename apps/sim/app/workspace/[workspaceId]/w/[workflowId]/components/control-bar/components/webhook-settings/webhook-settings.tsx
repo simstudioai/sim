@@ -3,42 +3,40 @@
 import { useEffect, useState } from 'react'
 import {
   AlertCircle,
-  Bell,
+  Check,
   Copy,
-  Edit2,
   Eye,
   EyeOff,
+  Pencil,
   Plus,
   RefreshCw,
+  Search,
   Trash2,
-  Webhook,
 } from 'lucide-react'
-import { toast } from 'sonner'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
   Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Checkbox,
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   Input,
   Label,
-  Separator,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
+  Skeleton,
+  Switch,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
+import { cn, generatePassword } from '@/lib/utils'
 import type {
   LogLevel as StoreLogLevel,
   TriggerType as StoreTriggerType,
@@ -76,7 +74,22 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
   const [isTesting, setIsTesting] = useState<string | null>(null)
   const [showSecret, setShowSecret] = useState(false)
   const [editingWebhookId, setEditingWebhookId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<string>('webhooks')
+  const [showForm, setShowForm] = useState(false)
+  const [copySuccess, setCopySuccess] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [webhookToDelete, setWebhookToDelete] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [operationStatus, setOperationStatus] = useState<{
+    type: 'success' | 'error' | null
+    message: string
+  }>({ type: null, message: '' })
+  const [testStatus, setTestStatus] = useState<{
+    webhookId: string
+    type: 'success' | 'error'
+    message: string
+  } | null>(null)
 
   interface EditableWebhookPayload {
     url: string
@@ -89,6 +102,11 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
     triggerFilter: NotificationTrigger[]
   }
 
+  // Filter webhooks based on search term
+  const filteredWebhooks = webhooks.filter((webhook) =>
+    webhook.url.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
   const [newWebhook, setNewWebhook] = useState<EditableWebhookPayload>({
     url: '',
     secret: '',
@@ -99,7 +117,12 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
     levelFilter: ['info', 'error'],
     triggerFilter: ['api', 'webhook', 'schedule', 'manual', 'chat'],
   })
-  const [formError, setFormError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<{
+    url?: string[]
+    levelFilter?: string[]
+    triggerFilter?: string[]
+    general?: string[]
+  }>({})
 
   useEffect(() => {
     if (open) {
@@ -113,21 +136,29 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
       const response = await fetch(`/api/workflows/${workflowId}/log-webhook`)
       if (response.ok) {
         const data = await response.json()
-        setWebhooks(data.data || [])
+        const list: WebhookConfig[] = data.data || []
+        setWebhooks(list)
+        // Show form if no webhooks exist
+        if (list.length === 0) {
+          setShowForm(true)
+        }
       }
     } catch (error) {
       logger.error('Failed to load webhooks', { error })
-      toast.error('Failed to load webhook configurations')
+      setOperationStatus({
+        type: 'error',
+        message: 'Failed to load webhook configurations',
+      })
     } finally {
       setIsLoading(false)
     }
   }
 
   const createWebhook = async () => {
-    setFormError(null) // Clear any previous errors
+    setFieldErrors({}) // Clear any previous errors
 
     if (!newWebhook.url) {
-      setFormError('Please enter a webhook URL')
+      setFieldErrors({ url: ['Please enter a webhook URL'] })
       return
     }
 
@@ -135,35 +166,35 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
     try {
       const url = new URL(newWebhook.url)
       if (!['http:', 'https:'].includes(url.protocol)) {
-        setFormError('URL must start with http:// or https://')
+        setFieldErrors({ url: ['URL must start with http:// or https://'] })
         return
       }
     } catch {
-      setFormError('Please enter a valid URL (e.g., https://example.com/webhook)')
+      setFieldErrors({ url: ['Please enter a valid URL (e.g., https://example.com/webhook)'] })
       return
     }
 
     // Validate filters are not empty
     if (newWebhook.levelFilter.length === 0) {
-      setFormError('Please select at least one log level filter')
+      setFieldErrors({ levelFilter: ['Please select at least one log level filter'] })
       return
     }
 
     if (newWebhook.triggerFilter.length === 0) {
-      setFormError('Please select at least one trigger filter')
+      setFieldErrors({ triggerFilter: ['Please select at least one trigger filter'] })
       return
     }
 
     // Check for duplicate URL
     const existingWebhook = webhooks.find((w) => w.url === newWebhook.url)
     if (existingWebhook) {
-      setFormError('A webhook with this URL already exists')
+      setFieldErrors({ url: ['A webhook with this URL already exists'] })
       return
     }
 
     try {
       setIsCreating(true)
-      setFormError(null)
+      setFieldErrors({})
       const response = await fetch(`/api/workflows/${workflowId}/log-webhook`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -183,30 +214,42 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
           levelFilter: ['info', 'error'],
           triggerFilter: ['api', 'webhook', 'schedule', 'manual', 'chat'],
         })
-        setFormError(null)
-        toast.success('Webhook created successfully')
+        setFieldErrors({})
+        setShowForm(false)
+        setOperationStatus({
+          type: 'success',
+          message: 'Webhook created successfully',
+        })
       } else {
         const error = await response.json()
         // Show detailed validation errors if available
         if (error.details && Array.isArray(error.details)) {
           const errorMessages = error.details.map((e: any) => e.message || e.path?.join('.'))
-          setFormError(`Validation failed: ${errorMessages.join(', ')}`)
+          setFieldErrors({ general: [`Validation failed: ${errorMessages.join(', ')}`] })
         } else {
-          setFormError(error.error || 'Failed to create webhook')
+          setFieldErrors({ general: [error.error || 'Failed to create webhook'] })
         }
       }
     } catch (error) {
       logger.error('Failed to create webhook', { error })
-      setFormError('Failed to create webhook. Please try again.')
+      setFieldErrors({ general: ['Failed to create webhook. Please try again.'] })
     } finally {
       setIsCreating(false)
     }
   }
 
-  const deleteWebhook = async (webhookId: string) => {
+  const handleDeleteClick = (webhookId: string) => {
+    setWebhookToDelete(webhookId)
+    setShowDeleteDialog(true)
+  }
+
+  const confirmDeleteWebhook = async () => {
+    if (!webhookToDelete) return
+
     try {
+      setIsDeleting(true)
       const response = await fetch(
-        `/api/workflows/${workflowId}/log-webhook?webhookId=${webhookId}`,
+        `/api/workflows/${workflowId}/log-webhook?webhookId=${webhookToDelete}`,
         {
           method: 'DELETE',
         }
@@ -215,14 +258,32 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
       if (response.ok) {
         // Refresh the webhooks list to ensure consistency
         await loadWebhooks()
-        toast.success('Webhook deleted')
+        setOperationStatus({
+          type: 'success',
+          message: 'Webhook deleted successfully',
+        })
       } else {
-        toast.error('Failed to delete webhook')
+        setOperationStatus({
+          type: 'error',
+          message: 'Failed to delete webhook',
+        })
       }
     } catch (error) {
       logger.error('Failed to delete webhook', { error })
-      toast.error('Failed to delete webhook')
+      setOperationStatus({
+        type: 'error',
+        message: 'Failed to delete webhook',
+      })
+    } finally {
+      setIsDeleting(false)
+      setShowDeleteDialog(false)
+      setWebhookToDelete(null)
     }
+  }
+
+  const handleDeleteDialogClose = () => {
+    setShowDeleteDialog(false)
+    setWebhookToDelete(null)
   }
 
   const testWebhook = async (webhookId: string) => {
@@ -238,24 +299,55 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
       if (response.ok) {
         const data = await response.json()
         if (data.data.success) {
-          toast.success(`Test webhook sent successfully (${data.data.status})`)
+          setTestStatus({
+            webhookId,
+            type: 'success',
+            message: `Test webhook sent successfully (${data.data.status})`,
+          })
         } else {
-          toast.error(`Test webhook failed: ${data.data.error || data.data.statusText}`)
+          setTestStatus({
+            webhookId,
+            type: 'error',
+            message: `Test webhook failed: ${data.data.error || data.data.statusText}`,
+          })
         }
       } else {
-        toast.error('Failed to send test webhook')
+        setTestStatus({
+          webhookId,
+          type: 'error',
+          message: 'Failed to send test webhook',
+        })
       }
     } catch (error) {
       logger.error('Failed to test webhook', { error })
-      toast.error('Failed to test webhook')
+      setTestStatus({
+        webhookId,
+        type: 'error',
+        message: 'Failed to test webhook',
+      })
     } finally {
       setIsTesting(null)
     }
   }
 
-  const copyWebhookId = (id: string) => {
-    navigator.clipboard.writeText(id)
-    toast.success('Webhook ID copied')
+  // Remove copyWebhookId function as it's not used
+
+  const handleGeneratePassword = async () => {
+    setIsGenerating(true)
+    // Add a small delay for visual feedback
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    const password = generatePassword(24)
+    setNewWebhook({ ...newWebhook, secret: password })
+    setFieldErrors({})
+    setIsGenerating(false)
+  }
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text)
+    setCopySuccess(true)
+    setTimeout(() => {
+      setCopySuccess(false)
+    }, 2000)
   }
 
   const startEditWebhook = (webhook: WebhookConfig) => {
@@ -270,11 +362,14 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
       levelFilter: webhook.levelFilter,
       triggerFilter: webhook.triggerFilter,
     })
+    setSearchTerm('')
+    setShowForm(true)
   }
 
   const cancelEdit = () => {
     setEditingWebhookId(null)
-    setFormError(null)
+    setFieldErrors({})
+    setOperationStatus({ type: null, message: '' })
     setNewWebhook({
       url: '',
       secret: '',
@@ -285,6 +380,17 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
       levelFilter: ['info', 'error'],
       triggerFilter: ['api', 'webhook', 'schedule', 'manual', 'chat'],
     })
+    setShowForm(false)
+  }
+
+  const handleCloseModal = () => {
+    cancelEdit()
+    setOperationStatus({ type: null, message: '' })
+    setTestStatus(null)
+    setSearchTerm('')
+    setShowDeleteDialog(false)
+    setWebhookToDelete(null)
+    onOpenChange(false)
   }
 
   const updateWebhook = async () => {
@@ -294,22 +400,22 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
     try {
       const url = new URL(newWebhook.url)
       if (!['http:', 'https:'].includes(url.protocol)) {
-        toast.error('URL must start with http:// or https://')
+        setFieldErrors({ url: ['URL must start with http:// or https://'] })
         return
       }
     } catch {
-      toast.error('Please enter a valid URL (e.g., https://example.com/webhook)')
+      setFieldErrors({ url: ['Please enter a valid URL (e.g., https://example.com/webhook)'] })
       return
     }
 
     // Validate filters are not empty
     if (newWebhook.levelFilter.length === 0) {
-      toast.error('Please select at least one log level filter')
+      setFieldErrors({ levelFilter: ['Please select at least one log level filter'] })
       return
     }
 
     if (newWebhook.triggerFilter.length === 0) {
-      toast.error('Please select at least one trigger filter')
+      setFieldErrors({ triggerFilter: ['Please select at least one trigger filter'] })
       return
     }
 
@@ -318,7 +424,7 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
       (w) => w.url === newWebhook.url && w.id !== editingWebhookId
     )
     if (existingWebhook) {
-      toast.error('A webhook with this URL already exists')
+      setFieldErrors({ url: ['A webhook with this URL already exists'] })
       return
     }
 
@@ -360,440 +466,662 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
       if (response.ok) {
         await loadWebhooks()
         cancelEdit()
-        toast.success('Webhook updated successfully')
+        setOperationStatus({
+          type: 'success',
+          message: 'Webhook updated successfully',
+        })
       } else {
         const error = await response.json()
-        toast.error(error.error || 'Failed to update webhook')
+        setFieldErrors({ general: [error.error || 'Failed to update webhook'] })
       }
     } catch (error) {
       logger.error('Failed to update webhook', { error })
-      toast.error('Failed to update webhook')
+      setFieldErrors({ general: ['Failed to update webhook'] })
     } finally {
       setIsCreating(false)
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='flex max-h-[85vh] max-w-3xl flex-col'>
-        <DialogHeader>
-          <DialogTitle className='flex items-center gap-2'>
-            <Webhook className='h-5 w-5' />
-            Webhook Notifications
-          </DialogTitle>
-          <DialogDescription>
-            Configure webhooks to receive notifications when workflow executions complete
-          </DialogDescription>
+    <Dialog open={open} onOpenChange={handleCloseModal}>
+      <DialogContent className='flex h-[70vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[800px]'>
+        <DialogHeader className='flex-shrink-0 border-b px-6 py-4'>
+          <DialogTitle className='font-medium text-lg'>Webhook Notifications</DialogTitle>
         </DialogHeader>
 
-        <Tabs
-          value={editingWebhookId ? 'create' : activeTab}
-          className='mt-4 flex min-h-0 flex-1 flex-col'
-          onValueChange={(value) => {
-            setActiveTab(value)
-            setFormError(null) // Clear any form errors when switching tabs
-            if (value === 'webhooks') {
-              loadWebhooks()
-              cancelEdit() // Cancel any ongoing edit
-            }
-          }}
-        >
-          <TabsList className='grid w-full grid-cols-2'>
-            <TabsTrigger value='webhooks'>Active Webhooks</TabsTrigger>
-            <TabsTrigger value='create'>
-              {editingWebhookId ? 'Edit Webhook' : 'Create New'}
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value='webhooks' className='flex min-h-0 flex-1 flex-col overflow-hidden'>
-            <div className='min-h-[600px] flex-1 overflow-y-auto px-4'>
-              {isLoading ? (
-                <div className='flex h-full items-center justify-center'>
-                  <RefreshCw className='h-5 w-5 animate-spin text-muted-foreground' />
-                </div>
-              ) : webhooks.length === 0 ? (
-                <div className='flex h-full items-center justify-center'>
-                  <Card className='w-full'>
-                    <CardContent className='flex flex-col items-center justify-center py-8'>
-                      <Bell className='mb-3 h-8 w-8 text-muted-foreground' />
-                      <p className='text-center text-muted-foreground text-sm'>
-                        No webhooks configured yet
-                      </p>
-                      <p className='text-center text-muted-foreground text-xs'>
-                        Create a webhook to receive execution notifications
-                      </p>
-                    </CardContent>
-                  </Card>
-                </div>
-              ) : (
-                <div className='space-y-3'>
-                  {webhooks.map((webhook) => (
-                    <Card key={webhook.id}>
-                      <CardHeader className='pb-3'>
-                        <div className='flex items-start justify-between'>
-                          <div className='flex-1'>
-                            <CardTitle className='font-mono text-sm'>{webhook.url}</CardTitle>
-                            <CardDescription className='mt-1 flex items-center gap-4 text-xs'>
-                              <span className='flex items-center gap-1'>
-                                <span
-                                  className={`h-2 w-2 rounded-full ${
-                                    webhook.active ? 'bg-green-500' : 'bg-gray-400'
-                                  }`}
-                                />
-                                {webhook.active ? 'Active' : 'Inactive'}
-                              </span>
-                              <span>
-                                Created {new Date(webhook.createdAt).toLocaleDateString()}
-                              </span>
-                            </CardDescription>
-                          </div>
-                          <div className='flex gap-1'>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant='ghost'
-                                  size='sm'
-                                  onClick={() => copyWebhookId(webhook.id)}
-                                >
-                                  <Copy className='h-4 w-4' />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Copy Webhook ID</TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant='ghost'
-                                  size='sm'
-                                  onClick={() => testWebhook(webhook.id)}
-                                  disabled={isTesting === webhook.id}
-                                >
-                                  {isTesting === webhook.id ? (
-                                    <RefreshCw className='h-4 w-4 animate-spin' />
-                                  ) : (
-                                    <Bell className='h-4 w-4' />
-                                  )}
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                {isTesting === webhook.id ? 'Testing...' : 'Test Webhook'}
-                              </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant='ghost'
-                                  size='sm'
-                                  onClick={() => startEditWebhook(webhook)}
-                                >
-                                  <Edit2 className='h-4 w-4' />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Edit Webhook</TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant='ghost'
-                                  size='sm'
-                                  onClick={() => deleteWebhook(webhook.id)}
-                                >
-                                  <Trash2 className='h-4 w-4' />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Delete Webhook</TooltipContent>
-                            </Tooltip>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent className='space-y-3 text-xs'>
-                        <div className='flex gap-6'>
-                          <div>
-                            <span className='text-muted-foreground'>Levels:</span>{' '}
-                            {webhook.levelFilter.join(', ')}
-                          </div>
-                          <div>
-                            <span className='text-muted-foreground'>Triggers:</span>{' '}
-                            {webhook.triggerFilter.join(', ')}
-                          </div>
-                        </div>
-                        <div className='flex flex-wrap gap-x-6 gap-y-2.5'>
-                          <div className='flex items-center gap-1'>
-                            <Checkbox checked={webhook.includeFinalOutput} disabled />
-                            <span className='text-muted-foreground'>Include output</span>
-                          </div>
-                          <div className='flex items-center gap-1'>
-                            <Checkbox checked={webhook.includeTraceSpans} disabled />
-                            <span className='text-muted-foreground'>Include trace spans</span>
-                          </div>
-                          <div className='flex items-center gap-1'>
-                            <Checkbox checked={webhook.includeUsageData} disabled />
-                            <span className='text-muted-foreground'>Include usage data</span>
-                          </div>
-                          <div className='flex items-center gap-1'>
-                            <Checkbox checked={webhook.includeRateLimits} disabled />
-                            <span className='text-muted-foreground'>Include rate limits</span>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </div>
-          </TabsContent>
-
-          <TabsContent value='create' className='flex min-h-0 flex-1 flex-col overflow-hidden'>
-            <div className='flex-1 overflow-y-auto px-4'>
-              {formError && (
-                <div className='mb-4 rounded-md border border-red-200 bg-red-50 p-3'>
-                  <div className='flex items-start gap-2'>
-                    <AlertCircle className='mt-0.5 h-4 w-4 shrink-0 text-red-600' />
-                    <p className='text-red-800 text-sm'>{formError}</p>
-                  </div>
-                </div>
-              )}
-              <div className='space-y-4 pb-6'>
-                <div>
-                  <Label htmlFor='url'>Webhook URL</Label>
-                  <Input
-                    id='url'
-                    type='url'
-                    placeholder='https://your-app.com/webhook'
-                    value={newWebhook.url}
-                    onChange={(e) => {
-                      setNewWebhook({ ...newWebhook, url: e.target.value })
-                      setFormError(null) // Clear error when user types
-                    }}
-                    className='mt-1.5'
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor='secret'>Secret (optional)</Label>
-                  <div className='relative mt-1.5'>
-                    <Input
-                      id='secret'
-                      type={showSecret ? 'text' : 'password'}
-                      placeholder='Webhook secret for signature verification'
-                      value={newWebhook.secret}
-                      onChange={(e) => {
-                        setNewWebhook({ ...newWebhook, secret: e.target.value })
-                        setFormError(null) // Clear error when user types
-                      }}
-                      className='pr-10'
-                    />
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      size='sm'
-                      className='absolute top-0 right-0 h-full px-3'
-                      onClick={() => setShowSecret(!showSecret)}
-                    >
-                      {showSecret ? <EyeOff className='h-4 w-4' /> : <Eye className='h-4 w-4' />}
-                    </Button>
-                  </div>
-                  <p className='mt-2 text-muted-foreground text-xs'>
-                    Used to sign webhook payloads with HMAC-SHA256
-                  </p>
-                </div>
-
-                <Separator />
-
-                <div className='space-y-3'>
-                  <Label>Filter by Level</Label>
-                  <div className='flex gap-4'>
-                    <div className='flex items-center gap-2'>
-                      <Checkbox
-                        id='level-info'
-                        checked={newWebhook.levelFilter.includes('info')}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setNewWebhook({
-                              ...newWebhook,
-                              levelFilter: [...newWebhook.levelFilter, 'info'],
-                            })
-                          } else {
-                            setNewWebhook({
-                              ...newWebhook,
-                              levelFilter: newWebhook.levelFilter.filter((l) => l !== 'info'),
-                            })
-                          }
-                        }}
-                      />
-                      <Label htmlFor='level-info' className='font-normal text-sm'>
-                        Info
-                      </Label>
-                    </div>
-                    <div className='flex items-center gap-2'>
-                      <Checkbox
-                        id='level-error'
-                        checked={newWebhook.levelFilter.includes('error')}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setNewWebhook({
-                              ...newWebhook,
-                              levelFilter: [...newWebhook.levelFilter, 'error'],
-                            })
-                          } else {
-                            setNewWebhook({
-                              ...newWebhook,
-                              levelFilter: newWebhook.levelFilter.filter((l) => l !== 'error'),
-                            })
-                          }
-                        }}
-                      />
-                      <Label htmlFor='level-error' className='font-normal text-sm'>
-                        Error
-                      </Label>
-                    </div>
-                  </div>
-                </div>
-
-                <div className='space-y-3'>
-                  <Label>Filter by Trigger</Label>
-                  <div className='grid grid-cols-3 gap-3'>
-                    {(
-                      ['api', 'webhook', 'schedule', 'manual', 'chat'] as NotificationTrigger[]
-                    ).map((trigger) => (
-                      <div key={trigger} className='flex items-center gap-2'>
-                        <Checkbox
-                          id={`trigger-${trigger}`}
-                          checked={newWebhook.triggerFilter.includes(trigger)}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setNewWebhook({
-                                ...newWebhook,
-                                triggerFilter: [...newWebhook.triggerFilter, trigger],
-                              })
-                            } else {
-                              setNewWebhook({
-                                ...newWebhook,
-                                triggerFilter: newWebhook.triggerFilter.filter(
-                                  (t) => t !== trigger
-                                ),
-                              })
-                            }
-                          }}
-                        />
-                        <Label
-                          htmlFor={`trigger-${trigger}`}
-                          className='font-normal text-sm capitalize'
-                        >
-                          {trigger}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <Separator />
-
-                <div className='space-y-3'>
-                  <Label>Include in Payload</Label>
-                  <div className='space-y-2'>
-                    <div className='flex items-center gap-2'>
-                      <Checkbox
-                        id='include-output'
-                        checked={newWebhook.includeFinalOutput}
-                        onCheckedChange={(checked) =>
-                          setNewWebhook({ ...newWebhook, includeFinalOutput: !!checked })
-                        }
-                      />
-                      <Label htmlFor='include-output' className='font-normal text-sm'>
-                        Final output
-                      </Label>
-                    </div>
-                    <div className='flex items-center gap-2'>
-                      <Checkbox
-                        id='include-spans'
-                        checked={newWebhook.includeTraceSpans}
-                        onCheckedChange={(checked) =>
-                          setNewWebhook({ ...newWebhook, includeTraceSpans: !!checked })
-                        }
-                      />
-                      <Label htmlFor='include-spans' className='font-normal text-sm'>
-                        Trace spans (detailed execution steps)
-                      </Label>
-                    </div>
-                    <div className='flex items-center gap-2'>
-                      <Checkbox
-                        id='include-rate-limits'
-                        checked={newWebhook.includeRateLimits}
-                        onCheckedChange={(checked) =>
-                          setNewWebhook({ ...newWebhook, includeRateLimits: !!checked })
-                        }
-                      />
-                      <Label htmlFor='include-rate-limits' className='font-normal text-sm'>
-                        Rate limits (workflow execution limits)
-                      </Label>
-                    </div>
-                    <div className='flex items-center gap-2'>
-                      <Checkbox
-                        id='include-usage-data'
-                        checked={newWebhook.includeUsageData}
-                        onCheckedChange={(checked) =>
-                          setNewWebhook({ ...newWebhook, includeUsageData: !!checked })
-                        }
-                      />
-                      <Label htmlFor='include-usage-data' className='font-normal text-sm'>
-                        Usage data (billing period cost and limits)
-                      </Label>
-                    </div>
-                  </div>
-                  <p className='mt-1 text-muted-foreground text-xs'>
-                    By default, only basic metadata and cost information is included
-                  </p>
-                </div>
+        <div className='flex min-h-0 flex-1 flex-col'>
+          {/* Fixed Header with Search */}
+          {!showForm && (
+            <div className='flex-shrink-0 px-6 pt-4 pb-2'>
+              <div className='flex h-9 w-56 items-center gap-2 rounded-lg border bg-transparent pr-2 pl-3'>
+                <Search className='h-4 w-4 flex-shrink-0 text-muted-foreground' strokeWidth={2} />
+                <Input
+                  placeholder='Search webhooks...'
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className='flex-1 border-0 bg-transparent px-0 font-[380] font-sans text-base text-foreground leading-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
+                />
               </div>
             </div>
+          )}
 
-            <div className='flex-shrink-0 border-t bg-background p-4'>
-              {editingWebhookId && (
-                <Button
-                  variant='outline'
-                  onClick={cancelEdit}
-                  disabled={isCreating}
-                  className='mr-2'
-                >
-                  Cancel
-                </Button>
+          {/* Scrollable Content */}
+          <div className='scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'>
+            <div className='h-full py-2'>
+              {!showForm ? (
+                <div className='space-y-2'>
+                  {isLoading ? (
+                    <div className='space-y-2'>
+                      {/* Show 2 skeleton webhooks */}
+                      {[1, 2].map((index) => (
+                        <div key={index} className='flex flex-col gap-2'>
+                          <Skeleton className='h-[14px] w-[65px] rounded-[4px]' />{' '}
+                          {/* WEBHOOK 1/2 label */}
+                          <div className='flex flex-col gap-2'>
+                            <div className='flex items-center justify-between gap-4'>
+                              <div className='flex flex-1 items-center gap-3'>
+                                <Skeleton className='h-8 w-[250px] rounded-[8px]' /> {/* URL */}
+                              </div>
+                              <div className='flex items-center gap-2'>
+                                <Skeleton className='h-9 w-9 rounded-[8px]' /> {/* Test */}
+                                <Skeleton className='h-9 w-9 rounded-[8px]' /> {/* Edit */}
+                                <Skeleton className='h-9 w-9 rounded-[8px]' /> {/* Delete */}
+                              </div>
+                            </div>
+                            <div className='flex flex-wrap items-center gap-2 text-xs'>
+                              {/* Level filters */}
+                              <Skeleton className='h-[22px] w-8 rounded-md' />
+                              <Skeleton className='h-[22px] w-10 rounded-md' />
+                              <Skeleton className='h-1 w-1 rounded-full' /> {/* bullet */}
+                              {/* Trigger filters */}
+                              <Skeleton className='h-[22px] w-6 rounded-md' />
+                              <Skeleton className='h-[22px] w-14 rounded-md' />
+                              <Skeleton className='h-[22px] w-14 rounded-md' />
+                              <Skeleton className='h-[22px] w-12 rounded-md' />
+                              <Skeleton className='h-[22px] w-8 rounded-md' />
+                              <Skeleton className='h-1 w-1 rounded-full' /> {/* bullet */}
+                              {/* Data options */}
+                              <Skeleton className='h-[22px] w-12 rounded-md' />
+                              <Skeleton className='h-[22px] w-10 rounded-md' />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : webhooks.length === 0 ? (
+                    <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
+                      Click "Add Webhook" below to get started
+                    </div>
+                  ) : (
+                    <>
+                      {filteredWebhooks.map((webhook, index) => (
+                        <div key={webhook.id} className='relative flex flex-col gap-2'>
+                          <Label className='font-normal text-muted-foreground text-xs uppercase'>
+                            Webhook {index + 1}
+                          </Label>
+                          <div className='flex flex-col gap-2'>
+                            <div className='flex items-center justify-between gap-4'>
+                              <div className='flex flex-1 items-center gap-3'>
+                                <div className='flex h-8 items-center rounded-[8px] bg-muted px-3'>
+                                  <code className='font-mono text-foreground text-xs'>
+                                    {webhook.url.length > 40
+                                      ? `${webhook.url.substring(0, 37)}...`
+                                      : webhook.url}
+                                  </code>
+                                </div>
+
+                                {/* Test Status inline for this specific webhook */}
+                                {testStatus &&
+                                  testStatus.webhookId === webhook.id &&
+                                  testStatus.type === 'error' && (
+                                    <div className='flex items-center gap-2 text-red-600 text-xs dark:text-red-400'>
+                                      <AlertCircle className='h-3 w-3 flex-shrink-0' />
+                                      <span>{testStatus.message}</span>
+                                    </div>
+                                  )}
+                              </div>
+
+                              <div className='flex items-center gap-2'>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant='ghost'
+                                      size='icon'
+                                      onClick={() => testWebhook(webhook.id)}
+                                      disabled={isTesting === webhook.id}
+                                      className={cn(
+                                        'group relative h-8 w-8 rounded-md border border-border/40 bg-background/80 backdrop-blur-sm',
+                                        'text-muted-foreground/70 shadow-sm transition-all duration-200',
+                                        'hover:border-border hover:bg-muted/50 hover:text-foreground hover:shadow-md',
+                                        'active:scale-95 active:shadow-sm',
+                                        'disabled:cursor-not-allowed disabled:opacity-50',
+                                        'focus-visible:ring-2 focus-visible:ring-muted-foreground/20 focus-visible:ring-offset-1'
+                                      )}
+                                    >
+                                      <RefreshCw
+                                        className={cn(
+                                          'h-3.5 w-3.5 transition-transform duration-200',
+                                          'group-hover:scale-110',
+                                          isTesting === webhook.id && 'animate-spin'
+                                        )}
+                                      />
+                                      <span className='sr-only'>Test webhook</span>
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side='top' align='center'>
+                                    Test webhook
+                                  </TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant='ghost'
+                                      size='icon'
+                                      onClick={() => startEditWebhook(webhook)}
+                                      className={cn(
+                                        'group relative h-8 w-8 rounded-md border border-border/40 bg-background/80 backdrop-blur-sm',
+                                        'text-muted-foreground/70 shadow-sm transition-all duration-200',
+                                        'hover:border-border hover:bg-muted/50 hover:text-foreground hover:shadow-md',
+                                        'active:scale-95 active:shadow-sm',
+                                        'focus-visible:ring-2 focus-visible:ring-muted-foreground/20 focus-visible:ring-offset-1'
+                                      )}
+                                    >
+                                      <Pencil className='h-3.5 w-3.5 transition-transform duration-200 group-hover:scale-110' />
+                                      <span className='sr-only'>Edit webhook</span>
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side='top' align='center'>
+                                    Edit webhook
+                                  </TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant='ghost'
+                                      size='icon'
+                                      onClick={() => handleDeleteClick(webhook.id)}
+                                      className={cn(
+                                        'group relative h-8 w-8 rounded-md border border-border/40 bg-background/80 backdrop-blur-sm',
+                                        'text-muted-foreground/70 shadow-sm transition-all duration-200',
+                                        'hover:border-border hover:bg-muted/50 hover:text-muted-foreground hover:shadow-md',
+                                        'active:scale-95 active:shadow-sm',
+                                        'focus-visible:ring-2 focus-visible:ring-muted-foreground/20 focus-visible:ring-offset-1'
+                                      )}
+                                    >
+                                      <Trash2 className='h-3.5 w-3.5 transition-transform duration-200 group-hover:scale-110' />
+                                      <span className='sr-only'>Delete webhook</span>
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side='bottom' align='end'>
+                                    Delete webhook
+                                  </TooltipContent>
+                                </Tooltip>
+                              </div>
+                            </div>
+
+                            <div className='flex flex-wrap items-center gap-2 text-xs'>
+                              {webhook.levelFilter.map((level) => (
+                                <span key={level} className='rounded-md bg-muted px-1.5 py-0.5'>
+                                  {level}
+                                </span>
+                              ))}
+                              <span className='text-muted-foreground'>•</span>
+                              {webhook.triggerFilter.map((trigger) => (
+                                <span key={trigger} className='rounded-md bg-muted px-1.5 py-0.5'>
+                                  {trigger}
+                                </span>
+                              ))}
+                              {(webhook.includeFinalOutput ||
+                                webhook.includeTraceSpans ||
+                                webhook.includeRateLimits ||
+                                webhook.includeUsageData) && (
+                                <>
+                                  <span className='text-muted-foreground'>•</span>
+                                  {webhook.includeFinalOutput && (
+                                    <span className='rounded-md bg-muted px-1.5 py-0.5'>
+                                      output
+                                    </span>
+                                  )}
+                                  {webhook.includeTraceSpans && (
+                                    <span className='rounded-md bg-muted px-1.5 py-0.5'>
+                                      traces
+                                    </span>
+                                  )}
+                                  {webhook.includeRateLimits && (
+                                    <span className='rounded-md bg-muted px-1.5 py-0.5'>
+                                      limits
+                                    </span>
+                                  )}
+                                  {webhook.includeUsageData && (
+                                    <span className='rounded-md bg-muted px-1.5 py-0.5'>usage</span>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {/* Show message when search has no results but there are webhooks */}
+                      {searchTerm.trim() &&
+                        filteredWebhooks.length === 0 &&
+                        webhooks.length > 0 && (
+                          <div className='py-8 text-center text-muted-foreground text-sm'>
+                            No webhooks found matching "{searchTerm}"
+                          </div>
+                        )}
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className='flex flex-col gap-4 pt-1'>
+                  {/* Form Header */}
+                  <div>
+                    <h3 className='font-medium text-base'>
+                      {editingWebhookId ? 'Edit Webhook' : 'Create New Webhook'}
+                    </h3>
+                    <p className='text-muted-foreground text-sm'>
+                      Configure webhook notifications for workflow executions
+                    </p>
+                  </div>
+
+                  {/* General errors */}
+                  {fieldErrors.general && fieldErrors.general.length > 0 && (
+                    <div className='rounded-[8px] border border-red-200 bg-red-50 p-4 dark:border-red-800/50 dark:bg-red-950/20'>
+                      <div className='flex items-start gap-2'>
+                        <AlertCircle className='mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400' />
+                        <div className='space-y-1 text-red-800 text-sm dark:text-red-300'>
+                          {fieldErrors.general.map((error, index) => (
+                            <p key={index}>{error}</p>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className='flex flex-col gap-6'>
+                    <div className='space-y-2'>
+                      <Label htmlFor='url' className='font-medium text-sm'>
+                        Webhook URL
+                      </Label>
+                      <Input
+                        id='url'
+                        type='url'
+                        placeholder='https://your-app.com/webhook'
+                        value={newWebhook.url}
+                        onChange={(e) => {
+                          setNewWebhook({ ...newWebhook, url: e.target.value })
+                          setFieldErrors({ ...fieldErrors, url: undefined })
+                        }}
+                        className='h-9 rounded-[8px]'
+                        autoComplete='off'
+                        autoCorrect='off'
+                        autoCapitalize='off'
+                        spellCheck='false'
+                        data-form-type='other'
+                      />
+                      <p className='text-muted-foreground text-xs'>
+                        The URL where webhook notifications will be sent
+                      </p>
+                      {fieldErrors.url && fieldErrors.url.length > 0 && (
+                        <div className='mt-1 space-y-1 text-red-400 text-xs dark:text-red-400'>
+                          {fieldErrors.url.map((error, index) => (
+                            <p key={index}>{error}</p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className='space-y-2'>
+                      <Label htmlFor='secret' className='font-medium text-sm'>
+                        Secret (optional)
+                      </Label>
+                      <div className='relative'>
+                        <Input
+                          id='secret'
+                          type={showSecret ? 'text' : 'password'}
+                          placeholder='Webhook secret for signature verification'
+                          value={newWebhook.secret}
+                          onChange={(e) => {
+                            setNewWebhook({ ...newWebhook, secret: e.target.value })
+                            setFieldErrors({ ...fieldErrors, general: undefined })
+                          }}
+                          className='h-9 rounded-[8px] pr-32'
+                          autoComplete='new-password'
+                          autoCorrect='off'
+                          autoCapitalize='off'
+                          spellCheck='false'
+                          data-form-type='other'
+                        />
+                        <div className='absolute top-0.5 right-0.5 flex h-8 items-center gap-1 pr-1'>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                type='button'
+                                variant='ghost'
+                                size='sm'
+                                onClick={handleGeneratePassword}
+                                disabled={isGenerating}
+                                className={cn(
+                                  'group h-7 w-7 rounded-md p-0',
+                                  'text-muted-foreground/60 transition-all duration-200',
+                                  'hover:scale-105 hover:bg-muted/50 hover:text-foreground',
+                                  'active:scale-95',
+                                  'disabled:cursor-not-allowed disabled:opacity-50',
+                                  'focus-visible:ring-2 focus-visible:ring-muted-foreground/20 focus-visible:ring-offset-1'
+                                )}
+                              >
+                                <RefreshCw
+                                  className={cn(
+                                    'h-3.5 w-3.5 transition-transform duration-200',
+                                    'group-hover:rotate-90',
+                                    isGenerating && 'animate-spin'
+                                  )}
+                                />
+                                <span className='sr-only'>Generate password</span>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side='top' align='center'>
+                              Generate secure secret
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                type='button'
+                                variant='ghost'
+                                size='sm'
+                                onClick={() => copyToClipboard(newWebhook.secret)}
+                                disabled={!newWebhook.secret}
+                                className={cn(
+                                  'group h-7 w-7 rounded-md p-0',
+                                  'text-muted-foreground/60 transition-all duration-200',
+                                  'hover:scale-105 hover:bg-muted/50 hover:text-foreground',
+                                  'active:scale-95',
+                                  'disabled:cursor-not-allowed disabled:opacity-30',
+                                  'focus-visible:ring-2 focus-visible:ring-muted-foreground/20 focus-visible:ring-offset-1'
+                                )}
+                              >
+                                {copySuccess ? (
+                                  <Check className='h-3.5 w-3.5 text-foreground' />
+                                ) : (
+                                  <Copy className='h-3.5 w-3.5 transition-transform duration-200 group-hover:scale-110' />
+                                )}
+                                <span className='sr-only'>Copy secret</span>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side='top' align='center'>
+                              Copy secret
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                type='button'
+                                variant='ghost'
+                                size='sm'
+                                className={cn(
+                                  'group h-7 w-7 rounded-md p-0',
+                                  'text-muted-foreground/60 transition-all duration-200',
+                                  'hover:scale-105 hover:bg-muted/50 hover:text-foreground',
+                                  'active:scale-95',
+                                  'focus-visible:ring-2 focus-visible:ring-muted-foreground/20 focus-visible:ring-offset-1'
+                                )}
+                                onClick={() => setShowSecret(!showSecret)}
+                              >
+                                {showSecret ? (
+                                  <EyeOff className='h-3.5 w-3.5 transition-transform duration-200 group-hover:scale-110' />
+                                ) : (
+                                  <Eye className='h-3.5 w-3.5 transition-transform duration-200 group-hover:scale-110' />
+                                )}
+                                <span className='sr-only'>
+                                  {showSecret ? 'Hide secret' : 'Show secret'}
+                                </span>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side='top' align='center'>
+                              {showSecret ? 'Hide secret' : 'Show secret'}
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </div>
+                      <p className='text-muted-foreground text-xs'>
+                        Used to sign webhook payloads with HMAC-SHA256
+                      </p>
+                    </div>
+
+                    <div className='space-y-3'>
+                      <Label className='font-medium text-sm'>Log Level Filters</Label>
+                      <div className='space-y-3'>
+                        {(['info', 'error'] as NotificationLogLevel[]).map((level) => (
+                          <div key={level} className='flex items-center justify-between'>
+                            <div className='flex flex-col'>
+                              <Label className='font-normal text-sm capitalize'>{level} logs</Label>
+                              <p className='text-muted-foreground text-xs'>
+                                Receive notifications for {level} level logs
+                              </p>
+                            </div>
+                            <Switch
+                              checked={newWebhook.levelFilter.includes(level)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setNewWebhook({
+                                    ...newWebhook,
+                                    levelFilter: [...newWebhook.levelFilter, level],
+                                  })
+                                } else {
+                                  setNewWebhook({
+                                    ...newWebhook,
+                                    levelFilter: newWebhook.levelFilter.filter((l) => l !== level),
+                                  })
+                                }
+                                setFieldErrors({ ...fieldErrors, levelFilter: undefined })
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      {fieldErrors.levelFilter && fieldErrors.levelFilter.length > 0 && (
+                        <div className='mt-1 space-y-1 text-red-400 text-xs dark:text-red-400'>
+                          {fieldErrors.levelFilter.map((error, index) => (
+                            <p key={index}>{error}</p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className='space-y-3'>
+                      <Label className='font-medium text-sm'>Trigger Type Filters</Label>
+                      <div className='space-y-3'>
+                        {(
+                          ['api', 'webhook', 'schedule', 'manual', 'chat'] as NotificationTrigger[]
+                        ).map((trigger) => (
+                          <div key={trigger} className='flex items-center justify-between'>
+                            <div className='flex flex-col'>
+                              <Label className='font-normal text-sm capitalize'>
+                                {trigger} triggers
+                              </Label>
+                              <p className='text-muted-foreground text-xs'>
+                                Notify when workflow is triggered via {trigger}
+                              </p>
+                            </div>
+                            <Switch
+                              checked={newWebhook.triggerFilter.includes(trigger)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setNewWebhook({
+                                    ...newWebhook,
+                                    triggerFilter: [...newWebhook.triggerFilter, trigger],
+                                  })
+                                } else {
+                                  setNewWebhook({
+                                    ...newWebhook,
+                                    triggerFilter: newWebhook.triggerFilter.filter(
+                                      (t) => t !== trigger
+                                    ),
+                                  })
+                                }
+                                setFieldErrors({ ...fieldErrors, triggerFilter: undefined })
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      {fieldErrors.triggerFilter && fieldErrors.triggerFilter.length > 0 && (
+                        <div className='mt-1 space-y-1 text-red-400 text-xs dark:text-red-400'>
+                          {fieldErrors.triggerFilter.map((error, index) => (
+                            <p key={index}>{error}</p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className='space-y-3'>
+                      <Label className='font-medium text-sm'>Include in Payload</Label>
+                      <div className='mt-2 flex flex-col gap-3'>
+                        <div className='flex items-center justify-between'>
+                          <div className='flex flex-col'>
+                            <Label className='font-normal text-sm'>Final output</Label>
+                            <p className='text-muted-foreground text-xs'>
+                              Include workflow execution results
+                            </p>
+                          </div>
+                          <Switch
+                            checked={newWebhook.includeFinalOutput}
+                            onCheckedChange={(checked) =>
+                              setNewWebhook({ ...newWebhook, includeFinalOutput: checked })
+                            }
+                          />
+                        </div>
+                        <div className='flex items-center justify-between'>
+                          <div className='flex flex-col'>
+                            <Label className='font-normal text-sm'>Trace spans</Label>
+                            <p className='text-muted-foreground text-xs'>
+                              Detailed execution steps
+                            </p>
+                          </div>
+                          <Switch
+                            checked={newWebhook.includeTraceSpans}
+                            onCheckedChange={(checked) =>
+                              setNewWebhook({ ...newWebhook, includeTraceSpans: checked })
+                            }
+                          />
+                        </div>
+                        <div className='flex items-center justify-between'>
+                          <div className='flex flex-col'>
+                            <Label className='font-normal text-sm'>Rate limits</Label>
+                            <p className='text-muted-foreground text-xs'>
+                              Workflow execution limits
+                            </p>
+                          </div>
+                          <Switch
+                            checked={newWebhook.includeRateLimits}
+                            onCheckedChange={(checked) =>
+                              setNewWebhook({ ...newWebhook, includeRateLimits: checked })
+                            }
+                          />
+                        </div>
+                        <div className='flex items-center justify-between'>
+                          <div className='flex flex-col'>
+                            <Label className='font-normal text-sm'>Usage data</Label>
+                            <p className='text-muted-foreground text-xs'>
+                              Billing period cost and limits
+                            </p>
+                          </div>
+                          <Switch
+                            checked={newWebhook.includeUsageData}
+                            onCheckedChange={(checked) =>
+                              setNewWebhook({ ...newWebhook, includeUsageData: checked })
+                            }
+                          />
+                        </div>
+                      </div>
+                      <p className='mt-3 pb-2 text-muted-foreground text-xs'>
+                        By default, only basic metadata and cost information is included
+                      </p>
+                    </div>
+                  </div>
+                </div>
               )}
-              <Button
-                onClick={editingWebhookId ? updateWebhook : createWebhook}
-                disabled={
-                  isCreating ||
-                  !newWebhook.url ||
-                  newWebhook.levelFilter.length === 0 ||
-                  newWebhook.triggerFilter.length === 0
-                }
-                className={editingWebhookId ? '' : 'w-full'}
-              >
-                {isCreating ? (
-                  <>
-                    <RefreshCw className='mr-2 h-4 w-4 animate-spin' />
-                    {editingWebhookId ? 'Updating...' : 'Creating...'}
-                  </>
-                ) : (
-                  <>
-                    {editingWebhookId ? (
-                      <>
-                        <Edit2 className='mr-2 h-4 w-4' />
-                        Update Webhook
-                      </>
-                    ) : (
-                      <>
-                        <Plus className='mr-2 h-4 w-4' />
-                        Create Webhook
-                      </>
-                    )}
-                  </>
-                )}
-              </Button>
             </div>
-          </TabsContent>
-        </Tabs>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className='flex-shrink-0 bg-background'>
+          <div className='flex w-full items-center justify-between border-t px-6 py-4'>
+            {showForm ? (
+              <>
+                <Button variant='outline' onClick={cancelEdit} className='h-9 rounded-[8px]'>
+                  Back
+                </Button>
+                <Button
+                  onClick={editingWebhookId ? updateWebhook : createWebhook}
+                  disabled={
+                    isCreating ||
+                    !newWebhook.url ||
+                    newWebhook.levelFilter.length === 0 ||
+                    newWebhook.triggerFilter.length === 0
+                  }
+                  className='h-9 rounded-[8px] bg-[var(--brand-primary-hex)] font-[480] text-white shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:opacity-50 disabled:hover:shadow-none'
+                >
+                  {isCreating ? (
+                    <>
+                      <RefreshCw className='mr-2 h-4 w-4 animate-spin' />
+                      {editingWebhookId ? 'Updating...' : 'Creating...'}
+                    </>
+                  ) : (
+                    <>{editingWebhookId ? 'Update Webhook' : 'Create Webhook'}</>
+                  )}
+                </Button>
+              </>
+            ) : isLoading ? (
+              <>
+                <Skeleton className='h-9 w-[117px] rounded-[8px]' />
+                <div />
+              </>
+            ) : (
+              <>
+                <Button
+                  onClick={() => {
+                    setSearchTerm('')
+                    setShowForm(true)
+                  }}
+                  className='h-9 rounded-[8px] bg-[var(--brand-primary-hex)] px-3 font-[480] text-white shadow-[0_0_0_0_var(--brand-primary-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
+                >
+                  <Plus className='h-4 w-4 stroke-[2px]' />
+                  Add Webhook
+                </Button>
+                <div />
+              </>
+            )}
+          </div>
+        </div>
       </DialogContent>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={handleDeleteDialogClose}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete webhook?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove the webhook configuration and stop all notifications.{' '}
+              <span className='text-red-500 dark:text-red-500'>This action cannot be undone.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className='flex'>
+            <AlertDialogCancel className='h-9 w-full rounded-[8px]' disabled={isDeleting}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteWebhook}
+              disabled={isDeleting}
+              className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
+            >
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   )
 }

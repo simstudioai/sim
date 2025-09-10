@@ -124,17 +124,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (webhook.includeRateLimits) {
       ;(payload.data as any).rateLimits = {
-        workflowExecutionRateLimit: {
-          sync: {
-            limit: 60,
-            remaining: 45,
-            resetAt: new Date(timestamp + 60000).toISOString(),
-          },
-          async: {
-            limit: 60,
-            remaining: 50,
-            resetAt: new Date(timestamp + 60000).toISOString(),
-          },
+        sync: {
+          limit: 150,
+          remaining: 45,
+          resetAt: new Date(timestamp + 60000).toISOString(),
+        },
+        async: {
+          limit: 1000,
+          remaining: 50,
+          resetAt: new Date(timestamp + 60000).toISOString(),
         },
       }
     }
@@ -149,12 +147,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const body = JSON.stringify(payload)
+    const deliveryId = `delivery_test_${uuidv4()}`
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'sim-event': 'workflow.execution.completed',
       'sim-timestamp': timestamp.toString(),
-      'sim-delivery-id': `delivery_test_${uuidv4()}`,
-      'Idempotency-Key': `delivery_test_${uuidv4()}`,
+      'sim-delivery-id': deliveryId,
+      'Idempotency-Key': deliveryId,
     }
 
     if (webhook.secret) {

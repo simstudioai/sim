@@ -81,7 +81,7 @@ export function ExportControls({ disabled = false }: ExportControlsProps) {
       <TooltipTrigger asChild>
         {isDisabled ? (
           <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-[11px] border bg-card text-card-foreground opacity-50 shadow-xs transition-colors'>
-            <Upload className='h-5 w-5' />
+            <Upload className='h-4 w-4' />
           </div>
         ) : (
           <Button

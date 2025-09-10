@@ -360,7 +360,12 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
             <Button
               variant='ghost'
               size='icon'
-              className='h-8 w-8 p-0'
+              className={cn(
+                'h-8 w-8 rounded-md p-0 text-muted-foreground/70 transition-all duration-200',
+                'hover:scale-105 hover:bg-muted/50 hover:text-foreground',
+                'active:scale-95',
+                'focus-visible:ring-2 focus-visible:ring-muted-foreground/20 focus-visible:ring-offset-1'
+              )}
               onClick={() => onOpenChange(false)}
             >
               <X className='h-4 w-4' />
@@ -374,7 +379,7 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
             onSubmit={form.handleSubmit(onSubmit)}
             className='flex flex-1 flex-col overflow-hidden'
           >
-            <div className='flex-1 overflow-y-auto px-6 py-6'>
+            <div className='flex-1 overflow-y-auto px-6 py-4'>
               {isLoadingTemplate ? (
                 <div className='space-y-6'>
                   {/* Icon and Color row */}
@@ -414,7 +419,7 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
                   </div>
                 </div>
               ) : (
-                <div className='space-y-6'>
+                <div className='space-y-5'>
                   <div className='flex gap-3'>
                     <FormField
                       control={form.control}
@@ -426,11 +431,15 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
                           </FormLabel>
                           <Popover open={iconPopoverOpen} onOpenChange={setIconPopoverOpen}>
                             <PopoverTrigger asChild>
-                              <Button variant='outline' role='combobox' className='h-10 w-20 p-0'>
+                              <Button
+                                variant='outline'
+                                role='combobox'
+                                className='h-10 w-20 rounded-[8px] border-border/50 p-0 transition-all duration-200 hover:border-border hover:bg-muted/50'
+                              >
                                 <SelectedIconComponent className='h-4 w-4' />
                               </Button>
                             </PopoverTrigger>
-                            <PopoverContent className='z-50 w-84 p-0' align='start'>
+                            <PopoverContent className='z-50 w-84 rounded-[8px] p-0' align='start'>
                               <div className='p-3'>
                                 <div className='grid max-h-80 grid-cols-8 gap-2 overflow-y-auto'>
                                   {icons.map((icon) => {
@@ -444,9 +453,10 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
                                           setIconPopoverOpen(false)
                                         }}
                                         className={cn(
-                                          'flex h-8 w-8 items-center justify-center rounded-md border transition-colors hover:bg-muted',
+                                          'flex h-8 w-8 items-center justify-center rounded-md border border-border/40 transition-all duration-200',
+                                          'hover:scale-105 hover:border-border hover:bg-muted/50 active:scale-95',
                                           field.value === icon.value &&
-                                            'bg-primary text-muted-foreground'
+                                            'border-primary/30 bg-primary/10 text-primary'
                                         )}
                                       >
                                         <IconComponent className='h-4 w-4' />
@@ -475,7 +485,7 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
                               value={field.value}
                               onChange={field.onChange}
                               onBlur={field.onBlur}
-                              className='h-10 w-20'
+                              className='h-10 w-20 rounded-[8px]'
                             />
                           </FormControl>
                           <FormMessage />
@@ -491,7 +501,11 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
                       <FormItem>
                         <FormLabel className='!text-foreground font-medium text-sm'>Name</FormLabel>
                         <FormControl>
-                          <Input placeholder='Enter template name' {...field} />
+                          <Input
+                            placeholder='Enter template name'
+                            className='h-10 rounded-[8px]'
+                            {...field}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -508,7 +522,11 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
                             Author
                           </FormLabel>
                           <FormControl>
-                            <Input placeholder='Enter author name' {...field} />
+                            <Input
+                              placeholder='Enter author name'
+                              className='h-10 rounded-[8px]'
+                              {...field}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -525,7 +543,7 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
                           </FormLabel>
                           <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl>
-                              <SelectTrigger>
+                              <SelectTrigger className='h-10 rounded-[8px]'>
                                 <SelectValue placeholder='Select a category' />
                               </SelectTrigger>
                             </FormControl>
@@ -554,7 +572,7 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
                         <FormControl>
                           <Textarea
                             placeholder='Describe what this template does...'
-                            className='resize-none'
+                            className='min-h-[80px] resize-none rounded-[8px]'
                             rows={3}
                             {...field}
                           />
@@ -568,7 +586,7 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
             </div>
 
             {/* Fixed Footer */}
-            <div className='mt-auto border-t px-6 pt-4 pb-6'>
+            <div className='mt-auto border-t px-6 py-4'>
               <div className='flex items-center'>
                 {existingTemplate && (
                   <Button
@@ -576,7 +594,7 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
                     variant='destructive'
                     onClick={() => setShowDeleteDialog(true)}
                     disabled={isSubmitting || isLoadingTemplate}
-                    className='h-10 rounded-md px-4 py-2'
+                    className='h-9 rounded-[8px] px-4'
                   >
                     Delete
                   </Button>
@@ -585,12 +603,11 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
                   type='submit'
                   disabled={isSubmitting || !isFormValid || isLoadingTemplate}
                   className={cn(
-                    'ml-auto font-medium',
+                    'ml-auto h-9 rounded-[8px] px-4 font-[480]',
                     'bg-[var(--brand-primary-hex)] hover:bg-[var(--brand-primary-hover-hex)]',
                     'shadow-[0_0_0_0_var(--brand-primary-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
                     'text-white transition-all duration-200',
-                    'disabled:opacity-50 disabled:hover:bg-[var(--brand-primary-hex)] disabled:hover:shadow-none',
-                    'h-10 rounded-md px-4 py-2'
+                    'disabled:opacity-50 disabled:hover:bg-[var(--brand-primary-hex)] disabled:hover:shadow-none'
                   )}
                 >
                   {isSubmitting ? (
@@ -618,10 +635,12 @@ export function TemplateModal({ open, onOpenChange, workflowId }: TemplateModalP
                   undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+              <AlertDialogFooter className='flex'>
+                <AlertDialogCancel className='h-9 w-full rounded-[8px]' disabled={isDeleting}>
+                  Cancel
+                </AlertDialogCancel>
                 <AlertDialogAction
-                  className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                  className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
                   disabled={isDeleting}
                   onClick={async () => {
                     if (!existingTemplate) return
