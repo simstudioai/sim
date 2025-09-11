@@ -1006,4 +1006,210 @@ describe('Knowledge Search API Route', () => {
       expect(mockGenerateSearchEmbedding).not.toHaveBeenCalled() // No embedding for tag-only
     })
   })
+
+  describe('Deleted document filtering', () => {
+    it('should exclude results from deleted documents in vector search', async () => {
+      mockGetUserId.mockResolvedValue('user-123')
+
+      mockCheckKnowledgeBaseAccess.mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: {
+          id: 'kb-123',
+          userId: 'user-123',
+          name: 'Test KB',
+          deletedAt: null,
+        },
+      })
+
+      mockHandleVectorOnlySearch.mockResolvedValue([
+        {
+          id: 'chunk-1',
+          content: 'Content from active document',
+          documentId: 'doc-active',
+          chunkIndex: 0,
+          tag1: null,
+          tag2: null,
+          tag3: null,
+          tag4: null,
+          tag5: null,
+          tag6: null,
+          tag7: null,
+          distance: 0.2,
+          knowledgeBaseId: 'kb-123',
+        },
+      ])
+
+      mockGetQueryStrategy.mockReturnValue({
+        useParallel: false,
+        distanceThreshold: 1.0,
+        parallelLimit: 15,
+        singleQueryOptimized: true,
+      })
+
+      mockGenerateSearchEmbedding.mockResolvedValue([0.1, 0.2, 0.3])
+      mockGetDocumentNamesByIds.mockResolvedValue({
+        'doc-active': 'Active Document.pdf',
+      })
+
+      const mockTagDefs = {
+        select: vi.fn().mockReturnThis(),
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockResolvedValue([]),
+      }
+      mockDbChain.select.mockReturnValueOnce(mockTagDefs)
+
+      const req = createMockRequest('POST', {
+        knowledgeBaseIds: ['kb-123'],
+        query: 'test query',
+        topK: 10,
+      })
+
+      const { POST } = await import('@/app/api/knowledge/search/route')
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(data.data.results).toHaveLength(1)
+      expect(data.data.results[0].documentId).toBe('doc-active')
+      expect(data.data.results[0].documentName).toBe('Active Document.pdf')
+    })
+
+    it('should exclude results from deleted documents in tag search', async () => {
+      mockGetUserId.mockResolvedValue('user-123')
+
+      mockCheckKnowledgeBaseAccess.mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: {
+          id: 'kb-123',
+          userId: 'user-123',
+          name: 'Test KB',
+          deletedAt: null,
+        },
+      })
+
+      mockHandleTagOnlySearch.mockResolvedValue([
+        {
+          id: 'chunk-2',
+          content: 'Content from active document with tag',
+          documentId: 'doc-active-tagged',
+          chunkIndex: 0,
+          tag1: 'api',
+          tag2: null,
+          tag3: null,
+          tag4: null,
+          tag5: null,
+          tag6: null,
+          tag7: null,
+          distance: 0,
+          knowledgeBaseId: 'kb-123',
+        },
+      ])
+
+      mockGetQueryStrategy.mockReturnValue({
+        useParallel: false,
+        distanceThreshold: 1.0,
+        parallelLimit: 15,
+        singleQueryOptimized: true,
+      })
+
+      mockGetDocumentNamesByIds.mockResolvedValue({
+        'doc-active-tagged': 'Active Tagged Document.pdf',
+      })
+
+      const mockTagDefs = {
+        select: vi.fn().mockReturnThis(),
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockResolvedValue([]),
+      }
+      mockDbChain.select.mockReturnValueOnce(mockTagDefs)
+
+      const req = createMockRequest('POST', {
+        knowledgeBaseIds: ['kb-123'],
+        filters: { tag1: 'api' },
+        topK: 10,
+      })
+
+      const { POST } = await import('@/app/api/knowledge/search/route')
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(data.data.results).toHaveLength(1)
+      expect(data.data.results[0].documentId).toBe('doc-active-tagged')
+      expect(data.data.results[0].documentName).toBe('Active Tagged Document.pdf')
+      expect(data.data.results[0].metadata).toEqual({ tag1: 'api' })
+    })
+
+    it('should exclude results from deleted documents in combined tag+vector search', async () => {
+      mockGetUserId.mockResolvedValue('user-123')
+
+      mockCheckKnowledgeBaseAccess.mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: {
+          id: 'kb-123',
+          userId: 'user-123',
+          name: 'Test KB',
+          deletedAt: null,
+        },
+      })
+
+      mockHandleTagAndVectorSearch.mockResolvedValue([
+        {
+          id: 'chunk-3',
+          content: 'Relevant content from active document',
+          documentId: 'doc-active-combined',
+          chunkIndex: 0,
+          tag1: 'guide',
+          tag2: null,
+          tag3: null,
+          tag4: null,
+          tag5: null,
+          tag6: null,
+          tag7: null,
+          distance: 0.15,
+          knowledgeBaseId: 'kb-123',
+        },
+      ])
+
+      mockGetQueryStrategy.mockReturnValue({
+        useParallel: false,
+        distanceThreshold: 1.0,
+        parallelLimit: 15,
+        singleQueryOptimized: true,
+      })
+
+      mockGenerateSearchEmbedding.mockResolvedValue([0.1, 0.2, 0.3])
+      mockGetDocumentNamesByIds.mockResolvedValue({
+        'doc-active-combined': 'Active Combined Search.pdf',
+      })
+
+      const mockTagDefs = {
+        select: vi.fn().mockReturnThis(),
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockResolvedValue([]),
+      }
+      mockDbChain.select.mockReturnValueOnce(mockTagDefs)
+
+      const req = createMockRequest('POST', {
+        knowledgeBaseIds: ['kb-123'],
+        query: 'relevant content',
+        filters: { tag1: 'guide' },
+        topK: 10,
+      })
+
+      const { POST } = await import('@/app/api/knowledge/search/route')
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(data.data.results).toHaveLength(1)
+      expect(data.data.results[0].documentId).toBe('doc-active-combined')
+      expect(data.data.results[0].documentName).toBe('Active Combined Search.pdf')
+      expect(data.data.results[0].metadata).toEqual({ tag1: 'guide' })
+      expect(data.data.results[0].similarity).toBe(0.85) // 1 - 0.15 distance
+    })
+  })
 })
