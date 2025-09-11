@@ -122,7 +122,9 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
     <>
       <nav
         aria-label='Primary'
-        className={`${soehne.className} flex w-full items-center justify-between px-4 pt-[12px] pb-[21px] sm:px-8 sm:pt-[8.5px] md:px-[44px]`}
+        className={`${soehne.className} flex w-full items-center justify-between px-4 ${
+          variant === 'auth' ? 'pt-[20px] sm:pt-[16.5px]' : 'pt-[12px] sm:pt-[8.5px]'
+        } pb-[21px] sm:px-8 md:px-[44px]`}
       >
         <div className='flex items-center gap-[34px]'>
           <Link href='/' aria-label={`${brand.name} home`}>

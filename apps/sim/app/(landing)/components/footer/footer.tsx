@@ -216,12 +216,16 @@ export default function Footer({ fullWidth = false }: FooterProps) {
               </Link>
               <Link
                 href='/privacy'
+                target='_blank'
+                rel='noopener noreferrer'
                 className='text-[14px] text-muted-foreground transition-colors hover:text-foreground'
               >
                 Privacy Policy
               </Link>
               <Link
                 href='/terms'
+                target='_blank'
+                rel='noopener noreferrer'
                 className='text-[14px] text-muted-foreground transition-colors hover:text-foreground'
               >
                 Terms of Service

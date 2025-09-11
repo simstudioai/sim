@@ -500,11 +500,21 @@ export default function LoginPage({
 
         <div className='auth-text-muted text-center text-[14px] leading-relaxed'>
           By signing in, you agree to our{' '}
-          <Link href='/terms' className='auth-link underline-offset-4 transition hover:underline'>
+          <Link
+            href='/terms'
+            target='_blank'
+            rel='noopener noreferrer'
+            className='auth-link underline-offset-4 transition hover:underline'
+          >
             Terms of Service
           </Link>{' '}
           and{' '}
-          <Link href='/privacy' className='auth-link underline-offset-4 transition hover:underline'>
+          <Link
+            href='/privacy'
+            target='_blank'
+            rel='noopener noreferrer'
+            className='auth-link underline-offset-4 transition hover:underline'
+          >
             Privacy Policy
           </Link>
         </div>

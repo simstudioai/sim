@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect } from 'react'
-import { GridPattern } from '@/app/(landing-2)/components/grid-pattern'
 import Nav from '@/app/(landing)/components/nav/nav'
+import AuthBackground from './components/auth-background'
 
 // Helper to detect if a color is dark
 function isColorDark(hexColor: string): boolean {
@@ -27,26 +27,16 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     }
   }, [])
   return (
-    <main className='relative flex min-h-screen flex-col bg-brand-background font-geist-sans text-foreground'>
-      {/* Background pattern */}
-      <GridPattern
-        x={-5}
-        y={-5}
-        className='auth-grid absolute inset-0 z-0'
-        width={90}
-        height={90}
-        aria-hidden='true'
-      />
-
-      {/* Header - Nav handles all conditional logic */}
-      <div className='relative z-10'>
+    <AuthBackground className='bg-brand-background'>
+      <main className='relative flex min-h-screen flex-col font-geist-sans text-foreground'>
+        {/* Header - Nav handles all conditional logic */}
         <Nav hideAuthButtons={true} variant='auth' />
-      </div>
 
-      {/* Content */}
-      <div className='relative z-10 flex flex-1 items-center justify-center px-4 pb-6'>
-        <div className='w-full max-w-lg'>{children}</div>
-      </div>
-    </main>
+        {/* Content */}
+        <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-6'>
+          <div className='w-full max-w-lg'>{children}</div>
+        </div>
+      </main>
+    </AuthBackground>
   )
 }
