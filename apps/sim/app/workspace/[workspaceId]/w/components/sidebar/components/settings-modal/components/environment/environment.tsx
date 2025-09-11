@@ -584,7 +584,6 @@ export function EnvironmentVariables({
               {filteredEnvVars.map(({ envVar, originalIndex }) => (
                 <div key={envVar.id || originalIndex}>{renderEnvVarRow(envVar, originalIndex)}</div>
               ))}
-
               {/* Show message when search has no results across both sections */}
               {searchTerm.trim() &&
                 filteredEnvVars.length === 0 &&
