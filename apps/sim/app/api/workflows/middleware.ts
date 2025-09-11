@@ -1,6 +1,7 @@
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
+import { authenticateApiKey, isHashedKey, migrateKeyToHashed } from '@/lib/security/api-key-auth'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { db } from '@/db'
 import { apiKey, workspace, workspaceApiKey } from '@/db/schema'
@@ -70,36 +71,50 @@ export async function validateWorkflowAccess(
         // Check both personal API keys and workspace API keys
 
         // First, check personal API keys belonging to the workflow owner
-        const [personalKey] = await db
-          .select({ key: apiKey.key })
+        const personalKeys = await db
+          .select({
+            id: apiKey.id,
+            key: apiKey.key,
+          })
           .from(apiKey)
-          .where(and(eq(apiKey.userId, workflow.userId), eq(apiKey.key, apiKeyHeader)))
-          .limit(1)
+          .where(eq(apiKey.userId, workflow.userId))
+
+        let validPersonalKey = null
+
+        // Check each personal key with authentication function
+        for (const key of personalKeys) {
+          const isValid = await authenticateApiKey(apiKeyHeader, key.key)
+          if (isValid) {
+            validPersonalKey = key
+            break
+          }
+        }
 
         // If not found in personal keys, check workspace API keys
-        let workspaceKey = null
-        if (!personalKey) {
-          const [wsKey] = await db
+        let validWorkspaceKey = null
+        if (!validPersonalKey) {
+          const workspaceKeys = await db
             .select({
+              id: workspaceApiKey.id,
               key: workspaceApiKey.key,
               workspaceId: workspaceApiKey.workspaceId,
-              workspaceOwnerId: workspace.ownerId,
             })
             .from(workspaceApiKey)
             .leftJoin(workspace, eq(workspaceApiKey.workspaceId, workspace.id))
-            .where(
-              and(
-                eq(workspaceApiKey.key, apiKeyHeader),
-                eq(workspace.id, workflow.workspaceId) // Key must belong to the same workspace as the workflow
-              )
-            )
-            .limit(1)
+            .where(eq(workspace.id, workflow.workspaceId)) // Key must belong to the same workspace as the workflow
 
-          workspaceKey = wsKey
+          // Check each workspace key with authentication function
+          for (const key of workspaceKeys) {
+            const isValid = await authenticateApiKey(apiKeyHeader, key.key)
+            if (isValid) {
+              validWorkspaceKey = key
+              break
+            }
+          }
         }
 
         // If neither personal nor workspace key is valid, reject
-        if (!personalKey && !workspaceKey) {
+        if (!validPersonalKey && !validWorkspaceKey) {
           return {
             error: {
               message: 'Unauthorized: Invalid API key',
@@ -108,14 +123,52 @@ export async function validateWorkflowAccess(
           }
         }
 
-        // Update last used for the key that was found
-        if (personalKey) {
-          await db.update(apiKey).set({ lastUsed: new Date() }).where(eq(apiKey.key, apiKeyHeader))
-        } else if (workspaceKey) {
+        // Update last used and potentially migrate to hashed format
+        if (validPersonalKey) {
+          const updates: any = { lastUsed: new Date() }
+
+          // If this is a plain text key, migrate it to hashed format
+          if (!isHashedKey(validPersonalKey.key)) {
+            try {
+              const hashedKey = await migrateKeyToHashed(apiKeyHeader)
+              updates.key = hashedKey
+              logger.info('Migrated personal API key to hashed format', {
+                keyId: validPersonalKey.id,
+              })
+            } catch (error) {
+              logger.error('Failed to migrate personal API key to hashed format', {
+                keyId: validPersonalKey.id,
+                error,
+              })
+              // Continue without migration on error
+            }
+          }
+
+          await db.update(apiKey).set(updates).where(eq(apiKey.id, validPersonalKey.id))
+        } else if (validWorkspaceKey) {
+          const updates: any = { lastUsed: new Date() }
+
+          // If this is a plain text key, migrate it to hashed format
+          if (!isHashedKey(validWorkspaceKey.key)) {
+            try {
+              const hashedKey = await migrateKeyToHashed(apiKeyHeader)
+              updates.key = hashedKey
+              logger.info('Migrated workspace API key to hashed format', {
+                keyId: validWorkspaceKey.id,
+              })
+            } catch (error) {
+              logger.error('Failed to migrate workspace API key to hashed format', {
+                keyId: validWorkspaceKey.id,
+                error,
+              })
+              // Continue without migration on error
+            }
+          }
+
           await db
             .update(workspaceApiKey)
-            .set({ lastUsed: new Date() })
-            .where(eq(workspaceApiKey.key, apiKeyHeader))
+            .set(updates)
+            .where(eq(workspaceApiKey.id, validWorkspaceKey.id))
         }
       }
     }

@@ -5,7 +5,8 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
-import { generateApiKey, generateRequestId } from '@/lib/utils'
+import { createApiKey } from '@/lib/security/api-key-auth'
+import { generateRequestId } from '@/lib/utils'
 import { db } from '@/db'
 import { apiKey, workspace, workspaceApiKey } from '@/db/schema'
 
@@ -129,9 +130,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       )
     }
 
-    const keyValue = generateApiKey()
+    // Create new API key with hashing
+    const { key: plainKey, hashedKey } = await createApiKey(true)
 
-    // Insert the new workspace API key
+    // Store the hashed version in the database
     const [newKey] = await db
       .insert(workspaceApiKey)
       .values({
@@ -139,19 +141,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         workspaceId,
         createdBy: userId,
         name,
-        key: keyValue,
+        key: hashedKey!, // Store the hashed version
         createdAt: new Date(),
         updatedAt: new Date(),
       })
       .returning({
         id: workspaceApiKey.id,
         name: workspaceApiKey.name,
-        key: workspaceApiKey.key,
         createdAt: workspaceApiKey.createdAt,
       })
 
     logger.info(`[${requestId}] Created workspace API key: ${name} in workspace ${workspaceId}`)
-    return NextResponse.json({ key: newKey })
+
+    // Return the plain key to the user (they'll never see it again)
+    return NextResponse.json({
+      key: {
+        ...newKey,
+        key: plainKey, // Return the plain text key for user to copy
+      },
+    })
   } catch (error: any) {
     logger.error(`[${requestId}] Workspace API key POST error`, error)
     return NextResponse.json(

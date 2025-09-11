@@ -3,7 +3,7 @@ import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
-import { generateApiKey } from '@/lib/utils'
+import { createApiKey } from '@/lib/security/api-key-auth'
 import { db } from '@/db'
 import { apiKey } from '@/db/schema'
 
@@ -83,27 +83,33 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const keyValue = generateApiKey()
+    // Create new API key with hashing
+    const { key: plainKey, hashedKey } = await createApiKey(true)
 
-    // Insert the new API key
+    // Store the hashed version in the database
     const [newKey] = await db
       .insert(apiKey)
       .values({
         id: nanoid(),
         userId,
         name,
-        key: keyValue,
+        key: hashedKey!, // Store the hashed version
         createdAt: new Date(),
         updatedAt: new Date(),
       })
       .returning({
         id: apiKey.id,
         name: apiKey.name,
-        key: apiKey.key,
         createdAt: apiKey.createdAt,
       })
 
-    return NextResponse.json({ key: newKey })
+    // Return the plain key to the user (they'll never see it again)
+    return NextResponse.json({
+      key: {
+        ...newKey,
+        key: plainKey, // Return the plain text key for user to copy
+      },
+    })
   } catch (error) {
     logger.error('Failed to create API key', { error })
     return NextResponse.json({ error: 'Failed to create API key' }, { status: 500 })
