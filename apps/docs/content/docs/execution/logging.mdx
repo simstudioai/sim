@@ -1,0 +1,150 @@
+---
+title: Logging
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Sim provides comprehensive logging for all workflow executions, giving you complete visibility into how your workflows run, what data flows through them, and where issues might occur.
+
+## Logging System
+
+Sim offers two complementary logging interfaces to match different workflows and use cases:
+
+### Real-Time Console
+
+During manual or chat workflow execution, logs appear in real-time in the Console panel on the right side of the workflow editor:
+
+<div className="flex justify-center">
+  <Image
+    src="/static/logs/console.png"
+    alt="Real-time Console Panel"
+    width={400}
+    height={300}
+    className="my-6"
+  />
+</div>
+
+The console shows:
+- Block execution progress with active block highlighting
+- Real-time outputs as blocks complete
+- Execution timing for each block
+- Success/error status indicators
+
+### Logs Page
+
+All workflow executions—whether triggered manually, via API, Chat, Schedule, or Webhook—are logged to the dedicated Logs page:
+
+<div className="flex justify-center">
+  <Image
+    src="/static/logs/logs.png"
+    alt="Logs Page"
+    width={600}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+The Logs page provides:
+- Comprehensive filtering by time range, status, trigger type, folder, and workflow
+- Search functionality across all logs
+- Live mode for real-time updates
+- 7-day log retention (upgradeable for longer retention)
+
+## Log Details Sidebar
+
+Clicking on any log entry opens a detailed sidebar view:
+
+<div className="flex justify-center">
+  <Image
+    src="/static/logs/logs-sidebar.png"
+    alt="Logs Sidebar Details"
+    width={600}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+### Block Input/Output
+
+View the complete data flow for each block with tabs to switch between:
+
+<Tabs items={['Output', 'Input']}>
+  <Tab>
+    **Output Tab** shows the block's execution result:
+    - Structured data with JSON formatting
+    - Markdown rendering for AI-generated content
+    - Copy button for easy data extraction
+  </Tab>
+  
+  <Tab>
+    **Input Tab** displays what was passed to the block:
+    - Resolved variable values
+    - Referenced outputs from other blocks
+    - Environment variables used
+    - API keys are automatically redacted for security
+  </Tab>
+</Tabs>
+
+### Execution Timeline
+
+For workflow-level logs, view detailed execution metrics:
+- Start and end timestamps
+- Total workflow duration
+- Individual block execution times
+- Performance bottleneck identification
+
+## Workflow Snapshots
+
+For any logged execution, click "View Snapshot" to see the exact workflow state at execution time:
+
+<div className="flex justify-center">
+  <Image
+    src="/static/logs/logs-frozen-canvas.png"
+    alt="Workflow Snapshot"
+    width={600}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+The snapshot provides:
+- Frozen canvas showing the workflow structure
+- Block states and connections as they were during execution
+- Click any block to see its inputs and outputs
+- Useful for debugging workflows that have since been modified
+
+<Callout type="info">
+  Workflow snapshots are only available for executions after the enhanced logging system was introduced. Older migrated logs show a "Logged State Not Found" message.
+</Callout>
+
+## Log Retention
+
+- **Free Plan**: 7 days of log retention
+- **Pro Plan**: 30 days of log retention
+- **Team Plan**: 90 days of log retention
+- **Enterprise Plan**: Custom retention periods available
+
+## Best Practices
+
+### For Development
+- Use the real-time console for immediate feedback during testing
+- Check block inputs and outputs to verify data flow
+- Use workflow snapshots to compare working vs. broken versions
+
+### For Production
+- Monitor the Logs page regularly for errors or performance issues
+- Set up filters to focus on specific workflows or time periods
+- Use live mode during critical deployments to watch executions in real-time
+
+### For Debugging
+- Always check the execution timeline to identify slow blocks
+- Compare inputs between working and failing executions
+- Use workflow snapshots to see the exact state when issues occurred
+
+## Next Steps
+
+- Learn about [Cost Calculation](/execution/costs) to understand workflow pricing
+- Explore the [External API](/execution/api) for programmatic log access
+- Set up [Webhook notifications](/execution/api#webhook-subscriptions) for real-time alerts

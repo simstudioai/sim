@@ -45,17 +45,17 @@ export function Lightbox({ isOpen, onClose, src, alt, type }: LightboxProps) {
   return (
     <div
       ref={overlayRef}
-      className='fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm'
+      className='fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-12 backdrop-blur-sm'
       role='dialog'
       aria-modal='true'
       aria-label='Media viewer'
     >
-      <div className='relative flex max-h-[90vh] max-w-[90vw] items-center justify-center'>
+      <div className='relative max-h-full max-w-full overflow-hidden rounded-xl shadow-2xl'>
         {type === 'image' ? (
           <img
             src={src}
             alt={alt}
-            className='max-h-full max-w-full rounded-xl object-contain shadow-2xl'
+            className='max-h-[calc(100vh-6rem)] max-w-[calc(100vw-6rem)] rounded-xl object-contain'
             loading='lazy'
           />
         ) : (
@@ -65,7 +65,7 @@ export function Lightbox({ isOpen, onClose, src, alt, type }: LightboxProps) {
             loop
             muted
             playsInline
-            className='max-h-full max-w-full rounded-xl shadow-2xl outline-none focus:outline-none'
+            className='max-h-[calc(100vh-6rem)] max-w-[calc(100vw-6rem)] rounded-xl outline-none focus:outline-none'
           />
         )}
       </div>

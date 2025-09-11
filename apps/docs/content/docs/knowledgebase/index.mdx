@@ -11,7 +11,9 @@ The knowledgebase allows you to upload, process, and search through your documen
 
 Simply upload your documents to get started. Sim automatically processes them in the background, extracting text, creating embeddings, and breaking them into searchable chunks.
 
-<Video src="knowledgebase-1.mp4" />
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="knowledgebase-1.mp4" width={700} height={450} />
+</div>
 
 The system handles the entire processing pipeline for you:
 
@@ -47,19 +49,14 @@ Once your documents are processed, you can view and edit the individual chunks. 
 For PDF documents, Sim offers enhanced processing capabilities:
 
 ### OCR Support
-When configured with Azure or Mistral OCR:
+When configured with Azure or [Mistral OCR](https://docs.mistral.ai/ocr/):
 - **Scanned document processing**: Extract text from image-based PDFs
 - **Mixed content handling**: Process PDFs with both text and images
 - **High accuracy**: Advanced AI models ensure accurate text extraction
 
-### Processing Methods
-1. **Azure Mistral OCR**: Premium OCR with highest accuracy
-2. **Mistral OCR**: Standard AI-powered text extraction
-3. **Standard PDF Parser**: Fast processing for text-based PDFs
+## Using The Knowledge Block in Workflows
 
-## Using Knowledge in Workflows
-
-Once your documents are processed, you can use them in your AI workflows through the Knowledge block. This allows your agents to access and reason over your document content.
+Once your documents are processed, you can use them in your AI workflows through the Knowledge block. This enables Retrieval-Augmented Generation (RAG), allowing your AI agents to access and reason over your document content to provide more accurate, contextual responses.
 
 <Image src="/static/knowledgebase-2.png" alt="Using Knowledge Block in Workflows" width={800} height={500} />
 
@@ -77,7 +74,7 @@ Once your documents are processed, you can use them in your AI workflows through
 
 ## Vector Search Technology
 
-Sim uses advanced vector search technology to understand the meaning and context of your content:
+Sim uses vector search powered by [pgvector](https://github.com/pgvector/pgvector) to understand the meaning and context of your content:
 
 ### Semantic Understanding
 - **Contextual search**: Finds relevant content even when exact keywords don't match
@@ -94,7 +91,7 @@ Sim uses advanced vector search technology to understand the meaning and context
 ## Document Management
 
 ### Organization Features
-- **Bulk upload**: Upload multiple files at once
+- **Bulk upload**: Upload multiple files at once via the asynchronous API
 - **Processing status**: Real-time updates on document processing
 - **Search and filter**: Find documents quickly in large collections
 - **Metadata tracking**: Automatic capture of file information and processing details

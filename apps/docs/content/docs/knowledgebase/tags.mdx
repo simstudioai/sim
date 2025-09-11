@@ -1,6 +1,5 @@
 ---
 title: Tags and Filtering
-description: Organize and filter your documents with custom tags for precise content retrieval
 ---
 
 import { Video } from '@/components/ui/video'
@@ -11,17 +10,17 @@ Tags provide a powerful way to organize your documents and create precise filter
 
 You can add custom tags to any document in your knowledgebase to organize and categorize your content for easier retrieval.
 
-<Video src="knowledgebase-tag.mp4" />
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="knowledgebase-tag.mp4" width={700} height={450} />
+</div>
 
 ### Tag Management
 - **Custom tags**: Create your own tag system that fits your workflow
-- **Multiple tags per document**: Apply as many tags as needed to each document
+- **Multiple tags per document**: Apply as many tags as needed to each document, there are 7 tag slots available per knowledgebase that are shared by all documents in the knowledgebase
 - **Tag organization**: Group related documents with consistent tagging
-- **Bulk tagging**: Apply tags to multiple documents at once
 
 ### Tag Best Practices
 - **Consistent naming**: Use standardized tag names across your documents
-- **Hierarchical tags**: Consider using prefixes like "topic:", "project:", "type:"
 - **Descriptive tags**: Use clear, meaningful tag names
 - **Regular cleanup**: Remove unused or outdated tags periodically
 
@@ -29,7 +28,9 @@ You can add custom tags to any document in your knowledgebase to organize and ca
 
 Tags become powerful when combined with the Knowledge block in your workflows. You can filter your searches to specific tagged content, ensuring your AI agents get the most relevant information.
 
-<Video src="knowledgebase-tag2.mp4" />
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="knowledgebase-tag2.mp4" width={700} height={450} />
+</div>
 
 ## Search Modes
 
@@ -64,7 +65,7 @@ When you **provide both tags and a search query**:
 ### Search Configuration
 
 #### Tag Filtering
-- **Multiple tags**: Use comma-separated tags for AND logic (document must have all tags)
+- **Multiple tags**: Use multiple tags for OR logic (document must have one or more of the tags)
 - **Tag combinations**: Mix different tag types for precise filtering
 - **Case sensitivity**: Tag matching is case-insensitive
 - **Partial matching**: Exact tag name matching required
@@ -74,55 +75,6 @@ When you **provide both tags and a search query**:
 - **Result limits**: Configure how many chunks to retrieve
 - **Relevance threshold**: Set minimum similarity scores
 - **Context window**: Adjust chunk size for your use case
-
-## Advanced Filtering Strategies
-
-### Project-Based Organization
-```
-Tags: "project:alpha", "status:complete", "type:requirements"
-Query: "What are the main user features?"
-```
-This finds feature-related content specifically from completed Project Alpha requirements.
-
-### Topic Categorization
-```
-Tags: "topic:machine-learning", "level:advanced"
-Query: "neural network optimization techniques"
-```
-This searches for optimization techniques within advanced machine learning content only.
-
-### Temporal Organization
-```
-Tags: "quarter:q4-2024", "department:engineering"
-Query: "performance metrics and goals"
-```
-This finds performance-related content from Q4 2024 engineering documents.
-
-### Content Type Filtering
-```
-Tags: "type:manual", "product:api"
-Query: "authentication setup process"
-```
-This searches for authentication setup information within API manual content.
-
-## Tag Management Features
-
-### Tag Creation
-- **Dynamic creation**: Tags are created automatically when first used
-- **Bulk operations**: Apply the same tags to multiple documents
-- **Import with tags**: Add tags during document upload process
-- **Template tagging**: Create tag templates for consistent organization
-
-### Tag Organization
-- **Tag suggestions**: System suggests relevant tags based on content
-- **Tag hierarchy**: Organize tags in logical groupings
-- **Usage analytics**: See which tags are most commonly used
-- **Tag cleanup**: Remove unused tags to keep your system organized
-
-### Search History
-- **Query patterns**: Track common tag + search combinations
-- **Performance insights**: See which searches return the best results
-- **Optimization suggestions**: Improve your tagging strategy over time
 
 ## Integration with Workflows
 

@@ -3,240 +3,130 @@ title: Execution Basics
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { File, Files, Folder } from 'fumadocs-ui/components/files'
+import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { ThemeImage } from '@/components/ui/theme-image'
-import {
-  AgentIcon,
-  ApiIcon,
-  ChartBarIcon,
-  CodeIcon,
-  ConditionalIcon,
-  ConnectIcon,
-  ResponseIcon,
-  StarterIcon,
-  LoopIcon,
-  ParallelIcon,
-} from '@/components/icons'
+import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
 
-When you run a workflow in Sim, the execution engine follows a systematic process to ensure blocks are executed in the correct order with proper data flow. This is fundamental to understanding how execution flows in Sim.
+Understanding how workflows execute in Sim is key to building efficient and reliable automations. The execution engine automatically handles dependencies, concurrency, and data flow to ensure your workflows run smoothly and predictably.
 
-## Execution Flow
+## How Workflows Execute
 
-The execution engine runs workflows in layers, processing blocks based on their dependencies:
+Sim's execution engine processes workflows intelligently by analyzing dependencies and running blocks in the most efficient order possible.
 
-<Steps>
-  <Step>
-    <strong>Validation</strong>: Ensures the workflow has a starter block with no incoming connections and all blocks are properly connected.
-  </Step>
+### Concurrent Execution by Default
 
-  <Step>
-    <strong>Layer-based Execution</strong>: Identifies which blocks can execute next based on completed dependencies and executes them in parallel.
-  </Step>
+Multiple blocks run concurrently when they don't depend on each other. This parallel execution dramatically improves performance without requiring manual configuration.
 
-  <Step>
-    <strong>Path Updates</strong>: Router and Condition blocks update the active execution path, determining which blocks execute next.
-  </Step>
+<Image
+  src="/static/execution/concurrency.png"
+  alt="Multiple blocks running concurrently after the Start block"
+  width={800}
+  height={500}
+/>
 
-  <Step>
-    <strong>Iteration Processing</strong>: Loop and Parallel blocks manage iterations and create virtual instances for concurrent execution.
-  </Step>
+In this example, both the Customer Support and Deep Researcher agent blocks execute simultaneously after the Start block, maximizing efficiency.
 
-  <Step>
-    <strong>Result Collection</strong>: Outputs from the final blocks are collected and returned as the workflow result.
-  </Step>
-</Steps>
+### Automatic Output Combination
 
-## Block Types and Execution
+When blocks have multiple dependencies, the execution engine automatically waits for all dependencies to complete, then provides their combined outputs to the next block. No manual combining required.
 
-Different block types have different execution behaviors:
+<Image
+  src="/static/execution/combination.png"
+  alt="Function block automatically receiving outputs from multiple previous blocks"
+  width={800}
+  height={500}
+/>
 
-<Tabs items={['Orchestration Blocks', 'Processing Blocks', 'Integration Blocks']}>
-  <Tab>
-    <Card>
-      Orchestration blocks control the flow of execution through your workflow.
-      <Files>
-        <File
-          name="Starter Block"
-          icon={<StarterIcon className="h-4 w-4" />}
-          annotation="Initiates workflow execution and provides initial input values. Every workflow must have exactly one starter block."
-        />
-        <File
-          name="Router Block"
-          icon={<ConnectIcon className="h-4 w-4" />}
-          annotation="Directs execution along specific paths based on dynamic decisions. Uses an AI model to select one of multiple possible paths."
-        />
-        <File
-          name="Condition Block"
-          icon={<ConditionalIcon className="h-4 w-4" />}
-          annotation="Executes different paths based on conditional logic. Evaluates JavaScript expressions to determine which path to follow."
-        />
-        <File
-          name="Loop Block"
-          icon={<LoopIcon className="h-4 w-4" />}
-          annotation="Executes blocks repeatedly for a fixed number of iterations or over a collection. Manages iteration state and provides access to current item."
-        />
-        <File
-          name="Parallel Block"
-          icon={<ParallelIcon className="h-4 w-4" />}
-          annotation="Executes blocks concurrently across multiple instances. Distributes work based on count or collection for faster processing."
-        />
-      </Files>
-    </Card>
-  </Tab>
+The Function block receives outputs from both agent blocks as soon as they complete, allowing you to process the combined results.
 
-<Tab>
-  <Card>
-    Processing blocks transform data and generate new outputs.
-    <Files>
-      <File
-        name="Agent Block"
-        icon={<AgentIcon className="h-4 w-4" />}
-        annotation="Interacts with AI models to generate content. Executes prompts against various LLM providers."
-      />
-      <File
-        name="Function Block"
-        icon={<CodeIcon className="h-4 w-4" />}
-        annotation="Executes custom JavaScript/TypeScript code. Runs in a secure sandbox environment with access to connected block outputs."
-      />
-      <File
-        name="Evaluator Block"
-        icon={<ChartBarIcon className="h-4 w-4" />}
-        annotation="Assesses outputs against defined criteria. Uses AI to evaluate content based on custom metrics."
-      />
-      <File
-        name="Workflow Block"
-        icon={<ConnectIcon className="h-4 w-4" />}
-        annotation="Execute nested workflows as a single block. Allows modular workflow design by embedding one workflow inside another."
-      />
-    </Files>
+### Smart Routing
+
+Workflows can branch in multiple directions using routing blocks. The execution engine supports both deterministic routing (with Condition blocks) and AI-powered routing (with Router blocks).
+
+<Image
+  src="/static/execution/routing.png"
+  alt="Workflow showing both conditional and router-based branching"
+  width={800}
+  height={500}
+/>
+
+This workflow demonstrates how execution can follow different paths based on conditions or AI decisions, with each path executing independently.
+
+## Block Types
+
+Sim provides different types of blocks that serve specific purposes in your workflows:
+
+<Cards>
+  <Card title="Triggers" href="/triggers">
+    **Starter blocks** initiate workflows and **Webhook blocks** respond to external events. Every workflow needs a trigger to begin execution.
   </Card>
-</Tab>
+  
+  <Card title="Processing Blocks" href="/blocks">
+    **Agent blocks** interact with AI models, **Function blocks** run custom code, and **API blocks** connect to external services. These blocks transform and process your data.
+  </Card>
+  
+  <Card title="Control Flow" href="/blocks">
+    **Router blocks** use AI to choose paths, **Condition blocks** branch based on logic, and **Loop/Parallel blocks** handle iterations and concurrency.
+  </Card>
+  
+  <Card title="Output & Response" href="/blocks">
+    **Response blocks** format final outputs for APIs and chat interfaces, returning structured results from your workflows.
+  </Card>
+</Cards>
 
-  <Tab>
-    <Card>
-      Integration blocks connect with external systems.
-      <Files>
-        <File
-          name="API Block"
-          icon={<ApiIcon className="h-4 w-4" />}
-          annotation="Makes HTTP requests to external services. Configurable with headers, body, and authentication."
-        />
-        <File
-          name="Knowledge Base Block"
-          icon={
-            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 2L3 9V20C3 20.55 3.45 21 4 21H9V14H15V21H20C20.55 21 21 20.55 21 20V9L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <circle cx="12" cy="10" r="2" stroke="currentColor" strokeWidth="2"/>
-            </svg>
-          }
-          annotation="Search and interact with knowledge bases. Performs semantic search, retrieves documents, and manages knowledge data."
-        />
-        <File
-          name="Response Block"
-          icon={<ResponseIcon className="h-4 w-4" />}
-          annotation="Format and return responses from workflows. Configure response data, status codes, and headers."
-        />
-        <File
-          name="Tool Blocks"
-          icon={<CodeIcon className="h-4 w-4" />}
-          annotation="Specialized blocks for specific services (Gmail, Slack, GitHub, etc.). Each has its own execution logic for the specific service."
-        />
-      </Files>
-    </Card>
-  </Tab>
-</Tabs>
+All blocks execute automatically based on their dependencies - you don't need to manually manage execution order or timing.
 
-## Execution Methods
+## Execution Triggers
 
-Sim offers multiple ways to trigger workflow execution:
+Workflows can be triggered in several ways, depending on your use case:
 
-### Manual Execution
+### Manual Testing
+Click "Run" in the workflow editor to test your workflow during development. Perfect for debugging and validation.
 
-Run workflows on-demand through the Sim interface by clicking the "Run" button. This is perfect for:
+### Scheduled Execution  
+Set up recurring executions using cron expressions. Great for regular data processing, reports, or maintenance tasks.
 
-- Testing during development
-- One-off tasks
-- Workflows that need human supervision
+### API Deployment
+Deploy workflows as HTTP endpoints that can be called programmatically from your applications.
 
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="input-format.mp4" />
-</div>
+### Webhook Integration
+Respond to events from external services like GitHub, Stripe, or custom systems in real-time.
 
-### Scheduled Execution
-
-Configure workflows to run automatically on a specified schedule:
-
-- Set up recurring executions using cron expressions
-- Define start times and frequency
-- Configure timezone settings
-- Set minimum and maximum execution intervals
-
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="configure-schedule.mp4" />
-</div>
-
-### API Endpoints
-
-Each workflow can be exposed as an API endpoint:
-
-- Get a unique URL for your workflow
-- Configure authentication requirements
-- Send custom inputs via POST requests
-- Receive execution results as JSON responses
-
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="api-deployment.mp4" />
-</div>
-
-#### Viewing Deployed APIs
-
-Monitor your deployed workflow APIs and their current state:
-
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="api-redeployment.mp4" />
-</div>
-
-This shows how to view the deployed state and compare with the original deployed API configuration.
-
-### Webhooks
-
-Configure workflows to execute in response to external events:
-
-- Set up webhook triggers from third-party services
-- Process incoming webhook data as workflow input
-- Configure webhook security settings
-- Support for specialized webhooks (GitHub, Stripe, etc.)
-
-<div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="webhooks.mp4" />
-</div>
+### Chat Interface
+Create conversational interfaces hosted on custom subdomains for user-facing AI applications.
 
 <Callout type="info">
-  The execution method you choose depends on your workflow's purpose. Manual execution is great for
-  development, while scheduled execution, API endpoints, and webhooks are better for production use
-  cases.
+  Learn more about each trigger type in the [Triggers section](/triggers) of the documentation.
 </Callout>
 
-## Execution Context
+## Execution Monitoring
 
-Each workflow execution maintains a context that tracks:
+When workflows run, Sim provides real-time visibility into the execution process:
 
-- **Block States**: Outputs and execution status of each block
-- **Execution Path**: Active blocks based on routing decisions
-- **Loop/Parallel State**: Current iterations and distribution items
-- **Environment Variables**: Configuration values available during execution
-- **Execution Logs**: Detailed records of each block's execution
+- **Live Block States**: See which blocks are currently executing, completed, or failed
+- **Execution Logs**: Detailed logs appear in real-time showing inputs, outputs, and any errors
+- **Performance Metrics**: Track execution time and costs for each block
+- **Path Visualization**: Understand which execution paths were taken through your workflow
 
-## Real-Time Monitoring
+<Callout type="info">
+  All execution details are captured and available for review even after workflows complete, helping with debugging and optimization.
+</Callout>
 
-Monitor your workflow execution in real-time:
+## Key Execution Principles
 
-- **Active Block Highlighting**: Currently executing blocks pulse with animation
-- **Live Logs**: Execution logs appear instantly in the logs panel
-- **Block States**: Visual indicators show success, error, or pending states
-- **Performance Metrics**: Execution time for each block
+Understanding these core principles will help you build better workflows:
 
-These monitoring features help you understand workflow behavior and quickly identify any issues.
+1. **Dependency-Based Execution**: Blocks only run when all their dependencies have completed
+2. **Automatic Parallelization**: Independent blocks run concurrently without configuration
+3. **Smart Data Flow**: Outputs flow automatically to connected blocks
+4. **Error Handling**: Failed blocks stop their execution path but don't affect independent paths
+5. **State Persistence**: All block outputs and execution details are preserved for debugging
+
+## Next Steps
+
+Now that you understand execution basics, explore:
+- **[Block Types](/blocks)** - Learn about specific block capabilities
+- **[Logging](/execution/logging)** - Monitor workflow executions and debug issues
+- **[Cost Calculation](/execution/costs)** - Understand and optimize workflow costs
+- **[Triggers](/triggers)** - Set up different ways to run your workflows

@@ -65,7 +65,7 @@ Choose an AI model to perform the evaluation:
 **Local Models**: Any model running on Ollama
 
 <div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg">
-  <Video src="models.mp4" />
+  <Video src="models.mp4" width={500} height={350} />
 </div>
 
 **Recommendation**: Use models with strong reasoning capabilities like GPT-4o or Claude 3.7 Sonnet for more accurate evaluations.
@@ -96,32 +96,6 @@ Your API key for the selected LLM provider. This is securely stored and used for
 - **Model**: The model used for evaluation
 - **Tokens**: Usage statistics
 - **Metric Scores**: Numeric scores for each defined metric
-
-## Example Usage
-
-Here's an example of how an Evaluator block might be configured for assessing customer service responses:
-
-```yaml
-# Example Evaluator Configuration
-metrics:
-  - name: Empathy
-    description: How well does the response acknowledge and address the customer's emotional state?
-    range:
-      min: 1
-      max: 5
-  - name: Solution
-    description: How effectively does the response solve the customer's problem?
-    range:
-      min: 1
-      max: 5
-  - name: Clarity
-    description: How clear and easy to understand is the response?
-    range:
-      min: 1
-      max: 5
-
-model: Anthropic/claude-3-opus
-```
 
 ## Best Practices
 

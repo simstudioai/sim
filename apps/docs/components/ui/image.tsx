@@ -43,7 +43,7 @@ export function Image({
         <Lightbox
           isOpen={isLightboxOpen}
           onClose={() => setIsLightboxOpen(false)}
-          src={typeof src === 'string' ? src : (src as any).src || src}
+          src={typeof src === 'string' ? src : src.src || String(src)}
           alt={alt}
           type='image'
         />
