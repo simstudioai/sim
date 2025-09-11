@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { getEmailSubject, renderUsageThresholdEmail } from '@/components/emails/render-email'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import {
@@ -488,6 +488,47 @@ export async function getTeamUsageLimits(organizationId: string): Promise<
     logger.error('Failed to get team usage limits', { organizationId, error })
     return []
   }
+}
+
+/**
+ * Returns the effective current period usage cost for a user.
+ * - Free/Pro: user's own currentPeriodCost (fallback to totalCost)
+ * - Team/Enterprise: pooled sum of all members' currentPeriodCost within the organization
+ */
+export async function getEffectiveCurrentPeriodCost(userId: string): Promise<number> {
+  const subscription = await getHighestPrioritySubscription(userId)
+
+  // If no team/org subscription, return the user's own usage
+  if (!subscription || subscription.plan === 'free' || subscription.plan === 'pro') {
+    const rows = await db
+      .select({ current: userStats.currentPeriodCost })
+      .from(userStats)
+      .where(eq(userStats.userId, userId))
+      .limit(1)
+
+    if (rows.length === 0) return 0
+    return rows[0].current ? Number.parseFloat(rows[0].current.toString()) : 0
+  }
+
+  // Team/Enterprise: pooled usage across org members
+  const teamMembers = await db
+    .select({ userId: member.userId })
+    .from(member)
+    .where(eq(member.organizationId, subscription.referenceId))
+
+  if (teamMembers.length === 0) return 0
+
+  const memberIds = teamMembers.map((m) => m.userId)
+  const rows = await db
+    .select({ current: userStats.currentPeriodCost })
+    .from(userStats)
+    .where(inArray(userStats.userId, memberIds))
+
+  let pooled = 0
+  for (const r of rows) {
+    pooled += r.current ? Number.parseFloat(r.current.toString()) : 0
+  }
+  return pooled
 }
 
 /**

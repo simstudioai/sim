@@ -907,20 +907,16 @@ export const setupParallelTestMocks = (options?: {
   distributionData?: any
   maxParallelChecks?: number
 }) => {
-  // Setup stores
   setupStoreMocks()
 
-  // Setup core executor mocks
   setupExecutorCoreMocks()
 
-  // Setup parallel manager with correct relative path
   vi.doMock('@/executor/parallels', () =>
     createParallelManagerMock({
       maxChecks: options?.maxParallelChecks,
     })
   )
 
-  // Setup loop manager with correct relative path
   vi.doMock('@/executor/loops', () => createLoopManagerMock())
 }
 

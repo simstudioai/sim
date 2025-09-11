@@ -101,7 +101,7 @@ function ResetPasswordContent() {
           </CardContent>
           <CardFooter>
             <p className='w-full text-center text-gray-500 text-sm'>
-              <Link href='/login' className='text-primary hover:underline'>
+              <Link href='/login' className='text-muted-foreground hover:underline'>
                 Back to login
               </Link>
             </p>

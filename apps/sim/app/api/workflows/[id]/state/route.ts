@@ -4,7 +4,9 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
+import { generateRequestId } from '@/lib/utils'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/db-helpers'
+import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/validation'
 import { db } from '@/db'
 import { workflow } from '@/db/schema'
 
@@ -111,7 +113,7 @@ const WorkflowStateSchema = z.object({
  * Save complete workflow state to normalized database tables
  */
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const startTime = Date.now()
   const { id: workflowId } = await params
 
@@ -168,11 +170,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
+    // Sanitize custom tools in agent blocks before saving
+    const { blocks: sanitizedBlocks, warnings } = sanitizeAgentToolsInBlocks(state.blocks as any)
+
     // Save to normalized tables
     // Ensure all required fields are present for WorkflowState type
     // Filter out blocks without type or name before saving
-    const filteredBlocks = Object.entries(state.blocks).reduce(
-      (acc, [blockId, block]) => {
+    const filteredBlocks = Object.entries(sanitizedBlocks).reduce(
+      (acc, [blockId, block]: [string, any]) => {
         if (block.type && block.name) {
           // Ensure all required fields are present
           acc[blockId] = {
@@ -184,7 +189,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             height: block.height !== undefined ? block.height : 0,
             subBlocks: block.subBlocks || {},
             outputs: block.outputs || {},
-            data: block.data || {},
           }
         }
         return acc
@@ -226,30 +230,21 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const elapsed = Date.now() - startTime
     logger.info(`[${requestId}] Successfully saved workflow ${workflowId} state in ${elapsed}ms`)
 
-    return NextResponse.json(
-      {
-        success: true,
-        blocksCount: Object.keys(filteredBlocks).length,
-        edgesCount: state.edges.length,
-      },
-      { status: 200 }
-    )
-  } catch (error: unknown) {
+    return NextResponse.json({ success: true, warnings }, { status: 200 })
+  } catch (error: any) {
     const elapsed = Date.now() - startTime
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid workflow state data for ${workflowId}`, {
-        errors: error.errors,
-      })
-      return NextResponse.json(
-        { error: 'Invalid state data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
     logger.error(
       `[${requestId}] Error saving workflow ${workflowId} state after ${elapsed}ms`,
       error
     )
+
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid request body', details: error.errors },
+        { status: 400 }
+      )
+    }
+
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

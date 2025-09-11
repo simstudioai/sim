@@ -77,6 +77,18 @@ export const BLOB_COPILOT_CONFIG = {
   containerName: env.AZURE_STORAGE_COPILOT_CONTAINER_NAME || '',
 }
 
+export const S3_PROFILE_PICTURES_CONFIG = {
+  bucket: env.S3_PROFILE_PICTURES_BUCKET_NAME || '',
+  region: env.AWS_REGION || '',
+}
+
+export const BLOB_PROFILE_PICTURES_CONFIG = {
+  accountName: env.AZURE_ACCOUNT_NAME || '',
+  accountKey: env.AZURE_ACCOUNT_KEY || '',
+  connectionString: env.AZURE_CONNECTION_STRING || '',
+  containerName: env.AZURE_STORAGE_PROFILE_PICTURES_CONTAINER_NAME || '',
+}
+
 /**
  * Get the current storage provider as a human-readable string
  */

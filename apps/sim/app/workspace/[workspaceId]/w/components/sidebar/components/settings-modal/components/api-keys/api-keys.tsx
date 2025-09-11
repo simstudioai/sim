@@ -288,7 +288,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
                 handleCreateKey()
                 setNewKeyName('')
               }}
-              className='h-9 w-full rounded-[8px] bg-primary text-primary-foreground transition-all duration-200 hover:bg-primary/90'
+              className='h-9 w-full rounded-[8px] bg-primary text-muted-foreground transition-all duration-200 hover:bg-primary/90'
               disabled={!newKeyName.trim()}
             >
               Create Key

@@ -1,4 +1,4 @@
-import { describe, expect, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { checkTagTrigger } from '@/components/ui/tag-dropdown'
 import { extractFieldsFromSchema, parseResponseFormatSafely } from '@/lib/response-format'
 import type { BlockState } from '@/stores/workflows/workflow/types'

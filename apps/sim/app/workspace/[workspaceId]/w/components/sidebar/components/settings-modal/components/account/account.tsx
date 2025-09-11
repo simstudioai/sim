@@ -1,14 +1,18 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { Camera } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { AgentIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { signOut, useSession } from '@/lib/auth-client'
+import { useBrandConfig } from '@/lib/branding/branding'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/account/hooks/use-profile-picture-upload'
 import { clearUserData } from '@/stores'
 
 const logger = createLogger('Account')
@@ -17,33 +21,81 @@ interface AccountProps {
   onOpenChange: (open: boolean) => void
 }
 
-export function Account({ onOpenChange }: AccountProps) {
+export function Account(_props: AccountProps) {
   const router = useRouter()
+  const brandConfig = useBrandConfig()
 
-  // Get session data using the client hook
-  const { data: session, isPending, error } = useSession()
+  const { data: session, isPending } = useSession()
 
-  // Form states
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [userImage, setUserImage] = useState<string | null>(null)
 
-  // Loading states
   const [isLoadingProfile, setIsLoadingProfile] = useState(false)
   const [isUpdatingName, setIsUpdatingName] = useState(false)
 
-  // Edit states
   const [isEditingName, setIsEditingName] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Reset password state
   const [isResettingPassword, setIsResettingPassword] = useState(false)
   const [resetPasswordMessage, setResetPasswordMessage] = useState<{
     type: 'success' | 'error'
     text: string
   } | null>(null)
 
-  // Fetch user profile on component mount
+  const [uploadError, setUploadError] = useState<string | null>(null)
+
+  const {
+    previewUrl: profilePictureUrl,
+    fileInputRef: profilePictureInputRef,
+    handleThumbnailClick: handleProfilePictureClick,
+    handleFileChange: handleProfilePictureChange,
+    isUploading: isUploadingProfilePicture,
+  } = useProfilePictureUpload({
+    currentImage: userImage,
+    onUpload: async (url) => {
+      if (url) {
+        try {
+          await updateUserImage(url)
+          setUploadError(null)
+        } catch (error) {
+          setUploadError('Failed to update profile picture')
+        }
+      } else {
+        try {
+          await updateUserImage(null)
+          setUploadError(null)
+        } catch (error) {
+          setUploadError('Failed to remove profile picture')
+        }
+      }
+    },
+    onError: (error) => {
+      setUploadError(error)
+      setTimeout(() => setUploadError(null), 5000)
+    },
+  })
+
+  const updateUserImage = async (imageUrl: string | null) => {
+    try {
+      const response = await fetch('/api/users/me/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: imageUrl }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to update profile picture')
+      }
+
+      setUserImage(imageUrl)
+    } catch (error) {
+      logger.error('Error updating profile image:', error)
+      throw error
+    }
+  }
+
   useEffect(() => {
     const fetchProfile = async () => {
       if (!session?.user) return
@@ -62,7 +114,6 @@ export function Account({ onOpenChange }: AccountProps) {
         setUserImage(data.user.image)
       } catch (error) {
         logger.error('Error fetching profile:', error)
-        // Fallback to session data
         if (session?.user) {
           setName(session.user.name || '')
           setEmail(session.user.email || '')
@@ -76,7 +127,6 @@ export function Account({ onOpenChange }: AccountProps) {
     fetchProfile()
   }, [session])
 
-  // Focus input when entering edit mode
   useEffect(() => {
     if (isEditingName && inputRef.current) {
       inputRef.current.focus()
@@ -172,7 +222,6 @@ export function Account({ onOpenChange }: AccountProps) {
         text: 'email sent',
       })
 
-      // Clear success message after 5 seconds
       setTimeout(() => {
         setResetPasswordMessage(null)
       }, 5000)
@@ -183,7 +232,6 @@ export function Account({ onOpenChange }: AccountProps) {
         text: 'error',
       })
 
-      // Clear error message after 5 seconds
       setTimeout(() => {
         setResetPasswordMessage(null)
       }, 5000)
@@ -242,31 +290,59 @@ export function Account({ onOpenChange }: AccountProps) {
           <>
             {/* User Info Section */}
             <div className='flex items-center gap-4'>
-              {/* User Avatar */}
-              <div className='relative flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#802FFF]'>
-                {userImage ? (
-                  <Image
-                    src={userImage}
-                    alt={name || 'User'}
-                    width={40}
-                    height={40}
-                    className='h-full w-full object-cover'
-                  />
-                ) : (
-                  <AgentIcon className='h-5 w-5 text-white' />
-                )}
+              {/* Profile Picture Upload */}
+              <div className='relative'>
+                <div
+                  className='group relative flex h-12 w-12 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full bg-[#802FFF] transition-all hover:opacity-80'
+                  onClick={handleProfilePictureClick}
+                >
+                  {(() => {
+                    const imageUrl = profilePictureUrl || userImage || brandConfig.logoUrl
+                    return imageUrl ? (
+                      <Image
+                        src={imageUrl}
+                        alt={name || 'User'}
+                        width={48}
+                        height={48}
+                        className='h-full w-full object-cover'
+                      />
+                    ) : (
+                      <AgentIcon className='h-6 w-6 text-white' />
+                    )
+                  })()}
+
+                  {/* Upload overlay */}
+                  <div className='absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100'>
+                    {isUploadingProfilePicture ? (
+                      <div className='h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent' />
+                    ) : (
+                      <Camera className='h-5 w-5 text-white' />
+                    )}
+                  </div>
+                </div>
+
+                {/* Hidden file input */}
+                <Input
+                  type='file'
+                  accept='image/png,image/jpeg,image/jpg'
+                  className='hidden'
+                  ref={profilePictureInputRef}
+                  onChange={handleProfilePictureChange}
+                  disabled={isUploadingProfilePicture}
+                />
               </div>
 
               {/* User Details */}
-              <div className='flex flex-col'>
-                <h3 className='font-medium text-sm'>{name}</h3>
+              <div className='flex flex-1 flex-col justify-center'>
+                <h3 className='font-medium text-base'>{name}</h3>
                 <p className='font-normal text-muted-foreground text-sm'>{email}</p>
+                {uploadError && <p className='mt-1 text-destructive text-xs'>{uploadError}</p>}
               </div>
             </div>
 
             {/* Name Field */}
             <div className='flex flex-col gap-2'>
-              <Label htmlFor='name' className='font-normal text-muted-foreground text-xs'>
+              <Label htmlFor='name' className='font-normal text-muted-foreground text-sm'>
                 Name
               </Label>
               {isEditingName ? (
@@ -276,7 +352,7 @@ export function Account({ onOpenChange }: AccountProps) {
                   onChange={(e) => setName(e.target.value)}
                   onKeyDown={handleKeyDown}
                   onBlur={handleInputBlur}
-                  className='min-w-0 flex-1 border-0 bg-transparent p-0 text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                  className='min-w-0 flex-1 border-0 bg-transparent p-0 text-base outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
                   maxLength={100}
                   disabled={isUpdatingName}
                   autoComplete='off'
@@ -286,10 +362,10 @@ export function Account({ onOpenChange }: AccountProps) {
                 />
               ) : (
                 <div className='flex items-center gap-4'>
-                  <span className='text-sm'>{name}</span>
+                  <span className='text-base'>{name}</span>
                   <Button
                     variant='ghost'
-                    className='h-auto p-0 font-normal text-muted-foreground text-xs transition-colors hover:bg-transparent hover:text-foreground'
+                    className='h-auto p-0 font-normal text-muted-foreground text-sm transition-colors hover:bg-transparent hover:text-foreground'
                     onClick={() => setIsEditingName(true)}
                   >
                     update
@@ -301,18 +377,18 @@ export function Account({ onOpenChange }: AccountProps) {
 
             {/* Email Field - Read Only */}
             <div className='flex flex-col gap-2'>
-              <Label className='font-normal text-muted-foreground text-xs'>Email</Label>
-              <p className='text-sm'>{email}</p>
+              <Label className='font-normal text-muted-foreground text-sm'>Email</Label>
+              <p className='text-base'>{email}</p>
             </div>
 
             {/* Password Field */}
             <div className='flex flex-col gap-2'>
-              <Label className='font-normal text-muted-foreground text-xs'>Password</Label>
+              <Label className='font-normal text-muted-foreground text-sm'>Password</Label>
               <div className='flex items-center gap-4'>
-                <span className='text-sm'>••••••••</span>
+                <span className='text-base'>••••••••</span>
                 <Button
                   variant='ghost'
-                  className={`h-auto p-0 font-normal text-xs transition-colors hover:bg-transparent ${
+                  className={`h-auto p-0 font-normal text-sm transition-colors hover:bg-transparent ${
                     resetPasswordMessage
                       ? resetPasswordMessage.type === 'success'
                         ? 'text-green-500 hover:text-green-600'

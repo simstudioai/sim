@@ -256,7 +256,7 @@ export function OutlookConfig({
                   variant={isSelected ? 'default' : 'secondary'}
                   className={`cursor-pointer transition-colors ${
                     isSelected
-                      ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                      ? 'bg-primary text-muted-foreground hover:bg-primary/90'
                       : 'hover:bg-secondary/80'
                   }`}
                   onClick={() => {

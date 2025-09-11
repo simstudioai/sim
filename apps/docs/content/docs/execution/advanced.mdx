@@ -212,3 +212,47 @@ Monitor your usage and billing in Settings → Subscription:
 - **Usage Limits**: Plan limits with visual progress indicators
 - **Billing Details**: Projected charges and minimum commitments
 - **Plan Management**: Upgrade options and billing history
+
+### Programmatic Rate Limits & Usage (API)
+
+You can query your current API rate limits and usage summary using your API key.
+
+Endpoint:
+
+```text
+GET /api/users/me/usage-limits
+```
+
+Authentication:
+
+- Include your API key in the `X-API-Key` header.
+
+Response (example):
+
+```json
+{
+  "success": true,
+  "rateLimit": {
+    "sync": { "isLimited": false, "limit": 10, "remaining": 10, "resetAt": "2025-09-08T22:51:55.999Z" },
+    "async": { "isLimited": false, "limit": 50, "remaining": 50, "resetAt": "2025-09-08T22:51:56.155Z" },
+    "authType": "api"
+  },
+  "usage": {
+    "currentPeriodCost": 12.34,
+    "limit": 100,
+    "plan": "pro"
+  }
+}
+```
+
+Example:
+
+```bash
+curl -X GET -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" https://sim.ai/api/users/me/usage-limits
+```
+
+Notes:
+
+- `currentPeriodCost` reflects usage in the current billing period.
+- `limit` is derived from individual limits (Free/Pro) or pooled organization limits (Team/Enterprise).
+- `plan` is the highest-priority active plan associated with your user.

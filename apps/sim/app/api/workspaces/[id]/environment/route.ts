@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
-import { decryptSecret, encryptSecret } from '@/lib/utils'
+import { decryptSecret, encryptSecret, generateRequestId } from '@/lib/utils'
 import { db } from '@/db'
 import { environment, workspace, workspaceEnvironment } from '@/db/schema'
 
@@ -19,7 +19,7 @@ const DeleteSchema = z.object({
 })
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const workspaceId = (await params).id
 
   try {
@@ -102,7 +102,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const workspaceId = (await params).id
 
   try {
@@ -169,7 +169,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   const workspaceId = (await params).id
 
   try {

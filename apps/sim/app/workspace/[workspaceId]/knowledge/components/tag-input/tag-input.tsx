@@ -80,7 +80,7 @@ export function TagInput({
               <Settings className='h-4 w-4 text-muted-foreground' />
               <Label className='cursor-pointer font-medium text-sm'>Advanced Settings</Label>
               {hasAnyTags && (
-                <span className='rounded-full bg-primary/10 px-2 py-0.5 text-primary text-xs'>
+                <span className='rounded-full bg-primary/10 px-2 py-0.5 text-muted-foreground text-xs'>
                   {Object.values(tags).filter((tag) => tag?.trim()).length} tag
                   {Object.values(tags).filter((tag) => tag?.trim()).length !== 1 ? 's' : ''}
                 </span>
@@ -169,7 +169,7 @@ export function TagInput({
                     return (
                       <span
                         key={key}
-                        className='inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-primary text-xs'
+                        className='inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-muted-foreground text-xs'
                       >
                         <span className='font-medium'>{tagLabel}:</span>
                         <span>{value}</span>

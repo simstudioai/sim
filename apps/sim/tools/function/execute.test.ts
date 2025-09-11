@@ -6,7 +6,7 @@
  * This file contains unit tests for the Function Execute tool,
  * which runs JavaScript code in a secure sandbox.
  */
-import { afterEach, beforeEach, describe, expect, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ToolTester } from '@/tools/__test-utils__/test-tools'
 import { functionExecuteTool } from '@/tools/function/execute'
 
@@ -110,7 +110,6 @@ describe('Function Execute Tool', () => {
 
   describe('Response Handling', () => {
     it.concurrent('should process successful code execution response', async () => {
-      // Setup a successful response
       tester.setup({
         success: true,
         output: {
@@ -119,19 +118,16 @@ describe('Function Execute Tool', () => {
         },
       })
 
-      // Execute the tool
       const result = await tester.execute({
         code: 'console.log("output"); return 42;',
       })
 
-      // Check the result
       expect(result.success).toBe(true)
       expect(result.output.result).toBe(42)
       expect(result.output.stdout).toBe('console.log output')
     })
 
     it.concurrent('should handle execution errors', async () => {
-      // Setup error response
       tester.setup(
         {
           success: false,
@@ -140,19 +136,16 @@ describe('Function Execute Tool', () => {
         { ok: false, status: 400 }
       )
 
-      // Execute the tool with invalid code
       const result = await tester.execute({
         code: 'invalid javascript code!!!',
       })
 
-      // Check error handling
       expect(result.success).toBe(false)
       expect(result.error).toBeDefined()
       expect(result.error).toBe('Syntax error in code')
     })
 
     it.concurrent('should handle timeout errors', async () => {
-      // Setup timeout error response
       tester.setup(
         {
           success: false,
@@ -161,13 +154,11 @@ describe('Function Execute Tool', () => {
         { ok: false, status: 408 }
       )
 
-      // Execute the tool with code that would time out
       const result = await tester.execute({
         code: 'while(true) {}',
         timeout: 1000,
       })
 
-      // Check error handling
       expect(result.success).toBe(false)
       expect(result.error).toBe('Code execution timed out')
     })
@@ -175,7 +166,6 @@ describe('Function Execute Tool', () => {
 
   describe('Error Handling', () => {
     it.concurrent('should handle syntax error with line content', async () => {
-      // Setup error response with debug information
       tester.setup(
         {
           success: false,
@@ -197,12 +187,10 @@ describe('Function Execute Tool', () => {
         { ok: false, status: 500 }
       )
 
-      // Execute the tool with syntax error
       const result = await tester.execute({
         code: 'const obj = {\n  name: "test",\n  description: "This has a missing closing quote\n};\nreturn obj;',
       })
 
-      // Check error handling
       expect(result.success).toBe(false)
       expect(result.error).toContain('Syntax Error')
       expect(result.error).toContain('Line 3')
@@ -212,7 +200,6 @@ describe('Function Execute Tool', () => {
     })
 
     it.concurrent('should handle runtime error with line and column', async () => {
-      // Setup runtime error response
       tester.setup(
         {
           success: false,
@@ -234,12 +221,10 @@ describe('Function Execute Tool', () => {
         { ok: false, status: 500 }
       )
 
-      // Execute the tool with runtime error
       const result = await tester.execute({
         code: 'const obj = null;\nreturn obj.someMethod();',
       })
 
-      // Check error handling
       expect(result.success).toBe(false)
       expect(result.error).toContain('Type Error')
       expect(result.error).toContain('Line 2:16')
@@ -248,7 +233,6 @@ describe('Function Execute Tool', () => {
     })
 
     it.concurrent('should handle error information in tool response', async () => {
-      // Setup error response with full debug info
       tester.setup(
         {
           success: false,
@@ -269,12 +253,10 @@ describe('Function Execute Tool', () => {
         { ok: false, status: 500 }
       )
 
-      // Execute the tool with reference error
       const result = await tester.execute({
         code: 'return undefinedVar',
       })
 
-      // Check that the tool properly captures error
       expect(result.success).toBe(false)
       expect(result.error).toBe(
         'Reference Error: Line 1: `return undefinedVar` - undefinedVar is not defined'
@@ -282,7 +264,6 @@ describe('Function Execute Tool', () => {
     })
 
     it.concurrent('should preserve debug information in error object', async () => {
-      // Setup error response
       tester.setup(
         {
           success: false,
@@ -298,20 +279,15 @@ describe('Function Execute Tool', () => {
         { ok: false, status: 500 }
       )
 
-      // Execute the tool
       const result = await tester.execute({
         code: 'valid line\ninvalid syntax here',
       })
 
-      // Check that error information is available
       expect(result.success).toBe(false)
       expect(result.error).toBe('Syntax Error: Line 2 - Invalid syntax')
-
-      // Note: In this test framework, debug information would be available in the response object, but the tool transforms it into the error message
     })
 
     it.concurrent('should handle enhanced error without line information', async () => {
-      // Setup error response without line information
       tester.setup(
         {
           success: false,
@@ -324,18 +300,15 @@ describe('Function Execute Tool', () => {
         { ok: false, status: 500 }
       )
 
-      // Execute the tool
       const result = await tester.execute({
         code: 'return "test";',
       })
 
-      // Check error handling without line info
       expect(result.success).toBe(false)
       expect(result.error).toBe('Generic error message')
     })
 
     it.concurrent('should provide line-specific error message when available', async () => {
-      // Setup error response with line info
       tester.setup(
         {
           success: false,
@@ -351,12 +324,10 @@ describe('Function Execute Tool', () => {
         { ok: false, status: 500 }
       )
 
-      // Execute the tool
       const result = await tester.execute({
         code: 'const obj = {};\nobj.nonExistentMethod();',
       })
 
-      // Check that error message is provided
       expect(result.success).toBe(false)
       expect(result.error).toContain('Line 5:20')
       expect(result.error).toContain('obj.nonExistentMethod()')
@@ -365,24 +336,20 @@ describe('Function Execute Tool', () => {
 
   describe('Edge Cases', () => {
     it.concurrent('should handle empty code input', async () => {
-      // Execute with empty code - this should still pass through to the API
       await tester.execute({
         code: '',
       })
 
-      // Just verify the request was made with empty code
       const body = tester.getRequestBody({ code: '' })
       expect(body.code).toBe('')
     })
 
     it.concurrent('should handle extremely short timeout', async () => {
-      // Edge case with very short timeout
       const body = tester.getRequestBody({
         code: 'return 42',
         timeout: 1, // 1ms timeout
       })
 
-      // Should still pass through the short timeout
       expect(body.timeout).toBe(1)
     })
   })

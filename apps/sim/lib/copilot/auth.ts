@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { generateRequestId } from '@/lib/utils'
 import { db } from '@/db'
 import { apiKey as apiKeyTable } from '@/db/schema'
 
@@ -32,7 +33,7 @@ export function createRequestId(): string {
 }
 
 export function createShortRequestId(): string {
-  return crypto.randomUUID().slice(0, 8)
+  return generateRequestId()
 }
 
 export interface RequestTracker {

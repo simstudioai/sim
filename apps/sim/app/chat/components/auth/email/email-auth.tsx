@@ -268,7 +268,7 @@ export default function EmailAuth({
                   type='button'
                   onClick={handleResendOtp}
                   disabled={isSendingOtp}
-                  className='text-primary text-sm hover:underline disabled:opacity-50'
+                  className='text-muted-foreground text-sm hover:underline disabled:opacity-50'
                 >
                   {isSendingOtp ? 'Sending...' : 'Resend code'}
                 </button>
@@ -280,7 +280,7 @@ export default function EmailAuth({
                     setOtpValue('')
                     setAuthError(null)
                   }}
-                  className='text-primary text-sm hover:underline'
+                  className='text-muted-foreground text-sm hover:underline'
                 >
                   Change email
                 </button>

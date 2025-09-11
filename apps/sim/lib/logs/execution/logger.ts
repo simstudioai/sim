@@ -4,6 +4,7 @@ import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { checkUsageStatus, maybeSendUsageThresholdEmail } from '@/lib/billing/core/usage'
 import { getCostMultiplier, isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
+import { emitWorkflowExecutionCompleted } from '@/lib/logs/events'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import type {
   BlockOutputData,
@@ -306,7 +307,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
     logger.debug(`Completed workflow execution ${executionId}`)
 
-    return {
+    const completedLog: WorkflowExecutionLog = {
       id: updatedLog.id,
       workflowId: updatedLog.workflowId,
       executionId: updatedLog.executionId,
@@ -320,6 +321,15 @@ export class ExecutionLogger implements IExecutionLoggerService {
       cost: updatedLog.cost as any,
       createdAt: updatedLog.createdAt.toISOString(),
     }
+
+    emitWorkflowExecutionCompleted(completedLog).catch((error) => {
+      logger.error('Failed to emit workflow execution completed event', {
+        error,
+        executionId,
+      })
+    })
+
+    return completedLog
   }
 
   async getWorkflowExecution(executionId: string): Promise<WorkflowExecutionLog | null> {

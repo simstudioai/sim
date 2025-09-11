@@ -48,7 +48,7 @@ export default function Level() {
           className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
         >
           <span>Any status</span>
-          {level === 'all' && <Check className='h-4 w-4 text-primary' />}
+          {level === 'all' && <Check className='h-4 w-4 text-muted-foreground' />}
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
@@ -66,7 +66,7 @@ export default function Level() {
               <div className={`mr-2 h-2 w-2 rounded-full ${levelItem.color}`} />
               {levelItem.label}
             </div>
-            {level === levelItem.value && <Check className='h-4 w-4 text-primary' />}
+            {level === levelItem.value && <Check className='h-4 w-4 text-muted-foreground' />}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

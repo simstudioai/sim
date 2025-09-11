@@ -174,6 +174,7 @@ Copilot is a Sim-managed service. To use Copilot on a self-hosted instance:
 - **Monorepo**: [Turborepo](https://turborepo.org/)
 - **Realtime**: [Socket.io](https://socket.io/)
 - **Background Jobs**: [Trigger.dev](https://trigger.dev/)
+- **Remote Code Execution**: [E2B](https://www.e2b.dev/)
 
 ## Contributing
 

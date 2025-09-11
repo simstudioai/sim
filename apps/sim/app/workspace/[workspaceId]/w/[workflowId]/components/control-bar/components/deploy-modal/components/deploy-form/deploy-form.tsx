@@ -170,7 +170,7 @@ export function DeployForm({
                   type='button'
                   variant='ghost'
                   size='sm'
-                  className='h-7 gap-1 px-2 text-primary text-xs'
+                  className='h-7 gap-1 px-2 text-muted-foreground text-xs'
                   onClick={() => setIsCreatingKey(true)}
                 >
                   <Plus className='h-3.5 w-3.5' />

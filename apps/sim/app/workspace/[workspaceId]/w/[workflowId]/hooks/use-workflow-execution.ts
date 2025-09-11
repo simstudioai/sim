@@ -7,7 +7,7 @@ import { getBlock } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
 import { Executor } from '@/executor'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
-import { Serializer } from '@/serializer'
+import { Serializer, WorkflowValidationError } from '@/serializer'
 import type { SerializedWorkflow } from '@/serializer/types'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
@@ -16,6 +16,7 @@ import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
+import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { useCurrentWorkflow } from './use-current-workflow'
 
 const logger = createLogger('useWorkflowExecution')
@@ -488,7 +489,7 @@ export function useWorkflowExecution() {
         }
         return result
       } catch (error: any) {
-        const errorResult = handleExecutionError(error)
+        const errorResult = handleExecutionError(error, { executionId })
         persistLogs(executionId, errorResult).catch((err) => {
           logger.error('Error persisting logs:', { error: err })
         })
@@ -518,12 +519,7 @@ export function useWorkflowExecution() {
     executionId?: string
   ): Promise<ExecutionResult | StreamingExecution> => {
     // Use currentWorkflow but check if we're in diff mode
-    const {
-      blocks: workflowBlocks,
-      edges: workflowEdges,
-      loops: workflowLoops,
-      parallels: workflowParallels,
-    } = currentWorkflow
+    const { blocks: workflowBlocks, edges: workflowEdges } = currentWorkflow
 
     // Filter out blocks without type (these are layout-only blocks)
     const validBlocks = Object.entries(workflowBlocks).reduce(
@@ -646,12 +642,17 @@ export function useWorkflowExecution() {
       (edge) => !triggerBlockIds.includes(edge.source) && !triggerBlockIds.includes(edge.target)
     )
 
-    // Create serialized workflow with filtered blocks and edges
+    // Derive subflows from the current filtered graph to avoid stale state
+    const runtimeLoops = generateLoopBlocks(filteredStates)
+    const runtimeParallels = generateParallelBlocks(filteredStates)
+
+    // Create serialized workflow with validation enabled
     const workflow = new Serializer().serializeWorkflow(
       filteredStates,
       filteredEdges,
-      workflowLoops,
-      workflowParallels
+      runtimeLoops,
+      runtimeParallels,
+      true
     )
 
     // If this is a chat execution, get the selected outputs
@@ -690,7 +691,7 @@ export function useWorkflowExecution() {
     return newExecutor.execute(activeWorkflowId || '')
   }
 
-  const handleExecutionError = (error: any) => {
+  const handleExecutionError = (error: any, options?: { executionId?: string }) => {
     let errorMessage = 'Unknown error'
     if (error instanceof Error) {
       errorMessage = error.message || `Error: ${String(error)}`
@@ -721,6 +722,36 @@ export function useWorkflowExecution() {
 
     if (errorMessage === 'undefined (undefined)') {
       errorMessage = 'API request failed - no specific error details available'
+    }
+
+    // If we failed before creating an executor (e.g., serializer validation), add a console entry
+    if (!executor) {
+      try {
+        // Prefer attributing to specific subflow if we have a structured error
+        let blockId = 'serialization'
+        let blockName = 'Serialization'
+        let blockType = 'serializer'
+        if (error instanceof WorkflowValidationError) {
+          blockId = error.blockId || blockId
+          blockName = error.blockName || blockName
+          blockType = error.blockType || blockType
+        }
+
+        useConsoleStore.getState().addConsole({
+          input: {},
+          output: {},
+          success: false,
+          error: errorMessage,
+          durationMs: 0,
+          startedAt: new Date().toISOString(),
+          endedAt: new Date().toISOString(),
+          workflowId: activeWorkflowId || '',
+          blockId,
+          executionId: options?.executionId,
+          blockName,
+          blockType,
+        })
+      } catch {}
     }
 
     const errorResult: ExecutionResult = {

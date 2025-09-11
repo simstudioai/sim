@@ -3,7 +3,6 @@
  */
 import { afterEach, beforeEach, vi } from 'vitest'
 
-// Mock Next.js implementations
 vi.mock('next/headers', () => ({
   cookies: () => ({
     get: vi.fn().mockReturnValue({ value: 'test-session-token' }),
@@ -13,7 +12,6 @@ vi.mock('next/headers', () => ({
   }),
 }))
 
-// Mock auth utilities
 vi.mock('@/lib/auth/session', () => ({
   getSession: vi.fn().mockResolvedValue({
     user: {
@@ -24,13 +22,10 @@ vi.mock('@/lib/auth/session', () => ({
   }),
 }))
 
-// Configure Vitest environment
 beforeEach(() => {
-  // Clear all mocks before each test
   vi.clearAllMocks()
 })
 
 afterEach(() => {
-  // Ensure all mocks are restored after each test
   vi.restoreAllMocks()
 })

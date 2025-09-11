@@ -66,7 +66,10 @@ export class FunctionBlockHandler implements BlockHandler {
         workflowVariables: context.workflowVariables || {},
         blockData: blockData, // Pass block data for variable resolution
         blockNameMapping: blockNameMapping, // Pass block name to ID mapping
-        _context: { workflowId: context.workflowId },
+        _context: {
+          workflowId: context.workflowId,
+          workspaceId: context.workspaceId,
+        },
       },
       false, // skipProxy
       false, // skipPostProcess

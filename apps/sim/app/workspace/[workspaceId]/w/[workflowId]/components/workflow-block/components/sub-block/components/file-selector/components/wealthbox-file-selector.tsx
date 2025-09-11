@@ -405,7 +405,7 @@ export function WealthboxFileSelector({
                 {credentials.length === 0 && (
                   <CommandGroup>
                     <CommandItem onSelect={handleAddCredential}>
-                      <div className='flex items-center gap-2 text-primary'>
+                      <div className='flex items-center gap-2 text-foreground'>
                         <WealthboxIcon className='h-4 w-4' />
                         <span>Connect Wealthbox account</span>
                       </div>

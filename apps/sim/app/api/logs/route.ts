@@ -3,43 +3,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateRequestId } from '@/lib/utils'
 import { db } from '@/db'
 import { permissions, workflow, workflowExecutionLogs } from '@/db/schema'
 
 const logger = createLogger('LogsAPI')
-
-// Helper function to extract block executions from trace spans
-function extractBlockExecutionsFromTraceSpans(traceSpans: any[]): any[] {
-  const blockExecutions: any[] = []
-
-  function processSpan(span: any) {
-    if (span.blockId) {
-      blockExecutions.push({
-        id: span.id,
-        blockId: span.blockId,
-        blockName: span.name || '',
-        blockType: span.type,
-        startedAt: span.startTime,
-        endedAt: span.endTime,
-        durationMs: span.duration || 0,
-        status: span.status || 'success',
-        errorMessage: span.output?.error || undefined,
-        inputData: span.input || {},
-        outputData: span.output || {},
-        cost: span.cost || undefined,
-        metadata: {},
-      })
-    }
-
-    // Process children recursively
-    if (span.children && Array.isArray(span.children)) {
-      span.children.forEach(processSpan)
-    }
-  }
-
-  traceSpans.forEach(processSpan)
-  return blockExecutions
-}
 
 export const revalidate = 0
 
@@ -58,7 +26,7 @@ const QueryParamsSchema = z.object({
 })
 
 export async function GET(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const session = await getSession()

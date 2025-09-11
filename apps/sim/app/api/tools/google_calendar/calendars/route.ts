@@ -1,8 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateRequestId } from '@/lib/utils'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('GoogleCalendarAPI')
@@ -21,7 +21,7 @@ interface CalendarListItem {
  * Get calendars from Google Calendar
  */
 export async function GET(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8) // Generate a short request ID for correlation
+  const requestId = generateRequestId()
   logger.info(`[${requestId}] Google Calendar calendars request received`)
 
   try {

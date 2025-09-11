@@ -634,7 +634,7 @@ export function useCollaborativeWorkflow() {
           subBlocks[subBlock.id] = {
             id: subBlock.id,
             type: subBlock.type,
-            value: null,
+            value: subBlock.defaultValue ?? null,
           }
         })
       }

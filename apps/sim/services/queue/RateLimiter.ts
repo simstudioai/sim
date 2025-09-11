@@ -7,6 +7,7 @@ import {
   MANUAL_EXECUTION_LIMIT,
   RATE_LIMIT_WINDOW_MS,
   RATE_LIMITS,
+  type RateLimitCounterType,
   type SubscriptionPlan,
   type TriggerType,
 } from '@/services/queue/types'
@@ -44,6 +45,50 @@ export class RateLimiter {
   }
 
   /**
+   * Determine which counter type to use based on trigger type and async flag
+   */
+  private getCounterType(triggerType: TriggerType, isAsync: boolean): RateLimitCounterType {
+    if (triggerType === 'api-endpoint') {
+      return 'api-endpoint'
+    }
+    return isAsync ? 'async' : 'sync'
+  }
+
+  /**
+   * Get the rate limit for a specific counter type
+   */
+  private getRateLimitForCounter(
+    config: (typeof RATE_LIMITS)[SubscriptionPlan],
+    counterType: RateLimitCounterType
+  ): number {
+    switch (counterType) {
+      case 'api-endpoint':
+        return config.apiEndpointRequestsPerMinute
+      case 'async':
+        return config.asyncApiExecutionsPerMinute
+      case 'sync':
+        return config.syncApiExecutionsPerMinute
+    }
+  }
+
+  /**
+   * Get the current count from a rate limit record for a specific counter type
+   */
+  private getCountFromRecord(
+    record: { syncApiRequests: number; asyncApiRequests: number; apiEndpointRequests: number },
+    counterType: RateLimitCounterType
+  ): number {
+    switch (counterType) {
+      case 'api-endpoint':
+        return record.apiEndpointRequests
+      case 'async':
+        return record.asyncApiRequests
+      case 'sync':
+        return record.syncApiRequests
+    }
+  }
+
+  /**
    * Check if user can execute a workflow with organization-aware rate limiting
    * Manual executions bypass rate limiting entirely
    */
@@ -64,11 +109,10 @@ export class RateLimiter {
 
       const subscriptionPlan = (subscription?.plan || 'free') as SubscriptionPlan
       const rateLimitKey = this.getRateLimitKey(userId, subscription)
-
       const limit = RATE_LIMITS[subscriptionPlan]
-      const execLimit = isAsync
-        ? limit.asyncApiExecutionsPerMinute
-        : limit.syncApiExecutionsPerMinute
+
+      const counterType = this.getCounterType(triggerType, isAsync)
+      const execLimit = this.getRateLimitForCounter(limit, counterType)
 
       const now = new Date()
       const windowStart = new Date(now.getTime() - RATE_LIMIT_WINDOW_MS)
@@ -86,8 +130,9 @@ export class RateLimiter {
           .insert(userRateLimits)
           .values({
             referenceId: rateLimitKey,
-            syncApiRequests: isAsync ? 0 : 1,
-            asyncApiRequests: isAsync ? 1 : 0,
+            syncApiRequests: counterType === 'sync' ? 1 : 0,
+            asyncApiRequests: counterType === 'async' ? 1 : 0,
+            apiEndpointRequests: counterType === 'api-endpoint' ? 1 : 0,
             windowStart: now,
             lastRequestAt: now,
             isRateLimited: false,
@@ -96,8 +141,9 @@ export class RateLimiter {
             target: userRateLimits.referenceId,
             set: {
               // Only reset if window is still expired (avoid race condition)
-              syncApiRequests: sql`CASE WHEN ${userRateLimits.windowStart} < ${windowStart.toISOString()} THEN ${isAsync ? 0 : 1} ELSE ${userRateLimits.syncApiRequests} + ${isAsync ? 0 : 1} END`,
-              asyncApiRequests: sql`CASE WHEN ${userRateLimits.windowStart} < ${windowStart.toISOString()} THEN ${isAsync ? 1 : 0} ELSE ${userRateLimits.asyncApiRequests} + ${isAsync ? 1 : 0} END`,
+              syncApiRequests: sql`CASE WHEN ${userRateLimits.windowStart} < ${windowStart.toISOString()} THEN ${counterType === 'sync' ? 1 : 0} ELSE ${userRateLimits.syncApiRequests} + ${counterType === 'sync' ? 1 : 0} END`,
+              asyncApiRequests: sql`CASE WHEN ${userRateLimits.windowStart} < ${windowStart.toISOString()} THEN ${counterType === 'async' ? 1 : 0} ELSE ${userRateLimits.asyncApiRequests} + ${counterType === 'async' ? 1 : 0} END`,
+              apiEndpointRequests: sql`CASE WHEN ${userRateLimits.windowStart} < ${windowStart.toISOString()} THEN ${counterType === 'api-endpoint' ? 1 : 0} ELSE ${userRateLimits.apiEndpointRequests} + ${counterType === 'api-endpoint' ? 1 : 0} END`,
               windowStart: sql`CASE WHEN ${userRateLimits.windowStart} < ${windowStart.toISOString()} THEN ${now.toISOString()} ELSE ${userRateLimits.windowStart} END`,
               lastRequestAt: now,
               isRateLimited: false,
@@ -107,13 +153,12 @@ export class RateLimiter {
           .returning({
             syncApiRequests: userRateLimits.syncApiRequests,
             asyncApiRequests: userRateLimits.asyncApiRequests,
+            apiEndpointRequests: userRateLimits.apiEndpointRequests,
             windowStart: userRateLimits.windowStart,
           })
 
         const insertedRecord = result[0]
-        const actualCount = isAsync
-          ? insertedRecord.asyncApiRequests
-          : insertedRecord.syncApiRequests
+        const actualCount = this.getCountFromRecord(insertedRecord, counterType)
 
         // Check if we exceeded the limit
         if (actualCount > execLimit) {
@@ -160,21 +205,22 @@ export class RateLimiter {
       const updateResult = await db
         .update(userRateLimits)
         .set({
-          ...(isAsync
-            ? { asyncApiRequests: sql`${userRateLimits.asyncApiRequests} + 1` }
-            : { syncApiRequests: sql`${userRateLimits.syncApiRequests} + 1` }),
+          ...(counterType === 'api-endpoint'
+            ? { apiEndpointRequests: sql`${userRateLimits.apiEndpointRequests} + 1` }
+            : counterType === 'async'
+              ? { asyncApiRequests: sql`${userRateLimits.asyncApiRequests} + 1` }
+              : { syncApiRequests: sql`${userRateLimits.syncApiRequests} + 1` }),
           lastRequestAt: now,
         })
         .where(eq(userRateLimits.referenceId, rateLimitKey))
         .returning({
           asyncApiRequests: userRateLimits.asyncApiRequests,
           syncApiRequests: userRateLimits.syncApiRequests,
+          apiEndpointRequests: userRateLimits.apiEndpointRequests,
         })
 
       const updatedRecord = updateResult[0]
-      const actualNewRequests = isAsync
-        ? updatedRecord.asyncApiRequests
-        : updatedRecord.syncApiRequests
+      const actualNewRequests = this.getCountFromRecord(updatedRecord, counterType)
 
       // Check if we exceeded the limit AFTER the atomic increment
       if (actualNewRequests > execLimit) {
@@ -264,11 +310,11 @@ export class RateLimiter {
 
       const subscriptionPlan = (subscription?.plan || 'free') as SubscriptionPlan
       const rateLimitKey = this.getRateLimitKey(userId, subscription)
-
       const limit = RATE_LIMITS[subscriptionPlan]
-      const execLimit = isAsync
-        ? limit.asyncApiExecutionsPerMinute
-        : limit.syncApiExecutionsPerMinute
+
+      const counterType = this.getCounterType(triggerType, isAsync)
+      const execLimit = this.getRateLimitForCounter(limit, counterType)
+
       const now = new Date()
       const windowStart = new Date(now.getTime() - RATE_LIMIT_WINDOW_MS)
 
@@ -287,7 +333,7 @@ export class RateLimiter {
         }
       }
 
-      const used = isAsync ? rateLimitRecord.asyncApiRequests : rateLimitRecord.syncApiRequests
+      const used = this.getCountFromRecord(rateLimitRecord, counterType)
       return {
         used,
         limit: execLimit,

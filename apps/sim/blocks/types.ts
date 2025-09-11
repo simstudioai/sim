@@ -48,6 +48,9 @@ export type SubBlockType =
   | 'knowledge-tag-filters' // Multiple tag filters for knowledge bases
   | 'document-selector' // Document selector for knowledge bases
   | 'document-tag-entry' // Document tag entry for creating documents
+  | 'mcp-server-selector' // MCP server selector
+  | 'mcp-tool-selector' // MCP tool selector
+  | 'mcp-dynamic-args' // MCP dynamic arguments based on tool schema
   | 'input-format' // Input structure format
   | 'response-format' // Response structure format
   | 'file-upload' // File uploader
@@ -103,6 +106,7 @@ export interface SubBlockConfig {
   mode?: 'basic' | 'advanced' | 'both' // Default is 'both' if not specified
   canonicalParamId?: string
   required?: boolean
+  defaultValue?: string | number | boolean | Record<string, unknown> | Array<unknown>
   options?:
     | { label: string; id: string; icon?: React.ComponentType<{ className?: string }> }[]
     | (() => { label: string; id: string; icon?: React.ComponentType<{ className?: string }> }[])

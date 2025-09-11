@@ -5,6 +5,7 @@ import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { env, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateRequestId } from '@/lib/utils'
 import {
   handleSlackChallenge,
   handleWhatsAppVerification,
@@ -27,7 +28,7 @@ export const runtime = 'nodejs'
  * Handles verification requests from webhook providers and confirms endpoint exists.
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ path: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
 
   try {
     const path = (await params).path
@@ -83,7 +84,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ path: string }> }
 ) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateRequestId()
   let foundWorkflow: any = null
   let foundWebhook: any = null
 

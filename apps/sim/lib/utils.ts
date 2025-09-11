@@ -274,6 +274,22 @@ export function generateApiKey(): string {
 }
 
 /**
+ * Generates a secure random password
+ * @param length - The length of the password (default: 24)
+ * @returns A new secure password string
+ */
+export function generatePassword(length = 24): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_-+='
+  let result = ''
+
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+
+  return result
+}
+
+/**
  * Rotates through available API keys for a provider
  * @param provider - The provider to get a key for (e.g., 'openai')
  * @returns The selected API key
@@ -390,6 +406,13 @@ export function getAssetUrl(filename: string) {
     return `${cdnBaseUrl}/${filename}`
   }
   return `/${filename}`
+}
+
+/**
+ * Generate a short request ID for correlation
+ */
+export function generateRequestId(): string {
+  return crypto.randomUUID().slice(0, 8)
 }
 
 /**
