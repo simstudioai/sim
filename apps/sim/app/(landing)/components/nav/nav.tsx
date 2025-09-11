@@ -26,17 +26,21 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
   const brand = useBrandConfig()
 
   useEffect(() => {
-    const fetchStars = async () => {
-      try {
-        const response = await fetch('/api/github-stars')
-        const data = await response.json()
-        setGithubStars(data.stars)
-      } catch (error) {
-        logger.warn('Error fetching GitHub stars:', error)
+    // Defer API call to after initial render for better performance
+    const timeoutId = setTimeout(() => {
+      const fetchStars = async () => {
+        try {
+          const response = await fetch('/api/github-stars')
+          const data = await response.json()
+          setGithubStars(data.stars)
+        } catch (error) {
+          logger.warn('Error fetching GitHub stars:', error)
+        }
       }
-    }
+      fetchStars()
+    }, 2000) // Delay by 2 seconds to prioritize initial render
 
-    fetchStars()
+    return () => clearTimeout(timeoutId)
   }, [])
 
   const handleLoginClick = (e: React.MouseEvent) => {

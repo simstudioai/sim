@@ -382,6 +382,7 @@ export default function Hero() {
 
   return (
     <section
+      id='hero'
       className={`${soehne.className} flex w-full flex-col items-center justify-center pt-[36px] sm:pt-[80px]`}
       aria-labelledby='hero-heading'
     >

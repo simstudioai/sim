@@ -7,7 +7,7 @@ export default function TermsOfService() {
   return (
     <LegalLayout title='Terms of Service'>
       <section>
-        <p className='mb-4'>Last Updated: April 20, 2025</p>
+        <p className='mb-4'>Last Updated: September 10, 2025</p>
         <p>
           Please read these Terms of Service ("Terms") carefully before using the Sim platform (the
           "Service") operated by Sim, Inc ("us", "we", or "our").

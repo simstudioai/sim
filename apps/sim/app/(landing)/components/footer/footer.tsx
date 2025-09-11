@@ -114,6 +114,8 @@ export default function Footer({ fullWidth = false }: FooterProps) {
                 alt='Sim - Workflows for LLMs'
                 width={49.78314}
                 height={24.276}
+                priority
+                quality={90}
               />
             </Link>
 
@@ -171,6 +173,8 @@ export default function Footer({ fullWidth = false }: FooterProps) {
                   width={54}
                   height={54}
                   className='object-contain'
+                  loading='lazy'
+                  quality={75}
                 />
               </Link>
               {/* HIPAA badge placeholder - add when available */}

@@ -128,9 +128,9 @@ export default function Testimonials() {
 
   return (
     <section
-      id='enterprise'
+      id='testimonials'
       className={`flex hidden h-[150px] items-center sm:block ${inter.variable}`}
-      aria-label='Social proof'
+      aria-label='Social proof testimonials'
     >
       <div className='relative mx-auto h-full w-full max-w-[1289px] pl-[2px]'>
         <div
@@ -166,7 +166,8 @@ export default function Testimonials() {
                           width={34}
                           height={34}
                           className='h-[34px] w-[34px] rounded-full object-cover'
-                          unoptimized
+                          quality={75}
+                          loading='lazy'
                         />
                         {/* Name and username stacked */}
                         <div className='flex flex-col'>

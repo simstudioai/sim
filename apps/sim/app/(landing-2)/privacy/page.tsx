@@ -7,7 +7,7 @@ export default function PrivacyPolicy() {
   return (
     <LegalLayout title='Privacy Policy'>
       <section>
-        <p className='mb-4'>Last Updated: April 22, 2025</p>
+        <p className='mb-4'>Last Updated: September 10, 2025</p>
         <p>
           This Privacy Policy describes how your personal information is collected, used, and shared
           when you visit or use Sim ("the Service", "we", "us", or "our").
