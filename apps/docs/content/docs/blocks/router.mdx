@@ -121,6 +121,7 @@ After a router makes a decision, you can access its outputs:
 - **`<router.prompt>`**: Summary of the routing prompt used
 - **`<router.selected_path>`**: Details of the chosen destination block
 - **`<router.tokens>`**: Token usage statistics from the LLM
+- **`<router.cost>`**: Cost summary for the routing call (input, output, total)
 - **`<router.model>`**: The model used for decision-making
 
 ## Advanced Features
@@ -136,34 +137,9 @@ Target Block 2: "Billing inquiries, subscription changes, payment issues"
 Target Block 3: "General questions, feedback, feature requests"
 ```
 
-### Multi-Model Routing
-
-Use different models for different routing scenarios:
-
-```javascript
-// Fast routing for simple cases
-Model: GPT-4o-mini
-Criteria: Simple, common routing patterns
-
-// Complex routing for nuanced decisions
-Model: Claude 3.7 Sonnet
-Criteria: Complex content analysis required
-```
-
-### Fallback Handling
-
-Implement robust fallback mechanisms:
-
-```javascript
-// Router configuration
-Primary Targets: ["Support", "Sales", "Technical"]
-Fallback Target: "General" // Default when no specific match
-Confidence Threshold: 0.7 // Minimum confidence for routing
-```
-
 ## Inputs and Outputs
 
-<Tabs items={['Configuration', 'Variables', 'Results']}>
+<Tabs items={['Configuration', 'Variables']}>
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
@@ -192,20 +168,10 @@ Confidence Threshold: 0.7 // Minimum confidence for routing
         <strong>router.tokens</strong>: Token usage statistics
       </li>
       <li>
+        <strong>router.cost</strong>: Cost summary for the routing call (input, output, total)
+      </li>
+      <li>
         <strong>router.model</strong>: Model used for decision-making
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Routing Decision</strong>: Primary path selection result
-      </li>
-      <li>
-        <strong>Decision Context</strong>: Analysis summary and reasoning
-      </li>
-      <li>
-        <strong>Access</strong>: Available in blocks after the router
       </li>
     </ul>
   </Tab>

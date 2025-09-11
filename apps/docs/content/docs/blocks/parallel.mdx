@@ -122,8 +122,8 @@ After a parallel block completes, you can access aggregated results:
 <div className="mb-4 rounded-md border p-4">
   <h4 className="font-medium">Scenario: Get responses from multiple AI models</h4>
   <ol className="list-decimal pl-5 text-sm">
-    <li>Count-based parallel set to 3 instances</li>
-    <li>Inside parallel: Agent configured with different model per instance</li>
+    <li>Collection-based parallel over a list of model IDs (e.g., ["gpt-4o", "claude-3.7-sonnet", "gemini-2.5-pro"])</li>
+    <li>Inside parallel: Agent's model is set to the current item from the collection</li>
     <li>After parallel: Compare and select best response</li>
   </ol>
 </div>
