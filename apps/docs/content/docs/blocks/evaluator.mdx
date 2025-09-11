@@ -20,13 +20,33 @@ The Evaluator block uses AI to score and assess content quality using customizab
   />
 </div>
 
-## What You Can Evaluate
+## Overview
 
-**AI-Generated Content**: Score chatbot responses, generated articles, or marketing copy
-**User Input**: Evaluate customer feedback, survey responses, or form submissions  
-**Content Quality**: Assess clarity, accuracy, relevance, and tone
-**Performance Metrics**: Track improvements over time with consistent scoring
-**A/B Testing**: Compare different approaches with objective metrics
+The Evaluator block enables you to:
+
+<Steps>
+  <Step>
+    <strong>Score Content Quality</strong>: Use AI to evaluate content against custom metrics with numeric scores
+  </Step>
+  <Step>
+    <strong>Define Custom Metrics</strong>: Create specific evaluation criteria tailored to your use case  
+  </Step>
+  <Step>
+    <strong>Automate Quality Control</strong>: Build workflows that automatically assess and filter content
+  </Step>
+  <Step>
+    <strong>Track Performance</strong>: Monitor improvements and consistency over time with objective scoring
+  </Step>
+</Steps>
+
+## How It Works
+
+The Evaluator block processes content through AI-powered assessment:
+
+1. **Receive Content** - Takes input content from previous blocks in your workflow
+2. **Apply Metrics** - Evaluates content against your defined custom metrics  
+3. **Generate Scores** - AI model assigns numeric scores for each metric
+4. **Provide Summary** - Returns detailed evaluation with scores and explanations
 
 ## Configuration Options
 
@@ -82,20 +102,93 @@ Your API key for the selected LLM provider. This is securely stored and used for
 4. The LLM evaluates the content and returns numeric scores for each metric
 5. The Evaluator block formats these scores as structured output for use in your workflow
 
+## Example Use Cases
+
+### Content Quality Assessment
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Evaluate blog post quality before publication</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Agent block generates blog post content</li>
+    <li>Evaluator assesses accuracy, readability, and engagement</li>
+    <li>Condition block checks if scores meet minimum thresholds</li>
+    <li>High scores → Publish, Low scores → Revise and retry</li>
+  </ol>
+</div>
+
+### A/B Testing Content
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Compare multiple AI-generated responses</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Parallel block generates multiple response variations</li>
+    <li>Evaluator scores each variation on clarity and relevance</li>
+    <li>Function block selects highest-scoring response</li>
+    <li>Response block returns the best result</li>
+  </ol>
+</div>
+
+### Customer Support Quality Control
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Ensure support responses meet quality standards</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Support agent generates response to customer inquiry</li>
+    <li>Evaluator scores helpfulness, empathy, and accuracy</li>
+    <li>Scores logged for training and performance monitoring</li>
+    <li>Low scores trigger human review process</li>
+  </ol>
+</div>
+
 ## Inputs and Outputs
 
-### Inputs
-
-- **Content**: The text or structured data to evaluate
-- **Metrics**: Custom evaluation criteria with scoring ranges
-- **Model Settings**: LLM provider and parameters
-
-### Outputs
-
-- **Content**: A summary of the evaluation
-- **Model**: The model used for evaluation
-- **Tokens**: Usage statistics
-- **Metric Scores**: Numeric scores for each defined metric
+<Tabs items={['Configuration', 'Variables', 'Results']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Content</strong>: The text or structured data to evaluate
+      </li>
+      <li>
+        <strong>Evaluation Metrics</strong>: Custom criteria with scoring ranges
+      </li>
+      <li>
+        <strong>Model</strong>: AI model for evaluation analysis
+      </li>
+      <li>
+        <strong>API Key</strong>: Authentication for selected LLM provider
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>evaluator.content</strong>: Summary of the evaluation
+      </li>
+      <li>
+        <strong>evaluator.model</strong>: Model used for evaluation
+      </li>
+      <li>
+        <strong>evaluator.tokens</strong>: Token usage statistics
+      </li>
+      <li>
+        <strong>evaluator.cost</strong>: Cost summary for the evaluation call
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Metric Scores</strong>: Numeric scores for each defined metric
+      </li>
+      <li>
+        <strong>Evaluation Summary</strong>: Detailed assessment with explanations
+      </li>
+      <li>
+        <strong>Access</strong>: Available in blocks after the evaluator
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
 
 ## Best Practices
 

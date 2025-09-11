@@ -23,6 +23,34 @@ The Response block is the final step in your workflow that formats and sends a s
   Response blocks are terminal blocks - they end the workflow execution and cannot connect to other blocks.
 </Callout>
 
+## Overview
+
+The Response block enables you to:
+
+<Steps>
+  <Step>
+    <strong>Format API Responses</strong>: Structure workflow results into proper HTTP responses
+  </Step>
+  <Step>
+    <strong>Set Status Codes</strong>: Configure appropriate HTTP status codes based on workflow outcomes
+  </Step>
+  <Step>
+    <strong>Control Headers</strong>: Add custom headers for API responses and webhooks
+  </Step>
+  <Step>
+    <strong>Transform Data</strong>: Convert workflow variables into client-friendly response formats
+  </Step>
+</Steps>
+
+## How It Works
+
+The Response block finalizes workflow execution:
+
+1. **Collect Data** - Gathers variables and outputs from previous blocks
+2. **Format Response** - Structures data according to your configuration
+3. **Set HTTP Details** - Applies status codes and headers
+4. **Send Response** - Returns the formatted response to the API caller
+
 ## When You Need Response Blocks
 
 - **API Endpoints**: When your workflow is called via API, Response blocks format the return data
@@ -99,27 +127,90 @@ Headers are configured as key-value pairs:
 | Cache-Control | no-cache |
 | X-API-Version | 1.0 |
 
+## Example Use Cases
+
+### API Endpoint Response
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Return structured data from a search API</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Workflow processes search query and retrieves results</li>
+    <li>Function block formats and paginates results</li>
+    <li>Response block returns JSON with data, pagination, and metadata</li>
+    <li>Client receives structured response with 200 status</li>
+  </ol>
+</div>
+
+### Webhook Confirmation
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Acknowledge webhook receipt and processing</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Webhook trigger receives external system data</li>
+    <li>Workflow processes the incoming data</li>
+    <li>Response block returns confirmation with processing status</li>
+    <li>External system receives acknowledgment</li>
+  </ol>
+</div>
+
+### Error Response Handling
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Return appropriate error responses</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Condition block detects validation failure or system error</li>
+    <li>Router directs to error handling path</li>
+    <li>Response block returns 400/500 status with error details</li>
+    <li>Client receives structured error information</li>
+  </ol>
+</div>
+
 ## Inputs and Outputs
 
-<Tabs items={['Inputs', 'Outputs']}>
+<Tabs items={['Configuration', 'Variables', 'Results']}>
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
-        <strong>data</strong> (JSON, optional): The JSON data to send in the response body
+        <strong>Response Data</strong>: JSON structure for response body
       </li>
       <li>
-        <strong>status</strong> (number, optional): HTTP status code (default: 200)
+        <strong>Status Code</strong>: HTTP status code (default: 200)
       </li>
       <li>
-        <strong>headers</strong> (JSON, optional): Additional response headers
+        <strong>Headers</strong>: Custom HTTP headers as key-value pairs
+      </li>
+      <li>
+        <strong>Mode</strong>: Builder or Editor mode for response construction
       </li>
     </ul>
   </Tab>
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
-      <li><strong>data</strong>: The response body data</li>
-      <li><strong>status</strong>: HTTP status code</li>
-      <li><strong>headers</strong>: Response headers</li>
+      <li>
+        <strong>response.data</strong>: The structured response body
+      </li>
+      <li>
+        <strong>response.status</strong>: HTTP status code sent
+      </li>
+      <li>
+        <strong>response.headers</strong>: Headers included in response
+      </li>
+      <li>
+        <strong>response.success</strong>: Boolean indicating successful completion
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>HTTP Response</strong>: Complete response sent to API caller
+      </li>
+      <li>
+        <strong>Workflow Termination</strong>: Ends workflow execution
+      </li>
+      <li>
+        <strong>Access</strong>: Response blocks are terminal - no subsequent blocks
+      </li>
     </ul>
   </Tab>
 </Tabs>
@@ -145,36 +236,6 @@ Use the `<variable.name>` syntax to dynamically insert workflow variables into y
 <Callout type="warning">
   Variable names are case-sensitive and must match exactly with the variables available in your workflow.
 </Callout>
-
-## Example Usage
-
-Here's an example of how a Response block might be configured for a user search API:
-
-```yaml
-data: |
-  {
-    "success": true,
-    "data": {
-      "users": "<variable.searchResults>",
-      "pagination": {
-        "page": "<variable.currentPage>",
-        "limit": "<variable.pageSize>",
-        "total": "<variable.totalUsers>"
-      }
-    },
-    "query": {
-      "searchTerm": "<variable.searchTerm>",
-      "filters": "<variable.appliedFilters>"
-    },
-    "timestamp": "<variable.timestamp>"
-  }
-status: 200
-headers:
-  - key: X-Total-Count
-    value: <variable.totalUsers>
-  - key: Cache-Control
-    value: public, max-age=300
-```
 
 ## Best Practices
 
