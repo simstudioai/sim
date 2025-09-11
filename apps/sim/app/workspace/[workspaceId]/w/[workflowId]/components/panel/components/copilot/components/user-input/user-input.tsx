@@ -2117,7 +2117,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           <div className='relative'>
             {/* Highlight overlay */}
             <div className='pointer-events-none absolute inset-0 z-[1] px-[2px] py-1'>
-              <pre className='whitespace-pre-wrap font-sans text-foreground text-sm leading-[1.25rem]'>
+              <pre className='whitespace-pre-wrap break-all font-sans text-foreground text-sm leading-[1.25rem]'>
                 {(() => {
                   const elements: React.ReactNode[] = []
                   const remaining = message
