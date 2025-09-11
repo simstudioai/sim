@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import LegalLayout from '@/app/(legal)/components/legal-layout'
+import { LegalLayout } from '@/app/(landing)/components'
 
 export default function TermsOfService() {
   return (
@@ -177,9 +177,8 @@ export default function TermsOfService() {
           Please read the following arbitration agreement carefully. It requires you to arbitrate
           disputes with Sim, Inc, its parent companies, subsidiaries, affiliates, successors and
           assigns and all of their respective officers, directors, employees, agents, and
-          representatives (collectively, the{' '}
-          <span className='font-medium text-[var(--brand-primary-hex)]'>"Company Parties"</span>)
-          and limits the manner in which you can seek relief from the Company Parties.
+          representatives (collectively, the "Company Parties") and limits the manner in which you
+          can seek relief from the Company Parties.
         </p>
         <p className='mb-4'>
           You agree that any dispute between you and any of the Company Parties relating to the

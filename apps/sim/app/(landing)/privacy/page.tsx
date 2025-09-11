@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import LegalLayout from '@/app/(legal)/components/legal-layout'
+import { LegalLayout } from '@/app/(landing)/components'
 
 export default function PrivacyPolicy() {
   return (
@@ -21,134 +21,121 @@ export default function PrivacyPolicy() {
 
       <section>
         <h2 className='mb-4 font-semibold text-2xl'>Interpretation and Definitions</h2>
-        <h3 className='mb-2 font-medium text-[var(--brand-primary-hex)] text-xl'>Interpretation</h3>
+        <h3 className='mb-2 font-medium text-xl'>Interpretation</h3>
         <p className='mb-4'>
           Under the following conditions, the meanings of words with capitalized first letters are
           defined. The following definitions have the same meaning whether they are written in
           singular or plural form.
         </p>
 
-        <h3 className='mb-2 font-medium text-[var(--brand-primary-hex)] text-xl'>Definitions</h3>
+        <h3 className='mb-2 font-medium text-xl'>Definitions</h3>
         <p className='mb-4'>For the purposes of this Privacy Policy:</p>
         <ul className='mb-4 list-disc space-y-2 pl-6'>
           <li>
-            <span className='text-[var(--brand-primary-hex)]'>Account</span> means a unique account
-            created for You to access our Service or parts of our Service.
+            <strong>Account</strong> means a unique account created for You to access our Service or
+            parts of our Service.
           </li>
           <li>
-            <span className='text-[var(--brand-primary-hex)]'>Affiliate</span> means an entity that
-            controls, is controlled by or is under common control with a party, where "control"
-            means ownership of 50% or more of the shares, equity interest or other securities
-            entitled to vote for election of directors or other managing authority.
+            <strong>Affiliate</strong> means an entity that controls, is controlled by or is under
+            common control with a party, where "control" means ownership of 50% or more of the
+            shares, equity interest or other securities entitled to vote for election of directors
+            or other managing authority.
           </li>
           <li>
-            <span className='text-[var(--brand-primary-hex)]'>Application</span> means the software
-            program provided by the Company downloaded by You on any electronic device.
+            <strong>Application</strong> means the software program provided by the Company
+            downloaded by You on any electronic device.
           </li>
           <li>
-            <span className='text-[var(--brand-primary-hex)]'>Business</span>, for the purpose of
-            the CCPA (California Consumer Privacy Act), refers to the Company as the legal entity
-            that collects Consumers' personal information and determines the purposes and means of
-            the processing of Consumers' personal information, or on behalf of which such
-            information is collected and that alone, or jointly with others, determines the purposes
-            and means of the processing of consumers' personal information, that does business in
-            the State of California.
+            <strong>Business</strong>, for the purpose of the CCPA (California Consumer Privacy
+            Act), refers to the Company as the legal entity that collects Consumers' personal
+            information and determines the purposes and means of the processing of Consumers'
+            personal information, or on behalf of which such information is collected and that
+            alone, or jointly with others, determines the purposes and means of the processing of
+            consumers' personal information, that does business in the State of California.
           </li>
           <li>
-            <span className='text-[var(--brand-primary-hex)]'>Company</span> (referred to as either
-            "the Company", "We", "Us" or "Our" in this Agreement) refers to Sim. For the purpose of
-            the GDPR, the Company is the Data Controller.
+            <strong>Company</strong> (referred to as either "the Company", "We", "Us" or "Our" in
+            this Agreement) refers to Sim. For the purpose of the GDPR, the Company is the Data
+            Controller.
           </li>
           <li>
-            <span className='text-[var(--brand-primary-hex)]'>Cookies</span> are small files that
-            are placed on Your computer, mobile device or any other device by a website, containing
-            the details of Your browsing history on that website among its many uses.
+            <strong>Cookies</strong> are small files that are placed on Your computer, mobile device
+            or any other device by a website, containing the details of Your browsing history on
+            that website among its many uses.
           </li>
           <li>
-            <span className='text-[var(--brand-primary-hex)]'>Country</span> refers to: Quebec,
-            Canada
+            <strong>Country</strong> refers to: Quebec, Canada
           </li>
           <li>
-            <span className='text-[var(--brand-primary-hex)]'>Data Controller</span>, for the
-            purposes of the GDPR (General Data Protection Regulation), refers to the Company as the
-            legal person which alone or jointly with others determines the purposes and means of the
-            processing of Personal Data.
+            <strong>Data Controller</strong>, for the purposes of the GDPR (General Data Protection
+            Regulation), refers to the Company as the legal person which alone or jointly with
+            others determines the purposes and means of the processing of Personal Data.
           </li>
           <li>
-            <span className='text-[var(--brand-primary-hex)]'>Device</span> means any device that
-            can access the Service such as a computer, a cellphone or a digital tablet.
+            <strong>Device</strong> means any device that can access the Service such as a computer,
+            a cellphone or a digital tablet.
           </li>
           <li>
-            <span className='text-[var(--brand-primary-hex)]'>Do Not Track (DNT)</span> is a concept
-            that has been promoted by US regulatory authorities, in particular the U.S. Federal
-            Trade Commission (FTC), for the Internet industry to develop and implement a mechanism
-            for allowing internet users to control the tracking of their online activities across
-            websites.
+            <strong>Do Not Track (DNT)</strong> is a concept that has been promoted by US regulatory
+            authorities, in particular the U.S. Federal Trade Commission (FTC), for the Internet
+            industry to develop and implement a mechanism for allowing internet users to control the
+            tracking of their online activities across websites.
           </li>
           <li>
-            <span className='text-[var(--brand-primary-hex)]'>Personal Data</span> is any
-            information that relates to an identified or identifiable individual. For the purposes
-            for GDPR, Personal Data means any information relating to You such as a name, an
-            identification number, location data, online identifier or to one or more factors
-            specific to the physical, physiological, genetic, mental, economic, cultural or social
-            identity. For the purposes of the CCPA, Personal Data means any information that
-            identifies, relates to, describes or is capable of being associated with, or could
-            reasonably be linked, directly or indirectly, with You.
+            <strong>Personal Data</strong> is any information that relates to an identified or
+            identifiable individual. For the purposes for GDPR, Personal Data means any information
+            relating to You such as a name, an identification number, location data, online
+            identifier or to one or more factors specific to the physical, physiological, genetic,
+            mental, economic, cultural or social identity. For the purposes of the CCPA, Personal
+            Data means any information that identifies, relates to, describes or is capable of being
+            associated with, or could reasonably be linked, directly or indirectly, with You.
           </li>
           <li>
-            <span className='text-[var(--brand-primary-hex)]'>Sale</span>, for the purpose of the
-            CCPA (California Consumer Privacy Act), means selling, renting, releasing, disclosing,
-            disseminating, making available, transferring, or otherwise communicating orally, in
-            writing, or by electronic or other means, a Consumer's Personal information to another
-            business or a third party for monetary or other valuable consideration.
+            <strong>Sale</strong>, for the purpose of the CCPA (California Consumer Privacy Act),
+            means selling, renting, releasing, disclosing, disseminating, making available,
+            transferring, or otherwise communicating orally, in writing, or by electronic or other
+            means, a Consumer's Personal information to another business or a third party for
+            monetary or other valuable consideration.
           </li>
           <li>
-            <span className='text-[var(--brand-primary-hex)]'>Service</span> refers to the
-            Application or the Website or both.
+            <strong>Service</strong> refers to the Application or the Website or both.
           </li>
           <li>
-            <span className='text-[var(--brand-primary-hex)]'>Service Provider</span> means any
-            natural or legal person who processes the data on behalf of the Company. It refers to
-            third-party companies or individuals employed by the Company to facilitate the Service,
-            to provide the Service on behalf of the Company, to perform services related to the
-            Service or to assist the Company in analyzing how the Service is used. For the purpose
-            of the GDPR, Service Providers are considered Data Processors.
+            <strong>Service Provider</strong> means any natural or legal person who processes the
+            data on behalf of the Company. It refers to third-party companies or individuals
+            employed by the Company to facilitate the Service, to provide the Service on behalf of
+            the Company, to perform services related to the Service or to assist the Company in
+            analyzing how the Service is used. For the purpose of the GDPR, Service Providers are
+            considered Data Processors.
           </li>
           <li>
-            <span className='text-[var(--brand-primary-hex)]'>
-              Third-party Social Media Service
-            </span>{' '}
-            refers to any website or any social network website through which a User can log in or
-            create an account to use the Service.
+            <strong>Third-party Social Media Service</strong> refers to any website or any social
+            network website through which a User can log in or create an account to use the Service.
           </li>
           <li>
-            <span className='text-[var(--brand-primary-hex)]'>Usage Data</span> refers to data
-            collected automatically, either generated by the use of the Service or from the Service
-            infrastructure itself (for example, the duration of a page visit).
+            <strong>Usage Data</strong> refers to data collected automatically, either generated by
+            the use of the Service or from the Service infrastructure itself (for example, the
+            duration of a page visit).
           </li>
           <li>
-            <span className='text-[var(--brand-primary-hex)]'>Website</span> refers to Sim,
-            accessible from sim.ai
+            <strong>Website</strong> refers to Sim, accessible from sim.ai
           </li>
           <li>
-            <span className='text-[var(--brand-primary-hex)]'>You</span> means the individual
-            accessing or using the Service, or the company, or other legal entity on behalf of which
-            such individual is accessing or using the Service, as applicable. Under GDPR (General
-            Data Protection Regulation), You can be referred to as the Data Subject or as the User
-            as you are the individual using the Service.
+            <strong>You</strong> means the individual accessing or using the Service, or the
+            company, or other legal entity on behalf of which such individual is accessing or using
+            the Service, as applicable. Under GDPR (General Data Protection Regulation), You can be
+            referred to as the Data Subject or as the User as you are the individual using the
+            Service.
           </li>
         </ul>
       </section>
 
       <section>
         <h2 className='mb-4 font-semibold text-2xl'>1. Information We Collect</h2>
-        <h3 className='mb-2 font-medium text-[var(--brand-primary-hex)] text-xl'>
-          Personal Information
-        </h3>
+        <h3 className='mb-2 font-medium text-xl'>Personal Information</h3>
         <p className='mb-4'>
           While using our Service, we may ask you to provide us with certain personally identifiable
-          information that can be used to contact or identify you (
-          <span className='text-[var(--brand-primary-hex)]'>"Personal Information"</span>).
+          information that can be used to contact or identify you ("Personal Information").
           Personally identifiable information may include, but is not limited to:
         </p>
         <ul className='mb-4 list-disc space-y-2 pl-6'>
@@ -159,14 +146,13 @@ export default function PrivacyPolicy() {
           <li>Cookies and Usage Data</li>
         </ul>
 
-        <h3 className='mb-2 font-medium text-[var(--brand-primary-hex)] text-xl'>Usage Data</h3>
+        <h3 className='mb-2 font-medium text-xl'>Usage Data</h3>
         <p className='mb-4'>
-          We may also collect information on how the Service is accessed and used (
-          <span className='text-[var(--brand-primary-hex)]'>"Usage Data"</span>). This Usage Data
-          may include information such as your computer's Internet Protocol address (e.g. IP
-          address), browser type, browser version, the pages of our Service that you visit, the time
-          and date of your visit, the time spent on those pages, unique device identifiers and other
-          diagnostic data.
+          We may also collect information on how the Service is accessed and used ("Usage Data").
+          This Usage Data may include information such as your computer's Internet Protocol address
+          (e.g. IP address), browser type, browser version, the pages of our Service that you visit,
+          the time and date of your visit, the time spent on those pages, unique device identifiers
+          and other diagnostic data.
         </p>
         <p className='mb-4'>
           When You access the Service by or through a mobile device, We may collect certain
@@ -180,9 +166,7 @@ export default function PrivacyPolicy() {
           when You access the Service by or through a mobile device.
         </p>
 
-        <h3 className='mb-2 font-medium text-[var(--brand-primary-hex)] text-xl'>
-          Tracking & Cookies Data
-        </h3>
+        <h3 className='mb-2 font-medium text-xl'>Tracking & Cookies Data</h3>
         <p className='mb-4'>
           We use cookies and similar tracking technologies to track the activity on our Service and
           hold certain information.
@@ -244,27 +228,21 @@ export default function PrivacyPolicy() {
       <section>
         <h2 className='mb-4 font-semibold text-2xl'>4. Disclosure Of Data</h2>
 
-        <h3 className='mb-2 font-medium text-[var(--brand-primary-hex)] text-xl'>
-          Business Transactions
-        </h3>
+        <h3 className='mb-2 font-medium text-xl'>Business Transactions</h3>
         <p className='mb-4'>
           If the Company is involved in a merger, acquisition or asset sale, Your Personal Data may
           be transferred. We will provide notice before Your Personal Data is transferred and
           becomes subject to a different Privacy Policy.
         </p>
 
-        <h3 className='mb-2 font-medium text-[var(--brand-primary-hex)] text-xl'>
-          Law Enforcement
-        </h3>
+        <h3 className='mb-2 font-medium text-xl'>Law Enforcement</h3>
         <p className='mb-4'>
           Under certain circumstances, the Company may be required to disclose Your Personal Data if
           required to do so by law or in response to valid requests by public authorities (e.g. a
           court or a government agency).
         </p>
 
-        <h3 className='mb-2 font-medium text-[var(--brand-primary-hex)] text-xl'>
-          Legal Requirements
-        </h3>
+        <h3 className='mb-2 font-medium text-xl'>Legal Requirements</h3>
         <p className='mb-4'>
           Sim may disclose your Personal Information in the good faith belief that such action is
           necessary to:
@@ -291,10 +269,9 @@ export default function PrivacyPolicy() {
       <section>
         <h2 className='mb-4 font-semibold text-2xl'>6. Service Providers</h2>
         <p className='mb-4'>
-          We may employ third party companies and individuals to facilitate our Service (
-          <span className='text-[var(--brand-primary-hex)]'>"Service Providers"</span>), to provide
-          the Service on our behalf, to perform Service-related services or to assist us in
-          analyzing how our Service is used.
+          We may employ third party companies and individuals to facilitate our Service ("Service
+          Providers"), to provide the Service on our behalf, to perform Service-related services or
+          to assist us in analyzing how our Service is used.
         </p>
         <p>
           These third parties have access to your Personal Information only to perform these tasks
@@ -307,9 +284,7 @@ export default function PrivacyPolicy() {
         <p className='mb-4'>
           We may use third-party Service Providers to monitor and analyze the use of our Service.
         </p>
-        <h3 className='mb-2 font-medium text-[var(--brand-primary-hex)] text-xl'>
-          Google Analytics
-        </h3>
+        <h3 className='mb-2 font-medium text-xl'>Google Analytics</h3>
         <p className='mb-4'>
           Google Analytics is a web analytics service offered by Google that tracks and reports
           website traffic. Google uses the data collected to track and monitor the use of our
@@ -343,22 +318,20 @@ export default function PrivacyPolicy() {
           You visited our Service. We and Our third-party vendors use cookies to inform, optimize
           and serve ads based on Your past visits to our Service.
         </p>
-        <h3 className='mb-2 font-medium text-[var(--brand-primary-hex)] text-xl'>
-          Google Ads (AdWords)
-        </h3>
+        <h3 className='mb-2 font-medium text-xl'>Google Ads (AdWords)</h3>
         <p className='mb-4'>
           Google Ads remarketing service is provided by Google Inc. You can opt-out of Google
           Analytics for Display Advertising and customize the Google Display Network ads by visiting
           the Google Ads Settings page.
         </p>
 
-        <h3 className='mb-2 font-medium text-[var(--brand-primary-hex)] text-xl'>Twitter</h3>
+        <h3 className='mb-2 font-medium text-xl'>Twitter</h3>
         <p className='mb-4'>
           Twitter remarketing service is provided by Twitter Inc. You can opt-out from Twitter's
           interest-based ads by following their instructions.
         </p>
 
-        <h3 className='mb-2 font-medium text-[var(--brand-primary-hex)] text-xl'>Facebook</h3>
+        <h3 className='mb-2 font-medium text-xl'>Facebook</h3>
         <p className='mb-4'>
           Facebook remarketing service is provided by Facebook Inc. You can learn more about
           interest-based advertising from Facebook by visiting their Privacy Policy.
@@ -379,9 +352,7 @@ export default function PrivacyPolicy() {
           brands like Visa, Mastercard, American Express and Discover. PCI-DSS requirements help
           ensure the secure handling of payment information.
         </p>
-        <h3 className='mb-2 font-medium text-[var(--brand-primary-hex)] text-xl'>
-          Payment processors we work with:
-        </h3>
+        <h3 className='mb-2 font-medium text-xl'>Payment processors we work with:</h3>
         <ul className='mb-4 list-disc space-y-2 pl-6'>
           <li>Stripe</li>
         </ul>
@@ -391,10 +362,10 @@ export default function PrivacyPolicy() {
         <h2 className='mb-4 font-semibold text-2xl'>10. Google Workspace APIs</h2>
         <p className='mb-4'>
           We want to explicitly affirm that any user data obtained through Google Workspace APIs is{' '}
-          <span className='font-medium text-[var(--brand-primary-hex)]'>not</span> used to develop,
-          improve, or train generalized AI and/or machine learning models. We use data obtained
-          through Google Workspace APIs solely for the purpose of providing and improving the
-          specific functionality of our Service for which the API access was granted.
+          <strong>not</strong> used to develop, improve, or train generalized AI and/or machine
+          learning models. We use data obtained through Google Workspace APIs solely for the purpose
+          of providing and improving the specific functionality of our Service for which the API
+          access was granted.
         </p>
       </section>
 
@@ -424,8 +395,7 @@ export default function PrivacyPolicy() {
       <section>
         <h2 className='mb-4 font-semibold text-2xl'>13. Children's Privacy</h2>
         <p className='mb-4'>
-          Our Service does not address anyone under the age of 18 (
-          <span className='text-[var(--brand-primary-hex)]'>"Children"</span>).
+          Our Service does not address anyone under the age of 18 ("Children").
         </p>
         <p className='mb-4'>
           We do not knowingly collect personally identifiable information from anyone under the age
@@ -506,13 +476,12 @@ export default function PrivacyPolicy() {
       <section>
         <h2 className='mb-4 font-semibold text-2xl'>16. California Privacy Rights</h2>
         <p className='mb-4'>
-          California Civil Code Section 1798.83, also known as the{' '}
-          <span className='font-medium text-[var(--brand-primary-hex)]'>"Shine The Light"</span>{' '}
-          law, permits our users who are California residents to request and obtain from us, once a
-          year and free of charge, information about categories of personal information (if any) we
-          disclosed to third parties for direct marketing purposes and the names and addresses of
-          all third parties with which we shared personal information in the immediately preceding
-          calendar year.
+          California Civil Code Section 1798.83, also known as the "Shine The Light" law, permits
+          our users who are California residents to request and obtain from us, once a year and free
+          of charge, information about categories of personal information (if any) we disclosed to
+          third parties for direct marketing purposes and the names and addresses of all third
+          parties with which we shared personal information in the immediately preceding calendar
+          year.
         </p>
         <p>
           If you are a California resident and would like to make such a request, please submit your
@@ -523,7 +492,7 @@ export default function PrivacyPolicy() {
       <section>
         <h2 className='mb-4 font-semibold text-2xl'>17. Vulnerability Disclosure Policy</h2>
 
-        <h3 className='mb-2 font-medium text-[var(--brand-primary-hex)] text-xl'>Introduction</h3>
+        <h3 className='mb-2 font-medium text-xl'>Introduction</h3>
         <p className='mb-4'>
           Sim is dedicated to preserving data security by preventing unauthorized disclosure of
           information. This policy was created to provide security researchers with instructions for
@@ -533,7 +502,7 @@ export default function PrivacyPolicy() {
           wait before publicly reporting vulnerabilities identified.
         </p>
 
-        <h3 className='mb-2 font-medium text-[var(--brand-primary-hex)] text-xl'>Guidelines</h3>
+        <h3 className='mb-2 font-medium text-xl'>Guidelines</h3>
         <p className='mb-4'>We request that you:</p>
         <ul className='mb-4 list-disc space-y-2 pl-6'>
           <li>
@@ -561,14 +530,14 @@ export default function PrivacyPolicy() {
           <li>Do not submit a high volume of low-quality reports.</li>
         </ul>
 
-        <h3 className='mb-2 font-medium text-[var(--brand-primary-hex)] text-xl'>Authorization</h3>
+        <h3 className='mb-2 font-medium text-xl'>Authorization</h3>
         <p className='mb-4'>
           Security research carried out in conformity with this policy is deemed permissible. We'll
           work with you to swiftly understand and fix the problem, and Sim will not suggest or
           pursue legal action in connection with your study.
         </p>
 
-        <h3 className='mb-2 font-medium text-[var(--brand-primary-hex)] text-xl'>Scope</h3>
+        <h3 className='mb-2 font-medium text-xl'>Scope</h3>
         <p className='mb-4'>This policy applies to the following systems and services:</p>
         <ul className='mb-4 list-disc space-y-2 pl-6'>
           <li>sim.ai website</li>
@@ -590,9 +559,7 @@ export default function PrivacyPolicy() {
           if you're unsure whether a system or endpoint is in scope.
         </p>
 
-        <h3 className='mb-2 font-medium text-[var(--brand-primary-hex)] text-xl'>
-          Types of testing
-        </h3>
+        <h3 className='mb-2 font-medium text-xl'>Types of testing</h3>
         <p className='mb-4'>The following test types are not authorized:</p>
         <ul className='mb-4 list-disc space-y-2 pl-6'>
           <li>Network denial of service (DoS or DDoS) tests</li>
@@ -602,9 +569,7 @@ export default function PrivacyPolicy() {
           </li>
         </ul>
 
-        <h3 className='mb-2 font-medium text-[var(--brand-primary-hex)] text-xl'>
-          Reporting a vulnerability
-        </h3>
+        <h3 className='mb-2 font-medium text-xl'>Reporting a vulnerability</h3>
         <p className='mb-4'>
           To report any security flaws, send an email to{' '}
           <Link
@@ -617,9 +582,7 @@ export default function PrivacyPolicy() {
           you updated on our progress. Reports can be anonymously submitted.
         </p>
 
-        <h3 className='mb-2 font-medium text-[var(--brand-primary-hex)] text-xl'>
-          Desirable information
-        </h3>
+        <h3 className='mb-2 font-medium text-xl'>Desirable information</h3>
         <p className='mb-4'>
           In order to process and react to a vulnerability report, we recommend to include the
           following information:
@@ -635,7 +598,7 @@ export default function PrivacyPolicy() {
         </ul>
         <p className='mb-4'>If possible, please provide your report in English.</p>
 
-        <h3 className='mb-2 font-medium text-[var(--brand-primary-hex)] text-xl'>Our commitment</h3>
+        <h3 className='mb-2 font-medium text-xl'>Our commitment</h3>
         <p className='mb-4'>
           If you choose to give your contact information, we promise to communicate with you in a
           transparent and timely manner. We will acknowledge receipt of your report within three

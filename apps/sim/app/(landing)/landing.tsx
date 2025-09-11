@@ -1,9 +1,6 @@
 import { Suspense } from 'react'
 import dynamic from 'next/dynamic'
-import Background from '@/app/(landing)/components/background'
-import Footer from '@/app/(landing)/components/footer/footer'
-import Nav from '@/app/(landing)/components/nav/nav'
-import StructuredData from '@/app/(landing)/components/structured-data'
+import { Background, Footer, Nav, StructuredData } from '@/app/(landing)/components'
 
 // Lazy load heavy components for better initial load performance
 const Hero = dynamic(() => import('@/app/(landing)/components/hero/hero'), {
