@@ -28,7 +28,6 @@ export async function authenticateApiKey(
   }
 
   try {
-    // First, check personal API keys
     const [personalKey] = await db
       .select({
         userId: apiKeyTable.userId,
@@ -56,7 +55,6 @@ export async function authenticateApiKey(
       }
     }
 
-    // If not found in personal keys, check workspace API keys
     const [workspaceKey] = await db
       .select({
         workspaceId: workspaceApiKey.workspaceId,
@@ -79,7 +77,6 @@ export async function authenticateApiKey(
         }
       }
 
-      // If a workflowId is provided, verify that the workflow belongs to this workspace
       if (workflowId) {
         const [workflowRecord] = await db
           .select({
@@ -109,7 +106,7 @@ export async function authenticateApiKey(
 
       return {
         authenticated: true,
-        userId: workspaceKey.workspaceOwnerId!, // Workspace owner is the effective user
+        userId: workspaceKey.workspaceOwnerId!,
         workspaceId: workspaceKey.workspaceId,
         keyType: 'workspace',
       }

@@ -19,7 +19,6 @@ export async function GET(request: NextRequest) {
 
     const userId = session.user.id
 
-    // Fetch all API keys for this user
     const keys = await db
       .select({
         id: apiKey.id,
@@ -67,7 +66,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Name cannot be empty.' }, { status: 400 })
     }
 
-    // Check if a key with this name already exists for the user
     const existingKey = await db
       .select()
       .from(apiKey)
@@ -83,17 +81,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create new API key with hashing
     const { key: plainKey, hashedKey } = await createApiKey(true)
 
-    // Store the hashed version in the database
     const [newKey] = await db
       .insert(apiKey)
       .values({
         id: nanoid(),
         userId,
         name,
-        key: hashedKey!, // Store the hashed version
+        key: hashedKey!,
         createdAt: new Date(),
         updatedAt: new Date(),
       })
@@ -103,11 +99,10 @@ export async function POST(request: NextRequest) {
         createdAt: apiKey.createdAt,
       })
 
-    // Return the plain key to the user (they'll never see it again)
     return NextResponse.json({
       key: {
         ...newKey,
-        key: plainKey, // Return the plain text key for user to copy
+        key: plainKey,
       },
     })
   } catch (error) {

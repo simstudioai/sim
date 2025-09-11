@@ -69,8 +69,6 @@ export async function validateWorkflowAccess(
         }
       } else {
         // Check both personal API keys and workspace API keys
-
-        // First, check personal API keys belonging to the workflow owner
         const personalKeys = await db
           .select({
             id: apiKey.id,
@@ -81,7 +79,6 @@ export async function validateWorkflowAccess(
 
         let validPersonalKey = null
 
-        // Check each personal key with authentication function
         for (const key of personalKeys) {
           const isValid = await authenticateApiKey(apiKeyHeader, key.key)
           if (isValid) {
@@ -90,9 +87,8 @@ export async function validateWorkflowAccess(
           }
         }
 
-        // If not found in personal keys, check workspace API keys
         let validWorkspaceKey = null
-        if (!validPersonalKey) {
+        if (!validPersonalKey && workflow.workspaceId) {
           const workspaceKeys = await db
             .select({
               id: workspaceApiKey.id,
@@ -103,7 +99,6 @@ export async function validateWorkflowAccess(
             .leftJoin(workspace, eq(workspaceApiKey.workspaceId, workspace.id))
             .where(eq(workspace.id, workflow.workspaceId)) // Key must belong to the same workspace as the workflow
 
-          // Check each workspace key with authentication function
           for (const key of workspaceKeys) {
             const isValid = await authenticateApiKey(apiKeyHeader, key.key)
             if (isValid) {

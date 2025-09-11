@@ -322,7 +322,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // If client provided a specific API key, check if it's either personal or workspace key
     if (providedApiKey) {
-      // First check personal API keys
+      let isValidKey = false
+
       const [personalOwned] = await db
         .select({ key: apiKey.key })
         .from(apiKey)
@@ -331,15 +332,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
       if (personalOwned) {
         userKey = providedApiKey
+        isValidKey = true
       } else {
-        // Check workspace API keys - get the workflow's workspace ID
         const [workflowData] = await db
           .select({ workspaceId: workflow.workspaceId })
           .from(workflow)
           .where(eq(workflow.id, id))
           .limit(1)
 
-        if (workflowData) {
+        if (workflowData?.workspaceId) {
           const [workspaceOwned] = await db
             .select({ key: workspaceApiKey.key })
             .from(workspaceApiKey)
@@ -353,8 +354,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
           if (workspaceOwned) {
             userKey = providedApiKey
+            isValidKey = true
           }
         }
+      }
+
+      if (!isValidKey) {
+        logger.warn(`[${requestId}] Invalid API key provided for workflow deployment: ${id}`)
+        return createErrorResponse('Invalid API key provided', 400)
       }
     }
 
@@ -374,14 +381,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Update lastUsed for the key we returned (try both personal and workspace keys)
     if (userKey) {
       try {
-        // First try to update personal API key
         const personalResult = await db
           .update(apiKey)
           .set({ lastUsed: new Date(), updatedAt: new Date() })
           .where(eq(apiKey.key, userKey))
+          .returning({ id: apiKey.id })
 
-        // If no personal key was updated, try workspace API key
-        if (!personalResult || personalResult.rowCount === 0) {
+        if (!personalResult || personalResult.length === 0) {
           await db
             .update(workspaceApiKey)
             .set({ lastUsed: new Date(), updatedAt: new Date() })

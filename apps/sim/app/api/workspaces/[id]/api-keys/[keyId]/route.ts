@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, not } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -30,7 +30,6 @@ export async function PUT(
 
     const userId = session.user.id
 
-    // Require admin or write permission to update workspace API keys
     const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
     if (!permission || (permission !== 'admin' && permission !== 'write')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -39,7 +38,6 @@ export async function PUT(
     const body = await request.json()
     const { name } = UpdateKeySchema.parse(body)
 
-    // Check if the key exists in this workspace
     const existingKey = await db
       .select()
       .from(workspaceApiKey)
@@ -50,7 +48,6 @@ export async function PUT(
       return NextResponse.json({ error: 'API key not found' }, { status: 404 })
     }
 
-    // Check if a key with the new name already exists (excluding the current key)
     const conflictingKey = await db
       .select()
       .from(workspaceApiKey)
@@ -58,7 +55,7 @@ export async function PUT(
         and(
           eq(workspaceApiKey.workspaceId, workspaceId),
           eq(workspaceApiKey.name, name),
-          workspaceApiKey.id.ne(keyId)
+          not(eq(workspaceApiKey.id, keyId))
         )
       )
       .limit(1)
@@ -70,7 +67,6 @@ export async function PUT(
       )
     }
 
-    // Update the key name
     const [updatedKey] = await db
       .update(workspaceApiKey)
       .set({
@@ -112,13 +108,11 @@ export async function DELETE(
 
     const userId = session.user.id
 
-    // Require admin or write permission to delete workspace API keys
     const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
     if (!permission || (permission !== 'admin' && permission !== 'write')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Delete the workspace API key
     const deletedRows = await db
       .delete(workspaceApiKey)
       .where(and(eq(workspaceApiKey.workspaceId, workspaceId), eq(workspaceApiKey.id, keyId)))

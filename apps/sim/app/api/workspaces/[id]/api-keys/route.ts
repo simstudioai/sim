@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -33,19 +33,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const userId = session.user.id
 
-    // Validate workspace exists
     const ws = await db.select().from(workspace).where(eq(workspace.id, workspaceId)).limit(1)
     if (!ws.length) {
       return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
     }
 
-    // Require any permission to read
     const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
     if (!permission) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Fetch workspace API keys
     const workspaceKeys = await db
       .select({
         id: workspaceApiKey.id,
@@ -60,7 +57,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .where(eq(workspaceApiKey.workspaceId, workspaceId))
       .orderBy(workspaceApiKey.createdAt)
 
-    // Fetch personal API keys for the user
     const personalKeys = await db
       .select({
         id: apiKey.id,
@@ -74,7 +70,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .where(eq(apiKey.userId, userId))
       .orderBy(apiKey.createdAt)
 
-    // Find conflicts (same name in both workspace and personal keys)
     const workspaceKeyNames = new Set(workspaceKeys.map((k) => k.name))
     const personalKeyNames = new Set(personalKeys.map((k) => k.name))
     const conflicts = Array.from(workspaceKeyNames).filter((name) => personalKeyNames.has(name))
@@ -105,7 +100,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const userId = session.user.id
 
-    // Require admin or write permission to create workspace API keys
     const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
     if (!permission || (permission !== 'admin' && permission !== 'write')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -114,7 +108,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const body = await request.json()
     const { name } = CreateKeySchema.parse(body)
 
-    // Check if a key with this name already exists in the workspace
     const existingKey = await db
       .select()
       .from(workspaceApiKey)
@@ -130,10 +123,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       )
     }
 
-    // Create new API key with hashing
     const { key: plainKey, hashedKey } = await createApiKey(true)
 
-    // Store the hashed version in the database
     const [newKey] = await db
       .insert(workspaceApiKey)
       .values({
@@ -141,7 +132,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         workspaceId,
         createdBy: userId,
         name,
-        key: hashedKey!, // Store the hashed version
+        key: hashedKey!,
         createdAt: new Date(),
         updatedAt: new Date(),
       })
@@ -153,11 +144,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     logger.info(`[${requestId}] Created workspace API key: ${name} in workspace ${workspaceId}`)
 
-    // Return the plain key to the user (they'll never see it again)
     return NextResponse.json({
       key: {
         ...newKey,
-        key: plainKey, // Return the plain text key for user to copy
+        key: plainKey,
       },
     })
   } catch (error: any) {
@@ -185,7 +175,6 @@ export async function DELETE(
 
     const userId = session.user.id
 
-    // Require admin or write permission to delete workspace API keys
     const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
     if (!permission || (permission !== 'admin' && permission !== 'write')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -194,14 +183,9 @@ export async function DELETE(
     const body = await request.json()
     const { keys } = DeleteKeysSchema.parse(body)
 
-    // Delete the specified workspace API keys
-    const deletedCount = await db.delete(workspaceApiKey).where(
-      and(
-        eq(workspaceApiKey.workspaceId, workspaceId),
-        // Use the `inArray` operator for multiple keys
-        workspaceApiKey.id.in(keys)
-      )
-    )
+    const deletedCount = await db
+      .delete(workspaceApiKey)
+      .where(and(eq(workspaceApiKey.workspaceId, workspaceId), inArray(workspaceApiKey.id, keys)))
 
     logger.info(
       `[${requestId}] Deleted ${deletedCount} workspace API keys from workspace ${workspaceId}`
