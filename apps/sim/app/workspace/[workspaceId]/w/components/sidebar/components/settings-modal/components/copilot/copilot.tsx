@@ -239,7 +239,7 @@ export function Copilot() {
               })}
               {/* Show message when search has no results but there are keys */}
               {searchTerm.trim() && filteredKeys.length === 0 && keys.length > 0 && (
-                <div className='py-8 text-center text-muted-foreground text-sm'>
+                <div className='break-all py-8 text-center text-muted-foreground text-sm'>
                   No API keys found matching "{searchTerm}"
                 </div>
               )}

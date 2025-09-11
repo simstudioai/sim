@@ -486,7 +486,7 @@ export function Credentials({ onOpenChange, registerCloseHandler }: CredentialsP
 
               {/* Show message when search has no results */}
               {searchTerm.trim() && Object.keys(filteredGroupedServices).length === 0 && (
-                <div className='py-8 text-center text-muted-foreground text-sm'>
+                <div className='break-all py-8 text-center text-muted-foreground text-sm'>
                   No services found matching "{searchTerm}"
                 </div>
               )}

@@ -219,7 +219,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
               ))}
               {/* Show message when search has no results but there are keys */}
               {searchTerm.trim() && filteredApiKeys.length === 0 && apiKeys.length > 0 && (
-                <div className='py-8 text-center text-muted-foreground text-sm'>
+                <div className='break-all py-8 text-center text-muted-foreground text-sm'>
                   No API keys found matching "{searchTerm}"
                 </div>
               )}
