@@ -1,21 +1,23 @@
 ---
 title: Schedule
-description: Automatically trigger workflows on a recurring schedule
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { ThemeImage } from '@/components/ui/theme-image'
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
 
-The Schedule block automatically triggers workflow execution at specified intervals or times.
+The Schedule block automatically triggers workflows on a recurring schedule at specified intervals or times.
 
-<ThemeImage
-  lightSrc="/static/light/schedule-light.png"
-  darkSrc="/static/dark/schedule-dark.png"
-  alt="Schedule Block"
-  width={350}
-  height={175}
-/>
+<div className="flex justify-center">
+  <Image
+    src="/static/schedule.png"
+    alt="Schedule Block"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
 
 ## Schedule Options
 
@@ -44,7 +46,7 @@ Configure when your workflow runs using the dropdown options:
 ## Configuring Schedules
 
 <div className="mx-auto w-full overflow-hidden rounded-lg">
-  <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/configure-schedule.mp4"></video>
+  <Video src="configure-schedule.mp4" width={700} height={450} />
 </div>
 
 When a workflow is scheduled:
@@ -54,13 +56,15 @@ When a workflow is scheduled:
 
 ## Disabled Schedules
 
-<ThemeImage
-  lightSrc="/static/light/schedule-disabled-light.png"
-  darkSrc="/static/dark/schedule-disabled-dark.png"
-  alt="Disabled Schedule"
-  width={500}
-  height={200}
-/>
+<div className="flex justify-center">
+  <Image
+    src="/static/schedule-disabled.png"
+    alt="Disabled Schedule"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
 
 Disabled schedules show when they were last active and can be re-enabled at any time.
 

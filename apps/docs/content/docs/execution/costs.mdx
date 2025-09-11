@@ -1,0 +1,182 @@
+---
+title: Cost Calculation
+---
+
+import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Sim automatically calculates costs for all workflow executions, providing transparent pricing based on AI model usage and execution charges. Understanding these costs helps you optimize workflows and manage your budget effectively.
+
+## How Costs Are Calculated
+
+Every workflow execution includes two cost components:
+
+**Base Execution Charge**: $0.001 per execution
+
+**AI Model Usage**: Variable cost based on token consumption
+```javascript
+modelCost = (inputTokens × inputPrice + outputTokens × outputPrice) / 1,000,000
+totalCost = baseExecutionCharge + modelCost
+```
+
+<Callout type="info">
+  AI model prices are per million tokens. The calculation divides by 1,000,000 to get the actual cost. Workflows without AI blocks only incur the base execution charge.
+</Callout>
+
+## Model Breakdown in Logs
+
+For workflows using AI blocks, you can view detailed cost information in the logs:
+
+<div className="flex justify-center">
+  <Image
+    src="/static/logs/logs-cost.png"
+    alt="Model Breakdown"
+    width={600}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+The model breakdown shows:
+- **Token Usage**: Input and output token counts for each model
+- **Cost Breakdown**: Individual costs per model and operation
+- **Model Distribution**: Which models were used and how many times
+- **Total Cost**: Aggregate cost for the entire workflow execution
+
+## Pricing Options
+
+<Tabs items={['Hosted Models', 'Bring Your Own API Key']}>
+  <Tab>
+    **Hosted Models** - Sim provides API keys with a 2.5x pricing multiplier:
+    
+    | Model | Base Price (Input/Output) | Hosted Price (Input/Output) |
+    |-------|---------------------------|----------------------------|
+    | GPT-4o | $2.50 / $10.00 | $6.25 / $25.00 |
+    | GPT-4.1 | $2.00 / $8.00 | $5.00 / $20.00 |
+    | o1 | $15.00 / $60.00 | $37.50 / $150.00 |
+    | o3 | $2.00 / $8.00 | $5.00 / $20.00 |
+    | Claude 3.5 Sonnet | $3.00 / $15.00 | $7.50 / $37.50 |
+    | Claude Opus 4.0 | $15.00 / $75.00 | $37.50 / $187.50 |
+    
+    *The 2.5x multiplier covers infrastructure and API management costs.*
+  </Tab>
+  
+  <Tab>
+    **Your Own API Keys** - Use any model at base pricing:
+    
+    | Provider | Models | Input / Output |
+    |----------|---------|----------------|
+    | Google | Gemini 2.5 | $0.15 / $0.60 |
+    | Deepseek | V3, R1 | $0.75 / $1.00 |
+    | xAI | Grok 4, Grok 3 | $5.00 / $25.00 |
+    | Groq | Llama 4 Scout | $0.40 / $0.60 |
+    | Cerebras | Llama 3.3 70B | $0.94 / $0.94 |
+    | Ollama | Local models | Free |
+    
+    *Pay providers directly with no markup*
+  </Tab>
+</Tabs>
+
+<Callout type="warning">
+  Pricing shown reflects rates as of September 10, 2025. Check provider documentation for current pricing.
+</Callout>
+
+## Cost Optimization Strategies
+
+<Accordions>
+  <Accordion title="Model Selection">
+    Choose models based on task complexity. Simple tasks can use GPT-4.1-nano ($0.10/$0.40) while complex reasoning might need o1 or Claude Opus.
+  </Accordion>
+  
+  <Accordion title="Prompt Engineering">
+    Well-structured, concise prompts reduce token usage without sacrificing quality.
+  </Accordion>
+  
+  <Accordion title="Local Models">
+    Use Ollama for non-critical tasks to eliminate API costs entirely.
+  </Accordion>
+  
+  <Accordion title="Caching and Reuse">
+    Store frequently used results in variables or files to avoid repeated AI model calls.
+  </Accordion>
+  
+  <Accordion title="Batch Processing">
+    Process multiple items in a single AI request rather than making individual calls.
+  </Accordion>
+</Accordions>
+
+## Usage Monitoring
+
+Monitor your usage and billing in Settings → Subscription:
+
+- **Current Usage**: Real-time usage and costs for the current period
+- **Usage Limits**: Plan limits with visual progress indicators
+- **Billing Details**: Projected charges and minimum commitments
+- **Plan Management**: Upgrade options and billing history
+
+### Programmatic Usage Tracking
+
+You can query your current usage and limits programmatically using the API:
+
+**Endpoint:**
+```text
+GET /api/users/me/usage-limits
+```
+
+**Authentication:**
+- Include your API key in the `X-API-Key` header
+
+**Example Request:**
+```bash
+curl -X GET -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" https://sim.ai/api/users/me/usage-limits
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "rateLimit": {
+    "sync": { "isLimited": false, "limit": 10, "remaining": 10, "resetAt": "2025-09-08T22:51:55.999Z" },
+    "async": { "isLimited": false, "limit": 50, "remaining": 50, "resetAt": "2025-09-08T22:51:56.155Z" },
+    "authType": "api"
+  },
+  "usage": {
+    "currentPeriodCost": 12.34,
+    "limit": 100,
+    "plan": "pro"
+  }
+}
+```
+
+**Response Fields:**
+- `currentPeriodCost` reflects usage in the current billing period
+- `limit` is derived from individual limits (Free/Pro) or pooled organization limits (Team/Enterprise)
+- `plan` is the highest-priority active plan associated with your user
+
+## Plan Limits
+
+Different subscription plans have different usage limits:
+
+| Plan | Monthly Usage Limit | Rate Limits (per minute) |
+|------|-------------------|-------------------------|
+| **Free** | $10 | 5 sync, 10 async |
+| **Pro** | $100 | 10 sync, 50 async |
+| **Team** | $500 (pooled) | 50 sync, 100 async |
+| **Enterprise** | Custom | Custom |
+
+## Cost Management Best Practices
+
+1. **Monitor Regularly**: Check your usage dashboard frequently to avoid surprises
+2. **Set Budgets**: Use plan limits as guardrails for your spending
+3. **Optimize Workflows**: Review high-cost executions and optimize prompts or model selection
+4. **Use Appropriate Models**: Match model complexity to task requirements
+5. **Batch Similar Tasks**: Combine multiple requests when possible to reduce overhead
+
+## Next Steps
+
+- Review your current usage in [Settings → Subscription](https://sim.ai/settings/subscription)
+- Learn about [Logging](/execution/logging) to track execution details
+- Explore the [External API](/execution/api) for programmatic cost monitoring
+- Check out [workflow optimization techniques](/blocks) to reduce costs

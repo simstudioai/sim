@@ -1,0 +1,96 @@
+---
+title: Environment Variables
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+Environment variables provide a secure way to manage configuration values and secrets across your workflows, including API keys and other sensitive data that your workflows need to access. They keep secrets out of your workflow definitions while making them available during execution.
+
+## Variable Types
+
+Environment variables in Sim work at two levels:
+
+- **Personal Environment Variables**: Private to your account, only you can see and use them
+- **Workspace Environment Variables**: Shared across the entire workspace, available to all team members
+
+<Callout type="info">
+Workspace environment variables take precedence over personal ones when there's a naming conflict.
+</Callout>
+
+## Setting up Environment Variables
+
+Navigate to Settings to configure your environment variables:
+
+<Image
+  src="/static/environment/environment-1.png"
+  alt="Environment variables modal for creating new variables"
+  width={500}
+  height={350}
+/>
+
+From your workspace settings, you can create and manage both personal and workspace-level environment variables. Personal variables are private to your account, while workspace variables are shared with all team members.
+
+### Making Variables Workspace-Scoped
+
+Use the workspace scope toggle to make variables available to your entire team:
+
+<Image
+  src="/static/environment/environment-2.png"
+  alt="Toggle workspace scope for environment variables"
+  width={500}
+  height={350}
+/>
+
+When you enable workspace scope, the variable becomes available to all workspace members and can be used in any workflow within that workspace.
+
+### Workspace Variables View
+
+Once you have workspace-scoped variables, they appear in your environment variables list:
+
+<Image
+  src="/static/environment/environment-3.png"
+  alt="Workspace-scoped variables in the environment variables list"
+  width={500}
+  height={350}
+/>
+
+## Using Variables in Workflows
+
+To reference environment variables in your workflows, use the `{{}}` notation. When you type `{{` in any input field, a dropdown will appear showing both your personal and workspace-level environment variables. Simply select the variable you want to use.
+
+<Image
+  src="/static/environment/environment-4.png"
+  alt="Using environment variables with double brace notation"
+  width={500}
+  height={350}
+/>
+
+## Variable Precedence
+
+When you have both personal and workspace variables with the same name:
+
+1. **Workspace variables take precedence** over personal variables
+2. This prevents naming conflicts and ensures consistent behavior across team workflows
+3. If a workspace variable exists, the personal variable with the same name is ignored
+
+<Callout type="warning">
+Choose variable names carefully to avoid unintended overrides. Consider prefixing personal variables with your initials or workspace variables with the project name.
+</Callout>
+
+## Security Best Practices
+
+### For Sensitive Data
+- Store API keys, tokens, and passwords as environment variables instead of hardcoding them
+- Use workspace variables for shared resources that multiple team members need
+- Keep personal credentials in personal variables
+
+### Variable Naming
+- Use descriptive names: `DATABASE_URL` instead of `DB`
+- Follow consistent naming conventions across your team
+- Consider prefixes to avoid conflicts: `PROD_API_KEY`, `DEV_API_KEY`
+
+### Access Control
+- Workspace environment variables respect workspace permissions
+- Only users with write access or higher can create/modify workspace variables
+- Personal variables are always private to the individual user

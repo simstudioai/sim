@@ -1,25 +1,25 @@
 {
   "title": "Sim Documentation",
   "pages": [
-    "---Introduction---",
     "./introduction/index",
     "./getting-started/index",
-    "---Create---",
+    "---Building Workflows---",
     "triggers",
     "blocks",
     "tools",
-    "---Connections---",
     "connections",
+    "mcp",
+    "copilot",
+    "knowledgebase",
+    "---Configuration---",
+    "variables",
     "---Execution---",
     "execution",
-    "---Copilot---",
-    "copilot",
     "---Advanced---",
-    "./variables/index",
+    "permissions",
     "yaml",
     "---SDKs---",
-    "./sdks/python",
-    "./sdks/typescript"
+    "sdks"
   ],
-  "defaultOpen": true
+  "defaultOpen": false
 }

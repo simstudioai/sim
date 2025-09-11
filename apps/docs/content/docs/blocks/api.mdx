@@ -1,22 +1,23 @@
 ---
 title: API
-description: Connect to external services through API endpoints
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { ThemeImage } from '@/components/ui/theme-image'
+import { Image } from '@/components/ui/image'
 
-The API block enables you to connect your workflow to external services through HTTP requests. It supports various methods like GET, POST, PUT, DELETE, and PATCH, allowing you to interact with virtually any API endpoint.
+The API block enables you to connect your workflow to external services through API endpoints using HTTP requests. It supports various methods like GET, POST, PUT, DELETE, and PATCH, allowing you to interact with virtually any API endpoint.
 
-<ThemeImage
-  lightSrc="/static/light/api-light.png"
-  darkSrc="/static/dark/api-dark.png"
-  alt="API Block"
-  width={350}
-  height={175}
-/>
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/api.png"
+    alt="API Block"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
 
 ## Overview
 
@@ -36,6 +37,15 @@ The API block enables you to:
     <strong>Handle authentication</strong>: Support various auth methods including Bearer tokens and API keys
   </Step>
 </Steps>
+
+## How It Works
+
+The API block processes HTTP requests through a structured approach:
+
+1. **Configure Request** - Set URL, method, headers, and body parameters
+2. **Execute Request** - Send HTTP request to the specified endpoint
+3. **Process Response** - Handle response data, status codes, and headers
+4. **Error Handling** - Manage timeouts, retries, and error conditions
 
 ## Configuration Options
 
@@ -202,18 +212,6 @@ if (<api.status> === 200) {
   </ol>
 </div>
 
-### Create Support Ticket
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Submit support request to ticketing system</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Agent analyzes user issue and generates ticket data</li>
-    <li>API block POSTs ticket to support system</li>
-    <li>Condition block checks if ticket was created successfully</li>
-    <li>Response block confirms ticket creation with ID</li>
-  </ol>
-</div>
-
 ### Payment Processing
 
 <div className="mb-4 rounded-md border p-4">
@@ -222,7 +220,7 @@ if (<api.status> === 200) {
     <li>Function block validates payment data</li>
     <li>API block creates payment intent via Stripe</li>
     <li>Condition block handles payment success/failure</li>
-    <li>Function block updates order status in database</li>
+    <li>Supabase block updates order status in database</li>
   </ol>
 </div>
 

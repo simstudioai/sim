@@ -1,4 +1,5 @@
 {
   "title": "Copilot",
-  "pages": ["index"]
+  "pages": ["index"],
+  "defaultOpen": false
 }

@@ -1,6 +1,6 @@
+import defaultMdxComponents from 'fumadocs-ui/mdx'
 import { DocsBody, DocsDescription, DocsPage, DocsTitle } from 'fumadocs-ui/page'
 import { notFound } from 'next/navigation'
-import mdxComponents from '@/components/mdx-components'
 import { source } from '@/lib/source'
 
 export const dynamic = 'force-dynamic'
@@ -36,7 +36,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
       <DocsBody>
-        <MDX components={mdxComponents} />
+        <MDX components={defaultMdxComponents} />
       </DocsBody>
     </DocsPage>
   )
