@@ -1,5 +1,5 @@
 {
   "title": "Connections",
-  "pages": ["basics", "tags", "data-structure", "accessing-data"],
+  "pages": ["basics", "tags", "data-structure"],
   "defaultOpen": false
 }
