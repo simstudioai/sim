@@ -43,164 +43,25 @@ The Function block enables you to:
 The Function block runs your code in a secure, isolated environment:
 
 1. **Receive Input**: Access data from previous blocks via the `input` object
-2. **Execute Code**: Run your JavaScript/TypeScript code 
+2. **Execute Code**: Run your JavaScript/Python code 
 3. **Return Results**: Use `return` to pass data to the next block
 4. **Handle Errors**: Built-in error handling and logging
 
-## Configuration Options
+## Remote Execution (E2B)
 
-### Code Editor
-
-Write your JavaScript/TypeScript code in a full-featured editor with:
-- Syntax highlighting and error checking
-- Line numbers and bracket matching
-- Support for modern JavaScript features
-- Native support for `fetch` 
-
-### Accessing Input Data
-
-Use the `input` object to access data from previous blocks:
-
-```javascript
-// Access data from connected blocks
-const userData = <agent.userData>;
-const orderData = <agent.orderData>;
-
-// Access specific fields
-const customerName = <agent.customer.name>;
-const total = <agent.order.total>;
-```
-
-### Common Examples
-
-**Data Transformation**:
-```javascript
-// Convert and format data
-const formatted = {
-  name: <agent.user.firstName> + ' ' + <agent.user.lastName>,
-  email: <agent.user.email>.toLowerCase(),
-  joinDate: new Date(<agent.user.created>).toLocaleDateString()
-};
-return formatted;
-```
-
-**Calculations**:
-```javascript
-// Calculate discounts and totals
-const subtotal = <agent.items>.reduce((sum, item) => sum + item.price, 0);
-const discount = subtotal > 100 ? 0.1 : 0;
-const total = subtotal * (1 - discount);
-
-return { subtotal, discount, total };
-```
-
-**Data Validation**:
-```javascript
-// Validate email format
-const email = <agent.email>;
-const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-
-if (!isValid) {
-  throw new Error('Invalid email format');
-}
-return { email, isValid };
-```
-
-### Accessing Results
-
-After a function executes, you can access its outputs:
-
-- **`<function.result>`**: The value returned from your function
-- **`<function.stdout>`**: Any console.log() output from your code
-
-## Advanced Features
-
-### Async/Await Support
-
-Use async functions for complex operations:
-
-```javascript
-// Async function example
-const processData = async () => {
-  const data = <api.response>;
-  
-  // Process data with async operations
-  const processed = await Promise.all(
-    data.map(async (item) => {
-      return {
-        id: item.id,
-        processed: true,
-        timestamp: new Date().toISOString()
-      };
-    })
-  );
-  
-  return processed;
-};
-
-return await processData();
-```
-
-### Error Handling
-
-Implement robust error handling:
-
-```javascript
-try {
-  const result = <api.data>;
-  
-  if (!result || !result.length) {
-    throw new Error('No data received');
-  }
-  
-  return result.map(item => ({
-    id: item.id,
-    name: item.name.trim(),
-    valid: true
-  }));
-} catch (error) {
-  console.error('Processing failed:', error.message);
-  return { error: error.message, valid: false };
-}
-```
-
-### Performance Optimization
-
-Optimize for large datasets:
-
-```javascript
-// Efficient data processing
-const data = <api.large_dataset>;
-
-// Use efficient array methods
-const processed = data
-  .filter(item => item.status === 'active')
-  .map(item => ({
-    id: item.id,
-    summary: item.description.substring(0, 100)
-  }))
-  .slice(0, 1000); // Limit results
-
-return processed;
-```
-
-## Security and Limitations
-
-<Callout type="warning">
-  Functions run in a secure environment with these restrictions:
-  - **Execution timeout**: 30 seconds maximum to prevent infinite loops
-  - **Memory limits**: Limited memory to prevent resource exhaustion
-  - **No network access**: Cannot make HTTP requests (use API blocks instead)
-  - **Limited APIs**: Only safe JavaScript APIs are available
-</Callout>
+  - **Languages**: Run JavaScript and Python in an isolated E2B sandbox.
+  - **How to enable**: Toggle “Remote Code Execution” in the Function block.
+  - **When to use**: Heavier logic, external libraries, or Python-specific code.
+  - **Performance**: Slower than local JS due to sandbox startup and network overhead.
+  - **Notes**: Requires `E2B_API_KEY` if running locally. For lowest latency, use natively local JS (Fast Mode).
 
 ## Inputs and Outputs
 
-<Tabs items={['Configuration', 'Variables', 'Results']}>
+<Tabs items={['Configuration', 'Variables']}>
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
-        <strong>Code</strong>: Your JavaScript/TypeScript code to execute
+        <strong>Code</strong>: Your JavaScript/Python code to execute
       </li>
       <li>
         <strong>Timeout</strong>: Maximum execution time (defaults to 30 seconds)
@@ -217,25 +78,6 @@ return processed;
       </li>
       <li>
         <strong>function.stdout</strong>: Console.log() output from your code
-      </li>
-      <li>
-        <strong>function.error</strong>: Error details if function failed
-      </li>
-      <li>
-        <strong>function.execution_time</strong>: Time taken to execute
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Function Result</strong>: Primary output from your code
-      </li>
-      <li>
-        <strong>Debug Information</strong>: Logs and execution details
-      </li>
-      <li>
-        <strong>Access</strong>: Available in blocks after the function
       </li>
     </ul>
   </Tab>
