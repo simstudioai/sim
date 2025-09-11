@@ -49,7 +49,6 @@ export default function Layout({ children }: { children: ReactNode }) {
           footer: null,
           banner: null,
         }}
-        className='fd-layout-no-border'
       >
         {children}
       </DocsLayout>
