@@ -27,9 +27,8 @@ Choose your input method from the dropdown:
   <Tab>
     <div className="space-y-4">
       <ul className="list-disc space-y-1 pl-6">
-        <li><strong>Structured inputs</strong>: Define specific parameters (text, number, boolean, JSON, file, date)</li>
-        <li><strong>Form interface</strong>: Users fill out a form with predefined fields</li>
-        <li><strong>API friendly</strong>: Perfect for programmatic execution</li>
+        <li><strong>API Friendly Structured inputs</strong>: Define specific parameters (text, number, boolean, JSON, file, date)</li>
+        <li><strong>Testing while Building Your Workflow</strong>: Quick iteration while debugging workflows</li>
       </ul>
       
       <div className="mx-auto w-full overflow-hidden rounded-lg">
@@ -43,8 +42,6 @@ Choose your input method from the dropdown:
     <div className="space-y-4">
       <ul className="list-disc space-y-1 pl-6">
         <li><strong>Natural language</strong>: Users type questions or requests</li>
-        <li><strong>start.input variable</strong>: Captures all user input as `<start.input>`</li>
-        <li><strong>start.conversationId</strong>: Access conversation ID as `<start.conversationId>`</li>
         <li><strong>Conversational</strong>: Ideal for AI-powered workflows</li>
       </ul>
       
@@ -61,36 +58,6 @@ Choose your input method from the dropdown:
 
 In Chat mode, access user input and conversation context through special variables:
 
-```yaml
-# Reference the chat input, conversation ID, and files in your workflow
-user_message: "<start.input>"
-conversation_id: "<start.conversationId>"
-uploaded_files: "<start.files>"
-```
-
 - **`<start.input>`** - Contains the user's message text
 - **`<start.conversationId>`** - Unique identifier for the conversation thread
 - **`<start.files>`** - Array of files uploaded by the user (if any)
-
-## API Execution
-
-<Tabs items={['Manual Mode', 'Chat Mode']}>
-  <Tab>
-    ```bash
-    curl -X POST "https://api.sim.dev/v1/workflows/{id}/start" \
-      -H "Authorization: Bearer {api-key}" \
-      -d '{"parameters": {"userId": "123", "action": "process"}}'
-    ```
-  </Tab>
-  <Tab>
-    ```bash
-    curl -X POST "https://api.sim.dev/v1/workflows/{id}/start" \
-      -H "Authorization: Bearer {api-key}" \
-      -d '{"input": "Analyze Q4 sales data"}'
-    ```
-  </Tab>
-</Tabs>
-
-<Callout>
-Starter blocks are ideal for testing workflows and user-initiated tasks. For automated execution, use Schedule or Webhook triggers.
-</Callout>
