@@ -1,6 +1,6 @@
+import { execFile } from "child_process";
 #!/usr/bin/env node
 
-import { execSync, spawn } from 'child_process'
 import { existsSync, mkdirSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
@@ -36,13 +36,22 @@ function isDockerRunning(): Promise<boolean> {
 
 async function runCommand(command: string[]): Promise<boolean> {
   return new Promise((resolve) => {
-    const process = spawn(command[0], command.slice(1), { stdio: 'inherit' })
-    process.on('error', () => {
-      resolve(false)
-    })
-    process.on('close', (code) => {
-      resolve(code === 0)
-    })
+const runCommand = (command: string): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    // Parse command to separate executable and arguments
+    const args = command.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
+    const cmd = args.shift() || "";
+    const cmdArgs = args.map(arg => arg.replace(/^"|"$/g, ""));
+    
+    execFile(cmd, cmdArgs, (error, stdout, stderr) => {
+      if (error) {
+        reject(error);
+      } else {
+        resolve(stdout);
+      }
+    });
+  });
+};
   })
 }
 
