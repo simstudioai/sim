@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { db } from '@/db'
-import { apiKey } from '@/db/schema'
+import { apiKey, workspace, workspaceApiKey } from '@/db/schema'
 
 const logger = createLogger('WorkflowMiddleware')
 
@@ -67,20 +67,55 @@ export async function validateWorkflowAccess(
           }
         }
       } else {
-        // Otherwise, verify the key belongs to the workflow owner
-        const [owned] = await db
+        // Check both personal API keys and workspace API keys
+
+        // First, check personal API keys belonging to the workflow owner
+        const [personalKey] = await db
           .select({ key: apiKey.key })
           .from(apiKey)
           .where(and(eq(apiKey.userId, workflow.userId), eq(apiKey.key, apiKeyHeader)))
           .limit(1)
 
-        if (!owned) {
+        // If not found in personal keys, check workspace API keys
+        let workspaceKey = null
+        if (!personalKey) {
+          const [wsKey] = await db
+            .select({
+              key: workspaceApiKey.key,
+              workspaceId: workspaceApiKey.workspaceId,
+              workspaceOwnerId: workspace.ownerId,
+            })
+            .from(workspaceApiKey)
+            .leftJoin(workspace, eq(workspaceApiKey.workspaceId, workspace.id))
+            .where(
+              and(
+                eq(workspaceApiKey.key, apiKeyHeader),
+                eq(workspace.id, workflow.workspaceId) // Key must belong to the same workspace as the workflow
+              )
+            )
+            .limit(1)
+
+          workspaceKey = wsKey
+        }
+
+        // If neither personal nor workspace key is valid, reject
+        if (!personalKey && !workspaceKey) {
           return {
             error: {
               message: 'Unauthorized: Invalid API key',
               status: 401,
             },
           }
+        }
+
+        // Update last used for the key that was found
+        if (personalKey) {
+          await db.update(apiKey).set({ lastUsed: new Date() }).where(eq(apiKey.key, apiKeyHeader))
+        } else if (workspaceKey) {
+          await db
+            .update(workspaceApiKey)
+            .set({ lastUsed: new Date() })
+            .where(eq(workspaceApiKey.key, apiKeyHeader))
         }
       }
     }

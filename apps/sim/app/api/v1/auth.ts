@@ -2,17 +2,22 @@ import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
-import { apiKey as apiKeyTable } from '@/db/schema'
+import { apiKey as apiKeyTable, workflow, workspace, workspaceApiKey } from '@/db/schema'
 
 const logger = createLogger('V1Auth')
 
 export interface AuthResult {
   authenticated: boolean
   userId?: string
+  workspaceId?: string
+  keyType?: 'personal' | 'workspace'
   error?: string
 }
 
-export async function authenticateApiKey(request: NextRequest): Promise<AuthResult> {
+export async function authenticateApiKey(
+  request: NextRequest,
+  workflowId?: string
+): Promise<AuthResult> {
   const apiKey = request.headers.get('x-api-key')
 
   if (!apiKey) {
@@ -23,7 +28,8 @@ export async function authenticateApiKey(request: NextRequest): Promise<AuthResu
   }
 
   try {
-    const [keyRecord] = await db
+    // First, check personal API keys
+    const [personalKey] = await db
       .select({
         userId: apiKeyTable.userId,
         expiresAt: apiKeyTable.expiresAt,
@@ -32,27 +38,87 @@ export async function authenticateApiKey(request: NextRequest): Promise<AuthResu
       .where(eq(apiKeyTable.key, apiKey))
       .limit(1)
 
-    if (!keyRecord) {
-      logger.warn('Invalid API key attempted', { keyPrefix: apiKey.slice(0, 8) })
+    if (personalKey) {
+      if (personalKey.expiresAt && personalKey.expiresAt < new Date()) {
+        logger.warn('Expired personal API key attempted', { userId: personalKey.userId })
+        return {
+          authenticated: false,
+          error: 'API key expired',
+        }
+      }
+
+      await db.update(apiKeyTable).set({ lastUsed: new Date() }).where(eq(apiKeyTable.key, apiKey))
+
       return {
-        authenticated: false,
-        error: 'Invalid API key',
+        authenticated: true,
+        userId: personalKey.userId,
+        keyType: 'personal',
       }
     }
 
-    if (keyRecord.expiresAt && keyRecord.expiresAt < new Date()) {
-      logger.warn('Expired API key attempted', { userId: keyRecord.userId })
+    // If not found in personal keys, check workspace API keys
+    const [workspaceKey] = await db
+      .select({
+        workspaceId: workspaceApiKey.workspaceId,
+        expiresAt: workspaceApiKey.expiresAt,
+        workspaceOwnerId: workspace.ownerId,
+      })
+      .from(workspaceApiKey)
+      .leftJoin(workspace, eq(workspaceApiKey.workspaceId, workspace.id))
+      .where(eq(workspaceApiKey.key, apiKey))
+      .limit(1)
+
+    if (workspaceKey) {
+      if (workspaceKey.expiresAt && workspaceKey.expiresAt < new Date()) {
+        logger.warn('Expired workspace API key attempted', {
+          workspaceId: workspaceKey.workspaceId,
+        })
+        return {
+          authenticated: false,
+          error: 'API key expired',
+        }
+      }
+
+      // If a workflowId is provided, verify that the workflow belongs to this workspace
+      if (workflowId) {
+        const [workflowRecord] = await db
+          .select({
+            workspaceId: workflow.workspaceId,
+          })
+          .from(workflow)
+          .where(eq(workflow.id, workflowId))
+          .limit(1)
+
+        if (!workflowRecord || workflowRecord.workspaceId !== workspaceKey.workspaceId) {
+          logger.warn('Workspace API key attempted to access workflow from different workspace', {
+            workspaceId: workspaceKey.workspaceId,
+            workflowId,
+            workflowWorkspaceId: workflowRecord?.workspaceId,
+          })
+          return {
+            authenticated: false,
+            error: 'API key not authorized for this workflow',
+          }
+        }
+      }
+
+      await db
+        .update(workspaceApiKey)
+        .set({ lastUsed: new Date() })
+        .where(eq(workspaceApiKey.key, apiKey))
+
       return {
-        authenticated: false,
-        error: 'API key expired',
+        authenticated: true,
+        userId: workspaceKey.workspaceOwnerId!, // Workspace owner is the effective user
+        workspaceId: workspaceKey.workspaceId,
+        keyType: 'workspace',
       }
     }
 
-    await db.update(apiKeyTable).set({ lastUsed: new Date() }).where(eq(apiKeyTable.key, apiKey))
-
+    logger.warn('Invalid API key attempted', { keyPrefix: apiKey.slice(0, 8) })
     return {
-      authenticated: true,
-      userId: keyRecord.userId,
+      authenticated: false,
+      error: 'Invalid API key',
     }
   } catch (error) {
     logger.error('API key authentication error', { error })

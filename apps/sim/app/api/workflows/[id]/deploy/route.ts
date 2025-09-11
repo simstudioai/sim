@@ -6,7 +6,14 @@ import { generateApiKey, generateRequestId } from '@/lib/utils'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
-import { apiKey, workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@/db/schema'
+import {
+  apiKey,
+  workflow,
+  workflowBlocks,
+  workflowEdges,
+  workflowSubflows,
+  workspaceApiKey,
+} from '@/db/schema'
 
 const logger = createLogger('WorkflowDeployAPI')
 
@@ -313,15 +320,41 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       userKey = userApiKey[0].key
     }
 
-    // If client provided a specific API key and it belongs to the user, prefer it
+    // If client provided a specific API key, check if it's either personal or workspace key
     if (providedApiKey) {
-      const [owned] = await db
+      // First check personal API keys
+      const [personalOwned] = await db
         .select({ key: apiKey.key })
         .from(apiKey)
         .where(and(eq(apiKey.userId, userId), eq(apiKey.key, providedApiKey)))
         .limit(1)
-      if (owned) {
+
+      if (personalOwned) {
         userKey = providedApiKey
+      } else {
+        // Check workspace API keys - get the workflow's workspace ID
+        const [workflowData] = await db
+          .select({ workspaceId: workflow.workspaceId })
+          .from(workflow)
+          .where(eq(workflow.id, id))
+          .limit(1)
+
+        if (workflowData) {
+          const [workspaceOwned] = await db
+            .select({ key: workspaceApiKey.key })
+            .from(workspaceApiKey)
+            .where(
+              and(
+                eq(workspaceApiKey.workspaceId, workflowData.workspaceId),
+                eq(workspaceApiKey.key, providedApiKey)
+              )
+            )
+            .limit(1)
+
+          if (workspaceOwned) {
+            userKey = providedApiKey
+          }
+        }
       }
     }
 
@@ -338,13 +371,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     await db.update(workflow).set(updateData).where(eq(workflow.id, id))
 
-    // Update lastUsed for the key we returned
+    // Update lastUsed for the key we returned (try both personal and workspace keys)
     if (userKey) {
       try {
-        await db
+        // First try to update personal API key
+        const personalResult = await db
           .update(apiKey)
           .set({ lastUsed: new Date(), updatedAt: new Date() })
           .where(eq(apiKey.key, userKey))
+
+        // If no personal key was updated, try workspace API key
+        if (!personalResult || personalResult.rowCount === 0) {
+          await db
+            .update(workspaceApiKey)
+            .set({ lastUsed: new Date(), updatedAt: new Date() })
+            .where(eq(workspaceApiKey.key, userKey))
+        }
       } catch (e) {
         logger.warn(`[${requestId}] Failed to update lastUsed for api key`)
       }

@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
@@ -57,9 +57,30 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
 
     // Validate the request
-    const { name } = body
-    if (!name || typeof name !== 'string') {
+    const { name: rawName } = body
+    if (!rawName || typeof rawName !== 'string') {
       return NextResponse.json({ error: 'Invalid request. Name is required.' }, { status: 400 })
+    }
+
+    const name = rawName.trim()
+    if (!name) {
+      return NextResponse.json({ error: 'Name cannot be empty.' }, { status: 400 })
+    }
+
+    // Check if a key with this name already exists for the user
+    const existingKey = await db
+      .select()
+      .from(apiKey)
+      .where(and(eq(apiKey.userId, userId), eq(apiKey.name, name)))
+      .limit(1)
+
+    if (existingKey.length > 0) {
+      return NextResponse.json(
+        {
+          error: `A personal API key named "${name}" already exists. Please choose a different name.`,
+        },
+        { status: 409 }
+      )
     }
 
     const keyValue = generateApiKey()

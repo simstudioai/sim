@@ -1370,3 +1370,33 @@ export const mcpServers = pgTable(
     ),
   })
 )
+
+export const workspaceApiKey = pgTable(
+  'workspace_api_key',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    name: text('name').notNull(),
+    key: text('key').notNull().unique(),
+    lastUsed: timestamp('last_used'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    expiresAt: timestamp('expires_at'),
+  },
+  (table) => ({
+    // Primary access pattern - workspace keys for a specific workspace
+    workspaceIdIdx: index('workspace_api_key_workspace_id_idx').on(table.workspaceId),
+    // Ensure key names are unique within a workspace
+    workspaceNameUnique: uniqueIndex('workspace_api_key_workspace_name_idx').on(
+      table.workspaceId,
+      table.name
+    ),
+    // Index for key lookups during API authentication
+    keyIdx: index('workspace_api_key_key_idx').on(table.key),
+    // Creator tracking
+    createdByIdx: index('workspace_api_key_created_by_idx').on(table.createdBy),
+  })
+)

@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Copy, Plus, Search } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,13 +17,16 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 
 const logger = createLogger('ApiKeys')
 
 interface ApiKeysProps {
   onOpenChange?: (open: boolean) => void
+  registerCloseHandler?: (handler: (open: boolean) => void) => void
 }
 
 interface ApiKey {
@@ -32,15 +36,28 @@ interface ApiKey {
   lastUsed?: string
   createdAt: string
   expiresAt?: string
+  createdBy?: string
 }
 
-export function ApiKeys({ onOpenChange }: ApiKeysProps) {
+interface WorkspaceApiKey extends ApiKey {
+  createdBy?: string
+}
+
+export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
   const { data: session } = useSession()
   const userId = session?.user?.id
+  const params = useParams()
+  const workspaceId = (params?.workspaceId as string) || ''
+  const userPermissions = useUserPermissionsContext()
+  const canManageWorkspaceKeys = userPermissions.canEdit || userPermissions.canAdmin
 
-  const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
+  // State for both workspace and personal keys
+  const [workspaceKeys, setWorkspaceKeys] = useState<WorkspaceApiKey[]>([])
+  const [personalKeys, setPersonalKeys] = useState<ApiKey[]>([])
+  const [conflicts, setConflicts] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [isCreating, setIsCreating] = useState(false)
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [isSubmittingCreate, setIsSubmittingCreate] = useState(false)
   const [newKeyName, setNewKeyName] = useState('')
   const [newKey, setNewKey] = useState<ApiKey | null>(null)
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
@@ -49,22 +66,88 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
   const [copySuccess, setCopySuccess] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [deleteConfirmationName, setDeleteConfirmationName] = useState('')
+  const [keyType, setKeyType] = useState<'personal' | 'workspace'>('personal')
+  const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false)
+  const [showUnsavedChanges, setShowUnsavedChanges] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [renamingKey, setRenamingKey] = useState<{
+    id: string
+    type: 'workspace' | 'personal'
+  } | null>(null)
+  const [pendingKeyValue, setPendingKeyValue] = useState<string>('')
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const pendingClose = useRef(false)
+  const initialWorkspaceKeysRef = useRef<WorkspaceApiKey[]>([])
+  const initialPersonalKeysRef = useRef<ApiKey[]>([])
 
   // Filter API keys based on search term
-  const filteredApiKeys = apiKeys.filter((key) =>
-    key.name.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredWorkspaceKeys = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return workspaceKeys.map((key, index) => ({ key, originalIndex: index }))
+    }
+    return workspaceKeys
+      .map((key, index) => ({ key, originalIndex: index }))
+      .filter(({ key }) => key.name.toLowerCase().includes(searchTerm.toLowerCase()))
+  }, [workspaceKeys, searchTerm])
 
-  // Fetch API keys
+  const filteredPersonalKeys = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return personalKeys.map((key, index) => ({ key, originalIndex: index }))
+    }
+    return personalKeys
+      .map((key, index) => ({ key, originalIndex: index }))
+      .filter(({ key }) => key.name.toLowerCase().includes(searchTerm.toLowerCase()))
+  }, [personalKeys, searchTerm])
+
+  const personalHeaderMarginClass = useMemo(() => {
+    if (!searchTerm.trim()) return 'mt-8'
+    return filteredWorkspaceKeys.length > 0 ? 'mt-8' : 'mt-0'
+  }, [searchTerm, filteredWorkspaceKeys])
+
+  const hasChanges = useMemo(() => {
+    const initialWorkspace = initialWorkspaceKeysRef.current
+    const initialPersonal = initialPersonalKeysRef.current
+
+    return (
+      JSON.stringify(workspaceKeys) !== JSON.stringify(initialWorkspace) ||
+      JSON.stringify(personalKeys) !== JSON.stringify(initialPersonal)
+    )
+  }, [workspaceKeys, personalKeys])
+
+  const hasConflicts = useMemo(() => {
+    return conflicts.length > 0
+  }, [conflicts])
+
+  // Fetch both workspace and personal API keys
   const fetchApiKeys = async () => {
-    if (!userId) return
+    if (!userId || !workspaceId) return
 
     setIsLoading(true)
     try {
-      const response = await fetch('/api/users/me/api-keys')
-      if (response.ok) {
-        const data = await response.json()
-        setApiKeys(data.keys || [])
+      const [workspaceResponse, personalResponse] = await Promise.all([
+        fetch(`/api/workspaces/${workspaceId}/api-keys`),
+        fetch('/api/users/me/api-keys'),
+      ])
+
+      if (workspaceResponse.ok) {
+        const workspaceData = await workspaceResponse.json()
+        setWorkspaceKeys(workspaceData.data?.workspace || [])
+        setPersonalKeys(workspaceData.data?.personal || [])
+        setConflicts(workspaceData.data?.conflicts || [])
+
+        // Store initial values for change detection
+        initialWorkspaceKeysRef.current = JSON.parse(
+          JSON.stringify(workspaceData.data?.workspace || [])
+        )
+        initialPersonalKeysRef.current = JSON.parse(
+          JSON.stringify(workspaceData.data?.personal || [])
+        )
+      } else if (personalResponse.ok) {
+        // Fallback to personal keys only if workspace request fails
+        const personalData = await personalResponse.json()
+        setPersonalKeys(personalData.keys || [])
+        initialPersonalKeysRef.current = JSON.parse(JSON.stringify(personalData.keys || []))
       }
     } catch (error) {
       logger.error('Error fetching API keys:', { error })
@@ -77,9 +160,30 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
   const handleCreateKey = async () => {
     if (!userId || !newKeyName.trim()) return
 
-    setIsCreating(true)
+    // Client-side duplicate check to provide immediate feedback and avoid closing the dialog
+    const trimmedName = newKeyName.trim()
+    const isDuplicate =
+      keyType === 'workspace'
+        ? workspaceKeys.some((k) => k.name === trimmedName)
+        : personalKeys.some((k) => k.name === trimmedName)
+    if (isDuplicate) {
+      setCreateError(
+        keyType === 'workspace'
+          ? `A workspace API key named "${trimmedName}" already exists. Please choose a different name.`
+          : `A personal API key named "${trimmedName}" already exists. Please choose a different name.`
+      )
+      return
+    }
+
+    setIsSubmittingCreate(true)
+    setCreateError(null)
     try {
-      const response = await fetch('/api/users/me/api-keys', {
+      const url =
+        keyType === 'workspace'
+          ? `/api/workspaces/${workspaceId}/api-keys`
+          : '/api/users/me/api-keys'
+
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -96,13 +200,42 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
         setShowNewKeyDialog(true)
         // Refresh the keys list
         fetchApiKeys()
-        // Close the create dialog
-        setIsCreating(false)
+        // Clear form and close the create dialog ONLY on success
+        setNewKeyName('')
+        setKeyType('personal')
+        setCreateError(null)
+        setIsSubmittingCreate(false)
+        setIsCreateDialogOpen(false)
+      } else {
+        let errorData
+        try {
+          errorData = await response.json()
+        } catch (parseError) {
+          logger.error('Error parsing API response:', parseError)
+          errorData = { error: 'Server error' }
+        }
+
+        logger.error('API key creation failed:', { status: response.status, errorData })
+
+        // Check for duplicate name error and prefer server-provided message
+        const serverMessage = typeof errorData?.error === 'string' ? errorData.error : null
+        if (response.status === 409 || serverMessage?.toLowerCase().includes('already exists')) {
+          const errorMessage =
+            serverMessage ||
+            (keyType === 'workspace'
+              ? `A workspace API key named "${trimmedName}" already exists. Please choose a different name.`
+              : `A personal API key named "${trimmedName}" already exists. Please choose a different name.`)
+          logger.error('Setting error message:', errorMessage)
+          setCreateError(errorMessage)
+        } else {
+          setCreateError(errorData.error || 'Failed to create API key. Please try again.')
+        }
       }
     } catch (error) {
+      setCreateError('Failed to create API key. Please check your connection and try again.')
       logger.error('Error creating API key:', { error })
     } finally {
-      setIsCreating(false)
+      setIsSubmittingCreate(false)
     }
   }
 
@@ -111,7 +244,12 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
     if (!userId || !deleteKey) return
 
     try {
-      const response = await fetch(`/api/users/me/api-keys/${deleteKey.id}`, {
+      const isWorkspaceKey = workspaceKeys.some((k) => k.id === deleteKey.id)
+      const url = isWorkspaceKey
+        ? `/api/workspaces/${workspaceId}/api-keys/${deleteKey.id}`
+        : `/api/users/me/api-keys/${deleteKey.id}`
+
+      const response = await fetch(url, {
         method: 'DELETE',
       })
 
@@ -121,6 +259,10 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
         // Close the dialog
         setShowDeleteDialog(false)
         setDeleteKey(null)
+        setDeleteConfirmationName('')
+      } else {
+        const errorData = await response.json()
+        logger.error('Failed to delete API key:', errorData)
       }
     } catch (error) {
       logger.error('Error deleting API key:', { error })
@@ -134,12 +276,84 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
     setTimeout(() => setCopySuccess(false), 2000)
   }
 
+  // Modal close handler
+  const handleModalClose = (open: boolean) => {
+    if (!open && hasChanges) {
+      setShowUnsavedChanges(true)
+      pendingClose.current = true
+    } else {
+      onOpenChange?.(open)
+    }
+  }
+
+  // Handle workspace key rename
+  const handleWorkspaceKeyRename = useCallback(
+    (keyId: string, currentName: string) => {
+      const newName = pendingKeyValue.trim()
+      if (!renamingKey || renamingKey.id !== keyId || renamingKey.type !== 'workspace') return
+      setRenamingKey(null)
+      if (!newName || newName === currentName) return
+
+      setWorkspaceKeys((prev) =>
+        prev.map((key) => (key.id === keyId ? { ...key, name: newName } : key))
+      )
+
+      setConflicts((prev) => {
+        const withoutOld = prev.filter((k) => k !== currentName)
+        const personalHasNew = personalKeys.some((k) => k.name === newName)
+        return personalHasNew && !withoutOld.includes(newName)
+          ? [...withoutOld, newName]
+          : withoutOld
+      })
+    },
+    [pendingKeyValue, renamingKey, personalKeys]
+  )
+
+  // Handle personal key rename
+  const handlePersonalKeyRename = useCallback(
+    (keyId: string, currentName: string) => {
+      const newName = pendingKeyValue.trim()
+      if (!renamingKey || renamingKey.id !== keyId || renamingKey.type !== 'personal') return
+      setRenamingKey(null)
+      if (!newName || newName === currentName) return
+
+      setPersonalKeys((prev) =>
+        prev.map((key) => (key.id === keyId ? { ...key, name: newName } : key))
+      )
+
+      setConflicts((prev) => {
+        const withoutOld = prev.filter((k) => k !== currentName)
+        const workspaceHasNew = workspaceKeys.some((k) => k.name === newName)
+        return workspaceHasNew && !withoutOld.includes(newName)
+          ? [...withoutOld, newName]
+          : withoutOld
+      })
+    },
+    [pendingKeyValue, renamingKey, workspaceKeys]
+  )
+
   // Load API keys on mount
   useEffect(() => {
-    if (userId) {
+    if (userId && workspaceId) {
       fetchApiKeys()
     }
-  }, [userId])
+  }, [userId, workspaceId])
+
+  useEffect(() => {
+    if (registerCloseHandler) {
+      registerCloseHandler(handleModalClose)
+    }
+  }, [registerCloseHandler, hasChanges])
+
+  useEffect(() => {
+    if (shouldScrollToBottom && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({
+        top: scrollContainerRef.current.scrollHeight,
+        behavior: 'smooth',
+      })
+      setShouldScrollToBottom(false)
+    }
+  }, [shouldScrollToBottom])
 
   // Format date
   const formatDate = (dateString?: string) => {
@@ -172,7 +386,10 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
       </div>
 
       {/* Scrollable Content */}
-      <div className='scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'>
+      <div
+        ref={scrollContainerRef}
+        className='scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'
+      >
         <div className='h-full space-y-2 py-2'>
           {isLoading ? (
             <div className='space-y-2'>
@@ -180,50 +397,179 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
               <ApiKeySkeleton />
               <ApiKeySkeleton />
             </div>
-          ) : apiKeys.length === 0 ? (
+          ) : personalKeys.length === 0 && workspaceKeys.length === 0 ? (
             <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
               Click "Create Key" below to get started
             </div>
           ) : (
-            <div className='space-y-2'>
-              {filteredApiKeys.map((key) => (
-                <div key={key.id} className='flex flex-col gap-2'>
-                  <Label className='font-normal text-muted-foreground text-xs uppercase'>
-                    {key.name}
-                  </Label>
-                  <div className='flex items-center justify-between gap-4'>
-                    <div className='flex items-center gap-3'>
-                      <div className='flex h-8 items-center rounded-[8px] bg-muted px-3'>
-                        <code className='font-mono text-foreground text-xs'>
-                          •••••{key.key.slice(-6)}
-                        </code>
+            <>
+              {/* Workspace section */}
+              {!searchTerm.trim() ? (
+                <div className='mb-6 space-y-2'>
+                  <div className='font-medium text-[13px] text-foreground'>Workspace</div>
+                  {workspaceKeys.length === 0 ? (
+                    <div className='text-muted-foreground text-sm'>No workspace API keys yet.</div>
+                  ) : (
+                    workspaceKeys.map((key) => (
+                      <div key={key.id} className='flex flex-col gap-2'>
+                        <Label className='font-normal text-muted-foreground text-xs uppercase'>
+                          <Input
+                            value={
+                              renamingKey?.id === key.id && renamingKey?.type === 'workspace'
+                                ? pendingKeyValue
+                                : key.name
+                            }
+                            onChange={(e) => {
+                              if (renamingKey?.id !== key.id || renamingKey?.type !== 'workspace') {
+                                setRenamingKey({ id: key.id, type: 'workspace' })
+                              }
+                              setPendingKeyValue(e.target.value)
+                            }}
+                            onBlur={() => handleWorkspaceKeyRename(key.id, key.name)}
+                            className='h-6 border-none bg-transparent p-0 font-normal text-muted-foreground text-xs uppercase'
+                            disabled={!canManageWorkspaceKeys}
+                          />
+                        </Label>
+                        <div className='flex items-center justify-between gap-4'>
+                          <div className='flex items-center gap-3'>
+                            <div className='flex h-8 items-center rounded-[8px] bg-muted px-3'>
+                              <code className='font-mono text-foreground text-xs'>
+                                •••••{key.key.slice(-6)}
+                              </code>
+                            </div>
+                            <p className='text-muted-foreground text-xs'>
+                              Last used: {formatDate(key.lastUsed)}
+                            </p>
+                          </div>
+                          <div className='flex items-center gap-2'>
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              onClick={() => {
+                                setDeleteKey(key)
+                                setShowDeleteDialog(true)
+                              }}
+                              className='h-8 text-muted-foreground hover:text-foreground'
+                              disabled={!canManageWorkspaceKeys}
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </div>
                       </div>
-                      <p className='text-muted-foreground text-xs'>
-                        Last used: {formatDate(key.lastUsed)}
-                      </p>
+                    ))
+                  )}
+                </div>
+              ) : filteredWorkspaceKeys.length > 0 ? (
+                <div className='mb-6 space-y-2'>
+                  <div className='font-medium text-[13px] text-foreground'>Workspace</div>
+                  {filteredWorkspaceKeys.map(({ key }) => (
+                    <div key={key.id} className='flex flex-col gap-2'>
+                      <Label className='font-normal text-muted-foreground text-xs uppercase'>
+                        {key.name}
+                      </Label>
+                      <div className='flex items-center justify-between gap-4'>
+                        <div className='flex items-center gap-3'>
+                          <div className='flex h-8 items-center rounded-[8px] bg-muted px-3'>
+                            <code className='font-mono text-foreground text-xs'>
+                              •••••{key.key.slice(-6)}
+                            </code>
+                          </div>
+                          <p className='text-muted-foreground text-xs'>
+                            Last used: {formatDate(key.lastUsed)}
+                          </p>
+                        </div>
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          onClick={() => {
+                            setDeleteKey(key)
+                            setShowDeleteDialog(true)
+                          }}
+                          className='h-8 text-muted-foreground hover:text-foreground'
+                          disabled={!canManageWorkspaceKeys}
+                        >
+                          Delete
+                        </Button>
+                      </div>
                     </div>
+                  ))}
+                </div>
+              ) : null}
 
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      onClick={() => {
-                        setDeleteKey(key)
-                        setShowDeleteDialog(true)
-                      }}
-                      className='h-8 text-muted-foreground hover:text-foreground'
-                    >
-                      Delete
-                    </Button>
+              {/* Personal section */}
+              <div
+                className={`${personalHeaderMarginClass} mb-2 font-medium text-[13px] text-foreground`}
+              >
+                Personal
+              </div>
+              {filteredPersonalKeys.map(({ key }) => {
+                const isConflict = conflicts.includes(key.name)
+                return (
+                  <div key={key.id} className='flex flex-col gap-2'>
+                    <Label className='font-normal text-muted-foreground text-xs uppercase'>
+                      <Input
+                        value={
+                          renamingKey?.id === key.id && renamingKey?.type === 'personal'
+                            ? pendingKeyValue
+                            : key.name
+                        }
+                        onChange={(e) => {
+                          if (renamingKey?.id !== key.id || renamingKey?.type !== 'personal') {
+                            setRenamingKey({ id: key.id, type: 'personal' })
+                          }
+                          setPendingKeyValue(e.target.value)
+                        }}
+                        onBlur={() => handlePersonalKeyRename(key.id, key.name)}
+                        className={`h-6 border-none p-0 font-normal text-muted-foreground text-xs uppercase ${
+                          isConflict ? 'bg-[#F6D2D2] dark:bg-[#442929]' : 'bg-transparent'
+                        }`}
+                      />
+                    </Label>
+                    <div className='flex items-center justify-between gap-4'>
+                      <div className='flex items-center gap-3'>
+                        <div className='flex h-8 items-center rounded-[8px] bg-muted px-3'>
+                          <code className='font-mono text-foreground text-xs'>
+                            •••••{key.key.slice(-6)}
+                          </code>
+                        </div>
+                        <p className='text-muted-foreground text-xs'>
+                          Last used: {formatDate(key.lastUsed)}
+                        </p>
+                      </div>
+                      <div className='flex items-center gap-2'>
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          onClick={() => {
+                            setDeleteKey(key)
+                            setShowDeleteDialog(true)
+                          }}
+                          className='h-8 text-muted-foreground hover:text-foreground'
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                    {isConflict && (
+                      <div className='col-span-3 mt-1 text-[#DC2626] text-[12px] leading-tight dark:text-[#F87171]'>
+                        Workspace API key with the same name overrides this. Rename your personal
+                        key to use it.
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
-              {/* Show message when search has no results but there are keys */}
-              {searchTerm.trim() && filteredApiKeys.length === 0 && apiKeys.length > 0 && (
-                <div className='py-8 text-center text-muted-foreground text-sm'>
-                  No API keys found matching "{searchTerm}"
-                </div>
-              )}
-            </div>
+                )
+              })}
+              {/* Show message when search has no results across both sections */}
+              {searchTerm.trim() &&
+                filteredPersonalKeys.length === 0 &&
+                filteredWorkspaceKeys.length === 0 &&
+                (personalKeys.length > 0 || workspaceKeys.length > 0) && (
+                  <div className='py-8 text-center text-muted-foreground text-sm'>
+                    No API keys found matching "{searchTerm}"
+                  </div>
+                )}
+            </>
           )}
         </div>
       </div>
@@ -239,7 +585,11 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
           ) : (
             <>
               <Button
-                onClick={() => setIsCreating(true)}
+                onClick={() => {
+                  setIsCreateDialogOpen(true)
+                  setKeyType('personal')
+                  setCreateError(null)
+                }}
                 variant='ghost'
                 className='h-9 rounded-[8px] border bg-background px-3 shadow-xs hover:bg-muted focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
               >
@@ -253,46 +603,89 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
       </div>
 
       {/* Create API Key Dialog */}
-      <AlertDialog open={isCreating} onOpenChange={setIsCreating}>
+      <AlertDialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
         <AlertDialogContent className='rounded-[10px] sm:max-w-md'>
           <AlertDialogHeader>
             <AlertDialogTitle>Create new API key</AlertDialogTitle>
             <AlertDialogDescription>
-              This key will have access to your account and workflows. Make sure to copy it after
-              creation as you won't be able to see it again.
+              {keyType === 'workspace'
+                ? "This key will have access to all workflows in this workspace. Make sure to copy it after creation as you won't be able to see it again."
+                : "This key will have access to your personal workflows. Make sure to copy it after creation as you won't be able to see it again."}
             </AlertDialogDescription>
           </AlertDialogHeader>
 
-          <div className='py-2'>
-            <p className='mb-2 font-[360] text-sm'>
-              Enter a name for your API key to help you identify it later.
-            </p>
-            <Input
-              value={newKeyName}
-              onChange={(e) => setNewKeyName(e.target.value)}
-              placeholder='e.g., Development, Production'
-              className='h-9 rounded-[8px]'
-              autoFocus
-            />
+          <div className='space-y-4 py-2'>
+            {canManageWorkspaceKeys && (
+              <div className='space-y-2'>
+                <p className='font-[360] text-sm'>API Key Type</p>
+                <div className='flex gap-2'>
+                  <Button
+                    type='button'
+                    variant={keyType === 'personal' ? 'default' : 'outline'}
+                    size='sm'
+                    onClick={() => {
+                      setKeyType('personal')
+                      if (createError) setCreateError(null)
+                    }}
+                    className='h-8'
+                  >
+                    Personal
+                  </Button>
+                  <Button
+                    type='button'
+                    variant={keyType === 'workspace' ? 'default' : 'outline'}
+                    size='sm'
+                    onClick={() => {
+                      setKeyType('workspace')
+                      if (createError) setCreateError(null)
+                    }}
+                    className='h-8'
+                  >
+                    Workspace
+                  </Button>
+                </div>
+              </div>
+            )}
+            <div className='space-y-2'>
+              <p className='font-[360] text-sm'>
+                Enter a name for your API key to help you identify it later.
+              </p>
+              <Input
+                value={newKeyName}
+                onChange={(e) => {
+                  setNewKeyName(e.target.value)
+                  if (createError) setCreateError(null) // Clear error when user types
+                }}
+                placeholder='e.g., Development, Production'
+                className='h-9 rounded-[8px]'
+                autoFocus
+              />
+              {createError && <div className='text-red-600 text-sm'>{createError}</div>}
+            </div>
           </div>
 
           <AlertDialogFooter className='flex'>
             <AlertDialogCancel
               className='h-9 w-full rounded-[8px]'
-              onClick={() => setNewKeyName('')}
+              onClick={() => {
+                setNewKeyName('')
+                setKeyType('personal')
+              }}
             >
               Cancel
             </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                handleCreateKey()
-                setNewKeyName('')
-              }}
-              className='h-9 w-full rounded-[8px] bg-primary text-muted-foreground transition-all duration-200 hover:bg-primary/90'
-              disabled={!newKeyName.trim()}
+            <Button
+              type='button'
+              onClick={handleCreateKey}
+              className='h-9 w-full rounded-[8px] bg-primary text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50'
+              disabled={
+                !newKeyName.trim() ||
+                isSubmittingCreate ||
+                (keyType === 'workspace' && !canManageWorkspaceKeys)
+              }
             >
-              Create Key
-            </AlertDialogAction>
+              Create {keyType === 'workspace' ? 'Workspace' : 'Personal'} Key
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -385,6 +778,63 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
             >
               Delete
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Unsaved Changes Dialog */}
+      <AlertDialog open={showUnsavedChanges} onOpenChange={setShowUnsavedChanges}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unsaved Changes</AlertDialogTitle>
+            <AlertDialogDescription>
+              {hasConflicts
+                ? 'You have unsaved changes, but conflicts must be resolved before saving. You can discard your changes to close the modal.'
+                : 'You have unsaved changes. Do you want to save them before closing?'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className='flex'>
+            <AlertDialogCancel
+              onClick={() => {
+                // Reset to initial state
+                setWorkspaceKeys(JSON.parse(JSON.stringify(initialWorkspaceKeysRef.current)))
+                setPersonalKeys(JSON.parse(JSON.stringify(initialPersonalKeysRef.current)))
+                setShowUnsavedChanges(false)
+                if (pendingClose.current) {
+                  onOpenChange?.(false)
+                }
+              }}
+              className='h-9 w-full rounded-[8px]'
+            >
+              Discard Changes
+            </AlertDialogCancel>
+            {hasConflicts ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <AlertDialogAction
+                    disabled={true}
+                    className='h-9 w-full cursor-not-allowed rounded-[8px] opacity-50 transition-all duration-200'
+                  >
+                    Save Changes
+                  </AlertDialogAction>
+                </TooltipTrigger>
+                <TooltipContent>Resolve all conflicts before saving</TooltipContent>
+              </Tooltip>
+            ) : (
+              <AlertDialogAction
+                onClick={() => {
+                  // In a real implementation, you'd save changes here
+                  logger.info('Saving API key changes')
+                  setShowUnsavedChanges(false)
+                  if (pendingClose.current) {
+                    onOpenChange?.(false)
+                  }
+                }}
+                className='h-9 w-full rounded-[8px] transition-all duration-200'
+              >
+                Save Changes
+              </AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
