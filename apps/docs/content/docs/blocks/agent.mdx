@@ -167,42 +167,41 @@ After an agent completes, you can access its outputs:
 
 ## Advanced Features
 
-### Memory Integration
+### Memory + Agent: Conversation History
 
-Agents can maintain context across interactions using the memory system:
+Use a `Memory` block with a consistent `id` (for example, `chat`) to persist messages between runs, and include that history in the Agent's prompt.
 
-```javascript
-// In a Function block before the agent
-const memory = {
-  conversation_history: previousMessages,
-  user_preferences: userProfile,
-  session_data: currentSession
-};
+- Add the user's message before the Agent
+- Read the conversation history for context
+- Append the Agent's reply after it runs
+
+```yaml
+# 1) Add latest user message
+- Memory (operation: add)
+  id: chat
+  role: user
+  content: {{input}}
+
+# 2) Load conversation history
+- Memory (operation: get)
+  id: chat
+
+# 3) Run the agent with prior messages available
+- Agent
+  System Prompt: ...
+  User Prompt: |
+    Use the conversation so far:
+    {{memory_get.memories}}
+    Current user message: {{input}}
+
+# 4) Store the agent reply
+- Memory (operation: add)
+  id: chat
+  role: assistant
+  content: {{agent.content}}
 ```
 
-### Structured Output Validation
-
-Use JSON Schema to ensure consistent, machine-readable responses:
-
-```json
-{
-  "type": "object",
-  "properties": {
-    "analysis": {"type": "string"},
-    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
-    "categories": {"type": "array", "items": {"type": "string"}}
-  },
-  "required": ["analysis", "confidence"]
-}
-```
-
-### Error Handling
-
-Agents automatically handle common errors:
-- API rate limits with exponential backoff
-- Invalid tool calls with retry logic
-- Network failures with connection recovery
-- Schema validation errors with fallback responses
+See the `Memory` block reference for details: [/tools/memory](/tools/memory).
 
 ## Inputs and Outputs
 
@@ -267,10 +266,12 @@ Agents automatically handle common errors:
 <div className="mb-4 rounded-md border p-4">
   <h4 className="font-medium">Scenario: Handle customer inquiries with database access</h4>
   <ol className="list-decimal pl-5 text-sm">
-    <li>User submits support ticket via API block</li>
-    <li>Agent processes inquiry with product database tools</li>
-    <li>Agent generates response and creates follow-up ticket</li>
-    <li>Response block sends reply to customer</li>
+    <li>User submits a support ticket via the API block</li>
+    <li>Agent checks orders/subscriptions in Postgres and searches the knowledge base for guidance</li>
+    <li>If escalation is needed, the Agent creates a Linear issue with relevant context</li>
+    <li>Agent drafts a clear email reply</li>
+    <li>Gmail sends the reply to the customer</li>
+    <li>Conversation is saved to Memory to maintain history for future messages</li>
   </ol>
 </div>
 
