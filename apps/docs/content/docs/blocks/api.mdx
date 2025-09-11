@@ -6,17 +6,19 @@ description: Connect to external services through API endpoints
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { ThemeImage } from '@/components/ui/theme-image'
+import { Image } from '@/components/ui/image'
 
 The API block enables you to connect your workflow to external services through HTTP requests. It supports various methods like GET, POST, PUT, DELETE, and PATCH, allowing you to interact with virtually any API endpoint.
 
-<ThemeImage
-  lightSrc="/static/light/api-light.png"
-  darkSrc="/static/dark/api-dark.png"
-  alt="API Block"
-  width={350}
-  height={175}
-/>
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/api.png"
+    alt="API Block"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
 
 ## Overview
 

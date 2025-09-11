@@ -8,47 +8,121 @@ import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { ThemeImage } from '@/components/ui/theme-image'
 import { Video } from '@/components/ui/video'
 
-The Webhook block allows external services to automatically trigger your workflow execution through HTTP webhooks.
+Webhooks allow external services to automatically trigger your workflow execution through HTTP requests. Sim supports two approaches for webhook-based triggers.
+
+## Generic Webhook Trigger
+
+The Generic Webhook block creates a flexible endpoint that can receive any payload and trigger your workflow:
 
 <div className="mx-auto w-full overflow-hidden rounded-lg">
-  <Video src="webhooks.mp4" />
+  <Video src="webhooks-1.mp4" />
 </div>
 
-## Supported Providers
+### How It Works
 
-Choose from the dropdown to configure your webhook source:
+1. **Add Generic Webhook Block** - Drag the Generic Webhook block to start your workflow
+2. **Configure Payload** - Set up the expected payload structure (optional)
+3. **Get Webhook URL** - Copy the automatically generated unique endpoint
+4. **External Integration** - Configure your external service to send POST requests to this URL
+5. **Workflow Execution** - Every request to the webhook URL triggers the workflow
 
-<Tabs items={['Popular Services', 'Generic']}>
-  <Tab>
-    <ul className="grid grid-cols-2 gap-1 text-sm">
-      <li>**Slack** - Bot events and messages</li>
-      <li>**Gmail** - Email notifications</li>
-      <li>**GitHub** - Repository events</li>
-      <li>**Discord** - Server events</li>
-      <li>**Airtable** - Database changes</li>
-      <li>**Telegram** - Bot messages</li>
-      <li>**WhatsApp** - Messaging events</li>
-      <li>**Stripe** - Payment events</li>
-    </ul>
-  </Tab>
-  <Tab>
-    <p>For custom integrations:</p>
-    <ul className="list-disc space-y-1 pl-6 text-sm">
-      <li><strong>HTTP POST</strong>: Accepts requests from any client</li>
-      <li><strong>Authentication</strong>: Bearer token or custom headers</li>
-      <li><strong>Security</strong>: IP restrictions and rate limiting</li>
-      <li><strong>Deduplication</strong>: Prevents duplicate requests</li>
-    </ul>
-  </Tab>
-</Tabs>
+### Features
 
-## How It Works
+- **Flexible Payload**: Accepts any JSON payload structure
+- **Automatic Parsing**: Webhook data is automatically parsed and available to subsequent blocks
+- **Authentication**: Optional bearer token or custom header authentication
+- **Rate Limiting**: Built-in protection against abuse
+- **Deduplication**: Prevents duplicate executions from repeated requests
 
-1. **Configure Provider** - Select from dropdown and set up authentication
-2. **Get Webhook URL** - Automatically generated unique endpoint  
-3. **External Service** - Sends HTTP POST to your webhook URL
-4. **Workflow Triggers** - Automatically starts when webhook is received
-
-<Callout>
-Webhooks cannot receive incoming connections and serve as pure workflow triggers.
+<Callout type="info">
+The Generic Webhook trigger fires every time the webhook URL receives a request, making it perfect for real-time integrations.
 </Callout>
+
+## Trigger Mode for Service Blocks
+
+Alternatively, you can use specific service blocks (like Slack, GitHub, etc.) in "trigger mode" to create more specialized webhook endpoints:
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="slack-trigger.mp4" />
+</div>
+
+### Setting Up Trigger Mode
+
+1. **Add Service Block** - Choose a service block (e.g., Slack, GitHub, Airtable)
+2. **Enable Trigger Mode** - Toggle "Use as Trigger" in the block settings
+3. **Configure Service** - Set up authentication and event filters specific to that service
+4. **Webhook Registration** - The service automatically registers the webhook with the external platform
+5. **Event-Based Execution** - Workflow triggers only for specific events from that service
+
+### When to Use Each Approach
+
+**Use Generic Webhook when:**
+- Integrating with custom applications or services
+- You need maximum flexibility in payload structure
+- Working with services that don't have dedicated blocks
+- Building internal integrations
+
+**Use Trigger Mode when:**
+- Working with supported services (Slack, GitHub, etc.)
+- You want service-specific event filtering
+- You need automatic webhook registration
+- You want structured data handling for that service
+
+## Supported Services for Trigger Mode
+
+The following service blocks support trigger mode:
+
+- **Slack** - Messages, mentions, reactions
+- **GitHub** - Push, PR, issue events  
+- **Airtable** - Record changes
+- **Telegram** - Bot messages and commands
+- **Gmail** - Email notifications
+- **WhatsApp** - Messaging events
+- **Jira** - Issue updates, comments
+- **Linear** - Issue state changes
+- **Notion** - Page updates
+
+## Security and Best Practices
+
+### Authentication Options
+
+- **Bearer Tokens**: Include `Authorization: Bearer <token>` header
+- **Custom Headers**: Define custom authentication headers
+
+### Payload Handling
+
+- **Validation**: Validate incoming payloads to prevent malformed data
+- **Size Limits**: Webhooks have payload size limits for security
+- **Error Handling**: Configure error responses for invalid requests
+
+### Testing Webhooks
+
+1. Use tools like Postman or curl to test your webhook endpoints
+2. Check workflow execution logs for debugging
+3. Verify payload structure matches your expectations
+4. Test authentication and error scenarios
+
+<Callout type="warning">
+Always validate and sanitize incoming webhook data before processing it in your workflows.
+</Callout>
+
+## Common Use Cases
+
+### Real-time Notifications
+- Slack messages triggering automated responses
+- Email notifications for critical events
+
+### CI/CD Integration  
+- GitHub pushes triggering deployment workflows
+- Build status updates
+- Automated testing pipelines
+
+### Data Synchronization
+- Airtable changes updating other systems
+- Form submissions triggering follow-up actions
+- E-commerce order processing
+
+### Customer Support
+- Support ticket creation workflows
+- Automated escalation processes
+- Multi-channel communication routing

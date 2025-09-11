@@ -6,18 +6,20 @@ description: Assess content quality using customizable evaluation metrics
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { ThemeImage } from '@/components/ui/theme-image'
+import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
 
 The Evaluator block uses AI to score and assess content quality based on metrics you define. Perfect for quality control, A/B testing, and ensuring your AI outputs meet specific standards.
 
-<ThemeImage
-  lightSrc="/static/light/evaluator-light.png"
-  darkSrc="/static/dark/evaluator-dark.png"
-  alt="Evaluator Block Configuration"
-  width={350}
-  height={175}
-/>
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/evaluator.png"
+    alt="Evaluator Block Configuration"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
 
 ## What You Can Evaluate
 

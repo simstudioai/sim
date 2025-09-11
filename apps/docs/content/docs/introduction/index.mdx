@@ -1,94 +1,86 @@
 ---
 title: Introduction
-description: Build AI workflows visually without code
+description: Build AI Agent workflows visually
 ---
 
 import { Card, Cards } from 'fumadocs-ui/components/card'
-import { File, Files, Folder } from 'fumadocs-ui/components/files'
-import { Features } from '@/components/ui/features'
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
 
-Sim is a visual workflow editor that enables you to build AI-powered applications by connecting blocks on a canvas. Drag and drop components to create chatbots, automation workflows, and data processing pipelines without writing code.
+Sim is a visual workflow builder for AI applications. Create powerful AI agents, automation workflows, and data processing pipelines by connecting blocks on a canvas—no coding required.
 
-## What Makes Sim Powerful
+<div className="flex justify-center">
+  <Image
+    src="/static/introduction.png"
+    alt="Sim visual workflow canvas"
+    width={700}
+    height={450}
+    className="my-6"
+  />
+</div>
 
-**Multi-Model AI Support** - Connect to OpenAI, Anthropic, Google, Groq, Cerebras, and local models through Ollama. Switch providers without rebuilding workflows.
+## What You Can Build
 
-**60+ Pre-Built Tools** - Gmail, Slack, Notion, Google Sheets, Airtable, Supabase, Pinecone, and more. Extensible architecture allows custom tool integration.
+**AI Assistants & Chatbots**
+Create intelligent agents that can search the web, access your calendar, send emails, and interact with your business tools.
 
-**Flexible Execution** - Run workflows via chat interface, REST API, webhooks, scheduled jobs, or trigger from external systems.
+**Business Process Automation**
+Automate repetitive tasks like data entry, report generation, customer support responses, and content creation.
 
-**Production Deployment** - Deploy as APIs, integrate with existing systems using our SDK, or embed as plugins. Built-in monitoring, logging, and error handling.
+**Data Processing & Analysis**
+Extract insights from documents, analyze datasets, generate reports, and sync data between systems.
 
-**Real-time Collaboration** - Work simultaneously with team members on the same workflow, like Google Docs for AI development.
+**API Integration Workflows**
+Connect multiple services into unified endpoints, orchestrate complex business logic, and handle event-driven automation.
 
-Connect multiple AI models, integrate with 60+ services, and deploy production-ready applications through an intuitive visual interface designed specifically for AI development.
+## How It Works
 
-## Core Building Blocks
+**Visual Canvas**
+Drag and drop blocks to build workflows. Connect AI models, databases, APIs, and business tools with simple point-and-click connections.
 
-**Processing Blocks**
+**Smart Blocks**
+Choose from processing blocks (AI agents, APIs, functions), logic blocks (conditions, loops, routers), and output blocks (responses, evaluators).
 
-- **Agent** - Execute AI model inference with any LLM provider
-- **API** - Connect to REST endpoints and external services  
-- **Function** - Run custom JavaScript for data processing
+**Multiple Triggers**
+Start workflows via chat interface, REST API, webhooks, scheduled jobs, or external events from services like Slack and GitHub.
 
-**Logic Blocks**
-
-- **Condition** - Create branching logic based on data evaluation
-- **Router** - Route execution paths using AI-powered decision making
-- **Loop** - Iterate over collections sequentially
-- **Parallel** - Execute multiple operations concurrently
-
-**Output Blocks**
-
-- **Response** - Format and return final workflow results
-- **Evaluator** - Validate outputs against defined criteria
+**Team Collaboration**
+Work simultaneously with team members on the same workflow with real-time editing and permissions management.
 
 ## Built-in Integrations
 
-**AI Models**: OpenAI, Anthropic, Google, Groq, Cerebras, Ollama
+Sim connects to 80+ services out of the box:
 
-**Communication**: Gmail, Slack, Telegram, WhatsApp, Microsoft Teams
+- **AI Models**: OpenAI, Anthropic, Google, Groq, Cerebras, local Ollama models
+- **Communication**: Gmail, Slack, Teams, Telegram, WhatsApp  
+- **Productivity**: Notion, Google Sheets, Airtable, Monday.com
+- **Development**: GitHub, Jira, Linear, browser automation
+- **Search & Web**: Google Search, Perplexity, Firecrawl, Exa AI
+- **Databases**: PostgreSQL, MySQL, Supabase, Pinecone, Qdrant
 
-**Data Sources**: Notion, Google Sheets, Airtable, Supabase, Pinecone
+Need something custom? Use our [MCP integration](/mcp) to connect any external service.
 
-**Web Services**: Firecrawl, Google Search, Exa AI, Perplexity
+## Deployment Options
 
-**Development**: GitHub, Jira, Linear, browser automation
+**Cloud-hosted**: Get started instantly at [sim.ai](https://sim.ai) with managed infrastructure, automatic scaling, and built-in monitoring.
 
-## Use Cases
+**Self-hosted**: Deploy on your own infrastructure using Docker, with support for local AI models via Ollama for complete data privacy.
 
-**AI Assistants** - Build chatbots with web search, calendar access, and email capabilities
+## Next Steps
 
-**Content Generation** - Create blog posts, social media content, and marketing materials
-
-**Data Processing** - Extract insights from documents, analyze datasets, and generate reports
-
-**Process Automation** - Automate business workflows with event-driven triggers
-
-**API Orchestration** - Combine multiple services into unified endpoints
-
-## Key Features
-
-**Multi-Provider AI Support** - Switch between OpenAI, Anthropic, Google, and local models without rebuilding workflows
-
-**Real-time Collaboration** - Work simultaneously with team members on the same workflow
-
-**Production-Ready** - Built-in error handling, logging, and monitoring for production deployments
-
-**Local Development** - Test with Ollama locally, then deploy with cloud providers
-
-## Getting Started
-
-Ready to build your first workflow? Our [Getting Started guide](/getting-started) will walk you through creating a customer support assistant in under 10 minutes.
+Ready to build your first AI workflow?
 
 <Cards>
-  <Card title="Getting Started" href="/getting-started">
-    Build your first workflow
+  <Card title="Getting Started" href="/docs/getting-started">
+    Create your first workflow in 10 minutes
   </Card>
-  <Card title="Blocks" href="/blocks">
-    Learn about workflow components
+  <Card title="Workflow Blocks" href="/docs/blocks">
+    Learn about the building blocks
   </Card>
-  <Card title="Tools" href="/tools">
-    Explore integrations
+  <Card title="Tools & Integrations" href="/docs/tools">
+    Explore 60+ built-in integrations
+  </Card>
+  <Card title="Team Permissions" href="/docs/permissions">
+    Set up workspace roles and permissions
   </Card>
 </Cards>

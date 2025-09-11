@@ -16,6 +16,23 @@
   color: var(--color-fd-primary);
 }
 
+/* Add bottom spacing to prevent abrupt page endings */
+[data-content] {
+  padding-bottom: 4rem;
+}
+
+/* Alternative fallback for different Fumadocs versions */
+main article,
+.docs-page main {
+  padding-bottom: 4rem;
+}
+
+/* Remove any unwanted borders/outlines from video elements */
+video {
+  outline: none !important;
+  border-style: solid !important;
+}
+
 /* Tailwind v4 content sources */
 @source '../app/**/*.{js,ts,jsx,tsx,mdx}';
 @source '../components/**/*.{js,ts,jsx,tsx,mdx}';

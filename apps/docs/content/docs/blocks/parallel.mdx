@@ -6,17 +6,11 @@ description: Execute multiple blocks concurrently for faster workflow processing
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { ThemeImage } from '@/components/ui/theme-image'
+import { Image } from '@/components/ui/image'
 
 The Parallel block is a container block in Sim that allows you to execute multiple instances of blocks concurrently.
 
-<ThemeImage
-  lightSrc="/static/light/parallel-light.png"
-  darkSrc="/static/dark/parallel-dark.png"
-  alt="Parallel Block"
-  width={500}
-  height={300}
-/>
+The Parallel block supports two types of concurrent execution:
 
 <Callout type="info">
   Parallel blocks are container nodes that execute their contents multiple times simultaneously, unlike loops which execute sequentially.
@@ -49,7 +43,19 @@ Choose between two types of parallel execution:
 
 <Tabs items={['Count-based', 'Collection-based']}>
   <Tab>
-    Execute a fixed number of parallel instances. Use this when you need to run the same operation multiple times concurrently.
+    **Count-based Parallel** - Execute a fixed number of parallel instances:
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/parallel-1.png"
+        alt="Count-based parallel execution"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    Use this when you need to run the same operation multiple times concurrently.
     
     ```
     Example: Run 5 parallel instances
@@ -61,7 +67,19 @@ Choose between two types of parallel execution:
     ```
   </Tab>
   <Tab>
-    Distribute a collection across parallel instances. Each instance processes one item from the collection simultaneously.
+    **Collection-based Parallel** - Distribute a collection across parallel instances:
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/parallel-2.png"
+        alt="Collection-based parallel execution"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    Each instance processes one item from the collection simultaneously.
     
     ```
     Example: Process ["task1", "task2", "task3"] in parallel

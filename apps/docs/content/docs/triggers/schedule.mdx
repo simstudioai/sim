@@ -5,17 +5,19 @@ description: Automatically trigger workflows on a recurring schedule
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { ThemeImage } from '@/components/ui/theme-image'
+import { Image } from '@/components/ui/image'
 
 The Schedule block automatically triggers workflow execution at specified intervals or times.
 
-<ThemeImage
-  lightSrc="/static/light/schedule-light.png"
-  darkSrc="/static/dark/schedule-dark.png"
-  alt="Schedule Block"
-  width={350}
-  height={175}
-/>
+<div className="flex justify-center">
+  <Image
+    src="/static/schedule.png"
+    alt="Schedule Block"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
 
 ## Schedule Options
 
@@ -54,13 +56,15 @@ When a workflow is scheduled:
 
 ## Disabled Schedules
 
-<ThemeImage
-  lightSrc="/static/light/schedule-disabled-light.png"
-  darkSrc="/static/dark/schedule-disabled-dark.png"
-  alt="Disabled Schedule"
-  width={500}
-  height={200}
-/>
+<div className="flex justify-center">
+  <Image
+    src="/static/light/schedule-disabled-light.png"
+    alt="Disabled Schedule"
+    width={500}
+    height={200}
+    className="my-6"
+  />
+</div>
 
 Disabled schedules show when they were last active and can be re-enabled at any time.
 

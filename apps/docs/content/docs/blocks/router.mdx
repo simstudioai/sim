@@ -7,18 +7,20 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
-import { ThemeImage } from '@/components/ui/theme-image'
+import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
 
 The Router block uses AI to intelligently decide which path your workflow should take next. Unlike Condition blocks that use simple rules, Router blocks can understand context and make smart routing decisions based on content analysis.
 
-<ThemeImage
-  lightSrc="/static/light/router-light.png"
-  darkSrc="/static/dark/router-dark.png"
-  alt="Router Block with Multiple Paths"
-  width={350}
-  height={175}
-/>
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/router.png"
+    alt="Router Block with Multiple Paths"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
 
 ## Overview
 

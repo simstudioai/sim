@@ -1,4 +1,5 @@
 {
   "title": "Connections",
-  "pages": ["basics", "tags", "data-structure", "accessing-data", "best-practices"]
+  "pages": ["basics", "tags", "data-structure", "accessing-data"],
+  "defaultOpen": false
 }

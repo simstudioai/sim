@@ -6,17 +6,11 @@ description: Create iterative workflows with loops that execute blocks repeatedl
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { ThemeImage } from '@/components/ui/theme-image'
+import { Image } from '@/components/ui/image'
 
 The Loop block is a container block in Sim that allows you to execute a group of blocks repeatedly. Loops enable iterative processing in your workflows.
 
-<ThemeImage
-  lightSrc="/static/light/loop-light.png"
-  darkSrc="/static/dark/loop-dark.png"
-  alt="Loop Block"
-  width={500}
-  height={300}
-/>
+The Loop block supports two types of iteration:
 
 <Callout type="info">
   Loop blocks are container nodes that can hold other blocks inside them. The blocks inside a loop will execute multiple times based on your configuration.
@@ -43,7 +37,19 @@ Choose between two types of loops:
 
 <Tabs items={['For Loop', 'ForEach Loop']}>
   <Tab>
-    A numeric loop that executes a fixed number of times. Use this when you need to repeat an operation a specific number of times.
+    **For Loop (Iterations)** - A numeric loop that executes a fixed number of times:
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-1.png"
+        alt="For Loop with iterations"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    Use this when you need to repeat an operation a specific number of times.
     
     ```
     Example: Run 5 times
@@ -55,7 +61,19 @@ Choose between two types of loops:
     ```
   </Tab>
   <Tab>
-    A collection-based loop that iterates over each item in an array or object. Use this when you need to process a collection of items.
+    **ForEach Loop (Collection)** - A collection-based loop that iterates over each item in an array or object:
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-2.png"
+        alt="ForEach Loop with collection"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    Use this when you need to process a collection of items.
     
     ```
     Example: Process ["apple", "banana", "orange"]

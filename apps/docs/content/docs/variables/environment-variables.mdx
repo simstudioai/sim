@@ -1,0 +1,180 @@
+---
+title: Environment Variables
+description: Manage secure configuration values and secrets across your workflows
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Environment variables provide a secure way to store configuration values, API keys, and other sensitive data that your workflows need to access. They keep secrets out of your workflow definitions while making them available during execution.
+
+## Overview
+
+Environment variables in Sim work at two levels:
+
+- **Personal Environment Variables**: Private to your account, only you can see and use them
+- **Workspace Environment Variables**: Shared across the entire workspace, available to all team members
+
+<Callout type="info">
+Workspace environment variables take precedence over personal ones when there's a naming conflict.
+</Callout>
+
+## Managing Environment Variables
+
+<Tabs items={['Creating Variables', 'Workspace Scope', 'Workspace Variables', 'Using Variables']}>
+  <Tab>
+    **Setting up Environment Variables**
+    
+    Navigate to Settings to configure your environment variables:
+
+    <div className="flex justify-center">
+      <Image
+        src="/static/environment-1.png"
+        alt="Navigate to Settings to configure environment variables"
+        width={600}
+        height={400}
+        className="my-6"
+      />
+    </div>
+
+    From your workspace settings, you can create and manage both personal and workspace-level environment variables. Personal variables are private to your account, while workspace variables are shared with all team members.
+  </Tab>
+  
+  <Tab>
+    **Making Variables Workspace-Scoped**
+    
+    Use the workspace scope toggle to make variables available to your entire team:
+
+    <div className="flex justify-center">
+      <Image
+        src="/static/environment-2.png"
+        alt="Toggle workspace scope for environment variables"
+        width={600}
+        height={400}
+        className="my-6"
+      />
+    </div>
+
+    When you enable workspace scope, the variable becomes available to all workspace members and can be used in any workflow within that workspace.
+  </Tab>
+  
+  <Tab>
+    **Workspace-Level Variables**
+    
+    View and manage variables that are shared across your workspace:
+
+    <div className="flex justify-center">
+      <Image
+        src="/static/environment-3.png"
+        alt="Workspace-level environment variables interface"
+        width={600}
+        height={400}
+        className="my-6"
+      />
+    </div>
+
+    Workspace variables are ideal for shared resources like database URLs, shared API keys, and configuration values that multiple team members need access to.
+  </Tab>
+  
+  <Tab>
+    **Referencing Variables in Workflows**
+    
+    Use the `{{}}` notation to reference environment variables in your workflows:
+
+    <div className="flex justify-center">
+      <Image
+        src="/static/environment-4.png"
+        alt="Using environment variables with double brace notation"
+        width={600}
+        height={400}
+        className="my-6"
+      />
+    </div>
+
+    Type `{{` in any input field to see available environment variables and select them from the dropdown.
+  </Tab>
+</Tabs>
+
+## Variable Scopes and Precedence
+
+### Personal Environment Variables
+- **Visibility**: Only visible to you
+- **Usage**: Private API keys, personal tokens, individual preferences
+- **Access**: Available in all your workflows across any workspace
+
+### Workspace Environment Variables  
+- **Visibility**: Visible to all workspace members with appropriate permissions
+- **Usage**: Shared database connections, team API keys, common configuration
+- **Access**: Available to all workflows within that specific workspace
+
+### Precedence Rules
+When you have both personal and workspace variables with the same name:
+
+1. **Workspace variables take precedence** over personal variables
+2. This prevents naming conflicts and ensures consistent behavior across team workflows
+3. If a workspace variable exists, the personal variable with the same name is ignored
+
+<Callout type="warning">
+Choose variable names carefully to avoid unintended overrides. Consider prefixing personal variables with your initials or workspace variables with the project name.
+</Callout>
+
+## Security Best Practices
+
+### For Sensitive Data
+- Store API keys, tokens, and passwords as environment variables instead of hardcoding them
+- Use workspace variables for shared resources that multiple team members need
+- Keep personal credentials in personal variables
+
+### Variable Naming
+- Use descriptive names: `DATABASE_URL` instead of `DB`
+- Follow consistent naming conventions across your team
+- Consider prefixes to avoid conflicts: `PROD_API_KEY`, `DEV_API_KEY`
+
+### Access Control
+- Workspace environment variables respect workspace permissions
+- Only users with write access or higher can create/modify workspace variables
+- Personal variables are always private to the individual user
+
+## Common Use Cases
+
+### API Integration
+```yaml
+# Reference environment variables in API blocks
+url: "https://api.example.com/v1/data"
+headers:
+  Authorization: "Bearer {{API_TOKEN}}"
+  X-API-Key: "{{SERVICE_API_KEY}}"
+```
+
+### Database Connections
+```yaml
+# Database configuration using environment variables
+connection_string: "{{DATABASE_URL}}"
+username: "{{DB_USERNAME}}"
+password: "{{DB_PASSWORD}}"
+```
+
+### Multi-Environment Setup
+```yaml
+# Different environments using variable prefixes
+api_endpoint: "{{PROD_API_ENDPOINT}}"
+debug_mode: "{{DEV_DEBUG_ENABLED}}"
+```
+
+## Troubleshooting
+
+### Variable Not Found
+- Verify the variable name is spelled correctly
+- Check if it's a workspace variable and you have access to that workspace
+- Ensure workspace variables take precedence over personal ones
+
+### Access Issues
+- Confirm you have the required workspace permissions
+- Personal variables are always accessible to you
+- Workspace variables require appropriate workspace membership
+
+### Precedence Conflicts
+- Remember workspace variables override personal variables with the same name
+- Use unique naming conventions to avoid conflicts
+- Check both personal and workspace variable lists when debugging

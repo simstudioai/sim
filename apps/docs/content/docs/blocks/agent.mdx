@@ -6,17 +6,19 @@ description: Create powerful AI agents using any LLM provider
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { ThemeImage } from '@/components/ui/theme-image'
+import { Image } from '@/components/ui/image'
 
 The Agent block serves as the interface between your workflow and Large Language Models (LLMs). It executes inference requests against various AI providers, processes natural language inputs according to defined instructions, and generates structured or unstructured outputs for downstream consumption.
 
-<ThemeImage
-  lightSrc="/static/light/agent-light.png"
-  darkSrc="/static/dark/agent-dark.png"
-  alt="Agent Block Configuration"
-  width={350}
-  height={175}
-/>
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/agent.png"
+    alt="Agent Block Configuration"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
 
 ## Overview
 
@@ -90,9 +92,9 @@ Control the creativity and randomness of responses:
   </Tab>
 </Tabs>
 
-<p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+<div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
   The temperature range (0-1 or 0-2) varies depending on the selected model.
-</p>
+</div>
 
 ### API Key
 

@@ -6,17 +6,19 @@ description: Execute other workflows as reusable components within your current 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { ThemeImage } from '@/components/ui/theme-image'
+import { Image } from '@/components/ui/image'
 
 The Workflow block allows you to execute other workflows as reusable components within your current workflow. This powerful feature enables modular design, code reuse, and the creation of complex nested workflows that can be composed from smaller, focused workflows.
 
-<ThemeImage
-  lightSrc="/static/light/workflow-light.png"
-  darkSrc="/static/dark/workflow-dark.png"
-  alt="Workflow Block"
-  width={300}
-  height={175}
-/>
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/workflow.png"
+    alt="Workflow Block"
+    width={500}
+    height={300}
+    className="my-6"
+  />
+</div>
 
 <Callout type="info">
   Workflow blocks enable modular design by allowing you to compose complex workflows from smaller, reusable components.

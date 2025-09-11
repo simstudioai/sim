@@ -6,17 +6,19 @@ description: Send a structured response back to API calls
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { ThemeImage } from '@/components/ui/theme-image'
+import { Image } from '@/components/ui/image'
 
 The Response block is the final step in your workflow that formats and returns data to whoever called your workflow. It's like the "return" statement for your entire workflow—it packages up results and sends them back.
 
-<ThemeImage
-  lightSrc="/static/light/response-light.png"
-  darkSrc="/static/dark/response-dark.png"
-  alt="Response Block Configuration"
-  width={350}
-  height={175}
-/>
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/response.png"
+    alt="Response Block Configuration"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
 
 <Callout type="info">
   Response blocks are terminal blocks - they end the workflow execution and cannot connect to other blocks.

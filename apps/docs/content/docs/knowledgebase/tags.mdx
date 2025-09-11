@@ -1,0 +1,156 @@
+---
+title: Tags and Filtering
+description: Organize and filter your documents with custom tags for precise content retrieval
+---
+
+import { Video } from '@/components/ui/video'
+
+Tags provide a powerful way to organize your documents and create precise filtering for your vector searches. By combining tag-based filtering with semantic search, you can retrieve exactly the content you need from your knowledgebase.
+
+## Adding Tags to Documents
+
+You can add custom tags to any document in your knowledgebase to organize and categorize your content for easier retrieval.
+
+<Video src="knowledgebase-tag.mp4" />
+
+### Tag Management
+- **Custom tags**: Create your own tag system that fits your workflow
+- **Multiple tags per document**: Apply as many tags as needed to each document
+- **Tag organization**: Group related documents with consistent tagging
+- **Bulk tagging**: Apply tags to multiple documents at once
+
+### Tag Best Practices
+- **Consistent naming**: Use standardized tag names across your documents
+- **Hierarchical tags**: Consider using prefixes like "topic:", "project:", "type:"
+- **Descriptive tags**: Use clear, meaningful tag names
+- **Regular cleanup**: Remove unused or outdated tags periodically
+
+## Using Tags in Knowledge Blocks
+
+Tags become powerful when combined with the Knowledge block in your workflows. You can filter your searches to specific tagged content, ensuring your AI agents get the most relevant information.
+
+<Video src="knowledgebase-tag2.mp4" />
+
+## Search Modes
+
+The Knowledge block supports three different search modes depending on what you provide:
+
+### 1. Tag-Only Search
+When you **only provide tags** (no search query):
+- **Direct retrieval**: Fetches all documents that have the specified tags
+- **No vector search**: Results are based purely on tag matching
+- **Fast performance**: Quick retrieval without semantic processing
+- **Exact matching**: Only documents with all specified tags are returned
+
+**Use case**: When you need all documents from a specific category or project
+
+### 2. Vector Search Only
+When you **only provide a search query** (no tags):
+- **Semantic search**: Finds content based on meaning and context
+- **Full knowledgebase**: Searches across all documents
+- **Relevance ranking**: Results ordered by semantic similarity
+- **Natural language**: Use questions or phrases to find relevant content
+
+**Use case**: When you need the most relevant content regardless of organization
+
+### 3. Combined Tag Filtering + Vector Search
+When you **provide both tags and a search query**:
+1. **First**: Filter documents to only those with the specified tags
+2. **Then**: Perform vector search within that filtered subset
+3. **Result**: Semantically relevant content from your tagged documents only
+
+**Use case**: When you need relevant content from a specific category or project
+
+### Search Configuration
+
+#### Tag Filtering
+- **Multiple tags**: Use comma-separated tags for AND logic (document must have all tags)
+- **Tag combinations**: Mix different tag types for precise filtering
+- **Case sensitivity**: Tag matching is case-insensitive
+- **Partial matching**: Exact tag name matching required
+
+#### Vector Search Parameters
+- **Query complexity**: Natural language questions work best
+- **Result limits**: Configure how many chunks to retrieve
+- **Relevance threshold**: Set minimum similarity scores
+- **Context window**: Adjust chunk size for your use case
+
+## Advanced Filtering Strategies
+
+### Project-Based Organization
+```
+Tags: "project:alpha", "status:complete", "type:requirements"
+Query: "What are the main user features?"
+```
+This finds feature-related content specifically from completed Project Alpha requirements.
+
+### Topic Categorization
+```
+Tags: "topic:machine-learning", "level:advanced"
+Query: "neural network optimization techniques"
+```
+This searches for optimization techniques within advanced machine learning content only.
+
+### Temporal Organization
+```
+Tags: "quarter:q4-2024", "department:engineering"
+Query: "performance metrics and goals"
+```
+This finds performance-related content from Q4 2024 engineering documents.
+
+### Content Type Filtering
+```
+Tags: "type:manual", "product:api"
+Query: "authentication setup process"
+```
+This searches for authentication setup information within API manual content.
+
+## Tag Management Features
+
+### Tag Creation
+- **Dynamic creation**: Tags are created automatically when first used
+- **Bulk operations**: Apply the same tags to multiple documents
+- **Import with tags**: Add tags during document upload process
+- **Template tagging**: Create tag templates for consistent organization
+
+### Tag Organization
+- **Tag suggestions**: System suggests relevant tags based on content
+- **Tag hierarchy**: Organize tags in logical groupings
+- **Usage analytics**: See which tags are most commonly used
+- **Tag cleanup**: Remove unused tags to keep your system organized
+
+### Search History
+- **Query patterns**: Track common tag + search combinations
+- **Performance insights**: See which searches return the best results
+- **Optimization suggestions**: Improve your tagging strategy over time
+
+## Integration with Workflows
+
+### Knowledge Block Configuration
+1. **Select knowledgebase**: Choose which knowledgebase to search
+2. **Add tags**: Specify filtering tags (optional)
+3. **Enter query**: Add your search query (optional)
+4. **Configure results**: Set number of chunks to retrieve
+5. **Test search**: Preview results before using in workflow
+
+### Dynamic Tag Usage
+- **Variable tags**: Use workflow variables as tag values
+- **Conditional filtering**: Apply different tags based on workflow logic
+- **Context-aware search**: Adjust tags based on conversation context
+- **Multi-step filtering**: Refine searches through workflow steps
+
+### Performance Optimization
+- **Efficient filtering**: Tag filtering happens before vector search for better performance
+- **Caching**: Frequently used tag combinations are cached for speed
+- **Parallel processing**: Multiple tag searches can run simultaneously
+- **Resource management**: Automatic optimization of search resources
+
+## Getting Started with Tags
+
+1. **Plan your tag structure**: Decide on consistent naming conventions
+2. **Start tagging**: Add relevant tags to your existing documents
+3. **Test combinations**: Experiment with tag + search query combinations
+4. **Integrate into workflows**: Use the Knowledge block with your tagging strategy
+5. **Refine over time**: Adjust your tagging approach based on search results
+
+Tags transform your knowledgebase from a simple document store into a precisely organized, searchable intelligence system that your AI workflows can navigate with surgical precision.

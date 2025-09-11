@@ -37,3 +37,4 @@ next-env.d.ts
 
 # Fumadocs
 /.source/ 
+.env*.local

@@ -7,17 +7,19 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
-import { ThemeImage } from '@/components/ui/theme-image'
+import { Image } from '@/components/ui/image'
 
 The Condition block allows you to branch your workflow execution path based on boolean expressions. It evaluates conditions and routes the workflow accordingly, enabling you to create dynamic, responsive workflows with different execution paths.
 
-<ThemeImage
-  lightSrc="/static/light/condition-light.png"
-  darkSrc="/static/dark/condition-dark.png"
-  alt="Condition Block"
-  width={350}
-  height={175}
-/>
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/condition.png"
+    alt="Condition Block"
+    width={500}
+    height={300}
+    className="my-6"
+  />
+</div>
 
 <Callout>
   Condition blocks enable deterministic decision-making without requiring an LLM, making them ideal

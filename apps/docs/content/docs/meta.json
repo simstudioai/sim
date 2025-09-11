@@ -8,18 +8,20 @@
     "triggers",
     "blocks",
     "tools",
-    "---Connections---",
     "connections",
+    "mcp",
+    "copilot",
+    "knowledgebase",
+    "workflow-variables",
+    "environment-variables",
     "---Execution---",
     "execution",
-    "---Copilot---",
-    "copilot",
     "---Advanced---",
-    "./variables/index",
+    "permissions",
     "yaml",
     "---SDKs---",
     "./sdks/python",
     "./sdks/typescript"
   ],
-  "defaultOpen": true
+  "defaultOpen": false
 }

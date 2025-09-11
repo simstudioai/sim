@@ -1,4 +1,5 @@
 {
   "title": "Execution",
-  "pages": ["basics", "advanced", "api"]
+  "pages": ["basics", "advanced", "api"],
+  "defaultOpen": false
 }

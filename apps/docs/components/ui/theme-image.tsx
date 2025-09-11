@@ -19,7 +19,7 @@ export function ThemeImage({
   alt,
   width = 600,
   height = 400,
-  className = 'rounded-lg border border-border my-6',
+  className = 'rounded-xl border border-border shadow-sm overflow-hidden my-6',
 }: ThemeImageProps) {
   const { resolvedTheme } = useTheme()
   const [imageSrc, setImageSrc] = useState(lightSrc)
