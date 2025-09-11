@@ -1,13 +1,13 @@
 ---
 title: Starter
-description: Manually initiate workflow execution with input parameters
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
 
-The Starter block allows manual workflow execution with two input modes: structured parameters or conversational chat.
+The Starter block allows you to manually initiate workflow execution with input parameters, offering two input modes: structured parameters or conversational chat.
 
 <div className="flex justify-center">
   <Image
@@ -33,7 +33,7 @@ Choose your input method from the dropdown:
       </ul>
       
       <div className="mx-auto w-full overflow-hidden rounded-lg">
-        <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/input-format.mp4"></video>
+        <Video src="input-format.mp4" />
       </div>
       
       <p className="text-sm text-gray-600">Configure input parameters that will be available when deploying as an API endpoint.</p>
@@ -49,7 +49,7 @@ Choose your input method from the dropdown:
       </ul>
       
       <div className="mx-auto w-full overflow-hidden rounded-lg">
-        <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/chat-input.mp4"></video>
+        <Video src="chat-input.mp4" />
       </div>
       
       <p className="text-sm text-gray-600">Chat with your workflow and access input text, conversation ID, and uploaded files for context-aware responses.</p>

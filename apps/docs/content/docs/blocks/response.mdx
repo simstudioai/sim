@@ -1,6 +1,5 @@
 ---
 title: Response
-description: Send a structured response back to API calls
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
@@ -8,7 +7,7 @@ import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-The Response block is the final step in your workflow that formats and returns data to whoever called your workflow. It's like the "return" statement for your entire workflow—it packages up results and sends them back.
+The Response block is the final step in your workflow that formats and sends a structured response back to API calls. It's like the "return" statement for your entire workflow—it packages up results and sends them back.
 
 <div className="flex justify-center">
   <Image
@@ -85,9 +84,9 @@ Set the HTTP status code for the response. Common status codes include:
   </Tab>
 </Tabs>
 
-<p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+<div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
   Default status code is 200 if not specified.
-</p>
+</div>
 
 ### Response Headers
 

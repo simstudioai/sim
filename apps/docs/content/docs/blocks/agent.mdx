@@ -1,12 +1,12 @@
 ---
 title: Agent
-description: Create powerful AI agents using any LLM provider
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
 
 The Agent block serves as the interface between your workflow and Large Language Models (LLMs). It executes inference requests against various AI providers, processes natural language inputs according to defined instructions, and generates structured or unstructured outputs for downstream consumption.
 
@@ -70,7 +70,7 @@ The Agent block supports multiple LLM providers through a unified inference inte
 **Local Deployment**: Ollama-compatible models (self-hosted inference)
 
 <div className="mx-auto w-3/5 overflow-hidden rounded-lg">
-  <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/models.mp4"></video>
+  <Video src="models.mp4" />
 </div>
 
 ### Temperature
@@ -110,7 +110,7 @@ Tools extend the agent's capabilities through external API integrations and serv
 3. Configure authentication parameters and operational constraints
 
 <div className="mx-auto w-3/5 overflow-hidden rounded-lg">
-  <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/tools.mp4"></video>
+  <Video src="tools.mp4" />
 </div>
 
 **Available Tool Categories**:
@@ -126,7 +126,7 @@ Tools extend the agent's capabilities through external API integrations and serv
 - **None**: Tool definition available but excluded from model context
 
 <div className="mx-auto w-3/5 overflow-hidden rounded-lg">
-  <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/granular-tool-control.mp4"></video>
+  <Video src="granular-tool-control.mp4" />
 </div>
 
 ### Response Format

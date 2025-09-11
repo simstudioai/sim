@@ -1,13 +1,13 @@
 ---
 title: Schedule
-description: Automatically trigger workflows on a recurring schedule
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
 
-The Schedule block automatically triggers workflow execution at specified intervals or times.
+The Schedule block automatically triggers workflows on a recurring schedule at specified intervals or times.
 
 <div className="flex justify-center">
   <Image
@@ -46,7 +46,7 @@ Configure when your workflow runs using the dropdown options:
 ## Configuring Schedules
 
 <div className="mx-auto w-full overflow-hidden rounded-lg">
-  <video autoPlay loop muted playsInline className="w-full -mb-2 rounded-lg" src="/configure-schedule.mp4"></video>
+  <Video src="configure-schedule.mp4" />
 </div>
 
 When a workflow is scheduled:
@@ -58,7 +58,7 @@ When a workflow is scheduled:
 
 <div className="flex justify-center">
   <Image
-    src="/static/light/schedule-disabled-light.png"
+    src="/static/schedule-disabled.png"
     alt="Disabled Schedule"
     width={500}
     height={200}

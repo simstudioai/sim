@@ -1,10 +1,9 @@
 {
   "title": "Sim Documentation",
   "pages": [
-    "---Introduction---",
     "./introduction/index",
     "./getting-started/index",
-    "---Create---",
+    "---Building Workflows---",
     "triggers",
     "blocks",
     "tools",
@@ -12,16 +11,15 @@
     "mcp",
     "copilot",
     "knowledgebase",
-    "workflow-variables",
-    "environment-variables",
+    "---Configuration---",
+    "variables",
     "---Execution---",
     "execution",
     "---Advanced---",
     "permissions",
     "yaml",
     "---SDKs---",
-    "./sdks/python",
-    "./sdks/typescript"
+    "sdks"
   ],
   "defaultOpen": false
 }

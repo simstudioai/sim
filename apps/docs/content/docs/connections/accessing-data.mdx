@@ -1,12 +1,11 @@
 ---
 title: Accessing Connected Data
-description: Techniques for accessing and manipulating data from connected blocks
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { File, Files, Folder } from 'fumadocs-ui/components/files'
 
-Once blocks are connected, you can access data from source blocks in destination blocks using connection tags and various data access techniques.
+Once blocks are connected, you can access and manipulate data from source blocks in destination blocks using connection tags and various data access techniques.
 
 ## Basic Data Access
 
@@ -162,29 +161,4 @@ In Function blocks, use optional chaining to safely access nested properties:
 ```javascript
 const userCity = input.userBlock?.address?.city
 const firstItemName = input.orderBlock?.items?.[0]?.name
-```
-
-## Debugging Connection Data
-
-When troubleshooting connection issues, these techniques can help:
-
-1. **Log Data**: In Function blocks, use `console.log()` to inspect connected data
-2. **Return Full Objects**: Return the full input object to see all available data
-3. **Check Types**: Verify the data types of connected values
-4. **Validate Paths**: Ensure you're using the correct path to access nested data
-
-```javascript
-// Example debugging function
-function debugConnections() {
-  console.log('All inputs:', input)
-  console.log('User data type:', typeof input.userBlock)
-  console.log('Order items:', input.orderBlock?.items)
-
-  return {
-    debug: true,
-    allInputs: input,
-    userExists: !!input.userBlock,
-    orderItemCount: input.orderBlock?.items?.length || 0,
-  }
-}
 ```

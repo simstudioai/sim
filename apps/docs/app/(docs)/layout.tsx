@@ -44,10 +44,12 @@ export default function Layout({ children }: { children: ReactNode }) {
           },
         ]}
         sidebar={{
-          defaultOpenLevel: 1,
+          defaultOpenLevel: 0,
           collapsible: true,
           footer: null,
+          banner: null,
         }}
+        className='fd-layout-no-border'
       >
         {children}
       </DocsLayout>
