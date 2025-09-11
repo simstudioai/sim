@@ -1292,6 +1292,34 @@ export const copilotFeedback = pgTable(
   })
 )
 
+// Tracks immutable deployment versions for each workflow
+export const workflowDeploymentVersion = pgTable(
+  'workflow_deployment_version',
+  {
+    id: text('id').primaryKey(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    state: json('state').notNull(),
+    isActive: boolean('is_active').notNull().default(false),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    createdBy: text('created_by'),
+  },
+  (table) => ({
+    workflowIdIdx: index('workflow_deployment_version_workflow_id_idx').on(table.workflowId),
+    workflowVersionUnique: uniqueIndex('workflow_deployment_version_workflow_version_unique').on(
+      table.workflowId,
+      table.version
+    ),
+    workflowActiveIdx: index('workflow_deployment_version_workflow_active_idx').on(
+      table.workflowId,
+      table.isActive
+    ),
+    createdAtIdx: index('workflow_deployment_version_created_at_idx').on(table.createdAt),
+  })
+)
+
 export const mcpServers = pgTable(
   'mcp_servers',
   {
