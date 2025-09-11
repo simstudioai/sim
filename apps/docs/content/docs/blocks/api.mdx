@@ -203,18 +203,6 @@ if (<api.status> === 200) {
   </ol>
 </div>
 
-### Create Support Ticket
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Submit support request to ticketing system</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Agent analyzes user issue and generates ticket data</li>
-    <li>API block POSTs ticket to support system</li>
-    <li>Condition block checks if ticket was created successfully</li>
-    <li>Response block confirms ticket creation with ID</li>
-  </ol>
-</div>
-
 ### Payment Processing
 
 <div className="mb-4 rounded-md border p-4">
@@ -223,7 +211,7 @@ if (<api.status> === 200) {
     <li>Function block validates payment data</li>
     <li>API block creates payment intent via Stripe</li>
     <li>Condition block handles payment success/failure</li>
-    <li>Function block updates order status in database</li>
+    <li>Supabase block updates order status in database</li>
   </ol>
 </div>
 
