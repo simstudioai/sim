@@ -46,8 +46,20 @@ export class WorkflowBlockHandler implements BlockHandler {
         throw new Error(`Maximum workflow nesting depth of ${MAX_WORKFLOW_DEPTH} exceeded`)
       }
 
-      // Load the child workflow from API
-      const childWorkflow = await this.loadChildWorkflow(workflowId)
+      // In deployed contexts, enforce that child workflow has an active deployment
+      if (context.isDeployedContext) {
+        const hasActiveDeployment = await this.checkChildDeployment(workflowId)
+        if (!hasActiveDeployment) {
+          throw new Error(
+            `Child workflow is not deployed. Please deploy the workflow before invoking it.`
+          )
+        }
+      }
+
+      // Load the child workflow
+      const childWorkflow = context.isDeployedContext
+        ? await this.loadChildWorkflowDeployed(workflowId)
+        : await this.loadChildWorkflow(workflowId)
 
       if (!childWorkflow) {
         throw new Error(`Child workflow ${workflowId} not found`)
@@ -83,6 +95,8 @@ export class WorkflowBlockHandler implements BlockHandler {
         workflowVariables: childWorkflow.variables || {},
         contextExtensions: {
           isChildExecution: true, // Prevent child executor from managing global state
+          // Propagate deployed context down to child execution so nested children obey constraints
+          isDeployedContext: context.isDeployedContext === true,
         },
       })
 
@@ -195,6 +209,91 @@ export class WorkflowBlockHandler implements BlockHandler {
       }
     } catch (error) {
       logger.error(`Error loading child workflow ${workflowId}:`, error)
+      return null
+    }
+  }
+
+  /**
+   * Checks if a workflow has an active deployed version
+   */
+  private async checkChildDeployment(workflowId: string): Promise<boolean> {
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      if (typeof window === 'undefined') {
+        const token = await generateInternalToken()
+        headers.Authorization = `Bearer ${token}`
+      }
+      const response = await fetch(`${getBaseUrl()}/api/workflows/${workflowId}/deployed`, {
+        headers,
+        cache: 'no-store',
+      })
+      if (!response.ok) return false
+      const json = await response.json()
+      // API returns { deployedState: state | null }
+      return !!json?.data?.deployedState || !!json?.deployedState
+    } catch (e) {
+      logger.error(`Failed to check child deployment for ${workflowId}:`, e)
+      return false
+    }
+  }
+
+  /**
+   * Loads child workflow using deployed state (for API/webhook/schedule/chat executions)
+   */
+  private async loadChildWorkflowDeployed(workflowId: string) {
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      if (typeof window === 'undefined') {
+        const token = await generateInternalToken()
+        headers.Authorization = `Bearer ${token}`
+      }
+
+      // Fetch deployed state
+      const deployedRes = await fetch(`${getBaseUrl()}/api/workflows/${workflowId}/deployed`, {
+        headers,
+        cache: 'no-store',
+      })
+      if (!deployedRes.ok) {
+        return null
+      }
+      const deployedJson = await deployedRes.json()
+      const deployedState = deployedJson?.data?.deployedState || deployedJson?.deployedState
+      if (!deployedState || !deployedState.blocks) {
+        return null
+      }
+
+      // Fetch variables and name from live metadata (variables are not stored in deployments)
+      const metaRes = await fetch(`${getBaseUrl()}/api/workflows/${workflowId}`, {
+        headers,
+        cache: 'no-store',
+      })
+      if (!metaRes.ok) {
+        return null
+      }
+      const metaJson = await metaRes.json()
+      const wfData = metaJson?.data
+
+      const serializedWorkflow = this.serializer.serializeWorkflow(
+        deployedState.blocks,
+        deployedState.edges || [],
+        deployedState.loops || {},
+        deployedState.parallels || {},
+        true
+      )
+
+      const workflowVariables = (wfData?.variables as Record<string, any>) || {}
+
+      return {
+        name: wfData?.name || 'Workflow',
+        serializedState: serializedWorkflow,
+        variables: workflowVariables,
+      }
+    } catch (error) {
+      logger.error(`Error loading deployed child workflow ${workflowId}:`, error)
       return null
     }
   }

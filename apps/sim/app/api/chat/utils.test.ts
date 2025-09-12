@@ -68,7 +68,7 @@ describe('Chat API Utils', () => {
   })
 
   describe('Auth token utils', () => {
-    it.concurrent('should encrypt and validate auth tokens', async () => {
+    it('should encrypt and validate auth tokens', async () => {
       const { encryptAuthToken, validateAuthToken } = await import('@/app/api/chat/utils')
 
       const subdomainId = 'test-subdomain-id'
@@ -85,7 +85,7 @@ describe('Chat API Utils', () => {
       expect(isInvalidSubdomain).toBe(false)
     })
 
-    it.concurrent('should reject expired tokens', async () => {
+    it('should reject expired tokens', async () => {
       const { validateAuthToken } = await import('@/app/api/chat/utils')
 
       const subdomainId = 'test-subdomain-id'
@@ -100,7 +100,7 @@ describe('Chat API Utils', () => {
   })
 
   describe('Cookie handling', () => {
-    it.concurrent('should set auth cookie correctly', async () => {
+    it('should set auth cookie correctly', async () => {
       const { setChatAuthCookie } = await import('@/app/api/chat/utils')
 
       const mockSet = vi.fn()
@@ -129,7 +129,7 @@ describe('Chat API Utils', () => {
   })
 
   describe('CORS handling', () => {
-    it.concurrent('should add CORS headers for localhost in development', async () => {
+    it('should add CORS headers for localhost in development', async () => {
       const { addCorsHeaders } = await import('@/app/api/chat/utils')
 
       const mockRequest = {
@@ -164,7 +164,7 @@ describe('Chat API Utils', () => {
       )
     })
 
-    it.concurrent('should handle OPTIONS request', async () => {
+    it('should handle OPTIONS request', async () => {
       const { OPTIONS } = await import('@/app/api/chat/utils')
 
       const mockRequest = {
@@ -198,7 +198,7 @@ describe('Chat API Utils', () => {
       })
     })
 
-    it.concurrent('should allow access to public chats', async () => {
+    it('should allow access to public chats', async () => {
       const utils = await import('@/app/api/chat/utils')
       const { validateChatAuth } = utils
 
@@ -218,7 +218,7 @@ describe('Chat API Utils', () => {
       expect(result.authorized).toBe(true)
     })
 
-    it.concurrent('should request password auth for GET requests', async () => {
+    it('should request password auth for GET requests', async () => {
       const { validateChatAuth } = await import('@/app/api/chat/utils')
 
       const deployment = {
@@ -266,7 +266,7 @@ describe('Chat API Utils', () => {
       expect(result.authorized).toBe(true)
     })
 
-    it.concurrent('should reject incorrect password', async () => {
+    it('should reject incorrect password', async () => {
       const { validateChatAuth } = await import('@/app/api/chat/utils')
 
       const deployment = {
@@ -292,7 +292,7 @@ describe('Chat API Utils', () => {
       expect(result.error).toBe('Invalid password')
     })
 
-    it.concurrent('should request email auth for email-protected chats', async () => {
+    it('should request email auth for email-protected chats', async () => {
       const { validateChatAuth } = await import('@/app/api/chat/utils')
 
       const deployment = {
@@ -314,7 +314,7 @@ describe('Chat API Utils', () => {
       expect(result.error).toBe('auth_required_email')
     })
 
-    it.concurrent('should check allowed emails for email auth', async () => {
+    it('should check allowed emails for email auth', async () => {
       const { validateChatAuth } = await import('@/app/api/chat/utils')
 
       const deployment = {

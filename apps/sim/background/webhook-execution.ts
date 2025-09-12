@@ -8,7 +8,10 @@ import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { decryptSecret } from '@/lib/utils'
 import { fetchAndProcessAirtablePayloads, formatWebhookInput } from '@/lib/webhooks/utils'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
+import {
+  loadDeployedWorkflowState,
+  loadWorkflowFromNormalizedTables,
+} from '@/lib/workflows/db-helpers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { db } from '@/db'
 import { userStats, webhook, workflow as workflowTable } from '@/db/schema'
@@ -27,6 +30,8 @@ export type WebhookExecutionPayload = {
   headers: Record<string, string>
   path: string
   blockId?: string
+  testMode?: boolean
+  executionTarget?: 'deployed' | 'live'
 }
 
 export async function executeWebhookJob(payload: WebhookExecutionPayload) {
@@ -62,10 +67,14 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
       )
     }
 
-    // Load workflow from normalized tables
-    const workflowData = await loadWorkflowFromNormalizedTables(payload.workflowId)
+    // Load workflow state based on execution target
+    const workflowData =
+      payload.executionTarget === 'live'
+        ? await loadWorkflowFromNormalizedTables(payload.workflowId)
+        : await loadDeployedWorkflowState(payload.workflowId)
+
     if (!workflowData) {
-      throw new Error(`Workflow not found: ${payload.workflowId}`)
+      throw new Error(`Workflow ${payload.workflowId} has no live normalized state`)
     }
 
     const { blocks, edges, loops, parallels } = workflowData
@@ -96,6 +105,10 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
       userId: payload.userId,
       workspaceId: workspaceId || '',
       variables: decryptedEnvVars,
+      triggerData: {
+        isTest: payload.testMode === true,
+        executionTarget: payload.executionTarget || 'deployed',
+      },
     })
 
     // Merge subblock states (matching workflow-execution pattern)
@@ -177,6 +190,7 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
           contextExtensions: {
             executionId,
             workspaceId: workspaceId || '',
+            isDeployedContext: !payload.testMode,
           },
         })
 
@@ -289,6 +303,7 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
       contextExtensions: {
         executionId,
         workspaceId: workspaceId || '',
+        isDeployedContext: !payload.testMode,
       },
     })
 
@@ -313,14 +328,16 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
     if (executionResult.success) {
       await updateWorkflowRunCounts(payload.workflowId)
 
-      // Track execution in user stats
-      await db
-        .update(userStats)
-        .set({
-          totalWebhookTriggers: sql`total_webhook_triggers + 1`,
-          lastActive: sql`now()`,
-        })
-        .where(eq(userStats.userId, payload.userId))
+      // Track execution in user stats (skip in test mode)
+      if (!payload.testMode) {
+        await db
+          .update(userStats)
+          .set({
+            totalWebhookTriggers: sql`total_webhook_triggers + 1`,
+            lastActive: sql`now()`,
+          })
+          .where(eq(userStats.userId, payload.userId))
+      }
     }
 
     // Build trace spans and complete logging session

@@ -256,44 +256,53 @@ export function TriggerConfigSection({
                   value={value}
                   onChange={(e) => onChange(fieldId, e.target.value)}
                   className={cn(
-                    'h-10 flex-1',
-                    isSecret ? 'pr-10' : '',
+                    'h-10 flex-1 rounded-[8px]',
+                    isSecret ? 'pr-24' : '',
                     'focus-visible:ring-2 focus-visible:ring-primary/20'
                   )}
                 />
                 {isSecret && (
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='icon'
-                    className={cn(
-                      '-translate-y-1/2 absolute top-1/2 right-1 h-6 w-6 text-muted-foreground',
-                      'transition-colors hover:bg-transparent hover:text-foreground'
-                    )}
-                    onClick={() => toggleSecretVisibility(fieldId)}
-                    aria-label={showSecret ? 'Hide secret' : 'Show secret'}
-                  >
-                    {showSecret ? <EyeOff className='h-4 w-4' /> : <Eye className='h-4 w-4' />}
-                    <span className='sr-only'>{showSecret ? 'Hide secret' : 'Show secret'}</span>
-                  </Button>
+                  <div className='absolute inset-y-0 right-0 z-10 flex items-center pr-1'>
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      size='sm'
+                      className={cn(
+                        'h-7 w-7 rounded-md p-0 text-muted-foreground/70',
+                        'transition-colors hover:bg-transparent hover:text-foreground'
+                      )}
+                      onClick={() => toggleSecretVisibility(fieldId)}
+                      aria-label={showSecret ? 'Hide secret' : 'Show secret'}
+                    >
+                      {showSecret ? (
+                        <EyeOff className='h-3.5 w-3.5' />
+                      ) : (
+                        <Eye className='h-3.5 w-3.5' />
+                      )}
+                      <span className='sr-only'>{showSecret ? 'Hide secret' : 'Show secret'}</span>
+                    </Button>
+                    <Button
+                      type='button'
+                      size='sm'
+                      variant='ghost'
+                      className={cn(
+                        'ml-1 h-7 w-7 rounded-md p-0 text-muted-foreground/70',
+                        'transition-colors hover:bg-transparent hover:text-foreground'
+                      )}
+                      onClick={() => copyToClipboard(value, fieldId)}
+                      disabled={!value}
+                      aria-label='Copy secret'
+                    >
+                      {copied === fieldId ? (
+                        <Check className='h-3.5 w-3.5 text-green-500' />
+                      ) : (
+                        <Copy className='h-3.5 w-3.5' />
+                      )}
+                    </Button>
+                    <div className='pointer-events-none absolute top-[1px] right-[1px] bottom-[1px] z-[-1] w-10 rounded-r-[7px] bg-gradient-to-l from-background to-transparent' />
+                  </div>
                 )}
               </div>
-              {isSecret && (
-                <Button
-                  type='button'
-                  size='icon'
-                  variant='outline'
-                  className={cn('ml-2 h-10 w-10', 'hover:bg-primary/5', 'transition-colors')}
-                  onClick={() => copyToClipboard(value, fieldId)}
-                  disabled={!value}
-                >
-                  {copied === fieldId ? (
-                    <Check className='h-4 w-4 text-green-500' />
-                  ) : (
-                    <Copy className='h-4 w-4' />
-                  )}
-                </Button>
-              )}
             </div>
           </div>
         )
@@ -335,25 +344,31 @@ export function TriggerConfigSection({
                 value={webhookUrl}
                 readOnly
                 className={cn(
-                  'h-10 flex-1 cursor-text font-mono text-xs',
+                  'h-10 flex-1 cursor-text rounded-[8px] pr-12 font-mono text-xs',
                   'focus-visible:ring-2 focus-visible:ring-primary/20'
                 )}
                 onClick={(e) => (e.target as HTMLInputElement).select()}
               />
+              <div className='absolute inset-y-0 right-0 z-10 flex items-center pr-1'>
+                <Button
+                  type='button'
+                  size='sm'
+                  variant='ghost'
+                  className={cn(
+                    'h-7 w-7 rounded-md p-0 text-muted-foreground/70',
+                    'transition-colors hover:bg-transparent hover:text-foreground'
+                  )}
+                  onClick={() => copyToClipboard(webhookUrl, 'url')}
+                >
+                  {copied === 'url' ? (
+                    <Check className='h-3.5 w-3.5 text-green-500' />
+                  ) : (
+                    <Copy className='h-3.5 w-3.5' />
+                  )}
+                </Button>
+                <div className='pointer-events-none absolute top-[1px] right-[1px] bottom-[1px] z-[-1] w-10 rounded-r-[7px] bg-gradient-to-l from-background to-transparent' />
+              </div>
             </div>
-            <Button
-              type='button'
-              size='icon'
-              variant='outline'
-              className={cn('ml-2 h-10 w-10', 'hover:bg-primary/5', 'transition-colors')}
-              onClick={() => copyToClipboard(webhookUrl, 'url')}
-            >
-              {copied === 'url' ? (
-                <Check className='h-4 w-4 text-green-500' />
-              ) : (
-                <Copy className='h-4 w-4' />
-              )}
-            </Button>
           </div>
         </div>
       )}
