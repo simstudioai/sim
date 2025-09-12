@@ -471,10 +471,7 @@ export function DeployModal({
                         <DeployForm
                           apiKeys={apiKeys}
                           keysLoaded={keysLoaded}
-                          endpointUrl={`${getEnv('NEXT_PUBLIC_APP_URL')}/api/workflows/${workflowId}/execute`}
-                          workflowId={workflowId || ''}
                           onSubmit={onDeploy}
-                          getInputFormatExample={getInputFormatExample}
                           onApiKeyCreated={fetchApiKeys}
                           formId='deploy-api-form'
                         />

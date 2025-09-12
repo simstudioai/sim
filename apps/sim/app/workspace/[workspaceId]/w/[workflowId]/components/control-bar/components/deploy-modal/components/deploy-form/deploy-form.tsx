@@ -71,10 +71,7 @@ type DeployFormValues = z.infer<typeof deployFormSchema>
 interface DeployFormProps {
   apiKeys: ApiKey[] // Legacy prop for backward compatibility
   keysLoaded: boolean
-  endpointUrl: string
-  workflowId: string
   onSubmit: (data: DeployFormValues) => void
-  getInputFormatExample: () => string
   onApiKeyCreated?: () => void
   // Optional id to bind an external submit button via the `form` attribute
   formId?: string
@@ -83,10 +80,7 @@ interface DeployFormProps {
 export function DeployForm({
   apiKeys,
   keysLoaded,
-  endpointUrl,
-  workflowId,
   onSubmit,
-  getInputFormatExample,
   onApiKeyCreated,
   formId,
 }: DeployFormProps) {
@@ -106,6 +100,7 @@ export function DeployForm({
   const [isSubmittingCreate, setIsSubmittingCreate] = useState(false)
   const [keysLoaded2, setKeysLoaded2] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
+  const [justCreatedKeyId, setJustCreatedKeyId] = useState<string | null>(null)
 
   // Get all available API keys (workspace + personal)
   const allApiKeys = apiKeysData ? [...apiKeysData.workspace, ...apiKeysData.personal] : apiKeys
@@ -146,10 +141,19 @@ export function DeployForm({
 
   useEffect(() => {
     if ((keysLoaded || keysLoaded2) && allApiKeys.length > 0) {
-      // Ensure that form has a value after loading
-      form.setValue('apiKey', form.getValues().apiKey || allApiKeys[0].id)
+      const currentValue = form.getValues().apiKey
+
+      // If we just created a key, prioritize selecting it
+      if (justCreatedKeyId && allApiKeys.find((key) => key.id === justCreatedKeyId)) {
+        form.setValue('apiKey', justCreatedKeyId)
+        setJustCreatedKeyId(null) // Clear after setting
+      }
+      // Otherwise, ensure form has a value if it doesn't already
+      else if (!currentValue || !allApiKeys.find((key) => key.id === currentValue)) {
+        form.setValue('apiKey', allApiKeys[0].id)
+      }
     }
-  }, [keysLoaded, keysLoaded2, allApiKeys, form])
+  }, [keysLoaded, keysLoaded2, allApiKeys, form, justCreatedKeyId])
 
   // Generate a new API key
   const handleCreateKey = async () => {
@@ -199,11 +203,11 @@ export function DeployForm({
         setCreateError(null)
         setIsCreatingKey(false)
 
-        // Update the form with the new key
-        form.setValue('apiKey', data.key.id)
+        // Store the newly created key ID for auto-selection
+        setJustCreatedKeyId(data.key.id)
 
-        // Refresh the keys list
-        fetchApiKeys()
+        // Refresh the keys list - the useEffect will handle auto-selection
+        await fetchApiKeys()
 
         // Trigger a refresh of the keys list in the parent component
         if (onApiKeyCreated) {
