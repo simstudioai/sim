@@ -12,10 +12,7 @@ export interface AuthResult {
   error?: string
 }
 
-export async function authenticateV1Request(
-  request: NextRequest,
-  _workflowId?: string
-): Promise<AuthResult> {
+export async function authenticateV1Request(request: NextRequest): Promise<AuthResult> {
   const apiKey = request.headers.get('x-api-key')
 
   if (!apiKey) {
@@ -36,7 +33,6 @@ export async function authenticateV1Request(
       }
     }
 
-    // Update last used timestamp
     await updateApiKeyLastUsed(result.keyId!)
 
     return {

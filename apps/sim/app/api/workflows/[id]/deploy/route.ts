@@ -1,8 +1,9 @@
 import { and, desc, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
+import { generateApiKey } from '@/lib/api-key/service'
 import { createLogger } from '@/lib/logs/console/logger'
-import { generateApiKey, generateRequestId } from '@/lib/utils'
+import { generateRequestId } from '@/lib/utils'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
@@ -90,17 +91,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           await db.insert(apiKey).values({
             id: uuidv4(),
             userId: workflowData.userId,
-            workspaceId: null, // Personal keys must have NULL workspaceId
+            workspaceId: null,
             name: keyName,
             key: newApiKeyVal,
-            type: 'personal', // Explicitly set type
+            type: 'personal',
             createdAt: new Date(),
             updatedAt: new Date(),
           })
           keyInfo = { name: keyName, type: 'personal' }
           logger.info(`[${requestId}] Generated new API key for user: ${workflowData.userId}`)
         } catch (keyError) {
-          // If key generation fails, log the error but continue with the request
           logger.error(`[${requestId}] Failed to generate API key:`, keyError)
         }
       } else {
@@ -134,7 +134,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     logger.info(`[${requestId}] Successfully retrieved deployment info: ${id}`)
 
-    // Return key name instead of actual key for security
     const responseApiKeyInfo = keyInfo ? `${keyInfo.name} (${keyInfo.type})` : 'No API key found'
 
     return createSuccessResponse({
@@ -327,7 +326,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    // Track key info for pinning and response
     let keyInfo: { name: string; type: 'personal' | 'workspace' } | null = null
     let matchedKey: {
       id: string
@@ -336,11 +334,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       type: 'personal' | 'workspace'
     } | null = null
 
-    // If client provided a specific API key ID, check if it exists and belongs to the user
     if (providedApiKey) {
       let isValidKey = false
 
-      // First check if it's a personal key for this user
       const [personalKey] = await db
         .select({ id: apiKey.id, key: apiKey.key, name: apiKey.name, expiresAt: apiKey.expiresAt })
         .from(apiKey)
@@ -350,7 +346,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         .limit(1)
 
       if (personalKey) {
-        // Check if key is expired
         if (!personalKey.expiresAt || personalKey.expiresAt >= new Date()) {
           matchedKey = { ...personalKey, type: 'personal' }
           isValidKey = true
@@ -358,7 +353,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         }
       }
 
-      // If no personal key found, check workspace keys
       if (!isValidKey) {
         const [workflowData] = await db
           .select({ workspaceId: workflow.workspaceId })
@@ -385,7 +379,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             .limit(1)
 
           if (workspaceKey) {
-            // Check if key is expired
             if (!workspaceKey.expiresAt || workspaceKey.expiresAt >= new Date()) {
               matchedKey = { ...workspaceKey, type: 'workspace' }
               isValidKey = true
@@ -428,7 +421,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     logger.info(`[${requestId}] Workflow deployed successfully: ${id}`)
 
-    // Return key name instead of actual key for security
     const responseApiKeyInfo = keyInfo ? `${keyInfo.name} (${keyInfo.type})` : 'Default key'
 
     return createSuccessResponse({

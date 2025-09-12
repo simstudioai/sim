@@ -108,7 +108,6 @@ export async function checkHybridAuth(
     if (apiKeyHeader) {
       const result = await authenticateApiKeyFromHeader(apiKeyHeader)
       if (result.success) {
-        // Update last used timestamp
         await updateApiKeyLastUsed(result.keyId!)
         return {
           success: true,

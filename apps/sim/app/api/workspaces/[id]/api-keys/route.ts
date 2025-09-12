@@ -70,14 +70,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .where(and(eq(apiKey.userId, userId), eq(apiKey.type, 'personal')))
       .orderBy(apiKey.createdAt)
 
-    // Format API keys for display on the server side
     const formattedWorkspaceKeys = await Promise.all(
       workspaceKeys.map(async (key) => {
         const displayFormat = await getApiKeyDisplayFormat(key.key)
         return {
           ...key,
-          key: key.key, // Keep the raw key for form submission
-          displayKey: displayFormat, // Add formatted display string
+          key: key.key,
+          displayKey: displayFormat,
         }
       })
     )
@@ -87,8 +86,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         const displayFormat = await getApiKeyDisplayFormat(key.key)
         return {
           ...key,
-          key: key.key, // Keep the raw key for form submission
-          displayKey: displayFormat, // Add formatted display string
+          key: key.key,
+          displayKey: displayFormat,
         }
       })
     )

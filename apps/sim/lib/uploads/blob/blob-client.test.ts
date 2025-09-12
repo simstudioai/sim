@@ -210,7 +210,7 @@ describe('Azure Blob Storage Client', () => {
       { input: '', expected: 'file' },
     ]
 
-    test.each(testCases)('should sanitize "$input" to "$expected"', async ({ input, expected }) => {
+    it.each(testCases)('should sanitize "$input" to "$expected"', async ({ input, expected }) => {
       const { sanitizeFilenameForMetadata } = await import('@/lib/uploads/blob/blob-client')
       expect(sanitizeFilenameForMetadata(input)).toBe(expected)
     })

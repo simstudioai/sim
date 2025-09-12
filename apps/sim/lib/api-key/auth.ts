@@ -1,4 +1,3 @@
-import { createLogger } from '@/lib/logs/console/logger'
 import {
   decryptApiKey,
   encryptApiKey,
@@ -6,7 +5,8 @@ import {
   generateEncryptedApiKey,
   isEncryptedApiKeyFormat,
   isLegacyApiKeyFormat,
-} from '@/lib/utils'
+} from '@/lib/api-key/service'
+import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('ApiKeyAuth')
 

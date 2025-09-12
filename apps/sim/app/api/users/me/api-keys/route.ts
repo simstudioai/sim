@@ -37,8 +37,8 @@ export async function GET(request: NextRequest) {
         const displayFormat = await getApiKeyDisplayFormat(key.key)
         return {
           ...key,
-          key: key.key, // Keep the raw key for form submission
-          displayKey: displayFormat, // Add formatted display string
+          key: key.key,
+          displayKey: displayFormat,
         }
       })
     )
@@ -61,7 +61,6 @@ export async function POST(request: NextRequest) {
     const userId = session.user.id
     const body = await request.json()
 
-    // Validate the request
     const { name: rawName } = body
     if (!rawName || typeof rawName !== 'string') {
       return NextResponse.json({ error: 'Invalid request. Name is required.' }, { status: 400 })
@@ -94,10 +93,10 @@ export async function POST(request: NextRequest) {
       .values({
         id: nanoid(),
         userId,
-        workspaceId: null, // Personal keys must have NULL workspaceId
+        workspaceId: null,
         name,
         key: encryptedKey!,
-        type: 'personal', // Explicitly set type
+        type: 'personal',
         createdAt: new Date(),
         updatedAt: new Date(),
       })

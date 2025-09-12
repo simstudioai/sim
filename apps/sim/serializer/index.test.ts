@@ -7,7 +7,7 @@
  * converting between workflow state (blocks, edges, loops) and serialized format
  * used by the executor.
  */
-import { describe, expect, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { getProviderFromModel } from '@/providers/utils'
 import {
   createAgentWithToolsWorkflowState,

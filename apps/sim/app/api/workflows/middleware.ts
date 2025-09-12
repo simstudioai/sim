@@ -77,7 +77,7 @@ export async function validateWorkflowAccess(
         if (personalResult.success) {
           validResult = personalResult
         } else if (workflow.workspaceId) {
-          // Try workspace keys if personal failed and workflow has workspace
+          // Try workspace keys
           const workspaceResult = await authenticateApiKeyFromHeader(apiKeyHeader, {
             workspaceId: workflow.workspaceId as string,
             keyTypes: ['workspace'],
@@ -98,7 +98,6 @@ export async function validateWorkflowAccess(
           }
         }
 
-        // Update last used timestamp for valid key
         await updateApiKeyLastUsed(validResult.keyId!)
       }
     }

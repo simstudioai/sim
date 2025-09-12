@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { db } from '@/db'
 import { apiKey as apiKeyTable, user, workspace } from '@/db/schema'
 import { createApiKey } from './auth'
-import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from './service'
+import { authenticateApiKeyFromHeader, generateApiKey, updateApiKeyLastUsed } from './service'
 
 describe('API Key Service', () => {
   let testUserId: string
@@ -14,7 +14,6 @@ describe('API Key Service', () => {
   let testWorkspaceKey: string
 
   beforeAll(async () => {
-    // Create test user
     const [testUser] = await db
       .insert(user)
       .values({
@@ -28,7 +27,6 @@ describe('API Key Service', () => {
       .returning({ id: user.id })
     testUserId = testUser.id
 
-    // Create test workspace
     const [testWorkspace] = await db
       .insert(workspace)
       .values({
@@ -41,7 +39,6 @@ describe('API Key Service', () => {
       .returning({ id: workspace.id })
     testWorkspaceId = testWorkspace.id
 
-    // Create test personal API key
     const personalKeyResult = await createApiKey(true, true)
     testPersonalKey = personalKeyResult.key
     const [personalKey] = await db
@@ -58,7 +55,6 @@ describe('API Key Service', () => {
       .returning({ id: apiKeyTable.id })
     testPersonalKeyId = personalKey.id
 
-    // Create test workspace API key
     const workspaceKeyResult = await createApiKey(true, true)
     testWorkspaceKey = workspaceKeyResult.key
     const [workspaceKey] = await db
@@ -79,13 +75,12 @@ describe('API Key Service', () => {
   })
 
   afterAll(async () => {
-    // Cleanup test data
     await db.delete(apiKeyTable).where(eq(apiKeyTable.userId, testUserId))
     await db.delete(workspace).where(eq(workspace.id, testWorkspaceId))
     await db.delete(user).where(eq(user.id, testUserId))
   })
 
-  it('authenticates valid personal API key', async () => {
+  it.concurrent('authenticates valid personal API key', async () => {
     const result = await authenticateApiKeyFromHeader(testPersonalKey)
 
     expect(result.success).toBe(true)
@@ -94,7 +89,7 @@ describe('API Key Service', () => {
     expect(result.keyId).toBe(testPersonalKeyId)
   })
 
-  it('authenticates valid workspace API key', async () => {
+  it.concurrent('authenticates valid workspace API key', async () => {
     const result = await authenticateApiKeyFromHeader(testWorkspaceKey)
 
     expect(result.success).toBe(true)
@@ -104,7 +99,7 @@ describe('API Key Service', () => {
     expect(result.workspaceId).toBe(testWorkspaceId)
   })
 
-  it('filters by userId correctly', async () => {
+  it.concurrent('filters by userId correctly', async () => {
     const result = await authenticateApiKeyFromHeader(testPersonalKey, {
       userId: testUserId,
       keyTypes: ['personal'],
@@ -114,7 +109,7 @@ describe('API Key Service', () => {
     expect(result.userId).toBe(testUserId)
   })
 
-  it('filters by workspaceId correctly', async () => {
+  it.concurrent('filters by workspaceId correctly', async () => {
     const result = await authenticateApiKeyFromHeader(testWorkspaceKey, {
       workspaceId: testWorkspaceId,
       keyTypes: ['workspace'],
@@ -124,14 +119,14 @@ describe('API Key Service', () => {
     expect(result.workspaceId).toBe(testWorkspaceId)
   })
 
-  it('fails authentication with invalid key', async () => {
+  it.concurrent('fails authentication with invalid key', async () => {
     const result = await authenticateApiKeyFromHeader('invalid-key')
 
     expect(result.success).toBe(false)
     expect(result.error).toBe('Invalid API key')
   })
 
-  it('updates last used timestamp', async () => {
+  it.concurrent('updates last used timestamp', async () => {
     const beforeUpdate = new Date()
     await updateApiKeyLastUsed(testPersonalKeyId)
 
@@ -143,5 +138,24 @@ describe('API Key Service', () => {
 
     expect(updatedKey.lastUsed).toBeInstanceOf(Date)
     expect(updatedKey.lastUsed!.getTime()).toBeGreaterThanOrEqual(beforeUpdate.getTime())
+  })
+})
+
+describe('generateApiKey', () => {
+  it.concurrent('should generate API key with sim_ prefix', () => {
+    const key = generateApiKey()
+    expect(key).toMatch(/^sim_/)
+  })
+
+  it.concurrent('should generate unique API keys for each call', () => {
+    const key1 = generateApiKey()
+    const key2 = generateApiKey()
+    expect(key1).not.toBe(key2)
+  })
+
+  it.concurrent('should generate API keys of correct length', () => {
+    const key = generateApiKey()
+    // Expected format: 'sim_' + 32 random characters
+    expect(key.length).toBe(36)
   })
 })
