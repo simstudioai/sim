@@ -1,12 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
 import { authenticateApiKey, createApiKey, encryptApiKeyForStorage, isEncryptedKey } from './auth'
 
-// Mock the env module
-vi.mock('@/lib/env', () => ({
-  env: {
-    API_ENCRYPTION_KEY: undefined as string | undefined,
-  },
-}))
+vi.mock('@/lib/env', async (importOriginal) => {
+  const actual = (await importOriginal()) as any
+  return {
+    ...actual,
+    env: {
+      ...actual.env,
+      API_ENCRYPTION_KEY: undefined as string | undefined,
+    },
+  }
+})
 
 describe('API Key Authentication', () => {
   it.concurrent('should detect encrypted keys correctly', () => {
