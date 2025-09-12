@@ -66,5 +66,6 @@
     "wikipedia",
     "x",
     "youtube"
-  ]
+  ],
+  "defaultOpen": false
 }

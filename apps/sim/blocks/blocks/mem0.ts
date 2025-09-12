@@ -7,7 +7,7 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
   name: 'Mem0',
   description: 'Agent memory management',
   longDescription:
-    'Add, search, retrieve, and delete memories using Mem0. Store conversation history, user preferences, and context across workflow executions for enhanced AI agent capabilities.',
+    'Integrate Mem0 into the workflow. Can add, search, and retrieve memories. Requires API Key.',
   bgColor: '#181C1E',
   icon: Mem0Icon,
   category: 'tools',

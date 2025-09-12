@@ -417,10 +417,6 @@ export class Serializer {
     blockConfig: any,
     params: Record<string, any>
   ) {
-    // Validate user-only required fields before execution starts
-    // This catches missing API keys, credentials, and other user-provided values early
-    // Fields that are user-or-llm will be validated later after parameter merging
-
     // Skip validation if the block is in trigger mode
     if (block.triggerMode || blockConfig.category === 'triggers') {
       logger.info('Skipping validation for block in trigger mode', {
@@ -461,10 +457,74 @@ export class Serializer {
     // Iterate through the tool's parameters, not the block's subBlocks
     Object.entries(currentTool.params || {}).forEach(([paramId, paramConfig]) => {
       if (paramConfig.required && paramConfig.visibility === 'user-only') {
+        const subBlockConfig = blockConfig.subBlocks?.find((sb: any) => sb.id === paramId)
+
+        let shouldValidateParam = true
+
+        if (subBlockConfig) {
+          const isAdvancedMode = block.advancedMode ?? false
+          const includedByMode = shouldIncludeField(subBlockConfig, isAdvancedMode)
+
+          const includedByCondition = (() => {
+            const evalCond = (
+              condition:
+                | {
+                    field: string
+                    value: any
+                    not?: boolean
+                    and?: { field: string; value: any; not?: boolean }
+                  }
+                | (() => {
+                    field: string
+                    value: any
+                    not?: boolean
+                    and?: { field: string; value: any; not?: boolean }
+                  })
+                | undefined,
+              values: Record<string, any>
+            ): boolean => {
+              if (!condition) return true
+              const actual = typeof condition === 'function' ? condition() : condition
+              const fieldValue = values[actual.field]
+
+              const valueMatch = Array.isArray(actual.value)
+                ? fieldValue != null &&
+                  (actual.not
+                    ? !actual.value.includes(fieldValue)
+                    : actual.value.includes(fieldValue))
+                : actual.not
+                  ? fieldValue !== actual.value
+                  : fieldValue === actual.value
+
+              const andMatch = !actual.and
+                ? true
+                : (() => {
+                    const andFieldValue = values[actual.and!.field]
+                    return Array.isArray(actual.and!.value)
+                      ? andFieldValue != null &&
+                          (actual.and!.not
+                            ? !actual.and!.value.includes(andFieldValue)
+                            : actual.and!.value.includes(andFieldValue))
+                      : actual.and!.not
+                        ? andFieldValue !== actual.and!.value
+                        : andFieldValue === actual.and!.value
+                  })()
+
+              return valueMatch && andMatch
+            }
+
+            return evalCond(subBlockConfig.condition, params)
+          })()
+
+          shouldValidateParam = includedByMode && includedByCondition
+        }
+
+        if (!shouldValidateParam) {
+          return
+        }
+
         const fieldValue = params[paramId]
         if (fieldValue === undefined || fieldValue === null || fieldValue === '') {
-          // Find the corresponding subBlock to get the display title
-          const subBlockConfig = blockConfig.subBlocks?.find((sb: any) => sb.id === paramId)
           const displayName = subBlockConfig?.title || paramId
           missingFields.push(displayName)
         }

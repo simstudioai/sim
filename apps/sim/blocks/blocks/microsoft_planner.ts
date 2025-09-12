@@ -20,7 +20,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
   name: 'Microsoft Planner',
   description: 'Read and create tasks in Microsoft Planner',
   longDescription:
-    'Integrate Microsoft Planner functionality to manage tasks. Read all user tasks, tasks from specific plans, individual tasks, or create new tasks with various properties like title, description, due date, and assignees using OAuth authentication.',
+    'Integrate Microsoft Planner into the workflow. Can read and create tasks. Requires OAuth.',
   docsLink: 'https://docs.sim.ai/tools/microsoft_planner',
   category: 'tools',
   bgColor: '#E0E0E0',

@@ -1,4 +1,5 @@
 {
   "title": "Triggers",
-  "pages": ["starter", "schedule", "webhook"]
+  "pages": ["starter", "schedule", "webhook"],
+  "defaultOpen": false
 }

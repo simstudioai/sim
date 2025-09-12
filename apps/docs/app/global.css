@@ -6,6 +6,150 @@
   --color-fd-primary: #802fff; /* Purple from control-bar component */
 }
 
+/* Target any potential border classes */
+* {
+  --fd-border-sidebar: transparent !important;
+}
+
+/* Override any CSS custom properties for borders */
+:root {
+  --fd-border: transparent !important;
+  --fd-border-sidebar: transparent !important;
+}
+
+/* Sidebar improvements for cleaner design */
+[data-sidebar] {
+  --fd-sidebar-width: 280px;
+  background-color: rgb(255 255 255);
+  padding-top: 16px;
+}
+
+/* Clean sidebar container */
+[data-sidebar] > div {
+  padding: 0 16px;
+}
+
+/* Section headers/separators styling */
+[data-sidebar] .text-sm.font-medium.text-muted-foreground,
+[data-sidebar] [data-separator] {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 20px;
+  margin-bottom: 6px;
+  padding-left: 12px;
+  padding-right: 12px;
+  color: rgb(115 115 115);
+  border: none;
+  background: none;
+}
+
+/* First separator should have less top margin */
+[data-sidebar] [data-separator]:first-of-type {
+  margin-top: 12px;
+}
+
+/* Clean sidebar item styling */
+[data-sidebar] a {
+  padding: 8px 12px;
+  margin: 1px 0;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.4;
+  transition: all 0.15s ease;
+  display: block;
+  color: rgb(71 85 105);
+  text-decoration: none;
+}
+
+[data-sidebar] a[data-active="true"] {
+  background-color: rgba(128, 47, 255, 0.08);
+  color: var(--color-fd-primary);
+  font-weight: 500;
+}
+
+[data-sidebar] a:hover:not([data-active="true"]) {
+  background-color: rgb(248 250 252);
+  color: rgb(51 65 85);
+}
+
+/* Improve spacing between sidebar items */
+[data-sidebar] nav > * + * {
+  margin-top: 2px;
+}
+
+/* Section group styling */
+[data-sidebar] [data-folder] {
+  margin-bottom: 4px;
+}
+
+[data-sidebar] [data-folder] > div:first-child {
+  font-weight: 500;
+  font-size: 13px;
+  color: rgb(15 23 42);
+  padding: 6px 12px;
+  margin-bottom: 4px;
+}
+
+/* Clean up folder toggle buttons */
+[data-sidebar] button[data-folder-toggle] {
+  padding: 4px 8px 4px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgb(51 65 85);
+}
+
+[data-sidebar] button[data-folder-toggle]:hover {
+  background-color: rgb(248 250 252);
+}
+
+/* Nested item indentation */
+[data-sidebar] [data-folder] a {
+  padding-left: 24px;
+  font-size: 14px;
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  [data-sidebar] {
+    background-color: rgb(2 8 23);
+  }
+
+  [data-sidebar] a {
+    color: rgb(148 163 184);
+  }
+
+  [data-sidebar] a:hover:not([data-active="true"]) {
+    background-color: rgb(30 41 59);
+    color: rgb(226 232 240);
+  }
+
+  [data-sidebar] a[data-active="true"] {
+    background-color: rgba(128, 47, 255, 0.15);
+    color: var(--color-fd-primary);
+  }
+
+  [data-sidebar] .text-sm.font-medium.text-muted-foreground,
+  [data-sidebar] [data-separator] {
+    color: rgb(148 163 184);
+  }
+
+  [data-sidebar] [data-folder] > div:first-child {
+    color: rgb(226 232 240);
+  }
+
+  [data-sidebar] button[data-folder-toggle] {
+    color: rgb(148 163 184);
+  }
+
+  [data-sidebar] button[data-folder-toggle]:hover {
+    background-color: rgb(30 41 59);
+  }
+}
+
 /* Custom text highlighting styles */
 .text-highlight {
   color: var(--color-fd-primary);
@@ -14,6 +158,23 @@
 /* Override marker color for highlighted lists */
 .highlight-markers li::marker {
   color: var(--color-fd-primary);
+}
+
+/* Add bottom spacing to prevent abrupt page endings */
+[data-content] {
+  padding-bottom: 4rem;
+}
+
+/* Alternative fallback for different Fumadocs versions */
+main article,
+.docs-page main {
+  padding-bottom: 4rem;
+}
+
+/* Remove any unwanted borders/outlines from video elements */
+video {
+  outline: none !important;
+  border-style: solid !important;
 }
 
 /* Tailwind v4 content sources */

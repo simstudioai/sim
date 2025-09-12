@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { DocsLayout } from 'fumadocs-ui/layouts/docs'
 import { ExternalLink, GithubIcon } from 'lucide-react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { source } from '@/lib/source'
 
@@ -23,7 +24,17 @@ export default function Layout({ children }: { children: ReactNode }) {
       <DocsLayout
         tree={source.pageTree}
         nav={{
-          title: <div className='flex items-center font-medium'>Sim</div>,
+          title: (
+            <div className='flex items-center'>
+              <Image
+                src='/static/logo.png'
+                alt='Sim'
+                width={60}
+                height={24}
+                className='h-6 w-auto'
+              />
+            </div>
+          ),
         }}
         links={[
           {
@@ -33,9 +44,10 @@ export default function Layout({ children }: { children: ReactNode }) {
           },
         ]}
         sidebar={{
-          defaultOpenLevel: 1,
+          defaultOpenLevel: 0,
           collapsible: true,
           footer: null,
+          banner: null,
         }}
       >
         {children}

@@ -8,7 +8,6 @@ import {
   formatDateTime,
   formatDuration,
   formatTime,
-  generateApiKey,
   getInvalidCharacters,
   getTimezoneAbbreviation,
   isValidName,
@@ -42,25 +41,6 @@ vi.mock('@/lib/env', () => ({
 
 afterEach(() => {
   vi.clearAllMocks()
-})
-
-describe('generateApiKey', () => {
-  it.concurrent('should generate API key with sim_ prefix', () => {
-    const key = generateApiKey()
-    expect(key).toMatch(/^sim_/)
-  })
-
-  it.concurrent('should generate unique API keys for each call', () => {
-    const key1 = generateApiKey()
-    const key2 = generateApiKey()
-    expect(key1).not.toBe(key2)
-  })
-
-  it.concurrent('should generate API keys of correct length', () => {
-    const key = generateApiKey()
-    // Expected format: 'sim_' + 32 random characters
-    expect(key.length).toBe(36)
-  })
 })
 
 describe('cn (class name utility)', () => {

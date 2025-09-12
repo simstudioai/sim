@@ -7,7 +7,7 @@ export const ClayBlock: BlockConfig<ClayPopulateResponse> = {
   name: 'Clay',
   description: 'Populate Clay workbook',
   longDescription:
-    'Populate Clay workbook with data using a JSON or plain text. Enables direct communication and notifications with channel confirmation.',
+    'Integrate Clay into the workflow. Can populate a table with data. Requires an API Key.',
   docsLink: 'https://docs.sim.ai/tools/clay',
   category: 'tools',
   bgColor: '#E0E0E0',

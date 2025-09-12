@@ -1,0 +1,5 @@
+{
+  "title": "Knowledgebase",
+  "pages": ["index", "tags"],
+  "defaultOpen": false
+}

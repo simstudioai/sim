@@ -1,18 +1,18 @@
-import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { apiKey as apiKeyTable } from '@/db/schema'
 
 const logger = createLogger('V1Auth')
 
 export interface AuthResult {
   authenticated: boolean
   userId?: string
+  workspaceId?: string
+  keyType?: 'personal' | 'workspace'
   error?: string
 }
 
-export async function authenticateApiKey(request: NextRequest): Promise<AuthResult> {
+export async function authenticateV1Request(request: NextRequest): Promise<AuthResult> {
   const apiKey = request.headers.get('x-api-key')
 
   if (!apiKey) {
@@ -23,36 +23,23 @@ export async function authenticateApiKey(request: NextRequest): Promise<AuthResu
   }
 
   try {
-    const [keyRecord] = await db
-      .select({
-        userId: apiKeyTable.userId,
-        expiresAt: apiKeyTable.expiresAt,
-      })
-      .from(apiKeyTable)
-      .where(eq(apiKeyTable.key, apiKey))
-      .limit(1)
+    const result = await authenticateApiKeyFromHeader(apiKey)
 
-    if (!keyRecord) {
+    if (!result.success) {
       logger.warn('Invalid API key attempted', { keyPrefix: apiKey.slice(0, 8) })
       return {
         authenticated: false,
-        error: 'Invalid API key',
+        error: result.error || 'Invalid API key',
       }
     }
 
-    if (keyRecord.expiresAt && keyRecord.expiresAt < new Date()) {
-      logger.warn('Expired API key attempted', { userId: keyRecord.userId })
-      return {
-        authenticated: false,
-        error: 'API key expired',
-      }
-    }
-
-    await db.update(apiKeyTable).set({ lastUsed: new Date() }).where(eq(apiKeyTable.key, apiKey))
+    await updateApiKeyLastUsed(result.keyId!)
 
     return {
       authenticated: true,
-      userId: keyRecord.userId,
+      userId: result.userId!,
+      workspaceId: result.workspaceId,
+      keyType: result.keyType,
     }
   } catch (error) {
     logger.error('API key authentication error', { error })

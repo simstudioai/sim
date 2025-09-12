@@ -3,14 +3,48 @@ import { NextResponse } from 'next/server'
 import { getEnv } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
-import { userStats, workflow as workflowTable } from '@/db/schema'
+import { apiKey, userStats, workflow as workflowTable } from '@/db/schema'
 import type { ExecutionResult } from '@/executor/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowUtils')
 
 export async function getWorkflowById(id: string) {
-  const workflows = await db.select().from(workflowTable).where(eq(workflowTable.id, id)).limit(1)
+  const workflows = await db
+    .select({
+      id: workflowTable.id,
+      userId: workflowTable.userId,
+      workspaceId: workflowTable.workspaceId,
+      folderId: workflowTable.folderId,
+      name: workflowTable.name,
+      description: workflowTable.description,
+      color: workflowTable.color,
+      lastSynced: workflowTable.lastSynced,
+      createdAt: workflowTable.createdAt,
+      updatedAt: workflowTable.updatedAt,
+      isDeployed: workflowTable.isDeployed,
+      deployedState: workflowTable.deployedState,
+      deployedAt: workflowTable.deployedAt,
+      pinnedApiKeyId: workflowTable.pinnedApiKeyId,
+      collaborators: workflowTable.collaborators,
+      runCount: workflowTable.runCount,
+      lastRunAt: workflowTable.lastRunAt,
+      variables: workflowTable.variables,
+      isPublished: workflowTable.isPublished,
+      marketplaceData: workflowTable.marketplaceData,
+      pinnedApiKey: {
+        id: apiKey.id,
+        name: apiKey.name,
+        key: apiKey.key,
+        type: apiKey.type,
+        workspaceId: apiKey.workspaceId,
+      },
+    })
+    .from(workflowTable)
+    .leftJoin(apiKey, eq(workflowTable.pinnedApiKeyId, apiKey.id))
+    .where(eq(workflowTable.id, id))
+    .limit(1)
+
   return workflows[0]
 }
 
@@ -45,7 +79,7 @@ export async function updateWorkflowRunCounts(workflowId: string, runs = 1) {
     await db
       .update(workflowTable)
       .set({
-        runCount: workflow.runCount + runs,
+        runCount: (workflow.runCount as number) + runs,
         lastRunAt: new Date(),
       })
       .where(eq(workflowTable.id, workflowId))

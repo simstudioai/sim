@@ -7,7 +7,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
   name: 'Outlook',
   description: 'Access Outlook',
   longDescription:
-    'Integrate Outlook functionality to read, draft, andsend email messages within your workflow. Automate email communications and process email content using OAuth authentication.',
+    'Integrate Outlook into the workflow. Can read, draft, and send email messages. Requires OAuth. Can be used in trigger mode to trigger a workflow when a new email is received.',
   docsLink: 'https://docs.sim.ai/tools/outlook',
   category: 'tools',
   bgColor: '#E0E0E0',

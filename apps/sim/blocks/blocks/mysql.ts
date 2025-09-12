@@ -7,7 +7,7 @@ export const MySQLBlock: BlockConfig<MySQLResponse> = {
   name: 'MySQL',
   description: 'Connect to MySQL database',
   longDescription:
-    'Connect to any MySQL database to execute queries, manage data, and perform database operations. Supports SELECT, INSERT, UPDATE, DELETE operations with secure connection handling.',
+    'Integrate MySQL into the workflow. Can query, insert, update, delete, and execute raw SQL.',
   docsLink: 'https://docs.sim.ai/tools/mysql',
   category: 'tools',
   bgColor: '#E0E0E0',

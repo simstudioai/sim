@@ -40,7 +40,7 @@ export function ExampleCommand({
     if (!command.includes('curl')) return command
 
     // Replace the actual API key with a placeholder in the command
-    const sanitizedCommand = command.replace(apiKey, 'SIM_API_KEY')
+    const sanitizedCommand = command.replace(apiKey, '$SIM_API_KEY')
 
     // Format the command with line breaks for better readability
     return sanitizedCommand
@@ -49,50 +49,19 @@ export function ExampleCommand({
       .replace(' http', '\n  http')
   }
 
-  // Get the actual command with real API key for copying
+  // Get the command with placeholder for copying (single line, no line breaks)
   const getActualCommand = () => {
-    const baseEndpoint = endpoint
-    const inputExample = getInputFormatExample
-      ? getInputFormatExample()
-      : ' -d \'{"input": "your data here"}\''
-
-    switch (mode) {
-      case 'sync':
-        // Use the original command but ensure it has the real API key
-        return command
-
-      case 'async':
-        switch (exampleType) {
-          case 'execute':
-            return `curl -X POST \\
-  -H "X-API-Key: ${apiKey}" \\
-  -H "Content-Type: application/json" \\
-  -H "X-Execution-Mode: async"${inputExample} \\
-  ${baseEndpoint}`
-
-          case 'status': {
-            const baseUrl = baseEndpoint.split('/api/workflows/')[0]
-            return `curl -H "X-API-Key: ${apiKey}" \\
-  ${baseUrl}/api/jobs/JOB_ID_FROM_EXECUTION`
-          }
-
-          case 'rate-limits': {
-            const baseUrlForRateLimit = baseEndpoint.split('/api/workflows/')[0]
-            return `curl -H "X-API-Key: ${apiKey}" \\
-  ${baseUrlForRateLimit}/api/users/me/usage-limits`
-          }
-
-          default:
-            return command
-        }
-
-      default:
-        return command
-    }
+    const displayCommand = getDisplayCommand()
+    // Remove line breaks and extra whitespace for copying
+    return displayCommand
+      .replace(/\\\n\s*/g, ' ') // Remove backslash + newline + whitespace
+      .replace(/\n\s*/g, ' ') // Remove any remaining newlines + whitespace
+      .replace(/\s+/g, ' ') // Normalize multiple spaces to single space
+      .trim()
   }
 
   const getDisplayCommand = () => {
-    const baseEndpoint = endpoint.replace(apiKey, 'SIM_API_KEY')
+    const baseEndpoint = endpoint.replace(apiKey, '$SIM_API_KEY')
     const inputExample = getInputFormatExample
       ? getInputFormatExample()
       : ' -d \'{"input": "your data here"}\''
@@ -105,20 +74,20 @@ export function ExampleCommand({
         switch (exampleType) {
           case 'execute':
             return `curl -X POST \\
-  -H "X-API-Key: SIM_API_KEY" \\
+  -H "X-API-Key: $SIM_API_KEY" \\
   -H "Content-Type: application/json" \\
   -H "X-Execution-Mode: async"${inputExample} \\
   ${baseEndpoint}`
 
           case 'status': {
             const baseUrl = baseEndpoint.split('/api/workflows/')[0]
-            return `curl -H "X-API-Key: SIM_API_KEY" \\
+            return `curl -H "X-API-Key: $SIM_API_KEY" \\
   ${baseUrl}/api/jobs/JOB_ID_FROM_EXECUTION`
           }
 
           case 'rate-limits': {
             const baseUrlForRateLimit = baseEndpoint.split('/api/workflows/')[0]
-            return `curl -H "X-API-Key: SIM_API_KEY" \\
+            return `curl -H "X-API-Key: $SIM_API_KEY" \\
   ${baseUrlForRateLimit}/api/users/me/usage-limits`
           }
 

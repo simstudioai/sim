@@ -1,4 +1,4 @@
 {
   "title": "Variables",
-  "pages": ["index"]
+  "pages": ["workflow-variables", "environment-variables"]
 }

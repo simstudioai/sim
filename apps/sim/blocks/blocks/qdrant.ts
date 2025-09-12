@@ -7,7 +7,7 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
   name: 'Qdrant',
   description: 'Use Qdrant vector database',
   longDescription:
-    'Store, search, and retrieve vector embeddings using Qdrant. Perform semantic similarity searches and manage your vector collections.',
+    'Integrate Qdrant into the workflow. Can upsert, search, and fetch points. Requires API Key.',
   docsLink: 'https://qdrant.tech/documentation/',
   category: 'tools',
   bgColor: '#1A223F',

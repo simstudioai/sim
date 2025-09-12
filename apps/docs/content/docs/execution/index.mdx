@@ -1,12 +1,11 @@
 ---
 title: Execution
-description: Understand how workflows are executed in Sim
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
 
-Sim's execution engine brings your workflows to life by processing blocks in the correct order, managing data flow, and handling errors gracefully.
+Sim's execution engine brings your workflows to life by processing blocks in the correct order, managing data flow, and handling errors gracefully, so you can understand exactly how workflows are executed in Sim.
 
 <Callout type="info">
   Every workflow execution follows a deterministic path based on your block connections and logic, ensuring predictable and reliable results.
@@ -20,8 +19,16 @@ Sim's execution engine brings your workflows to life by processing blocks in the
     workflow
   </Card>
 
-  <Card title="Logging and Cost Calculation" href="/execution/advanced">
-    Understand workflow logs and how execution costs are calculated in Sim
+  <Card title="Logging" href="/execution/logging">
+    Monitor workflow executions with comprehensive logging and real-time visibility
+  </Card>
+  
+  <Card title="Cost Calculation" href="/execution/costs">
+    Understand how workflow execution costs are calculated and optimized
+  </Card>
+  
+  <Card title="External API" href="/execution/api">
+    Access execution logs and set up webhooks programmatically via REST API
   </Card>
 </Cards>
 
@@ -125,4 +132,4 @@ const result = await client.executeWorkflow('workflow-id', {
 
 ## What's Next?
 
-Start with [Execution Basics](/execution/basics) to understand how workflows run, then explore [Logging and Cost Calculation](/execution/advanced) to monitor and optimize your executions.
+Start with [Execution Basics](/execution/basics) to understand how workflows run, then explore [Logging](/execution/logging) to monitor your executions and [Cost Calculation](/execution/costs) to optimize your spending.

@@ -1,10 +1,11 @@
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { getSession } from '@/lib/auth'
 import { verifyInternalToken } from '@/lib/auth/internal'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
-import { apiKey as apiKeyTable, workflow } from '@/db/schema'
+import { workflow } from '@/db/schema'
 
 const logger = createLogger('HybridAuth')
 
@@ -105,19 +106,16 @@ export async function checkHybridAuth(
     // 3. Try API key auth
     const apiKeyHeader = request.headers.get('x-api-key')
     if (apiKeyHeader) {
-      const [apiKeyRecord] = await db
-        .select({ userId: apiKeyTable.userId })
-        .from(apiKeyTable)
-        .where(eq(apiKeyTable.key, apiKeyHeader))
-        .limit(1)
-
-      if (apiKeyRecord) {
+      const result = await authenticateApiKeyFromHeader(apiKeyHeader)
+      if (result.success) {
+        await updateApiKeyLastUsed(result.keyId!)
         return {
           success: true,
-          userId: apiKeyRecord.userId,
+          userId: result.userId!,
           authType: 'api_key',
         }
       }
+
       return {
         success: false,
         error: 'Invalid API key',

@@ -82,16 +82,22 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
     body: (params) => {
       let processedValues: any = params.values || []
 
-      // Handle array of objects
+      // Minimal shape enforcement: Google requires a 2D array
+      if (!Array.isArray(processedValues)) {
+        processedValues = [[processedValues]]
+      } else if (!processedValues.every((item: any) => Array.isArray(item))) {
+        processedValues = (processedValues as any[]).map((row: any) =>
+          Array.isArray(row) ? row : [row]
+        )
+      }
+
+      // Handle array of objects (existing behavior)
       if (
         Array.isArray(processedValues) &&
         processedValues.length > 0 &&
         typeof processedValues[0] === 'object' &&
         !Array.isArray(processedValues[0])
       ) {
-        // It's an array of objects
-
-        // First, extract all unique keys from all objects to create headers
         const allKeys = new Set<string>()
         processedValues.forEach((obj: any) => {
           if (obj && typeof obj === 'object') {
@@ -100,15 +106,12 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
         })
         const headers = Array.from(allKeys)
 
-        // Then create rows with object values in the order of headers
         const rows = processedValues.map((obj: any) => {
           if (!obj || typeof obj !== 'object') {
-            // Handle non-object items by creating an array with empty values
             return Array(headers.length).fill('')
           }
           return headers.map((key) => {
             const value = obj[key]
-            // Handle nested objects/arrays by converting to JSON string
             if (value !== null && typeof value === 'object') {
               return JSON.stringify(value)
             }
@@ -116,7 +119,6 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
           })
         })
 
-        // Add headers as the first row, then add data rows
         processedValues = [headers, ...rows]
       }
 
@@ -124,12 +126,9 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
         majorDimension: params.majorDimension || 'ROWS',
         values: processedValues,
       }
-
-      // Only include range if it's provided
       if (params.range) {
         body.range = params.range
       }
-
       return body
     },
   },

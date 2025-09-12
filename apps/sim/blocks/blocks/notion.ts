@@ -7,7 +7,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
   name: 'Notion',
   description: 'Manage Notion pages',
   longDescription:
-    'Integrate with Notion to read content from pages, write new content, and create new pages.',
+    'Integrate with Notion into the workflow. Can read page, read database, create page, create database, append content, query database, and search workspace. Requires OAuth.',
   docsLink: 'https://docs.sim.ai/tools/notion',
   category: 'tools',
   bgColor: '#181C1E',

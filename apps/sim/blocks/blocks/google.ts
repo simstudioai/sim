@@ -7,7 +7,7 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
   name: 'Google Search',
   description: 'Search the web',
   longDescription:
-    'Searches the web using the Google Custom Search API, which provides high-quality search results from the entire internet or a specific site defined by a custom search engine ID.',
+    'Integrate Google Search into the workflow. Can search the web. Requires API Key.',
   docsLink: 'https://docs.sim.ai/tools/google_search',
   category: 'tools',
   bgColor: '#E0E0E0',

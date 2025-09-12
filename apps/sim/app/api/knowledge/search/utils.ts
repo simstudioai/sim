@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
 import { db } from '@/db'
 import { document, embedding } from '@/db/schema'
@@ -19,7 +19,7 @@ export async function getDocumentNamesByIds(
       filename: document.filename,
     })
     .from(document)
-    .where(inArray(document.id, uniqueIds))
+    .where(and(inArray(document.id, uniqueIds), isNull(document.deletedAt)))
 
   const documentNameMap: Record<string, string> = {}
   documents.forEach((doc) => {
@@ -119,10 +119,12 @@ async function executeTagFilterQuery(
     return await db
       .select({ id: embedding.id })
       .from(embedding)
+      .innerJoin(document, eq(embedding.documentId, document.id))
       .where(
         and(
           eq(embedding.knowledgeBaseId, knowledgeBaseIds[0]),
           eq(embedding.enabled, true),
+          isNull(document.deletedAt),
           ...getTagFilters(filters, embedding)
         )
       )
@@ -130,10 +132,12 @@ async function executeTagFilterQuery(
   return await db
     .select({ id: embedding.id })
     .from(embedding)
+    .innerJoin(document, eq(embedding.documentId, document.id))
     .where(
       and(
         inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
         eq(embedding.enabled, true),
+        isNull(document.deletedAt),
         ...getTagFilters(filters, embedding)
       )
     )
@@ -166,9 +170,11 @@ async function executeVectorSearchOnIds(
       knowledgeBaseId: embedding.knowledgeBaseId,
     })
     .from(embedding)
+    .innerJoin(document, eq(embedding.documentId, document.id))
     .where(
       and(
         inArray(embedding.id, embeddingIds),
+        isNull(document.deletedAt),
         sql`${embedding.embedding} <=> ${queryVector}::vector < ${distanceThreshold}`
       )
     )
@@ -209,10 +215,12 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
           knowledgeBaseId: embedding.knowledgeBaseId,
         })
         .from(embedding)
+        .innerJoin(document, eq(embedding.documentId, document.id))
         .where(
           and(
             eq(embedding.knowledgeBaseId, kbId),
             eq(embedding.enabled, true),
+            isNull(document.deletedAt),
             ...getTagFilters(filters, embedding)
           )
         )
@@ -240,10 +248,12 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
       knowledgeBaseId: embedding.knowledgeBaseId,
     })
     .from(embedding)
+    .innerJoin(document, eq(embedding.documentId, document.id))
     .where(
       and(
         inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
         eq(embedding.enabled, true),
+        isNull(document.deletedAt),
         ...getTagFilters(filters, embedding)
       )
     )
@@ -283,10 +293,12 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
           knowledgeBaseId: embedding.knowledgeBaseId,
         })
         .from(embedding)
+        .innerJoin(document, eq(embedding.documentId, document.id))
         .where(
           and(
             eq(embedding.knowledgeBaseId, kbId),
             eq(embedding.enabled, true),
+            isNull(document.deletedAt),
             sql`${embedding.embedding} <=> ${queryVector}::vector < ${distanceThreshold}`
           )
         )
@@ -316,10 +328,12 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
       knowledgeBaseId: embedding.knowledgeBaseId,
     })
     .from(embedding)
+    .innerJoin(document, eq(embedding.documentId, document.id))
     .where(
       and(
         inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
         eq(embedding.enabled, true),
+        isNull(document.deletedAt),
         sql`${embedding.embedding} <=> ${queryVector}::vector < ${distanceThreshold}`
       )
     )

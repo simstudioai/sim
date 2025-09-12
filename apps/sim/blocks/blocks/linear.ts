@@ -9,7 +9,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
   name: 'Linear',
   description: 'Read and create issues in Linear',
   longDescription:
-    'Integrate with Linear to fetch, filter, and create issues directly from your workflow.',
+    'Integrate Linear into the workflow. Can read and create issues. Requires OAuth.',
   category: 'tools',
   icon: LinearBlockIcon,
   bgColor: '#5E6AD2',

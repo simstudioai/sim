@@ -610,6 +610,20 @@
       "when": 1757448419436,
       "tag": "0087_wealthy_landau",
       "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1757619657920,
+      "tag": "0088_serious_firestar",
+      "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1757628623657,
+      "tag": "0089_amused_pete_wisdom",
+      "breakpoints": true
     }
   ]
 }

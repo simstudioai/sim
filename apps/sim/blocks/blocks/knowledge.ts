@@ -6,7 +6,7 @@ export const KnowledgeBlock: BlockConfig = {
   name: 'Knowledge',
   description: 'Use vector search',
   longDescription:
-    'Perform semantic vector search across knowledge bases, upload individual chunks to existing documents, or create new documents from text content. Uses advanced AI embeddings to understand meaning and context for search operations.',
+    'Integrate Knowledge into the workflow. Can search, upload chunks, and create documents.',
   bgColor: '#00B0B0',
   icon: PackageSearchIcon,
   category: 'blocks',

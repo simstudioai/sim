@@ -1,9 +1,8 @@
-import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { authenticateApiKey } from '@/lib/api-key/auth'
+import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getWorkflowById } from '@/lib/workflows/utils'
-import { db } from '@/db'
-import { apiKey } from '@/db/schema'
 
 const logger = createLogger('WorkflowMiddleware')
 
@@ -57,8 +56,9 @@ export async function validateWorkflowAccess(
       }
 
       // If a pinned key exists, only accept that specific key
-      if (workflow.pinnedApiKey) {
-        if (workflow.pinnedApiKey !== apiKeyHeader) {
+      if (workflow.pinnedApiKey?.key) {
+        const isValidPinnedKey = await authenticateApiKey(apiKeyHeader, workflow.pinnedApiKey.key)
+        if (!isValidPinnedKey) {
           return {
             error: {
               message: 'Unauthorized: Invalid API key',
@@ -67,14 +67,29 @@ export async function validateWorkflowAccess(
           }
         }
       } else {
-        // Otherwise, verify the key belongs to the workflow owner
-        const [owned] = await db
-          .select({ key: apiKey.key })
-          .from(apiKey)
-          .where(and(eq(apiKey.userId, workflow.userId), eq(apiKey.key, apiKeyHeader)))
-          .limit(1)
+        // Try personal keys first
+        const personalResult = await authenticateApiKeyFromHeader(apiKeyHeader, {
+          userId: workflow.userId as string,
+          keyTypes: ['personal'],
+        })
 
-        if (!owned) {
+        let validResult = null
+        if (personalResult.success) {
+          validResult = personalResult
+        } else if (workflow.workspaceId) {
+          // Try workspace keys
+          const workspaceResult = await authenticateApiKeyFromHeader(apiKeyHeader, {
+            workspaceId: workflow.workspaceId as string,
+            keyTypes: ['workspace'],
+          })
+
+          if (workspaceResult.success) {
+            validResult = workspaceResult
+          }
+        }
+
+        // If no valid key found, reject
+        if (!validResult) {
           return {
             error: {
               message: 'Unauthorized: Invalid API key',
@@ -82,6 +97,8 @@ export async function validateWorkflowAccess(
             },
           }
         }
+
+        await updateApiKeyLastUsed(validResult.keyId!)
       }
     }
     return { workflow }
