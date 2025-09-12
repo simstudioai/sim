@@ -7,7 +7,7 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
   name: 'Google Sheets',
   description: 'Read, write, and update data',
   longDescription:
-    'Integrate Google Sheets into the workflow. Can read, write, and update data. Requires OAuth.',
+    'Integrate Google Sheets into the workflow. Can read, write, append, and update data. Requires OAuth.',
   docsLink: 'https://docs.sim.ai/tools/google_sheets',
   category: 'tools',
   bgColor: '#E0E0E0',
