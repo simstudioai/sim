@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest'
 import { quickValidateEmail, validateEmail } from './validation'
 
 describe('Email Validation', () => {

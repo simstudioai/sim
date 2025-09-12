@@ -267,7 +267,6 @@ export function Copilot() {
                 <Plus className='h-4 w-4 stroke-[2px]' />
                 Generate Key
               </Button>
-              <div className='text-muted-foreground text-xs'>Keep your API keys secure</div>
             </>
           )}
         </div>
