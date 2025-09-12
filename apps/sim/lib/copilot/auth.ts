@@ -1,9 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
+import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { getSession } from '@/lib/auth'
-import { authenticateApiKey } from '@/lib/security/api-key-auth'
 import { generateRequestId } from '@/lib/utils'
-import { db } from '@/db'
-import { apiKey as apiKeyTable } from '@/db/schema'
 
 export type { NotificationStatus } from '@/lib/copilot/types'
 
@@ -62,28 +60,10 @@ export async function authenticateCopilotRequest(req: NextRequest): Promise<Copi
   if (!userId) {
     const apiKeyHeader = req.headers.get('x-api-key')
     if (apiKeyHeader) {
-      // Fetch all API keys and test each one with encrypted authentication
-      const apiKeys = await db
-        .select({
-          userId: apiKeyTable.userId,
-          key: apiKeyTable.key,
-          expiresAt: apiKeyTable.expiresAt,
-        })
-        .from(apiKeyTable)
-
-      for (const storedKey of apiKeys) {
-        // Check if key is expired
-        if (storedKey.expiresAt && storedKey.expiresAt < new Date()) {
-          continue
-        }
-
-        try {
-          const isValid = await authenticateApiKey(apiKeyHeader, storedKey.key)
-          if (isValid) {
-            userId = storedKey.userId
-            break
-          }
-        } catch (error) {}
+      const result = await authenticateApiKeyFromHeader(apiKeyHeader)
+      if (result.success) {
+        userId = result.userId!
+        await updateApiKeyLastUsed(result.keyId!)
       }
     }
   }

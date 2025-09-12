@@ -1,12 +1,10 @@
 import { runs } from '@trigger.dev/sdk'
 import { type NextRequest, NextResponse } from 'next/server'
+import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
-import { authenticateApiKey } from '@/lib/security/api-key-auth'
 import { generateRequestId } from '@/lib/utils'
 import { createErrorResponse } from '@/app/api/workflows/utils'
-import { db } from '@/db'
-import { apiKey as apiKeyTable } from '@/db/schema'
 
 const logger = createLogger('TaskStatusAPI')
 
@@ -27,28 +25,12 @@ export async function GET(
     if (!authenticatedUserId) {
       const apiKeyHeader = request.headers.get('x-api-key')
       if (apiKeyHeader) {
-        // Fetch all API keys and test each one with encrypted authentication
-        const apiKeys = await db
-          .select({
-            userId: apiKeyTable.userId,
-            key: apiKeyTable.key,
-            expiresAt: apiKeyTable.expiresAt,
-          })
-          .from(apiKeyTable)
-
-        for (const storedKey of apiKeys) {
-          // Check if key is expired
-          if (storedKey.expiresAt && storedKey.expiresAt < new Date()) {
-            continue
+        const authResult = await authenticateApiKeyFromHeader(apiKeyHeader)
+        if (authResult.success && authResult.userId) {
+          authenticatedUserId = authResult.userId
+          if (authResult.keyId) {
+            await updateApiKeyLastUsed(authResult.keyId).catch(() => {})
           }
-
-          try {
-            const isValid = await authenticateApiKey(apiKeyHeader, storedKey.key)
-            if (isValid) {
-              authenticatedUserId = storedKey.userId
-              break
-            }
-          } catch (error) {}
         }
       }
     }

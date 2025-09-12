@@ -1,10 +1,8 @@
-import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { authenticateApiKey } from '@/lib/api-key/auth'
+import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { createLogger } from '@/lib/logs/console/logger'
-import { authenticateApiKey } from '@/lib/security/api-key-auth'
 import { getWorkflowById } from '@/lib/workflows/utils'
-import { db } from '@/db'
-import { apiKey, workspace } from '@/db/schema'
 
 const logger = createLogger('WorkflowMiddleware')
 
@@ -69,50 +67,29 @@ export async function validateWorkflowAccess(
           }
         }
       } else {
-        // Check both personal API keys and workspace API keys
-        const personalKeys = await db
-          .select({
-            id: apiKey.id,
-            key: apiKey.key,
+        // Try personal keys first
+        const personalResult = await authenticateApiKeyFromHeader(apiKeyHeader, {
+          userId: workflow.userId as string,
+          keyTypes: ['personal'],
+        })
+
+        let validResult = null
+        if (personalResult.success) {
+          validResult = personalResult
+        } else if (workflow.workspaceId) {
+          // Try workspace keys if personal failed and workflow has workspace
+          const workspaceResult = await authenticateApiKeyFromHeader(apiKeyHeader, {
+            workspaceId: workflow.workspaceId as string,
+            keyTypes: ['workspace'],
           })
-          .from(apiKey)
-          .where(and(eq(apiKey.userId, workflow.userId as string), eq(apiKey.type, 'personal')))
 
-        let validPersonalKey = null
-
-        for (const key of personalKeys) {
-          const isValid = await authenticateApiKey(apiKeyHeader, key.key)
-          if (isValid) {
-            validPersonalKey = key
-            break
+          if (workspaceResult.success) {
+            validResult = workspaceResult
           }
         }
 
-        let validWorkspaceKey = null
-        if (!validPersonalKey && workflow.workspaceId) {
-          const workspaceKeys = await db
-            .select({
-              id: apiKey.id,
-              key: apiKey.key,
-              workspaceId: apiKey.workspaceId,
-            })
-            .from(apiKey)
-            .leftJoin(workspace, eq(apiKey.workspaceId, workspace.id))
-            .where(
-              and(eq(workspace.id, workflow.workspaceId as string), eq(apiKey.type, 'workspace'))
-            ) // Key must belong to the same workspace as the workflow and be a workspace key
-
-          for (const key of workspaceKeys) {
-            const isValid = await authenticateApiKey(apiKeyHeader, key.key)
-            if (isValid) {
-              validWorkspaceKey = key
-              break
-            }
-          }
-        }
-
-        // If neither personal nor workspace key is valid, reject
-        if (!validPersonalKey && !validWorkspaceKey) {
+        // If no valid key found, reject
+        if (!validResult) {
           return {
             error: {
               message: 'Unauthorized: Invalid API key',
@@ -121,18 +98,8 @@ export async function validateWorkflowAccess(
           }
         }
 
-        // Update last used timestamp for valid keys
-        if (validPersonalKey) {
-          await db
-            .update(apiKey)
-            .set({ lastUsed: new Date() })
-            .where(eq(apiKey.id, validPersonalKey.id))
-        } else if (validWorkspaceKey) {
-          await db
-            .update(apiKey)
-            .set({ lastUsed: new Date() })
-            .where(eq(apiKey.id, validWorkspaceKey.id))
-        }
+        // Update last used timestamp for valid key
+        await updateApiKeyLastUsed(validResult.keyId!)
       }
     }
     return { workflow }

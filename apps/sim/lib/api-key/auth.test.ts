@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  authenticateApiKey,
-  createApiKey,
-  encryptApiKeyForStorage,
-  isEncryptedKey,
-} from './api-key-auth'
+import { authenticateApiKey, createApiKey, encryptApiKeyForStorage, isEncryptedKey } from './auth'
 
 describe('API Key Authentication', () => {
   it.concurrent('should detect encrypted keys correctly', () => {

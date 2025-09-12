@@ -1,11 +1,11 @@
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { getSession } from '@/lib/auth'
 import { verifyInternalToken } from '@/lib/auth/internal'
 import { createLogger } from '@/lib/logs/console/logger'
-import { authenticateApiKey } from '@/lib/security/api-key-auth'
 import { db } from '@/db'
-import { apiKey as apiKeyTable, workflow } from '@/db/schema'
+import { workflow } from '@/db/schema'
 
 const logger = createLogger('HybridAuth')
 
@@ -106,32 +106,14 @@ export async function checkHybridAuth(
     // 3. Try API key auth
     const apiKeyHeader = request.headers.get('x-api-key')
     if (apiKeyHeader) {
-      // Fetch all API keys and test each one with encrypted authentication
-      const apiKeys = await db
-        .select({
-          userId: apiKeyTable.userId,
-          key: apiKeyTable.key,
-          expiresAt: apiKeyTable.expiresAt,
-        })
-        .from(apiKeyTable)
-
-      for (const storedKey of apiKeys) {
-        // Check if key is expired
-        if (storedKey.expiresAt && storedKey.expiresAt < new Date()) {
-          continue
-        }
-
-        try {
-          const isValid = await authenticateApiKey(apiKeyHeader, storedKey.key)
-          if (isValid) {
-            return {
-              success: true,
-              userId: storedKey.userId,
-              authType: 'api_key',
-            }
-          }
-        } catch (error) {
-          logger.error('Error authenticating API key:', error)
+      const result = await authenticateApiKeyFromHeader(apiKeyHeader)
+      if (result.success) {
+        // Update last used timestamp
+        await updateApiKeyLastUsed(result.keyId!)
+        return {
+          success: true,
+          userId: result.userId!,
+          authType: 'api_key',
         }
       }
 

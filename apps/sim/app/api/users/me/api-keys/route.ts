@@ -1,9 +1,9 @@
 import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
+import { createApiKey, getApiKeyDisplayFormat } from '@/lib/api-key/auth'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
-import { createApiKey, getApiKeyDisplayFormat } from '@/lib/security/api-key-auth'
 import { db } from '@/db'
 import { apiKey } from '@/db/schema'
 
