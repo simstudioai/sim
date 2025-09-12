@@ -7,7 +7,7 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
   name: 'Browser Use',
   description: 'Run browser automation tasks',
   longDescription:
-    'Execute browser automation tasks with BrowserUse to navigate the web, scrape data, and perform actions as if a real user was interacting with the browser. The task runs asynchronously and the block will poll for completion before returning results.',
+    'Integrate Browser Use into the workflow. Can navigate the web and perform actions as if a real user was interacting with the browser. Requires API Key.',
   docsLink: 'https://docs.sim.ai/tools/browser_use',
   category: 'tools',
   bgColor: '#E0E0E0',

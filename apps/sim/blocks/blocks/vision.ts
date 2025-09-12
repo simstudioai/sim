@@ -7,7 +7,7 @@ export const VisionBlock: BlockConfig<VisionResponse> = {
   name: 'Vision',
   description: 'Analyze images with vision models',
   longDescription:
-    'Process visual content with customizable prompts to extract insights and information from images.',
+    'Integrate Vision into the workflow. Can analyze images with vision models. Requires API Key.',
   docsLink: 'https://docs.sim.ai/tools/vision',
   category: 'tools',
   bgColor: '#4D5FFF',

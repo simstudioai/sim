@@ -7,7 +7,7 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
   name: 'Tavily',
   description: 'Search and extract information',
   longDescription:
-    "Access Tavily's AI-powered search engine to find relevant information from across the web. Extract and process content from specific URLs with customizable depth options.",
+    'Integrate Tavily into the workflow. Can search the web and extract content from specific URLs. Requires API Key.',
   category: 'tools',
   docsLink: 'https://docs.sim.ai/tools/tavily',
   bgColor: '#0066FF',

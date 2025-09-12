@@ -6,8 +6,7 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
   type: 'parallel_ai',
   name: 'Parallel AI',
   description: 'Search with Parallel AI',
-  longDescription:
-    "Search the web using Parallel AI's advanced search capabilities. Get comprehensive results with intelligent processing and content extraction.",
+  longDescription: 'Integrate Parallel AI into the workflow. Can search the web. Requires API Key.',
   docsLink: 'https://docs.parallel.ai/search-api/search-quickstart',
   category: 'tools',
   bgColor: '#E0E0E0',

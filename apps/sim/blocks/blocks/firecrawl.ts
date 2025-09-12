@@ -7,7 +7,7 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
   name: 'Firecrawl',
   description: 'Scrape or search the web',
   longDescription:
-    'Extract content from any website with advanced web scraping or search the web for information. Retrieve clean, structured data from web pages with options to focus on main content, or intelligently search for information across the web.',
+    'Integrate Firecrawl into the workflow. Can search, scrape, or crawl websites. Requires API Key.',
   docsLink: 'https://docs.sim.ai/tools/firecrawl',
   category: 'tools',
   bgColor: '#181C1E',

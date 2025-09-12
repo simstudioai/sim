@@ -7,7 +7,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
   name: 'Pinecone',
   description: 'Use Pinecone vector database',
   longDescription:
-    "Store, search, and retrieve vector embeddings using Pinecone's specialized vector database. Generate embeddings from text and perform semantic similarity searches with customizable filtering options.",
+    'Integrate Pinecone into the workflow. Can generate embeddings, upsert text, search with text, fetch vectors, and search with vectors. Requires API Key.',
   docsLink: 'https://docs.sim.ai/tools/pinecone',
   category: 'tools',
   bgColor: '#0D1117',

@@ -6,7 +6,7 @@ export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
   type: 'twilio_sms',
   name: 'Twilio SMS',
   description: 'Send SMS messages',
-  longDescription: 'Send text messages to single or multiple recipients using the Twilio API.',
+  longDescription: 'Integrate Twilio into the workflow. Can send SMS messages.',
   category: 'tools',
   bgColor: '#F22F46', // Twilio brand color
   icon: TwilioIcon,

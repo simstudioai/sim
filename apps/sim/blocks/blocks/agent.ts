@@ -62,7 +62,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
   name: 'Agent',
   description: 'Build an agent',
   longDescription:
-    'Create powerful AI agents using any LLM provider with customizable system prompts and tool integrations.',
+    'Integrate the Agent block into the workflow. Can process natural language, execute AI-powered tasks, call external tools, and generate structured output. API Key required for models that are not OpenAI or Anthropic.',
   docsLink: 'https://docs.sim.ai/blocks/agent',
   category: 'blocks',
   bgColor: 'var(--brand-primary-hover-hex)',

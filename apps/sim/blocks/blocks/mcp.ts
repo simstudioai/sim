@@ -12,7 +12,7 @@ export const McpBlock: BlockConfig<McpResponse> = {
   name: 'MCP Tool',
   description: 'Execute tools from Model Context Protocol (MCP) servers',
   longDescription:
-    'Connect to MCP servers to execute tools and access external services. Supports HTTP/SSE and Streamable HTTP transports for secure server-side execution. Configure MCP servers in workspace settings.',
+    'Integrate MCP into the workflow. Can execute tools from MCP servers. Requires MCP servers in workspace settings.',
   docsLink: 'https://docs.sim.ai/tools/mcp',
   category: 'tools',
   bgColor: '#181C1E',
