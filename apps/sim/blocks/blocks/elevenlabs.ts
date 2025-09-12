@@ -7,7 +7,7 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
   name: 'ElevenLabs',
   description: 'Convert TTS using ElevenLabs',
   longDescription:
-    'Integrate Eleven Labs into the workflow. Can convert text to speech. Requires API key.',
+    'Integrate ElevenLabs into the workflow. Can convert text to speech. Requires API key.',
   docsLink: 'https://docs.sim.ai/tools/elevenlabs',
   category: 'tools',
   bgColor: '#181C1E',

@@ -7,7 +7,7 @@ export const TelegramBlock: BlockConfig<TelegramMessageResponse> = {
   name: 'Telegram',
   description: 'Send messages through Telegram or trigger workflows from Telegram events',
   longDescription:
-    'Integrate Telegram into the workflow. Can send messages. Requires bot API Key. Can be used in trigger mode to trigger a workflow when a message is sent to a chat.',
+    'Integrate Telegram into the workflow. Can send messages. Can be used in trigger mode to trigger a workflow when a message is sent to a chat.',
   docsLink: 'https://docs.sim.ai/tools/telegram',
   category: 'tools',
   bgColor: '#E0E0E0',

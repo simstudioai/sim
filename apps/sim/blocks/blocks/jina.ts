@@ -7,7 +7,7 @@ export const JinaBlock: BlockConfig<ReadUrlResponse> = {
   name: 'Jina',
   description: 'Convert website content into text',
   longDescription:
-    'Integrate Jina into the workflow. Can extract content from websites. Requires API Key.',
+    'Integrate Jina into the workflow. Extracts content from websites. Requires API Key.',
   docsLink: 'https://docs.sim.ai/tools/jina',
   category: 'tools',
   bgColor: '#333333',

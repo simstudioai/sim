@@ -7,7 +7,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
   name: 'Confluence',
   description: 'Interact with Confluence',
   longDescription:
-    'Integrate Confluence into the workflow. Can read and update a page. Requires OAuth. ',
+    'Integrate Confluence into the workflow. Can read and update a page. Requires OAuth.',
   docsLink: 'https://docs.sim.ai/tools/confluence',
   category: 'tools',
   bgColor: '#E0E0E0',

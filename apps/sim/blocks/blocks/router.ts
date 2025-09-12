@@ -109,7 +109,7 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
   name: 'Router',
   description: 'Route workflow',
   longDescription:
-    'This is a core workflow block. Intelligently direct workflow execution to different paths based on input analysis. Use natural language to isntruct the router to route to certain blocks based on the input.',
+    'This is a core workflow block. Intelligently direct workflow execution to different paths based on input analysis. Use natural language to instruct the router to route to certain blocks based on the input.',
   category: 'blocks',
   bgColor: '#28C43F',
   icon: ConnectIcon,
