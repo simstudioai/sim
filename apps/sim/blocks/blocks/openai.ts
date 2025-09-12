@@ -6,7 +6,7 @@ export const OpenAIBlock: BlockConfig = {
   name: 'Embeddings',
   description: 'Generate Open AI embeddings',
   longDescription:
-    "Convert text into numerical vector representations using OpenAI's embedding models. Transform text data into embeddings for semantic search, clustering, and other vector-based operations.",
+    'Integrate Embeddings into the workflow. Can generate embeddings from text. Requires API Key.',
   category: 'tools',
   docsLink: 'https://docs.sim.ai/tools/openai',
   bgColor: '#10a37f',

@@ -6,7 +6,7 @@ export const ScheduleBlock: BlockConfig = {
   name: 'Schedule',
   description: 'Trigger workflow execution on a schedule',
   longDescription:
-    'Configure automated workflow execution with flexible timing options. Set up recurring workflows that run at specific intervals or times.',
+    'Integrate Schedule into the workflow. Can trigger a workflow on a schedule configuration.',
   category: 'triggers',
   bgColor: '#7B68EE',
   icon: ScheduleIcon,

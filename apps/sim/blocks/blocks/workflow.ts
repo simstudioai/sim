@@ -39,7 +39,8 @@ const getAvailableWorkflows = (): Array<{ label: string; id: string }> => {
 export const WorkflowBlock: BlockConfig = {
   type: 'workflow',
   name: 'Workflow',
-  description: 'Execute another workflow',
+  description:
+    'This is a core workflow block. Execute another workflow as a block in your workflow. Enter the input variable to pass to the child workflow.',
   category: 'blocks',
   bgColor: '#705335',
   icon: WorkflowIcon,

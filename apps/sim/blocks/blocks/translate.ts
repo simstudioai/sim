@@ -29,8 +29,7 @@ export const TranslateBlock: BlockConfig = {
   type: 'translate',
   name: 'Translate',
   description: 'Translate text to any language',
-  longDescription:
-    'Convert text between languages while preserving meaning, nuance, and formatting. Utilize powerful language models to produce natural, fluent translations with appropriate cultural adaptations.',
+  longDescription: 'Integrate Translate into the workflow. Can translate text to any language.',
   docsLink: 'https://docs.sim.ai/tools/translate',
   category: 'tools',
   bgColor: '#FF4B4B',

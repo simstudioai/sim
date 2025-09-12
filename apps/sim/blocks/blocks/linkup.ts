@@ -6,8 +6,7 @@ export const LinkupBlock: BlockConfig<LinkupSearchToolResponse> = {
   type: 'linkup',
   name: 'Linkup',
   description: 'Search the web with Linkup',
-  longDescription:
-    'Linkup Search allows you to search and retrieve up-to-date information from the web with source attribution.',
+  longDescription: 'Integrate Linkup into the workflow. Can search the web. Requires API Key.',
   docsLink: 'https://docs.sim.ai/tools/linkup',
   category: 'tools',
   bgColor: '#D6D3C7',

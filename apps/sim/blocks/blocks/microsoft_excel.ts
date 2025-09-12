@@ -7,7 +7,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
   name: 'Microsoft Excel',
   description: 'Read, write, and update data',
   longDescription:
-    'Integrate Microsoft Excel functionality to manage spreadsheet data. Read data from specific ranges, write new data, update existing cells, and manipulate table data using OAuth authentication. Supports various input and output formats for flexible data handling.',
+    'Integrate Microsoft Excel into the workflow. Can read, write, update, and add to table. Requires OAuth.',
   docsLink: 'https://docs.sim.ai/tools/microsoft_excel',
   category: 'tools',
   bgColor: '#E0E0E0',

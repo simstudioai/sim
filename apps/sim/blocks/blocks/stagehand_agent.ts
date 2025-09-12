@@ -7,7 +7,7 @@ export const StagehandAgentBlock: BlockConfig<StagehandAgentResponse> = {
   name: 'Stagehand Agent',
   description: 'Autonomous web browsing agent',
   longDescription:
-    'Use Stagehand to create an autonomous web browsing agent that can navigate across websites, perform tasks, and return structured data.',
+    'Integrate Stagehand Agent into the workflow. Can navigate the web and perform tasks. Requires API Key.',
   docsLink: 'https://docs.sim.ai/tools/stagehand_agent',
   category: 'tools',
   bgColor: '#FFC83C',
