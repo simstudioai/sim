@@ -6,14 +6,7 @@ import { generateApiKey, generateRequestId } from '@/lib/utils'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
-import {
-  apiKey,
-  workflow,
-  workflowBlocks,
-  workflowEdges,
-  workflowSubflows,
-  workspaceApiKey,
-} from '@/db/schema'
+import { apiKey, workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@/db/schema'
 
 const logger = createLogger('WorkflowDeployAPI')
 
@@ -40,7 +33,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         deployedAt: workflow.deployedAt,
         userId: workflow.userId,
         deployedState: workflow.deployedState,
-        pinnedApiKey: workflow.pinnedApiKey,
+        pinnedApiKeyId: workflow.pinnedApiKeyId,
       })
       .from(workflow)
       .where(eq(workflow.id, id))
@@ -64,18 +57,28 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       })
     }
 
-    let userKey: string | null = null
+    let keyInfo: { name: string; type: 'personal' | 'workspace' } | null = null
 
-    if (workflowData.pinnedApiKey) {
-      userKey = workflowData.pinnedApiKey
+    if (workflowData.pinnedApiKeyId) {
+      const pinnedKey = await db
+        .select({ key: apiKey.key, name: apiKey.name, type: apiKey.type })
+        .from(apiKey)
+        .where(eq(apiKey.id, workflowData.pinnedApiKeyId))
+        .limit(1)
+
+      if (pinnedKey.length > 0) {
+        keyInfo = { name: pinnedKey[0].name, type: pinnedKey[0].type as 'personal' | 'workspace' }
+      }
     } else {
       // Fetch the user's API key, preferring the most recently used
       const userApiKey = await db
         .select({
           key: apiKey.key,
+          name: apiKey.name,
+          type: apiKey.type,
         })
         .from(apiKey)
-        .where(eq(apiKey.userId, workflowData.userId))
+        .where(and(eq(apiKey.userId, workflowData.userId), eq(apiKey.type, 'personal')))
         .orderBy(desc(apiKey.lastUsed), desc(apiKey.createdAt))
         .limit(1)
 
@@ -83,22 +86,25 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       if (userApiKey.length === 0) {
         try {
           const newApiKeyVal = generateApiKey()
+          const keyName = 'Default API Key'
           await db.insert(apiKey).values({
             id: uuidv4(),
             userId: workflowData.userId,
-            name: 'Default API Key',
+            workspaceId: null, // Personal keys must have NULL workspaceId
+            name: keyName,
             key: newApiKeyVal,
+            type: 'personal', // Explicitly set type
             createdAt: new Date(),
             updatedAt: new Date(),
           })
-          userKey = newApiKeyVal
+          keyInfo = { name: keyName, type: 'personal' }
           logger.info(`[${requestId}] Generated new API key for user: ${workflowData.userId}`)
         } catch (keyError) {
           // If key generation fails, log the error but continue with the request
           logger.error(`[${requestId}] Failed to generate API key:`, keyError)
         }
       } else {
-        userKey = userApiKey[0].key
+        keyInfo = { name: userApiKey[0].name, type: userApiKey[0].type as 'personal' | 'workspace' }
       }
     }
 
@@ -127,8 +133,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     logger.info(`[${requestId}] Successfully retrieved deployment info: ${id}`)
+
+    // Return key name instead of actual key for security
+    const responseApiKeyInfo = keyInfo ? `${keyInfo.name} (${keyInfo.type})` : 'No API key found'
+
     return createSuccessResponse({
-      apiKey: userKey,
+      apiKey: responseApiKeyInfo,
       isDeployed: workflowData.isDeployed,
       deployedAt: workflowData.deployedAt,
       needsRedeployment,
@@ -156,7 +166,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const workflowData = await db
       .select({
         userId: workflow.userId,
-        pinnedApiKey: workflow.pinnedApiKey,
+        pinnedApiKeyId: workflow.pinnedApiKeyId,
       })
       .from(workflow)
       .where(eq(workflow.id, id))
@@ -292,11 +302,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         key: apiKey.key,
       })
       .from(apiKey)
-      .where(eq(apiKey.userId, userId))
+      .where(and(eq(apiKey.userId, userId), eq(apiKey.type, 'personal')))
       .orderBy(desc(apiKey.lastUsed), desc(apiKey.createdAt))
       .limit(1)
-
-    let userKey = null
 
     // If no API key exists, create one
     if (userApiKey.length === 0) {
@@ -305,35 +313,53 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         await db.insert(apiKey).values({
           id: uuidv4(),
           userId,
+          workspaceId: null, // Personal keys must have NULL workspaceId
           name: 'Default API Key',
           key: newApiKey,
+          type: 'personal', // Explicitly set type
           createdAt: new Date(),
           updatedAt: new Date(),
         })
-        userKey = newApiKey
         logger.info(`[${requestId}] Generated new API key for user: ${userId}`)
       } catch (keyError) {
         // If key generation fails, log the error but continue with the request
         logger.error(`[${requestId}] Failed to generate API key:`, keyError)
       }
-    } else {
-      userKey = userApiKey[0].key
     }
 
-    // If client provided a specific API key, check if it's either personal or workspace key
+    // Track key info for pinning and response
+    let keyInfo: { name: string; type: 'personal' | 'workspace' } | null = null
+    let matchedKey: {
+      id: string
+      key: string
+      name: string
+      type: 'personal' | 'workspace'
+    } | null = null
+
+    // If client provided a specific API key ID, check if it exists and belongs to the user
     if (providedApiKey) {
       let isValidKey = false
 
-      const [personalOwned] = await db
-        .select({ key: apiKey.key })
+      // First check if it's a personal key for this user
+      const [personalKey] = await db
+        .select({ id: apiKey.id, key: apiKey.key, name: apiKey.name, expiresAt: apiKey.expiresAt })
         .from(apiKey)
-        .where(and(eq(apiKey.userId, userId), eq(apiKey.key, providedApiKey)))
+        .where(
+          and(eq(apiKey.id, providedApiKey), eq(apiKey.userId, userId), eq(apiKey.type, 'personal'))
+        )
         .limit(1)
 
-      if (personalOwned) {
-        userKey = providedApiKey
-        isValidKey = true
-      } else {
+      if (personalKey) {
+        // Check if key is expired
+        if (!personalKey.expiresAt || personalKey.expiresAt >= new Date()) {
+          matchedKey = { ...personalKey, type: 'personal' }
+          isValidKey = true
+          keyInfo = { name: personalKey.name, type: 'personal' }
+        }
+      }
+
+      // If no personal key found, check workspace keys
+      if (!isValidKey) {
         const [workflowData] = await db
           .select({ workspaceId: workflow.workspaceId })
           .from(workflow)
@@ -341,26 +367,36 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           .limit(1)
 
         if (workflowData?.workspaceId) {
-          const [workspaceOwned] = await db
-            .select({ key: workspaceApiKey.key })
-            .from(workspaceApiKey)
+          const [workspaceKey] = await db
+            .select({
+              id: apiKey.id,
+              key: apiKey.key,
+              name: apiKey.name,
+              expiresAt: apiKey.expiresAt,
+            })
+            .from(apiKey)
             .where(
               and(
-                eq(workspaceApiKey.workspaceId, workflowData.workspaceId),
-                eq(workspaceApiKey.key, providedApiKey)
+                eq(apiKey.id, providedApiKey),
+                eq(apiKey.workspaceId, workflowData.workspaceId),
+                eq(apiKey.type, 'workspace')
               )
             )
             .limit(1)
 
-          if (workspaceOwned) {
-            userKey = providedApiKey
-            isValidKey = true
+          if (workspaceKey) {
+            // Check if key is expired
+            if (!workspaceKey.expiresAt || workspaceKey.expiresAt >= new Date()) {
+              matchedKey = { ...workspaceKey, type: 'workspace' }
+              isValidKey = true
+              keyInfo = { name: workspaceKey.name, type: 'workspace' }
+            }
           }
         }
       }
 
       if (!isValidKey) {
-        logger.warn(`[${requestId}] Invalid API key provided for workflow deployment: ${id}`)
+        logger.warn(`[${requestId}] Invalid API key ID provided for workflow deployment: ${id}`)
         return createErrorResponse('Invalid API key provided', 400)
       }
     }
@@ -372,34 +408,34 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       deployedState: currentState,
     }
     // Only pin when the client explicitly provided a key in this request
-    if (providedApiKey) {
-      updateData.pinnedApiKey = userKey
+    if (providedApiKey && keyInfo && matchedKey) {
+      updateData.pinnedApiKeyId = matchedKey.id
     }
 
     await db.update(workflow).set(updateData).where(eq(workflow.id, id))
 
-    // Update lastUsed for the key we returned (try both personal and workspace keys)
-    if (userKey) {
+    // Update lastUsed for the key we returned
+    if (matchedKey) {
       try {
-        const personalResult = await db
+        await db
           .update(apiKey)
           .set({ lastUsed: new Date(), updatedAt: new Date() })
-          .where(eq(apiKey.key, userKey))
-          .returning({ id: apiKey.id })
-
-        if (!personalResult || personalResult.length === 0) {
-          await db
-            .update(workspaceApiKey)
-            .set({ lastUsed: new Date(), updatedAt: new Date() })
-            .where(eq(workspaceApiKey.key, userKey))
-        }
+          .where(eq(apiKey.id, matchedKey.id))
       } catch (e) {
         logger.warn(`[${requestId}] Failed to update lastUsed for api key`)
       }
     }
 
     logger.info(`[${requestId}] Workflow deployed successfully: ${id}`)
-    return createSuccessResponse({ apiKey: userKey, isDeployed: true, deployedAt })
+
+    // Return key name instead of actual key for security
+    const responseApiKeyInfo = keyInfo ? `${keyInfo.name} (${keyInfo.type})` : 'Default key'
+
+    return createSuccessResponse({
+      apiKey: responseApiKeyInfo,
+      isDeployed: true,
+      deployedAt,
+    })
   } catch (error: any) {
     logger.error(`[${requestId}] Error deploying workflow: ${id}`, {
       error: error.message,
@@ -435,6 +471,7 @@ export async function DELETE(
         isDeployed: false,
         deployedAt: null,
         deployedState: null,
+        pinnedApiKeyId: null,
       })
       .where(eq(workflow.id, id))
 

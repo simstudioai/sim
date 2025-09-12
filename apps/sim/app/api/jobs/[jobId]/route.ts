@@ -1,8 +1,8 @@
 import { runs } from '@trigger.dev/sdk'
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { authenticateApiKey } from '@/lib/security/api-key-auth'
 import { generateRequestId } from '@/lib/utils'
 import { createErrorResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
@@ -27,14 +27,28 @@ export async function GET(
     if (!authenticatedUserId) {
       const apiKeyHeader = request.headers.get('x-api-key')
       if (apiKeyHeader) {
-        const [apiKeyRecord] = await db
-          .select({ userId: apiKeyTable.userId })
+        // Fetch all API keys and test each one with encrypted authentication
+        const apiKeys = await db
+          .select({
+            userId: apiKeyTable.userId,
+            key: apiKeyTable.key,
+            expiresAt: apiKeyTable.expiresAt,
+          })
           .from(apiKeyTable)
-          .where(eq(apiKeyTable.key, apiKeyHeader))
-          .limit(1)
 
-        if (apiKeyRecord) {
-          authenticatedUserId = apiKeyRecord.userId
+        for (const storedKey of apiKeys) {
+          // Check if key is expired
+          if (storedKey.expiresAt && storedKey.expiresAt < new Date()) {
+            continue
+          }
+
+          try {
+            const isValid = await authenticateApiKey(apiKeyHeader, storedKey.key)
+            if (isValid) {
+              authenticatedUserId = storedKey.userId
+              break
+            }
+          } catch (error) {}
         }
       }
     }

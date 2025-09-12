@@ -146,7 +146,7 @@ export const workflow = pgTable(
     isDeployed: boolean('is_deployed').notNull().default(false),
     deployedState: json('deployed_state'),
     deployedAt: timestamp('deployed_at'),
-    pinnedApiKey: text('pinned_api_key'),
+    pinnedApiKeyId: text('pinned_api_key_id').references(() => apiKey.id, { onDelete: 'set null' }),
     collaborators: json('collaborators').notNull().default('[]'),
     runCount: integer('run_count').notNull().default(0),
     lastRunAt: timestamp('last_run_at'),
@@ -503,18 +503,31 @@ export const workflowLogWebhookDelivery = pgTable(
   })
 )
 
-export const apiKey = pgTable('api_key', {
-  id: text('id').primaryKey(),
-  userId: text('user_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  key: text('key').notNull().unique(),
-  lastUsed: timestamp('last_used'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  expiresAt: timestamp('expires_at'),
-})
+export const apiKey = pgTable(
+  'api_key',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }), // Only set for workspace keys
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }), // Who created the workspace key
+    name: text('name').notNull(),
+    key: text('key').notNull().unique(),
+    type: text('type').notNull().default('personal'), // 'personal' or 'workspace'
+    lastUsed: timestamp('last_used'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    expiresAt: timestamp('expires_at'),
+  },
+  (table) => ({
+    // Ensure workspace keys have a workspace_id and personal keys don't
+    workspaceTypeCheck: check(
+      'workspace_type_check',
+      sql`(type = 'workspace' AND workspace_id IS NOT NULL) OR (type = 'personal' AND workspace_id IS NULL)`
+    ),
+  })
+)
 
 export const marketplace = pgTable('marketplace', {
   id: text('id').primaryKey(),
@@ -1368,35 +1381,5 @@ export const mcpServers = pgTable(
       table.workspaceId,
       table.deletedAt
     ),
-  })
-)
-
-export const workspaceApiKey = pgTable(
-  'workspace_api_key',
-  {
-    id: text('id').primaryKey(),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
-    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
-    name: text('name').notNull(),
-    key: text('key').notNull().unique(),
-    lastUsed: timestamp('last_used'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-    expiresAt: timestamp('expires_at'),
-  },
-  (table) => ({
-    // Primary access pattern - workspace keys for a specific workspace
-    workspaceIdIdx: index('workspace_api_key_workspace_id_idx').on(table.workspaceId),
-    // Ensure key names are unique within a workspace
-    workspaceNameUnique: uniqueIndex('workspace_api_key_workspace_name_idx').on(
-      table.workspaceId,
-      table.name
-    ),
-    // Index for key lookups during API authentication
-    keyIdx: index('workspace_api_key_key_idx').on(table.key),
-    // Creator tracking
-    createdByIdx: index('workspace_api_key_created_by_idx').on(table.createdBy),
   })
 )

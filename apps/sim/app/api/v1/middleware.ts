@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { createLogger } from '@/lib/logs/console/logger'
 import { RateLimiter } from '@/services/queue/RateLimiter'
-import { authenticateApiKey } from './auth'
+import { authenticateV1Request } from './auth'
 
 const logger = createLogger('V1Middleware')
 const rateLimiter = new RateLimiter()
@@ -21,7 +21,7 @@ export async function checkRateLimit(
   endpoint: 'logs' | 'logs-detail' = 'logs'
 ): Promise<RateLimitResult> {
   try {
-    const auth = await authenticateApiKey(request)
+    const auth = await authenticateV1Request(request)
     if (!auth.authenticated) {
       return {
         allowed: false,

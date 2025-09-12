@@ -43,6 +43,7 @@ interface ApiKey {
   id: string
   name: string
   key: string
+  displayKey?: string
   lastUsed?: string
   createdAt: string
   expiresAt?: string
@@ -113,7 +114,7 @@ export function DeployForm({
   const form = useForm<DeployFormValues>({
     resolver: zodResolver(deployFormSchema),
     defaultValues: {
-      apiKey: allApiKeys.length > 0 ? allApiKeys[0].key : '',
+      apiKey: allApiKeys.length > 0 ? allApiKeys[0].id : '',
       newKeyName: '',
     },
   })
@@ -146,7 +147,7 @@ export function DeployForm({
   useEffect(() => {
     if ((keysLoaded || keysLoaded2) && allApiKeys.length > 0) {
       // Ensure that form has a value after loading
-      form.setValue('apiKey', form.getValues().apiKey || allApiKeys[0].key)
+      form.setValue('apiKey', form.getValues().apiKey || allApiKeys[0].id)
     }
   }, [keysLoaded, keysLoaded2, allApiKeys, form])
 
@@ -199,7 +200,7 @@ export function DeployForm({
         setIsCreatingKey(false)
 
         // Update the form with the new key
-        form.setValue('apiKey', data.key.key)
+        form.setValue('apiKey', data.key.id)
 
         // Refresh the keys list
         fetchApiKeys()
@@ -298,14 +299,14 @@ export function DeployForm({
                       {apiKeysData.workspace.map((apiKey) => (
                         <SelectItem
                           key={apiKey.id}
-                          value={apiKey.key}
+                          value={apiKey.id}
                           className='my-0.5 flex cursor-pointer items-center rounded-sm px-3 py-2.5 data-[state=checked]:bg-muted [&>span.absolute]:hidden'
                         >
                           <div className='flex w-full items-center'>
                             <div className='flex w-full items-center justify-between'>
                               <span className='mr-2 truncate text-sm'>{apiKey.name}</span>
                               <span className='mt-[1px] flex-shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-muted-foreground text-xs'>
-                                {apiKey.key.slice(-5)}
+                                {apiKey.displayKey || apiKey.key}
                               </span>
                             </div>
                           </div>
@@ -323,14 +324,14 @@ export function DeployForm({
                       {(apiKeysData ? apiKeysData.personal : apiKeys).map((apiKey) => (
                         <SelectItem
                           key={apiKey.id}
-                          value={apiKey.key}
+                          value={apiKey.id}
                           className='my-0.5 flex cursor-pointer items-center rounded-sm px-3 py-2.5 data-[state=checked]:bg-muted [&>span.absolute]:hidden'
                         >
                           <div className='flex w-full items-center'>
                             <div className='flex w-full items-center justify-between'>
                               <span className='mr-2 truncate text-sm'>{apiKey.name}</span>
                               <span className='mt-[1px] flex-shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-muted-foreground text-xs'>
-                                {apiKey.key.slice(-5)}
+                                {apiKey.displayKey || apiKey.key}
                               </span>
                             </div>
                           </div>

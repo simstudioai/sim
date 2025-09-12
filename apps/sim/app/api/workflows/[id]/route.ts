@@ -6,6 +6,7 @@ import { verifyInternalToken } from '@/lib/auth/internal'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions, hasAdminPermission } from '@/lib/permissions/utils'
+import { authenticateApiKey } from '@/lib/security/api-key-auth'
 import { generateRequestId } from '@/lib/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { db } from '@/db'
@@ -54,15 +55,28 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       if (!authenticatedUserId) {
         const apiKeyHeader = request.headers.get('x-api-key')
         if (apiKeyHeader) {
-          // Verify API key
-          const [apiKeyRecord] = await db
-            .select({ userId: apiKeyTable.userId })
+          // Fetch all API keys and test each one with encrypted authentication
+          const apiKeys = await db
+            .select({
+              userId: apiKeyTable.userId,
+              key: apiKeyTable.key,
+              expiresAt: apiKeyTable.expiresAt,
+            })
             .from(apiKeyTable)
-            .where(eq(apiKeyTable.key, apiKeyHeader))
-            .limit(1)
 
-          if (apiKeyRecord) {
-            authenticatedUserId = apiKeyRecord.userId
+          for (const storedKey of apiKeys) {
+            // Check if key is expired
+            if (storedKey.expiresAt && storedKey.expiresAt < new Date()) {
+              continue
+            }
+
+            try {
+              const isValid = await authenticateApiKey(apiKeyHeader, storedKey.key)
+              if (isValid) {
+                authenticatedUserId = storedKey.userId
+                break
+              }
+            } catch (error) {}
           }
         }
       }

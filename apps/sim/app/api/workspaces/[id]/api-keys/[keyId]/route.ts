@@ -6,7 +6,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { generateRequestId } from '@/lib/utils'
 import { db } from '@/db'
-import { workspaceApiKey } from '@/db/schema'
+import { apiKey } from '@/db/schema'
 
 const logger = createLogger('WorkspaceApiKeyAPI')
 
@@ -40,8 +40,10 @@ export async function PUT(
 
     const existingKey = await db
       .select()
-      .from(workspaceApiKey)
-      .where(and(eq(workspaceApiKey.workspaceId, workspaceId), eq(workspaceApiKey.id, keyId)))
+      .from(apiKey)
+      .where(
+        and(eq(apiKey.workspaceId, workspaceId), eq(apiKey.id, keyId), eq(apiKey.type, 'workspace'))
+      )
       .limit(1)
 
     if (existingKey.length === 0) {
@@ -50,12 +52,13 @@ export async function PUT(
 
     const conflictingKey = await db
       .select()
-      .from(workspaceApiKey)
+      .from(apiKey)
       .where(
         and(
-          eq(workspaceApiKey.workspaceId, workspaceId),
-          eq(workspaceApiKey.name, name),
-          not(eq(workspaceApiKey.id, keyId))
+          eq(apiKey.workspaceId, workspaceId),
+          eq(apiKey.name, name),
+          eq(apiKey.type, 'workspace'),
+          not(eq(apiKey.id, keyId))
         )
       )
       .limit(1)
@@ -68,17 +71,19 @@ export async function PUT(
     }
 
     const [updatedKey] = await db
-      .update(workspaceApiKey)
+      .update(apiKey)
       .set({
         name,
         updatedAt: new Date(),
       })
-      .where(and(eq(workspaceApiKey.workspaceId, workspaceId), eq(workspaceApiKey.id, keyId)))
+      .where(
+        and(eq(apiKey.workspaceId, workspaceId), eq(apiKey.id, keyId), eq(apiKey.type, 'workspace'))
+      )
       .returning({
-        id: workspaceApiKey.id,
-        name: workspaceApiKey.name,
-        createdAt: workspaceApiKey.createdAt,
-        updatedAt: workspaceApiKey.updatedAt,
+        id: apiKey.id,
+        name: apiKey.name,
+        createdAt: apiKey.createdAt,
+        updatedAt: apiKey.updatedAt,
       })
 
     logger.info(`[${requestId}] Updated workspace API key: ${keyId} in workspace ${workspaceId}`)
@@ -114,9 +119,11 @@ export async function DELETE(
     }
 
     const deletedRows = await db
-      .delete(workspaceApiKey)
-      .where(and(eq(workspaceApiKey.workspaceId, workspaceId), eq(workspaceApiKey.id, keyId)))
-      .returning({ id: workspaceApiKey.id })
+      .delete(apiKey)
+      .where(
+        and(eq(apiKey.workspaceId, workspaceId), eq(apiKey.id, keyId), eq(apiKey.type, 'workspace'))
+      )
+      .returning({ id: apiKey.id })
 
     if (deletedRows.length === 0) {
       return NextResponse.json({ error: 'API key not found' }, { status: 404 })

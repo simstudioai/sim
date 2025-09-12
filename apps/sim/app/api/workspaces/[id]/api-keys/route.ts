@@ -5,10 +5,10 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
-import { createApiKey } from '@/lib/security/api-key-auth'
+import { createApiKey, getApiKeyDisplayFormat } from '@/lib/security/api-key-auth'
 import { generateRequestId } from '@/lib/utils'
 import { db } from '@/db'
-import { apiKey, workspace, workspaceApiKey } from '@/db/schema'
+import { apiKey, workspace } from '@/db/schema'
 
 const logger = createLogger('WorkspaceApiKeysAPI')
 
@@ -45,17 +45,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const workspaceKeys = await db
       .select({
-        id: workspaceApiKey.id,
-        name: workspaceApiKey.name,
-        key: workspaceApiKey.key,
-        createdAt: workspaceApiKey.createdAt,
-        lastUsed: workspaceApiKey.lastUsed,
-        expiresAt: workspaceApiKey.expiresAt,
-        createdBy: workspaceApiKey.createdBy,
+        id: apiKey.id,
+        name: apiKey.name,
+        key: apiKey.key,
+        createdAt: apiKey.createdAt,
+        lastUsed: apiKey.lastUsed,
+        expiresAt: apiKey.expiresAt,
+        createdBy: apiKey.createdBy,
       })
-      .from(workspaceApiKey)
-      .where(eq(workspaceApiKey.workspaceId, workspaceId))
-      .orderBy(workspaceApiKey.createdAt)
+      .from(apiKey)
+      .where(and(eq(apiKey.workspaceId, workspaceId), eq(apiKey.type, 'workspace')))
+      .orderBy(apiKey.createdAt)
 
     const personalKeys = await db
       .select({
@@ -67,8 +67,31 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         expiresAt: apiKey.expiresAt,
       })
       .from(apiKey)
-      .where(eq(apiKey.userId, userId))
+      .where(and(eq(apiKey.userId, userId), eq(apiKey.type, 'personal')))
       .orderBy(apiKey.createdAt)
+
+    // Format API keys for display on the server side
+    const formattedWorkspaceKeys = await Promise.all(
+      workspaceKeys.map(async (key) => {
+        const displayFormat = await getApiKeyDisplayFormat(key.key)
+        return {
+          ...key,
+          key: key.key, // Keep the raw key for form submission
+          displayKey: displayFormat, // Add formatted display string
+        }
+      })
+    )
+
+    const formattedPersonalKeys = await Promise.all(
+      personalKeys.map(async (key) => {
+        const displayFormat = await getApiKeyDisplayFormat(key.key)
+        return {
+          ...key,
+          key: key.key, // Keep the raw key for form submission
+          displayKey: displayFormat, // Add formatted display string
+        }
+      })
+    )
 
     const workspaceKeyNames = new Set(workspaceKeys.map((k) => k.name))
     const personalKeyNames = new Set(personalKeys.map((k) => k.name))
@@ -76,8 +99,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json({
       data: {
-        workspace: workspaceKeys,
-        personal: personalKeys,
+        workspace: formattedWorkspaceKeys,
+        personal: formattedPersonalKeys,
         conflicts,
       },
     })
@@ -110,8 +133,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const existingKey = await db
       .select()
-      .from(workspaceApiKey)
-      .where(and(eq(workspaceApiKey.workspaceId, workspaceId), eq(workspaceApiKey.name, name)))
+      .from(apiKey)
+      .where(
+        and(
+          eq(apiKey.workspaceId, workspaceId),
+          eq(apiKey.name, name),
+          eq(apiKey.type, 'workspace')
+        )
+      )
       .limit(1)
 
     if (existingKey.length > 0) {
@@ -123,23 +152,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       )
     }
 
-    const { key: plainKey, hashedKey } = await createApiKey(true)
+    const { key: plainKey, encryptedKey } = await createApiKey(true)
 
     const [newKey] = await db
-      .insert(workspaceApiKey)
+      .insert(apiKey)
       .values({
         id: nanoid(),
         workspaceId,
+        userId: userId,
         createdBy: userId,
         name,
-        key: hashedKey!,
+        key: encryptedKey!,
+        type: 'workspace',
         createdAt: new Date(),
         updatedAt: new Date(),
       })
       .returning({
-        id: workspaceApiKey.id,
-        name: workspaceApiKey.name,
-        createdAt: workspaceApiKey.createdAt,
+        id: apiKey.id,
+        name: apiKey.name,
+        createdAt: apiKey.createdAt,
       })
 
     logger.info(`[${requestId}] Created workspace API key: ${name} in workspace ${workspaceId}`)
@@ -184,8 +215,14 @@ export async function DELETE(
     const { keys } = DeleteKeysSchema.parse(body)
 
     const deletedCount = await db
-      .delete(workspaceApiKey)
-      .where(and(eq(workspaceApiKey.workspaceId, workspaceId), inArray(workspaceApiKey.id, keys)))
+      .delete(apiKey)
+      .where(
+        and(
+          eq(apiKey.workspaceId, workspaceId),
+          eq(apiKey.type, 'workspace'),
+          inArray(apiKey.id, keys)
+        )
+      )
 
     logger.info(
       `[${requestId}] Deleted ${deletedCount} workspace API keys from workspace ${workspaceId}`

@@ -2,19 +2,15 @@ import { describe, expect, it } from 'vitest'
 import {
   authenticateApiKey,
   createApiKey,
-  hashApiKey,
-  isHashedKey,
-  isValidApiKeyFormat,
-  migrateKeyToHashed,
+  encryptApiKeyForStorage,
+  isEncryptedKey,
 } from './api-key-auth'
 
 describe('API Key Authentication', () => {
-  it.concurrent('should detect hashed keys correctly', () => {
-    expect(isHashedKey('$2a$12$abcdef')).toBe(true)
-    expect(isHashedKey('$2b$12$abcdef')).toBe(true)
-    expect(isHashedKey('$2y$12$abcdef')).toBe(true)
-    expect(isHashedKey('plain-text-key')).toBe(false)
-    expect(isHashedKey('sk_live_123456')).toBe(false)
+  it.concurrent('should detect encrypted keys correctly', () => {
+    expect(isEncryptedKey('iv:encrypted:authTag')).toBe(true)
+    expect(isEncryptedKey('plain-text-key')).toBe(false)
+    expect(isEncryptedKey('sk_live_123456')).toBe(false)
   })
 
   it.concurrent('should authenticate plain text keys (legacy)', async () => {
@@ -33,69 +29,63 @@ describe('API Key Authentication', () => {
     expect(result).toBe(false)
   })
 
-  it.concurrent('should authenticate hashed keys', async () => {
-    const plainKey = 'sk_live_test_123456'
-    const hashedKey = await hashApiKey(plainKey)
+  it.concurrent('should authenticate encrypted keys', async () => {
+    const plainKey = 'sim_test_123456'
+    const encryptedKey = await encryptApiKeyForStorage(plainKey)
 
-    const result = await authenticateApiKey(plainKey, hashedKey)
+    const result = await authenticateApiKey(plainKey, encryptedKey)
     expect(result).toBe(true)
   })
 
-  it.concurrent('should reject invalid hashed keys', async () => {
-    const correctKey = 'sk_live_test_123456'
-    const wrongKey = 'sk_live_test_different'
-    const hashedKey = await hashApiKey(correctKey)
+  it.concurrent('should reject invalid encrypted keys', async () => {
+    const correctKey = 'sim_test_123456'
+    const wrongKey = 'sim_test_different'
+    const encryptedKey = await encryptApiKeyForStorage(correctKey)
 
-    const result = await authenticateApiKey(wrongKey, hashedKey)
+    const result = await authenticateApiKey(wrongKey, encryptedKey)
     expect(result).toBe(false)
   })
 
-  it.concurrent('should create API key with hashing', async () => {
-    const { key, hashedKey } = await createApiKey(true)
+  it.concurrent('should create API key with encryption', async () => {
+    const { key, encryptedKey } = await createApiKey(true, true)
 
     expect(key).toBeDefined()
-    expect(hashedKey).toBeDefined()
-    expect(isHashedKey(hashedKey!)).toBe(true)
+    expect(encryptedKey).toBeDefined()
+    expect(isEncryptedKey(encryptedKey!)).toBe(true)
 
-    const isValid = await authenticateApiKey(key, hashedKey!)
+    const isValid = await authenticateApiKey(key, encryptedKey!)
     expect(isValid).toBe(true)
   })
 
-  it.concurrent('should create API key without hashing', async () => {
-    const { key, hashedKey } = await createApiKey(false)
+  it.concurrent('should create API key without encryption storage', async () => {
+    const { key, encryptedKey } = await createApiKey(true, false)
 
     expect(key).toBeDefined()
-    expect(hashedKey).toBeUndefined()
+    expect(encryptedKey).toBeUndefined()
   })
 
-  it.concurrent('should migrate plain key to hashed format', async () => {
-    const plainKey = 'sk_live_test_123456'
-    const hashedKey = await migrateKeyToHashed(plainKey)
+  it.concurrent('should migrate plain key to encrypted format', async () => {
+    const plainKey = 'sim_test_123456'
+    const encryptedKey = await encryptApiKeyForStorage(plainKey)
 
-    expect(isHashedKey(hashedKey)).toBe(true)
+    expect(isEncryptedKey(encryptedKey)).toBe(true)
 
-    const isValid = await authenticateApiKey(plainKey, hashedKey)
+    const isValid = await authenticateApiKey(plainKey, encryptedKey)
     expect(isValid).toBe(true)
-  })
-
-  it.concurrent('should validate API key format', () => {
-    expect(isValidApiKeyFormat('sk_live_test_123456')).toBe(true)
-    expect(isValidApiKeyFormat('')).toBe(false)
-    expect(isValidApiKeyFormat('short')).toBe(false)
-    expect(isValidApiKeyFormat('a'.repeat(250))).toBe(false)
-    expect(isValidApiKeyFormat('valid-key-12345')).toBe(true)
   })
 
   it.concurrent('should handle backward compatibility - mixed key types', async () => {
-    const plainKey = 'sk_live_test_123456'
+    const plainKey = 'sim_test_123456'
 
+    // Test plain text storage (legacy)
     const plainResult = await authenticateApiKey(plainKey, plainKey)
     expect(plainResult).toBe(true)
 
-    const hashedStoredKey = await hashApiKey(plainKey)
-    const hashedResult = await authenticateApiKey(plainKey, hashedStoredKey)
-    expect(hashedResult).toBe(true)
+    // Test encrypted storage (modern)
+    const encryptedStoredKey = await encryptApiKeyForStorage(plainKey)
+    const encryptedResult = await authenticateApiKey(plainKey, encryptedStoredKey)
+    expect(encryptedResult).toBe(true)
 
-    expect(plainResult).toBe(hashedResult)
+    expect(plainResult).toBe(encryptedResult)
   })
 })

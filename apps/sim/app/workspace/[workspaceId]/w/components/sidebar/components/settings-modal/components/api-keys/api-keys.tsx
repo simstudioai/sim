@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Copy, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -33,10 +33,25 @@ interface ApiKey {
   id: string
   name: string
   key: string
+  displayKey?: string
   lastUsed?: string
   createdAt: string
   expiresAt?: string
   createdBy?: string
+}
+
+interface ApiKeyDisplayProps {
+  apiKey: ApiKey
+}
+
+function ApiKeyDisplay({ apiKey }: ApiKeyDisplayProps) {
+  // Use displayKey if available, otherwise fall back to key
+  const displayValue = apiKey.displayKey || apiKey.key
+  return (
+    <div className='flex h-8 items-center rounded-[8px] bg-muted px-3'>
+      <code className='font-mono text-foreground text-xs'>{displayValue}</code>
+    </div>
+  )
 }
 
 interface WorkspaceApiKey extends ApiKey {
@@ -70,11 +85,6 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
   const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false)
   const [showUnsavedChanges, setShowUnsavedChanges] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
-  const [renamingKey, setRenamingKey] = useState<{
-    id: string
-    type: 'workspace' | 'personal'
-  } | null>(null)
-  const [pendingKeyValue, setPendingKeyValue] = useState<string>('')
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const pendingClose = useRef(false)
@@ -286,52 +296,6 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
     }
   }
 
-  // Handle workspace key rename
-  const handleWorkspaceKeyRename = useCallback(
-    (keyId: string, currentName: string) => {
-      const newName = pendingKeyValue.trim()
-      if (!renamingKey || renamingKey.id !== keyId || renamingKey.type !== 'workspace') return
-      setRenamingKey(null)
-      if (!newName || newName === currentName) return
-
-      setWorkspaceKeys((prev) =>
-        prev.map((key) => (key.id === keyId ? { ...key, name: newName } : key))
-      )
-
-      setConflicts((prev) => {
-        const withoutOld = prev.filter((k) => k !== currentName)
-        const personalHasNew = personalKeys.some((k) => k.name === newName)
-        return personalHasNew && !withoutOld.includes(newName)
-          ? [...withoutOld, newName]
-          : withoutOld
-      })
-    },
-    [pendingKeyValue, renamingKey, personalKeys]
-  )
-
-  // Handle personal key rename
-  const handlePersonalKeyRename = useCallback(
-    (keyId: string, currentName: string) => {
-      const newName = pendingKeyValue.trim()
-      if (!renamingKey || renamingKey.id !== keyId || renamingKey.type !== 'personal') return
-      setRenamingKey(null)
-      if (!newName || newName === currentName) return
-
-      setPersonalKeys((prev) =>
-        prev.map((key) => (key.id === keyId ? { ...key, name: newName } : key))
-      )
-
-      setConflicts((prev) => {
-        const withoutOld = prev.filter((k) => k !== currentName)
-        const workspaceHasNew = workspaceKeys.some((k) => k.name === newName)
-        return workspaceHasNew && !withoutOld.includes(newName)
-          ? [...withoutOld, newName]
-          : withoutOld
-      })
-    },
-    [pendingKeyValue, renamingKey, workspaceKeys]
-  )
-
   // Load API keys on mount
   useEffect(() => {
     if (userId && workspaceId) {
@@ -413,30 +377,11 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
                     workspaceKeys.map((key) => (
                       <div key={key.id} className='flex flex-col gap-2'>
                         <Label className='font-normal text-muted-foreground text-xs uppercase'>
-                          <Input
-                            value={
-                              renamingKey?.id === key.id && renamingKey?.type === 'workspace'
-                                ? pendingKeyValue
-                                : key.name
-                            }
-                            onChange={(e) => {
-                              if (renamingKey?.id !== key.id || renamingKey?.type !== 'workspace') {
-                                setRenamingKey({ id: key.id, type: 'workspace' })
-                              }
-                              setPendingKeyValue(e.target.value)
-                            }}
-                            onBlur={() => handleWorkspaceKeyRename(key.id, key.name)}
-                            className='h-6 border-none bg-transparent p-0 font-normal text-muted-foreground text-xs uppercase'
-                            disabled={!canManageWorkspaceKeys}
-                          />
+                          {key.name}
                         </Label>
                         <div className='flex items-center justify-between gap-4'>
                           <div className='flex items-center gap-3'>
-                            <div className='flex h-8 items-center rounded-[8px] bg-muted px-3'>
-                              <code className='font-mono text-foreground text-xs'>
-                                •••••{key.key.slice(-6)}
-                              </code>
-                            </div>
+                            <ApiKeyDisplay apiKey={key} />
                             <p className='text-muted-foreground text-xs'>
                               Last used: {formatDate(key.lastUsed)}
                             </p>
@@ -470,11 +415,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
                       </Label>
                       <div className='flex items-center justify-between gap-4'>
                         <div className='flex items-center gap-3'>
-                          <div className='flex h-8 items-center rounded-[8px] bg-muted px-3'>
-                            <code className='font-mono text-foreground text-xs'>
-                              •••••{key.key.slice(-6)}
-                            </code>
-                          </div>
+                          <ApiKeyDisplay apiKey={key} />
                           <p className='text-muted-foreground text-xs'>
                             Last used: {formatDate(key.lastUsed)}
                           </p>
@@ -508,31 +449,11 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
                 return (
                   <div key={key.id} className='flex flex-col gap-2'>
                     <Label className='font-normal text-muted-foreground text-xs uppercase'>
-                      <Input
-                        value={
-                          renamingKey?.id === key.id && renamingKey?.type === 'personal'
-                            ? pendingKeyValue
-                            : key.name
-                        }
-                        onChange={(e) => {
-                          if (renamingKey?.id !== key.id || renamingKey?.type !== 'personal') {
-                            setRenamingKey({ id: key.id, type: 'personal' })
-                          }
-                          setPendingKeyValue(e.target.value)
-                        }}
-                        onBlur={() => handlePersonalKeyRename(key.id, key.name)}
-                        className={`h-6 border-none p-0 font-normal text-muted-foreground text-xs uppercase ${
-                          isConflict ? 'bg-[#F6D2D2] dark:bg-[#442929]' : 'bg-transparent'
-                        }`}
-                      />
+                      {key.name}
                     </Label>
                     <div className='flex items-center justify-between gap-4'>
                       <div className='flex items-center gap-3'>
-                        <div className='flex h-8 items-center rounded-[8px] bg-muted px-3'>
-                          <code className='font-mono text-foreground text-xs'>
-                            •••••{key.key.slice(-6)}
-                          </code>
-                        </div>
+                        <ApiKeyDisplay apiKey={key} />
                         <p className='text-muted-foreground text-xs'>
                           Last used: {formatDate(key.lastUsed)}
                         </p>

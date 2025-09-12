@@ -1,6 +1,6 @@
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { authenticateApiKey } from '@/lib/security/api-key-auth'
 import { generateRequestId } from '@/lib/utils'
 import { db } from '@/db'
 import { apiKey as apiKeyTable } from '@/db/schema'
@@ -62,14 +62,28 @@ export async function authenticateCopilotRequest(req: NextRequest): Promise<Copi
   if (!userId) {
     const apiKeyHeader = req.headers.get('x-api-key')
     if (apiKeyHeader) {
-      const [apiKeyRecord] = await db
-        .select({ userId: apiKeyTable.userId })
+      // Fetch all API keys and test each one with encrypted authentication
+      const apiKeys = await db
+        .select({
+          userId: apiKeyTable.userId,
+          key: apiKeyTable.key,
+          expiresAt: apiKeyTable.expiresAt,
+        })
         .from(apiKeyTable)
-        .where(eq(apiKeyTable.key, apiKeyHeader))
-        .limit(1)
 
-      if (apiKeyRecord) {
-        userId = apiKeyRecord.userId
+      for (const storedKey of apiKeys) {
+        // Check if key is expired
+        if (storedKey.expiresAt && storedKey.expiresAt < new Date()) {
+          continue
+        }
+
+        try {
+          const isValid = await authenticateApiKey(apiKeyHeader, storedKey.key)
+          if (isValid) {
+            userId = storedKey.userId
+            break
+          }
+        } catch (error) {}
       }
     }
   }

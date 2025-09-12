@@ -3,7 +3,7 @@ import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
-import { createApiKey } from '@/lib/security/api-key-auth'
+import { createApiKey, getApiKeyDisplayFormat } from '@/lib/security/api-key-auth'
 import { db } from '@/db'
 import { apiKey } from '@/db/schema'
 
@@ -29,13 +29,19 @@ export async function GET(request: NextRequest) {
         expiresAt: apiKey.expiresAt,
       })
       .from(apiKey)
-      .where(eq(apiKey.userId, userId))
+      .where(and(eq(apiKey.userId, userId), eq(apiKey.type, 'personal')))
       .orderBy(apiKey.createdAt)
 
-    const maskedKeys = keys.map((key) => ({
-      ...key,
-      key: key.key,
-    }))
+    const maskedKeys = await Promise.all(
+      keys.map(async (key) => {
+        const displayFormat = await getApiKeyDisplayFormat(key.key)
+        return {
+          ...key,
+          key: key.key, // Keep the raw key for form submission
+          displayKey: displayFormat, // Add formatted display string
+        }
+      })
+    )
 
     return NextResponse.json({ keys: maskedKeys })
   } catch (error) {
@@ -69,7 +75,7 @@ export async function POST(request: NextRequest) {
     const existingKey = await db
       .select()
       .from(apiKey)
-      .where(and(eq(apiKey.userId, userId), eq(apiKey.name, name)))
+      .where(and(eq(apiKey.userId, userId), eq(apiKey.name, name), eq(apiKey.type, 'personal')))
       .limit(1)
 
     if (existingKey.length > 0) {
@@ -81,15 +87,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { key: plainKey, hashedKey } = await createApiKey(true)
+    const { key: plainKey, encryptedKey } = await createApiKey(true)
 
     const [newKey] = await db
       .insert(apiKey)
       .values({
         id: nanoid(),
         userId,
+        workspaceId: null, // Personal keys must have NULL workspaceId
         name,
-        key: hashedKey!,
+        key: encryptedKey!,
+        type: 'personal', // Explicitly set type
         createdAt: new Date(),
         updatedAt: new Date(),
       })

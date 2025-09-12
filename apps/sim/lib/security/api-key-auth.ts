@@ -1,35 +1,76 @@
-import bcrypt from 'bcryptjs'
 import { createLogger } from '@/lib/logs/console/logger'
-import { generateApiKey } from '@/lib/utils'
+import {
+  decryptApiKey,
+  encryptApiKey,
+  generateApiKey,
+  generateEncryptedApiKey,
+  isEncryptedApiKeyFormat,
+  isLegacyApiKeyFormat,
+} from '@/lib/utils'
 
 const logger = createLogger('ApiKeyAuth')
 
 /**
  * API key authentication utilities supporting both legacy plain text keys
- * and modern hashed keys for gradual migration without breaking existing keys
+ * and modern encrypted keys for gradual migration without breaking existing keys
  */
 
 /**
- * Checks if a stored key is in the new hashed format
+ * Checks if a stored key is in the new encrypted format
  * @param storedKey - The key stored in the database
- * @returns true if the key is hashed, false if it's plain text
+ * @returns true if the key is encrypted, false if it's plain text
  */
-export function isHashedKey(storedKey: string): boolean {
-  return (
-    storedKey.startsWith('$2a$') || storedKey.startsWith('$2b$') || storedKey.startsWith('$2y$')
-  )
+export function isEncryptedKey(storedKey: string): boolean {
+  // Check if it follows the encrypted format: iv:encrypted:authTag
+  return storedKey.includes(':') && storedKey.split(':').length === 3
 }
 
 /**
- * Authenticates an API key against a stored key, supporting both formats
+ * Authenticates an API key against a stored key, supporting both legacy and new encrypted formats
  * @param inputKey - The API key provided by the client
- * @param storedKey - The key stored in the database (may be plain text or hashed)
+ * @param storedKey - The key stored in the database (may be plain text or encrypted)
  * @returns Promise<boolean> - true if the key is valid
  */
 export async function authenticateApiKey(inputKey: string, storedKey: string): Promise<boolean> {
   try {
-    if (isHashedKey(storedKey)) {
-      return await bcrypt.compare(inputKey, storedKey)
+    // If input key has new encrypted prefix (sk-sim-), only check against encrypted storage
+    if (isEncryptedApiKeyFormat(inputKey)) {
+      if (isEncryptedKey(storedKey)) {
+        try {
+          const { decrypted } = await decryptApiKey(storedKey)
+          return inputKey === decrypted
+        } catch (decryptError) {
+          logger.error('Failed to decrypt stored API key:', { error: decryptError })
+          return false
+        }
+      }
+      // New format keys should never match against plain text storage
+      return false
+    }
+
+    // If input key has legacy prefix (sim_), check both encrypted and plain text
+    if (isLegacyApiKeyFormat(inputKey)) {
+      if (isEncryptedKey(storedKey)) {
+        try {
+          const { decrypted } = await decryptApiKey(storedKey)
+          return inputKey === decrypted
+        } catch (decryptError) {
+          logger.error('Failed to decrypt stored API key:', { error: decryptError })
+          // Fall through to plain text comparison if decryption fails
+        }
+      }
+      // Legacy format can match against plain text storage
+      return inputKey === storedKey
+    }
+
+    // If no recognized prefix, fall back to original behavior
+    if (isEncryptedKey(storedKey)) {
+      try {
+        const { decrypted } = await decryptApiKey(storedKey)
+        return inputKey === decrypted
+      } catch (decryptError) {
+        logger.error('Failed to decrypt stored API key:', { error: decryptError })
+      }
     }
 
     return inputKey === storedKey
@@ -40,35 +81,40 @@ export async function authenticateApiKey(inputKey: string, storedKey: string): P
 }
 
 /**
- * Hashes an API key for secure storage
- * @param apiKey - The plain text API key to hash
- * @param saltRounds - Number of salt rounds (default: 12)
- * @returns Promise<string> - The hashed key
+ * Encrypts an API key for secure storage
+ * @param apiKey - The plain text API key to encrypt
+ * @returns Promise<string> - The encrypted key
  */
-export async function hashApiKey(apiKey: string, saltRounds = 12): Promise<string> {
+export async function encryptApiKeyForStorage(apiKey: string): Promise<string> {
   try {
-    return await bcrypt.hash(apiKey, saltRounds)
+    const { encrypted } = await encryptApiKey(apiKey)
+    return encrypted
   } catch (error) {
-    logger.error('API key hashing error:', { error })
-    throw new Error('Failed to hash API key')
+    logger.error('API key encryption error:', { error })
+    throw new Error('Failed to encrypt API key')
   }
 }
 
 /**
- * Creates a new API key with optional hashing
- * @param useHashing - Whether to hash the key before storage (default: true for new keys)
- * @returns Promise<{key: string, hashedKey?: string}> - The plain key and optionally hashed version
+ * Creates a new API key with optional encryption
+ * @param useEncryption - Whether to use new encrypted format with encryption (default: true for new keys)
+ * @param useEncryption - Whether to encrypt the key before storage (default: true when useEncryption is true)
+ * @returns Promise<{key: string, encryptedKey?: string}> - The plain key and optionally encrypted version
  */
-export async function createApiKey(useHashing = true): Promise<{
+export async function createApiKey(
+  useEncryption = true,
+  useStorage = true
+): Promise<{
   key: string
-  hashedKey?: string
+  encryptedKey?: string
 }> {
   try {
-    const plainKey = generateApiKey()
+    // Use new encrypted format by default, legacy format for backward compatibility
+    const plainKey = useEncryption ? generateEncryptedApiKey() : generateApiKey()
 
-    if (useHashing) {
-      const hashedKey = await hashApiKey(plainKey)
-      return { key: plainKey, hashedKey }
+    if (useStorage) {
+      const encryptedKey = await encryptApiKeyForStorage(plainKey)
+      return { key: plainKey, encryptedKey }
     }
 
     return { key: plainKey }
@@ -79,18 +125,85 @@ export async function createApiKey(useHashing = true): Promise<{
 }
 
 /**
- * Migrates a plain text key to hashed format during authentication
- * This is used for gradual migration - when a plain text key is successfully authenticated,
- * it can be rehashed and updated in the database
- * @param plainKey - The plain text API key
- * @returns Promise<string> - The hashed version of the key
+ * Decrypts an API key from storage for display purposes
+ * @param encryptedKey - The encrypted API key from the database
+ * @returns Promise<string> - The decrypted API key
  */
-export async function migrateKeyToHashed(plainKey: string): Promise<string> {
+export async function decryptApiKeyFromStorage(encryptedKey: string): Promise<string> {
   try {
-    return await hashApiKey(plainKey)
+    const { decrypted } = await decryptApiKey(encryptedKey)
+    return decrypted
   } catch (error) {
-    logger.error('Key migration error:', { error })
-    throw new Error('Failed to migrate key to hashed format')
+    logger.error('API key decryption error:', { error })
+    throw new Error('Failed to decrypt API key')
+  }
+}
+
+/**
+ * Gets the last 4 characters of an API key for display purposes
+ * @param apiKey - The API key (plain text)
+ * @returns string - The last 4 characters
+ */
+export function getApiKeyLast4(apiKey: string): string {
+  return apiKey.slice(-4)
+}
+
+/**
+ * Gets the display format for an API key showing prefix and last 4 characters
+ * @param encryptedKey - The encrypted API key from the database
+ * @returns Promise<string> - The display format like "sk-sim-...r6AA"
+ */
+export async function getApiKeyDisplayFormat(encryptedKey: string): Promise<string> {
+  try {
+    if (isEncryptedKey(encryptedKey)) {
+      const decryptedKey = await decryptApiKeyFromStorage(encryptedKey)
+      return formatApiKeyForDisplay(decryptedKey)
+    }
+    // For plain text keys (legacy), format directly
+    return formatApiKeyForDisplay(encryptedKey)
+  } catch (error) {
+    logger.error('Failed to format API key for display:', { error })
+    return '****'
+  }
+}
+
+/**
+ * Formats an API key for display showing prefix and last 4 characters
+ * @param apiKey - The API key (plain text)
+ * @returns string - The display format like "sk-sim-...r6AA" or "sim_...r6AA"
+ */
+export function formatApiKeyForDisplay(apiKey: string): string {
+  if (isEncryptedApiKeyFormat(apiKey)) {
+    // For sk-sim- format: "sk-sim-...r6AA"
+    const last4 = getApiKeyLast4(apiKey)
+    return `sk-sim-...${last4}`
+  }
+  if (isLegacyApiKeyFormat(apiKey)) {
+    // For sim_ format: "sim_...r6AA"
+    const last4 = getApiKeyLast4(apiKey)
+    return `sim_...${last4}`
+  }
+  // Unknown format, just show last 4
+  const last4 = getApiKeyLast4(apiKey)
+  return `...${last4}`
+}
+
+/**
+ * Gets the last 4 characters of an encrypted API key by decrypting it first
+ * @param encryptedKey - The encrypted API key from the database
+ * @returns Promise<string> - The last 4 characters
+ */
+export async function getEncryptedApiKeyLast4(encryptedKey: string): Promise<string> {
+  try {
+    if (isEncryptedKey(encryptedKey)) {
+      const decryptedKey = await decryptApiKeyFromStorage(encryptedKey)
+      return getApiKeyLast4(decryptedKey)
+    }
+    // For plain text keys (legacy), return last 4 directly
+    return getApiKeyLast4(encryptedKey)
+  } catch (error) {
+    logger.error('Failed to get last 4 characters of API key:', { error })
+    return '****'
   }
 }
 
