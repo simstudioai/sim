@@ -910,8 +910,10 @@ export function SearchModal({
                 filteredBlocks.length === 0 &&
                 filteredTools.length === 0 &&
                 filteredTemplates.length === 0 && (
-                  <div className='ml-6 py-12 text-center'>
-                    <p className='text-muted-foreground'>No results found for "{searchQuery}"</p>
+                  <div className='px-6 py-12 text-center'>
+                    <p className='break-all text-muted-foreground'>
+                      No results found for "{searchQuery}"
+                    </p>
                   </div>
                 )}
             </div>
