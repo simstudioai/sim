@@ -29,7 +29,12 @@ export async function GET(
         if (authResult.success && authResult.userId) {
           authenticatedUserId = authResult.userId
           if (authResult.keyId) {
-            await updateApiKeyLastUsed(authResult.keyId).catch(() => {})
+            await updateApiKeyLastUsed(authResult.keyId).catch((error) => {
+              logger.warn(`[${requestId}] Failed to update API key last used timestamp:`, {
+                keyId: authResult.keyId,
+                error,
+              })
+            })
           }
         }
       }

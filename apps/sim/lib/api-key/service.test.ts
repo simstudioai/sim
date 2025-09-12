@@ -41,6 +41,7 @@ describe('API Key Service', () => {
 
     const personalKeyResult = await createApiKey(true, true)
     testPersonalKey = personalKeyResult.key
+    expect(personalKeyResult.encryptedKey).toBeDefined()
     const [personalKey] = await db
       .insert(apiKeyTable)
       .values({
@@ -57,6 +58,7 @@ describe('API Key Service', () => {
 
     const workspaceKeyResult = await createApiKey(true, true)
     testWorkspaceKey = workspaceKeyResult.key
+    expect(workspaceKeyResult.encryptedKey).toBeDefined()
     const [workspaceKey] = await db
       .insert(apiKeyTable)
       .values({

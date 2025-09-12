@@ -17,7 +17,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -45,17 +44,12 @@ interface ApiKeyDisplayProps {
 }
 
 function ApiKeyDisplay({ apiKey }: ApiKeyDisplayProps) {
-  // Use displayKey if available, otherwise fall back to key
   const displayValue = apiKey.displayKey || apiKey.key
   return (
     <div className='flex h-8 items-center rounded-[8px] bg-muted px-3'>
       <code className='font-mono text-foreground text-xs'>{displayValue}</code>
     </div>
   )
-}
-
-interface WorkspaceApiKey extends ApiKey {
-  createdBy?: string
 }
 
 export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
@@ -67,7 +61,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
   const canManageWorkspaceKeys = userPermissions.canEdit || userPermissions.canAdmin
 
   // State for both workspace and personal keys
-  const [workspaceKeys, setWorkspaceKeys] = useState<WorkspaceApiKey[]>([])
+  const [workspaceKeys, setWorkspaceKeys] = useState<ApiKey[]>([])
   const [personalKeys, setPersonalKeys] = useState<ApiKey[]>([])
   const [conflicts, setConflicts] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -83,15 +77,10 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
   const [deleteConfirmationName, setDeleteConfirmationName] = useState('')
   const [keyType, setKeyType] = useState<'personal' | 'workspace'>('personal')
   const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false)
-  const [showUnsavedChanges, setShowUnsavedChanges] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const pendingClose = useRef(false)
-  const initialWorkspaceKeysRef = useRef<WorkspaceApiKey[]>([])
-  const initialPersonalKeysRef = useRef<ApiKey[]>([])
 
-  // Filter API keys based on search term
   const filteredWorkspaceKeys = useMemo(() => {
     if (!searchTerm.trim()) {
       return workspaceKeys.map((key, index) => ({ key, originalIndex: index }))
@@ -115,21 +104,6 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
     return filteredWorkspaceKeys.length > 0 ? 'mt-8' : 'mt-0'
   }, [searchTerm, filteredWorkspaceKeys])
 
-  const hasChanges = useMemo(() => {
-    const initialWorkspace = initialWorkspaceKeysRef.current
-    const initialPersonal = initialPersonalKeysRef.current
-
-    return (
-      JSON.stringify(workspaceKeys) !== JSON.stringify(initialWorkspace) ||
-      JSON.stringify(personalKeys) !== JSON.stringify(initialPersonal)
-    )
-  }, [workspaceKeys, personalKeys])
-
-  const hasConflicts = useMemo(() => {
-    return conflicts.length > 0
-  }, [conflicts])
-
-  // Fetch both workspace and personal API keys
   const fetchApiKeys = async () => {
     if (!userId || !workspaceId) return
 
@@ -140,25 +114,32 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
         fetch('/api/users/me/api-keys'),
       ])
 
+      let workspaceKeys: ApiKey[] = []
+      let personalKeys: ApiKey[] = []
+
       if (workspaceResponse.ok) {
         const workspaceData = await workspaceResponse.json()
-        setWorkspaceKeys(workspaceData.data?.workspace || [])
-        setPersonalKeys(workspaceData.data?.personal || [])
-        setConflicts(workspaceData.data?.conflicts || [])
-
-        // Store initial values for change detection
-        initialWorkspaceKeysRef.current = JSON.parse(
-          JSON.stringify(workspaceData.data?.workspace || [])
-        )
-        initialPersonalKeysRef.current = JSON.parse(
-          JSON.stringify(workspaceData.data?.personal || [])
-        )
-      } else if (personalResponse.ok) {
-        // Fallback to personal keys only if workspace request fails
-        const personalData = await personalResponse.json()
-        setPersonalKeys(personalData.keys || [])
-        initialPersonalKeysRef.current = JSON.parse(JSON.stringify(personalData.keys || []))
+        workspaceKeys = workspaceData.keys || []
+      } else {
+        logger.error('Failed to fetch workspace API keys:', { status: workspaceResponse.status })
       }
+
+      if (personalResponse.ok) {
+        const personalData = await personalResponse.json()
+        personalKeys = personalData.keys || []
+      } else {
+        logger.error('Failed to fetch personal API keys:', { status: personalResponse.status })
+      }
+
+      // Client-side conflict detection
+      const workspaceKeyNames = new Set(workspaceKeys.map((k) => k.name))
+      const conflicts = personalKeys
+        .filter((key) => workspaceKeyNames.has(key.name))
+        .map((key) => key.name)
+
+      setWorkspaceKeys(workspaceKeys)
+      setPersonalKeys(personalKeys)
+      setConflicts(conflicts)
     } catch (error) {
       logger.error('Error fetching API keys:', { error })
     } finally {
@@ -166,11 +147,9 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
     }
   }
 
-  // Generate a new API key
   const handleCreateKey = async () => {
     if (!userId || !newKeyName.trim()) return
 
-    // Client-side duplicate check to provide immediate feedback and avoid closing the dialog
     const trimmedName = newKeyName.trim()
     const isDuplicate =
       keyType === 'workspace'
@@ -205,12 +184,9 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
 
       if (response.ok) {
         const data = await response.json()
-        // Show the new key dialog with the API key (only shown once)
         setNewKey(data.key)
         setShowNewKeyDialog(true)
-        // Refresh the keys list
         fetchApiKeys()
-        // Clear form and close the create dialog ONLY on success
         setNewKeyName('')
         setKeyType('personal')
         setCreateError(null)
@@ -227,7 +203,6 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
 
         logger.error('API key creation failed:', { status: response.status, errorData })
 
-        // Check for duplicate name error and prefer server-provided message
         const serverMessage = typeof errorData?.error === 'string' ? errorData.error : null
         if (response.status === 409 || serverMessage?.toLowerCase().includes('already exists')) {
           const errorMessage =
@@ -249,7 +224,6 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
     }
   }
 
-  // Delete an API key
   const handleDeleteKey = async () => {
     if (!userId || !deleteKey) return
 
@@ -264,9 +238,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
       })
 
       if (response.ok) {
-        // Refresh the keys list
         fetchApiKeys()
-        // Close the dialog
         setShowDeleteDialog(false)
         setDeleteKey(null)
         setDeleteConfirmationName('')
@@ -279,24 +251,16 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
     }
   }
 
-  // Copy API key to clipboard
   const copyToClipboard = (key: string) => {
     navigator.clipboard.writeText(key)
     setCopySuccess(true)
     setTimeout(() => setCopySuccess(false), 2000)
   }
 
-  // Modal close handler
   const handleModalClose = (open: boolean) => {
-    if (!open && hasChanges) {
-      setShowUnsavedChanges(true)
-      pendingClose.current = true
-    } else {
-      onOpenChange?.(open)
-    }
+    onOpenChange?.(open)
   }
 
-  // Load API keys on mount
   useEffect(() => {
     if (userId && workspaceId) {
       fetchApiKeys()
@@ -307,7 +271,7 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
     if (registerCloseHandler) {
       registerCloseHandler(handleModalClose)
     }
-  }, [registerCloseHandler, hasChanges])
+  }, [registerCloseHandler])
 
   useEffect(() => {
     if (shouldScrollToBottom && scrollContainerRef.current) {
@@ -319,7 +283,6 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
     }
   }, [shouldScrollToBottom])
 
-  // Format date
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'Never'
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -517,7 +480,6 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
                 <Plus className='h-4 w-4 stroke-[2px]' />
                 Create Key
               </Button>
-              <div className='text-muted-foreground text-xs'>Keep your API keys secure</div>
             </>
           )}
         </div>
@@ -702,68 +664,10 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Unsaved Changes Dialog */}
-      <AlertDialog open={showUnsavedChanges} onOpenChange={setShowUnsavedChanges}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Unsaved Changes</AlertDialogTitle>
-            <AlertDialogDescription>
-              {hasConflicts
-                ? 'You have unsaved changes, but conflicts must be resolved before saving. You can discard your changes to close the modal.'
-                : 'You have unsaved changes. Do you want to save them before closing?'}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className='flex'>
-            <AlertDialogCancel
-              onClick={() => {
-                // Reset to initial state
-                setWorkspaceKeys(JSON.parse(JSON.stringify(initialWorkspaceKeysRef.current)))
-                setPersonalKeys(JSON.parse(JSON.stringify(initialPersonalKeysRef.current)))
-                setShowUnsavedChanges(false)
-                if (pendingClose.current) {
-                  onOpenChange?.(false)
-                }
-              }}
-              className='h-9 w-full rounded-[8px]'
-            >
-              Discard Changes
-            </AlertDialogCancel>
-            {hasConflicts ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <AlertDialogAction
-                    disabled={true}
-                    className='h-9 w-full cursor-not-allowed rounded-[8px] opacity-50 transition-all duration-200'
-                  >
-                    Save Changes
-                  </AlertDialogAction>
-                </TooltipTrigger>
-                <TooltipContent>Resolve all conflicts before saving</TooltipContent>
-              </Tooltip>
-            ) : (
-              <AlertDialogAction
-                onClick={() => {
-                  // In a real implementation, you'd save changes here
-                  logger.info('Saving API key changes')
-                  setShowUnsavedChanges(false)
-                  if (pendingClose.current) {
-                    onOpenChange?.(false)
-                  }
-                }}
-                className='h-9 w-full rounded-[8px] transition-all duration-200'
-              >
-                Save Changes
-              </AlertDialogAction>
-            )}
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }
 
-// Loading skeleton for API keys
 function ApiKeySkeleton() {
   return (
     <div className='flex flex-col gap-2'>

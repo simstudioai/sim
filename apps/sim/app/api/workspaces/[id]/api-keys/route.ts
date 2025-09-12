@@ -57,19 +57,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .where(and(eq(apiKey.workspaceId, workspaceId), eq(apiKey.type, 'workspace')))
       .orderBy(apiKey.createdAt)
 
-    const personalKeys = await db
-      .select({
-        id: apiKey.id,
-        name: apiKey.name,
-        key: apiKey.key,
-        createdAt: apiKey.createdAt,
-        lastUsed: apiKey.lastUsed,
-        expiresAt: apiKey.expiresAt,
-      })
-      .from(apiKey)
-      .where(and(eq(apiKey.userId, userId), eq(apiKey.type, 'personal')))
-      .orderBy(apiKey.createdAt)
-
     const formattedWorkspaceKeys = await Promise.all(
       workspaceKeys.map(async (key) => {
         const displayFormat = await getApiKeyDisplayFormat(key.key)
@@ -81,31 +68,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       })
     )
 
-    const formattedPersonalKeys = await Promise.all(
-      personalKeys.map(async (key) => {
-        const displayFormat = await getApiKeyDisplayFormat(key.key)
-        return {
-          ...key,
-          key: key.key,
-          displayKey: displayFormat,
-        }
-      })
-    )
-
-    const workspaceKeyNames = new Set(workspaceKeys.map((k) => k.name))
-    const personalKeyNames = new Set(personalKeys.map((k) => k.name))
-    const conflicts = Array.from(workspaceKeyNames).filter((name) => personalKeyNames.has(name))
-
     return NextResponse.json({
-      data: {
-        workspace: formattedWorkspaceKeys,
-        personal: formattedPersonalKeys,
-        conflicts,
-      },
+      keys: formattedWorkspaceKeys,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error(`[${requestId}] Workspace API keys GET error`, error)
-    return NextResponse.json({ error: error.message || 'Failed to load API keys' }, { status: 500 })
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to load API keys' },
+      { status: 500 }
+    )
   }
 }
 
@@ -151,7 +122,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       )
     }
 
-    const { key: plainKey, encryptedKey } = await createApiKey(true)
+    const { key: plainKey, encryptedKey } = await createApiKey(true, true)
+
+    if (!encryptedKey) {
+      throw new Error('Failed to encrypt API key for storage')
+    }
 
     const [newKey] = await db
       .insert(apiKey)
@@ -161,7 +136,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         userId: userId,
         createdBy: userId,
         name,
-        key: encryptedKey!,
+        key: encryptedKey,
         type: 'workspace',
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -180,10 +155,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         key: plainKey,
       },
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error(`[${requestId}] Workspace API key POST error`, error)
     return NextResponse.json(
-      { error: error.message || 'Failed to create workspace API key' },
+      { error: error instanceof Error ? error.message : 'Failed to create workspace API key' },
       { status: 500 }
     )
   }
@@ -227,10 +202,10 @@ export async function DELETE(
       `[${requestId}] Deleted ${deletedCount} workspace API keys from workspace ${workspaceId}`
     )
     return NextResponse.json({ success: true, deletedCount })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error(`[${requestId}] Workspace API key DELETE error`, error)
     return NextResponse.json(
-      { error: error.message || 'Failed to delete workspace API keys' },
+      { error: error instanceof Error ? error.message : 'Failed to delete workspace API keys' },
       { status: 500 }
     )
   }

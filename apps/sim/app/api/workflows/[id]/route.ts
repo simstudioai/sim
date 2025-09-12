@@ -55,7 +55,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           if (authResult.success && authResult.userId) {
             authenticatedUserId = authResult.userId
             if (authResult.keyId) {
-              await updateApiKeyLastUsed(authResult.keyId).catch(() => {})
+              await updateApiKeyLastUsed(authResult.keyId).catch((error) => {
+                logger.warn(`[${requestId}] Failed to update API key last used timestamp:`, {
+                  keyId: authResult.keyId,
+                  error,
+                })
+              })
             }
           }
         }

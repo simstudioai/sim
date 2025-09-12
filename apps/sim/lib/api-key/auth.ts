@@ -98,7 +98,7 @@ export async function encryptApiKeyForStorage(apiKey: string): Promise<string> {
 /**
  * Creates a new API key with optional encryption
  * @param useEncryption - Whether to use new encrypted format with encryption (default: true for new keys)
- * @param useEncryption - Whether to encrypt the key before storage (default: true when useEncryption is true)
+ * @param useStorage - Whether to encrypt the key before storage (default: true when useEncryption is true)
  * @returns Promise<{key: string, encryptedKey?: string}> - The plain key and optionally encrypted version
  */
 export async function createApiKey(

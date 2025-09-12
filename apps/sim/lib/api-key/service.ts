@@ -209,8 +209,10 @@ export async function decryptApiKey(encryptedValue: string): Promise<{ decrypted
     decrypted += decipher.final('utf8')
 
     return { decrypted }
-  } catch (error: any) {
-    logger.error('API key decryption error:', { error: error.message })
+  } catch (error: unknown) {
+    logger.error('API key decryption error:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+    })
     throw error
   }
 }

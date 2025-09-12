@@ -88,10 +88,10 @@ export async function PUT(
 
     logger.info(`[${requestId}] Updated workspace API key: ${keyId} in workspace ${workspaceId}`)
     return NextResponse.json({ key: updatedKey })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error(`[${requestId}] Workspace API key PUT error`, error)
     return NextResponse.json(
-      { error: error.message || 'Failed to update workspace API key' },
+      { error: error instanceof Error ? error.message : 'Failed to update workspace API key' },
       { status: 500 }
     )
   }
@@ -131,10 +131,10 @@ export async function DELETE(
 
     logger.info(`[${requestId}] Deleted workspace API key: ${keyId} from workspace ${workspaceId}`)
     return NextResponse.json({ success: true })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error(`[${requestId}] Workspace API key DELETE error`, error)
     return NextResponse.json(
-      { error: error.message || 'Failed to delete workspace API key' },
+      { error: error instanceof Error ? error.message : 'Failed to delete workspace API key' },
       { status: 500 }
     )
   }

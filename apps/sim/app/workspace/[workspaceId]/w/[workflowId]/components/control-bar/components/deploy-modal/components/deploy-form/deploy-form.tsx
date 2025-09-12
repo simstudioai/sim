@@ -50,12 +50,8 @@ interface ApiKey {
   createdBy?: string
 }
 
-interface WorkspaceApiKey extends ApiKey {
-  createdBy?: string
-}
-
 interface ApiKeysData {
-  workspace: WorkspaceApiKey[]
+  workspace: ApiKey[]
   personal: ApiKey[]
   conflicts: string[]
 }
@@ -120,14 +116,42 @@ export function DeployForm({
 
     try {
       setKeysLoaded2(false)
-      const response = await fetch(`/api/workspaces/${workspaceId}/api-keys`)
-      if (response.ok) {
-        const data = await response.json()
-        setApiKeysData(data.data)
-        setKeysLoaded2(true)
+      const [workspaceResponse, personalResponse] = await Promise.all([
+        fetch(`/api/workspaces/${workspaceId}/api-keys`),
+        fetch('/api/users/me/api-keys'),
+      ])
+
+      let workspaceKeys: ApiKey[] = []
+      let personalKeys: ApiKey[] = []
+
+      if (workspaceResponse.ok) {
+        const workspaceData = await workspaceResponse.json()
+        workspaceKeys = workspaceData.keys || []
+      } else {
+        logger.error('Error fetching workspace API keys:', { status: workspaceResponse.status })
       }
+
+      if (personalResponse.ok) {
+        const personalData = await personalResponse.json()
+        personalKeys = personalData.keys || []
+      } else {
+        logger.error('Error fetching personal API keys:', { status: personalResponse.status })
+      }
+
+      // Client-side conflict detection
+      const workspaceKeyNames = new Set(workspaceKeys.map((k) => k.name))
+      const conflicts = personalKeys
+        .filter((key) => workspaceKeyNames.has(key.name))
+        .map((key) => key.name)
+
+      setApiKeysData({
+        workspace: workspaceKeys,
+        personal: personalKeys,
+        conflicts,
+      })
+      setKeysLoaded2(true)
     } catch (error) {
-      logger.error('Error fetching workspace API keys:', { error })
+      logger.error('Error fetching API keys:', { error })
       setKeysLoaded2(true)
     }
   }
