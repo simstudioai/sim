@@ -33,6 +33,7 @@ jobs:
           NODE_OPTIONS: '--no-warnings'
           NEXT_PUBLIC_APP_URL: 'https://www.sim.ai'
           ENCRYPTION_KEY: '7cf672e460e430c1fba707575c2b0e2ad5a99dddf9b7b7e3b5646e630861db1c' # dummy key for CI only
+          API_ENCRYPTION_KEY: '7cf672e460e430c1fba707575c2b0e2ad5a99dddf9b7b7e3b5646e630861db1c' # dummy key for CI only
         run: bun run test
 
       - name: Build application
@@ -44,6 +45,7 @@ jobs:
           RESEND_API_KEY: 'dummy_key_for_ci_only'
           AWS_REGION: 'us-west-2'
           ENCRYPTION_KEY: '7cf672e460e430c1fba707575c2b0e2ad5a99dddf9b7b7e3b5646e630861db1c' # dummy key for CI only
+          API_ENCRYPTION_KEY: '7cf672e460e430c1fba707575c2b0e2ad5a99dddf9b7b7e3b5646e630861db1c' # dummy key for CI only
         run: bun run build
 
       - name: Upload coverage to Codecov
