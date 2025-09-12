@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { key: plainKey, encryptedKey } = await createApiKey(true, true)
+    const { key: plainKey, encryptedKey } = await createApiKey(true)
 
     if (!encryptedKey) {
       throw new Error('Failed to encrypt API key for storage')

@@ -39,7 +39,7 @@ describe('API Key Service', () => {
       .returning({ id: workspace.id })
     testWorkspaceId = testWorkspace.id
 
-    const personalKeyResult = await createApiKey(true, true)
+    const personalKeyResult = await createApiKey(true)
     testPersonalKey = personalKeyResult.key
     expect(personalKeyResult.encryptedKey).toBeDefined()
     const [personalKey] = await db
@@ -56,7 +56,7 @@ describe('API Key Service', () => {
       .returning({ id: apiKeyTable.id })
     testPersonalKeyId = personalKey.id
 
-    const workspaceKeyResult = await createApiKey(true, true)
+    const workspaceKeyResult = await createApiKey(true)
     testWorkspaceKey = workspaceKeyResult.key
     expect(workspaceKeyResult.encryptedKey).toBeDefined()
     const [workspaceKey] = await db

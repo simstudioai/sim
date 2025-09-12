@@ -6,6 +6,7 @@ import {
   isEncryptedApiKeyFormat,
   isLegacyApiKeyFormat,
 } from '@/lib/api-key/service'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('ApiKeyAuth')
@@ -96,21 +97,18 @@ export async function encryptApiKeyForStorage(apiKey: string): Promise<string> {
 }
 
 /**
- * Creates a new API key with optional encryption
- * @param useEncryption - Whether to use new encrypted format with encryption (default: true for new keys)
- * @param useStorage - Whether to encrypt the key before storage (default: true when useEncryption is true)
+ * Creates a new API key
+ * @param useStorage - Whether to encrypt the key before storage (default: true)
  * @returns Promise<{key: string, encryptedKey?: string}> - The plain key and optionally encrypted version
  */
-export async function createApiKey(
-  useEncryption = true,
-  useStorage = true
-): Promise<{
+export async function createApiKey(useStorage = true): Promise<{
   key: string
   encryptedKey?: string
 }> {
   try {
-    // Use new encrypted format by default, legacy format for backward compatibility
-    const plainKey = useEncryption ? generateEncryptedApiKey() : generateApiKey()
+    const hasEncryptionKey = env.API_ENCRYPTION_KEY !== undefined
+
+    const plainKey = hasEncryptionKey ? generateEncryptedApiKey() : generateApiKey()
 
     if (useStorage) {
       const encryptedKey = await encryptApiKeyForStorage(plainKey)
