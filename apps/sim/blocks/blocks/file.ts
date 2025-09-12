@@ -9,7 +9,7 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
   type: 'file',
   name: 'File',
   description: 'Read and parse multiple files',
-  longDescription: `Integrate File into the workflow. Can upload a file manually or insert file a file url.`,
+  longDescription: `Integrate File into the workflow. Can upload a file manually or insert a file url.`,
   docsLink: 'https://docs.sim.ai/tools/file',
   category: 'tools',
   bgColor: '#40916C',
