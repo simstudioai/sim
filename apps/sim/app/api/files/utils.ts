@@ -1,7 +1,10 @@
 import { existsSync } from 'fs'
 import { join, resolve, sep } from 'path'
 import { NextResponse } from 'next/server'
+import { createLogger } from '@/lib/logs/console/logger'
 import { UPLOAD_DIR } from '@/lib/uploads/setup'
+
+const logger = createLogger('FilesUtils')
 
 /**
  * Response type definitions
@@ -199,19 +202,16 @@ function sanitizeFilename(filename: string): string {
     throw new Error('Invalid filename provided')
   }
 
-  // Remove any path traversal sequences
   const sanitized = filename
     .replace(/\.\./g, '') // Remove .. sequences
     .replace(/[/\\]/g, '') // Remove path separators
     .replace(/^\./g, '') // Remove leading dots
     .trim()
 
-  // Ensure filename is not empty after sanitization
   if (!sanitized || sanitized.length === 0) {
     throw new Error('Invalid or empty filename after sanitization')
   }
 
-  // Prevent absolute paths and ensure filename doesn't contain dangerous characters
   if (
     sanitized.includes(':') ||
     sanitized.includes('|') ||
@@ -229,7 +229,6 @@ function sanitizeFilename(filename: string): string {
  */
 export function findLocalFile(filename: string): string | null {
   try {
-    // Sanitize the filename to prevent path traversal
     const sanitizedFilename = sanitizeFilename(filename)
 
     const possiblePaths = [
@@ -238,11 +237,9 @@ export function findLocalFile(filename: string): string | null {
     ]
 
     for (const path of possiblePaths) {
-      // Additional security check: ensure the resolved path is within allowed directories
       const resolvedPath = resolve(path)
       const allowedDirs = [resolve(UPLOAD_DIR), resolve(process.cwd(), 'uploads')]
 
-      // Check if the resolved path is within one of the allowed directories
       const isWithinAllowedDir = allowedDirs.some(
         (allowedDir) => resolvedPath.startsWith(allowedDir + sep) || resolvedPath === allowedDir
       )
@@ -258,8 +255,7 @@ export function findLocalFile(filename: string): string | null {
 
     return null
   } catch (error) {
-    // Log the error but don't expose details to prevent information disclosure
-    console.error('Error in findLocalFile:', error)
+    logger.error('Error in findLocalFile:', error)
     return null
   }
 }

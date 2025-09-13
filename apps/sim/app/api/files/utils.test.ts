@@ -328,7 +328,7 @@ describe('extractFilename', () => {
 
 describe('findLocalFile - Path Traversal Security Tests', () => {
   describe('path traversal attack prevention', () => {
-    it('should reject classic path traversal attacks', () => {
+    it.concurrent('should reject classic path traversal attacks', () => {
       const maliciousInputs = [
         '../../../etc/passwd',
         '..\\..\\..\\windows\\system32\\config\\sam',
@@ -343,7 +343,7 @@ describe('findLocalFile - Path Traversal Security Tests', () => {
       })
     })
 
-    it('should reject encoded path traversal attempts', () => {
+    it.concurrent('should reject encoded path traversal attempts', () => {
       const encodedInputs = [
         '%2e%2e%2f%2e%2e%2f%65%74%63%2f%70%61%73%73%77%64', // ../../../etc/passwd
         '..%2f..%2fetc%2fpasswd',
@@ -356,7 +356,7 @@ describe('findLocalFile - Path Traversal Security Tests', () => {
       })
     })
 
-    it('should reject mixed path separators', () => {
+    it.concurrent('should reject mixed path separators', () => {
       const mixedInputs = ['../..\\config.txt', '..\\../secret.ini', '/..\\..\\system32']
 
       mixedInputs.forEach((input) => {
@@ -365,7 +365,7 @@ describe('findLocalFile - Path Traversal Security Tests', () => {
       })
     })
 
-    it('should reject filenames with dangerous characters', () => {
+    it.concurrent('should reject filenames with dangerous characters', () => {
       const dangerousInputs = [
         'file:with:colons.txt',
         'file|with|pipes.txt',
@@ -379,13 +379,13 @@ describe('findLocalFile - Path Traversal Security Tests', () => {
       })
     })
 
-    it('should reject null and empty inputs', () => {
+    it.concurrent('should reject null and empty inputs', () => {
       expect(findLocalFile('')).toBeNull()
       expect(findLocalFile('   ')).toBeNull()
       expect(findLocalFile('\t\n')).toBeNull()
     })
 
-    it('should reject filenames that become empty after sanitization', () => {
+    it.concurrent('should reject filenames that become empty after sanitization', () => {
       const emptyAfterSanitization = ['../..', '..\\..\\', '////', '....', '..']
 
       emptyAfterSanitization.forEach((input) => {
@@ -396,9 +396,7 @@ describe('findLocalFile - Path Traversal Security Tests', () => {
   })
 
   describe('security validation passes for legitimate files', () => {
-    it('should accept properly formatted filenames without throwing errors', () => {
-      // These tests verify that legitimate filenames pass the security checks
-      // The function may return null if files don't exist, but should not throw security errors
+    it.concurrent('should accept properly formatted filenames without throwing errors', () => {
       const legitimateInputs = [
         'document.pdf',
         'image.png',
