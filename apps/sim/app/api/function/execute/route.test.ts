@@ -48,8 +48,52 @@ describe('Function Execute API Route', () => {
     vi.clearAllMocks()
   })
 
+  describe('Security Tests', () => {
+    it.concurrent('should create secure fetch in VM context', async () => {
+      const req = createMockRequest('POST', {
+        code: 'return "test"',
+        useLocalVM: true,
+      })
+
+      const { POST } = await import('@/app/api/function/execute/route')
+      await POST(req)
+
+      expect(mockCreateContext).toHaveBeenCalled()
+      const contextArgs = mockCreateContext.mock.calls[0][0]
+      expect(contextArgs).toHaveProperty('fetch')
+      expect(typeof contextArgs.fetch).toBe('function')
+
+      expect(contextArgs.fetch.name).toBe('secureFetch')
+    })
+
+    it.concurrent('should block SSRF attacks through secure fetch wrapper', async () => {
+      const { validateProxyUrl } = await import('@/lib/security/url-validation')
+
+      expect(validateProxyUrl('http://169.254.169.254/latest/meta-data/').isValid).toBe(false)
+      expect(validateProxyUrl('http://127.0.0.1:8080/admin').isValid).toBe(false)
+      expect(validateProxyUrl('http://192.168.1.1/config').isValid).toBe(false)
+      expect(validateProxyUrl('http://10.0.0.1/internal').isValid).toBe(false)
+    })
+
+    it.concurrent('should allow legitimate external URLs', async () => {
+      const { validateProxyUrl } = await import('@/lib/security/url-validation')
+
+      expect(validateProxyUrl('https://api.github.com/user').isValid).toBe(true)
+      expect(validateProxyUrl('https://httpbin.org/get').isValid).toBe(true)
+      expect(validateProxyUrl('http://example.com/api').isValid).toBe(true)
+    })
+
+    it.concurrent('should block dangerous protocols', async () => {
+      const { validateProxyUrl } = await import('@/lib/security/url-validation')
+
+      expect(validateProxyUrl('file:///etc/passwd').isValid).toBe(false)
+      expect(validateProxyUrl('ftp://internal.server/files').isValid).toBe(false)
+      expect(validateProxyUrl('gopher://old.server/menu').isValid).toBe(false)
+    })
+  })
+
   describe('Basic Function Execution', () => {
-    it('should execute simple JavaScript code successfully', async () => {
+    it.concurrent('should execute simple JavaScript code successfully', async () => {
       const req = createMockRequest('POST', {
         code: 'return "Hello World"',
         timeout: 5000,
@@ -66,7 +110,7 @@ describe('Function Execute API Route', () => {
       expect(data.output).toHaveProperty('executionTime')
     })
 
-    it('should handle missing code parameter', async () => {
+    it.concurrent('should handle missing code parameter', async () => {
       const req = createMockRequest('POST', {
         timeout: 5000,
       })
@@ -80,7 +124,7 @@ describe('Function Execute API Route', () => {
       expect(data).toHaveProperty('error')
     })
 
-    it('should use default timeout when not provided', async () => {
+    it.concurrent('should use default timeout when not provided', async () => {
       const req = createMockRequest('POST', {
         code: 'return "test"',
         useLocalVM: true,
@@ -100,7 +144,7 @@ describe('Function Execute API Route', () => {
   })
 
   describe('Template Variable Resolution', () => {
-    it('should resolve environment variables with {{var_name}} syntax', async () => {
+    it.concurrent('should resolve environment variables with {{var_name}} syntax', async () => {
       const req = createMockRequest('POST', {
         code: 'return {{API_KEY}}',
         useLocalVM: true,
@@ -116,7 +160,7 @@ describe('Function Execute API Route', () => {
       // The code should be resolved to: return "secret-key-123"
     })
 
-    it('should resolve tag variables with <tag_name> syntax', async () => {
+    it.concurrent('should resolve tag variables with <tag_name> syntax', async () => {
       const req = createMockRequest('POST', {
         code: 'return <email>',
         useLocalVM: true,
@@ -132,7 +176,7 @@ describe('Function Execute API Route', () => {
       // The code should be resolved with the email object
     })
 
-    it('should NOT treat email addresses as template variables', async () => {
+    it.concurrent('should NOT treat email addresses as template variables', async () => {
       const req = createMockRequest('POST', {
         code: 'return "Email sent to user"',
         useLocalVM: true,
@@ -151,7 +195,7 @@ describe('Function Execute API Route', () => {
       // Should not try to replace <waleed@sim.ai> as a template variable
     })
 
-    it('should only match valid variable names in angle brackets', async () => {
+    it.concurrent('should only match valid variable names in angle brackets', async () => {
       const req = createMockRequest('POST', {
         code: 'return <validVar> + "<invalid@email.com>" + <another_valid>',
         useLocalVM: true,
@@ -170,64 +214,70 @@ describe('Function Execute API Route', () => {
   })
 
   describe('Gmail Email Data Handling', () => {
-    it('should handle Gmail webhook data with email addresses containing angle brackets', async () => {
-      const gmailData = {
-        email: {
-          id: '123',
-          from: 'Waleed Latif <waleed@sim.ai>',
-          to: 'User <user@example.com>',
-          subject: 'Test Email',
-          bodyText: 'Hello world',
-        },
-        rawEmail: {
-          id: '123',
-          payload: {
-            headers: [
-              { name: 'From', value: 'Waleed Latif <waleed@sim.ai>' },
-              { name: 'To', value: 'User <user@example.com>' },
-            ],
+    it.concurrent(
+      'should handle Gmail webhook data with email addresses containing angle brackets',
+      async () => {
+        const gmailData = {
+          email: {
+            id: '123',
+            from: 'Waleed Latif <waleed@sim.ai>',
+            to: 'User <user@example.com>',
+            subject: 'Test Email',
+            bodyText: 'Hello world',
           },
-        },
+          rawEmail: {
+            id: '123',
+            payload: {
+              headers: [
+                { name: 'From', value: 'Waleed Latif <waleed@sim.ai>' },
+                { name: 'To', value: 'User <user@example.com>' },
+              ],
+            },
+          },
+        }
+
+        const req = createMockRequest('POST', {
+          code: 'return <email>',
+          useLocalVM: true,
+          params: gmailData,
+        })
+
+        const { POST } = await import('@/app/api/function/execute/route')
+        const response = await POST(req)
+
+        expect(response.status).toBe(200)
+        const data = await response.json()
+        expect(data.success).toBe(true)
       }
+    )
 
-      const req = createMockRequest('POST', {
-        code: 'return <email>',
-        useLocalVM: true,
-        params: gmailData,
-      })
+    it.concurrent(
+      'should properly serialize complex email objects with special characters',
+      async () => {
+        const complexEmailData = {
+          email: {
+            from: 'Test User <test@example.com>',
+            bodyHtml: '<div>HTML content with "quotes" and \'apostrophes\'</div>',
+            bodyText: 'Text with\nnewlines\tand\ttabs',
+          },
+        }
 
-      const { POST } = await import('@/app/api/function/execute/route')
-      const response = await POST(req)
+        const req = createMockRequest('POST', {
+          code: 'return <email>',
+          useLocalVM: true,
+          params: complexEmailData,
+        })
 
-      expect(response.status).toBe(200)
-      const data = await response.json()
-      expect(data.success).toBe(true)
-    })
+        const { POST } = await import('@/app/api/function/execute/route')
+        const response = await POST(req)
 
-    it('should properly serialize complex email objects with special characters', async () => {
-      const complexEmailData = {
-        email: {
-          from: 'Test User <test@example.com>',
-          bodyHtml: '<div>HTML content with "quotes" and \'apostrophes\'</div>',
-          bodyText: 'Text with\nnewlines\tand\ttabs',
-        },
+        expect(response.status).toBe(200)
       }
-
-      const req = createMockRequest('POST', {
-        code: 'return <email>',
-        useLocalVM: true,
-        params: complexEmailData,
-      })
-
-      const { POST } = await import('@/app/api/function/execute/route')
-      const response = await POST(req)
-
-      expect(response.status).toBe(200)
-    })
+    )
   })
 
   describe('Custom Tools', () => {
-    it('should handle custom tool execution with direct parameter access', async () => {
+    it.concurrent('should handle custom tool execution with direct parameter access', async () => {
       const req = createMockRequest('POST', {
         code: 'return location + " weather is sunny"',
         useLocalVM: true,
@@ -246,7 +296,7 @@ describe('Function Execute API Route', () => {
   })
 
   describe('Security and Edge Cases', () => {
-    it('should handle malformed JSON in request body', async () => {
+    it.concurrent('should handle malformed JSON in request body', async () => {
       const req = new NextRequest('http://localhost:3000/api/function/execute', {
         method: 'POST',
         body: 'invalid json{',
@@ -259,7 +309,7 @@ describe('Function Execute API Route', () => {
       expect(response.status).toBe(500)
     })
 
-    it('should handle timeout parameter', async () => {
+    it.concurrent('should handle timeout parameter', async () => {
       const req = createMockRequest('POST', {
         code: 'return "test"',
         useLocalVM: true,
@@ -277,7 +327,7 @@ describe('Function Execute API Route', () => {
       )
     })
 
-    it('should handle empty parameters object', async () => {
+    it.concurrent('should handle empty parameters object', async () => {
       const req = createMockRequest('POST', {
         code: 'return "no params"',
         useLocalVM: true,
@@ -485,7 +535,7 @@ SyntaxError: Invalid or unexpected token
       expect(data.debug.lineContent).toBe('return a + b + c + d;')
     })
 
-    it('should provide helpful suggestions for common syntax errors', async () => {
+    it.concurrent('should provide helpful suggestions for common syntax errors', async () => {
       const mockScript = vi.fn().mockImplementation(() => {
         const error = new Error('Unexpected end of input')
         error.name = 'SyntaxError'
@@ -517,7 +567,7 @@ SyntaxError: Invalid or unexpected token
   })
 
   describe('Utility Functions', () => {
-    it('should properly escape regex special characters', async () => {
+    it.concurrent('should properly escape regex special characters', async () => {
       // This tests the escapeRegExp function indirectly
       const req = createMockRequest('POST', {
         code: 'return {{special.chars+*?}}',
@@ -534,7 +584,7 @@ SyntaxError: Invalid or unexpected token
       // Should handle special regex characters in variable names
     })
 
-    it('should handle JSON serialization edge cases', async () => {
+    it.concurrent('should handle JSON serialization edge cases', async () => {
       // Test with complex but not circular data first
       const req = createMockRequest('POST', {
         code: 'return <complexData>',

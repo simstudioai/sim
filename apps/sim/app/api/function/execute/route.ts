@@ -4,12 +4,36 @@ import { env, isTruthy } from '@/lib/env'
 import { executeInE2B } from '@/lib/execution/e2b'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
 import { createLogger } from '@/lib/logs/console/logger'
+import { validateProxyUrl } from '@/lib/security/url-validation'
 import { generateRequestId } from '@/lib/utils'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
 const logger = createLogger('FunctionExecuteAPI')
+
+function createSecureFetch(requestId: string) {
+  const originalFetch = (globalThis as any).fetch || require('node-fetch').default
+
+  return async function secureFetch(input: any, init?: any) {
+    const url = typeof input === 'string' ? input : input?.url || input
+
+    if (!url || typeof url !== 'string') {
+      throw new Error('Invalid URL provided to fetch')
+    }
+
+    const validation = validateProxyUrl(url)
+    if (!validation.isValid) {
+      logger.warn(`[${requestId}] Blocked fetch request due to SSRF validation`, {
+        url: url.substring(0, 100),
+        error: validation.error,
+      })
+      throw new Error(`Security Error: ${validation.error}`)
+    }
+
+    return originalFetch(input, init)
+  }
+}
 
 // Constants for E2B code wrapping line counts
 const E2B_JS_WRAPPER_LINES = 3 // Lines before user code: ';(async () => {', '  try {', '    const __sim_result = await (async () => {'
@@ -737,7 +761,7 @@ export async function POST(req: NextRequest) {
       params: executionParams,
       environmentVariables: envVars,
       ...contextVariables,
-      fetch: (globalThis as any).fetch || require('node-fetch').default,
+      fetch: createSecureFetch(requestId),
       console: {
         log: (...args: any[]) => {
           const logMessage = `${args
