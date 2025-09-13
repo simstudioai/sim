@@ -1,3 +1,4 @@
+import * as crypto from 'crypto'
 import { and, eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getRedisClient } from '@/lib/redis'
@@ -58,7 +59,6 @@ const DEFAULT_TTL = 60 * 60 * 24 * 7 // 7 days
 const REDIS_KEY_PREFIX = 'idempotency:'
 const MEMORY_CACHE_SIZE = 1000
 
-// In-memory fallback cache
 const memoryCache = new Map<
   string,
   {
@@ -115,7 +115,6 @@ export class IdempotencyService {
     const redisKey = `${REDIS_KEY_PREFIX}${normalizedKey}`
 
     try {
-      // Try Redis first
       const redis = getRedisClient()
       if (redis) {
         const cachedResult = await redis.get(redisKey)
@@ -140,7 +139,6 @@ export class IdempotencyService {
       logger.warn(`Redis idempotency check failed for ${normalizedKey}:`, error)
     }
 
-    // Fallback to database if enabled
     if (this.config.enableDatabaseFallback) {
       try {
         const existing = await db
@@ -156,7 +154,6 @@ export class IdempotencyService {
 
         if (existing.length > 0) {
           const item = existing[0]
-          // Check if the key has expired
           const isExpired = Date.now() - item.createdAt.getTime() > this.config.ttlSeconds * 1000
 
           if (!isExpired) {
@@ -168,7 +165,6 @@ export class IdempotencyService {
               storageMethod: 'database',
             }
           }
-          // Clean up expired key
           await db
             .delete(idempotencyKey)
             .where(eq(idempotencyKey.key, normalizedKey))
@@ -186,7 +182,6 @@ export class IdempotencyService {
       }
     }
 
-    // Final fallback to memory cache
     const memoryEntry = memoryCache.get(normalizedKey)
     if (memoryEntry) {
       const isExpired = Date.now() - memoryEntry.timestamp > memoryEntry.ttl * 1000
@@ -237,7 +232,6 @@ export class IdempotencyService {
       logger.warn(`Failed to store result in Redis for ${normalizedKey}:`, error)
     }
 
-    // Fallback to database
     if (this.config.enableDatabaseFallback && storageMethod !== 'memory') {
       try {
         await db
@@ -263,26 +257,22 @@ export class IdempotencyService {
       }
     }
 
-    // Final fallback to memory
     memoryCache.set(normalizedKey, {
       result,
       timestamp: Date.now(),
       ttl: this.config.ttlSeconds,
     })
 
-    // Clean up memory cache if it gets too large
     if (memoryCache.size > MEMORY_CACHE_SIZE) {
       const entries = Array.from(memoryCache.entries())
       const now = Date.now()
 
-      // Remove expired entries first
       entries.forEach(([key, entry]) => {
         if (now - entry.timestamp > entry.ttl * 1000) {
           memoryCache.delete(key)
         }
       })
 
-      // If still too large, remove oldest entries
       if (memoryCache.size > MEMORY_CACHE_SIZE) {
         const sortedEntries = entries
           .filter(([key]) => memoryCache.has(key))
@@ -317,12 +307,10 @@ export class IdempotencyService {
       return idempotencyCheck.previousResult?.result as T
     }
 
-    // Execute the operation
     try {
       logger.debug(`Executing new operation: ${idempotencyCheck.normalizedKey}`)
       const result = await operation()
 
-      // Store successful result
       await this.storeResult(
         idempotencyCheck.normalizedKey,
         { success: true, result },
@@ -331,7 +319,6 @@ export class IdempotencyService {
 
       return result
     } catch (error) {
-      // Store failed result
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       await this.storeResult(
         idempotencyCheck.normalizedKey,
@@ -351,7 +338,6 @@ export class IdempotencyService {
     payload: any,
     headers?: Record<string, string>
   ): string {
-    // Try to extract unique identifiers from common webhook headers
     const webhookIdHeader =
       headers?.['x-webhook-id'] ||
       headers?.['x-shopify-webhook-id'] ||
@@ -362,15 +348,12 @@ export class IdempotencyService {
       return `${webhookId}:${webhookIdHeader}`
     }
 
-    // Fallback to payload-based identification
     const payloadId = payload?.id || payload?.event_id || payload?.message?.id || payload?.data?.id
 
     if (payloadId) {
       return `${webhookId}:${payloadId}`
     }
 
-    // Final fallback: hash the payload
-    const crypto = require('crypto')
     const payloadHash = crypto
       .createHash('sha256')
       .update(JSON.stringify(payload))
@@ -407,7 +390,6 @@ export class IdempotencyService {
   }
 }
 
-// Export convenience functions for common use cases
 export const webhookIdempotency = new IdempotencyService({
   namespace: 'webhook',
   ttlSeconds: 60 * 60 * 24 * 7, // 7 days

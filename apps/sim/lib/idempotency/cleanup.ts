@@ -53,15 +53,31 @@ export async function cleanupExpiredIdempotencyKeys(
 
     while (hasMore) {
       try {
-        let whereCondition = lt(idempotencyKey.createdAt, cutoffDate)
+        const whereCondition = namespace
+          ? and(lt(idempotencyKey.createdAt, cutoffDate), eq(idempotencyKey.namespace, namespace))
+          : lt(idempotencyKey.createdAt, cutoffDate)
 
-        if (namespace) {
-          whereCondition = and(whereCondition, eq(idempotencyKey.namespace, namespace)) as any
+        // First, find IDs to delete with limit
+        const toDelete = await db
+          .select({ key: idempotencyKey.key, namespace: idempotencyKey.namespace })
+          .from(idempotencyKey)
+          .where(whereCondition)
+          .limit(batchSize)
+
+        if (toDelete.length === 0) {
+          break
         }
 
+        // Delete the found records
         const deleteResult = await db
           .delete(idempotencyKey)
-          .where(whereCondition)
+          .where(
+            and(
+              ...toDelete.map((item) =>
+                and(eq(idempotencyKey.key, item.key), eq(idempotencyKey.namespace, item.namespace))
+              )
+            )
+          )
           .returning({ key: idempotencyKey.key })
 
         const deletedCount = deleteResult.length

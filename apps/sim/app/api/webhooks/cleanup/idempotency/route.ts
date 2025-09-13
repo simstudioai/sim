@@ -9,7 +9,7 @@ const logger = createLogger('IdempotencyCleanupAPI')
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // Allow up to 5 minutes for cleanup
 
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
   const requestId = generateRequestId()
   logger.info(`Idempotency cleanup triggered (${requestId})`)
 
@@ -55,38 +55,6 @@ export async function POST(request: NextRequest) {
       {
         success: false,
         message: 'Idempotency cleanup failed',
-        error: error instanceof Error ? error.message : 'Unknown error',
-        requestId,
-      },
-      { status: 500 }
-    )
-  }
-}
-
-// Allow GET requests to get current stats without cleanup
-export async function GET(request: NextRequest) {
-  const requestId = generateRequestId()
-
-  try {
-    const authError = verifyCronAuth(request, 'Idempotency key stats')
-    if (authError) {
-      return authError
-    }
-
-    const stats = await getIdempotencyKeyStats()
-
-    return NextResponse.json({
-      success: true,
-      message: 'Idempotency key statistics retrieved',
-      requestId,
-      stats,
-    })
-  } catch (error) {
-    logger.error(`Error getting idempotency stats (${requestId}):`, error)
-    return NextResponse.json(
-      {
-        success: false,
-        message: 'Failed to get idempotency statistics',
         error: error instanceof Error ? error.message : 'Unknown error',
         requestId,
       },
