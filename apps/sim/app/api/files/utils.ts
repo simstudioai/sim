@@ -216,7 +216,9 @@ function sanitizeFilename(filename: string): string {
     sanitized.includes(':') ||
     sanitized.includes('|') ||
     sanitized.includes('?') ||
-    sanitized.includes('*')
+    sanitized.includes('*') ||
+    sanitized.includes('\x00') || // Null bytes
+    /[\x00-\x1F\x7F]/.test(sanitized) // Control characters
   ) {
     throw new Error('Filename contains invalid characters')
   }

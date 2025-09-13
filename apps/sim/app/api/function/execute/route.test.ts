@@ -86,7 +86,6 @@ describe('Function Execute API Route', () => {
     it.concurrent('should block dangerous protocols', async () => {
       const { validateProxyUrl } = await import('@/lib/security/url-validation')
 
-      // Test that dangerous protocols are blocked
       expect(validateProxyUrl('file:///etc/passwd').isValid).toBe(false)
       expect(validateProxyUrl('ftp://internal.server/files').isValid).toBe(false)
       expect(validateProxyUrl('gopher://old.server/menu').isValid).toBe(false)
