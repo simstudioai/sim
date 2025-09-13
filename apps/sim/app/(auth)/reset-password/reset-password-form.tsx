@@ -35,7 +35,9 @@ export function RequestResetForm({
     <form onSubmit={handleSubmit} className={className}>
       <div className='grid gap-4'>
         <div className='grid gap-2'>
-          <Label htmlFor='reset-email'>Email</Label>
+          <div className='flex items-center justify-between'>
+            <Label htmlFor='reset-email'>Email</Label>
+          </div>
           <Input
             id='reset-email'
             value={email}
@@ -123,7 +125,9 @@ export function SetNewPasswordForm({
     <form onSubmit={handleSubmit} className={className}>
       <div className='grid gap-4'>
         <div className='grid gap-2'>
-          <Label htmlFor='password'>New Password</Label>
+          <div className='flex items-center justify-between'>
+            <Label htmlFor='password'>New Password</Label>
+          </div>
           <Input
             id='password'
             type='password'
@@ -139,7 +143,9 @@ export function SetNewPasswordForm({
           />
         </div>
         <div className='grid gap-2'>
-          <Label htmlFor='confirmPassword'>Confirm Password</Label>
+          <div className='flex items-center justify-between'>
+            <Label htmlFor='confirmPassword'>Confirm Password</Label>
+          </div>
           <Input
             id='confirmPassword'
             type='password'

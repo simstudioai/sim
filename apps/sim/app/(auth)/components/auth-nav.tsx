@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { GithubIcon } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console/logger'
-import { soehne } from '@/app/fonts/soehne/soehne'
+import { inter } from '@/app/fonts/inter'
 
 const logger = createLogger('auth-nav')
 
@@ -86,7 +86,7 @@ export default function AuthNav() {
   return (
     <nav
       aria-label='Primary'
-      className={`${soehne.className} flex w-full items-center justify-between px-4 pt-[12px] pb-[21px] sm:px-8 sm:pt-[8.5px] md:px-[44px]`}
+      className={`${inter.className} flex w-full items-center justify-between px-4 pt-[12px] pb-[21px] sm:px-8 sm:pt-[8.5px] md:px-[44px]`}
     >
       <div className='flex items-center gap-[34px]'>
         <Link href='/' aria-label='Sim home'>

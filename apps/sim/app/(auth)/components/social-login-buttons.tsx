@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { GithubIcon, GoogleIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { client } from '@/lib/auth-client'
-import { soehne } from '@/app/fonts/soehne/soehne'
+import { inter } from '@/app/fonts/inter'
 
 interface SocialLoginButtonsProps {
   githubAvailable: boolean
@@ -93,24 +93,24 @@ export function SocialLoginButtons({
   const githubButton = (
     <Button
       variant='outline'
-      className='auth-social-button w-full rounded-[10px] font-light hover:bg-gray-50'
+      className='w-full rounded-[10px] shadow-sm hover:bg-gray-50'
       disabled={!githubAvailable || isGithubLoading}
       onClick={signInWithGithub}
     >
-      <GithubIcon className='mr-2 h-4 w-4' />
-      {isGithubLoading ? 'Connecting...' : 'Continue with GitHub'}
+      <GithubIcon className='!h-[18px] !w-[18px] mr-1' />
+      {isGithubLoading ? 'Connecting...' : 'GitHub'}
     </Button>
   )
 
   const googleButton = (
     <Button
       variant='outline'
-      className='auth-social-button w-full rounded-[10px] font-light hover:bg-gray-50'
+      className='w-full rounded-[10px] shadow-sm hover:bg-gray-50'
       disabled={!googleAvailable || isGoogleLoading}
       onClick={signInWithGoogle}
     >
-      <GoogleIcon className='mr-2 h-4 w-4' />
-      {isGoogleLoading ? 'Connecting...' : 'Continue with Google'}
+      <GoogleIcon className='!h-[18px] !w-[18px] mr-1' />
+      {isGoogleLoading ? 'Connecting...' : 'Google'}
     </Button>
   )
 
@@ -121,9 +121,9 @@ export function SocialLoginButtons({
   }
 
   return (
-    <div className={`${soehne.className} grid gap-3 font-light`}>
-      {githubAvailable && githubButton}
+    <div className={`${inter.className} grid gap-3 font-light`}>
       {googleAvailable && googleButton}
+      {githubAvailable && githubButton}
     </div>
   )
 }

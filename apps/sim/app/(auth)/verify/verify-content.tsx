@@ -69,7 +69,7 @@ function VerificationForm({
       </div>
 
       {!isVerified && (
-        <div className='flex flex-col gap-6'>
+        <div className='mt-8 flex flex-col gap-6'>
           <div className='rounded-xl border border-neutral-700/40 bg-neutral-800/50 p-6 backdrop-blur-sm'>
             <p className='mb-4 text-neutral-400 text-sm'>
               Enter the 6-digit code to verify your account.

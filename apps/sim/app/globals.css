@@ -123,8 +123,8 @@
     --brand-primary-hex: #8357ff; /* Primary brand purple - matches Get Started gradient start */
     --brand-primary-hover-hex: #9266ff; /* Primary brand purple hover - matches Get Started hover */
     --brand-secondary-hex: #6f3dfa; /* Secondary brand purple - matches Get Started gradient end */
-    --brand-accent-hex: #9d54ff; /* Accent purple for links */
-    --brand-accent-hover-hex: #a66fff; /* Accent purple hover */
+    --brand-accent-hex: #6f3dfa; /* Accent purple for links - matches sign in button */
+    --brand-accent-hover-hex: #8357ff; /* Accent purple hover - matches sign in gradient start */
     --brand-background-hex: #ffffff; /* Primary light background */
 
     /* UI Surface Colors */
@@ -194,8 +194,8 @@
     --brand-primary-hex: #8357ff; /* Primary brand purple - matches Get Started gradient start */
     --brand-primary-hover-hex: #9266ff; /* Primary brand purple hover - matches Get Started hover */
     --brand-secondary-hex: #6f3dfa; /* Secondary brand purple - matches Get Started gradient end */
-    --brand-accent-hex: #9d54ff; /* Accent purple for links */
-    --brand-accent-hover-hex: #a66fff; /* Accent purple hover */
+    --brand-accent-hex: #6f3dfa; /* Accent purple for links - matches sign in button */
+    --brand-accent-hover-hex: #8357ff; /* Accent purple hover - matches sign in gradient start */
     --brand-background-hex: #0c0c0c; /* Primary dark background */
 
     /* UI Surface Colors */
@@ -395,34 +395,6 @@ input[type="search"]::-ms-clear {
     background-color: var(--brand-primary-hover-hex);
   }
 
-  .bg-brand-secondary {
-    background-color: var(--brand-secondary-hex);
-  }
-
-  .bg-brand-accent {
-    background-color: var(--brand-accent-hex);
-  }
-
-  .bg-brand-background {
-    background-color: var(--brand-background-hex);
-  }
-
-  .text-brand-primary {
-    color: var(--brand-primary-hex);
-  }
-
-  .text-brand-accent {
-    color: var(--brand-accent-hex);
-  }
-
-  .text-brand-accent-hover {
-    color: var(--brand-accent-hover-hex);
-  }
-
-  .border-brand-primary {
-    border-color: var(--brand-primary-hex);
-  }
-
   .hover\:bg-brand-primary-hover:hover {
     background-color: var(--brand-primary-hover-hex);
   }
@@ -460,97 +432,36 @@ input[type="search"]::-ms-clear {
     );
   }
 
-  /* Dark Background Adaptation - uses CSS custom property detection */
-  @supports (color: color-mix(in srgb, red, blue)) {
-    /* When brand background is dark, override auth colors */
-    body {
-      --auth-card-bg: color-mix(
-        in srgb,
-        var(--brand-background-hex, #ffffff) 0%,
-        rgba(255, 255, 255, 0.9)
-      );
-      --auth-card-border: color-mix(in srgb, var(--brand-background-hex, #e5e5e5) 0%, #e5e5e5);
-      --auth-text-primary: color-mix(in srgb, var(--brand-background-hex, #1a1a1a) 0%, #1a1a1a);
-      --auth-text-secondary: color-mix(in srgb, var(--brand-background-hex, #4a4a4a) 0%, #4a4a4a);
-      --auth-text-muted: color-mix(in srgb, var(--brand-background-hex, #737373) 0%, #737373);
-      --auth-input-bg: color-mix(in srgb, var(--brand-background-hex, #ffffff) 0%, #ffffff);
-      --auth-input-border: color-mix(in srgb, var(--brand-background-hex, #d1d5db) 0%, #d1d5db);
-      --auth-divider: color-mix(in srgb, var(--brand-background-hex, #e5e5e5) 0%, #e5e5e5);
-      --auth-grid-stroke: rgba(255, 255, 255, 0.6);
-      --auth-card-shadow: rgba(0, 0, 0, 0.05);
-      --auth-link-color: #737373;
-    }
-  }
-
-  .auth-dark-bg {
-    /* Dark theme overrides */
-    --auth-card-bg: rgba(42, 42, 42, 0.9);
-    --auth-card-border: #404040;
-    --auth-text-primary: #ffffff;
-    --auth-text-secondary: #e5e5e5;
-    --auth-text-muted: #a3a3a3;
-    --auth-input-bg: #333333;
-    --auth-input-border: #555555;
-    --auth-divider: #404040;
-    --auth-grid-stroke: rgba(255, 255, 255, 0.1);
-    --auth-card-shadow: rgba(0, 0, 0, 0.3);
-    --auth-link-color: #a3a3a3;
-  }
-
-  /* Apply the variables */
+  /* Apply fixed default light theme values for auth components */
   .auth-card {
-    background-color: var(--auth-card-bg, rgba(255, 255, 255, 0.9)) !important;
-    border-color: var(--auth-card-border, #e5e5e5) !important;
+    background-color: rgba(255, 255, 255, 0.9) !important;
+    border-color: #e5e5e5 !important;
   }
 
   .auth-text-primary {
-    color: var(--auth-text-primary, #1a1a1a) !important;
+    color: #1a1a1a !important;
   }
 
   .auth-text-secondary {
-    color: var(--auth-text-secondary, #4a4a4a) !important;
+    color: #4a4a4a !important;
   }
 
   .auth-text-muted {
-    color: var(--auth-text-muted, #737373) !important;
-  }
-
-  .auth-input {
-    background-color: var(--auth-input-bg, #ffffff) !important;
-    border-color: var(--auth-input-border, #d1d5db) !important;
-    color: var(--auth-text-primary, #1a1a1a) !important;
-  }
-
-  .auth-input::placeholder {
-    color: var(--auth-text-muted, #737373) !important;
+    color: #737373 !important;
   }
 
   .auth-divider {
-    border-color: var(--auth-divider, #e5e5e5) !important;
-  }
-
-  .auth-social-button {
-    background-color: var(--auth-input-bg, #ffffff) !important;
-    border-color: var(--auth-input-border, #d1d5db) !important;
-    color: var(--auth-text-primary, #1a1a1a) !important;
-  }
-
-  .auth-label {
-    color: var(--auth-text-secondary, #4a4a4a) !important;
-  }
-
-  .auth-grid {
-    stroke: var(--auth-grid-stroke, rgba(128, 128, 128, 0.2)) !important;
+    border-color: #e5e5e5 !important;
   }
 
   .auth-card-shadow {
     box-shadow:
-      0 10px 15px -3px var(--auth-card-shadow, rgba(0, 0, 0, 0.05)),
-      0 4px 6px -2px var(--auth-card-shadow, rgba(0, 0, 0, 0.05)) !important;
+      0 10px 15px -3px rgba(0, 0, 0, 0.05),
+      0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
   }
 
   .auth-link {
-    color: var(--auth-link-color, #737373) !important;
+    color: #737373 !important;
   }
 
   /* Surface Utilities */
@@ -614,6 +525,32 @@ input[type="search"]::-ms-clear {
 
   .loading-placeholder::placeholder {
     animation: placeholder-pulse 1.5s ease-in-out infinite;
+  }
+
+  /* Auth Button Styles - Default Gradient */
+  .auth-button-gradient {
+    background: linear-gradient(to bottom, #8357ff, #6f3dfa) !important;
+    border-color: #6f3dfa !important;
+    box-shadow: inset 0 2px 4px 0 #9b77ff !important;
+  }
+
+  .auth-button-gradient:hover {
+    background: linear-gradient(to bottom, #8357ff, #6f3dfa) !important;
+    opacity: 0.9;
+  }
+
+  /* Auth Button Styles - CSS Variable Based */
+  .auth-button-custom {
+    background: var(--brand-accent-hex) !important;
+    border-color: var(--brand-accent-hex) !important;
+    /* Remove purple shadow when using custom color */
+    box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.1) !important;
+  }
+
+  .auth-button-custom:hover {
+    background: var(--brand-accent-hover-hex, var(--brand-accent-hex)) !important;
+    border-color: var(--brand-accent-hover-hex, var(--brand-accent-hex)) !important;
+    opacity: 1;
   }
 
   /* ==========================================================================
