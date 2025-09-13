@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import { useBrandConfig } from '@/lib/branding/branding'
-import { GridPattern } from '@/app/(landing)/components/grid-pattern'
+import { GridPattern } from '@/app/(landing-2)/components/grid-pattern'
 
 interface InviteLayoutProps {
   children: React.ReactNode

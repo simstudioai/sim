@@ -1,0 +1,200 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { ArrowRight, ChevronRight } from 'lucide-react'
+import Image from 'next/image'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { GithubIcon } from '@/components/icons'
+import { useBrandConfig } from '@/lib/branding/branding'
+import { isHosted } from '@/lib/environment'
+import { createLogger } from '@/lib/logs/console/logger'
+import { soehne } from '@/app/fonts/soehne/soehne'
+
+const logger = createLogger('nav')
+
+interface NavProps {
+  hideAuthButtons?: boolean
+  variant?: 'landing' | 'auth' | 'legal'
+}
+
+export default function Nav({ hideAuthButtons = false, variant = 'landing' }: NavProps = {}) {
+  const [githubStars, setGithubStars] = useState('14.7k')
+  const [isHovered, setIsHovered] = useState(false)
+  const [isLoginHovered, setIsLoginHovered] = useState(false)
+  const router = useRouter()
+  const brand = useBrandConfig()
+
+  useEffect(() => {
+    // Defer API call to after initial render for better performance
+    const timeoutId = setTimeout(() => {
+      const fetchStars = async () => {
+        try {
+          const response = await fetch('/api/github-stars')
+          const data = await response.json()
+          setGithubStars(data.stars)
+        } catch (error) {
+          logger.warn('Error fetching GitHub stars:', error)
+        }
+      }
+      fetchStars()
+    }, 2000) // Delay by 2 seconds to prioritize initial render
+
+    return () => clearTimeout(timeoutId)
+  }, [])
+
+  const handleLoginClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    router.push('/login')
+  }
+
+  // Self-hosted header for non-hosted instances
+  const SelfHostedHeader = () => (
+    <div className='relative z-10 px-6 pt-9'>
+      <div className='mx-auto flex max-w-7xl justify-center'>
+        <Link href='/' className='inline-flex'>
+          {brand.logoUrl ? (
+            <img
+              src={brand.logoUrl}
+              alt={`${brand.name} Logo`}
+              width={56}
+              height={56}
+              className='h-[56px] w-[56px] object-contain'
+            />
+          ) : (
+            <Image src='/sim.svg' alt={`${brand.name} Logo`} width={56} height={56} />
+          )}
+        </Link>
+      </div>
+    </div>
+  )
+
+  const NavLinks = () => (
+    <>
+      <li>
+        <Link
+          href='https://docs.sim.ai'
+          target='_blank'
+          rel='noopener noreferrer'
+          className='text-[16px] text-muted-foreground transition-colors hover:text-foreground'
+        >
+          Docs
+        </Link>
+      </li>
+      <li>
+        <Link
+          href='#pricing'
+          className='text-[16px] text-muted-foreground transition-colors hover:text-foreground'
+        >
+          Pricing
+        </Link>
+      </li>
+      <li>
+        <button
+          onClick={() => window.open('https://form.typeform.com/to/jqCO12pF', '_blank')}
+          className='text-[16px] text-muted-foreground transition-colors hover:text-foreground'
+        >
+          Enterprise
+        </button>
+      </li>
+      <li>
+        <a
+          href='https://github.com/simstudioai/sim'
+          target='_blank'
+          rel='noopener noreferrer'
+          className='flex items-center gap-2 text-[16px] text-muted-foreground transition-colors hover:text-foreground'
+          aria-label={`GitHub repository - ${githubStars} stars`}
+        >
+          <GithubIcon className='h-[16px] w-[16px]' aria-hidden='true' />
+          <span>{githubStars}</span>
+        </a>
+      </li>
+    </>
+  )
+
+  // If not hosted, show simple centered logo
+  if (!isHosted) {
+    return <SelfHostedHeader />
+  }
+
+  // For hosted instances, show full navigation
+  return (
+    <>
+      <nav
+        aria-label='Primary'
+        className={`${soehne.className} flex w-full items-center justify-between px-4 ${
+          variant === 'auth' ? 'pt-[20px] sm:pt-[16.5px]' : 'pt-[12px] sm:pt-[8.5px]'
+        } pb-[21px] sm:px-8 md:px-[44px]`}
+      >
+        <div className='flex items-center gap-[34px]'>
+          <Link href='/' aria-label={`${brand.name} home`}>
+            {brand.logoUrl ? (
+              <img
+                src={brand.logoUrl}
+                alt={`${brand.name} Logo`}
+                width={49.78314}
+                height={24.276}
+                className='h-[24.276px] w-auto object-contain'
+              />
+            ) : (
+              <Image
+                src='/logo/b&w/text/b&w.svg'
+                alt='Sim - Workflows for LLMs'
+                width={49.78314}
+                height={24.276}
+                priority
+              />
+            )}
+          </Link>
+          {/* Desktop Navigation Links - only show on landing */}
+          {variant === 'landing' && (
+            <ul className='hidden items-center justify-center gap-[20px] pt-[4px] md:flex'>
+              <NavLinks />
+            </ul>
+          )}
+        </div>
+
+        {/* Auth Buttons - respect hideAuthButtons prop */}
+        {!hideAuthButtons && (
+          <div className='flex items-center justify-center gap-[16px] pt-[1.5px]'>
+            <button
+              onClick={handleLoginClick}
+              onMouseEnter={() => setIsLoginHovered(true)}
+              onMouseLeave={() => setIsLoginHovered(false)}
+              className='group hidden text-[#2E2E2E] text-[16px] transition-colors hover:text-foreground md:block'
+            >
+              <span className='flex items-center gap-1'>
+                Log in
+                <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
+                  {isLoginHovered ? (
+                    <ArrowRight className='h-4 w-4' />
+                  ) : (
+                    <ChevronRight className='h-4 w-4' />
+                  )}
+                </span>
+              </span>
+            </button>
+            <Link
+              href='/signup'
+              onMouseEnter={() => setIsHovered(true)}
+              onMouseLeave={() => setIsHovered(false)}
+              className='group inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#6F3DFA] bg-gradient-to-b from-[#8357FF] to-[#6F3DFA] py-[6px] pr-[10px] pl-[12px] text-[14px] text-white shadow-[inset_0_2px_4px_0_#9B77FF] transition-all sm:text-[16px]'
+              aria-label='Get started with Sim'
+            >
+              <span className='flex items-center gap-1'>
+                Get started
+                <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
+                  {isHovered ? (
+                    <ArrowRight className='h-4 w-4' />
+                  ) : (
+                    <ChevronRight className='h-4 w-4' />
+                  )}
+                </span>
+              </span>
+            </Link>
+          </div>
+        )}
+      </nav>
+    </>
+  )
+}

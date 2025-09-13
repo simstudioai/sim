@@ -5,14 +5,15 @@ export default function manifest(): MetadataRoute.Manifest {
   const brand = getBrandConfig()
 
   return {
-    name: brand.name,
+    name: brand.name === 'Sim' ? 'Sim - AI Agent Workflow Builder' : brand.name,
     short_name: brand.name,
     description:
-      'Build and deploy AI agents using our Figma-like canvas. Build, write evals, and deploy AI agent workflows that automate workflows and streamline your business processes.',
+      'Open-source AI agent workflow builder. 30,000+ developers build and deploy agentic workflows on Sim. Visual drag-and-drop interface for creating AI automations. SOC2 and HIPAA compliant.',
     start_url: '/',
     display: 'standalone',
-    background_color: brand.theme?.backgroundColor || '#701FFC',
-    theme_color: brand.theme?.primaryColor || '#701FFC',
+    background_color: '#ffffff',
+    theme_color: brand.theme?.primaryColor || '#6F3DFA',
+    orientation: 'portrait-primary',
     icons: [
       {
         src: '/favicon/android-chrome-192x192.png',
@@ -24,6 +25,23 @@ export default function manifest(): MetadataRoute.Manifest {
         sizes: '512x512',
         type: 'image/png',
       },
+      {
+        src: '/favicon/apple-touch-icon.png',
+        sizes: '180x180',
+        type: 'image/png',
+      },
     ],
+    categories: ['productivity', 'developer', 'business'],
+    shortcuts: [
+      {
+        name: 'Create Workflow',
+        short_name: 'New',
+        description: 'Create a new AI workflow',
+        url: '/workspace',
+        icons: [{ src: '/icons/new-workflow.png', sizes: '192x192' }],
+      },
+    ],
+    lang: 'en-US',
+    dir: 'ltr',
   }
 }

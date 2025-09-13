@@ -1,9 +1,8 @@
 export async function GET() {
   const llmsContent = `# Sim - AI Agent Workflow Builder
-Visual platform for building and deploying AI agent workflows
-
-## Overview
-Sim is a platform to build, prototype, and deploy AI agent workflows. It's the fastest-growing platform for building AI agent workflows.
+Sim is an open-source AI agent workflow builder. Developers at trail-blazing startups to Fortune 500 companies deploy agentic workflows on the Sim platform.  
+30,000+ developers are already using Sim to build and deploy AI agent workflows.  
+Sim lets developers integrate with 100+ apps to streamline workflows with AI agents. Sim is SOC2 and HIPAA compliant, ensuring enterprise-level security.
 
 ## Key Features
 - Visual Workflow Builder: Drag-and-drop interface for creating AI agent workflows
