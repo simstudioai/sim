@@ -234,6 +234,8 @@ async function handleBlockOperationTx(
         throw new Error('Missing required fields for add block operation')
       }
 
+      // Note: single-API-trigger enforcement is handled client-side to avoid disconnects
+
       logger.debug(`[SERVER] Adding block: ${payload.type} (${payload.id})`, {
         isSubflowType: isSubflowBlockType(payload.type),
       })

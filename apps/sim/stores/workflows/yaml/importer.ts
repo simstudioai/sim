@@ -157,6 +157,15 @@ function validateBlockTypes(yamlWorkflow: YamlWorkflow): { errors: string[]; war
         }
       })
     }
+    // Enforce only one API trigger in YAML
+    if (block.type === 'api_trigger') {
+      const apiCount = Object.values(yamlWorkflow.blocks).filter(
+        (b) => b.type === 'api_trigger'
+      ).length
+      if (apiCount > 1) {
+        errors.push('Only one API trigger is allowed per workflow (YAML contains multiple).')
+      }
+    }
   })
 
   return { errors, warnings }
