@@ -562,6 +562,14 @@ export class InputResolver {
                 }
 
                 replacementValue = arrayValue[index]
+              } else if (/^(?:[^[]+(?:\[\d+\])+|(?:\[\d+\])+)$/.test(part)) {
+                // Enhanced: support multiple indices like "values[0][0]"
+                replacementValue = this.resolvePartWithIndices(
+                  replacementValue,
+                  part,
+                  path,
+                  'starter block'
+                )
               } else {
                 // Regular property access with FileReference mapping
                 replacementValue = resolvePropertyAccess(replacementValue, part)
@@ -763,6 +771,14 @@ export class InputResolver {
           }
 
           replacementValue = arrayValue[index]
+        } else if (/^(?:[^[]+(?:\[\d+\])+|(?:\[\d+\])+)$/.test(part)) {
+          // Enhanced: support multiple indices like "values[0][0]"
+          replacementValue = this.resolvePartWithIndices(
+            replacementValue,
+            part,
+            path,
+            sourceBlock.metadata?.name || sourceBlock.id
+          )
         } else {
           // Regular property access with FileReference mapping
           replacementValue = resolvePropertyAccess(replacementValue, part)
@@ -1072,6 +1088,52 @@ export class InputResolver {
       return JSON.stringify(value)
     }
     return String(value)
+  }
+
+  /**
+   * Applies a path part that may include multiple array indices, e.g. "values[0][0]".
+   */
+  private resolvePartWithIndices(
+    base: any,
+    part: string,
+    fullPath: string,
+    sourceName: string
+  ): any {
+    let value = base
+
+    // Extract leading property name if present
+    const propMatch = part.match(/^([^[]+)/)
+    let rest = part
+    if (propMatch) {
+      const prop = propMatch[1]
+      value = resolvePropertyAccess(value, prop)
+      rest = part.slice(prop.length)
+      if (value === undefined) {
+        throw new Error(`No value found at path "${fullPath}" in block "${sourceName}".`)
+      }
+    }
+
+    // Iteratively apply each [index]
+    const indexRe = /^\[(\d+)\]/
+    while (rest.length > 0) {
+      const m = rest.match(indexRe)
+      if (!m) {
+        throw new Error(`Invalid path "${part}" in "${fullPath}" for block "${sourceName}".`)
+      }
+      const idx = Number.parseInt(m[1], 10)
+      if (!Array.isArray(value)) {
+        throw new Error(`Invalid path "${part}" in "${fullPath}" for block "${sourceName}".`)
+      }
+      if (idx < 0 || idx >= value.length) {
+        throw new Error(
+          `Array index ${idx} is out of bounds in path "${fullPath}" for block "${sourceName}".`
+        )
+      }
+      value = value[idx]
+      rest = rest.slice(m[0].length)
+    }
+
+    return value
   }
 
   /**
