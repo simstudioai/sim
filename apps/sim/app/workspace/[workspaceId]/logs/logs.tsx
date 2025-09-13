@@ -112,7 +112,6 @@ export default function Logs() {
     setSearchQuery(storeSearchQuery)
   }, [storeSearchQuery])
 
-  // Extract available workflows and folders from logs for suggestions
   useEffect(() => {
     const workflowNames = new Set<string>()
     const folderNames = new Set<string>()

@@ -19,6 +19,8 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { useFolderStore } from '@/stores/folders/store'
 import { useFilterStore } from '@/stores/logs/filters/store'
 
+const logger = createLogger('LogsFolderFilter')
+
 interface FolderOption {
   id: string
   name: string
@@ -34,7 +36,6 @@ export default function FolderFilter() {
   const [folders, setFolders] = useState<FolderOption[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const logger = useMemo(() => createLogger('LogsFolderFilter'), [])
 
   // Fetch all available folders from the API
   useEffect(() => {
