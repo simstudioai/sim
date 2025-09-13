@@ -342,14 +342,12 @@ export async function POST(
       blockId: foundWebhook.blockId,
     }
 
-    // Generate idempotency key from webhook and payload
     const idempotencyKey = IdempotencyService.createWebhookIdempotencyKey(
       foundWebhook.id,
       body,
       Object.fromEntries(request.headers.entries())
     )
 
-    // Execute webhook with idempotency protection
     const result = await webhookIdempotency.executeWithIdempotency(
       foundWebhook.provider,
       idempotencyKey,

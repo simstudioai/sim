@@ -339,7 +339,6 @@ async function processOutlookEmails(
 
   for (const email of emails) {
     try {
-      // Use the new universal idempotency system
       const result = await pollingIdempotency.executeWithIdempotency(
         'outlook',
         `${webhookData.id}:${email.id}`,

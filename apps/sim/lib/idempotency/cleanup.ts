@@ -40,7 +40,6 @@ export async function cleanupExpiredIdempotencyKeys(
   let totalDeleted = 0
 
   try {
-    // Calculate cutoff date
     const cutoffDate = new Date(Date.now() - maxAgeSeconds * 1000)
 
     logger.info('Starting idempotency key cleanup', {
@@ -54,14 +53,12 @@ export async function cleanupExpiredIdempotencyKeys(
 
     while (hasMore) {
       try {
-        // Build the where condition
         let whereCondition = lt(idempotencyKey.createdAt, cutoffDate)
 
         if (namespace) {
           whereCondition = and(whereCondition, eq(idempotencyKey.namespace, namespace)) as any
         }
 
-        // Delete a batch of expired keys
         const deleteResult = await db
           .delete(idempotencyKey)
           .where(whereCondition)
@@ -80,7 +77,6 @@ export async function cleanupExpiredIdempotencyKeys(
         } else {
           logger.info(`Deleted batch ${batchCount}: ${deletedCount} expired idempotency keys`)
 
-          // Add a small delay between batches to avoid overwhelming the database
           await new Promise((resolve) => setTimeout(resolve, 100))
         }
       } catch (batchError) {
@@ -89,10 +85,8 @@ export async function cleanupExpiredIdempotencyKeys(
         logger.error(`Error deleting batch ${batchCount + 1}:`, batchError)
         errors.push(`Batch ${batchCount + 1}: ${errorMessage}`)
 
-        // Continue with next batch instead of failing completely
         batchCount++
 
-        // If we've had too many consecutive errors, stop
         if (errors.length > 5) {
           logger.error('Too many batch errors, stopping cleanup')
           break
@@ -124,7 +118,6 @@ export async function getIdempotencyKeyStats(): Promise<{
   newestKey: Date | null
 }> {
   try {
-    // Get total count and namespace breakdown
     const allKeys = await db
       .select({
         namespace: idempotencyKey.namespace,
@@ -138,10 +131,8 @@ export async function getIdempotencyKeyStats(): Promise<{
     let newestKey: Date | null = null
 
     for (const key of allKeys) {
-      // Count by namespace
       keysByNamespace[key.namespace] = (keysByNamespace[key.namespace] || 0) + 1
 
-      // Track oldest and newest
       if (!oldestKey || key.createdAt < oldestKey) {
         oldestKey = key.createdAt
       }

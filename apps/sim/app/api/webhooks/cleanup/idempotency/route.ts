@@ -19,19 +19,16 @@ export async function POST(request: NextRequest) {
       return authError
     }
 
-    // Get stats before cleanup
     const statsBefore = await getIdempotencyKeyStats()
     logger.info(
       `Pre-cleanup stats: ${statsBefore.totalKeys} keys across ${Object.keys(statsBefore.keysByNamespace).length} namespaces`
     )
 
-    // Run cleanup with default settings (7 days)
     const result = await cleanupExpiredIdempotencyKeys({
       maxAgeSeconds: 7 * 24 * 60 * 60, // 7 days
       batchSize: 1000,
     })
 
-    // Get stats after cleanup
     const statsAfter = await getIdempotencyKeyStats()
     logger.info(`Post-cleanup stats: ${statsAfter.totalKeys} keys remaining`)
 

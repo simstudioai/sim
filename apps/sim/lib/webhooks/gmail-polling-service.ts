@@ -476,7 +476,6 @@ async function processEmails(
 
   for (const email of emails) {
     try {
-      // Use the new universal idempotency system
       const result = await pollingIdempotency.executeWithIdempotency(
         'gmail',
         `${webhookData.id}:${email.id}`,

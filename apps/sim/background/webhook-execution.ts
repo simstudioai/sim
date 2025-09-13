@@ -42,14 +42,12 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
     executionId,
   })
 
-  // Create idempotency key from the payload
   const idempotencyKey = IdempotencyService.createWebhookIdempotencyKey(
     payload.webhookId,
     payload.body,
     payload.headers
   )
 
-  // Execute with idempotency protection
   return await webhookIdempotency.executeWithIdempotency(
     payload.provider,
     idempotencyKey,
@@ -64,11 +62,9 @@ async function executeWebhookJobInternal(
   executionId: string,
   requestId: string
 ) {
-  // Initialize logging session outside try block so it's available in catch
   const loggingSession = new LoggingSession(payload.workflowId, executionId, 'webhook', requestId)
 
   try {
-    // Check usage limits first
     const usageCheck = await checkServerSideUsageLimits(payload.userId)
     if (usageCheck.isExceeded) {
       logger.warn(
@@ -85,7 +81,6 @@ async function executeWebhookJobInternal(
       )
     }
 
-    // Load workflow from normalized tables
     const workflowData = await loadWorkflowFromNormalizedTables(payload.workflowId)
     if (!workflowData) {
       throw new Error(`Workflow not found: ${payload.workflowId}`)
@@ -93,7 +88,6 @@ async function executeWebhookJobInternal(
 
     const { blocks, edges, loops, parallels } = workflowData
 
-    // Get environment variables with workspace precedence
     const wfRows = await db
       .select({ workspaceId: workflowTable.workspaceId })
       .from(workflowTable)
