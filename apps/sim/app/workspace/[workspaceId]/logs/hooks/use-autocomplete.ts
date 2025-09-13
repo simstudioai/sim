@@ -154,7 +154,6 @@ export function useAutocomplete({
   const dropdownRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Memoize current suggestion for performance
   const currentSuggestion = useMemo(() => {
     if (state.highlightedIndex >= 0 && state.suggestions[state.highlightedIndex]) {
       return state.suggestions[state.highlightedIndex]
@@ -162,14 +161,12 @@ export function useAutocomplete({
     return null
   }, [state.highlightedIndex, state.suggestions])
 
-  // Update suggestions when input changes
   const updateSuggestions = useCallback(() => {
     const suggestionGroup = getSuggestions(state.inputValue, state.cursorPosition)
 
     if (suggestionGroup && suggestionGroup.suggestions.length > 0) {
       dispatch({ type: 'OPEN_DROPDOWN', payload: suggestionGroup })
 
-      // Generate preview for first suggestion
       const firstSuggestion = suggestionGroup.suggestions[0]
       const preview = generatePreview(firstSuggestion, state.inputValue, state.cursorPosition)
       dispatch({
@@ -181,21 +178,17 @@ export function useAutocomplete({
     }
   }, [state.inputValue, state.cursorPosition, getSuggestions, generatePreview])
 
-  // Handle input change with debouncing
   const handleInputChange = useCallback(
     (value: string, cursorPosition: number) => {
       dispatch({ type: 'SET_INPUT_VALUE', payload: { value, cursorPosition } })
 
-      // Validate query
       const isValid = validateQuery ? validateQuery(value) : true
       dispatch({ type: 'SET_QUERY_VALIDITY', payload: isValid })
 
-      // Only trigger backend query if valid
       if (isValid) {
         onQueryChange(value)
       }
 
-      // Debounce suggestion updates
       if (debounceRef.current) {
         clearTimeout(debounceRef.current)
       }
@@ -205,7 +198,6 @@ export function useAutocomplete({
     [updateSuggestions, onQueryChange, validateQuery, debounceMs]
   )
 
-  // Handle cursor position change
   const handleCursorChange = useCallback(
     (position: number) => {
       dispatch({ type: 'SET_CURSOR_POSITION', payload: position })
@@ -214,7 +206,6 @@ export function useAutocomplete({
     [updateSuggestions]
   )
 
-  // Handle suggestion hover
   const handleSuggestionHover = useCallback(
     (index: number) => {
       if (index >= 0 && index < state.suggestions.length) {
@@ -229,7 +220,6 @@ export function useAutocomplete({
     [state.suggestions, state.inputValue, state.cursorPosition, generatePreview]
   )
 
-  // Handle suggestion selection
   const handleSuggestionSelect = useCallback(
     (suggestion?: Suggestion) => {
       const selectedSuggestion = suggestion || currentSuggestion
@@ -237,25 +227,20 @@ export function useAutocomplete({
 
       let newValue = generatePreview(selectedSuggestion, state.inputValue, state.cursorPosition)
 
-      // Calculate new cursor position
       let newCursorPosition = newValue.length
 
-      // If it's a filter key (ends with :), position cursor after the colon
       if (state.suggestionType === 'filter-keys' && selectedSuggestion.value.endsWith(':')) {
         newCursorPosition = newValue.lastIndexOf(':') + 1
       } else if (state.suggestionType === 'filter-values') {
-        // For filter values, add a space and position cursor at the end to allow more filters
         newValue = `${newValue} `
         newCursorPosition = newValue.length
       }
 
-      // Update input value
       dispatch({
         type: 'SET_INPUT_VALUE',
         payload: { value: newValue, cursorPosition: newCursorPosition },
       })
 
-      // Validate and potentially trigger backend query
       const isValid = validateQuery ? validateQuery(newValue.trim()) : true
       dispatch({ type: 'SET_QUERY_VALIDITY', payload: isValid })
 
@@ -263,7 +248,6 @@ export function useAutocomplete({
         onQueryChange(newValue.trim())
       }
 
-      // Focus input and set cursor position
       if (inputRef.current) {
         inputRef.current.focus()
         requestAnimationFrame(() => {
@@ -273,7 +257,6 @@ export function useAutocomplete({
         })
       }
 
-      // Update suggestions based on new state
       setTimeout(updateSuggestions, 0)
     },
     [
@@ -288,7 +271,6 @@ export function useAutocomplete({
     ]
   )
 
-  // Keyboard navigation
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
       if (!state.isOpen) return
@@ -319,7 +301,6 @@ export function useAutocomplete({
           break
 
         case 'Tab':
-          // Allow tab to select current suggestion or close dropdown
           if (currentSuggestion) {
             event.preventDefault()
             handleSuggestionSelect()
@@ -339,13 +320,11 @@ export function useAutocomplete({
     ]
   )
 
-  // Focus handlers
   const handleFocus = useCallback(() => {
     updateSuggestions()
   }, [updateSuggestions])
 
   const handleBlur = useCallback(() => {
-    // Use setTimeout to allow click events on dropdown items
     setTimeout(() => {
       dispatch({ type: 'CLOSE_DROPDOWN' })
     }, 150)

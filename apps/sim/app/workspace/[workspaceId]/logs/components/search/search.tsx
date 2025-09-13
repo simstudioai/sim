@@ -27,12 +27,10 @@ export function AutocompleteSearch({
   availableFolders = [],
   className,
 }: AutocompleteSearchProps) {
-  // Initialize suggestion engine
   const suggestionEngine = useMemo(() => {
     return new SearchSuggestions(availableWorkflows, availableFolders)
   }, [availableWorkflows, availableFolders])
 
-  // Use the autocomplete hook
   const {
     state,
     inputRef,
@@ -54,12 +52,10 @@ export function AutocompleteSearch({
     debounceMs: 100,
   })
 
-  // Parse query for display
   const parsedQuery = parseQuery(value)
   const hasFilters = parsedQuery.filters.length > 0
   const hasTextSearch = parsedQuery.textSearch.length > 0
 
-  // Handle input events
   const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value
     const cursorPos = e.target.selectionStart || 0
@@ -71,7 +67,6 @@ export function AutocompleteSearch({
     handleCursorChange(cursorPos)
   }
 
-  // Handle filter removal
   const removeFilter = (filterToRemove: (typeof parsedQuery.filters)[0]) => {
     const remainingFilters = parsedQuery.filters.filter(
       (f) => !(f.field === filterToRemove.field && f.value === filterToRemove.value)
