@@ -1,0 +1,99 @@
+import { type NextRequest, NextResponse } from 'next/server'
+import { verifyCronAuth } from '@/lib/auth/internal'
+import { cleanupExpiredIdempotencyKeys, getIdempotencyKeyStats } from '@/lib/idempotency/cleanup'
+import { createLogger } from '@/lib/logs/console/logger'
+import { generateRequestId } from '@/lib/utils'
+
+const logger = createLogger('IdempotencyCleanupAPI')
+
+export const dynamic = 'force-dynamic'
+export const maxDuration = 300 // Allow up to 5 minutes for cleanup
+
+export async function POST(request: NextRequest) {
+  const requestId = generateRequestId()
+  logger.info(`Idempotency cleanup triggered (${requestId})`)
+
+  try {
+    const authError = verifyCronAuth(request, 'Idempotency key cleanup')
+    if (authError) {
+      return authError
+    }
+
+    // Get stats before cleanup
+    const statsBefore = await getIdempotencyKeyStats()
+    logger.info(
+      `Pre-cleanup stats: ${statsBefore.totalKeys} keys across ${Object.keys(statsBefore.keysByNamespace).length} namespaces`
+    )
+
+    // Run cleanup with default settings (7 days)
+    const result = await cleanupExpiredIdempotencyKeys({
+      maxAgeSeconds: 7 * 24 * 60 * 60, // 7 days
+      batchSize: 1000,
+    })
+
+    // Get stats after cleanup
+    const statsAfter = await getIdempotencyKeyStats()
+    logger.info(`Post-cleanup stats: ${statsAfter.totalKeys} keys remaining`)
+
+    return NextResponse.json({
+      success: true,
+      message: 'Idempotency key cleanup completed',
+      requestId,
+      result: {
+        deleted: result.deleted,
+        errors: result.errors,
+        statsBefore: {
+          totalKeys: statsBefore.totalKeys,
+          keysByNamespace: statsBefore.keysByNamespace,
+        },
+        statsAfter: {
+          totalKeys: statsAfter.totalKeys,
+          keysByNamespace: statsAfter.keysByNamespace,
+        },
+      },
+    })
+  } catch (error) {
+    logger.error(`Error during idempotency cleanup (${requestId}):`, error)
+    return NextResponse.json(
+      {
+        success: false,
+        message: 'Idempotency cleanup failed',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        requestId,
+      },
+      { status: 500 }
+    )
+  }
+}
+
+// Allow GET requests to get current stats without cleanup
+export async function GET(request: NextRequest) {
+  const requestId = generateRequestId()
+
+  try {
+    const authError = verifyCronAuth(request, 'Idempotency key stats')
+    if (authError) {
+      return authError
+    }
+
+    const stats = await getIdempotencyKeyStats()
+
+    return NextResponse.json({
+      success: true,
+      message: 'Idempotency key statistics retrieved',
+      requestId,
+      stats,
+    })
+  } catch (error) {
+    logger.error(`Error getting idempotency stats (${requestId}):`, error)
+    return NextResponse.json(
+      {
+        success: false,
+        message: 'Failed to get idempotency statistics',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        requestId,
+      },
+      { status: 500 }
+    )
+  }
+}

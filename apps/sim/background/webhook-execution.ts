@@ -3,6 +3,7 @@ import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
+import { IdempotencyService, webhookIdempotency } from '@/lib/idempotency'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -41,6 +42,28 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
     executionId,
   })
 
+  // Create idempotency key from the payload
+  const idempotencyKey = IdempotencyService.createWebhookIdempotencyKey(
+    payload.webhookId,
+    payload.body,
+    payload.headers
+  )
+
+  // Execute with idempotency protection
+  return await webhookIdempotency.executeWithIdempotency(
+    payload.provider,
+    idempotencyKey,
+    async () => {
+      return await executeWebhookJobInternal(payload, executionId, requestId)
+    }
+  )
+}
+
+async function executeWebhookJobInternal(
+  payload: WebhookExecutionPayload,
+  executionId: string,
+  requestId: string
+) {
   // Initialize logging session outside try block so it's available in catch
   const loggingSession = new LoggingSession(payload.workflowId, executionId, 'webhook', requestId)
 
