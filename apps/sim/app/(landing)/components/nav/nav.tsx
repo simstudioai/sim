@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ArrowRight, ChevronRight } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -26,11 +26,19 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
   const brand = useBrandConfig()
 
   useEffect(() => {
+    // Only fetch stars on landing page to reduce unnecessary API calls
+    if (variant !== 'landing') return
+
     // Defer API call to after initial render for better performance
     const timeoutId = setTimeout(() => {
       const fetchStars = async () => {
         try {
-          const response = await fetch('/api/github-stars')
+          const response = await fetch('/api/github-stars', {
+            // Add cache headers for better performance
+            headers: {
+              'Cache-Control': 'max-age=3600', // Cache for 1 hour
+            },
+          })
           const data = await response.json()
           setGithubStars(data.stars)
         } catch (error) {
@@ -41,33 +49,19 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
     }, 2000) // Delay by 2 seconds to prioritize initial render
 
     return () => clearTimeout(timeoutId)
-  }, [])
+  }, [variant])
 
-  const handleLoginClick = (e: React.MouseEvent) => {
-    e.preventDefault()
-    router.push('/login')
-  }
-
-  // Self-hosted header for non-hosted instances
-  const SelfHostedHeader = () => (
-    <div className='relative z-10 px-6 pt-9'>
-      <div className='mx-auto flex max-w-7xl justify-center'>
-        <Link href='/' className='inline-flex'>
-          {brand.logoUrl ? (
-            <img
-              src={brand.logoUrl}
-              alt={`${brand.name} Logo`}
-              width={56}
-              height={56}
-              className='h-[56px] w-[56px] object-contain'
-            />
-          ) : (
-            <Image src='/sim.svg' alt={`${brand.name} Logo`} width={56} height={56} />
-          )}
-        </Link>
-      </div>
-    </div>
+  const handleLoginClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      router.push('/login')
+    },
+    [router]
   )
+
+  const handleEnterpriseClick = useCallback(() => {
+    window.open('https://form.typeform.com/to/jqCO12pF', '_blank', 'noopener,noreferrer')
+  }, [])
 
   const NavLinks = () => (
     <>
@@ -77,6 +71,7 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
           target='_blank'
           rel='noopener noreferrer'
           className='text-[16px] text-muted-foreground transition-colors hover:text-foreground'
+          prefetch={false}
         >
           Docs
         </Link>
@@ -85,14 +80,17 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
         <Link
           href='#pricing'
           className='text-[16px] text-muted-foreground transition-colors hover:text-foreground'
+          scroll={true}
         >
           Pricing
         </Link>
       </li>
       <li>
         <button
-          onClick={() => window.open('https://form.typeform.com/to/jqCO12pF', '_blank')}
+          onClick={handleEnterpriseClick}
           className='text-[16px] text-muted-foreground transition-colors hover:text-foreground'
+          type='button'
+          aria-label='Contact for Enterprise pricing'
         >
           Enterprise
         </button>
@@ -106,95 +104,101 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
           aria-label={`GitHub repository - ${githubStars} stars`}
         >
           <GithubIcon className='h-[16px] w-[16px]' aria-hidden='true' />
-          <span>{githubStars}</span>
+          <span aria-live='polite'>{githubStars}</span>
         </a>
       </li>
     </>
   )
 
-  // If not hosted, show simple centered logo
-  if (!isHosted) {
-    return <SelfHostedHeader />
-  }
-
-  // For hosted instances, show full navigation
+  // For auth variant, always show simple navigation regardless of hosting type
   return (
-    <>
-      <nav
-        aria-label='Primary'
-        className={`${soehne.className} flex w-full items-center justify-between px-4 ${
-          variant === 'auth' ? 'pt-[20px] sm:pt-[16.5px]' : 'pt-[12px] sm:pt-[8.5px]'
-        } pb-[21px] sm:px-8 md:px-[44px]`}
-      >
-        <div className='flex items-center gap-[34px]'>
-          <Link href='/' aria-label={`${brand.name} home`}>
-            {brand.logoUrl ? (
-              <img
-                src={brand.logoUrl}
-                alt={`${brand.name} Logo`}
-                width={49.78314}
-                height={24.276}
-                className='h-[24.276px] w-auto object-contain'
-              />
-            ) : (
-              <Image
-                src='/logo/b&w/text/b&w.svg'
-                alt='Sim - Workflows for LLMs'
-                width={49.78314}
-                height={24.276}
-                priority
-              />
-            )}
-          </Link>
-          {/* Desktop Navigation Links - only show on landing */}
-          {variant === 'landing' && (
-            <ul className='hidden items-center justify-center gap-[20px] pt-[4px] md:flex'>
-              <NavLinks />
-            </ul>
+    <nav
+      aria-label='Primary navigation'
+      className={`${soehne.className} flex w-full items-center justify-between px-4 ${
+        variant === 'auth' ? 'pt-[20px] sm:pt-[16.5px]' : 'pt-[12px] sm:pt-[8.5px]'
+      } pb-[21px] sm:px-8 md:px-[44px]`}
+      itemScope
+      itemType='https://schema.org/SiteNavigationElement'
+    >
+      <div className='flex items-center gap-[34px]'>
+        <Link href='/' aria-label={`${brand.name} home`} itemProp='url'>
+          <span itemProp='name' className='sr-only'>
+            {brand.name} Home
+          </span>
+          {brand.logoUrl ? (
+            <Image
+              src={brand.logoUrl}
+              alt={`${brand.name} Logo`}
+              width={49.78314}
+              height={24.276}
+              className='h-[24.276px] w-auto object-contain'
+              priority
+              loading='eager'
+              quality={100}
+            />
+          ) : (
+            <Image
+              src='/logo/b&w/text/b&w.svg'
+              alt='Sim - Workflows for LLMs'
+              width={49.78314}
+              height={24.276}
+              priority
+              loading='eager'
+              quality={100}
+            />
           )}
-        </div>
-
-        {/* Auth Buttons - respect hideAuthButtons prop */}
-        {!hideAuthButtons && (
-          <div className='flex items-center justify-center gap-[16px] pt-[1.5px]'>
-            <button
-              onClick={handleLoginClick}
-              onMouseEnter={() => setIsLoginHovered(true)}
-              onMouseLeave={() => setIsLoginHovered(false)}
-              className='group hidden text-[#2E2E2E] text-[16px] transition-colors hover:text-foreground md:block'
-            >
-              <span className='flex items-center gap-1'>
-                Log in
-                <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
-                  {isLoginHovered ? (
-                    <ArrowRight className='h-4 w-4' />
-                  ) : (
-                    <ChevronRight className='h-4 w-4' />
-                  )}
-                </span>
-              </span>
-            </button>
-            <Link
-              href='/signup'
-              onMouseEnter={() => setIsHovered(true)}
-              onMouseLeave={() => setIsHovered(false)}
-              className='group inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#6F3DFA] bg-gradient-to-b from-[#8357FF] to-[#6F3DFA] px-3 py-[6px] text-[14px] text-white shadow-[inset_0_2px_4px_0_#9B77FF] transition-all sm:text-[16px]'
-              aria-label='Get started with Sim'
-            >
-              <span className='flex items-center gap-1'>
-                Get started
-                <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
-                  {isHovered ? (
-                    <ArrowRight className='h-4 w-4' />
-                  ) : (
-                    <ChevronRight className='h-4 w-4' />
-                  )}
-                </span>
-              </span>
-            </Link>
-          </div>
+        </Link>
+        {/* Desktop Navigation Links - only show on landing and if hosted */}
+        {variant === 'landing' && isHosted && (
+          <ul className='hidden items-center justify-center gap-[20px] pt-[4px] md:flex'>
+            <NavLinks />
+          </ul>
         )}
-      </nav>
-    </>
+      </div>
+
+      {/* Auth Buttons - respect hideAuthButtons prop and only show on hosted instances for landing pages */}
+      {!hideAuthButtons && (variant === 'auth' || isHosted) && (
+        <div className='flex items-center justify-center gap-[16px] pt-[1.5px]'>
+          <button
+            onClick={handleLoginClick}
+            onMouseEnter={() => setIsLoginHovered(true)}
+            onMouseLeave={() => setIsLoginHovered(false)}
+            className='group hidden text-[#2E2E2E] text-[16px] transition-colors hover:text-foreground md:block'
+            type='button'
+            aria-label='Log in to your account'
+          >
+            <span className='flex items-center gap-1'>
+              Log in
+              <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
+                {isLoginHovered ? (
+                  <ArrowRight className='h-4 w-4' aria-hidden='true' />
+                ) : (
+                  <ChevronRight className='h-4 w-4' aria-hidden='true' />
+                )}
+              </span>
+            </span>
+          </button>
+          <Link
+            href='/signup'
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            className='group inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#6F3DFA] bg-gradient-to-b from-[#8357FF] to-[#6F3DFA] py-[6px] pr-[10px] pl-[12px] text-[14px] text-white shadow-[inset_0_2px_4px_0_#9B77FF] transition-all sm:text-[16px]'
+            aria-label='Get started with Sim - Sign up for free'
+            prefetch={true}
+          >
+            <span className='flex items-center gap-1'>
+              Get started
+              <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
+                {isHovered ? (
+                  <ArrowRight className='h-4 w-4' aria-hidden='true' />
+                ) : (
+                  <ChevronRight className='h-4 w-4' aria-hidden='true' />
+                )}
+              </span>
+            </span>
+          </Link>
+        </div>
+      )}
+    </nav>
   )
 }
