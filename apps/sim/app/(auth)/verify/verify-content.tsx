@@ -1,10 +1,13 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { cn } from '@/lib/utils'
 import { useVerification } from '@/app/(auth)/verify/use-verification'
+import { inter } from '@/app/fonts/inter'
+import { soehne } from '@/app/fonts/soehne/soehne'
 
 interface VerifyContentProps {
   hasResendKey: boolean
@@ -45,19 +48,68 @@ function VerificationForm({
     }
   }, [countdown, isResendDisabled])
 
+  const router = useRouter()
+
   const handleResend = () => {
     resendCode()
     setIsResendDisabled(true)
     setCountdown(30)
   }
 
+  const handleCancelVerification = () => {
+    // Clear verification data
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('verificationEmail')
+      sessionStorage.removeItem('inviteRedirectUrl')
+      sessionStorage.removeItem('isInviteFlow')
+
+      // Clear the verification requirement cookie
+      document.cookie = 'requiresEmailVerification=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+    }
+
+    // Redirect to login
+    router.push('/login')
+  }
+
+  const [buttonClass, setButtonClass] = useState('auth-button-gradient')
+
+  useEffect(() => {
+    // Check if CSS variable has been customized
+    const checkCustomBrand = () => {
+      const computedStyle = getComputedStyle(document.documentElement)
+      const brandAccent = computedStyle.getPropertyValue('--brand-accent-hex').trim()
+
+      // Check if the CSS variable exists and is different from the default
+      if (brandAccent && brandAccent !== '#6f3dfa') {
+        setButtonClass('auth-button-custom')
+      } else {
+        setButtonClass('auth-button-gradient')
+      }
+    }
+
+    checkCustomBrand()
+
+    // Also check on window resize or theme changes
+    window.addEventListener('resize', checkCustomBrand)
+    const observer = new MutationObserver(checkCustomBrand)
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['style', 'class'],
+    })
+
+    return () => {
+      window.removeEventListener('resize', checkCustomBrand)
+      observer.disconnect()
+    }
+  }, [])
+
   return (
-    <div className='space-y-6'>
-      <div className='space-y-2 text-center'>
-        <h1 className='font-semibold text-[32px] text-white tracking-tight'>
+    <>
+      <div className='space-y-1 text-center'>
+        <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
           {isVerified ? 'Email Verified!' : 'Verify Your Email'}
         </h1>
-        <p className='text-neutral-400 text-sm'>
+        <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
           {isVerified
             ? 'Your email has been verified. Redirecting to dashboard...'
             : hasResendKey
@@ -69,47 +121,75 @@ function VerificationForm({
       </div>
 
       {!isVerified && (
-        <div className='mt-8 flex flex-col gap-6'>
-          <div className='rounded-xl border border-neutral-700/40 bg-neutral-800/50 p-6 backdrop-blur-sm'>
-            <p className='mb-4 text-neutral-400 text-sm'>
+        <div className={`${inter.className} mt-8 space-y-8`}>
+          <div className='space-y-6'>
+            <p className='text-center text-muted-foreground text-sm'>
               Enter the 6-digit code to verify your account.
               {hasResendKey ? " If you don't see it in your inbox, check your spam folder." : ''}
             </p>
 
-            <div className='flex justify-center py-4'>
+            <div className='flex justify-center'>
               <InputOTP
                 maxLength={6}
                 value={otp}
                 onChange={handleOtpChange}
                 disabled={isLoading}
-                className={cn(
-                  isInvalidOtp ? 'border-red-500 focus-visible:ring-red-500' : 'border-neutral-700'
-                )}
+                className={cn('gap-2', isInvalidOtp && 'otp-error')}
               >
-                <InputOTPGroup>
+                <InputOTPGroup className='[&>div]:!rounded-[10px] gap-2'>
                   <InputOTPSlot
                     index={0}
-                    className='border-neutral-700 bg-neutral-900 text-white'
+                    className={cn(
+                      '!rounded-[10px] h-12 w-12 border bg-white text-center font-medium text-lg shadow-sm transition-all duration-200',
+                      'border-gray-300 hover:border-gray-400',
+                      'focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-100',
+                      isInvalidOtp && 'border-red-500 focus:border-red-500 focus:ring-red-100'
+                    )}
                   />
                   <InputOTPSlot
                     index={1}
-                    className='border-neutral-700 bg-neutral-900 text-white'
+                    className={cn(
+                      '!rounded-[10px] h-12 w-12 border bg-white text-center font-medium text-lg shadow-sm transition-all duration-200',
+                      'border-gray-300 hover:border-gray-400',
+                      'focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-100',
+                      isInvalidOtp && 'border-red-500 focus:border-red-500 focus:ring-red-100'
+                    )}
                   />
                   <InputOTPSlot
                     index={2}
-                    className='border-neutral-700 bg-neutral-900 text-white'
+                    className={cn(
+                      '!rounded-[10px] h-12 w-12 border bg-white text-center font-medium text-lg shadow-sm transition-all duration-200',
+                      'border-gray-300 hover:border-gray-400',
+                      'focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-100',
+                      isInvalidOtp && 'border-red-500 focus:border-red-500 focus:ring-red-100'
+                    )}
                   />
                   <InputOTPSlot
                     index={3}
-                    className='border-neutral-700 bg-neutral-900 text-white'
+                    className={cn(
+                      '!rounded-[10px] h-12 w-12 border bg-white text-center font-medium text-lg shadow-sm transition-all duration-200',
+                      'border-gray-300 hover:border-gray-400',
+                      'focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-100',
+                      isInvalidOtp && 'border-red-500 focus:border-red-500 focus:ring-red-100'
+                    )}
                   />
                   <InputOTPSlot
                     index={4}
-                    className='border-neutral-700 bg-neutral-900 text-white'
+                    className={cn(
+                      '!rounded-[10px] h-12 w-12 border bg-white text-center font-medium text-lg shadow-sm transition-all duration-200',
+                      'border-gray-300 hover:border-gray-400',
+                      'focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-100',
+                      isInvalidOtp && 'border-red-500 focus:border-red-500 focus:ring-red-100'
+                    )}
                   />
                   <InputOTPSlot
                     index={5}
-                    className='border-neutral-700 bg-neutral-900 text-white'
+                    className={cn(
+                      '!rounded-[10px] h-12 w-12 border bg-white text-center font-medium text-lg shadow-sm transition-all duration-200',
+                      'border-gray-300 hover:border-gray-400',
+                      'focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-100',
+                      isInvalidOtp && 'border-red-500 focus:border-red-500 focus:ring-red-100'
+                    )}
                   />
                 </InputOTPGroup>
               </InputOTP>
@@ -117,53 +197,62 @@ function VerificationForm({
 
             {/* Error message */}
             {errorMessage && (
-              <div className='mt-2 mb-4 rounded-md border border-red-900/20 bg-red-900/10 py-2 text-center'>
-                <p className='font-medium text-red-400 text-sm'>{errorMessage}</p>
-              </div>
-            )}
-
-            <Button
-              onClick={verifyCode}
-              className='h-11 w-full bg-[var(--brand-primary-hex)] font-medium text-base text-white shadow-[var(--brand-primary-hex)]/20 shadow-lg transition-colors duration-200 hover:bg-[var(--brand-primary-hover-hex)]'
-              disabled={!isOtpComplete || isLoading}
-            >
-              {isLoading ? 'Verifying...' : 'Verify Email'}
-            </Button>
-
-            {hasResendKey && (
-              <div className='mt-4 text-center'>
-                <p className='text-neutral-400 text-sm'>
-                  Didn't receive a code?{' '}
-                  {countdown > 0 ? (
-                    <span>
-                      Resend in <span className='font-medium text-neutral-300'>{countdown}s</span>
-                    </span>
-                  ) : (
-                    <button
-                      className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
-                      onClick={handleResend}
-                      disabled={isLoading || isResendDisabled}
-                    >
-                      Resend
-                    </button>
-                  )}
-                </p>
+              <div className='mt-1 space-y-1 text-center text-red-400 text-xs'>
+                <p>{errorMessage}</p>
               </div>
             )}
           </div>
+
+          <Button
+            onClick={verifyCode}
+            className={`${buttonClass} flex w-full items-center justify-center gap-2 rounded-[10px] border font-medium text-[15px] text-white transition-all duration-200`}
+            disabled={!isOtpComplete || isLoading}
+          >
+            {isLoading ? 'Verifying...' : 'Verify Email'}
+          </Button>
+
+          {hasResendKey && (
+            <div className='text-center'>
+              <p className='text-muted-foreground text-sm'>
+                Didn't receive a code?{' '}
+                {countdown > 0 ? (
+                  <span>
+                    Resend in <span className='font-medium text-foreground'>{countdown}s</span>
+                  </span>
+                ) : (
+                  <button
+                    className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
+                    onClick={handleResend}
+                    disabled={isLoading || isResendDisabled}
+                  >
+                    Resend
+                  </button>
+                )}
+              </p>
+            </div>
+          )}
+
+          <div className='text-center font-light text-[14px]'>
+            <button
+              onClick={handleCancelVerification}
+              className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
+            >
+              Back to login
+            </button>
+          </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
 
 // Fallback component while the verification form is loading
 function VerificationFormFallback() {
   return (
-    <div className='p-8 text-center'>
+    <div className='text-center'>
       <div className='animate-pulse'>
-        <div className='mx-auto mb-4 h-8 w-48 rounded bg-neutral-800' />
-        <div className='mx-auto h-4 w-64 rounded bg-neutral-800' />
+        <div className='mx-auto mb-4 h-8 w-48 rounded bg-gray-200' />
+        <div className='mx-auto h-4 w-64 rounded bg-gray-200' />
       </div>
     </div>
   )

@@ -51,6 +51,13 @@ export function useVerification({
       const storedEmail = sessionStorage.getItem('verificationEmail')
       if (storedEmail) {
         setEmail(storedEmail)
+      } else {
+        // If no email is stored, the verification session is invalid
+        // Clear the verification requirement and redirect to login
+        document.cookie =
+          'requiresEmailVerification=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+        window.location.href = '/login'
+        return
       }
 
       // Check for redirect information
@@ -225,6 +232,30 @@ export function useVerification({
       return () => clearTimeout(timeoutId)
     }
   }, [otp, email, isLoading, isVerified])
+
+  // Clean up verification state on unmount or after 15 minutes
+  useEffect(() => {
+    const cleanupTimer = setTimeout(
+      () => {
+        // Clear verification state after 15 minutes
+        if (typeof window !== 'undefined' && !isVerified) {
+          sessionStorage.removeItem('verificationEmail')
+          sessionStorage.removeItem('inviteRedirectUrl')
+          sessionStorage.removeItem('isInviteFlow')
+          document.cookie =
+            'requiresEmailVerification=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+
+          // Redirect to login
+          window.location.href = '/login'
+        }
+      },
+      15 * 60 * 1000
+    ) // 15 minutes
+
+    return () => {
+      clearTimeout(cleanupTimer)
+    }
+  }, [isVerified])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {

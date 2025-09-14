@@ -594,7 +594,7 @@ export default function LoginPage({
             <Button
               type='button'
               onClick={handleForgotPassword}
-              className={`${buttonClass} w-full rounded-[10px] border font-medium text-[16px] text-white transition-all duration-200`}
+              className={`${buttonClass} w-full rounded-[10px] border font-medium text-[15px] text-white transition-all duration-200`}
               disabled={isSubmittingReset}
             >
               {isSubmittingReset ? 'Sending...' : 'Send Reset Link'}

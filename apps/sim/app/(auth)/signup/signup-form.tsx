@@ -395,11 +395,10 @@ function SignupFormContent({
     <>
       <div className='space-y-1 text-center'>
         <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
-          Start building now
+          Create an account
         </h1>
         <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
-          Log in or create an account to start <br />
-          building agent workflows
+          Create an account or log in
         </p>
       </div>
 
