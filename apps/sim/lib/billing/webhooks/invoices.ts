@@ -53,8 +53,15 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
   try {
     const invoice = event.data.object as Stripe.Invoice
 
-    if (!invoice.subscription) return
-    const stripeSubscriptionId = String(invoice.subscription)
+    // Extract subscription ID from the nested parent field
+    const invoiceAny = invoice as any
+    const subscriptionId =
+      invoiceAny.parent?.type === 'subscription_details'
+        ? invoiceAny.parent.subscription_details?.subscription
+        : null
+
+    if (!subscriptionId) return
+    const stripeSubscriptionId = String(subscriptionId)
     const records = await db
       .select()
       .from(subscriptionTable)
@@ -156,7 +163,12 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
         attemptCount,
       })
       // Block all users under this customer (org members or individual)
-      const stripeSubscriptionId = String(invoice.subscription || '')
+      const invoiceAny = invoice as any
+      const subscriptionId =
+        invoiceAny.parent?.type === 'subscription_details'
+          ? invoiceAny.parent.subscription_details?.subscription
+          : null
+      const stripeSubscriptionId = String(subscriptionId || '')
       if (stripeSubscriptionId) {
         const records = await db
           .select()
@@ -202,11 +214,19 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
 export async function handleInvoiceFinalized(event: Stripe.Event) {
   try {
     const invoice = event.data.object as Stripe.Invoice
+
+    // Extract subscription ID from the nested parent field
+    const invoiceAny = invoice as any
+    const subscriptionId =
+      invoiceAny.parent?.type === 'subscription_details'
+        ? invoiceAny.parent.subscription_details?.subscription
+        : null
+
     // Only run for subscription renewal invoices (cycle boundary)
-    if (!invoice.subscription) return
+    if (!subscriptionId) return
     if (invoice.billing_reason && invoice.billing_reason !== 'subscription_cycle') return
 
-    const stripeSubscriptionId = String(invoice.subscription)
+    const stripeSubscriptionId = String(subscriptionId)
     const records = await db
       .select()
       .from(subscriptionTable)
