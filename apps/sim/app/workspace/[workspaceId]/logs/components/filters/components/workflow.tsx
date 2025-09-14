@@ -17,6 +17,8 @@ import {
 import { createLogger } from '@/lib/logs/console/logger'
 import { useFilterStore } from '@/stores/logs/filters/store'
 
+const logger = createLogger('LogsWorkflowFilter')
+
 interface WorkflowOption {
   id: string
   name: string
@@ -28,7 +30,6 @@ export default function Workflow() {
   const [workflows, setWorkflows] = useState<WorkflowOption[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const logger = useMemo(() => createLogger('LogsWorkflowFilter'), [])
 
   // Fetch all available workflows from the API
   useEffect(() => {
@@ -55,7 +56,6 @@ export default function Workflow() {
     fetchWorkflows()
   }, [])
 
-  // Get display text for the dropdown button
   const getSelectedWorkflowsText = () => {
     if (workflowIds.length === 0) return 'All workflows'
     if (workflowIds.length === 1) {
@@ -65,12 +65,10 @@ export default function Workflow() {
     return `${workflowIds.length} workflows selected`
   }
 
-  // Check if a workflow is selected
   const isWorkflowSelected = (workflowId: string) => {
     return workflowIds.includes(workflowId)
   }
 
-  // Clear all selections
   const clearSelections = () => {
     setWorkflowIds([])
   }
