@@ -31,7 +31,7 @@
     "@aws-sdk/s3-request-presigner": "^3.779.0",
     "@azure/communication-email": "1.0.0",
     "@azure/storage-blob": "12.27.0",
-    "@better-auth/stripe": "https://pkg.pr.new/better-auth/better-auth/@better-auth/stripe@4683",
+    "@better-auth/stripe": "1.3.10",
     "@browserbasehq/stagehand": "^2.0.0",
     "@cerebras/cerebras_cloud_sdk": "^1.23.0",
     "@chatscope/chat-ui-kit-react": "2.1.1",
