@@ -50,13 +50,12 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
     ])
 
     if (userStatsData.length === 0) {
+      logger.error('User stats not found for userId', { userId })
       throw new Error(`User stats not found for userId: ${userId}`)
     }
 
     const stats = userStatsData[0]
-    const currentUsage = Number.parseFloat(
-      stats.currentPeriodCost?.toString() ?? stats.totalCost.toString()
-    )
+    const currentUsage = Number.parseFloat(stats.currentPeriodCost?.toString() ?? '0')
 
     // Determine usage limit based on plan type
     let limit: number

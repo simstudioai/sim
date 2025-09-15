@@ -230,11 +230,9 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
     if (records.length === 0) return
     const sub = records[0]
 
-    // Always reset usage at cycle end for all plans
-    await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
-
-    // Enterprise plans have no overages - skip overage invoice creation
+    // Enterprise plans have no overages - reset usage and exit
     if (sub.plan === 'enterprise') {
+      await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
       return
     }
 
@@ -243,7 +241,7 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
       invoice.lines?.data?.[0]?.period?.end || invoice.period_end || Math.floor(Date.now() / 1000)
     const billingPeriod = new Date(periodEnd * 1000).toISOString().slice(0, 7)
 
-    // Compute overage (only for team and pro plans)
+    // Compute overage (only for team and pro plans), before resetting usage
     let totalOverage = 0
     if (sub.plan === 'team') {
       const members = await db
@@ -268,97 +266,101 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
       totalOverage = Math.max(0, usage.currentUsage - basePrice)
     }
 
-    if (totalOverage <= 0) return
+    if (totalOverage > 0) {
+      const customerId = String(invoice.customer)
+      const cents = Math.round(totalOverage * 100)
+      const itemIdemKey = `overage-item:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
+      const invoiceIdemKey = `overage-invoice:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
 
-    const customerId = String(invoice.customer)
-    const cents = Math.round(totalOverage * 100)
-    const itemIdemKey = `overage-item:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
-    const invoiceIdemKey = `overage-invoice:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
+      // Inherit billing settings from the Stripe subscription/customer for autopay
+      const getPaymentMethodId = (
+        pm: string | Stripe.PaymentMethod | null | undefined
+      ): string | undefined => (typeof pm === 'string' ? pm : pm?.id)
 
-    // Inherit billing settings from the Stripe subscription/customer for autopay
-    const getPaymentMethodId = (
-      pm: string | Stripe.PaymentMethod | null | undefined
-    ): string | undefined => (typeof pm === 'string' ? pm : pm?.id)
-
-    let collectionMethod: 'charge_automatically' | 'send_invoice' = 'charge_automatically'
-    let defaultPaymentMethod: string | undefined
-    try {
-      const stripeSub = await stripe.subscriptions.retrieve(stripeSubscriptionId)
-      if (stripeSub.collection_method === 'send_invoice') {
-        collectionMethod = 'send_invoice'
-      }
-      const subDpm = getPaymentMethodId(stripeSub.default_payment_method)
-      if (subDpm) {
-        defaultPaymentMethod = subDpm
-      } else if (collectionMethod === 'charge_automatically') {
-        const custObj = await stripe.customers.retrieve(customerId)
-        if (custObj && !('deleted' in custObj)) {
-          const cust = custObj as Stripe.Customer
-          const custDpm = getPaymentMethodId(cust.invoice_settings?.default_payment_method)
-          if (custDpm) defaultPaymentMethod = custDpm
-        }
-      }
-    } catch (e) {
-      logger.error('Failed to retrieve subscription or customer', { error: e })
-    }
-
-    // Create a draft invoice first so we can attach the item directly
-    const overageInvoice = await stripe.invoices.create(
-      {
-        customer: customerId,
-        collection_method: collectionMethod,
-        auto_advance: false,
-        ...(defaultPaymentMethod ? { default_payment_method: defaultPaymentMethod } : {}),
-        metadata: {
-          type: 'overage_billing',
-          billingPeriod,
-          subscriptionId: stripeSubscriptionId,
-        },
-      },
-      { idempotencyKey: invoiceIdemKey }
-    )
-
-    // Attach the item to this invoice
-    await stripe.invoiceItems.create(
-      {
-        customer: customerId,
-        invoice: overageInvoice.id,
-        amount: cents,
-        currency: 'usd',
-        description: `Usage Based Overage – ${billingPeriod}`,
-        metadata: {
-          type: 'overage_billing',
-          billingPeriod,
-          subscriptionId: stripeSubscriptionId,
-        },
-      },
-      { idempotencyKey: itemIdemKey }
-    )
-
-    // Finalize to trigger autopay (if charge_automatically and a PM is present)
-    const draftId = overageInvoice.id
-    if (typeof draftId !== 'string' || draftId.length === 0) {
-      logger.error('Stripe created overage invoice without id; aborting finalize')
-      return
-    }
-    const finalized = await stripe.invoices.finalizeInvoice(draftId)
-    // Some manual invoices may remain open after finalize; ensure we pay immediately when possible
-    if (collectionMethod === 'charge_automatically' && finalized.status === 'open') {
+      let collectionMethod: 'charge_automatically' | 'send_invoice' = 'charge_automatically'
+      let defaultPaymentMethod: string | undefined
       try {
-        const payId = finalized.id
-        if (typeof payId !== 'string' || payId.length === 0) {
-          throw new Error('Finalized invoice missing id')
+        const stripeSub = await stripe.subscriptions.retrieve(stripeSubscriptionId)
+        if (stripeSub.collection_method === 'send_invoice') {
+          collectionMethod = 'send_invoice'
         }
-        await stripe.invoices.pay(payId, {
-          payment_method: defaultPaymentMethod,
-        })
-      } catch (payError) {
-        logger.error('Failed to auto-pay overage invoice', {
-          error: payError,
-          invoiceId: finalized.id,
-        })
+        const subDpm = getPaymentMethodId(stripeSub.default_payment_method)
+        if (subDpm) {
+          defaultPaymentMethod = subDpm
+        } else if (collectionMethod === 'charge_automatically') {
+          const custObj = await stripe.customers.retrieve(customerId)
+          if (custObj && !('deleted' in custObj)) {
+            const cust = custObj as Stripe.Customer
+            const custDpm = getPaymentMethodId(cust.invoice_settings?.default_payment_method)
+            if (custDpm) defaultPaymentMethod = custDpm
+          }
+        }
+      } catch (e) {
+        logger.error('Failed to retrieve subscription or customer', { error: e })
+      }
+
+      // Create a draft invoice first so we can attach the item directly
+      const overageInvoice = await stripe.invoices.create(
+        {
+          customer: customerId,
+          collection_method: collectionMethod,
+          auto_advance: false,
+          ...(defaultPaymentMethod ? { default_payment_method: defaultPaymentMethod } : {}),
+          metadata: {
+            type: 'overage_billing',
+            billingPeriod,
+            subscriptionId: stripeSubscriptionId,
+          },
+        },
+        { idempotencyKey: invoiceIdemKey }
+      )
+
+      // Attach the item to this invoice
+      await stripe.invoiceItems.create(
+        {
+          customer: customerId,
+          invoice: overageInvoice.id,
+          amount: cents,
+          currency: 'usd',
+          description: `Usage Based Overage – ${billingPeriod}`,
+          metadata: {
+            type: 'overage_billing',
+            billingPeriod,
+            subscriptionId: stripeSubscriptionId,
+          },
+        },
+        { idempotencyKey: itemIdemKey }
+      )
+
+      // Finalize to trigger autopay (if charge_automatically and a PM is present)
+      const draftId = overageInvoice.id
+      if (typeof draftId !== 'string' || draftId.length === 0) {
+        logger.error('Stripe created overage invoice without id; aborting finalize')
+      } else {
+        const finalized = await stripe.invoices.finalizeInvoice(draftId)
+        // Some manual invoices may remain open after finalize; ensure we pay immediately when possible
+        if (collectionMethod === 'charge_automatically' && finalized.status === 'open') {
+          try {
+            const payId = finalized.id
+            if (typeof payId !== 'string' || payId.length === 0) {
+              logger.error('Finalized invoice missing id')
+              throw new Error('Finalized invoice missing id')
+            }
+            await stripe.invoices.pay(payId, {
+              payment_method: defaultPaymentMethod,
+            })
+          } catch (payError) {
+            logger.error('Failed to auto-pay overage invoice', {
+              error: payError,
+              invoiceId: finalized.id,
+            })
+          }
+        }
       }
     }
+
+    // Finally, reset usage for this subscription after overage handling
+    await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
   } catch (error) {
     logger.error('Failed to handle invoice finalized', { error })
     throw error
