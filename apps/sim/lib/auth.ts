@@ -48,7 +48,7 @@ const validStripeKey = env.STRIPE_SECRET_KEY
 let stripeClient = null
 if (validStripeKey) {
   stripeClient = new Stripe(env.STRIPE_SECRET_KEY || '', {
-    apiVersion: '2025-02-24.acacia',
+    apiVersion: '2025-08-27.basil',
   })
 }
 

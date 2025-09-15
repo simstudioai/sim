@@ -53,8 +53,14 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
   try {
     const invoice = event.data.object as Stripe.Invoice
 
-    if (!invoice.subscription) return
-    const stripeSubscriptionId = String(invoice.subscription)
+    const subscription = invoice.parent?.subscription_details?.subscription
+    const stripeSubscriptionId = typeof subscription === 'string' ? subscription : subscription?.id
+    if (!stripeSubscriptionId) {
+      logger.info('No subscription found on invoice; skipping payment succeeded handler', {
+        invoiceId: invoice.id,
+      })
+      return
+    }
     const records = await db
       .select()
       .from(subscriptionTable)
@@ -156,7 +162,9 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
         attemptCount,
       })
       // Block all users under this customer (org members or individual)
-      const stripeSubscriptionId = String(invoice.subscription || '')
+      // Overage invoices are manual invoices without parent.subscription_details
+      // We store the subscription ID in metadata when creating them
+      const stripeSubscriptionId = invoice.metadata?.subscriptionId as string | undefined
       if (stripeSubscriptionId) {
         const records = await db
           .select()
@@ -203,10 +211,16 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
   try {
     const invoice = event.data.object as Stripe.Invoice
     // Only run for subscription renewal invoices (cycle boundary)
-    if (!invoice.subscription) return
+    const subscription = invoice.parent?.subscription_details?.subscription
+    const stripeSubscriptionId = typeof subscription === 'string' ? subscription : subscription?.id
+    if (!stripeSubscriptionId) {
+      logger.info('No subscription found on invoice; skipping finalized handler', {
+        invoiceId: invoice.id,
+      })
+      return
+    }
     if (invoice.billing_reason && invoice.billing_reason !== 'subscription_cycle') return
 
-    const stripeSubscriptionId = String(invoice.subscription)
     const records = await db
       .select()
       .from(subscriptionTable)
@@ -322,11 +336,20 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
     )
 
     // Finalize to trigger autopay (if charge_automatically and a PM is present)
-    const finalized = await stripe.invoices.finalizeInvoice(overageInvoice.id)
+    const draftId = overageInvoice.id
+    if (typeof draftId !== 'string' || draftId.length === 0) {
+      logger.error('Stripe created overage invoice without id; aborting finalize')
+      return
+    }
+    const finalized = await stripe.invoices.finalizeInvoice(draftId)
     // Some manual invoices may remain open after finalize; ensure we pay immediately when possible
     if (collectionMethod === 'charge_automatically' && finalized.status === 'open') {
       try {
-        await stripe.invoices.pay(finalized.id, {
+        const payId = finalized.id
+        if (typeof payId !== 'string' || payId.length === 0) {
+          throw new Error('Finalized invoice missing id')
+        }
+        await stripe.invoices.pay(payId, {
           payment_method: defaultPaymentMethod,
         })
       } catch (payError) {
