@@ -1,7 +1,10 @@
 import { existsSync } from 'fs'
-import { join } from 'path'
+import { join, resolve, sep } from 'path'
 import { NextResponse } from 'next/server'
+import { createLogger } from '@/lib/logs/console/logger'
 import { UPLOAD_DIR } from '@/lib/uploads/setup'
+
+const logger = createLogger('FilesUtils')
 
 /**
  * Response type definitions
@@ -192,18 +195,71 @@ export function extractFilename(path: string): string {
 }
 
 /**
- * Find a file in possible local storage locations
+ * Sanitize filename to prevent path traversal attacks
  */
-export function findLocalFile(filename: string): string | null {
-  const possiblePaths = [join(UPLOAD_DIR, filename), join(process.cwd(), 'uploads', filename)]
-
-  for (const path of possiblePaths) {
-    if (existsSync(path)) {
-      return path
-    }
+function sanitizeFilename(filename: string): string {
+  if (!filename || typeof filename !== 'string') {
+    throw new Error('Invalid filename provided')
   }
 
-  return null
+  const sanitized = filename
+    .replace(/\.\./g, '') // Remove .. sequences
+    .replace(/[/\\]/g, '') // Remove path separators
+    .replace(/^\./g, '') // Remove leading dots
+    .trim()
+
+  if (!sanitized || sanitized.length === 0) {
+    throw new Error('Invalid or empty filename after sanitization')
+  }
+
+  if (
+    sanitized.includes(':') ||
+    sanitized.includes('|') ||
+    sanitized.includes('?') ||
+    sanitized.includes('*') ||
+    sanitized.includes('\x00') || // Null bytes
+    /[\x00-\x1F\x7F]/.test(sanitized) // Control characters
+  ) {
+    throw new Error('Filename contains invalid characters')
+  }
+
+  return sanitized
+}
+
+/**
+ * Find a file in possible local storage locations with proper path validation
+ */
+export function findLocalFile(filename: string): string | null {
+  try {
+    const sanitizedFilename = sanitizeFilename(filename)
+
+    const possiblePaths = [
+      join(UPLOAD_DIR, sanitizedFilename),
+      join(process.cwd(), 'uploads', sanitizedFilename),
+    ]
+
+    for (const path of possiblePaths) {
+      const resolvedPath = resolve(path)
+      const allowedDirs = [resolve(UPLOAD_DIR), resolve(process.cwd(), 'uploads')]
+
+      const isWithinAllowedDir = allowedDirs.some(
+        (allowedDir) => resolvedPath.startsWith(allowedDir + sep) || resolvedPath === allowedDir
+      )
+
+      if (!isWithinAllowedDir) {
+        continue // Skip this path as it's outside allowed directories
+      }
+
+      if (existsSync(resolvedPath)) {
+        return resolvedPath
+      }
+    }
+
+    return null
+  } catch (error) {
+    logger.error('Error in findLocalFile:', error)
+    return null
+  }
 }
 
 const SAFE_INLINE_TYPES = new Set([

@@ -7,7 +7,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
   name: 'Sharepoint',
   description: 'Read and create pages',
   longDescription:
-    'Integrate Sharepoint functionality to manage pages. Read and create pages, and list sites using OAuth authentication. Supports page operations with custom MIME types and folder organization.',
+    'Integrate Sharepoint into the workflow. Can read and create pages, and list sites. Requires OAuth.',
   docsLink: 'https://docs.sim.ai/tools/sharepoint',
   category: 'tools',
   bgColor: '#E0E0E0',

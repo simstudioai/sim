@@ -7,7 +7,7 @@ export const WikipediaBlock: BlockConfig<WikipediaResponse> = {
   name: 'Wikipedia',
   description: 'Search and retrieve content from Wikipedia',
   longDescription:
-    "Access Wikipedia articles, search for pages, get summaries, retrieve full content, and discover random articles from the world's largest encyclopedia.",
+    'Integrate Wikipedia into the workflow. Can get page summary, search pages, get page content, and get random page.',
   docsLink: 'https://docs.sim.ai/tools/wikipedia',
   category: 'tools',
   bgColor: '#000000',

@@ -1,7 +1,5 @@
 'use client'
 
-import { useState } from 'react'
-import { CopyButton } from '@/components/ui/copy-button'
 import { Label } from '@/components/ui/label'
 
 interface ApiKeyProps {
@@ -10,14 +8,21 @@ interface ApiKeyProps {
 }
 
 export function ApiKey({ apiKey, showLabel = true }: ApiKeyProps) {
-  const [showKey, setShowKey] = useState(false)
+  // Extract key name and type from the API response format "Name (type)"
+  const getKeyInfo = (keyInfo: string) => {
+    if (!keyInfo || keyInfo.includes('No API key found')) {
+      return { name: keyInfo, type: null }
+    }
 
-  // Function to mask API key with asterisks but keep first and last 4 chars visible
-  const maskApiKey = (key: string) => {
-    if (!key || key.includes('No API key found')) return key
-    if (key.length <= 8) return key
-    return `${key.substring(0, 4)}${'*'.repeat(key.length - 8)}${key.substring(key.length - 4)}`
+    const match = keyInfo.match(/^(.*?)\s+\(([^)]+)\)$/)
+    if (match) {
+      return { name: match[1].trim(), type: match[2] }
+    }
+
+    return { name: keyInfo, type: null }
   }
+
+  const { name, type } = getKeyInfo(apiKey)
 
   return (
     <div className='space-y-1.5'>
@@ -26,15 +31,17 @@ export function ApiKey({ apiKey, showLabel = true }: ApiKeyProps) {
           <Label className='font-medium text-sm'>API Key</Label>
         </div>
       )}
-      <div className='group relative rounded-md border bg-background transition-colors hover:bg-muted/50'>
-        <pre
-          className='cursor-pointer overflow-x-auto whitespace-pre-wrap p-3 font-mono text-xs'
-          onClick={() => setShowKey(!showKey)}
-          title={showKey ? 'Click to hide API Key' : 'Click to reveal API Key'}
-        >
-          {showKey ? apiKey : maskApiKey(apiKey)}
-        </pre>
-        <CopyButton text={apiKey} />
+      <div className='rounded-md border bg-background'>
+        <div className='flex items-center justify-between p-3'>
+          <pre className='flex-1 overflow-x-auto whitespace-pre-wrap font-mono text-xs'>{name}</pre>
+          {type && (
+            <div className='ml-2 flex-shrink-0'>
+              <span className='inline-flex items-center rounded-md bg-muted px-2 py-1 font-medium text-muted-foreground text-xs capitalize'>
+                {type}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

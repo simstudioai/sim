@@ -7,7 +7,7 @@ export const ApiBlock: BlockConfig<RequestResponse> = {
   name: 'API',
   description: 'Use any API',
   longDescription:
-    'Connect to any external API with support for all standard HTTP methods and customizable request parameters. Configure headers, query parameters, and request bodies. Standard headers (User-Agent, Accept, Cache-Control, etc.) are automatically included.',
+    'This is a core workflow block. Connect to any external API with support for all standard HTTP methods and customizable request parameters. Configure headers, query parameters, and request bodies. Standard headers (User-Agent, Accept, Cache-Control, etc.) are automatically included.',
   docsLink: 'https://docs.sim.ai/blocks/api',
   category: 'blocks',
   bgColor: '#2F55FF',

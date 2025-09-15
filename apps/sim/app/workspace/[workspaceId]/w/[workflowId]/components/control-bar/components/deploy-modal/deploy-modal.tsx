@@ -296,7 +296,7 @@ export function DeployModal({
 
       await refetchDeployedState()
       await fetchVersions()
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Error deploying workflow:', { error })
     } finally {
       setIsSubmitting(false)
@@ -384,7 +384,7 @@ export function DeployModal({
       setDeploymentStatus(workflowId, false)
       setChatExists(false)
       onOpenChange(false)
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Error undeploying workflow:', { error })
     } finally {
       setIsUndeploying(false)
@@ -429,7 +429,7 @@ export function DeployModal({
 
       // Ensure modal status updates immediately
       setDeploymentInfo((prev) => (prev ? { ...prev, needsRedeployment: false } : prev))
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Error redeploying workflow:', { error })
     } finally {
       setIsSubmitting(false)
@@ -740,10 +740,7 @@ export function DeployModal({
                         <DeployForm
                           apiKeys={apiKeys}
                           keysLoaded={keysLoaded}
-                          endpointUrl={`${getEnv('NEXT_PUBLIC_APP_URL')}/api/workflows/${workflowId}/execute`}
-                          workflowId={workflowId || ''}
                           onSubmit={onDeploy}
-                          getInputFormatExample={getInputFormatExample}
                           onApiKeyCreated={fetchApiKeys}
                           formId='deploy-api-form'
                         />

@@ -536,7 +536,7 @@ export function FileUpload({
                   <Progress
                     value={uploadProgress}
                     className='h-2 w-full'
-                    indicatorClassName='bg-white dark:bg-white'
+                    indicatorClassName='bg-foreground'
                   />
                   <div className='mt-1 text-center text-muted-foreground text-xs'>
                     {uploadProgress < 100 ? 'Uploading...' : 'Upload complete!'}

@@ -7,7 +7,7 @@
  * 1. Early validation (serialization) - user-only required fields
  * 2. Late validation (tool execution) - user-or-llm required fields
  */
-import { describe, expect, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Serializer } from '@/serializer/index'
 import { validateRequiredParametersAfterMerge } from '@/tools/utils'
 

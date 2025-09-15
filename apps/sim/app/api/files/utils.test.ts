@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createFileResponse, extractFilename } from './utils'
+import { createFileResponse, extractFilename, findLocalFile } from './utils'
 
 describe('extractFilename', () => {
   describe('legitimate file paths', () => {
@@ -321,6 +321,94 @@ describe('extractFilename', () => {
         })
 
         expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
+      })
+    })
+  })
+})
+
+describe('findLocalFile - Path Traversal Security Tests', () => {
+  describe('path traversal attack prevention', () => {
+    it.concurrent('should reject classic path traversal attacks', () => {
+      const maliciousInputs = [
+        '../../../etc/passwd',
+        '..\\..\\..\\windows\\system32\\config\\sam',
+        '../../../../etc/shadow',
+        '../config.json',
+        '..\\config.ini',
+      ]
+
+      maliciousInputs.forEach((input) => {
+        const result = findLocalFile(input)
+        expect(result).toBeNull()
+      })
+    })
+
+    it.concurrent('should reject encoded path traversal attempts', () => {
+      const encodedInputs = [
+        '%2e%2e%2f%2e%2e%2f%65%74%63%2f%70%61%73%73%77%64', // ../../../etc/passwd
+        '..%2f..%2fetc%2fpasswd',
+        '..%5c..%5cconfig.ini',
+      ]
+
+      encodedInputs.forEach((input) => {
+        const result = findLocalFile(input)
+        expect(result).toBeNull()
+      })
+    })
+
+    it.concurrent('should reject mixed path separators', () => {
+      const mixedInputs = ['../..\\config.txt', '..\\../secret.ini', '/..\\..\\system32']
+
+      mixedInputs.forEach((input) => {
+        const result = findLocalFile(input)
+        expect(result).toBeNull()
+      })
+    })
+
+    it.concurrent('should reject filenames with dangerous characters', () => {
+      const dangerousInputs = [
+        'file:with:colons.txt',
+        'file|with|pipes.txt',
+        'file?with?questions.txt',
+        'file*with*asterisks.txt',
+      ]
+
+      dangerousInputs.forEach((input) => {
+        const result = findLocalFile(input)
+        expect(result).toBeNull()
+      })
+    })
+
+    it.concurrent('should reject null and empty inputs', () => {
+      expect(findLocalFile('')).toBeNull()
+      expect(findLocalFile('   ')).toBeNull()
+      expect(findLocalFile('\t\n')).toBeNull()
+    })
+
+    it.concurrent('should reject filenames that become empty after sanitization', () => {
+      const emptyAfterSanitization = ['../..', '..\\..\\', '////', '....', '..']
+
+      emptyAfterSanitization.forEach((input) => {
+        const result = findLocalFile(input)
+        expect(result).toBeNull()
+      })
+    })
+  })
+
+  describe('security validation passes for legitimate files', () => {
+    it.concurrent('should accept properly formatted filenames without throwing errors', () => {
+      const legitimateInputs = [
+        'document.pdf',
+        'image.png',
+        'data.csv',
+        'report-2024.doc',
+        'file_with_underscores.txt',
+        'file-with-dashes.json',
+      ]
+
+      legitimateInputs.forEach((input) => {
+        // Should not throw security errors for legitimate filenames
+        expect(() => findLocalFile(input)).not.toThrow()
       })
     })
   })

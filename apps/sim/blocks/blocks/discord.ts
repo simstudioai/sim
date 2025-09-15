@@ -7,7 +7,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
   name: 'Discord',
   description: 'Interact with Discord',
   longDescription:
-    'Connect to Discord to send messages, manage channels, and interact with servers. Automate notifications, community management, and integrate Discord into your workflows.',
+    'Integrate Discord into the workflow. Can send and get messages, get server information, and get a user’s information. Requires bot API key.',
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: DiscordIcon,

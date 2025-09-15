@@ -7,7 +7,7 @@ export const MongoDBBlock: BlockConfig<MongoDBResponse> = {
   name: 'MongoDB',
   description: 'Connect to MongoDB database',
   longDescription:
-    'Connect to any MongoDB database to execute queries, manage data, and perform database operations. Supports find, insert, update, delete, and aggregation operations with secure connection handling.',
+    'Integrate MongoDB into the workflow. Can find, insert, update, delete, and aggregate data.',
   docsLink: 'https://docs.sim.ai/tools/mongodb',
   category: 'tools',
   bgColor: '#E0E0E0',

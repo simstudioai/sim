@@ -9,7 +9,7 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
   type: 'file',
   name: 'File',
   description: 'Read and parse multiple files',
-  longDescription: `Upload and extract contents from structured file formats including PDFs, CSV spreadsheets, and Word documents (DOCX). You can either provide a URL to a file or upload files directly. Specialized parsers extract text and metadata from each format. You can upload multiple files at once and access them individually or as a combined document.`,
+  longDescription: `Integrate File into the workflow. Can upload a file manually or insert a file url.`,
   docsLink: 'https://docs.sim.ai/tools/file',
   category: 'tools',
   bgColor: '#40916C',

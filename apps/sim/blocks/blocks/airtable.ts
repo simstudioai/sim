@@ -7,9 +7,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
   name: 'Airtable',
   description: 'Read, create, and update Airtable',
   longDescription:
-    'Integrate Airtable functionality to manage table records. List, get, create, ' +
-    'update single, or update multiple records using OAuth authentication. ' +
-    'Requires base ID, table ID, and operation-specific parameters.',
+    'Integrates Airtable into the workflow. Can create, get, list, or update Airtable records. Requires OAuth. Can be used in trigger mode to trigger a workflow when an update is made to an Airtable table.',
   docsLink: 'https://docs.sim.ai/tools/airtable',
   category: 'tools',
   bgColor: '#E0E0E0',

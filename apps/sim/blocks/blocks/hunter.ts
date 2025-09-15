@@ -7,7 +7,7 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
   name: 'Hunter io',
   description: 'Find and verify professional email addresses',
   longDescription:
-    "Search for email addresses, verify their deliverability, discover companies, and enrich contact data using Hunter.io's powerful email finding capabilities.",
+    'Integrate Hunter into the workflow. Can search domains, find email addresses, verify email addresses, discover companies, find companies, and count email addresses. Requires API Key.',
   docsLink: 'https://docs.sim.ai/tools/hunter',
   category: 'tools',
   bgColor: '#E0E0E0',

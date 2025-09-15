@@ -10,7 +10,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
   name: 'Supabase',
   description: 'Use Supabase database',
   longDescription:
-    'Integrate with Supabase to manage your database, authentication, storage, and more. Query data, manage users, and interact with Supabase services directly.',
+    'Integrate Supabase into the workflow. Can get many rows, get, create, update, delete, and upsert a row.',
   docsLink: 'https://docs.sim.ai/tools/supabase',
   category: 'tools',
   bgColor: '#1C1C1C',

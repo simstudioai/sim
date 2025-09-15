@@ -7,7 +7,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
   name: 'GitHub',
   description: 'Interact with GitHub or trigger workflows from GitHub events',
   longDescription:
-    'Access GitHub repositories, pull requests, and comments through the GitHub API. Automate code reviews, PR management, and repository interactions within your workflow. Trigger workflows from GitHub events like push, pull requests, and issues.',
+    'Integrate Github into the workflow. Can get get PR details, create PR comment, get repository info, and get latest commit. Requires github token API Key. Can be used in trigger mode to trigger a workflow when a PR is created, commented on, or a commit is pushed.',
   docsLink: 'https://docs.sim.ai/tools/github',
   category: 'tools',
   bgColor: '#181C1E',
