@@ -592,7 +592,6 @@ export const auth = betterAuth({
                 id: uniqueId,
                 name: 'Wealthbox User',
                 email: `${uniqueId.replace(/[^a-zA-Z0-9]/g, '')}@wealthbox.user`,
-                image: undefined,
                 emailVerified: false,
                 createdAt: now,
                 updatedAt: now,
@@ -650,7 +649,6 @@ export const auth = betterAuth({
                 id: uniqueId,
                 name: 'Supabase User',
                 email: `${uniqueId.replace(/[^a-zA-Z0-9]/g, '')}@supabase.user`,
-                image: undefined,
                 emailVerified: false,
                 createdAt: now,
                 updatedAt: now,
@@ -760,7 +758,7 @@ export const auth = betterAuth({
                 id: profile.account_id,
                 name: profile.name || profile.display_name || 'Confluence User',
                 email: profile.email || `${profile.account_id}@atlassian.com`,
-                image: profile.picture || null,
+                image: profile.picture || undefined,
                 emailVerified: true, // Assume verified since it's an Atlassian account
                 createdAt: now,
                 updatedAt: now,
@@ -881,7 +879,7 @@ export const auth = betterAuth({
                 id: profile.account_id,
                 name: profile.name || profile.display_name || 'Jira User',
                 email: profile.email || `${profile.account_id}@atlassian.com`,
-                image: profile.picture || null,
+                image: profile.picture || undefined,
                 emailVerified: true, // Assume verified since it's an Atlassian account
                 createdAt: now,
                 updatedAt: now,
@@ -949,7 +947,6 @@ export const auth = betterAuth({
                 id: profile.bot?.owner?.user?.id || profile.id,
                 name: profile.name || profile.bot?.owner?.user?.name || 'Notion User',
                 email: profile.person?.email || `${profile.id}@notion.user`,
-                image: undefined, // Notion API doesn't provide profile images
                 emailVerified: !!profile.person?.email,
                 createdAt: now,
                 updatedAt: now,
@@ -1000,7 +997,7 @@ export const auth = betterAuth({
                 id: data.id,
                 name: data.name || 'Reddit User',
                 email: `${data.name}@reddit.user`, // Reddit doesn't provide email in identity scope
-                image: data.icon_img || null,
+                image: data.icon_img || undefined,
                 emailVerified: false,
                 createdAt: now,
                 updatedAt: now,
@@ -1075,7 +1072,7 @@ export const auth = betterAuth({
                 emailVerified: true,
                 createdAt: new Date(),
                 updatedAt: new Date(),
-                image: viewer.avatarUrl || null,
+                image: viewer.avatarUrl || undefined,
               }
             } catch (error) {
               logger.error('Error in getUserInfo:', error)
@@ -1138,7 +1135,6 @@ export const auth = betterAuth({
                 id: uniqueId,
                 name: 'Slack Bot',
                 email: `${uniqueId.replace(/[^a-zA-Z0-9]/g, '')}@slack.bot`,
-                image: undefined,
                 emailVerified: false,
                 createdAt: now,
                 updatedAt: now,
