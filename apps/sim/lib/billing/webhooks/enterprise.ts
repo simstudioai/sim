@@ -98,6 +98,9 @@ export async function handleManualEnterpriseSubscription(event: Stripe.Event) {
     throw new Error('Enterprise subscription must include valid monthlyPrice in metadata')
   }
 
+  // Get the first subscription item which contains the period information
+  const referenceItem = stripeSubscription.items?.data?.[0]
+
   const subscriptionRow = {
     id: crypto.randomUUID(),
     plan: 'enterprise',
@@ -105,11 +108,11 @@ export async function handleManualEnterpriseSubscription(event: Stripe.Event) {
     stripeCustomerId,
     stripeSubscriptionId: stripeSubscription.id,
     status: stripeSubscription.status || null,
-    periodStart: stripeSubscription.current_period_start
-      ? new Date(stripeSubscription.current_period_start * 1000)
+    periodStart: referenceItem?.current_period_start
+      ? new Date(referenceItem.current_period_start * 1000)
       : null,
-    periodEnd: stripeSubscription.current_period_end
-      ? new Date(stripeSubscription.current_period_end * 1000)
+    periodEnd: referenceItem?.current_period_end
+      ? new Date(referenceItem.current_period_end * 1000)
       : null,
     cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end ?? null,
     seats,
