@@ -105,11 +105,11 @@ export async function handleManualEnterpriseSubscription(event: Stripe.Event) {
     stripeCustomerId,
     stripeSubscriptionId: stripeSubscription.id,
     status: stripeSubscription.status || null,
-    periodStart: stripeSubscription.current_period_start
-      ? new Date(stripeSubscription.current_period_start * 1000)
+    periodStart: stripeSubscription.items?.data?.[0]?.current_period_start
+      ? new Date(stripeSubscription.items.data[0].current_period_start * 1000)
       : null,
-    periodEnd: stripeSubscription.current_period_end
-      ? new Date(stripeSubscription.current_period_end * 1000)
+    periodEnd: stripeSubscription.items?.data?.[0]?.current_period_end
+      ? new Date(stripeSubscription.items.data[0].current_period_end * 1000)
       : null,
     cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end ?? null,
     seats,
