@@ -592,7 +592,7 @@ export const auth = betterAuth({
                 id: uniqueId,
                 name: 'Wealthbox User',
                 email: `${uniqueId.replace(/[^a-zA-Z0-9]/g, '')}@wealthbox.user`,
-                image: null,
+                image: undefined,
                 emailVerified: false,
                 createdAt: now,
                 updatedAt: now,
@@ -650,7 +650,7 @@ export const auth = betterAuth({
                 id: uniqueId,
                 name: 'Supabase User',
                 email: `${uniqueId.replace(/[^a-zA-Z0-9]/g, '')}@supabase.user`,
-                image: null,
+                image: undefined,
                 emailVerified: false,
                 createdAt: now,
                 updatedAt: now,
@@ -811,7 +811,7 @@ export const auth = betterAuth({
                 email: profile.email || `${profile.id}@discord.user`,
                 image: profile.avatar
                   ? `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png`
-                  : null,
+                  : undefined,
                 emailVerified: profile.verified || false,
                 createdAt: now,
                 updatedAt: now,
@@ -949,7 +949,7 @@ export const auth = betterAuth({
                 id: profile.bot?.owner?.user?.id || profile.id,
                 name: profile.name || profile.bot?.owner?.user?.name || 'Notion User',
                 email: profile.person?.email || `${profile.id}@notion.user`,
-                image: null, // Notion API doesn't provide profile images
+                image: undefined, // Notion API doesn't provide profile images
                 emailVerified: !!profile.person?.email,
                 createdAt: now,
                 updatedAt: now,
@@ -1138,7 +1138,7 @@ export const auth = betterAuth({
                 id: uniqueId,
                 name: 'Slack Bot',
                 email: `${uniqueId.replace(/[^a-zA-Z0-9]/g, '')}@slack.bot`,
-                image: null,
+                image: undefined,
                 emailVerified: false,
                 createdAt: now,
                 updatedAt: now,
