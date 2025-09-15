@@ -617,13 +617,6 @@
       "when": 1757619657920,
       "tag": "0088_serious_firestar",
       "breakpoints": true
-    },
-    {
-      "idx": 89,
-      "version": "7",
-      "when": 1757621670332,
-      "tag": "0089_many_vivisector",
-      "breakpoints": true
     }
   ]
 }
