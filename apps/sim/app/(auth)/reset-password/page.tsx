@@ -3,16 +3,10 @@
 import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
 import { createLogger } from '@/lib/logs/console/logger'
 import { SetNewPasswordForm } from '@/app/(auth)/reset-password/reset-password-form'
+import { inter } from '@/app/fonts/inter'
+import { soehne } from '@/app/fonts/soehne/soehne'
 
 const logger = createLogger('ResetPasswordPage')
 
@@ -82,40 +76,42 @@ function ResetPasswordContent() {
   }
 
   return (
-    <main className='flex min-h-screen flex-col items-center justify-center bg-gray-50'>
-      <div className='sm:mx-auto sm:w-full sm:max-w-md'>
-        <h1 className='mb-8 text-center font-bold text-2xl'>Sim</h1>
-        <Card className='w-full'>
-          <CardHeader>
-            <CardTitle>Reset your password</CardTitle>
-            <CardDescription>Enter a new password for your account</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <SetNewPasswordForm
-              token={token}
-              onSubmit={handleResetPassword}
-              isSubmitting={isSubmitting}
-              statusType={statusMessage.type}
-              statusMessage={statusMessage.text}
-            />
-          </CardContent>
-          <CardFooter>
-            <p className='w-full text-center text-gray-500 text-sm'>
-              <Link href='/login' className='text-muted-foreground hover:underline'>
-                Back to login
-              </Link>
-            </p>
-          </CardFooter>
-        </Card>
+    <>
+      <div className='space-y-1 text-center'>
+        <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
+          Reset your password
+        </h1>
+        <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+          Enter a new password for your account
+        </p>
       </div>
-    </main>
+
+      <div className={`${inter.className} mt-8`}>
+        <SetNewPasswordForm
+          token={token}
+          onSubmit={handleResetPassword}
+          isSubmitting={isSubmitting}
+          statusType={statusMessage.type}
+          statusMessage={statusMessage.text}
+        />
+      </div>
+
+      <div className={`${inter.className} pt-6 text-center font-light text-[14px]`}>
+        <Link
+          href='/login'
+          className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
+        >
+          Back to login
+        </Link>
+      </div>
+    </>
   )
 }
 
 export default function ResetPasswordPage() {
   return (
     <Suspense
-      fallback={<div className='flex min-h-screen items-center justify-center'>Loading...</div>}
+      fallback={<div className='flex h-screen items-center justify-center'>Loading...</div>}
     >
       <ResetPasswordContent />
     </Suspense>
