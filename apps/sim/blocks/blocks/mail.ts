@@ -59,7 +59,6 @@ export const MailBlock: BlockConfig<MailSendResult> = {
 
   outputs: {
     success: { type: 'boolean', description: 'Whether the email was sent successfully' },
-    messageId: { type: 'string', description: 'Unique identifier for the sent email' },
     message: { type: 'string', description: 'Result message from the mail service' },
     data: { type: 'json', description: 'Additional response data from the mail service' },
   },

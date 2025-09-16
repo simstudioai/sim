@@ -64,7 +64,6 @@ export async function POST(request: NextRequest) {
     logger.info(`[${requestId}] Email send result`, {
       success: result.success,
       message: result.message,
-      messageId: result.data?.id,
     })
 
     return NextResponse.json(result)
