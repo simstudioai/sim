@@ -102,7 +102,7 @@
     "lucide-react": "^0.479.0",
     "mammoth": "^1.9.0",
     "mysql2": "3.14.3",
-    "next": "^15.3.2",
+    "next": "^15.4.1",
     "next-runtime-env": "3.3.0",
     "next-themes": "^0.4.6",
     "officeparser": "^5.2.0",
@@ -172,7 +172,7 @@
     "sharp"
   ],
   "overrides": {
-    "next": "^15.3.2",
-    "@next/env": "^15.3.2"
+    "next": "^15.4.1",
+    "@next/env": "^15.4.1"
   }
 }
