@@ -19,22 +19,19 @@ interface NavProps {
 }
 
 export default function Nav({ hideAuthButtons = false, variant = 'landing' }: NavProps = {}) {
-  const [githubStars, setGithubStars] = useState('14.7k')
+  const [githubStars, setGithubStars] = useState('15k')
   const [isHovered, setIsHovered] = useState(false)
   const [isLoginHovered, setIsLoginHovered] = useState(false)
   const router = useRouter()
   const brand = useBrandConfig()
 
   useEffect(() => {
-    // Only fetch stars on landing page to reduce unnecessary API calls
     if (variant !== 'landing') return
 
-    // Defer API call to after initial render for better performance
     const timeoutId = setTimeout(() => {
       const fetchStars = async () => {
         try {
           const response = await fetch('/api/github-stars', {
-            // Add cache headers for better performance
             headers: {
               'Cache-Control': 'max-age=3600', // Cache for 1 hour
             },
@@ -46,7 +43,7 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
         }
       }
       fetchStars()
-    }, 2000) // Delay by 2 seconds to prioritize initial render
+    }, 2000)
 
     return () => clearTimeout(timeoutId)
   }, [variant])
@@ -110,7 +107,6 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
     </>
   )
 
-  // For auth variant, always show simple navigation regardless of hosting type
   return (
     <nav
       aria-label='Primary navigation'
