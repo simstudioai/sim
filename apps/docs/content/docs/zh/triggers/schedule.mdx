@@ -1,0 +1,73 @@
+---
+title: 计划
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+
+计划模块会在指定的时间间隔或时间点自动触发工作流。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/schedule.png"
+    alt="计划模块"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## 计划选项
+
+通过下拉选项配置工作流的运行时间：
+
+<Tabs items={['简单间隔', 'Cron 表达式']}>
+  <Tab>
+    <ul className="list-disc space-y-1 pl-6">
+      <li><strong>每隔几分钟</strong>：5 分钟、15 分钟、30 分钟的间隔</li>
+      <li><strong>每小时</strong>：每小时或每隔几小时</li>
+      <li><strong>每天</strong>：每天一次或多次</li>
+      <li><strong>每周</strong>：一周中的特定日子</li>
+      <li><strong>每月</strong>：一个月中的特定日子</li>
+    </ul>
+  </Tab>
+  <Tab>
+    <p>使用 cron 表达式进行高级调度：</p>
+    <div className="text-sm space-y-1">
+      <div><code>0 9 * * 1-5</code> - 每个工作日的上午 9 点</div>
+      <div><code>*/15 * * * *</code> - 每 15 分钟</div>
+      <div><code>0 0 1 * *</code> - 每月的第一天</div>
+    </div>
+  </Tab>
+</Tabs>
+
+## 配置计划
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="configure-schedule.mp4" width={700} height={450} />
+</div>
+
+当工作流被计划时：
+- 计划变为**激活**状态，并显示下一次执行时间
+- 点击 **"已计划"** 按钮可以停用计划
+- 如果**连续失败 3 次**，计划会自动停用
+
+## 停用的计划
+
+<div className="flex justify-center">
+  <Image
+    src="/static/schedule-disabled.png"
+    alt="停用的计划"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+停用的计划会显示上次激活的时间，并可以随时重新启用。
+
+<Callout>
+计划模块无法接收传入连接，仅作为纯工作流触发器使用。
+</Callout>

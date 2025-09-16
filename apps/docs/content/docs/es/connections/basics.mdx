@@ -1,0 +1,43 @@
+---
+title: Conceptos básicos de conexión
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+
+## Cómo funcionan las conexiones
+
+Las conexiones son las vías que permiten que los datos fluyan entre bloques en tu flujo de trabajo. En Sim, las conexiones definen cómo la información pasa de un bloque a otro, permitiendo el flujo de datos a través de tu flujo de trabajo.
+
+<Callout type="info">
+  Cada conexión representa una relación dirigida donde los datos fluyen desde la salida de un bloque de origen
+  hacia la entrada de un bloque de destino.
+</Callout>
+
+### Creación de conexiones
+
+<Steps>
+  <Step>
+    <strong>Seleccionar bloque de origen</strong>: Haz clic en el puerto de salida del bloque desde el que quieres conectar
+  </Step>
+  <Step>
+    <strong>Dibujar conexión</strong>: Arrastra hasta el puerto de entrada del bloque de destino
+  </Step>
+  <Step>
+    <strong>Confirmar conexión</strong>: Suelta para crear la conexión
+  </Step>
+</Steps>
+
+### Flujo de conexión
+
+El flujo de datos a través de las conexiones sigue estos principios:
+
+1. **Flujo direccional**: Los datos siempre fluyen de las salidas a las entradas
+2. **Orden de ejecución**: Los bloques se ejecutan en orden según sus conexiones
+3. **Transformación de datos**: Los datos pueden transformarse al pasar entre bloques
+4. **Rutas condicionales**: Algunos bloques (como Router y Condition) pueden dirigir el flujo a diferentes rutas
+
+<Callout type="warning">
+  Eliminar una conexión detendrá inmediatamente el flujo de datos entre los bloques. Asegúrate de que esto es
+  lo que deseas antes de eliminar conexiones.
+</Callout>

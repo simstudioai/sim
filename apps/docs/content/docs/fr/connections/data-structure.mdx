@@ -1,0 +1,195 @@
+---
+title: Structure de données de connexion
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+Lorsque vous connectez des blocs, comprendre la structure de données des différentes sorties de blocs est important car la structure de données de sortie du bloc source détermine quelles valeurs sont disponibles dans le bloc de destination. Chaque type de bloc produit une structure de sortie spécifique que vous pouvez référencer dans les blocs en aval.
+
+<Callout type="info">
+  Comprendre ces structures de données est essentiel pour utiliser efficacement les balises de connexion et
+  accéder aux bonnes données dans vos flux de travail.
+</Callout>
+
+## Structures de sortie des blocs
+
+Différents types de blocs produisent différentes structures de sortie. Voici ce à quoi vous pouvez vous attendre de chaque type de bloc :
+
+<Tabs items={['Sortie d\'agent', 'Sortie d\'API', 'Sortie de fonction', 'Sortie d\'évaluateur', 'Sortie de condition', 'Sortie de routeur']}>
+  <Tab>
+
+    ```json
+    {
+      "content": "The generated text response",
+      "model": "gpt-4o",
+      "tokens": {
+        "prompt": 120,
+        "completion": 85,
+        "total": 205
+      },
+      "toolCalls": [...],
+      "cost": [...],
+      "usage": [...]
+    }
+    ```
+
+    ### Champs de sortie du bloc Agent
+
+    - **content** : Le texte principal de la réponse générée par l'agent
+    - **model** : Le modèle d'IA utilisé (par exemple, "gpt-4o", "claude-3-opus")
+    - **tokens** : Statistiques d'utilisation des tokens
+      - **prompt** : Nombre de tokens dans la requête
+      - **completion** : Nombre de tokens dans la réponse
+      - **total** : Total des tokens utilisés
+    - **toolCalls** : Tableau des appels d'outils effectués par l'agent (le cas échéant)
+    - **cost** : Tableau des objets de coût pour chaque appel d'outil (le cas échéant)
+    - **usage** : Statistiques d'utilisation des tokens pour l'ensemble de la réponse
+
+  </Tab>
+  <Tab>
+
+    ```json
+    {
+      "data": "Response data",
+      "status": 200,
+      "headers": {
+        "content-type": "application/json",
+        "cache-control": "no-cache"
+      }
+    }
+    ```
+
+    ### Champs de sortie du bloc API
+
+    - **data** : Les données de réponse de l'API (peut être de n'importe quel type)
+    - **status** : Code de statut HTTP de la réponse
+    - **headers** : En-têtes HTTP renvoyés par l'API
+
+  </Tab>
+  <Tab>
+
+    ```json
+    {
+      "result": "Function return value",
+      "stdout": "Console output",
+    }
+    ```
+
+    ### Champs de sortie du bloc Fonction
+
+    - **result** : La valeur de retour de la fonction (peut être de n'importe quel type)
+    - **stdout** : Sortie console capturée pendant l'exécution de la fonction
+
+  </Tab>
+  <Tab>
+
+    ```json
+    {
+      "content": "Evaluation summary",
+      "model": "gpt-5",
+      "tokens": {
+        "prompt": 120,
+        "completion": 85,
+        "total": 205
+      },
+      "metric1": 8.5,
+      "metric2": 7.2,
+      "metric3": 9.0
+    }
+    ```
+
+    ### Champs de sortie du bloc d'évaluation
+
+    - **content** : résumé de l'évaluation
+    - **model** : le modèle d'IA utilisé pour l'évaluation
+    - **tokens** : statistiques d'utilisation des tokens
+    - **[metricName]** : score pour chaque métrique définie dans l'évaluateur (champs dynamiques)
+
+  </Tab>
+  <Tab>
+
+    ```json
+    {
+      "content": "Original content passed through",
+      "conditionResult": true,
+      "selectedPath": {
+        "blockId": "2acd9007-27e8-4510-a487-73d3b825e7c1",
+        "blockType": "agent",
+        "blockTitle": "Follow-up Agent"
+      },
+      "selectedConditionId": "condition-1"
+    }
+    ```
+
+    ### Champs de sortie du bloc de condition
+
+    - **content** : le contenu original transmis
+    - **conditionResult** : résultat booléen de l'évaluation de la condition
+    - **selectedPath** : informations sur le chemin sélectionné
+      - **blockId** : ID du bloc suivant dans le chemin sélectionné
+      - **blockType** : type du bloc suivant
+      - **blockTitle** : titre du bloc suivant
+    - **selectedConditionId** : ID de la condition sélectionnée
+
+  </Tab>
+  <Tab>
+
+    ```json
+    {
+      "content": "Routing decision",
+      "model": "gpt-4o",
+      "tokens": {
+        "prompt": 120,
+        "completion": 85,
+        "total": 205
+      },
+      "selectedPath": {
+        "blockId": "2acd9007-27e8-4510-a487-73d3b825e7c1",
+        "blockType": "agent",
+        "blockTitle": "Customer Service Agent"
+      }
+    }
+    ```
+
+    ### Champs de sortie du bloc routeur
+
+    - **content** : le texte de décision de routage
+    - **model** : le modèle d'IA utilisé pour le routage
+    - **tokens** : statistiques d'utilisation des tokens
+    - **selectedPath** : informations sur le chemin sélectionné
+      - **blockId** : ID du bloc de destination sélectionné
+      - **blockType** : type du bloc sélectionné
+      - **blockTitle** : titre du bloc sélectionné
+
+  </Tab>
+</Tabs>
+
+## Structures de sortie personnalisées
+
+Certains blocs peuvent produire des structures de sortie personnalisées selon leur configuration :
+
+1. **Blocs d'agent avec format de réponse** : lors de l'utilisation d'un format de réponse dans un bloc d'agent, la structure de sortie correspondra au schéma défini plutôt qu'à la structure standard.
+
+2. **Blocs de fonction** : le champ `result` peut contenir n'importe quelle structure de données renvoyée par votre code de fonction.
+
+3. **Blocs API** : le champ `data` contiendra ce que l'API renvoie, ce qui peut être n'importe quelle structure JSON valide.
+
+<Callout type="warning">
+  Vérifiez toujours la structure de sortie réelle de vos blocs pendant le développement pour vous assurer que vous
+  référencez les bons champs dans vos connexions.
+</Callout>
+
+## Structures de données imbriquées
+
+De nombreuses sorties de blocs contiennent des structures de données imbriquées. Vous pouvez y accéder en utilisant la notation par points dans les balises de connexion :
+
+```
+<blockName.path.to.nested.data>
+```
+
+Par exemple :
+
+- `<agent1.tokens.total>` - Accéder au nombre total de jetons depuis un bloc Agent
+- `<api1.data.results[0].id>` - Accéder à l'ID du premier résultat d'une réponse API
+- `<function1.result.calculations.total>` - Accéder à un champ imbriqué dans le résultat d'un bloc Fonction

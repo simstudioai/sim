@@ -1,0 +1,119 @@
+---
+title: Typeform
+description: 与 Typeform 互动
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="typeform"
+  color="#262627"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      version='1.1'
+      id='Layer_1'
+      xmlns='http://www.w3.org/2000/svg'
+      xmlnsXlink='http://www.w3.org/1999/xlink'
+      x='0px'
+      y='0px'
+      viewBox='0 0 122.3 80.3'
+      xmlSpace='preserve'
+    >
+      <g>
+        <path
+          fill='currentColor'
+          d='M94.3,0H65.4c-26,0-28,11.2-28,26.2l0,27.9c0,15.6,2,26.2,28.1,26.2h28.8c26,0,28-11.2,28-26.1V26.2
+		C122.3,11.2,120.3,0,94.3,0z M0,20.1C0,6.9,5.2,0,14,0c8.8,0,14,6.9,14,20.1v40.1c0,13.2-5.2,20.1-14,20.1c-8.8,0-14-6.9-14-20.1
+		V20.1z'
+        />
+      </g>
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Typeform](https://www.typeform.com/) 是一个用户友好的平台，用于创建注重用户体验的对话式表单、调查和测验。
+
+使用 Typeform，您可以：
+
+- **创建互动表单**：设计美观的对话式表单，通过独特的一次一问界面吸引受访者
+- **自定义您的体验**：使用条件逻辑、隐藏字段和自定义主题，创建个性化的用户旅程
+- **与其他工具集成**：通过原生集成和 API 连接 1000 多个应用程序
+- **分析响应数据**：通过全面的分析和报告工具获取可操作的洞察
+
+在 Sim 中，Typeform 集成使您的代理能够以编程方式将 Typeform 数据纳入其工作流程。代理可以检索表单响应、处理提交数据，并将用户反馈直接纳入决策过程。此集成在潜在客户资格审查、客户反馈分析和数据驱动的个性化场景中特别有价值。通过将 Sim 与 Typeform 连接，您可以创建智能自动化工作流程，将表单响应转化为可操作的洞察——分析情绪、分类反馈、生成摘要，甚至根据特定的响应模式触发后续操作。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+访问并检索您的 Typeform 表单的响应数据。将表单提交数据集成到您的工作流程中以进行分析、存储或处理。
+
+## 工具
+
+### `typeform_responses`
+
+从 Typeform 检索表单响应
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | 是 | Typeform 表单 ID |
+| `apiKey` | string | 是 | Typeform 个人访问令牌 |
+| `pageSize` | number | 否 | 要检索的响应数量 \(默认值：25\) |
+| `since` | string | 否 | 检索此日期之后提交的响应 \(ISO 8601 格式\) |
+| `until` | string | 否 | 检索此日期之前提交的响应 \(ISO 8601 格式\) |
+| `completed` | string | 否 | 按完成状态过滤 \(true/false\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `total_items` | number | 响应总数 |
+| `page_count` | number | 总页数 |
+| `items` | json | 响应项 |
+
+### `typeform_files`
+
+下载 Typeform 响应中上传的文件
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | 是 | Typeform 表单 ID |
+| `responseId` | string | 是 | 包含文件的响应 ID |
+| `fieldId` | string | 是 | 文件上传字段的唯一 ID |
+| `filename` | string | 是 | 上传文件的文件名 |
+| `inline` | boolean | 否 | 是否以内联 Content-Disposition 请求文件 |
+| `apiKey` | string | 是 | Typeform 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `fileUrl` | string | 上传文件的直接下载 URL |
+| `contentType` | string | 上传文件的 MIME 类型 |
+| `filename` | string | 上传文件的原始文件名 |
+
+### `typeform_insights`
+
+获取 Typeform 表单的洞察和分析
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | 是 | Typeform 表单 ID |
+| `apiKey` | string | 是 | Typeform 个人访问令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `fields` | 数组 | 在此字段中流失的用户数量 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`typeform`

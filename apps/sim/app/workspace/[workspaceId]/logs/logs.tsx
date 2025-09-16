@@ -1,13 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertCircle, Info, Loader2, Play, RefreshCw, Search, Square } from 'lucide-react'
+import { AlertCircle, Info, Loader2, Play, RefreshCw, Square } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
+import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
 import { cn } from '@/lib/utils'
+import { AutocompleteSearch } from '@/app/workspace/[workspaceId]/logs/components/search/search'
 import { Sidebar } from '@/app/workspace/[workspaceId]/logs/components/sidebar/sidebar'
 import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils/format-date'
 import { useDebounce } from '@/hooks/use-debounce'
@@ -17,7 +18,6 @@ import type { LogsResponse, WorkflowLog } from '@/stores/logs/filters/types'
 const logger = createLogger('Logs')
 const LOGS_PER_PAGE = 50
 
-// Get color for different trigger types using app's color scheme
 const getTriggerColor = (trigger: string | null | undefined): string => {
   if (!trigger) return '#9ca3af'
 
@@ -98,6 +98,10 @@ export default function Logs() {
   const [searchQuery, setSearchQuery] = useState(storeSearchQuery)
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
 
+  // Available data for suggestions
+  const [availableWorkflows, setAvailableWorkflows] = useState<string[]>([])
+  const [availableFolders, setAvailableFolders] = useState<string[]>([])
+
   // Live and refresh state
   const [isLive, setIsLive] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -107,6 +111,22 @@ export default function Logs() {
   useEffect(() => {
     setSearchQuery(storeSearchQuery)
   }, [storeSearchQuery])
+
+  useEffect(() => {
+    const workflowNames = new Set<string>()
+    const folderNames = new Set<string>()
+
+    logs.forEach((log) => {
+      if (log.workflow?.name) {
+        workflowNames.add(log.workflow.name)
+      }
+      // Note: folder info would need to be added to the logs response
+      // For now, we'll leave folders empty
+    })
+
+    setAvailableWorkflows(Array.from(workflowNames).slice(0, 10)) // Limit to top 10
+    setAvailableFolders([]) // TODO: Add folder data to logs response
+  }, [logs])
 
   // Update store when debounced search query changes
   useEffect(() => {
@@ -323,7 +343,27 @@ export default function Logs() {
       // Get fresh query params by calling buildQueryParams from store
       const { buildQueryParams: getCurrentQueryParams } = useFilterStore.getState()
       const queryParams = getCurrentQueryParams(pageNum, LOGS_PER_PAGE)
-      const response = await fetch(`/api/logs?${queryParams}&details=basic`)
+
+      // Parse the current search query for enhanced filtering
+      const parsedQuery = parseQuery(searchQuery)
+      const enhancedParams = queryToApiParams(parsedQuery)
+
+      // Add enhanced search parameters to the query string
+      const allParams = new URLSearchParams(queryParams)
+      Object.entries(enhancedParams).forEach(([key, value]) => {
+        if (key === 'triggers' && allParams.has('triggers')) {
+          // Combine triggers from both sources
+          const existingTriggers = allParams.get('triggers')?.split(',') || []
+          const searchTriggers = value.split(',')
+          const combined = [...new Set([...existingTriggers, ...searchTriggers])]
+          allParams.set('triggers', combined.join(','))
+        } else {
+          allParams.set(key, value)
+        }
+      })
+
+      allParams.set('details', 'basic')
+      const response = await fetch(`/api/logs?${allParams.toString()}`)
 
       if (!response.ok) {
         throw new Error(`Error fetching logs: ${response.statusText}`)
@@ -430,12 +470,28 @@ export default function Logs() {
         params.set('offset', '0') // Always start from page 1
         params.set('workspaceId', workspaceId)
 
-        // Add filters
+        // Parse the search query for enhanced filtering
+        const parsedQuery = parseQuery(searchQuery)
+        const enhancedParams = queryToApiParams(parsedQuery)
+
+        // Add filters from store
         if (level !== 'all') params.set('level', level)
         if (triggers.length > 0) params.set('triggers', triggers.join(','))
         if (workflowIds.length > 0) params.set('workflowIds', workflowIds.join(','))
         if (folderIds.length > 0) params.set('folderIds', folderIds.join(','))
-        if (searchQuery.trim()) params.set('search', searchQuery.trim())
+
+        // Add enhanced search parameters (these may override some store filters)
+        Object.entries(enhancedParams).forEach(([key, value]) => {
+          if (key === 'triggers' && params.has('triggers')) {
+            // Combine triggers from both sources
+            const storeTriggers = params.get('triggers')?.split(',') || []
+            const searchTriggers = value.split(',')
+            const combined = [...new Set([...storeTriggers, ...searchTriggers])]
+            params.set('triggers', combined.join(','))
+          } else {
+            params.set(key, value)
+          }
+        })
 
         // Add time range filter
         if (timeRange !== 'All time') {
@@ -588,16 +644,14 @@ export default function Logs() {
           </div>
 
           {/* Search and Controls */}
-          <div className='mb-8 flex flex-col items-stretch justify-between gap-4 sm:flex-row sm:items-center'>
-            <div className='flex h-9 w-full min-w-[200px] max-w-[460px] items-center gap-2 rounded-lg border bg-transparent pr-2 pl-3'>
-              <Search className='h-4 w-4 flex-shrink-0 text-muted-foreground' strokeWidth={2} />
-              <Input
-                placeholder='Search logs...'
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className='flex-1 border-0 bg-transparent px-0 font-[380] font-sans text-base text-foreground leading-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
-              />
-            </div>
+          <div className='mb-8 flex flex-col items-stretch justify-between gap-4 sm:flex-row sm:items-start'>
+            <AutocompleteSearch
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder='Search logs...'
+              availableWorkflows={availableWorkflows}
+              availableFolders={availableFolders}
+            />
 
             <div className='flex flex-shrink-0 items-center gap-3'>
               <Tooltip>

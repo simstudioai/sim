@@ -1,0 +1,89 @@
+---
+title: Traduire
+description: Traduire du texte dans n'importe quelle langue
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="translate"
+  color="#FF4B4B"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='2'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      
+    >
+      <path d='m5 8 6 6' />
+      <path d='m4 14 6-6 2-3' />
+      <path d='M2 5h12' />
+      <path d='M7 2h1' />
+      <path d='m22 22-5-10-5 10' />
+      <path d='M14 18h6' />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Traduire est un outil qui vous permet de traduire du texte entre différentes langues.
+
+Avec Traduire, vous pouvez :
+
+- **Traduire du texte** : traduire du texte entre différentes langues
+- **Traduire des documents** : traduire des documents entre différentes langues
+- **Traduire des sites web** : traduire des sites web entre différentes langues
+- **Traduire des images** : traduire des images entre différentes langues
+- **Traduire de l'audio** : traduire de l'audio entre différentes langues
+- **Traduire des vidéos** : traduire des vidéos entre différentes langues
+- **Traduire de la parole** : traduire de la parole entre différentes langues
+- **Traduire du texte** : traduire du texte entre différentes langues
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Convertissez du texte entre différentes langues tout en préservant le sens, les nuances et le formatage. Utilisez des modèles linguistiques puissants pour produire des traductions naturelles et fluides avec des adaptations culturelles appropriées.
+
+## Outils
+
+### `openai_chat`
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Texte traduit |
+| `model` | string | Modèle utilisé |
+| `tokens` | json | Utilisation des tokens |
+
+### `anthropic_chat`
+
+### `google_chat`
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Texte traduit |
+| `model` | string | Modèle utilisé |
+| `tokens` | json | Utilisation des jetons |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `translate`

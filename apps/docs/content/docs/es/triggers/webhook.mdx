@@ -1,0 +1,126 @@
+---
+title: Webhooks
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Video } from '@/components/ui/video'
+
+Los webhooks permiten que servicios externos activen la ejecución de flujos de trabajo desde webhooks externos mediante el envío de solicitudes HTTP a tu flujo de trabajo. Sim admite dos enfoques para los disparadores basados en webhooks.
+
+## Disparador de webhook genérico
+
+El bloque de webhook genérico crea un punto de conexión flexible que puede recibir cualquier carga útil y activar tu flujo de trabajo:
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="webhooks-1.mp4" width={700} height={450} />
+</div>
+
+### Cómo funciona
+
+1. **Añadir bloque de webhook genérico** - Arrastra el bloque de webhook genérico para iniciar tu flujo de trabajo
+2. **Configurar carga útil** - Configura la estructura de carga útil esperada (opcional)
+3. **Obtener URL del webhook** - Copia el punto de conexión único generado automáticamente
+4. **Integración externa** - Configura tu servicio externo para enviar solicitudes POST a esta URL
+5. **Ejecución del flujo de trabajo** - Cada solicitud a la URL del webhook activa el flujo de trabajo
+
+### Características
+
+- **Carga útil flexible**: Acepta cualquier estructura de carga útil JSON
+- **Análisis automático**: Los datos del webhook se analizan automáticamente y están disponibles para los bloques subsiguientes
+- **Autenticación**: Autenticación opcional mediante token bearer o encabezado personalizado
+- **Limitación de tasa**: Protección incorporada contra abusos
+- **Deduplicación**: Evita ejecuciones duplicadas de solicitudes repetidas
+
+<Callout type="info">
+El disparador de webhook genérico se activa cada vez que la URL del webhook recibe una solicitud, lo que lo hace perfecto para integraciones en tiempo real.
+</Callout>
+
+## Modo de disparador para bloques de servicio
+
+Alternativamente, puedes usar bloques de servicio específicos (como Slack, GitHub, etc.) en "modo de disparador" para crear puntos de conexión de webhook más especializados:
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="slack-trigger.mp4" width={700} height={450} />
+</div>
+
+### Configuración del modo de activación
+
+1. **Añadir bloque de servicio** - Elige un bloque de servicio (p. ej., Slack, GitHub, Airtable)
+2. **Habilitar modo de activación** - Activa "Usar como activador" en la configuración del bloque
+3. **Configurar servicio** - Configura la autenticación y los filtros de eventos específicos para ese servicio
+4. **Registro del webhook** - El servicio registra automáticamente el webhook en la plataforma externa
+5. **Ejecución basada en eventos** - El flujo de trabajo se activa solo para eventos específicos de ese servicio
+
+### Cuándo usar cada enfoque
+
+**Usa webhook genérico cuando:**
+- Integres con aplicaciones o servicios personalizados
+- Necesites máxima flexibilidad en la estructura de la carga útil
+- Trabajes con servicios que no tienen bloques dedicados
+- Construyas integraciones internas
+
+**Usa el modo de activación cuando:**
+- Trabajes con servicios compatibles (Slack, GitHub, etc.)
+- Quieras filtrado de eventos específico del servicio
+- Necesites registro automático de webhooks
+- Quieras manejo estructurado de datos para ese servicio
+
+## Servicios compatibles con el modo de activación
+
+Los siguientes bloques de servicio admiten el modo de activación:
+
+- **Slack** - Mensajes, menciones, reacciones
+- **GitHub** - Eventos de push, PR, issues  
+- **Airtable** - Cambios en registros
+- **Telegram** - Mensajes y comandos de bot
+- **Gmail** - Notificaciones de correo electrónico
+- **WhatsApp** - Eventos de mensajería
+- **Jira** - Actualizaciones de issues, comentarios
+- **Linear** - Cambios de estado de issues
+- **Notion** - Actualizaciones de páginas
+
+## Seguridad y mejores prácticas
+
+### Opciones de autenticación
+
+- **Tokens Bearer**: Incluye el encabezado `Authorization: Bearer <token>`
+- **Encabezados personalizados**: Define encabezados de autenticación personalizados
+
+### Manejo de carga útil
+
+- **Validación**: Valida las cargas útiles entrantes para prevenir datos mal formados
+- **Límites de tamaño**: Los webhooks tienen límites de tamaño de carga útil por seguridad
+- **Manejo de errores**: Configura respuestas de error para solicitudes no válidas
+
+### Pruebas de webhooks
+
+1. Utiliza herramientas como Postman o curl para probar tus endpoints de webhook
+2. Revisa los registros de ejecución del flujo de trabajo para depuración
+3. Verifica que la estructura de la carga útil coincida con tus expectativas
+4. Prueba escenarios de autenticación y errores
+
+<Callout type="warning">
+Siempre valida y desinfecta los datos entrantes de webhook antes de procesarlos en tus flujos de trabajo.
+</Callout>
+
+## Casos de uso comunes
+
+### Notificaciones en tiempo real
+- Mensajes de Slack que desencadenan respuestas automatizadas
+- Notificaciones por correo electrónico para eventos críticos
+
+### Integración CI/CD  
+- Pushes de GitHub que desencadenan flujos de trabajo de despliegue
+- Actualizaciones del estado de compilación
+- Canales automatizados de pruebas
+
+### Sincronización de datos
+- Cambios en Airtable que actualizan otros sistemas
+- Envíos de formularios que desencadenan acciones de seguimiento
+- Procesamiento de pedidos de comercio electrónico
+
+### Atención al cliente
+- Flujos de trabajo de creación de tickets de soporte
+- Procesos automatizados de escalamiento
+- Enrutamiento de comunicación multicanal

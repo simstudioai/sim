@@ -1,0 +1,63 @@
+---
+title: Starter
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+
+Le bloc Starter vous permet de lancer manuellement l'exécution d'un workflow avec des paramètres d'entrée, offrant deux modes de saisie : des paramètres structurés ou une conversation par chat.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/starter.png"
+    alt="Bloc Starter avec options de mode manuel et mode chat"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Modes d'exécution
+
+Choisissez votre méthode de saisie dans le menu déroulant :
+
+<Tabs items={['Mode manuel', 'Mode chat']}>
+  <Tab>
+    <div className="space-y-4">
+      <ul className="list-disc space-y-1 pl-6">
+        <li><strong>Entrées structurées compatibles API</strong> : définissez des paramètres spécifiques (texte, nombre, booléen, JSON, fichier, date)</li>
+        <li><strong>Test pendant la construction de votre workflow</strong> : itération rapide lors du débogage des workflows</li>
+      </ul>
+      
+      <div className="mx-auto w-full overflow-hidden rounded-lg">
+        <Video src="input-format.mp4" width={700} height={450} />
+      </div>
+      
+      <p className="text-sm text-gray-600">Configurez les paramètres d'entrée qui seront disponibles lors du déploiement en tant que point de terminaison API.</p>
+    </div>
+  </Tab>
+  <Tab>
+    <div className="space-y-4">
+      <ul className="list-disc space-y-1 pl-6">
+        <li><strong>Langage naturel</strong> : les utilisateurs tapent des questions ou des demandes</li>
+        <li><strong>Conversationnel</strong> : idéal pour les workflows alimentés par l'IA</li>
+      </ul>
+      
+      <div className="mx-auto w-full overflow-hidden rounded-lg">
+        <Video src="chat-input.mp4" width={700} height={450} />
+      </div>
+      
+      <p className="text-sm text-gray-600">Discutez avec votre workflow et accédez au texte saisi, à l'ID de conversation et aux fichiers téléchargés pour des réponses contextuelles.</p>
+    </div>
+  </Tab>
+</Tabs>
+
+## Utilisation des variables de chat
+
+En mode Chat, accédez aux entrées utilisateur et au contexte de la conversation grâce à des variables spéciales :
+
+- **`<start.input>`** - Contient le texte du message de l'utilisateur
+- **`<start.conversationId>`** - Identifiant unique pour le fil de conversation
+- **`<start.files>`** - Tableau des fichiers téléchargés par l'utilisateur (le cas échéant)

@@ -1,0 +1,135 @@
+---
+title: 执行
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+
+Sim 的执行引擎通过按正确的顺序处理模块、管理数据流并优雅地处理错误，使您的工作流栩栩如生，从而让您能够准确了解工作流在 Sim 中的执行方式。
+
+<Callout type="info">
+  每次工作流执行都会根据您的模块连接和逻辑遵循确定性路径，确保结果可预测且可靠。
+</Callout>
+
+## 文档概览
+
+<Cards>
+  <Card title="执行基础" href="/execution/basics">
+    了解基本的执行流程、模块类型以及数据如何在您的工作流中流动
+  </Card>
+
+  <Card title="日志记录" href="/execution/logging">
+    通过全面的日志记录和实时可见性监控工作流执行
+  </Card>
+  
+  <Card title="成本计算" href="/execution/costs">
+    了解工作流执行成本的计算方式及优化方法
+  </Card>
+  
+  <Card title="外部 API" href="/execution/api">
+    通过 REST API 程序化访问执行日志并设置 Webhooks
+  </Card>
+</Cards>
+
+## 核心概念
+
+### 拓扑执行
+模块按照依赖顺序执行，类似于电子表格重新计算单元格的方式。执行引擎会自动确定哪些模块可以基于已完成的依赖项运行。
+
+### 路径跟踪
+引擎会主动跟踪工作流中的执行路径。路由器和条件模块会动态更新这些路径，确保仅执行相关模块。
+
+### 基于层的处理
+引擎不会逐个执行模块，而是识别可以并行运行的模块层，从而优化复杂工作流的性能。
+
+### 执行上下文
+每个工作流在执行期间都会维护一个丰富的上下文，其中包含：
+- 模块输出和状态
+- 活跃的执行路径
+- 循环和并行迭代跟踪
+- 环境变量
+- 路由决策
+
+## 执行触发器
+
+工作流可以通过多种渠道执行：
+
+- **手动**：直接在编辑器中测试和调试
+- **部署为 API**：创建一个使用 API 密钥保护的 HTTP 端点
+- **部署为聊天**：在自定义子域上创建一个对话界面
+- **Webhooks**：响应来自第三方服务的外部事件
+- **定时**：使用 cron 表达式按周期性计划运行
+
+### 部署为 API
+
+当您将工作流部署为 API 时，Sim 会：
+- 创建一个唯一的 HTTP 端点：`https://sim.ai/api/workflows/{workflowId}/execute`
+- 生成一个用于身份验证的 API 密钥
+- 接受带有 JSON 负载的 POST 请求
+- 以 JSON 格式返回工作流执行结果
+
+API 调用示例：
+
+```bash
+curl -X POST https://sim.ai/api/workflows/your-workflow-id/execute \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"input": "your data here"}'
+```
+
+### 部署为聊天
+
+聊天部署为您的工作流创建一个对话界面：
+- 托管在自定义子域上：`https://your-name.sim.ai`
+- 可选身份验证（公开、密码或基于电子邮件）
+- 可使用您的品牌自定义界面
+- 流式响应实现实时交互
+- 非常适合 AI 助手、支持机器人或交互式工具
+
+每种部署方法都会将数据传递到工作流的起始块，从而开始执行流程。
+
+## 编程执行
+
+使用我们的官方 SDK 从您的应用程序中执行工作流：
+
+```bash
+# TypeScript/JavaScript
+npm install simstudio-ts-sdk
+
+# Python
+pip install simstudio-sdk
+```
+
+```typescript
+// TypeScript Example
+import { SimStudioClient } from 'simstudio-ts-sdk';
+
+const client = new SimStudioClient({ 
+  apiKey: 'your-api-key' 
+});
+
+const result = await client.executeWorkflow('workflow-id', {
+  input: { message: 'Hello' }
+});
+```
+
+## 最佳实践
+
+### 设计可靠性
+- 使用适当的回退路径优雅地处理错误
+- 对敏感数据使用环境变量
+- 在功能块中添加日志以便调试
+
+### 优化性能
+- 尽量减少外部 API 调用
+- 对独立操作使用并行执行
+- 在适当情况下使用内存块缓存结果
+
+### 监控执行
+- 定期查看日志以了解性能模式
+- 跟踪 AI 模型使用的成本
+- 使用工作流快照调试问题
+
+## 接下来是什么？
+
+从 [执行基础](/execution/basics) 开始，了解工作流如何运行，然后探索 [日志记录](/execution/logging) 以监控您的执行情况，以及 [成本计算](/execution/costs) 以优化您的支出。

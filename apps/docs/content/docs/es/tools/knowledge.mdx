@@ -1,0 +1,121 @@
+---
+title: Conocimiento
+description: Usa búsqueda vectorial
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="knowledge"
+  color="#00B0B0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='1.5'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+    >
+      <path d='M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14' />
+      <path d='m7.5 4.27 9 5.15' />
+      <polyline points='3.29 7 12 12 20.71 7' />
+      <line x1='12' x2='12' y1='22' y2='12' />
+      <circle cx='18.5' cy='15.5' r='2.5' />
+      <path d='M20.27 17.27 22 19' />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+La base de conocimiento de Sim es una potente función nativa que te permite crear, gestionar y consultar bases de conocimiento personalizadas directamente dentro de la plataforma. Utilizando embeddings de IA avanzados y tecnología de búsqueda vectorial, el bloque de base de conocimiento te permite integrar capacidades de búsqueda inteligente en tus flujos de trabajo, facilitando encontrar y utilizar información relevante en toda tu organización.
+
+El sistema de base de conocimiento proporciona una solución integral para gestionar el conocimiento organizacional a través de su arquitectura flexible y escalable. Con sus capacidades de búsqueda vectorial integradas, los equipos pueden realizar búsquedas semánticas que comprenden el significado y el contexto, yendo más allá de la tradicional coincidencia de palabras clave.
+
+Las características principales de la base de conocimiento incluyen:
+
+- Búsqueda semántica: búsqueda avanzada impulsada por IA que comprende el significado y contexto, no solo palabras clave
+- Embeddings vectoriales: conversión automática de texto en vectores multidimensionales para una coincidencia inteligente de similitud
+- Bases de conocimiento personalizadas: crea y gestiona múltiples bases de conocimiento para diferentes propósitos o departamentos
+- Tipos de contenido flexibles: soporte para varios formatos de documentos y tipos de contenido
+- Actualizaciones en tiempo real: indexación inmediata de nuevo contenido para búsqueda instantánea
+
+En Sim, el bloque de Base de Conocimiento permite a tus agentes realizar búsquedas semánticas inteligentes en tus bases de conocimiento personalizadas. Esto crea oportunidades para la recuperación automatizada de información, recomendaciones de contenido y descubrimiento de conocimiento como parte de tus flujos de trabajo de IA. La integración permite a los agentes buscar y recuperar información relevante de forma programática, facilitando tareas automatizadas de gestión del conocimiento y asegurando que la información importante sea fácilmente accesible. Al aprovechar el bloque de Base de Conocimiento, puedes crear agentes inteligentes que mejoren el descubrimiento de información mientras automatizan tareas rutinarias de gestión del conocimiento, mejorando la eficiencia del equipo y asegurando un acceso consistente al conocimiento organizacional.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Realiza búsquedas vectoriales semánticas en bases de conocimiento, sube fragmentos individuales a documentos existentes o crea nuevos documentos a partir de contenido de texto. Utiliza embeddings avanzados de IA para entender el significado y contexto en las operaciones de búsqueda.
+
+## Herramientas
+
+### `knowledge_search`
+
+Busca contenido similar en una base de conocimiento utilizando similitud vectorial
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `knowledgeBaseId` | string | Sí | ID de la base de conocimiento en la que buscar |
+| `query` | string | No | Texto de consulta de búsqueda \(opcional cuando se usan filtros de etiquetas\) |
+| `topK` | number | No | Número de resultados más similares a devolver \(1-100\) |
+| `tagFilters` | any | No | Array de filtros de etiquetas con propiedades tagName y tagValue |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `results` | array | Array de resultados de búsqueda de la base de conocimiento |
+
+### `knowledge_upload_chunk`
+
+Subir un nuevo fragmento a un documento en una base de conocimiento
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Sí | ID de la base de conocimiento que contiene el documento |
+| `documentId` | string | Sí | ID del documento al que se subirá el fragmento |
+| `content` | string | Sí | Contenido del fragmento a subir |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `data` | object | Información sobre el fragmento subido |
+
+### `knowledge_create_document`
+
+Crear un nuevo documento en una base de conocimiento
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Sí | ID de la base de conocimiento que contiene el documento |
+| `name` | string | Sí | Nombre del documento |
+| `content` | string | Sí | Contenido del documento |
+| `tag1` | string | No | Valor de etiqueta 1 para el documento |
+| `tag2` | string | No | Valor de etiqueta 2 para el documento |
+| `tag3` | string | No | Valor de etiqueta 3 para el documento |
+| `tag4` | string | No | Valor de etiqueta 4 para el documento |
+| `tag5` | string | No | Valor de etiqueta 5 para el documento |
+| `tag6` | string | No | Valor de etiqueta 6 para el documento |
+| `tag7` | string | No | Valor de etiqueta 7 para el documento |
+| `documentTagsData` | array | No | Datos de etiquetas estructurados con nombres, tipos y valores |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `data` | object | Información sobre el documento creado |
+
+## Notas
+
+- Categoría: `blocks`
+- Tipo: `knowledge`

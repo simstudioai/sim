@@ -1,0 +1,109 @@
+---
+title: Etiquetas de conexión
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Video } from '@/components/ui/video'
+
+Las etiquetas de conexión son representaciones visuales de los datos disponibles desde bloques conectados, proporcionando una manera fácil de referenciar datos entre bloques y salidas de bloques anteriores en tu flujo de trabajo.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="connections.mp4" />
+</div>
+
+### ¿Qué son las etiquetas de conexión?
+
+Las etiquetas de conexión son elementos interactivos que aparecen cuando los bloques están conectados. Representan los datos que pueden fluir de un bloque a otro y te permiten:
+
+- Visualizar datos disponibles de bloques de origen
+- Referenciar campos de datos específicos en bloques de destino
+- Crear flujos de datos dinámicos entre bloques
+
+<Callout type="info">
+  Las etiquetas de conexión facilitan ver qué datos están disponibles de bloques anteriores y usarlos en tu
+  bloque actual sin tener que recordar estructuras de datos complejas.
+</Callout>
+
+## Uso de etiquetas de conexión
+
+Hay dos formas principales de usar etiquetas de conexión en tus flujos de trabajo:
+
+<div className="my-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+  <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+    <h3 className="mb-2 text-lg font-medium">Arrastrar y soltar</h3>
+    <div className="text-sm text-gray-600 dark:text-gray-400">
+      Haz clic en una etiqueta de conexión y arrástrala a los campos de entrada de los bloques de destino. Aparecerá un menú desplegable
+      mostrando los valores disponibles.
+    </div>
+    <ol className="mt-2 list-decimal pl-5 text-sm text-gray-600 dark:text-gray-400">
+      <li>Pasa el cursor sobre una etiqueta de conexión para ver los datos disponibles</li>
+      <li>Haz clic y arrastra la etiqueta a un campo de entrada</li>
+      <li>Selecciona el campo de datos específico del menú desplegable</li>
+      <li>La referencia se inserta automáticamente</li>
+    </ol>
+  </div>
+
+  <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+    <h3 className="mb-2 text-lg font-medium">Sintaxis de corchetes angulares</h3>
+    <div className="text-sm text-gray-600 dark:text-gray-400">
+      Escribe <code>&lt;&gt;</code> en los campos de entrada para ver un menú desplegable de valores de conexión disponibles
+      de bloques anteriores.
+    </div>
+    <ol className="mt-2 list-decimal pl-5 text-sm text-gray-600 dark:text-gray-400">
+      <li>Haz clic en cualquier campo de entrada donde quieras usar datos conectados</li>
+      <li>
+        Escribe <code>&lt;&gt;</code> para activar el menú desplegable de conexión
+      </li>
+      <li>Navega y selecciona los datos que quieres referenciar</li>
+      <li>Continúa escribiendo o selecciona del menú desplegable para completar la referencia</li>
+    </ol>
+  </div>
+</div>
+
+## Sintaxis de etiquetas
+
+Las etiquetas de conexión utilizan una sintaxis simple para hacer referencia a los datos:
+
+```
+<blockName.path.to.data>
+```
+
+Donde:
+
+- `blockName` es el nombre del bloque de origen
+- `path.to.data` es la ruta al campo de datos específico
+
+Por ejemplo:
+
+- `<agent1.content>` - Hace referencia al campo de contenido de un bloque con ID "agent1"
+- `<api2.data.users[0].name>` - Hace referencia al nombre del primer usuario en el array de usuarios desde el campo de datos de un bloque con ID "api2"
+
+## Referencias dinámicas de etiquetas
+
+Las etiquetas de conexión se evalúan en tiempo de ejecución, lo que significa:
+
+1. Siempre hacen referencia a los datos más actuales
+2. Pueden utilizarse en expresiones y combinarse con texto estático
+3. Pueden anidarse dentro de otras estructuras de datos
+
+### Ejemplos
+
+```javascript
+// Reference in text
+"The user's name is <userBlock.name>"
+
+// Reference in JSON
+{
+  "userName": "<userBlock.name>",
+  "orderTotal": <apiBlock.data.total>
+}
+
+// Reference in code
+const greeting = "Hello, <userBlock.name>!";
+const total = <apiBlock.data.total> * 1.1; // Add 10% tax
+```
+
+<Callout type="warning">
+  Cuando utilices etiquetas de conexión en contextos numéricos, asegúrate de que los datos referenciados sean realmente un número
+  para evitar problemas de conversión de tipos.
+</Callout>

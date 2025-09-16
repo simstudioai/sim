@@ -1,0 +1,225 @@
+---
+title: Routeur
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+
+Le bloc Routeur utilise l'IA pour décider intelligemment quel chemin votre flux de travail doit emprunter ensuite, en acheminant l'exécution du flux selon des conditions ou une logique spécifiques. Contrairement aux blocs Condition qui utilisent des règles simples, les blocs Routeur peuvent comprendre le contexte et prendre des décisions d'acheminement intelligentes basées sur l'analyse du contenu.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/router.png"
+    alt="Bloc Routeur avec chemins multiples"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Aperçu
+
+Le bloc Routeur vous permet de :
+
+<Steps>
+  <Step>
+    <strong>Routage intelligent du contenu</strong> : utiliser l'IA pour comprendre l'intention et le contexte
+  </Step>
+  <Step>
+    <strong>Sélection dynamique de chemin</strong> : acheminer les flux de travail basés sur l'analyse de contenu non structuré
+  </Step>
+  <Step>
+    <strong>Décisions contextuelles</strong> : prendre des choix d'acheminement intelligents au-delà des règles simples
+  </Step>
+  <Step>
+    <strong>Gestion multi-chemins</strong> : gérer des flux de travail complexes avec plusieurs destinations potentielles
+  </Step>
+</Steps>
+
+## Routeur vs blocs Condition
+
+<Accordions>
+  <Accordion title="Quand utiliser le Routeur">
+    - Analyse de contenu par IA nécessaire
+    - Types de contenu non structurés ou variables
+    - Routage basé sur l'intention (ex. : « acheminer les tickets de support vers les départements »)
+    - Prise de décision contextuelle requise
+  </Accordion>
+  <Accordion title="Quand utiliser la Condition">
+    - Décisions simples basées sur des règles
+    - Données structurées ou comparaisons numériques
+    - Routage rapide et déterministe nécessaire
+    - Logique booléenne suffisante
+  </Accordion>
+</Accordions>
+
+## Comment ça fonctionne
+
+Le bloc Routeur :
+
+<Steps>
+  <Step>
+    <strong>Analyse le contenu</strong> : utilise un LLM pour comprendre le contenu et le contexte d'entrée
+  </Step>
+  <Step>
+    <strong>Évalue les cibles</strong> : compare le contenu aux blocs de destination disponibles
+  </Step>
+  <Step>
+    <strong>Sélectionne la destination</strong> : identifie le chemin le plus approprié selon l'intention
+  </Step>
+  <Step>
+    <strong>Achemine l'exécution</strong> : dirige le flux de travail vers le bloc sélectionné
+  </Step>
+</Steps>
+
+## Options de configuration
+
+### Contenu/Prompt
+
+Le contenu ou prompt que le Routeur analysera pour prendre des décisions d'acheminement. Cela peut être :
+
+- Une requête ou saisie directe de l'utilisateur
+- La sortie d'un bloc précédent
+- Un message généré par le système
+
+### Blocs cibles
+
+Les blocs de destination possibles parmi lesquels le Routeur peut sélectionner. Le Routeur détectera automatiquement les blocs connectés, mais vous pouvez également :
+
+- Personnaliser les descriptions des blocs cibles pour améliorer la précision de l'acheminement
+- Spécifier des critères d'acheminement pour chaque bloc cible
+- Exclure certains blocs d'être considérés comme cibles d'acheminement
+
+### Sélection du modèle
+
+Choisissez un modèle d'IA pour alimenter la décision d'acheminement :
+
+**OpenAI** : GPT-4o, o1, o3, o4-mini, gpt-4.1  \
+**Anthropic** : Claude 3.7 Sonnet \
+**Google** : Gemini 2.5 Pro, Gemini 2.0 Flash \
+**Autres fournisseurs** : Groq, Cerebras, xAI, DeepSeek \
+**Modèles locaux** : Tout modèle fonctionnant sur Ollama 
+
+<div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg">
+  <Video src="router-model-dropdown.mp4" width={500} height={350} />
+</div>
+
+**Recommandation** : utilisez des modèles avec de fortes capacités de raisonnement comme GPT-4o ou Claude 3.7 Sonnet pour des décisions d'acheminement plus précises.
+
+### Clé API
+
+Votre clé API pour le fournisseur LLM sélectionné. Elle est stockée en toute sécurité et utilisée pour l'authentification.
+
+### Accès aux résultats
+
+Après qu'un routeur prend une décision, vous pouvez accéder à ses sorties :
+
+- **`<router.prompt>`** : résumé du prompt d'acheminement utilisé
+- **`<router.selected_path>`** : détails du bloc de destination choisi
+- **`<router.tokens>`** : statistiques d'utilisation des tokens par le LLM
+- **`<router.cost>`** : résumé des coûts pour l'appel d'acheminement (entrée, sortie, total)
+- **`<router.model>`** : le modèle utilisé pour la prise de décision
+
+## Fonctionnalités avancées
+
+### Critères d'acheminement personnalisés
+
+Définissez des critères spécifiques pour chaque bloc cible :
+
+```javascript
+// Example routing descriptions
+Target Block 1: "Technical support issues, API problems, integration questions"
+Target Block 2: "Billing inquiries, subscription changes, payment issues"
+Target Block 3: "General questions, feedback, feature requests"
+```
+
+## Entrées et sorties
+
+<Tabs items={['Configuration', 'Variables']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Contenu/Prompt</strong> : texte à analyser pour les décisions de routage
+      </li>
+      <li>
+        <strong>Blocs cibles</strong> : blocs connectés comme destinations potentielles
+      </li>
+      <li>
+        <strong>Modèle</strong> : modèle d'IA pour l'analyse de routage
+      </li>
+      <li>
+        <strong>Clé API</strong> : authentification pour le fournisseur LLM sélectionné
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>router.prompt</strong> : résumé du prompt de routage utilisé
+      </li>
+      <li>
+        <strong>router.selected_path</strong> : détails de la destination choisie
+      </li>
+      <li>
+        <strong>router.tokens</strong> : statistiques d'utilisation des tokens
+      </li>
+      <li>
+        <strong>router.cost</strong> : résumé des coûts pour l'appel de routage (entrée, sortie, total)
+      </li>
+      <li>
+        <strong>router.model</strong> : modèle utilisé pour la prise de décision
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Exemples de cas d'utilisation
+
+### Triage du support client
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scénario : acheminer les tickets de support vers des départements spécialisés</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>L'utilisateur soumet une demande de support via un formulaire</li>
+    <li>Le routeur analyse le contenu et le contexte du ticket</li>
+    <li>Problèmes techniques → agent de support technique</li>
+    <li>Questions de facturation → agent de support financier</li>
+  </ol>
+</div>
+
+### Classification de contenu
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scénario : classifier et acheminer le contenu généré par les utilisateurs</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>L'utilisateur soumet du contenu ou des commentaires</li>
+    <li>Le routeur analyse le type de contenu et le sentiment</li>
+    <li>Demandes de fonctionnalités → workflow de l'équipe produit</li>
+    <li>Signalements de bugs → workflow du support technique</li>
+  </ol>
+</div>
+
+### Qualification des leads
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scénario : acheminer les leads selon des critères de qualification</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Informations du lead capturées via un formulaire</li>
+    <li>Le routeur analyse la taille de l'entreprise, le secteur et les besoins</li>
+    <li>Leads d'entreprises → équipe commerciale avec tarification personnalisée</li>
+    <li>Leads de PME → processus d'intégration en libre-service</li>
+  </ol>
+</div>
+
+## Bonnes pratiques
+
+- **Fournir des descriptions claires des cibles** : aidez le routeur à comprendre quand sélectionner chaque destination avec des descriptions spécifiques et détaillées
+- **Utiliser des critères de routage spécifiques** : définissez des conditions claires et des exemples pour chaque chemin afin d'améliorer la précision
+- **Implémenter des chemins de secours** : connectez une destination par défaut lorsqu'aucun chemin spécifique n'est approprié
+- **Tester avec des entrées diverses** : assurez-vous que le routeur gère différents types d'entrées, cas limites et contenus inattendus
+- **Surveiller les performances de routage** : examinez régulièrement les décisions de routage et affinez les critères en fonction des modèles d'utilisation réels
+- **Choisir des modèles appropriés** : utilisez des modèles avec de fortes capacités de raisonnement pour des décisions de routage complexes

@@ -1,0 +1,141 @@
+---
+title: Discord
+description: Interagir avec Discord
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="discord"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      
+      
+      viewBox='0 -28.5 256 256'
+      version='1.1'
+      xmlns='http://www.w3.org/2000/svg'
+      xmlnsXlink='http://www.w3.org/1999/xlink'
+      preserveAspectRatio='xMidYMid'
+    >
+      <g>
+        <path
+          d='M216.856339,16.5966031 C200.285002,8.84328665 182.566144,3.2084988 164.041564,0 C161.766523,4.11318106 159.108624,9.64549908 157.276099,14.0464379 C137.583995,11.0849896 118.072967,11.0849896 98.7430163,14.0464379 C96.9108417,9.64549908 94.1925838,4.11318106 91.8971895,0 C73.3526068,3.2084988 55.6133949,8.86399117 39.0420583,16.6376612 C5.61752293,67.146514 -3.4433191,116.400813 1.08711069,164.955721 C23.2560196,181.510915 44.7403634,191.567697 65.8621325,198.148576 C71.0772151,190.971126 75.7283628,183.341335 79.7352139,175.300261 C72.104019,172.400575 64.7949724,168.822202 57.8887866,164.667963 C59.7209612,163.310589 61.5131304,161.891452 63.2445898,160.431257 C105.36741,180.133187 151.134928,180.133187 192.754523,160.431257 C194.506336,161.891452 196.298154,163.310589 198.110326,164.667963 C191.183787,168.842556 183.854737,172.420929 176.223542,175.320965 C180.230393,183.341335 184.861538,190.991831 190.096624,198.16893 C211.238746,191.588051 232.743023,181.531619 254.911949,164.955721 C260.227747,108.668201 245.831087,59.8662432 216.856339,16.5966031 Z M85.4738752,135.09489 C72.8290281,135.09489 62.4592217,123.290155 62.4592217,108.914901 C62.4592217,94.5396472 72.607595,82.7145587 85.4738752,82.7145587 C98.3405064,82.7145587 108.709962,94.5189427 108.488529,108.914901 C108.508531,123.290155 98.3405064,135.09489 85.4738752,135.09489 Z M170.525237,135.09489 C157.88039,135.09489 147.510584,123.290155 147.510584,108.914901 C147.510584,94.5396472 157.658606,82.7145587 170.525237,82.7145587 C183.391518,82.7145587 193.761324,94.5189427 193.539891,108.914901 C193.539891,123.290155 183.391518,135.09489 170.525237,135.09489 Z'
+          fill='#5865F2'
+          fillRule='nonzero'
+        />
+      </g>
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Discord](https://discord.com) est une plateforme de communication puissante qui vous permet de vous connecter avec vos amis, des communautés et des équipes. Elle offre une gamme de fonctionnalités pour la collaboration en équipe, notamment des canaux textuels, des canaux vocaux et des appels vidéo.
+
+Avec un compte Discord ou un bot, vous pouvez :
+
+- **Envoyer des messages** : envoyer des messages dans un canal spécifique
+- **Obtenir des messages** : récupérer des messages d'un canal spécifique
+- **Obtenir des informations sur un serveur** : récupérer des informations sur un serveur spécifique
+- **Obtenir des informations sur un utilisateur** : récupérer des informations sur un utilisateur spécifique
+
+Dans Sim, l'intégration Discord permet à vos agents d'accéder et d'exploiter les serveurs Discord de votre organisation. Les agents peuvent récupérer des informations depuis les canaux Discord, rechercher des utilisateurs spécifiques, obtenir des informations sur les serveurs et envoyer des messages. Cela permet à vos workflows de s'intégrer à vos communautés Discord, d'automatiser les notifications et de créer des expériences interactives.
+
+> **Important :** pour lire le contenu des messages, votre bot Discord doit avoir l'option « Message Content Intent » activée dans le portail développeur Discord. Sans cette permission, vous recevrez toujours les métadonnées des messages, mais le champ de contenu apparaîtra vide.
+
+Les composants Discord dans Sim utilisent un chargement paresseux efficace, ne récupérant les données que lorsque nécessaire pour minimiser les appels API et éviter les limitations de taux. Le rafraîchissement des jetons se produit automatiquement en arrière-plan pour maintenir votre connexion.
+
+### Configuration de votre bot Discord
+
+1. Accédez au [Portail des développeurs Discord](https://discord.com/developers/applications)
+2. Créez une nouvelle application et naviguez vers l'onglet « Bot »
+3. Créez un bot et copiez votre jeton de bot
+4. Sous « Intents privilégiés de passerelle », activez l'**Intent de contenu des messages** pour lire le contenu des messages
+5. Invitez votre bot sur vos serveurs avec les permissions appropriées
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Connectez-vous à Discord pour envoyer des messages, gérer des canaux et interagir avec les serveurs. Automatisez les notifications, la gestion de communauté et intégrez Discord dans vos flux de travail.
+
+## Outils
+
+### `discord_send_message`
+
+Envoyer un message à un canal Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `channelId` | chaîne | Oui | L'ID du canal Discord où envoyer le message |
+| `content` | chaîne | Non | Le contenu textuel du message |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `data` | objet | Données du message Discord |
+
+### `discord_get_messages`
+
+Récupérer des messages d'un canal Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `channelId` | chaîne | Oui | L'ID du canal Discord pour récupérer les messages |
+| `limit` | nombre | Non | Nombre maximum de messages à récupérer \(par défaut : 10, max : 100\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `messages` | tableau | Tableau des messages Discord avec métadonnées complètes |
+
+### `discord_get_server`
+
+Récupérer des informations sur un serveur Discord (guilde)
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Le jeton du bot pour l'authentification |
+| `serverId` | chaîne | Oui | L'ID du serveur Discord \(ID de guilde\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `data` | objet | Informations sur le serveur Discord \(guilde\) |
+
+### `discord_get_user`
+
+Récupérer des informations sur un utilisateur Discord
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `botToken` | chaîne | Oui | Jeton du bot Discord pour l'authentification |
+| `userId` | chaîne | Oui | L'ID de l'utilisateur Discord |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Message de succès ou d'erreur |
+| `data` | object | Informations de l'utilisateur Discord |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `discord`

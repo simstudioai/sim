@@ -1,0 +1,127 @@
+---
+title: Sharepoint
+description: Leer y crear páginas
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sharepoint"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"  fill='currentColor' viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'>
+      <circle fill='#036C70' cx='16.31' cy='8.90' r='8.90' />
+      <circle fill='#1A9BA1' cx='23.72' cy='17.05' r='8.15' />
+      <circle fill='#37C6D0' cx='17.42' cy='24.83' r='6.30' />
+      <path
+        fill='#000000'
+        opacity='0.1'
+        d='M17.79,8.03v15.82c0,0.55-0.34,1.04-0.85,1.25c-0.16,0.07-0.34,0.10-0.51,0.10H11.13c-0.01-0.13-0.01-0.24-0.01-0.37c0-0.12,0-0.25,0.01-0.37c0.14-2.37,1.59-4.46,3.77-5.40v-1.38c-4.85-0.77-8.15-5.32-7.39-10.17c0.01-0.03,0.01-0.07,0.02-0.10c0.04-0.25,0.09-0.50,0.16-0.74h8.74c0.74,0,1.36,0.60,1.36,1.36z'
+      />
+      <path
+        fill='#000000'
+        opacity='0.2'
+        d='M15.69,7.41H7.54c-0.82,4.84,2.43,9.43,7.27,10.25c0.15,0.02,0.29,0.05,0.44,0.06c-2.30,1.09-3.97,4.18-4.12,6.73c-0.01,0.12-0.02,0.25-0.01,0.37c0,0.13,0,0.24,0.01,0.37c0.01,0.25,0.05,0.50,0.10,0.74h4.47c0.55,0,1.04-0.34,1.25-0.85c0.07-0.16,0.10-0.34,0.10-0.51V8.77c0-0.75-0.61-1.36-1.36-1.36z'
+      />
+      <path
+        fill='#000000'
+        opacity='0.2'
+        d='M15.69,7.41H7.54c-0.82,4.84,2.43,9.43,7.27,10.26c0.10,0.02,0.20,0.03,0.30,0.05c-2.22,1.17-3.83,4.26-3.97,6.75h4.56c0.75,0,1.35-0.61,1.36-1.36V8.77c0-0.75-0.61-1.36-1.36-1.36z'
+      />
+      <path
+        fill='#000000'
+        opacity='0.2'
+        d='M14.95,7.41H7.54c-0.78,4.57,2.08,8.97,6.58,10.11c-1.84,2.43-2.27,5.61-2.58,7.22h3.82c0.75,0,1.35-0.61,1.36-1.36V8.77c0-0.75-0.61-1.36-1.36-1.36z'
+      />
+      <path
+        fill='#008789'
+        d='M1.36,7.41h13.58c0.75,0,1.36,0.61,1.36,1.36v13.58c0,0.75-0.61,1.36-1.36,1.36H1.36c-0.75,0-1.36-0.61-1.36-1.36V8.77C0,8.02,0.61,7.41,1.36,7.41z'
+      />
+      <path
+        fill='#FFFFFF'
+        d='M6.07,15.42c-0.32-0.21-0.58-0.49-0.78-0.82c-0.19-0.34-0.28-0.73-0.27-1.12c-0.02-0.53,0.16-1.05,0.50-1.46c0.36-0.41,0.82-0.71,1.34-0.87c0.59-0.19,1.21-0.29,1.83-0.28c0.82-0.03,1.63,0.08,2.41,0.34v1.71c-0.34-0.20-0.71-0.35-1.09-0.44c-0.42-0.10-0.84-0.15-1.27-0.15c-0.45-0.02-0.90,0.08-1.31,0.28c-0.31,0.14-0.52,0.44-0.52,0.79c0,0.21,0.08,0.41,0.22,0.56c0.17,0.18,0.37,0.32,0.59,0.42c0.25,0.12,0.62,0.29,1.11,0.49c0.05,0.02,0.11,0.04,0.16,0.06c0.49,0.19,0.96,0.42,1.40,0.69c0.34,0.21,0.62,0.49,0.83,0.83c0.21,0.39,0.31,0.82,0.30,1.26c0.02,0.54-0.14,1.08-0.47,1.52c-0.33,0.40-0.77,0.69-1.26,0.85c-0.58,0.18-1.19,0.27-1.80,0.26c-0.55,0-1.09-0.04-1.63-0.13c-0.45-0.07-0.90-0.20-1.32-0.39v-1.80c0.40,0.29,0.86,0.50,1.34,0.64c0.48,0.15,0.97,0.23,1.47,0.24c0.46,0.03,0.92-0.07,1.34-0.28c0.29-0.16,0.46-0.47,0.46-0.80c0-0.23-0.09-0.45-0.25-0.61c-0.20-0.20-0.44-0.36-0.69-0.48c-0.30-0.15-0.73-0.34-1.31-0.59C6.91,16.14,6.48,15.80,6.07,15.42z'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[SharePoint](https://www.microsoft.com/en-us/microsoft-365/sharepoint/collaboration) es una plataforma colaborativa de Microsoft que permite a los usuarios crear y gestionar sitios web internos, compartir documentos y organizar recursos de equipo. Proporciona una solución potente y flexible para crear espacios de trabajo digitales y agilizar la gestión de contenidos en las organizaciones.
+
+Con SharePoint, puedes:
+
+- **Crear sitios de equipo y comunicación**: Configura páginas y portales para facilitar la colaboración, anuncios y distribución de contenido
+- **Organizar y compartir contenido**: Almacena documentos, gestiona archivos y habilita el control de versiones con capacidades seguras de compartición
+- **Personalizar páginas**: Añade partes de texto para adaptar cada sitio a las necesidades de tu equipo
+- **Mejorar la capacidad de descubrimiento**: Utiliza herramientas de metadatos, búsqueda y navegación para ayudar a los usuarios a encontrar rápidamente lo que necesitan
+- **Colaborar de forma segura**: Controla el acceso con configuraciones robustas de permisos e integración con Microsoft 365
+
+En Sim, la integración con SharePoint permite a tus agentes crear y acceder a sitios y páginas de SharePoint como parte de sus flujos de trabajo. Esto facilita la gestión automatizada de documentos, el intercambio de conocimientos y la creación de espacios de trabajo sin esfuerzo manual. Los agentes pueden generar nuevas páginas de proyectos, cargar o recuperar archivos y organizar recursos de forma dinámica, basándose en las entradas del flujo de trabajo. Al conectar Sim con SharePoint, incorporas la colaboración estructurada y la gestión de contenidos en tus flujos de automatización, dando a tus agentes la capacidad de coordinar actividades de equipo, mostrar información clave y mantener una única fuente de verdad en toda tu organización.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra la funcionalidad de Sharepoint para gestionar páginas. Lee y crea páginas, y lista sitios utilizando autenticación OAuth. Admite operaciones de página con tipos MIME personalizados y organización de carpetas.
+
+## Herramientas
+
+### `sharepoint_create_page`
+
+Crear una nueva página en un sitio de SharePoint
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | No | El ID del sitio de SharePoint \(uso interno\) |
+| `siteSelector` | string | No | Seleccionar el sitio de SharePoint |
+| `pageName` | string | Sí | El nombre de la página a crear |
+| `pageTitle` | string | No | El título de la página \(por defecto es el nombre de la página si no se proporciona\) |
+| `pageContent` | string | No | El contenido de la página |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `page` | object | Información de la página de SharePoint creada |
+
+### `sharepoint_read_page`
+
+Leer una página específica de un sitio de SharePoint
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `siteSelector` | string | No | Seleccionar el sitio de SharePoint |
+| `siteId` | string | No | El ID del sitio de SharePoint \(uso interno\) |
+| `pageId` | string | No | El ID de la página a leer |
+| `pageName` | string | No | El nombre de la página a leer \(alternativa a pageId\) |
+| `maxPages` | number | No | Número máximo de páginas a devolver cuando se listan todas las páginas \(predeterminado: 10, máximo: 50\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `page` | objeto | Información sobre la página de SharePoint |
+
+### `sharepoint_list_sites`
+
+Listar detalles de todos los sitios de SharePoint
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `siteSelector` | cadena | No | Seleccionar el sitio de SharePoint |
+| `groupId` | cadena | No | El ID del grupo para acceder a un sitio de equipo de grupo |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `site` | objeto | Información sobre el sitio actual de SharePoint |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `sharepoint`

@@ -1,0 +1,140 @@
+---
+title: Google Drive
+description: Créer, téléverser et lister des fichiers
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_drive"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      xmlns='http://www.w3.org/2000/svg'
+      viewBox='0 0 87.3 78'
+      
+      
+      
+    >
+      <path
+        d='m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z'
+        fill='#0066da'
+      />
+      <path
+        d='m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z'
+        fill='#00ac47'
+      />
+      <path
+        d='m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z'
+        fill='#ea4335'
+      />
+      <path
+        d='m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z'
+        fill='#00832d'
+      />
+      <path
+        d='m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z'
+        fill='#2684fc'
+      />
+      <path
+        d='m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z'
+        fill='#ffba00'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Drive](https://drive.google.com) est le service de stockage cloud et de synchronisation de fichiers de Google qui permet aux utilisateurs de stocker des fichiers, de synchroniser des fichiers entre appareils et de partager des fichiers avec d'autres personnes. En tant que composant essentiel de l'écosystème de productivité de Google, Google Drive offre des capacités robustes de stockage, d'organisation et de collaboration.
+
+Apprenez à intégrer l'outil Google Drive dans Sim pour extraire sans effort des informations de votre Drive à travers vos flux de travail. Ce tutoriel vous guide dans la connexion à Google Drive, la configuration de la récupération de données et l'utilisation de documents et fichiers stockés pour améliorer l'automatisation. Parfait pour synchroniser des données importantes avec vos agents en temps réel.
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/cRoRr4b-EAs"
+  title="Utiliser l'outil Google Drive dans Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Avec Google Drive, vous pouvez :
+
+- **Stocker des fichiers dans le cloud** : téléverser et accéder à vos fichiers depuis n'importe où avec un accès internet
+- **Organiser le contenu** : créer des dossiers, utiliser le codage couleur et mettre en œuvre des conventions de nommage
+- **Partager et collaborer** : contrôler les permissions d'accès et travailler simultanément sur des fichiers
+- **Rechercher efficacement** : trouver rapidement des fichiers grâce à la puissante technologie de recherche de Google
+- **Accéder depuis différents appareils** : utiliser Google Drive sur ordinateur, mobile et plateformes web
+- **Intégrer avec d'autres services** : se connecter avec Google Docs, Sheets, Slides et des applications tierces
+
+Dans Sim, l'intégration de Google Drive permet à vos agents d'interagir directement avec votre stockage cloud de manière programmatique. Cela permet des scénarios d'automatisation puissants tels que la gestion de fichiers, l'organisation de contenu et les flux de travail documentaires. Vos agents peuvent téléverser de nouveaux fichiers dans des dossiers spécifiques, télécharger des fichiers existants pour traiter leur contenu et lister le contenu des dossiers pour naviguer dans votre structure de stockage. Cette intégration comble le fossé entre vos flux de travail IA et votre système de gestion documentaire, permettant des opérations de fichiers fluides sans intervention manuelle. En connectant Sim avec Google Drive, vous pouvez automatiser les flux de travail basés sur des fichiers, gérer intelligemment les documents et incorporer des opérations de stockage cloud dans les capacités de votre agent.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez les fonctionnalités de Google Drive pour gérer les fichiers et dossiers. Téléversez de nouveaux fichiers, obtenez le contenu de fichiers existants, créez de nouveaux dossiers et listez le contenu des dossiers en utilisant l'authentification OAuth. Prend en charge les opérations de fichiers avec des types MIME personnalisés et l'organisation des dossiers.
+
+## Outils
+
+### `google_drive_upload`
+
+Téléverser un fichier vers Google Drive
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `fileName` | chaîne | Oui | Le nom du fichier à téléverser |
+| `content` | chaîne | Oui | Le contenu du fichier à téléverser |
+| `mimeType` | chaîne | Non | Le type MIME du fichier à téléverser |
+| `folderSelector` | chaîne | Non | Sélectionnez le dossier où téléverser le fichier |
+| `folderId` | chaîne | Non | L'ID du dossier où téléverser le fichier \(usage interne\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | json | Métadonnées du fichier téléchargé incluant l'ID, le nom et les liens |
+
+### `google_drive_create_folder`
+
+Créer un nouveau dossier dans Google Drive
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileName` | string | Oui | Nom du dossier à créer |
+| `folderSelector` | string | Non | Sélectionner le dossier parent dans lequel créer le dossier |
+| `folderId` | string | Non | ID du dossier parent \(usage interne\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | json | Métadonnées du dossier créé incluant l'ID, le nom et les informations sur le parent |
+
+### `google_drive_list`
+
+Lister les fichiers et dossiers dans Google Drive
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `folderSelector` | string | Non | Sélectionner le dossier dont on veut lister les fichiers |
+| `folderId` | string | Non | L'ID du dossier dont on veut lister les fichiers \(usage interne\) |
+| `query` | string | Non | Une requête pour filtrer les fichiers |
+| `pageSize` | number | Non | Le nombre de fichiers à retourner |
+| `pageToken` | string | Non | Le jeton de page à utiliser pour la pagination |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `files` | json | Tableau d'objets de métadonnées de fichiers du dossier spécifié |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `google_drive`

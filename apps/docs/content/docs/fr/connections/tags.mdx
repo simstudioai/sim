@@ -1,0 +1,109 @@
+---
+title: Balises de connexion
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Video } from '@/components/ui/video'
+
+Les balises de connexion sont des représentations visuelles des données disponibles à partir des blocs connectés, offrant un moyen simple de référencer les données entre les blocs et les sorties des blocs précédents dans votre flux de travail.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="connections.mp4" />
+</div>
+
+### Que sont les balises de connexion ?
+
+Les balises de connexion sont des éléments interactifs qui apparaissent lorsque des blocs sont connectés. Elles représentent les données qui peuvent circuler d'un bloc à un autre et vous permettent de :
+
+- Visualiser les données disponibles des blocs sources
+- Référencer des champs de données spécifiques dans les blocs de destination
+- Créer des flux de données dynamiques entre les blocs
+
+<Callout type="info">
+  Les balises de connexion facilitent la visualisation des données disponibles des blocs précédents et leur utilisation dans votre
+  bloc actuel sans avoir à mémoriser des structures de données complexes.
+</Callout>
+
+## Utilisation des balises de connexion
+
+Il existe deux façons principales d'utiliser les balises de connexion dans vos flux de travail :
+
+<div className="my-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+  <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+    <h3 className="mb-2 text-lg font-medium">Glisser-déposer</h3>
+    <div className="text-sm text-gray-600 dark:text-gray-400">
+      Cliquez sur une balise de connexion et faites-la glisser dans les champs de saisie des blocs de destination. Une liste déroulante
+      apparaîtra montrant les valeurs disponibles.
+    </div>
+    <ol className="mt-2 list-decimal pl-5 text-sm text-gray-600 dark:text-gray-400">
+      <li>Survolez une balise de connexion pour voir les données disponibles</li>
+      <li>Cliquez et faites glisser la balise vers un champ de saisie</li>
+      <li>Sélectionnez le champ de données spécifique dans la liste déroulante</li>
+      <li>La référence est insérée automatiquement</li>
+    </ol>
+  </div>
+
+  <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+    <h3 className="mb-2 text-lg font-medium">Syntaxe des chevrons</h3>
+    <div className="text-sm text-gray-600 dark:text-gray-400">
+      Tapez <code>&lt;&gt;</code> dans les champs de saisie pour voir une liste déroulante des valeurs de connexion disponibles
+      des blocs précédents.
+    </div>
+    <ol className="mt-2 list-decimal pl-5 text-sm text-gray-600 dark:text-gray-400">
+      <li>Cliquez dans n'importe quel champ de saisie où vous souhaitez utiliser des données connectées</li>
+      <li>
+        Tapez <code>&lt;&gt;</code> pour déclencher la liste déroulante de connexion
+      </li>
+      <li>Parcourez et sélectionnez les données que vous souhaitez référencer</li>
+      <li>Continuez à taper ou sélectionnez dans la liste déroulante pour compléter la référence</li>
+    </ol>
+  </div>
+</div>
+
+## Syntaxe des balises
+
+Les balises de connexion utilisent une syntaxe simple pour référencer les données :
+
+```
+<blockName.path.to.data>
+```
+
+Où :
+
+- `blockName` est le nom du bloc source
+- `path.to.data` est le chemin vers le champ de données spécifique
+
+Par exemple :
+
+- `<agent1.content>` - Référence le champ de contenu d'un bloc avec l'ID "agent1"
+- `<api2.data.users[0].name>` - Référence le nom du premier utilisateur dans le tableau des utilisateurs du champ de données d'un bloc avec l'ID "api2"
+
+## Références dynamiques des balises
+
+Les balises de connexion sont évaluées à l'exécution, ce qui signifie :
+
+1. Elles référencent toujours les données les plus récentes
+2. Elles peuvent être utilisées dans des expressions et combinées avec du texte statique
+3. Elles peuvent être imbriquées dans d'autres structures de données
+
+### Exemples
+
+```javascript
+// Reference in text
+"The user's name is <userBlock.name>"
+
+// Reference in JSON
+{
+  "userName": "<userBlock.name>",
+  "orderTotal": <apiBlock.data.total>
+}
+
+// Reference in code
+const greeting = "Hello, <userBlock.name>!";
+const total = <apiBlock.data.total> * 1.1; // Add 10% tax
+```
+
+<Callout type="warning">
+  Lorsque vous utilisez des balises de connexion dans des contextes numériques, assurez-vous que les données référencées sont bien des nombres
+  pour éviter les problèmes de conversion de type.
+</Callout>

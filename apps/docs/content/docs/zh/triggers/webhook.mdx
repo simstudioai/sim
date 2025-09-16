@@ -1,0 +1,126 @@
+---
+title: Webhooks
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Video } from '@/components/ui/video'
+
+Webhook 允许外部服务通过发送 HTTP 请求到您的工作流，从外部触发工作流的执行。Sim 支持两种基于 Webhook 的触发方式。
+
+## 通用 Webhook 触发器
+
+通用 Webhook 模块创建了一个灵活的端点，可以接收任何有效负载并触发您的工作流：
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="webhooks-1.mp4" width={700} height={450} />
+</div>
+
+### 工作原理
+
+1. **添加通用 Webhook 模块** - 拖动通用 Webhook 模块以开始您的工作流
+2. **配置有效负载** - 设置预期的有效负载结构（可选）
+3. **获取 Webhook URL** - 复制自动生成的唯一端点
+4. **外部集成** - 配置您的外部服务以向此 URL 发送 POST 请求
+5. **工作流执行** - 每次对 Webhook URL 的请求都会触发工作流
+
+### 功能
+
+- **灵活的有效负载**：接受任何 JSON 格式的有效负载结构
+- **自动解析**：Webhook 数据会被自动解析并供后续模块使用
+- **身份验证**：支持可选的 Bearer Token 或自定义头部身份验证
+- **速率限制**：内置防滥用保护
+- **去重功能**：防止重复请求导致的重复执行
+
+<Callout type="info">
+通用 Webhook 触发器每次接收到 Webhook URL 的请求时都会触发，非常适合实时集成。
+</Callout>
+
+## 服务模块的触发模式
+
+或者，您可以使用特定的服务模块（如 Slack、GitHub 等）以“触发模式”创建更专业的 Webhook 端点：
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="slack-trigger.mp4" width={700} height={450} />
+</div>
+
+### 设置触发模式
+
+1. **添加服务模块** - 选择一个服务模块（例如 Slack、GitHub、Airtable）
+2. **启用触发模式** - 在模块设置中切换“用作触发器”
+3. **配置服务** - 设置该服务的身份验证和事件过滤器
+4. **Webhook 注册** - 服务会自动向外部平台注册 webhook
+5. **基于事件的执行** - 工作流仅针对该服务的特定事件触发
+
+### 何时使用每种方法
+
+**在以下情况下使用通用 Webhook：**
+- 与自定义应用程序或服务集成
+- 需要最大灵活性的有效负载结构
+- 使用没有专用模块的服务
+- 构建内部集成
+
+**在以下情况下使用触发模式：**
+- 使用支持的服务（如 Slack、GitHub 等）
+- 需要服务特定的事件过滤
+- 需要自动 webhook 注册
+- 需要为该服务处理结构化数据
+
+## 支持触发模式的服务
+
+以下服务模块支持触发模式：
+
+- **Slack** - 消息、提及、反应
+- **GitHub** - 推送、PR、问题事件  
+- **Airtable** - 记录更改
+- **Telegram** - 机器人消息和命令
+- **Gmail** - 邮件通知
+- **WhatsApp** - 消息事件
+- **Jira** - 问题更新、评论
+- **Linear** - 问题状态更改
+- **Notion** - 页面更新
+
+## 安全性和最佳实践
+
+### 身份验证选项
+
+- **Bearer Tokens**：包含 `Authorization: Bearer <token>` 标头
+- **自定义标头**：定义自定义身份验证标头
+
+### 有效负载处理
+
+- **验证**：验证传入的有效负载以防止数据格式错误
+- **大小限制**：为安全起见，webhook 有有效负载大小限制
+- **错误处理**：为无效请求配置错误响应
+
+### 测试 Webhooks
+
+1. 使用 Postman 或 curl 等工具测试您的 webhook 端点
+2. 检查工作流执行日志以进行调试
+3. 验证负载结构是否符合您的预期
+4. 测试身份验证和错误场景
+
+<Callout type="warning">
+在处理工作流中的数据之前，请始终验证和清理传入的 webhook 数据。
+</Callout>
+
+## 常见使用场景
+
+### 实时通知
+- Slack 消息触发自动响应
+- 关键事件的电子邮件通知
+
+### CI/CD 集成  
+- GitHub 推送触发部署工作流
+- 构建状态更新
+- 自动化测试流水线
+
+### 数据同步
+- Airtable 更改更新其他系统
+- 表单提交触发后续操作
+- 电商订单处理
+
+### 客户支持
+- 支持工单创建工作流
+- 自动化升级流程
+- 多渠道通信路由

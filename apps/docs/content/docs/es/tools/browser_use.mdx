@@ -1,0 +1,90 @@
+---
+title: Uso del navegador
+description: Ejecutar tareas de automatización del navegador
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="browser_use"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      version='1.0'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='0 0 150 150'
+      preserveAspectRatio='xMidYMid meet'
+    >
+      <g transform='translate(0,150) scale(0.05,-0.05)' fill='#000000' stroke='none'>
+        <path
+          d='M786 2713 c-184 -61 -353 -217 -439 -405 -76 -165 -65 -539 19 -666
+l57 -85 -48 -124 c-203 -517 -79 -930 346 -1155 159 -85 441 -71 585 28 l111
+77 196 -76 c763 -293 1353 304 1051 1063 -77 191 -77 189 -14 282 163 239 97
+660 -140 893 -235 231 -528 256 -975 83 l-96 -37 -121 67 c-144 79 -383 103
+-532 55z m459 -235 c88 -23 96 -51 22 -79 -29 -11 -84 -47 -121 -80 -57 -50
+-84 -59 -178 -59 -147 0 -190 -44 -238 -241 -102 -424 -230 -440 -230 -29 1
+417 289 606 745 488z m1046 -18 c174 -85 266 -309 239 -582 -26 -256 -165
+-165 -230 151 -73 356 -469 332 -954 -58 -587 -472 -829 -1251 -388 -1251 108
+0 126 -7 214 -80 54 -44 104 -80 113 -80 54 0 -2 -43 -89 -69 -220 -66 -426
+-22 -568 120 -599 599 871 2232 1663 1849z m-234 -510 c969 -1036 357 -1962
+-787 -1190 -254 171 -348 303 -323 454 21 128 40 123 231 -59 691 -658 1362
+-583 1052 117 -106 239 -366 585 -504 671 l-72 44 98 45 c150 68 169 63 305
+-82z m-329 -310 c161 -184 163 -160 -30 -338 -188 -173 -180 -173 -386 19
+-163 153 -163 157 7 324 218 213 219 213 409 -5z m354 -375 c92 -239 -179
+-462 -377 -309 l-46 35 186 163 c211 186 209 185 237 111z'
+        />
+      </g>
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[BrowserUse](https://browser-use.com/) es una potente plataforma de automatización de navegador que te permite crear y ejecutar tareas de navegador de forma programática. Proporciona una manera de automatizar interacciones web mediante instrucciones en lenguaje natural, permitiéndote navegar por sitios web, completar formularios, extraer datos y realizar secuencias complejas de acciones sin escribir código.
+
+Con BrowserUse, puedes:
+
+- **Automatizar interacciones web**: Navegar a sitios web, hacer clic en botones, completar formularios y realizar otras acciones de navegador
+- **Extraer datos**: Obtener contenido de sitios web, incluyendo texto, imágenes y datos estructurados
+- **Ejecutar flujos de trabajo complejos**: Encadenar múltiples acciones para completar tareas web sofisticadas
+- **Monitorear la ejecución de tareas**: Observar la ejecución de tareas de navegador en tiempo real con retroalimentación visual
+- **Procesar resultados programáticamente**: Recibir salidas estructuradas de tareas de automatización web
+
+En Sim, la integración de BrowserUse permite a tus agentes interactuar con la web como si fueran usuarios humanos. Esto posibilita escenarios como investigación, recopilación de datos, envío de formularios y pruebas web, todo a través de simples instrucciones en lenguaje natural. Tus agentes pueden recopilar información de sitios web, interactuar con aplicaciones web y realizar acciones que normalmente requerirían navegación manual, ampliando sus capacidades para incluir toda la web como recurso.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Ejecuta tareas de automatización de navegador con BrowserUse para navegar por la web, extraer datos y realizar acciones como si un usuario real estuviera interactuando con el navegador. La tarea se ejecuta de forma asíncrona y el bloque realizará sondeos hasta completarse antes de devolver los resultados.
+
+## Herramientas
+
+### `browser_use_run_task`
+
+Ejecuta una tarea de automatización de navegador usando BrowserUse
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `task` | string | Sí | Qué debe hacer el agente de navegador |
+| `variables` | json | No | Variables opcionales para usar como secretos \(formato: \{key: value\}\) |
+| `format` | string | No | Sin descripción |
+| `save_browser_data` | boolean | No | Si se deben guardar los datos del navegador |
+| `model` | string | No | Modelo LLM a utilizar \(predeterminado: gpt-4o\) |
+| `apiKey` | string | Sí | Clave API para la API de BrowserUse |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `id` | string | Identificador de ejecución de tarea |
+| `success` | boolean | Estado de finalización de tarea |
+| `output` | json | Datos de salida de la tarea |
+| `steps` | json | Pasos de ejecución realizados |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `browser_use`

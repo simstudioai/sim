@@ -1,0 +1,43 @@
+---
+title: Principes de base des connexions
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+
+## Comment fonctionnent les connexions
+
+Les connexions sont les voies qui permettent aux données de circuler entre les blocs dans votre flux de travail. Dans Sim, les connexions définissent comment l'information passe d'un bloc à un autre, permettant ainsi le flux de données à travers votre flux de travail.
+
+<Callout type="info">
+  Chaque connexion représente une relation dirigée où les données circulent de la sortie d'un bloc source
+  vers l'entrée d'un bloc de destination.
+</Callout>
+
+### Création de connexions
+
+<Steps>
+  <Step>
+    <strong>Sélectionner le bloc source</strong> : Cliquez sur le port de sortie du bloc à partir duquel vous souhaitez établir la connexion
+  </Step>
+  <Step>
+    <strong>Dessiner la connexion</strong> : Faites glisser vers le port d'entrée du bloc de destination
+  </Step>
+  <Step>
+    <strong>Confirmer la connexion</strong> : Relâchez pour créer la connexion
+  </Step>
+</Steps>
+
+### Flux de connexion
+
+Le flux de données à travers les connexions suit ces principes :
+
+1. **Flux directionnel** : Les données circulent toujours des sorties vers les entrées
+2. **Ordre d'exécution** : Les blocs s'exécutent dans l'ordre en fonction de leurs connexions
+3. **Transformation des données** : Les données peuvent être transformées lors de leur passage entre les blocs
+4. **Chemins conditionnels** : Certains blocs (comme Routeur et Condition) peuvent diriger le flux vers différents chemins
+
+<Callout type="warning">
+  La suppression d'une connexion arrêtera immédiatement le flux de données entre les blocs. Assurez-vous que c'est
+  bien ce que vous souhaitez avant de supprimer des connexions.
+</Callout>

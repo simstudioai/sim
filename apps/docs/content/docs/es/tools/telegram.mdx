@@ -1,0 +1,100 @@
+---
+title: Telegram
+description: Envía mensajes a través de Telegram o activa flujos de trabajo
+  desde eventos de Telegram
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="telegram"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      viewBox='0 0 24 24'
+      
+      
+      fill='none'
+    >
+      <circle cx='12' cy='12' r='10' fill='#0088CC' />
+      <path
+        d='M16.7 8.4c.1-.6-.4-1.1-1-.8l-9.8 4.3c-.4.2-.4.8.1.9l2.1.7c.4.1.8.1 1.1-.2l4.5-3.1c.1-.1.3.1.2.2l-3.2 3.5c-.3.3-.2.8.2 1l3.6 2.3c.4.2.9-.1 1-.5l1.2-7.8Z'
+        fill='white'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Telegram](https://telegram.org) es una plataforma de mensajería segura basada en la nube que permite una comunicación rápida y confiable en diferentes dispositivos y plataformas. Con más de 700 millones de usuarios activos mensuales, Telegram se ha establecido como uno de los servicios de mensajería líderes en el mundo, conocido por su seguridad, velocidad y potentes capacidades de API.
+
+La API de Bot de Telegram proporciona un marco robusto para crear soluciones de mensajería automatizadas e integrar funciones de comunicación en aplicaciones. Con soporte para contenido multimedia, teclados en línea y comandos personalizados, los bots de Telegram pueden facilitar patrones de interacción sofisticados y flujos de trabajo automatizados.
+
+Aprende cómo crear un disparador de webhook en Sim que inicia flujos de trabajo sin problemas a partir de mensajes de Telegram. Este tutorial te guía a través de la configuración de un webhook, su configuración con la API de bot de Telegram y la activación de acciones automatizadas en tiempo real. ¡Perfecto para agilizar tareas directamente desde tu chat!
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/9oKcJtQ0_IM"
+  title="Usa Telegram con Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Aprende cómo usar la herramienta de Telegram en Sim para automatizar sin problemas la entrega de mensajes a cualquier grupo de Telegram. Este tutorial te guía a través de la integración de la herramienta en tu flujo de trabajo, la configuración de mensajería grupal y la activación de actualizaciones automatizadas en tiempo real. ¡Perfecto para mejorar la comunicación directamente desde tu espacio de trabajo!
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/AG55LpUreGI"
+  title="Usa Telegram con Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Características principales de Telegram:
+
+- Comunicación segura: Cifrado de extremo a extremo y almacenamiento seguro en la nube para mensajes y contenido multimedia
+- Plataforma de bots: Potente API de bots para crear soluciones de mensajería automatizada y experiencias interactivas
+- Soporte para contenido multimedia: Envía y recibe mensajes con formato de texto, imágenes, archivos y elementos interactivos
+- Alcance global: Conéctate con usuarios de todo el mundo con soporte para múltiples idiomas y plataformas
+
+En Sim, la integración con Telegram permite a tus agentes aprovechar estas potentes capacidades de mensajería como parte de sus flujos de trabajo. Esto crea oportunidades para notificaciones automatizadas, alertas y conversaciones interactivas a través de la plataforma de mensajería segura de Telegram. La integración permite a los agentes enviar mensajes de forma programática a individuos o canales, facilitando la comunicación oportuna y actualizaciones. Al conectar Sim con Telegram, puedes crear agentes inteligentes que interactúen con los usuarios a través de una plataforma de mensajería segura y ampliamente adoptada, perfecta para entregar notificaciones, actualizaciones y comunicaciones interactivas.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Envía mensajes a cualquier canal de Telegram usando tu clave API de Bot o activa flujos de trabajo desde mensajes de bot de Telegram. Integra notificaciones automatizadas y alertas en tu flujo de trabajo para mantener a tu equipo informado.
+
+## Herramientas
+
+### `telegram_message`
+
+Envía mensajes a canales o usuarios de Telegram a través de la API de Bot de Telegram. Permite la comunicación directa y notificaciones con seguimiento de mensajes y confirmación de chat.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `botToken` | string | Sí | Tu token de API de Bot de Telegram |
+| `chatId` | string | Sí | ID del chat de Telegram objetivo |
+| `text` | string | Sí | Texto del mensaje a enviar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito del envío del mensaje de Telegram |
+| `messageId` | number | Identificador único del mensaje de Telegram |
+| `chatId` | string | ID del chat de destino donde se envió el mensaje |
+| `text` | string | Contenido de texto del mensaje enviado |
+| `timestamp` | number | Marca de tiempo Unix cuando se envió el mensaje |
+| `from` | object | Información sobre el bot que envió el mensaje |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `telegram`

@@ -3,6 +3,7 @@ import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
+import { IdempotencyService, webhookIdempotency } from '@/lib/idempotency'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -41,11 +42,29 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
     executionId,
   })
 
-  // Initialize logging session outside try block so it's available in catch
+  const idempotencyKey = IdempotencyService.createWebhookIdempotencyKey(
+    payload.webhookId,
+    payload.body,
+    payload.headers
+  )
+
+  return await webhookIdempotency.executeWithIdempotency(
+    payload.provider,
+    idempotencyKey,
+    async () => {
+      return await executeWebhookJobInternal(payload, executionId, requestId)
+    }
+  )
+}
+
+async function executeWebhookJobInternal(
+  payload: WebhookExecutionPayload,
+  executionId: string,
+  requestId: string
+) {
   const loggingSession = new LoggingSession(payload.workflowId, executionId, 'webhook', requestId)
 
   try {
-    // Check usage limits first
     const usageCheck = await checkServerSideUsageLimits(payload.userId)
     if (usageCheck.isExceeded) {
       logger.warn(
@@ -62,7 +81,6 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
       )
     }
 
-    // Load workflow from normalized tables
     const workflowData = await loadWorkflowFromNormalizedTables(payload.workflowId)
     if (!workflowData) {
       throw new Error(`Workflow not found: ${payload.workflowId}`)
@@ -70,7 +88,6 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
 
     const { blocks, edges, loops, parallels } = workflowData
 
-    // Get environment variables with workspace precedence
     const wfRows = await db
       .select({ workspaceId: workflowTable.workspaceId })
       .from(workflowTable)

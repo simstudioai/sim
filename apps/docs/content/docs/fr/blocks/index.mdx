@@ -1,0 +1,129 @@
+---
+title: Blocs
+description: Les composants de construction de vos flux de travail IA
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Video } from '@/components/ui/video'
+
+Les blocs sont les composants de construction que vous connectez pour créer des flux de travail d'IA. Considérez-les comme des modules spécialisés qui gèrent chacun une tâche spécifique — du dialogue avec des modèles d'IA aux appels API ou au traitement de données.
+
+<div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg">
+  <Video src="connections.mp4" width={700} height={450} />
+</div>
+
+## Types de blocs principaux
+
+Sim propose sept types de blocs principaux qui gèrent les fonctions essentielles des flux de travail d'IA :
+
+### Blocs de traitement
+- **[Agent](/blocks/agent)** - Dialoguez avec des modèles d'IA (OpenAI, Anthropic, Google, modèles locaux)
+- **[Function](/blocks/function)** - Exécutez du code JavaScript/TypeScript personnalisé
+- **[API](/blocks/api)** - Connectez-vous à des services externes via des requêtes HTTP
+
+### Blocs logiques
+- **[Condition](/blocks/condition)** - Ramifiez les chemins de flux de travail selon des expressions booléennes
+- **[Router](/blocks/router)** - Utilisez l'IA pour acheminer intelligemment les requêtes vers différents chemins
+- **[Evaluator](/blocks/evaluator)** - Notez et évaluez la qualité du contenu à l'aide de l'IA
+
+### Blocs de sortie
+- **[Response](/blocks/response)** - Formatez et renvoyez les résultats finaux de votre flux de travail
+
+## Comment fonctionnent les blocs
+
+Chaque bloc comporte trois composants principaux :
+
+**Entrées** : données entrant dans le bloc depuis d'autres blocs ou saisies utilisateur
+**Configuration** : paramètres qui contrôlent le comportement du bloc
+**Sorties** : données que le bloc produit pour être utilisées par d'autres blocs
+
+<Steps>
+  <Step>
+    <strong>Recevoir l'entrée</strong> : le bloc reçoit des données des blocs connectés ou de l'entrée utilisateur
+  </Step>
+  <Step>
+    <strong>Traiter</strong> : le bloc traite l'entrée selon sa configuration
+  </Step>
+  <Step>
+    <strong>Produire les résultats</strong> : le bloc génère des données de sortie pour les blocs suivants dans le flux de travail
+  </Step>
+</Steps>
+
+## Connexion des blocs
+
+Vous créez des flux de travail en connectant des blocs entre eux. La sortie d'un bloc devient l'entrée d'un autre :
+
+- **Glisser pour connecter** : Faites glisser d'un port de sortie vers un port d'entrée
+- **Connexions multiples** : Une sortie peut se connecter à plusieurs entrées
+- **Chemins de ramification** : Certains blocs peuvent acheminer vers différents chemins selon les conditions
+
+<div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg">
+  <Video src="connections.mp4" width={700} height={450} />
+</div>
+
+## Modèles courants
+
+### Traitement séquentiel
+Connectez les blocs en chaîne où chaque bloc traite la sortie du précédent :
+
+```
+User Input → Agent → Function → Response
+```
+
+### Ramification conditionnelle
+Utilisez des blocs de Condition ou de Routeur pour créer différents chemins :
+
+```
+User Input → Router → Agent A (for questions)
+                   → Agent B (for commands)
+```
+
+### Contrôle qualité
+Utilisez des blocs Évaluateur pour évaluer et filtrer les sorties :
+
+```
+Agent → Evaluator → Condition → Response (if good)
+                              → Agent (retry if bad)
+```
+
+## Configuration des blocs
+
+Chaque type de bloc possède des options de configuration spécifiques :
+
+**Tous les blocs** :
+- Connexions d'entrée/sortie
+- Comportement de gestion des erreurs
+- Paramètres de délai d'exécution
+
+**Blocs IA** (Agent, Routeur, Évaluateur) :
+- Sélection du modèle (OpenAI, Anthropic, Google, local)
+- Clés API et authentification
+- Température et autres paramètres du modèle
+- Prompts système et instructions
+
+**Blocs logiques** (Condition, Fonction) :
+- Expressions ou code personnalisés
+- Références de variables
+- Paramètres d'environnement d'exécution
+
+**Blocs d'intégration** (API, Réponse) :
+- Configuration des points de terminaison
+- En-têtes et authentification
+- Formatage des requêtes/réponses
+
+<Cards>
+  <Card title="Bloc Agent" href="/blocks/agent">
+    Connectez-vous aux modèles d'IA et créez des réponses intelligentes
+  </Card>
+  <Card title="Bloc Fonction" href="/blocks/function">
+    Exécutez du code personnalisé pour traiter et transformer des données
+  </Card>
+  <Card title="Bloc API" href="/blocks/api">
+    Intégrez des services externes et des API
+  </Card>
+  <Card title="Bloc Condition" href="/blocks/condition">
+    Créez une logique de ramification basée sur l'évaluation des données
+  </Card>
+</Cards>

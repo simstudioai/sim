@@ -1,0 +1,99 @@
+---
+title: Telegram
+description: 通过 Telegram 发送消息或从 Telegram 事件触发工作流
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="telegram"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      viewBox='0 0 24 24'
+      
+      
+      fill='none'
+    >
+      <circle cx='12' cy='12' r='10' fill='#0088CC' />
+      <path
+        d='M16.7 8.4c.1-.6-.4-1.1-1-.8l-9.8 4.3c-.4.2-.4.8.1.9l2.1.7c.4.1.8.1 1.1-.2l4.5-3.1c.1-.1.3.1.2.2l-3.2 3.5c-.3.3-.2.8.2 1l3.6 2.3c.4.2.9-.1 1-.5l1.2-7.8Z'
+        fill='white'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Telegram](https://telegram.org) 是一个安全的云端消息平台，能够在多个设备和平台上实现快速可靠的通信。Telegram 拥有超过 7 亿的月活跃用户，已成为全球领先的消息服务之一，以其安全性、速度和强大的 API 功能而闻名。
+
+Telegram 的 Bot API 提供了一个强大的框架，用于创建自动化消息解决方案并将通信功能集成到应用程序中。通过支持丰富的媒体、内联键盘和自定义命令，Telegram 机器人可以实现复杂的交互模式和自动化工作流。
+
+了解如何在 Sim 中创建一个 webhook 触发器，从 Telegram 消息中无缝启动工作流。本教程将指导您设置 webhook，使用 Telegram 的 Bot API 进行配置，并实时触发自动化操作。非常适合直接从聊天中简化任务！
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/9oKcJtQ0_IM"
+  title="Use Telegram with Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+了解如何在 Sim 中使用 Telegram 工具，将消息无缝自动发送到任何 Telegram 群组。本教程将指导您将该工具集成到工作流中，配置群组消息，并实时触发自动更新。非常适合直接从工作空间中增强通信！
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/AG55LpUreGI"
+  title="Use Telegram with Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Telegram 的主要功能包括：
+
+- 安全通信：端到端加密和安全的云存储，用于消息和媒体
+- 机器人平台：强大的机器人 API，可用于创建自动化消息解决方案和交互式体验
+- 丰富的媒体支持：发送和接收带有文本格式、图片、文件和交互元素的消息
+- 全球覆盖：支持多种语言和平台，与全球用户连接
+
+在 Sim 中，Telegram 集成使您的代理能够将这些强大的消息功能融入到他们的工作流程中。这为通过 Telegram 的安全消息平台实现自动通知、警报和交互式对话创造了机会。该集成允许代理以编程方式向个人或频道发送消息，从而实现及时的沟通和更新。通过将 Sim 与 Telegram 连接，您可以构建智能代理，通过一个安全且被广泛采用的消息平台与用户互动，非常适合发送通知、更新和交互式通信。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+使用您的机器人 API 密钥向任何 Telegram 频道发送消息，或通过 Telegram 机器人消息触发工作流程。将自动通知和警报集成到您的工作流程中，以确保您的团队随时了解最新信息。
+
+## 工具
+
+### `telegram_message`
+
+通过 Telegram Bot API 向 Telegram 频道或用户发送消息。支持直接通信和通知，并提供消息跟踪和聊天确认功能。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | 字符串 | 是 | 您的 Telegram Bot API 令牌 |
+| `chatId` | 字符串 | 是 | 目标 Telegram 聊天 ID |
+| `text` | 字符串 | 是 | 要发送的消息文本 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | Telegram 消息发送成功状态 |
+| `messageId` | number | 唯一的 Telegram 消息标识符 |
+| `chatId` | string | 发送消息的目标聊天 ID |
+| `text` | string | 已发送消息的文本内容 |
+| `timestamp` | number | 消息发送时的 Unix 时间戳 |
+| `from` | object | 关于发送消息的机器人信息 |
+
+## 注意
+
+- 类别：`tools`
+- 类型：`telegram`

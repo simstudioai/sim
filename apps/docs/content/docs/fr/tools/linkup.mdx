@@ -1,0 +1,72 @@
+---
+title: Linkup
+description: Recherchez sur le web avec Linkup
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="linkup"
+  color="#D6D3C7"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      viewBox='0 0 24 24'
+      
+      
+      fill='none'
+    >
+      <path
+        d='M20.2 14.1c-.4-.3-1.6-.4-2.9-.2.5-1.4 1.3-3.9.1-5-.6-.5-1.5-.7-2.6-.5-.3 0-.6.1-1 .2-1.1-1.6-2.4-2.5-3.8-2.5-1.6 0-3.1 1-4.1 2.9-1.2 2.1-1.9 5.1-1.9 8.8v.03l.4.3c3-.9 7.5-2.3 10.7-2.9 0 .9.1 1.9.1 2.8v.03l.4.3c.1 0 5.4-1.7 5.3-3.3 0-.2-.1-.5-.3-.7zM19.9 14.7c.03.4-1.7 1.4-4 2.3.5-.7 1-1.6 1.3-2.5 1.4-.1 2.4-.1 2.7.2zM16.4 14.6c-.3.7-.7 1.4-1.2 2-.02-.6-.1-1.2-.2-1.8.4-.1.9-.1 1.4-.2zM16.5 9.4c.8.7.9 2.4.1 5.1-.5.1-1 .1-1.5.2-.3-2-.9-3.8-1.7-5.3.3-.1.6-.2.8-.2.9-.1 1.7.05 2.3.2zM9.5 6.8c1.2 0 2.3.7 3.2 2.1-2.8 1.1-5.9 3.4-8.4 7.8.2-5.1 1.9-9.9 5.2-9.9zM4.7 17c3.4-4.9 6.4-6.8 8.4-7.8.7 1.3 1.2 2.9 1.5 4.8-3.2.6-7.3 1.8-9.9 3z'
+        fill='currentColor'
+        stroke='currentColor'
+        strokeWidth='0.5'
+        strokeLinejoin='round'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Linkup](https://linkup.so) est un puissant outil de recherche web qui s'intègre parfaitement à Sim, permettant à vos agents IA d'accéder à des informations actualisées du web avec une attribution appropriée des sources.
+
+Linkup améliore vos agents IA en leur donnant la capacité de rechercher sur le web des informations actuelles. Lorsqu'il est intégré dans la boîte à outils de votre agent :
+
+- **Accès aux informations en temps réel** : les agents peuvent récupérer les dernières informations du web, gardant les réponses actuelles et pertinentes.
+- **Attribution des sources** : toutes les informations sont accompagnées de citations appropriées, assurant transparence et crédibilité.
+- **Implémentation simple** : ajoutez Linkup à l'ensemble d'outils de vos agents avec une configuration minimale.
+- **Conscience contextuelle** : les agents peuvent utiliser les informations du web tout en conservant leur personnalité et leur style conversationnel.
+
+Pour implémenter Linkup dans votre agent, ajoutez simplement l'outil à la configuration de votre agent. Votre agent pourra alors effectuer des recherches sur le web chaque fois qu'il aura besoin de répondre à des questions nécessitant des informations actuelles.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Linkup Search vous permet de rechercher et de récupérer des informations à jour du web avec attribution des sources.
+
+## Outils
+
+### `linkup_search`
+
+Recherchez des informations sur le web en utilisant Linkup
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `q` | chaîne | Oui | La requête de recherche |
+| `depth` | chaîne | Oui | Profondeur de recherche \(doit être soit « standard » soit « deep »\) |
+| `outputType` | chaîne | Oui | Type de sortie à retourner \(doit être soit « sourcedAnswer » soit « searchResults »\) |
+| `apiKey` | chaîne | Oui | Entrez votre clé API Linkup |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `answer` | chaîne | La réponse sourcée à la requête de recherche |
+| `sources` | tableau | Tableau des sources utilisées pour compiler la réponse, chacune contenant nom, url et extrait |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `linkup`

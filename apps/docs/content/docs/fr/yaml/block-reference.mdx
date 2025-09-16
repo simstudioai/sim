@@ -1,0 +1,242 @@
+---
+title: Syntaxe de référence de bloc
+description: Comment référencer des données entre les blocs dans les workflows YAML
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+Les références de bloc sont le fondement du flux de données dans les workflows Sim. Comprendre comment référencer correctement les sorties d'un bloc comme entrées d'un autre est essentiel pour créer des workflows fonctionnels.
+
+## Règles de référence de base
+
+### 1. Utilisez les noms de bloc, pas les identifiants de bloc
+
+<Tabs items={['Correct', 'Incorrect']}>
+  <Tab>
+
+    ```yaml
+    # Block definition
+    email-sender:
+      type: agent
+      name: "Email Generator"
+      # ... configuration
+
+    # Reference the block
+    next-block:
+      inputs:
+        userPrompt: "Process this: <emailgenerator.content>"
+    ```
+
+  </Tab>
+  <Tab>
+
+    ```yaml
+    # Block definition
+    email-sender:
+      type: agent
+      name: "Email Generator"
+      # ... configuration
+
+    # ❌ Don't reference by block ID
+    next-block:
+      inputs:
+        userPrompt: "Process this: <email-sender.content>"
+    ```
+
+  </Tab>
+</Tabs>
+
+### 2. Convertir les noms au format de référence
+
+Pour créer une référence de bloc :
+
+1. **Prenez le nom du bloc** : « Email Generator »
+2. **Convertissez en minuscules** : « email generator » 
+3. **Supprimez les espaces et les caractères spéciaux** : « emailgenerator »
+4. **Ajoutez la propriété** : `<emailgenerator.content>`
+
+### 3. Utilisez les propriétés correctes
+
+Différents types de blocs exposent différentes propriétés :
+
+- **Blocs d'agent** : `.content` (la réponse de l'IA)
+- **Blocs de fonction** : `.output` (la valeur de retour)
+- **Blocs d'API** : `.output` (les données de réponse)
+- **Blocs d'outil** : `.output` (le résultat de l'outil)
+
+## Exemples de référence
+
+### Références de bloc courantes
+
+```yaml
+# Agent block outputs
+<agentname.content>           # Primary AI response
+<agentname.tokens>            # Token usage information
+<agentname.cost>              # Estimated cost
+<agentname.tool_calls>        # Tool execution details
+
+# Function block outputs  
+<functionname.output>         # Function return value
+<functionname.error>          # Error information (if any)
+
+# API block outputs
+<apiname.output>              # Response data
+<apiname.status>              # HTTP status code
+<apiname.headers>             # Response headers
+
+# Tool block outputs
+<toolname.output>             # Tool execution result
+```
+
+### Noms de bloc à plusieurs mots
+
+```yaml
+# Block name: "Data Processor 2"
+<dataprocessor2.output>
+
+# Block name: "Email Validation Service"  
+<emailvalidationservice.output>
+
+# Block name: "Customer Info Agent"
+<customerinfoagent.content>
+```
+
+## Cas de référence spéciaux
+
+### Bloc de démarrage
+
+<Callout type="warning">
+  Le bloc de démarrage est toujours référencé comme `<start.input>` quel que soit son nom réel.
+</Callout>
+
+```yaml
+# Starter block definition
+my-custom-start:
+  type: starter
+  name: "Custom Workflow Start"
+  # ... configuration
+
+# Always reference as 'start'
+agent-1:
+  inputs:
+    userPrompt: <start.input>  # ✅ Correct
+    # userPrompt: <customworkflowstart.input>  # ❌ Wrong
+```
+
+### Variables de boucle
+
+À l'intérieur des blocs de boucle, des variables spéciales sont disponibles :
+
+```yaml
+# Available in loop child blocks
+<loop.index>          # Current iteration (0-based)
+<loop.currentItem>    # Current item being processed (forEach loops)
+<loop.items>          # Full collection (forEach loops)
+```
+
+### Variables parallèles
+
+À l'intérieur des blocs parallèles, des variables spéciales sont disponibles :
+
+```yaml
+# Available in parallel child blocks
+<parallel.index>          # Instance number (0-based)
+<parallel.currentItem>    # Item for this instance
+<parallel.items>          # Full collection
+```
+
+## Exemples de références complexes
+
+### Accès aux données imbriquées
+
+Lors de la référence à des objets complexes, utilisez la notation par points :
+
+```yaml
+# If an agent returns structured data
+data-analyzer:
+  type: agent
+  name: "Data Analyzer"
+  inputs:
+    responseFormat: |
+      {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "analysis": {"type": "object"},
+            "summary": {"type": "string"},
+            "metrics": {"type": "object"}
+          }
+        }
+      }
+
+# Reference nested properties
+next-step:
+  inputs:
+    userPrompt: |
+      Summary: <dataanalyzer.analysis.summary>
+      Score: <dataanalyzer.metrics.score>
+      Full data: <dataanalyzer.content>
+```
+
+### Références multiples dans le texte
+
+```yaml
+email-composer:
+  type: agent
+  inputs:
+    userPrompt: |
+      Create an email with the following information:
+      
+      Customer: <customeragent.content>
+      Order Details: <orderprocessor.output>
+      Support Ticket: <ticketanalyzer.content>
+      
+      Original request: <start.input>
+```
+
+### Références dans les blocs de code
+
+Lorsque vous utilisez des références dans des blocs de fonction, elles sont remplacées par des valeurs JavaScript :
+
+```yaml
+data-processor:
+  type: function
+  inputs:
+    code: |
+      // References are replaced with actual values
+      const customerData = <customeragent.content>;
+      const orderInfo = <orderprocessor.output>;
+      const originalInput = <start.input>;
+      
+      // Process the data
+      return {
+        customer: customerData.name,
+        orderId: orderInfo.id,
+        processed: true
+      };
+```
+
+## Validation des références
+
+Sim valide toutes les références lors de l'importation de YAML :
+
+### Références valides
+- Le bloc existe dans le flux de travail
+- La propriété est appropriée pour le type de bloc
+- Pas de dépendances circulaires
+- Formatage syntaxique correct
+
+### Erreurs courantes
+- **Bloc introuvable** : le bloc référencé n'existe pas
+- **Propriété incorrecte** : utilisation de `.content` sur un bloc de fonction
+- **Fautes de frappe** : noms de blocs ou propriétés mal orthographiés
+- **Références circulaires** : un bloc se référence lui-même directement ou indirectement
+
+## Bonnes pratiques
+
+1. **Utilisez des noms de blocs descriptifs** : rend les références plus lisibles
+2. **Soyez cohérent** : utilisez la même convention de nommage partout
+3. **Vérifiez les références** : assurez-vous que tous les blocs référencés existent
+4. **Évitez l'imbrication profonde** : gardez les chaînes de référence gérables
+5. **Documentez les flux complexes** : ajoutez des commentaires pour expliquer les relations entre références
