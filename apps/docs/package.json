@@ -15,7 +15,7 @@
     "@vercel/analytics": "1.5.0",
     "@vercel/og": "^0.6.5",
     "clsx": "^2.1.1",
-    "fumadocs-core": "^15.0.16",
+    "fumadocs-core": "^15.7.5",
     "fumadocs-mdx": "^11.5.6",
     "fumadocs-ui": "^15.0.16",
     "lucide-react": "^0.511.0",
