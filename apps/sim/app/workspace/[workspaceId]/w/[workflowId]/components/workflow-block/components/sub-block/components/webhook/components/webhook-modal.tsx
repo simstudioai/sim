@@ -15,6 +15,7 @@ import {
   GenericConfig,
   GithubConfig,
   GmailConfig,
+  GoogleFormsConfig,
   MicrosoftTeamsConfig,
   OutlookConfig,
   SlackConfig,
@@ -84,6 +85,10 @@ export function WebhookModal({
   const [githubContentType, setGithubContentType] = useState('application/json')
 
   const [slackSigningSecret, setSlackSigningSecret] = useState('')
+  // Google Forms-specific state
+  const [googleFormsToken, setGoogleFormsToken] = useState('')
+  const [googleFormsSecretHeader, setGoogleFormsSecretHeader] = useState('')
+  const [googleFormsFormId, setGoogleFormsFormId] = useState('')
   const [telegramBotToken, setTelegramBotToken] = useState('')
   // Microsoft Teams-specific state
   const [microsoftTeamsHmacSecret, setMicrosoftTeamsHmacSecret] = useState('')
@@ -98,6 +103,9 @@ export function WebhookModal({
     webhookProvider,
     webhookPath,
     slackSigningSecret: '',
+    googleFormsToken: '',
+    googleFormsSecretHeader: '',
+    googleFormsFormId: '',
     whatsappVerificationToken: '',
     githubContentType: 'application/json',
     generalToken: '',
@@ -206,6 +214,19 @@ export function WebhookModal({
                 const signingSecret = config.signingSecret || ''
                 setSlackSigningSecret(signingSecret)
                 setOriginalValues((prev) => ({ ...prev, slackSigningSecret: signingSecret }))
+              } else if (webhookProvider === 'google_forms') {
+                const token = config.token || ''
+                const header = config.secretHeaderName || ''
+                const fId = config.formId || ''
+                setGoogleFormsToken(token)
+                setGoogleFormsSecretHeader(header)
+                setGoogleFormsFormId(fId)
+                setOriginalValues((prev) => ({
+                  ...prev,
+                  googleFormsToken: token,
+                  googleFormsSecretHeader: header,
+                  googleFormsFormId: fId,
+                }))
               } else if (webhookProvider === 'airtable') {
                 const baseIdVal = config.baseId || ''
                 const tableIdVal = config.tableId || ''
@@ -319,6 +340,10 @@ export function WebhookModal({
           requireAuth !== originalValues.requireAuth ||
           allowedIps !== originalValues.allowedIps)) ||
       (webhookProvider === 'slack' && slackSigningSecret !== originalValues.slackSigningSecret) ||
+      (webhookProvider === 'google_forms' &&
+        (googleFormsToken !== originalValues.googleFormsToken ||
+          googleFormsSecretHeader !== originalValues.googleFormsSecretHeader ||
+          googleFormsFormId !== originalValues.googleFormsFormId)) ||
       (webhookProvider === 'airtable' &&
         (airtableWebhookSecret !== originalValues.airtableWebhookSecret ||
           airtableBaseId !== originalValues.airtableBaseId ||
@@ -367,6 +392,9 @@ export function WebhookModal({
       case 'slack':
         isValid = slackSigningSecret.trim() !== ''
         break
+      case 'google_forms':
+        isValid = googleFormsToken.trim() !== ''
+        break
       case 'whatsapp':
         isValid = whatsappVerificationToken.trim() !== ''
         break
@@ -390,6 +418,9 @@ export function WebhookModal({
     airtableBaseId,
     airtableTableId,
     slackSigningSecret,
+    googleFormsToken,
+    googleFormsSecretHeader,
+    googleFormsFormId,
     whatsappVerificationToken,
     telegramBotToken,
     selectedLabels,
@@ -456,6 +487,12 @@ export function WebhookModal({
       }
       case 'slack':
         return { signingSecret: slackSigningSecret }
+      case 'google_forms':
+        return {
+          token: googleFormsToken,
+          secretHeaderName: googleFormsSecretHeader || undefined,
+          formId: googleFormsFormId || undefined,
+        }
       case 'airtable':
         return {
           webhookSecret: airtableWebhookSecret || undefined,
@@ -513,6 +550,9 @@ export function WebhookModal({
             requireAuth,
             allowedIps,
             slackSigningSecret,
+            googleFormsToken,
+            googleFormsSecretHeader,
+            googleFormsFormId,
             airtableWebhookSecret,
             airtableBaseId,
             airtableTableId,
@@ -729,6 +769,21 @@ export function WebhookModal({
             copied={copied}
             copyToClipboard={copyToClipboard}
             testWebhook={testWebhook}
+            webhookUrl={webhookUrl}
+          />
+        )
+      case 'google_forms':
+        return (
+          <GoogleFormsConfig
+            token={googleFormsToken}
+            setToken={setGoogleFormsToken}
+            secretHeaderName={googleFormsSecretHeader}
+            setSecretHeaderName={setGoogleFormsSecretHeader}
+            formId={googleFormsFormId}
+            setFormId={setGoogleFormsFormId}
+            isLoadingToken={isLoadingToken}
+            copied={copied}
+            copyToClipboard={copyToClipboard}
             webhookUrl={webhookUrl}
           />
         )

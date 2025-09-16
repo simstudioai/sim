@@ -1,4 +1,6 @@
-import { Notice } from '@/components/ui'
+import { useState } from 'react'
+import { Check, Copy } from 'lucide-react'
+import { Button, Notice } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import { JSONView } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/console/components'
 import type { TriggerConfig } from '@/triggers/types'
@@ -8,6 +10,7 @@ interface TriggerInstructionsProps {
   webhookUrl: string
   samplePayload: any
   triggerDef: TriggerConfig
+  config?: Record<string, any>
 }
 
 export function TriggerInstructions({
@@ -15,7 +18,27 @@ export function TriggerInstructions({
   webhookUrl,
   samplePayload,
   triggerDef,
+  config = {},
 }: TriggerInstructionsProps) {
+  const [copied, setCopied] = useState(false)
+
+  const token = (config as any)?.token || '<SHARED_SECRET>'
+  const secretHeaderName = (config as any)?.secretHeaderName as string | undefined
+  const formId = (config as any)?.formId || '<YOUR_FORM_ID>'
+  const headerLine = secretHeaderName
+    ? `{ '${secretHeaderName}': TOKEN }`
+    : "{ Authorization: 'Bearer ' + TOKEN }"
+
+  const googleFormsSnippet = `const WEBHOOK_URL = '${webhookUrl || '<WEBHOOK URL>'}';\nconst TOKEN = '${token}'; // from Sim Trigger Configuration\nconst FORM_ID = '${formId}';     // optional but recommended\n\nfunction onFormSubmit(e) {\n  var answers = {};\n  var formResponse = e && e.response;\n  if (formResponse && typeof formResponse.getItemResponses === 'function') {\n    var itemResponses = formResponse.getItemResponses() || [];\n    for (var i = 0; i < itemResponses.length; i++) {\n      var ir = itemResponses[i];\n      var question = ir.getItem().getTitle();\n      var value = ir.getResponse();\n      if (Array.isArray(value)) {\n        value = value.length === 1 ? value[0] : value;\n      }\n      answers[question] = value;\n    }\n  } else if (e && e.namedValues) {\n    var namedValues = e.namedValues || {};\n    for (var k in namedValues) {\n      var v = namedValues[k];\n      answers[k] = Array.isArray(v) ? (v.length === 1 ? v[0] : v) : v;\n    }\n  }\n\n  var payload = {\n    provider: 'googleforms',\n    formId: FORM_ID || undefined,\n    responseId: Utilities.getUuid(),\n    createTime: new Date().toISOString(),\n    lastSubmittedTime: new Date().toISOString(),\n    answers: answers,\n    raw: e || {}\n  };\n\n  UrlFetchApp.fetch(WEBHOOK_URL, {\n    method: 'post',\n    contentType: 'application/json',\n    payload: JSON.stringify(payload),\n    headers: ${headerLine},\n    muteHttpExceptions: true\n  });\n}`
+
+  const copySnippet = async () => {
+    try {
+      await navigator.clipboard.writeText(googleFormsSnippet)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {}
+  }
+
   return (
     <div className='space-y-4'>
       <div className={cn('mt-4 rounded-md border border-border bg-card/50 p-4 shadow-sm')}>
@@ -27,6 +50,30 @@ export function TriggerInstructions({
             ))}
           </ol>
         </div>
+
+        {triggerDef.provider === 'google_forms' && (
+          <div className='mt-4 space-y-2'>
+            <h5 className='font-medium text-sm'>Apps Script snippet</h5>
+            <pre className='overflow-auto whitespace-pre-wrap rounded border border-border bg-muted p-3 text-xs leading-5 dark:border-border/60'>
+              {googleFormsSnippet}
+            </pre>
+            <div className='flex justify-end'>
+              <Button
+                variant='outline'
+                size='icon'
+                onClick={copySnippet}
+                aria-label='Copy snippet'
+                className='h-8 w-8'
+              >
+                {copied ? (
+                  <Check className='h-4 w-4 text-green-500' />
+                ) : (
+                  <Copy className='h-4 w-4' />
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       <Notice

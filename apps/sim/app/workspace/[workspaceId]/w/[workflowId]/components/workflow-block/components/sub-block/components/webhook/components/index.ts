@@ -3,6 +3,7 @@ export {
   GenericConfig,
   GithubConfig,
   GmailConfig,
+  GoogleFormsConfig,
   MicrosoftTeamsConfig,
   OutlookConfig,
   SlackConfig,
