@@ -1,0 +1,225 @@
+---
+title: 路由器
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+
+路由器模块使用 AI 智能地决定您的工作流接下来应该采取的路径，根据特定条件或逻辑路由工作流的执行。与使用简单规则的条件模块不同，路由器模块可以理解上下文，并基于内容分析做出智能的路由决策。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/router.png"
+    alt="具有多路径的路由器模块"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## 概述
+
+路由器模块可以让您：
+
+<Steps>
+  <Step>
+    <strong>智能内容路由</strong>：使用 AI 理解意图和上下文
+  </Step>
+  <Step>
+    <strong>动态路径选择</strong>：基于非结构化内容分析路由工作流
+  </Step>
+  <Step>
+    <strong>上下文感知决策</strong>：做出超越简单规则的智能路由选择
+  </Step>
+  <Step>
+    <strong>多路径管理</strong>：处理具有多个潜在目的地的复杂工作流
+  </Step>
+</Steps>
+
+## 路由器模块与条件模块的对比
+
+<Accordions>
+  <Accordion title="何时使用路由器">
+    - 需要 AI 驱动的内容分析
+    - 非结构化或多样化的内容类型
+    - 基于意图的路由（例如，“将支持票据路由到部门”）
+    - 需要上下文感知的决策
+  </Accordion>
+  <Accordion title="何时使用条件模块">
+    - 简单的基于规则的决策
+    - 结构化数据或数值比较
+    - 需要快速、确定性的路由
+    - 布尔逻辑足够
+  </Accordion>
+</Accordions>
+
+## 工作原理
+
+路由器模块：
+
+<Steps>
+  <Step>
+    <strong>分析内容</strong>：使用 LLM 理解输入内容和上下文
+  </Step>
+  <Step>
+    <strong>评估目标</strong>：将内容与可用的目标模块进行比较
+  </Step>
+  <Step>
+    <strong>选择目标</strong>：根据意图识别最合适的路径
+  </Step>
+  <Step>
+    <strong>执行路由</strong>：将工作流引导到选定的模块
+  </Step>
+</Steps>
+
+## 配置选项
+
+### 内容/提示
+
+Router 将分析的内容或提示以做出路由决策。这可以是：
+
+- 用户的直接查询或输入
+- 前一个模块的输出
+- 系统生成的消息
+
+### 目标模块
+
+Router 可以选择的目标模块。Router 会自动检测连接的模块，但您也可以：
+
+- 自定义目标模块的描述以提高路由准确性
+- 为每个目标模块指定路由标准
+- 排除某些模块，使其不被视为路由目标
+
+### 模型选择
+
+选择一个 AI 模型来支持路由决策：
+
+**OpenAI**：GPT-4o, o1, o3, o4-mini, gpt-4.1  \
+**Anthropic**：Claude 3.7 Sonnet \
+**Google**：Gemini 2.5 Pro, Gemini 2.0 Flash \
+**其他提供商**：Groq, Cerebras, xAI, DeepSeek \
+**本地模型**：任何运行在 Ollama 上的模型
+
+<div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg">
+  <Video src="router-model-dropdown.mp4" width={500} height={350} />
+</div>
+
+**推荐**：使用具有强大推理能力的模型，例如 GPT-4o 或 Claude 3.7 Sonnet，以获得更准确的路由决策。
+
+### API 密钥
+
+您为所选 LLM 提供商设置的 API 密钥。此密钥会被安全存储并用于身份验证。
+
+### 访问结果
+
+Router 做出决策后，您可以访问其输出：
+
+- **`<router.prompt>`**：使用的路由提示的摘要
+- **`<router.selected_path>`**：所选目标模块的详细信息
+- **`<router.tokens>`**：LLM 的令牌使用统计
+- **`<router.cost>`**：路由调用的成本摘要（输入、输出、总计）
+- **`<router.model>`**：用于决策的模型
+
+## 高级功能
+
+### 自定义路由标准
+
+为每个目标模块定义特定的标准：
+
+```javascript
+// Example routing descriptions
+Target Block 1: "Technical support issues, API problems, integration questions"
+Target Block 2: "Billing inquiries, subscription changes, payment issues"
+Target Block 3: "General questions, feedback, feature requests"
+```
+
+## 输入和输出
+
+<Tabs items={['Configuration', 'Variables']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>内容/提示</strong>：用于分析路由决策的文本
+      </li>
+      <li>
+        <strong>目标块</strong>：作为潜在目的地的连接块
+      </li>
+      <li>
+        <strong>模型</strong>：用于路由分析的 AI 模型
+      </li>
+      <li>
+        <strong>API 密钥</strong>：选定 LLM 提供商的身份验证
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>router.prompt</strong>：使用的路由提示摘要
+      </li>
+      <li>
+        <strong>router.selected_path</strong>：选择的目的地详情
+      </li>
+      <li>
+        <strong>router.tokens</strong>：令牌使用统计
+      </li>
+      <li>
+        <strong>router.cost</strong>：路由调用的成本摘要（输入、输出、总计）
+      </li>
+      <li>
+        <strong>router.model</strong>：用于决策的模型
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## 示例用例
+
+### 客户支持分流
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">场景：将支持工单分流到专业部门</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>用户通过表单提交支持请求</li>
+    <li>路由器分析工单内容和上下文</li>
+    <li>技术问题 → 工程支持人员</li>
+    <li>账单问题 → 财务支持人员</li>
+  </ol>
+</div>
+
+### 内容分类
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">场景：分类并分流用户生成的内容</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>用户提交内容或反馈</li>
+    <li>路由器分析内容类型和情感</li>
+    <li>功能请求 → 产品团队工作流</li>
+    <li>错误报告 → 技术支持工作流</li>
+  </ol>
+</div>
+
+### 潜在客户资格评估
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">场景：根据资格评估标准分流潜在客户</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>通过表单捕获潜在客户信息</li>
+    <li>路由器分析公司规模、行业和需求</li>
+    <li>企业客户 → 销售团队提供定制定价</li>
+    <li>中小企业客户 → 自助式入门流程</li>
+  </ol>
+</div>
+
+## 最佳实践
+
+- **提供清晰的目标描述**：通过具体、详细的描述帮助路由器了解何时选择每个目的地
+- **使用具体的路由标准**：为每条路径定义明确的条件和示例以提高准确性
+- **实施备用路径**：为没有特定路径适用的情况连接一个默认目的地
+- **使用多样化输入进行测试**：确保路由器能够处理各种输入类型、边界情况和意外内容
+- **监控路由性能**：定期审查路由决策，并根据实际使用模式优化标准
+- **选择合适的模型**：对于复杂的路由决策，使用具有强大推理能力的模型

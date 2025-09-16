@@ -1,0 +1,186 @@
+---
+title: 成本计算
+---
+
+import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Sim 会自动计算所有工作流执行的成本，提供基于 AI 模型使用和执行费用的透明定价。了解这些成本有助于您优化工作流并有效管理预算。
+
+## 成本如何计算
+
+每次工作流执行包括两个成本组成部分：
+
+**基础执行费用**：每次执行 $0.001
+
+**AI 模型使用费用**：基于令牌消耗的可变成本
+
+```javascript
+modelCost = (inputTokens × inputPrice + outputTokens × outputPrice) / 1,000,000
+totalCost = baseExecutionCharge + modelCost
+```
+
+<Callout type="info">
+  AI 模型的价格是按每百万令牌计算的。计算时会除以 1,000,000 得出实际成本。不包含 AI 模块的工作流仅需支付基础执行费用。
+</Callout>
+
+## 日志中的模型成本明细
+
+对于使用 AI 模块的工作流，您可以在日志中查看详细的成本信息：
+
+<div className="flex justify-center">
+  <Image
+    src="/static/logs/logs-cost.png"
+    alt="模型成本明细"
+    width={600}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+模型成本明细显示：
+- **令牌使用量**：每个模型的输入和输出令牌数量
+- **成本明细**：每个模型和操作的单独成本
+- **模型分布**：使用了哪些模型以及使用次数
+- **总成本**：整个工作流执行的总成本
+
+## 定价选项
+
+<Tabs items={['托管模型', '自带 API 密钥']}>
+  <Tab>
+    **托管模型** - Sim 提供 API 密钥，价格有 2.5 倍的加成：
+    
+    | 模型 | 基础价格（输入/输出） | 托管价格（输入/输出） |
+    |-------|---------------------------|----------------------------|
+    | GPT-4o | $2.50 / $10.00 | $6.25 / $25.00 |
+    | GPT-4.1 | $2.00 / $8.00 | $5.00 / $20.00 |
+    | o1 | $15.00 / $60.00 | $37.50 / $150.00 |
+    | o3 | $2.00 / $8.00 | $5.00 / $20.00 |
+    | Claude 3.5 Sonnet | $3.00 / $15.00 | $7.50 / $37.50 |
+    | Claude Opus 4.0 | $15.00 / $75.00 | $37.50 / $187.50 |
+    
+    *2.5 倍加成覆盖了基础设施和 API 管理成本。*
+  </Tab>
+  
+  <Tab>
+    **自带 API 密钥** - 使用任何模型按基础价格计费：
+    
+    | 提供商 | 模型 | 输入 / 输出 |
+    |----------|---------|----------------|
+    | Google | Gemini 2.5 | $0.15 / $0.60 |
+    | Deepseek | V3, R1 | $0.75 / $1.00 |
+    | xAI | Grok 4, Grok 3 | $5.00 / $25.00 |
+    | Groq | Llama 4 Scout | $0.40 / $0.60 |
+    | Cerebras | Llama 3.3 70B | $0.94 / $0.94 |
+    | Ollama | 本地模型 | 免费 |
+    
+    *直接向提供商支付，无额外加成*
+  </Tab>
+</Tabs>
+
+<Callout type="warning">
+  此处显示的定价为截至 2025 年 9 月 10 日的费率。请查阅提供商文档以获取最新定价。
+</Callout>
+
+## 成本优化策略
+
+<Accordions>
+  <Accordion title="模型选择">
+    根据任务复杂性选择模型。简单任务可以使用 GPT-4.1-nano（$0.10/$0.40），而复杂推理可能需要 o1 或 Claude Opus。
+  </Accordion>
+  
+  <Accordion title="提示工程">
+    结构良好、简洁的提示可以减少 token 使用量，同时不影响质量。
+  </Accordion>
+  
+  <Accordion title="本地模型">
+    对于非关键任务，使用 Ollama 可以完全消除 API 成本。
+  </Accordion>
+  
+  <Accordion title="缓存与重用">
+    将经常使用的结果存储在变量或文件中，以避免重复调用 AI 模型。
+  </Accordion>
+  
+  <Accordion title="批量处理">
+    在单次 AI 请求中处理多个项目，而不是逐一调用。
+  </Accordion>
+</Accordions>
+
+## 使用监控
+
+在 设置 → 订阅 中监控您的使用情况和账单：
+
+- **当前使用情况**：当前周期的实时使用量和费用
+- **使用限制**：计划限制及其可视化进度指示器
+- **账单详情**：预计费用和最低承诺
+- **计划管理**：升级选项和账单历史
+
+### 编程化使用跟踪
+
+您可以通过 API 编程查询当前的使用情况和限制：
+
+**端点：**
+
+```text
+GET /api/users/me/usage-limits
+```
+
+**认证：**
+- 在 `X-API-Key` 标头中包含您的 API 密钥
+
+**示例请求：**
+
+```bash
+curl -X GET -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" https://sim.ai/api/users/me/usage-limits
+```
+
+**示例响应：**
+
+```json
+{
+  "success": true,
+  "rateLimit": {
+    "sync": { "isLimited": false, "limit": 10, "remaining": 10, "resetAt": "2025-09-08T22:51:55.999Z" },
+    "async": { "isLimited": false, "limit": 50, "remaining": 50, "resetAt": "2025-09-08T22:51:56.155Z" },
+    "authType": "api"
+  },
+  "usage": {
+    "currentPeriodCost": 12.34,
+    "limit": 100,
+    "plan": "pro"
+  }
+}
+```
+
+**响应字段：**
+- `currentPeriodCost` 反映当前账单周期的使用情况
+- `limit` 来源于个人限制（免费/专业）或组织池化限制（团队/企业）
+- `plan` 是与您的用户关联的最高优先级的活动计划
+
+## 计划限制
+
+不同的订阅计划有不同的使用限制：
+
+| 计划 | 每月使用限制 | 速率限制（每分钟） |
+|------|-------------------|-------------------------|
+| **免费** | $10 | 5 同步, 10 异步 |
+| **专业** | $100 | 10 同步, 50 异步 |
+| **团队** | $500（池化） | 50 同步, 100 异步 |
+| **企业** | 自定义 | 自定义 |
+
+## 成本管理最佳实践
+
+1. **定期监控**：经常检查您的使用仪表板，避免意外情况
+2. **设置预算**：使用计划限制作为支出控制的护栏
+3. **优化工作流程**：审查高成本的执行情况，优化提示或模型选择
+4. **使用合适的模型**：根据任务需求匹配模型复杂度
+5. **批量处理相似任务**：尽可能合并多个请求以减少开销
+
+## 下一步
+
+- 在 [设置 → 订阅](https://sim.ai/settings/subscription) 中查看您当前的使用情况
+- 了解 [日志记录](/execution/logging) 以跟踪执行详情
+- 探索 [外部 API](/execution/api) 以实现程序化成本监控
+- 查看 [工作流优化技术](/blocks) 以降低成本

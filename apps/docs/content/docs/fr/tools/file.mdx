@@ -1,0 +1,77 @@
+---
+title: Fichier
+description: Lire et analyser plusieurs fichiers
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="file"
+  color="#40916C"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      
+      
+      viewBox='0 0 23 28'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <path
+        d='M8 15.2H15.2M8 20H11.6M2 4.4V23.6C2 24.2365 2.25286 24.847 2.70294 25.2971C3.15303 25.7471 3.76348 26 4.4 26H18.8C19.4365 26 20.047 25.7471 20.4971 25.2971C20.9471 24.847 21.2 24.2365 21.2 23.6V9.6104C21.2 9.29067 21.136 8.97417 21.012 8.67949C20.8879 8.38481 20.7062 8.11789 20.4776 7.8944L15.1496 2.684C14.7012 2.24559 14.0991 2.00008 13.472 2H4.4C3.76348 2 3.15303 2.25286 2.70294 2.70294C2.25286 3.15303 2 3.76348 2 4.4Z'
+        stroke='currentColor'
+        strokeWidth='2.25'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+      <path
+        d='M14 2V6.8C14 7.43652 14.2529 8.04697 14.7029 8.49706C15.153 8.94714 15.7635 9.2 16.4 9.2H21.2'
+        stroke='currentColor'
+        strokeWidth='2.25'
+        strokeLinejoin='round'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+L'outil d'analyse de fichiers offre un moyen puissant d'extraire et de traiter le contenu de différents formats de fichiers, facilitant l'intégration des données documentaires dans vos flux de travail d'agent. Cet outil prend en charge plusieurs formats de fichiers et peut gérer des fichiers jusqu'à 200 Mo.
+
+Avec l'analyseur de fichiers, vous pouvez :
+
+- **Traiter plusieurs formats de fichiers** : extraire du texte à partir de PDF, CSV, documents Word (DOCX), fichiers texte, et plus encore
+- **Gérer des fichiers volumineux** : traiter des documents jusqu'à 200 Mo
+- **Analyser des fichiers à partir d'URL** : extraire directement le contenu de fichiers hébergés en ligne en fournissant leurs URL
+- **Traiter plusieurs fichiers à la fois** : télécharger et analyser plusieurs fichiers en une seule opération
+- **Extraire des données structurées** : conserver la mise en forme et la structure des documents originaux lorsque c'est possible
+
+L'outil d'analyse de fichiers est particulièrement utile dans les scénarios où vos agents doivent travailler avec du contenu documentaire, comme l'analyse de rapports, l'extraction de données à partir de feuilles de calcul ou le traitement de texte provenant de diverses sources documentaires. Il simplifie le processus de mise à disposition du contenu documentaire pour vos agents, leur permettant de travailler avec des informations stockées dans des fichiers aussi facilement qu'avec une saisie de texte directe.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Téléchargez et extrayez le contenu de formats de fichiers structurés, notamment des PDF, des feuilles de calcul CSV et des documents Word (DOCX). Vous pouvez soit fournir une URL vers un fichier, soit télécharger directement des fichiers. Des analyseurs spécialisés extraient le texte et les métadonnées de chaque format. Vous pouvez télécharger plusieurs fichiers à la fois et y accéder individuellement ou sous forme de document combiné.
+
+## Outils
+
+### `file_parser`
+
+Analysez un ou plusieurs fichiers téléchargés ou des fichiers à partir d'URL (texte, PDF, CSV, images, etc.)
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `filePath` | chaîne | Oui | Chemin vers le(s) fichier(s). Peut être un chemin unique, une URL ou un tableau de chemins. |
+| `fileType` | chaîne | Non | Type de fichier à analyser (détecté automatiquement si non spécifié) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `files` | tableau | Tableau des fichiers analysés |
+| `combinedContent` | chaîne | Contenu combiné de tous les fichiers analysés |
+
+## Remarques
+
+- Catégorie : `tools`
+- Type : `file`

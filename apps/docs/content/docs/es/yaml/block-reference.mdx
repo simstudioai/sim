@@ -1,0 +1,242 @@
+---
+title: Sintaxis de referencia de bloques
+description: Cómo referenciar datos entre bloques en flujos de trabajo YAML
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+Las referencias de bloques son la base del flujo de datos en los flujos de trabajo de Sim. Entender cómo referenciar correctamente las salidas de un bloque como entradas para otro es esencial para construir flujos de trabajo funcionales.
+
+## Reglas básicas de referencia
+
+### 1. Usa nombres de bloques, no IDs de bloques
+
+<Tabs items={['Correct', 'Incorrect']}>
+  <Tab>
+
+    ```yaml
+    # Block definition
+    email-sender:
+      type: agent
+      name: "Email Generator"
+      # ... configuration
+
+    # Reference the block
+    next-block:
+      inputs:
+        userPrompt: "Process this: <emailgenerator.content>"
+    ```
+
+  </Tab>
+  <Tab>
+
+    ```yaml
+    # Block definition
+    email-sender:
+      type: agent
+      name: "Email Generator"
+      # ... configuration
+
+    # ❌ Don't reference by block ID
+    next-block:
+      inputs:
+        userPrompt: "Process this: <email-sender.content>"
+    ```
+
+  </Tab>
+</Tabs>
+
+### 2. Convierte nombres al formato de referencia
+
+Para crear una referencia de bloque:
+
+1. **Toma el nombre del bloque**: "Email Generator"
+2. **Conviértelo a minúsculas**: "email generator" 
+3. **Elimina espacios y caracteres especiales**: "emailgenerator"
+4. **Añade la propiedad**: `<emailgenerator.content>`
+
+### 3. Usa las propiedades correctas
+
+Diferentes tipos de bloques exponen diferentes propiedades:
+
+- **Bloques de agente**: `.content` (la respuesta de la IA)
+- **Bloques de función**: `.output` (el valor de retorno)
+- **Bloques de API**: `.output` (los datos de respuesta)
+- **Bloques de herramientas**: `.output` (el resultado de la herramienta)
+
+## Ejemplos de referencias
+
+### Referencias de bloques comunes
+
+```yaml
+# Agent block outputs
+<agentname.content>           # Primary AI response
+<agentname.tokens>            # Token usage information
+<agentname.cost>              # Estimated cost
+<agentname.tool_calls>        # Tool execution details
+
+# Function block outputs  
+<functionname.output>         # Function return value
+<functionname.error>          # Error information (if any)
+
+# API block outputs
+<apiname.output>              # Response data
+<apiname.status>              # HTTP status code
+<apiname.headers>             # Response headers
+
+# Tool block outputs
+<toolname.output>             # Tool execution result
+```
+
+### Nombres de bloques con múltiples palabras
+
+```yaml
+# Block name: "Data Processor 2"
+<dataprocessor2.output>
+
+# Block name: "Email Validation Service"  
+<emailvalidationservice.output>
+
+# Block name: "Customer Info Agent"
+<customerinfoagent.content>
+```
+
+## Casos especiales de referencia
+
+### Bloque inicial
+
+<Callout type="warning">
+  El bloque inicial siempre se referencia como `<start.input>` independientemente de su nombre real.
+</Callout>
+
+```yaml
+# Starter block definition
+my-custom-start:
+  type: starter
+  name: "Custom Workflow Start"
+  # ... configuration
+
+# Always reference as 'start'
+agent-1:
+  inputs:
+    userPrompt: <start.input>  # ✅ Correct
+    # userPrompt: <customworkflowstart.input>  # ❌ Wrong
+```
+
+### Variables de bucle
+
+Dentro de los bloques de bucle, hay variables especiales disponibles:
+
+```yaml
+# Available in loop child blocks
+<loop.index>          # Current iteration (0-based)
+<loop.currentItem>    # Current item being processed (forEach loops)
+<loop.items>          # Full collection (forEach loops)
+```
+
+### Variables paralelas
+
+Dentro de los bloques paralelos, hay variables especiales disponibles:
+
+```yaml
+# Available in parallel child blocks
+<parallel.index>          # Instance number (0-based)
+<parallel.currentItem>    # Item for this instance
+<parallel.items>          # Full collection
+```
+
+## Ejemplos de referencias complejas
+
+### Acceso a datos anidados
+
+Cuando se hace referencia a objetos complejos, utiliza la notación de punto:
+
+```yaml
+# If an agent returns structured data
+data-analyzer:
+  type: agent
+  name: "Data Analyzer"
+  inputs:
+    responseFormat: |
+      {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "analysis": {"type": "object"},
+            "summary": {"type": "string"},
+            "metrics": {"type": "object"}
+          }
+        }
+      }
+
+# Reference nested properties
+next-step:
+  inputs:
+    userPrompt: |
+      Summary: <dataanalyzer.analysis.summary>
+      Score: <dataanalyzer.metrics.score>
+      Full data: <dataanalyzer.content>
+```
+
+### Múltiples referencias en texto
+
+```yaml
+email-composer:
+  type: agent
+  inputs:
+    userPrompt: |
+      Create an email with the following information:
+      
+      Customer: <customeragent.content>
+      Order Details: <orderprocessor.output>
+      Support Ticket: <ticketanalyzer.content>
+      
+      Original request: <start.input>
+```
+
+### Referencias en bloques de código
+
+Cuando se utilizan referencias en bloques de función, se reemplazan como valores de JavaScript:
+
+```yaml
+data-processor:
+  type: function
+  inputs:
+    code: |
+      // References are replaced with actual values
+      const customerData = <customeragent.content>;
+      const orderInfo = <orderprocessor.output>;
+      const originalInput = <start.input>;
+      
+      // Process the data
+      return {
+        customer: customerData.name,
+        orderId: orderInfo.id,
+        processed: true
+      };
+```
+
+## Validación de referencias
+
+Sim valida todas las referencias al importar YAML:
+
+### Referencias válidas
+- El bloque existe en el flujo de trabajo
+- La propiedad es apropiada para el tipo de bloque
+- No hay dependencias circulares
+- Formato de sintaxis adecuado
+
+### Errores comunes
+- **Bloque no encontrado**: El bloque referenciado no existe
+- **Propiedad incorrecta**: Usar `.content` en un bloque de función
+- **Errores tipográficos**: Nombres de bloques o propiedades mal escritos
+- **Referencias circulares**: El bloque se referencia a sí mismo directa o indirectamente
+
+## Mejores prácticas
+
+1. **Usar nombres descriptivos para los bloques**: Hace que las referencias sean más legibles
+2. **Ser consistente**: Utilizar la misma convención de nomenclatura en todo el documento
+3. **Verificar referencias**: Asegurarse de que todos los bloques referenciados existan
+4. **Evitar anidamiento profundo**: Mantener las cadenas de referencia manejables
+5. **Documentar flujos complejos**: Añadir comentarios para explicar las relaciones de referencia

@@ -1,0 +1,108 @@
+---
+title: Serper
+description: Rechercher sur le web avec Serper
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="serper"
+  color="#2B3543"
+  icon={true}
+  iconSvg={`<svg className="block-icon" viewBox='0 0 654 600' xmlns='http://www.w3.org/2000/svg' >
+      <path
+        d='M324 38C356 37 389 36 417 47C452 56 484 72 509 94C539 118 561 145 577 176C593 205 601 238 606 271C610 343 590 403 552 452C528 482 499 507 467 523C438 539 404 547 372 552C297 556 235 534 184 492C133 449 103 392 93 330C93 292 89 255 102 224C112 189 128 158 149 132C194 78 255 46 322 38'
+        fill='rgb(71,97,118)'
+      />
+      <path
+        d='M326 39C286 43 250 55 217 75C185 94 156 120 137 150C100 204 87 266 95 336C107 402 142 462 198 502C249 538 309 556 378 551C415 545 449 533 477 516C511 497 535 472 557 445C592 393 611 333 605 265C595 196 563 140 511 95C484 73 452 57 419 48C390 38 359 38 327 39'
+        fill='rgb(71,97,119)'
+      />
+      <path
+        d='M342 40C407 42 465 61 513 103C541 126 562 155 576 184C592 217 600 251 600 288C602 357 579 416 535 465C510 493 478 515 445 528C416 541 385 546 352 546C284 548 225 523 178 481C130 436 103 379 96 313C94 244 113 186 151 138C179 103 209 80 245 64C276 50 307 44 340 41'
+        fill='rgb(71,97,119)'
+      />
+      <path
+        d='M344 42C309 44 277 51 247 64C209 81 180 103 153 136C114 186 95 244 96 312C104 379 131 435 177 480C225 522 284 547 351 546C385 545 416 540 443 528C478 514 509 492 533 466C578 416 601 357 600 289C599 251 591 217 576 187C561 156 541 127 515 105C466 63 409 44 346 41'
+        fill='rgb(71,97,118)'
+      />
+      <path
+        d='M327 81C378 78 423 89 462 114C511 144 546 196 557 248C567 306 559 363 530 406C498 457 448 492 395 503C338 513 282 506 239 477C192 450 156 402 143 351C126 296 137 235 163 190C198 130 258 89 325 82'
+        fill='rgb(44,56,71)'
+      />
+      <path
+        d='M329 83C260 89 199 129 165 189C138 235 127 296 144 349C157 401 193 449 237 475C282 505 338 512 393 503C448 491 497 457 529 408C558 363 566 306 557 250C545 196 511 145 464 116C424 91 380 79 330 82'
+        fill='rgb(43,55,70)'
+      />
+      <path
+        d='M334 87C381 83 423 94 458 117C510 148 544 201 554 258C562 317 551 370 521 412C487 460 440 491 385 500C331 507 281 499 241 473C191 444 157 394 145 339C136 284 143 227 171 186C207 129 265 91 332 87'
+        fill='rgb(41,53,67)'
+      />
+      <path
+        d='M335 88C267 90 208 129 173 184C144 227 137 284 145 338C158 393 191 443 240 471C281 498 331 506 384 500C439 490 487 459 519 413C550 370 561 317 554 259C543 201 509 149 460 119C424 96 383 85 337 88'
+        fill='rgb(41,53,67)'
+      />
+      <path
+        d='M347 166C361 164 373 169 387 168C412 180 437 193 447 221C449 232 443 243 434 248C403 245 398 204 365 207C338 206 315 210 297 228C294 238 289 257 303 260C337 280 382 276 417 292C436 300 448 314 455 330C457 349 462 373 449 385C435 408 413 418 391 427C361 429 328 436 304 421C280 413 260 392 250 370C246 356 255 343 268 343C293 360 316 398 356 389C382 390 409 380 416 357C389 295 298 335 260 276C246 256 248 233 258 214C279 184 309 167 346 167'
+        fill='rgb(121,172,205)'
+      />
+      <path
+        d='M349 168C312 167 280 183 259 212C249 233 247 256 260 274C299 334 390 294 422 354C409 381 382 391 357 389C316 399 293 361 272 342C255 344 247 356 251 368C260 391 280 412 302 420C328 435 361 428 389 428C412 417 434 407 447 386C461 373 456 349 456 332C428 270 351 289 304 262C288 258 293 239 295 229C314 209 338 204 363 204C398 203 403 244 431 249C443 242 448 232 449 222C436 193 412 181 388 172C374 170 363 166 350 167'
+        fill='rgb(125,177,211)'
+      />
+      <path
+        d='M349 169C386 169 425 185 441 220C444 231 441 240 432 243C409 237 402 209 380 206C347 200 314 201 293 226C290 238 286 256 297 262C332 283 375 281 411 295C431 304 446 317 452 337C455 360 452 383 434 396C415 415 391 421 366 426C338 430 316 422 295 413C276 402 261 385 254 366C254 353 261 343 275 348C290 381 325 398 360 394C388 395 411 382 420 360C425 342 413 334 404 327C359 304 298 318 265 276C253 254 255 235 261 214C280 187 314 173 346 170'
+        fill='rgb(137,195,233)'
+      />
+      <path
+        d='M349 171C316 173 281 187 263 214C256 235 254 254 266 273C300 316 359 304 401 325C413 333 426 342 422 358C412 382 388 396 363 395C326 399 290 382 278 348C262 345 254 353 253 365C261 384 277 401 292 411C316 421 338 429 365 426C390 420 415 414 432 398C451 383 454 360 453 338C445 317 430 305 413 296C375 282 332 284 299 264C285 257 288 239 291 228C304 212 319 205 336 202C378 193 403 213 423 244C438 244 443 232 441 222C425 186 388 171 352 170'
+        fill='rgb(139,198,236)'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Serper](https://www.serper.com/) est une API de recherche Google qui offre aux développeurs un accès programmatique aux résultats de recherche Google. Elle propose un moyen fiable et performant d'intégrer les capacités de recherche Google dans les applications sans la complexité du web scraping ou les limitations d'autres API de recherche.
+
+Avec Serper, vous pouvez :
+
+- **Accéder aux résultats de recherche Google** : obtenir des données structurées des résultats de recherche Google de manière programmatique
+- **Effectuer différents types de recherche** : lancer des recherches web, d'images, d'actualités et plus encore
+- **Récupérer des métadonnées riches** : obtenir des titres, des extraits, des URL et d'autres informations pertinentes des résultats de recherche
+- **Faire évoluer vos applications** : créer des fonctionnalités basées sur la recherche avec une API fiable et rapide
+- **Éviter les limitations de taux** : obtenir un accès constant aux résultats de recherche sans vous soucier des blocages d'IP
+
+Dans Sim, l'intégration de Serper permet à vos agents d'exploiter la puissance de la recherche web dans leurs flux de travail. Cela permet des scénarios d'automatisation sophistiqués qui nécessitent des informations à jour provenant d'internet. Vos agents peuvent formuler des requêtes de recherche, récupérer des résultats pertinents et utiliser ces informations pour prendre des décisions ou fournir des réponses. Cette intégration comble le fossé entre votre automatisation de flux de travail et les vastes connaissances disponibles sur le web, permettant à vos agents d'accéder à des informations en temps réel sans intervention manuelle. En connectant Sim avec Serper, vous pouvez créer des agents qui restent à jour avec les dernières informations, fournissent des réponses plus précises et apportent plus de valeur aux utilisateurs.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Accédez aux résultats de recherche web en temps réel avec l'intégration de l'API Google Search de Serper. Récupérez des données de recherche structurées incluant pages web, actualités, images et lieux avec des paramètres de langue et de région personnalisables.
+
+## Outils
+
+### `serper_search`
+
+Un puissant outil de recherche web qui donne accès aux résultats de recherche Google via l'API Serper.dev. Prend en charge différents types de recherches, notamment la recherche web classique, les actualités, les lieux et les images, chaque résultat contenant des métadonnées pertinentes comme les titres, les URL, les extraits et des informations spécifiques au type.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `query` | chaîne | Oui | La requête de recherche |
+| `num` | nombre | Non | Nombre de résultats à retourner |
+| `gl` | chaîne | Non | Code pays pour les résultats de recherche |
+| `hl` | chaîne | Non | Code langue pour les résultats de recherche |
+| `type` | chaîne | Non | Type de recherche à effectuer |
+| `apiKey` | chaîne | Oui | Clé API Serper |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `searchResults` | tableau | Résultats de recherche avec titres, liens, extraits et métadonnées spécifiques au type \(date pour les actualités, évaluation pour les lieux, imageUrl pour les images\) |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `serper`

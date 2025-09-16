@@ -1,0 +1,41 @@
+---
+title: 连接
+description: 将您的模块相互连接。
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { ConnectIcon } from '@/components/icons'
+import { Video } from '@/components/ui/video'
+
+连接是允许数据在工作流中的模块之间流动的路径。它们定义了信息如何从一个模块传递到另一个模块，从而使您能够创建复杂的多步骤流程。
+
+<Callout type="info">
+  正确配置的连接对于创建高效的工作流至关重要。它们决定了数据如何在系统中流动以及模块之间如何交互。
+</Callout>
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="connections.mp4" />
+</div>
+
+## 连接类型
+
+Sim 支持不同类型的连接，以实现各种工作流模式：
+
+<Cards>
+  <Card title="连接基础" href="/connections/basics">
+    了解连接的工作原理以及如何在工作流中创建它们
+  </Card>
+  <Card title="连接标签" href="/connections/tags">
+    了解如何使用连接标签在模块之间引用数据
+  </Card>
+  <Card title="数据结构" href="/connections/data-structure">
+    探索不同模块类型的输出数据结构
+  </Card>
+  <Card title="访问数据" href="/connections/accessing-data">
+    学习访问和操作连接数据的技巧
+  </Card>
+  <Card title="最佳实践" href="/connections/best-practices">
+    遵循推荐的模式以实现高效的连接管理
+  </Card>
+</Cards>

@@ -1,0 +1,231 @@
+---
+title: Parallel
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Le bloc Parallel est un bloc conteneur dans Sim qui permet d'exécuter plusieurs instances de blocs simultanément pour un traitement de flux de travail plus rapide.
+
+Le bloc Parallel prend en charge deux types d'exécution concurrente :
+
+<Callout type="info">
+  Les blocs Parallel sont des nœuds conteneurs qui exécutent leur contenu plusieurs fois simultanément, contrairement aux boucles qui s'exécutent séquentiellement.
+</Callout>
+
+## Aperçu
+
+Le bloc Parallel vous permet de :
+
+<Steps>
+  <Step>
+    <strong>Distribuer le travail</strong> : traiter plusieurs éléments simultanément
+  </Step>
+  <Step>
+    <strong>Accélérer l'exécution</strong> : exécuter des opérations indépendantes simultanément
+  </Step>
+  <Step>
+    <strong>Gérer des opérations en masse</strong> : traiter efficacement de grands ensembles de données
+  </Step>
+  <Step>
+    <strong>Agréger les résultats</strong> : collecter les sorties de toutes les exécutions parallèles
+  </Step>
+</Steps>
+
+## Options de configuration
+
+### Type de parallélisation
+
+Choisissez entre deux types d'exécution parallèle :
+
+<Tabs items={['Count-based', 'Collection-based']}>
+  <Tab>
+    **Parallel basé sur le comptage** - Exécuter un nombre fixe d'instances parallèles :
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/parallel-1.png"
+        alt="Exécution parallèle basée sur le comptage"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    Utilisez cette option lorsque vous devez exécuter la même opération plusieurs fois simultanément.
+    
+
+    ```
+    Example: Run 5 parallel instances
+    - Instance 1 ┐
+    - Instance 2 ├─ All execute simultaneously
+    - Instance 3 │
+    - Instance 4 │
+    - Instance 5 ┘
+    ```
+
+  </Tab>
+  <Tab>
+    **Parallel basé sur une collection** - Distribuer une collection à travers des instances parallèles :
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/parallel-2.png"
+        alt="Exécution parallèle basée sur une collection"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    Chaque instance traite un élément de la collection simultanément.
+    
+
+    ```
+    Example: Process ["task1", "task2", "task3"] in parallel
+    - Instance 1: Process "task1" ┐
+    - Instance 2: Process "task2" ├─ All execute simultaneously
+    - Instance 3: Process "task3" ┘
+    ```
+
+  </Tab>
+</Tabs>
+
+## Comment utiliser les blocs Parallel
+
+### Création d'un bloc Parallel
+
+1. Faites glisser un bloc Parallel depuis la barre d'outils sur votre canevas
+2. Configurez le type de parallélisation et les paramètres
+3. Faites glisser un seul bloc à l'intérieur du conteneur parallel
+4. Connectez le bloc selon vos besoins
+
+### Accès aux résultats
+
+Après la fin d'un bloc parallèle, vous pouvez accéder aux résultats agrégés :
+
+- **`<parallel.results>`** : Tableau des résultats de toutes les instances parallèles
+
+## Exemples de cas d'utilisation
+
+### Traitement par lots d'API
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scénario : traiter plusieurs appels d'API simultanément</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Bloc parallèle avec une collection de points de terminaison API</li>
+    <li>À l'intérieur du parallèle : le bloc API appelle chaque point de terminaison</li>
+    <li>Après le parallèle : traitement de toutes les réponses ensemble</li>
+  </ol>
+</div>
+
+### Traitement IA multi-modèles
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scénario : obtenir des réponses de plusieurs modèles d'IA</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Parallèle basé sur une collection de modèles (ex. : ["gpt-4o", "claude-3.7-sonnet", "gemini-2.5-pro"])</li>
+    <li>À l'intérieur du parallèle : le modèle de l'agent est défini sur l'élément actuel de la collection</li>
+    <li>Après le parallèle : comparer et sélectionner la meilleure réponse</li>
+  </ol>
+</div>
+
+## Fonctionnalités avancées
+
+### Agrégation des résultats
+
+Les résultats de toutes les instances parallèles sont automatiquement collectés :
+
+```javascript
+// In a Function block after the parallel
+const allResults = input.parallel.results;
+// Returns: [result1, result2, result3, ...]
+```
+
+### Isolation des instances
+
+Chaque instance parallèle s'exécute indépendamment :
+- Portées de variables séparées
+- Pas d'état partagé entre les instances
+- Les échecs dans une instance n'affectent pas les autres
+
+### Limitations
+
+<Callout type="warning">
+  Les blocs conteneurs (Boucles et Parallèles) ne peuvent pas être imbriqués les uns dans les autres. Cela signifie :
+  - Vous ne pouvez pas placer un bloc Boucle dans un bloc Parallèle
+  - Vous ne pouvez pas placer un autre bloc Parallèle dans un bloc Parallèle
+  - Vous ne pouvez pas placer un bloc conteneur dans un autre bloc conteneur
+</Callout>
+
+<Callout type="warning">
+  Les blocs parallèles ne peuvent contenir qu'un seul bloc. Vous ne pouvez pas avoir plusieurs blocs connectés les uns aux autres à l'intérieur d'un parallèle - seul le premier bloc s'exécuterait dans ce cas.
+</Callout>
+
+<Callout type="info">
+  Bien que l'exécution parallèle soit plus rapide, soyez attentif à :
+  - Limites de taux des API lors de requêtes simultanées
+  - Utilisation de la mémoire avec de grands ensembles de données
+  - Maximum de 20 instances simultanées pour éviter l'épuisement des ressources
+</Callout>
+
+## Parallèle vs Boucle
+
+Comprendre quand utiliser chacun :
+
+| Fonctionnalité | Parallèle | Boucle |
+|---------|----------|------|
+| Exécution | Concurrente | Séquentielle |
+| Vitesse | Plus rapide pour les opérations indépendantes | Plus lente mais ordonnée |
+| Ordre | Pas d'ordre garanti | Maintient l'ordre |
+| Cas d'utilisation | Opérations indépendantes | Opérations dépendantes |
+| Utilisation des ressources | Plus élevée | Plus faible |
+
+## Entrées et sorties
+
+<Tabs items={['Configuration', 'Variables', 'Résultats']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Type de parallèle</strong> : Choisissez entre 'count' ou 'collection'
+      </li>
+      <li>
+        <strong>Count</strong> : Nombre d'instances à exécuter (basé sur le comptage)
+      </li>
+      <li>
+        <strong>Collection</strong> : Tableau ou objet à distribuer (basé sur la collection)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>parallel.currentItem</strong> : Élément pour cette instance
+      </li>
+      <li>
+        <strong>parallel.index</strong> : Numéro d'instance (base 0)
+      </li>
+      <li>
+        <strong>parallel.items</strong> : Collection complète (basé sur la collection)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>parallel.results</strong> : Tableau de tous les résultats d'instance
+      </li>
+      <li>
+        <strong>Accès</strong> : Disponible dans les blocs après le parallèle
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Bonnes pratiques
+
+- **Opérations indépendantes uniquement** : Assurez-vous que les opérations ne dépendent pas les unes des autres
+- **Gérer les limites de taux** : Ajoutez des délais ou une limitation pour les workflows intensifs en API
+- **Gestion des erreurs** : Chaque instance doit gérer ses propres erreurs avec élégance

@@ -1,0 +1,42 @@
+---
+title: Conexiones
+description: Conecta tus bloques entre sí.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { ConnectIcon } from '@/components/icons'
+import { Video } from '@/components/ui/video'
+
+Las conexiones son las vías que permiten que los datos fluyan entre bloques en tu flujo de trabajo. Definen cómo se pasa la información de un bloque a otro, permitiéndote crear procesos sofisticados de múltiples pasos.
+
+<Callout type="info">
+  Las conexiones correctamente configuradas son esenciales para crear flujos de trabajo efectivos. Determinan cómo
+  se mueven los datos a través de tu sistema y cómo los bloques interactúan entre sí.
+</Callout>
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="connections.mp4" />
+</div>
+
+## Tipos de conexiones
+
+Sim admite diferentes tipos de conexiones que permiten varios patrones de flujo de trabajo:
+
+<Cards>
+  <Card title="Conceptos básicos de conexiones" href="/connections/basics">
+    Aprende cómo funcionan las conexiones y cómo crearlas en tus flujos de trabajo
+  </Card>
+  <Card title="Etiquetas de conexión" href="/connections/tags">
+    Comprende cómo usar etiquetas de conexión para referenciar datos entre bloques
+  </Card>
+  <Card title="Estructura de datos" href="/connections/data-structure">
+    Explora las estructuras de datos de salida de diferentes tipos de bloques
+  </Card>
+  <Card title="Acceso a datos" href="/connections/accessing-data">
+    Aprende técnicas para acceder y manipular datos conectados
+  </Card>
+  <Card title="Mejores prácticas" href="/connections/best-practices">
+    Sigue los patrones recomendados para una gestión eficaz de conexiones
+  </Card>
+</Cards>

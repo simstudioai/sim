@@ -11,7 +11,7 @@ interface ImageProps extends Omit<NextImageProps, 'className'> {
 }
 
 export function Image({
-  className = 'w-full rounded-xl border border-border shadow-sm overflow-hidden',
+  className = 'w-full',
   enableLightbox = true,
   alt = '',
   src,
@@ -29,7 +29,7 @@ export function Image({
     <>
       <NextImage
         className={cn(
-          'object-cover',
+          'overflow-hidden rounded-xl border border-border object-cover shadow-sm',
           enableLightbox && 'cursor-pointer transition-opacity hover:opacity-90',
           className
         )}

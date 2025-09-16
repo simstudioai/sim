@@ -1,0 +1,161 @@
+---
+title: Copilot
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
+import { MessageCircle, Package, Zap, Infinity as InfinityIcon, Brain, BrainCircuit } from 'lucide-react'
+
+Copilot 是您编辑器中的助手，可帮助您使用 Sim Copilot 构建和编辑工作流，同时理解和改进它们。它可以：
+
+- **解释**：回答有关 Sim 和您当前工作流的问题
+- **指导**：建议编辑和最佳实践
+- **编辑**：在您批准后对模块、连接和设置进行更改
+
+<Callout type="info">
+  Copilot 是一个由 Sim 管理的服务。对于自托管部署，请在托管应用程序中生成一个 Copilot API 密钥（sim.ai → 设置 → Copilot）
+  1. 前往 [sim.ai](https://sim.ai) → 设置 → Copilot 并生成一个 Copilot API 密钥
+  2. 在您的自托管环境中将 `COPILOT_API_KEY` 设置为该值
+</Callout>
+
+## 上下文菜单 (@)
+
+使用 `@` 符号引用各种资源，并为 Copilot 提供有关您的工作空间的更多上下文：
+
+<Image
+  src="/static/copilot/copilot-menu.png"
+  alt="Copilot 上下文菜单显示可用的引用选项"
+  width={600}
+  height={400}
+/>
+
+`@` 菜单提供以下访问：
+- **聊天**：引用之前的 Copilot 对话
+- **所有工作流**：引用工作空间中的任何工作流
+- **工作流模块**：引用工作流中的特定模块
+- **模块**：引用模块类型和模板
+- **知识**：引用您上传的文档和知识库
+- **文档**：引用 Sim 文档
+- **模板**：引用工作流模板
+- **日志**：引用执行日志和结果
+
+这些上下文信息帮助 Copilot 为您的特定用例提供更准确和相关的帮助。
+
+## 模式
+
+<Cards>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <MessageCircle className="h-4 w-4 text-muted-foreground" />
+        提问
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">
+      用于解释、指导和建议的问答模式，不会对您的工作流进行更改。
+    </div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <Package className="h-4 w-4 text-muted-foreground" />
+        代理
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">
+      构建和编辑模式。Copilot 提出具体的编辑建议（添加模块、连接变量、调整设置），并在您批准后应用它们。
+    </div>
+  </Card>
+</Cards>
+
+## 深度级别
+
+<Cards>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <Zap className="h-4 w-4 text-muted-foreground" />
+        快速
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">最快且最便宜。适合小型编辑、简单工作流程和小幅调整。</div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <InfinityIcon className="h-4 w-4 text-muted-foreground" />
+        Auto
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">速度与推理的平衡。推荐作为大多数任务的默认选项。</div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <Brain className="h-4 w-4 text-muted-foreground" />
+        高级
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">适用于更大的工作流程和复杂编辑的更多推理，同时保持高效性能。</div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <BrainCircuit className="h-4 w-4 text-muted-foreground" />
+        巨兽
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">提供深度规划、调试和复杂架构更改的最大推理能力。</div>
+  </Card>
+</Cards>
+
+### 模式选择界面
+
+您可以通过 Copilot 界面中的模式选择器轻松切换不同的推理模式：
+
+<Image
+  src="/static/copilot/copilot-models.png"
+  alt="Copilot 模式选择界面，显示高级模式和 MAX 切换按钮"
+  width={600}
+  height={300}
+/>
+
+该界面允许您：
+- **选择推理级别**：从快速、Auto、高级或巨兽中选择
+- **启用 MAX 模式**：在需要最全面分析时切换到最大推理能力
+- **查看模式描述**：了解每种模式的优化用途
+
+根据任务的复杂性选择您的模式——简单问题使用快速模式，复杂架构更改使用巨兽模式。
+
+## 计费与成本计算
+
+### 成本如何计算
+
+Copilot 的使用按底层 LLM 的每个 token 计费：
+
+- **输入 token**：按提供商的基础费率计费（**成本价**）
+- **输出 token**：按提供商基础输出费率的 **1.5 倍** 计费
+
+```javascript
+copilotCost = (inputTokens × inputPrice + outputTokens × (outputPrice × 1.5)) / 1,000,000
+```
+
+| 组件       | 应用费率              |
+|----------|----------------------|
+| 输入       | inputPrice           |
+| 输出       | outputPrice × 1.5    |
+
+<Callout type="warning">
+  此处显示的定价反映截至 2025 年 9 月 4 日的费率。请查阅提供商文档以获取最新定价。
+</Callout>
+
+<Callout type="info">
+  模型价格以每百万个 token 为单位计算。计算公式将价格除以 1,000,000 以得出实际成本。请参阅<a href="/execution/costs">成本计算页面</a>了解背景信息和示例。
+</Callout>

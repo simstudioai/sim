@@ -1,0 +1,119 @@
+---
+title: Typeform
+description: Interagir avec Typeform
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="typeform"
+  color="#262627"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      version='1.1'
+      id='Layer_1'
+      xmlns='http://www.w3.org/2000/svg'
+      xmlnsXlink='http://www.w3.org/1999/xlink'
+      x='0px'
+      y='0px'
+      viewBox='0 0 122.3 80.3'
+      xmlSpace='preserve'
+    >
+      <g>
+        <path
+          fill='currentColor'
+          d='M94.3,0H65.4c-26,0-28,11.2-28,26.2l0,27.9c0,15.6,2,26.2,28.1,26.2h28.8c26,0,28-11.2,28-26.1V26.2
+		C122.3,11.2,120.3,0,94.3,0z M0,20.1C0,6.9,5.2,0,14,0c8.8,0,14,6.9,14,20.1v40.1c0,13.2-5.2,20.1-14,20.1c-8.8,0-14-6.9-14-20.1
+		V20.1z'
+        />
+      </g>
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Typeform](https://www.typeform.com/) est une plateforme conviviale pour créer des formulaires conversationnels, des sondages et des quiz avec un accent sur l'expérience utilisateur engageante.
+
+Avec Typeform, vous pouvez :
+
+- **Créer des formulaires interactifs** : concevoir de beaux formulaires conversationnels qui engagent les répondants avec une interface unique présentant une question à la fois
+- **Personnaliser votre expérience** : utiliser la logique conditionnelle, les champs masqués et les thèmes personnalisés pour créer des parcours utilisateur personnalisés
+- **Intégrer avec d'autres outils** : se connecter à plus de 1000 applications grâce aux intégrations natives et aux API
+- **Analyser les données de réponse** : obtenir des informations exploitables grâce à des outils d'analyse et de reporting complets
+
+Dans Sim, l'intégration Typeform permet à vos agents d'interagir programmatiquement avec vos données Typeform dans le cadre de leurs flux de travail. Les agents peuvent récupérer les réponses aux formulaires, traiter les données de soumission et incorporer directement les retours des utilisateurs dans les processus de prise de décision. Cette intégration est particulièrement précieuse pour des scénarios comme la qualification des prospects, l'analyse des retours clients et la personnalisation basée sur les données. En connectant Sim avec Typeform, vous pouvez créer des flux de travail d'automatisation intelligents qui transforment les réponses aux formulaires en informations exploitables - analysant le sentiment, catégorisant les retours, générant des résumés et même déclenchant des actions de suivi basées sur des modèles de réponse spécifiques.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Accédez et récupérez les réponses de vos formulaires Typeform. Intégrez les données de soumission de formulaires dans votre flux de travail pour analyse, stockage ou traitement.
+
+## Outils
+
+### `typeform_responses`
+
+Récupérer les réponses aux formulaires depuis Typeform
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `formId` | string | Oui | ID du formulaire Typeform |
+| `apiKey` | string | Oui | Token d'accès personnel Typeform |
+| `pageSize` | number | Non | Nombre de réponses à récupérer \(par défaut : 25\) |
+| `since` | string | Non | Récupérer les réponses soumises après cette date \(format ISO 8601\) |
+| `until` | string | Non | Récupérer les réponses soumises avant cette date \(format ISO 8601\) |
+| `completed` | string | Non | Filtrer par statut d'achèvement \(true/false\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `total_items` | nombre | Nombre total de réponses |
+| `page_count` | nombre | Nombre total de pages |
+| `items` | json | Éléments de réponse |
+
+### `typeform_files`
+
+Télécharger les fichiers importés dans les réponses Typeform
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `formId` | chaîne | Oui | ID du formulaire Typeform |
+| `responseId` | chaîne | Oui | ID de réponse contenant les fichiers |
+| `fieldId` | chaîne | Oui | ID unique du champ d'importation de fichier |
+| `filename` | chaîne | Oui | Nom du fichier importé |
+| `inline` | booléen | Non | Indique si le fichier doit être demandé avec Content-Disposition en ligne |
+| `apiKey` | chaîne | Oui | Jeton d'accès personnel Typeform |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `fileUrl` | chaîne | URL de téléchargement direct pour le fichier importé |
+| `contentType` | chaîne | Type MIME du fichier importé |
+| `filename` | chaîne | Nom d'origine du fichier importé |
+
+### `typeform_insights`
+
+Récupérer les insights et analyses pour les formulaires Typeform
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `formId` | chaîne | Oui | ID du formulaire Typeform |
+| `apiKey` | chaîne | Oui | Jeton d'accès personnel Typeform |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `fields` | array | Nombre d'utilisateurs qui ont abandonné à ce champ |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `typeform`

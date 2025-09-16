@@ -1,0 +1,136 @@
+---
+title: Exécution
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+
+Le moteur d'exécution de Sim donne vie à vos flux de travail en traitant les blocs dans le bon ordre, en gérant le flux de données et en traitant les erreurs avec élégance, afin que vous puissiez comprendre exactement comment les flux de travail sont exécutés dans Sim.
+
+<Callout type="info">
+  Chaque exécution de flux de travail suit un chemin déterministe basé sur vos connexions de blocs et votre logique, garantissant des résultats prévisibles et fiables.
+</Callout>
+
+## Aperçu de la documentation
+
+<Cards>
+  <Card title="Principes fondamentaux d'exécution" href="/execution/basics">
+    Découvrez le flux d'exécution fondamental, les types de blocs et comment les données circulent dans votre
+    flux de travail
+  </Card>
+
+  <Card title="Journalisation" href="/execution/logging">
+    Surveillez les exécutions de flux de travail avec une journalisation complète et une visibilité en temps réel
+  </Card>
+  
+  <Card title="Calcul des coûts" href="/execution/costs">
+    Comprenez comment les coûts d'exécution des flux de travail sont calculés et optimisés
+  </Card>
+  
+  <Card title="API externe" href="/execution/api">
+    Accédez aux journaux d'exécution et configurez des webhooks par programmation via l'API REST
+  </Card>
+</Cards>
+
+## Concepts clés
+
+### Exécution topologique
+Les blocs s'exécutent dans l'ordre des dépendances, similaire à la façon dont un tableur recalcule les cellules. Le moteur d'exécution détermine automatiquement quels blocs peuvent s'exécuter en fonction des dépendances terminées.
+
+### Suivi des chemins
+Le moteur suit activement les chemins d'exécution à travers votre flux de travail. Les blocs Routeur et Condition mettent à jour dynamiquement ces chemins, garantissant que seuls les blocs pertinents s'exécutent.
+
+### Traitement par couches
+Au lieu d'exécuter les blocs un par un, le moteur identifie des couches de blocs qui peuvent s'exécuter en parallèle, optimisant les performances pour les flux de travail complexes.
+
+### Contexte d'exécution
+Chaque flux de travail maintient un contexte riche pendant l'exécution contenant :
+- Sorties et états des blocs
+- Chemins d'exécution actifs
+- Suivi des itérations de boucle et parallèles
+- Variables d'environnement
+- Décisions de routage
+
+## Déclencheurs d'exécution
+
+Les workflows peuvent être exécutés via plusieurs canaux :
+
+- **Manuel** : Testez et déboguez directement dans l'éditeur
+- **Déploiement en tant qu'API** : Créez un point de terminaison HTTP sécurisé avec des clés API
+- **Déploiement en tant que Chat** : Créez une interface conversationnelle sur un sous-domaine personnalisé
+- **Webhooks** : Répondez aux événements externes provenant de services tiers
+- **Planifié** : Exécutez selon un calendrier récurrent à l'aide d'expressions cron
+
+### Déploiement en tant qu'API
+
+Lorsque vous déployez un workflow en tant qu'API, Sim :
+- Crée un point de terminaison HTTP unique : `https://sim.ai/api/workflows/{workflowId}/execute`
+- Génère une clé API pour l'authentification
+- Accepte les requêtes POST avec des charges utiles JSON
+- Renvoie les résultats d'exécution du workflow au format JSON
+
+Exemple d'appel API :
+
+```bash
+curl -X POST https://sim.ai/api/workflows/your-workflow-id/execute \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"input": "your data here"}'
+```
+
+### Déploiement en tant que Chat
+
+Le déploiement en tant que Chat crée une interface conversationnelle pour votre workflow :
+- Hébergée sur un sous-domaine personnalisé : `https://your-name.sim.ai`
+- Authentification optionnelle (publique, par mot de passe ou par e-mail)
+- Interface utilisateur personnalisable avec votre image de marque
+- Réponses en streaming pour une interaction en temps réel
+- Parfait pour les assistants IA, les bots d'assistance ou les outils interactifs
+
+Chaque méthode de déploiement transmet des données au bloc de démarrage de votre workflow, initiant ainsi le flux d'exécution.
+
+## Exécution programmatique
+
+Exécutez des workflows depuis vos applications en utilisant nos SDK officiels :
+
+```bash
+# TypeScript/JavaScript
+npm install simstudio-ts-sdk
+
+# Python
+pip install simstudio-sdk
+```
+
+```typescript
+// TypeScript Example
+import { SimStudioClient } from 'simstudio-ts-sdk';
+
+const client = new SimStudioClient({ 
+  apiKey: 'your-api-key' 
+});
+
+const result = await client.executeWorkflow('workflow-id', {
+  input: { message: 'Hello' }
+});
+```
+
+## Bonnes pratiques
+
+### Conception pour la fiabilité
+- Gérez les erreurs avec élégance en prévoyant des chemins de repli appropriés
+- Utilisez des variables d'environnement pour les données sensibles
+- Ajoutez des journalisations aux blocs de fonction pour le débogage
+
+### Optimisation des performances
+- Minimisez les appels API externes lorsque c'est possible
+- Utilisez l'exécution parallèle pour les opérations indépendantes
+- Mettez en cache les résultats avec des blocs de mémoire lorsque c'est approprié
+
+### Surveillance des exécutions
+- Examinez régulièrement les journaux pour comprendre les modèles de performance
+- Suivez les coûts d'utilisation des modèles d'IA
+- Utilisez des instantanés de workflow pour déboguer les problèmes
+
+## Quelle est la suite ?
+
+Commencez par les [Principes fondamentaux d'exécution](/execution/basics) pour comprendre comment les workflows s'exécutent, puis explorez la [Journalisation](/execution/logging) pour surveiller vos exécutions et le [Calcul des coûts](/execution/costs) pour optimiser vos dépenses.

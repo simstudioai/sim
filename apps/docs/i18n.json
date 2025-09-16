@@ -1,0 +1,17 @@
+{
+  "$schema": "https://lingo.dev/schema/i18n.json",
+  "version": 1.8,
+  "locale": {
+    "source": "en",
+    "targets": ["es", "fr", "zh"]
+  },
+  "buckets": {
+    "mdx": {
+      "include": [
+        "content/docs/[locale]/*.mdx",
+        "content/docs/[locale]/*/*.mdx",
+        "content/docs/[locale]/*/*/*.mdx"
+      ]
+    }
+  }
+}

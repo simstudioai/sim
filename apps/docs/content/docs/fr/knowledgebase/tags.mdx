@@ -1,0 +1,108 @@
+---
+title: Étiquettes et filtrage
+---
+
+import { Video } from '@/components/ui/video'
+
+Les étiquettes offrent un moyen puissant d'organiser vos documents et de créer un filtrage précis pour vos recherches vectorielles. En combinant le filtrage basé sur les étiquettes avec la recherche sémantique, vous pouvez récupérer exactement le contenu dont vous avez besoin dans votre base de connaissances.
+
+## Ajouter des étiquettes aux documents
+
+Vous pouvez ajouter des étiquettes personnalisées à n'importe quel document de votre base de connaissances pour organiser et catégoriser votre contenu afin de faciliter sa récupération.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="knowledgebase-tag.mp4" width={700} height={450} />
+</div>
+
+### Gestion des étiquettes
+- **Étiquettes personnalisées** : créez votre propre système d'étiquettes adapté à votre flux de travail
+- **Plusieurs étiquettes par document** : appliquez autant d'étiquettes que nécessaire à chaque document, il y a 7 emplacements d'étiquettes disponibles par base de connaissances qui sont partagés par tous les documents de la base de connaissances
+- **Organisation des étiquettes** : regroupez les documents connexes avec un étiquetage cohérent
+
+### Bonnes pratiques d'étiquetage
+- **Nommage cohérent** : utilisez des noms d'étiquettes standardisés pour tous vos documents
+- **Étiquettes descriptives** : utilisez des noms d'étiquettes clairs et significatifs
+- **Nettoyage régulier** : supprimez périodiquement les étiquettes inutilisées ou obsolètes
+
+## Utilisation des étiquettes dans les blocs de connaissances
+
+Les étiquettes deviennent puissantes lorsqu'elles sont combinées avec le bloc de connaissances dans vos flux de travail. Vous pouvez filtrer vos recherches pour cibler du contenu spécifiquement étiqueté, garantissant ainsi que vos agents IA obtiennent les informations les plus pertinentes.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="knowledgebase-tag2.mp4" width={700} height={450} />
+</div>
+
+## Modes de recherche
+
+Le bloc de connaissances prend en charge trois modes de recherche différents selon ce que vous fournissez :
+
+### 1. Recherche par étiquette uniquement
+Lorsque vous **fournissez uniquement des étiquettes** (sans requête de recherche) :
+- **Récupération directe** : récupère tous les documents qui ont les étiquettes spécifiées
+- **Pas de recherche vectorielle** : les résultats sont basés uniquement sur la correspondance des étiquettes
+- **Performance rapide** : récupération rapide sans traitement sémantique
+- **Correspondance exacte** : seuls les documents avec toutes les étiquettes spécifiées sont retournés
+
+**Cas d'utilisation** : Lorsque vous avez besoin de tous les documents d'une catégorie ou d'un projet spécifique
+
+### 2. Recherche vectorielle uniquement
+Lorsque vous **fournissez uniquement une requête de recherche** (sans tags) :
+- **Recherche sémantique** : Trouve du contenu basé sur le sens et le contexte
+- **Base de connaissances complète** : Recherche dans tous les documents
+- **Classement par pertinence** : Résultats classés par similarité sémantique
+- **Langage naturel** : Utilisez des questions ou des phrases pour trouver du contenu pertinent
+
+**Cas d'utilisation** : Lorsque vous avez besoin du contenu le plus pertinent, quelle que soit l'organisation
+
+### 3. Filtrage par tags + Recherche vectorielle combinés
+Lorsque vous **fournissez à la fois des tags et une requête de recherche** :
+1. **D'abord** : Filtrage des documents pour ne conserver que ceux avec les tags spécifiés
+2. **Ensuite** : Exécution de la recherche vectorielle dans ce sous-ensemble filtré
+3. **Résultat** : Contenu sémantiquement pertinent uniquement à partir de vos documents tagués
+
+**Cas d'utilisation** : Lorsque vous avez besoin de contenu pertinent d'une catégorie ou d'un projet spécifique
+
+### Configuration de la recherche
+
+#### Filtrage par tags
+- **Tags multiples** : Utilisez plusieurs tags pour une logique OU (le document doit avoir un ou plusieurs des tags)
+- **Combinaisons de tags** : Mélangez différents types de tags pour un filtrage précis
+- **Sensibilité à la casse** : La correspondance des tags est insensible à la casse
+- **Correspondance partielle** : Correspondance exacte du nom du tag requise
+
+#### Paramètres de recherche vectorielle
+- **Complexité de la requête** : Les questions en langage naturel fonctionnent mieux
+- **Limites de résultats** : Configurez le nombre de fragments à récupérer
+- **Seuil de pertinence** : Définissez des scores de similarité minimums
+- **Fenêtre contextuelle** : Ajustez la taille des fragments selon votre cas d'utilisation
+
+## Intégration avec les flux de travail
+
+### Configuration du bloc de connaissances
+1. **Sélectionner la base de connaissances** : Choisissez quelle base de connaissances rechercher
+2. **Ajouter des tags** : Spécifiez les tags de filtrage (facultatif)
+3. **Saisir la requête** : Ajoutez votre requête de recherche (facultatif)
+4. **Configurer les résultats** : Définissez le nombre de fragments à récupérer
+5. **Tester la recherche** : Prévisualisez les résultats avant de les utiliser dans le flux de travail
+
+### Utilisation dynamique des tags
+- **Tags variables** : utilisez des variables de workflow comme valeurs de tags
+- **Filtrage conditionnel** : appliquez différents tags selon la logique du workflow
+- **Recherche contextuelle** : ajustez les tags en fonction du contexte de la conversation
+- **Filtrage multi-étapes** : affinez les recherches à travers les étapes du workflow
+
+### Optimisation des performances
+- **Filtrage efficace** : le filtrage par tags s'effectue avant la recherche vectorielle pour de meilleures performances
+- **Mise en cache** : les combinaisons de tags fréquemment utilisées sont mises en cache pour plus de rapidité
+- **Traitement parallèle** : plusieurs recherches par tags peuvent s'exécuter simultanément
+- **Gestion des ressources** : optimisation automatique des ressources de recherche
+
+## Premiers pas avec les tags
+
+1. **Planifiez votre structure de tags** : décidez de conventions de nommage cohérentes
+2. **Commencez à taguer** : ajoutez des tags pertinents à vos documents existants
+3. **Testez les combinaisons** : expérimentez avec des combinaisons de tags et de requêtes de recherche
+4. **Intégrez dans les workflows** : utilisez le bloc Knowledge avec votre stratégie de tagging
+5. **Affinez avec le temps** : ajustez votre approche de tagging en fonction des résultats de recherche
+
+Les tags transforment votre base de connaissances d'un simple stockage de documents en un système d'intelligence organisé avec précision, que vos workflows d'IA peuvent naviguer avec une précision chirurgicale.

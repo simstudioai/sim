@@ -1,0 +1,151 @@
+---
+title: Schémas de blocs
+description: Référence complète du schéma YAML pour tous les blocs Sim
+---
+
+import { Card, Cards } from "fumadocs-ui/components/card";
+
+Cette section contient les définitions complètes du schéma YAML pour tous les types de blocs disponibles dans Sim. Chaque type de bloc a des exigences de configuration spécifiques et des formats de sortie.
+
+## Blocs fondamentaux
+
+Voici les éléments essentiels pour créer des flux de travail :
+
+<Cards>
+  <Card title="Bloc de démarrage" href="/yaml/blocks/starter">
+    Point d'entrée du flux de travail prenant en charge les déclencheurs manuels, les webhooks et les planifications
+  </Card>
+  <Card title="Bloc Agent" href="/yaml/blocks/agent">
+    Traitement alimenté par l'IA avec intégration LLM et prise en charge d'outils
+  </Card>
+  <Card title="Bloc Fonction" href="/yaml/blocks/function">
+    Environnement d'exécution de code JavaScript/TypeScript personnalisé
+  </Card>
+  <Card title="Bloc Réponse" href="/yaml/blocks/response">
+    Formatage et renvoi des résultats finaux du flux de travail
+  </Card>
+</Cards>
+
+## Logique et flux de contrôle
+
+Blocs pour implémenter la logique conditionnelle et le flux de contrôle :
+
+<Cards>
+  <Card title="Bloc Condition" href="/yaml/blocks/condition">
+    Branchement conditionnel basé sur des expressions booléennes
+  </Card>
+  <Card title="Bloc Routeur" href="/yaml/blocks/router">
+    Routage intelligent alimenté par l'IA vers plusieurs chemins
+  </Card>
+  <Card title="Bloc Boucle" href="/yaml/blocks/loop">
+    Traitement itératif avec des boucles for et forEach
+  </Card>
+  <Card title="Bloc Parallèle" href="/yaml/blocks/parallel">
+    Exécution simultanée sur plusieurs instances
+  </Card>
+</Cards>
+
+## Blocs d'intégration
+
+Blocs pour se connecter à des services et systèmes externes :
+
+<Cards>
+  <Card title="Bloc API" href="/yaml/blocks/api">
+    Requêtes HTTP vers des API REST externes
+  </Card>
+  <Card title="Bloc Webhook" href="/yaml/blocks/webhook">
+    Déclencheurs webhook pour intégrations externes
+  </Card>
+</Cards>
+
+## Blocs avancés
+
+Blocs spécialisés pour des modèles de flux de travail complexes :
+
+<Cards>
+  <Card title="Bloc Évaluateur" href="/yaml/blocks/evaluator">
+    Valider les sorties selon des critères et métriques définis
+  </Card>
+  <Card title="Bloc Flux de travail" href="/yaml/blocks/workflow">
+    Exécuter d'autres flux de travail comme composants réutilisables
+  </Card>
+</Cards>
+
+## Éléments de schéma communs
+
+Tous les blocs partagent ces éléments communs :
+
+### Structure de base
+
+```yaml
+block-id:
+  type: <block-type>
+  name: <display-name>
+  inputs:
+    # Block-specific configuration
+  connections:
+    # Connection definitions
+```
+
+### Types de connexion
+
+- **success** : Bloc cible pour une exécution réussie
+- **error** : Bloc cible pour la gestion des erreurs (facultatif)
+- **conditions** : Chemins multiples pour les blocs conditionnels
+
+### Variables d'environnement
+
+Utilisez des doubles accolades pour les variables d'environnement :
+
+```yaml
+inputs:
+  apiKey: '{{API_KEY_NAME}}'
+  endpoint: '{{SERVICE_ENDPOINT}}'
+```
+
+### Références de bloc
+
+Référencez les sorties d'autres blocs en utilisant le nom du bloc en minuscules :
+
+```yaml
+inputs:
+  userPrompt: <blockname.content>
+  data: <functionblock.output>
+  originalInput: <start.input>
+```
+
+## Règles de validation
+
+Tous les blocs YAML sont validés par rapport à leurs schémas :
+
+1. **Champs obligatoires** : doivent être présents
+2. **Validation de type** : les valeurs doivent correspondre aux types attendus
+3. **Validation d'énumération** : les valeurs de chaîne doivent provenir des listes autorisées
+4. **Validation de plage** : les nombres doivent être dans les plages spécifiées
+5. **Validation de modèle** : les chaînes doivent correspondre aux modèles regex (le cas échéant)
+
+## Référence rapide
+
+### Types de blocs et propriétés
+
+| Type de bloc | Sortie principale | Cas d'utilisation courants |
+|------------|----------------|------------------|
+| starter | `.input` | Point d'entrée du workflow |
+| agent | `.content` | Traitement IA, génération de texte |
+| function | `.output` | Transformation de données, calculs |
+| api | `.output` | Intégration de services externes |
+| condition | N/A (branchement) | Logique conditionnelle |
+| router | N/A (branchement) | Routage intelligent |
+| response | N/A (terminal) | Formatage de sortie finale |
+| loop | `.results` | Traitement itératif |
+| parallel | `.results` | Traitement concurrent |
+| webhook | `.payload` | Déclencheurs externes |
+| evaluator | `.score` | Validation de sortie, évaluation de qualité |
+| workflow | `.output` | Exécution de sous-workflow, modularité |
+
+### Obligatoire vs optionnel
+
+- **Toujours obligatoire** : `type`, `name`
+- **Généralement obligatoire** : `inputs`, `connections`
+- **Dépendant du contexte** : les champs d'entrée spécifiques varient selon le type de bloc
+- **Toujours optionnel** : connexions `error`, champs spécifiques à l'interface utilisateur

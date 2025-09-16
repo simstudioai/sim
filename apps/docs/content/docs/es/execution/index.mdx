@@ -1,0 +1,136 @@
+---
+title: Ejecución
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+
+El motor de ejecución de Sim da vida a tus flujos de trabajo procesando bloques en el orden correcto, gestionando el flujo de datos y manejando errores con elegancia, para que puedas entender exactamente cómo se ejecutan los flujos de trabajo en Sim.
+
+<Callout type="info">
+  Cada ejecución de flujo de trabajo sigue una ruta determinista basada en tus conexiones de bloques y lógica, asegurando resultados predecibles y confiables.
+</Callout>
+
+## Resumen de la documentación
+
+<Cards>
+  <Card title="Fundamentos de ejecución" href="/execution/basics">
+    Aprende sobre el flujo de ejecución fundamental, tipos de bloques y cómo fluyen los datos a través de tu
+    flujo de trabajo
+  </Card>
+
+  <Card title="Registro" href="/execution/logging">
+    Monitorea las ejecuciones de flujos de trabajo con registro completo y visibilidad en tiempo real
+  </Card>
+  
+  <Card title="Cálculo de costos" href="/execution/costs">
+    Comprende cómo se calculan y optimizan los costos de ejecución de flujos de trabajo
+  </Card>
+  
+  <Card title="API externa" href="/execution/api">
+    Accede a registros de ejecución y configura webhooks programáticamente a través de API REST
+  </Card>
+</Cards>
+
+## Conceptos clave
+
+### Ejecución topológica
+Los bloques se ejecutan en orden de dependencia, similar a cómo una hoja de cálculo recalcula celdas. El motor de ejecución determina automáticamente qué bloques pueden ejecutarse basándose en las dependencias completadas.
+
+### Seguimiento de rutas
+El motor rastrea activamente las rutas de ejecución a través de tu flujo de trabajo. Los bloques de enrutador y condición actualizan dinámicamente estas rutas, asegurando que solo se ejecuten los bloques relevantes.
+
+### Procesamiento basado en capas
+En lugar de ejecutar bloques uno por uno, el motor identifica capas de bloques que pueden ejecutarse en paralelo, optimizando el rendimiento para flujos de trabajo complejos.
+
+### Contexto de ejecución
+Cada flujo de trabajo mantiene un contexto enriquecido durante la ejecución que contiene:
+- Salidas y estados de bloques
+- Rutas de ejecución activas
+- Seguimiento de iteraciones de bucle y paralelas
+- Variables de entorno
+- Decisiones de enrutamiento
+
+## Disparadores de ejecución
+
+Los flujos de trabajo pueden ejecutarse a través de múltiples canales:
+
+- **Manual**: Prueba y depura directamente en el editor
+- **Desplegar como API**: Crea un punto de conexión HTTP protegido con claves API
+- **Desplegar como Chat**: Crea una interfaz conversacional en un subdominio personalizado
+- **Webhooks**: Responde a eventos externos de servicios de terceros
+- **Programado**: Ejecuta en un horario recurrente usando expresiones cron
+
+### Desplegar como API
+
+Cuando despliegas un flujo de trabajo como API, Sim:
+- Crea un punto de conexión HTTP único: `https://sim.ai/api/workflows/{workflowId}/execute`
+- Genera una clave API para autenticación
+- Acepta solicitudes POST con cargas útiles JSON
+- Devuelve los resultados de ejecución del flujo de trabajo como JSON
+
+Ejemplo de llamada API:
+
+```bash
+curl -X POST https://sim.ai/api/workflows/your-workflow-id/execute \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"input": "your data here"}'
+```
+
+### Desplegar como Chat
+
+El despliegue de chat crea una interfaz conversacional para tu flujo de trabajo:
+- Alojado en un subdominio personalizado: `https://your-name.sim.ai`
+- Autenticación opcional (pública, con contraseña o basada en correo electrónico)
+- Interfaz de usuario personalizable con tu marca
+- Respuestas en streaming para interacción en tiempo real
+- Perfecto para asistentes de IA, bots de soporte o herramientas interactivas
+
+Cada método de despliegue pasa datos al bloque inicial de tu flujo de trabajo, comenzando el flujo de ejecución.
+
+## Ejecución programática
+
+Ejecuta flujos de trabajo desde tus aplicaciones usando nuestros SDK oficiales:
+
+```bash
+# TypeScript/JavaScript
+npm install simstudio-ts-sdk
+
+# Python
+pip install simstudio-sdk
+```
+
+```typescript
+// TypeScript Example
+import { SimStudioClient } from 'simstudio-ts-sdk';
+
+const client = new SimStudioClient({ 
+  apiKey: 'your-api-key' 
+});
+
+const result = await client.executeWorkflow('workflow-id', {
+  input: { message: 'Hello' }
+});
+```
+
+## Mejores prácticas
+
+### Diseño para fiabilidad
+- Maneja los errores con elegancia mediante rutas de respaldo apropiadas
+- Usa variables de entorno para datos sensibles
+- Añade registro en bloques de Función para depuración
+
+### Optimiza el rendimiento
+- Minimiza las llamadas a API externas cuando sea posible
+- Usa ejecución paralela para operaciones independientes
+- Almacena en caché los resultados con bloques de Memoria cuando sea apropiado
+
+### Monitorea las ejecuciones
+- Revisa los registros regularmente para entender patrones de rendimiento
+- Realiza seguimiento de costos para el uso de modelos de IA
+- Usa instantáneas de flujo de trabajo para depurar problemas
+
+## ¿Qué sigue?
+
+Comienza con [Conceptos básicos de ejecución](/execution/basics) para entender cómo funcionan los flujos de trabajo, luego explora [Registro](/execution/logging) para monitorear tus ejecuciones y [Cálculo de costos](/execution/costs) para optimizar tu gasto.

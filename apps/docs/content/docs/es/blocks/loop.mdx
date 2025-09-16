@@ -1,0 +1,211 @@
+---
+title: Loop
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+El bloque Loop es un bloque contenedor en Sim que permite crear flujos de trabajo iterativos ejecutando un grupo de bloques repetidamente. Los bucles permiten el procesamiento iterativo en tus flujos de trabajo.
+
+El bloque Loop admite dos tipos de iteración:
+
+<Callout type="info">
+  Los bloques Loop son nodos contenedores que pueden albergar otros bloques dentro de ellos. Los bloques dentro de un bucle se ejecutarán múltiples veces según tu configuración.
+</Callout>
+
+## Descripción general
+
+El bloque Loop te permite:
+
+<Steps>
+  <Step>
+    <strong>Iterar sobre colecciones</strong>: Procesar arrays u objetos un elemento a la vez
+  </Step>
+  <Step>
+    <strong>Repetir operaciones</strong>: Ejecutar bloques un número fijo de veces
+  </Step>
+  <Step>
+    <strong>Procesamiento secuencial</strong>: Manejar transformación de datos en iteraciones ordenadas
+  </Step>
+  <Step>
+    <strong>Agregar resultados</strong>: Recopilar salidas de todas las iteraciones del bucle
+  </Step>
+</Steps>
+
+## Cómo funciona
+
+El bloque Loop ejecuta los bloques contenidos a través de iteración secuencial:
+
+1. **Inicializar bucle** - Configurar parámetros de iteración (contador o colección)
+2. **Ejecutar iteración** - Ejecutar bloques contenidos para la iteración actual
+3. **Recopilar resultados** - Almacenar la salida de cada iteración
+4. **Continuar o completar** - Pasar a la siguiente iteración o finalizar el bucle
+
+## Opciones de configuración
+
+### Tipo de bucle
+
+Elige entre dos tipos de bucles:
+
+<Tabs items={['For Loop', 'ForEach Loop']}>
+  <Tab>
+    **For Loop (Iteraciones)** - Un bucle numérico que se ejecuta un número fijo de veces:
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-1.png"
+        alt="Bucle For con iteraciones"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    Úsalo cuando necesites repetir una operación un número específico de veces.
+    
+
+    ```
+    Example: Run 5 times
+    - Iteration 1
+    - Iteration 2
+    - Iteration 3
+    - Iteration 4
+    - Iteration 5
+    ```
+
+  </Tab>
+  <Tab>
+    **Bucle ForEach (Colección)** - Un bucle basado en colecciones que itera sobre cada elemento en un array u objeto:
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-2.png"
+        alt="Bucle ForEach con colección"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    Úsalo cuando necesites procesar una colección de elementos.
+    
+
+    ```
+    Example: Process ["apple", "banana", "orange"]
+    - Iteration 1: Process "apple"
+    - Iteration 2: Process "banana"
+    - Iteration 3: Process "orange"
+    ```
+
+  </Tab>
+</Tabs>
+
+## Cómo usar los bucles
+
+### Creación de un bucle
+
+1. Arrastra un bloque de bucle desde la barra de herramientas a tu lienzo
+2. Configura el tipo de bucle y los parámetros
+3. Arrastra otros bloques dentro del contenedor del bucle
+4. Conecta los bloques según sea necesario
+
+### Acceso a los resultados
+
+Después de que un bucle se completa, puedes acceder a los resultados agregados:
+
+- **`<loop.results>`**: Array de resultados de todas las iteraciones del bucle
+
+## Ejemplos de casos de uso
+
+### Procesamiento de resultados de API
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Escenario: Procesar múltiples registros de clientes</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>El bloque API obtiene la lista de clientes</li>
+    <li>El bucle ForEach itera sobre cada cliente</li>
+    <li>Dentro del bucle: El agente analiza los datos del cliente</li>
+    <li>Dentro del bucle: La función almacena los resultados del análisis</li>
+  </ol>
+</div>
+
+### Generación iterativa de contenido
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Escenario: Generar múltiples variaciones</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Configurar el bucle For para 5 iteraciones</li>
+    <li>Dentro del bucle: El agente genera una variación de contenido</li>
+    <li>Dentro del bucle: El evaluador puntúa el contenido</li>
+    <li>Después del bucle: La función selecciona la mejor variación</li>
+  </ol>
+</div>
+
+## Características avanzadas
+
+### Limitaciones
+
+<Callout type="warning">
+  Los bloques contenedores (Bucles y Paralelos) no pueden anidarse unos dentro de otros. Esto significa:
+  - No puedes colocar un bloque de Bucle dentro de otro bloque de Bucle
+  - No puedes colocar un bloque Paralelo dentro de un bloque de Bucle
+  - No puedes colocar ningún bloque contenedor dentro de otro bloque contenedor
+  
+  Si necesitas iteración multidimensional, considera reestructurar tu flujo de trabajo para usar bucles secuenciales o procesar datos por etapas.
+</Callout>
+
+<Callout type="info">
+  Los bucles se ejecutan secuencialmente, no en paralelo. Si necesitas ejecución concurrente, utiliza el bloque Paralelo en su lugar.
+</Callout>
+
+## Entradas y salidas
+
+<Tabs items={['Configuration', 'Variables', 'Results']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Tipo de bucle</strong>: Elige entre 'for' o 'forEach'
+      </li>
+      <li>
+        <strong>Iteraciones</strong>: Número de veces a ejecutar (bucles for)
+      </li>
+      <li>
+        <strong>Colección</strong>: Array u objeto sobre el que iterar (bucles forEach)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>loop.currentItem</strong>: Elemento actual que se está procesando
+      </li>
+      <li>
+        <strong>loop.index</strong>: Número de iteración actual (base 0)
+      </li>
+      <li>
+        <strong>loop.items</strong>: Colección completa (bucles forEach)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>loop.results</strong>: Array con todos los resultados de las iteraciones
+      </li>
+      <li>
+        <strong>Estructura</strong>: Los resultados mantienen el orden de iteración
+      </li>
+      <li>
+        <strong>Acceso</strong>: Disponible en bloques después del bucle
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Mejores prácticas
+
+- **Establece límites razonables**: Mantén un número razonable de iteraciones para evitar tiempos de ejecución largos
+- **Usa ForEach para colecciones**: Cuando proceses arrays u objetos, usa bucles ForEach en lugar de bucles For
+- **Maneja los errores con elegancia**: Considera añadir manejo de errores dentro de los bucles para flujos de trabajo robustos

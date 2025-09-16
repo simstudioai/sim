@@ -1,0 +1,429 @@
+---
+title: Esquema YAML del bloque API
+description: Referencia de configuración YAML para bloques API
+---
+
+## Definición del esquema
+
+```yaml
+type: object
+required:
+  - type
+  - name
+  - inputs
+properties:
+  type:
+    type: string
+    enum: [api]
+    description: Block type identifier
+  name:
+    type: string
+    description: Display name for this API block
+  inputs:
+    type: object
+    required:
+      - url
+      - method
+    properties:
+      url:
+        type: string
+        description: The endpoint URL to send the request to
+      method:
+        type: string
+        enum: [GET, POST, PUT, DELETE, PATCH]
+        description: HTTP method for the request
+        default: GET
+      params:
+        type: array
+        description: Query parameters as table entries
+        items:
+          type: object
+          required:
+            - id
+            - cells
+          properties:
+            id:
+              type: string
+              description: Unique identifier for the parameter entry
+            cells:
+              type: object
+              required:
+                - Key
+                - Value
+              properties:
+                Key:
+                  type: string
+                  description: Parameter name
+                Value:
+                  type: string
+                  description: Parameter value
+      headers:
+        type: array
+        description: HTTP headers as table entries
+        items:
+          type: object
+          required:
+            - id
+            - cells
+          properties:
+            id:
+              type: string
+              description: Unique identifier for the header entry
+            cells:
+              type: object
+              required:
+                - Key
+                - Value
+              properties:
+                Key:
+                  type: string
+                  description: Header name
+                Value:
+                  type: string
+                  description: Header value
+      body:
+        type: string
+        description: Request body for POST/PUT/PATCH methods
+      timeout:
+        type: number
+        description: Request timeout in milliseconds
+        default: 30000
+        minimum: 1000
+        maximum: 300000
+  connections:
+    type: object
+    properties:
+      success:
+        type: string
+        description: Target block ID for successful requests
+      error:
+        type: string
+        description: Target block ID for error handling
+```
+
+## Configuración de conexión
+
+Las conexiones definen hacia dónde va el flujo de trabajo según los resultados de la solicitud:
+
+```yaml
+connections:
+  success: <string>                     # Target block ID for successful requests
+  error: <string>                       # Target block ID for error handling (optional)
+```
+
+## Ejemplos
+
+### Solicitud GET simple
+
+```yaml
+user-api:
+  type: api
+  name: "Fetch User Data"
+  inputs:
+    url: "https://api.example.com/users/123"
+    method: GET
+    headers:
+      - id: header-1-uuid-here
+        cells:
+          Key: "Authorization"
+          Value: "Bearer {{API_TOKEN}}"
+      - id: header-2-uuid-here
+        cells:
+          Key: "Content-Type"
+          Value: "application/json"
+  connections:
+    success: process-user-data
+    error: handle-api-error
+```
+
+### Solicitud POST con cuerpo
+
+```yaml
+create-ticket:
+  type: api
+  name: "Create Support Ticket"
+  inputs:
+    url: "https://api.support.com/tickets"
+    method: POST
+    headers:
+      - id: auth-header-uuid
+        cells:
+          Key: "Authorization"
+          Value: "Bearer {{SUPPORT_API_KEY}}"
+      - id: content-type-uuid
+        cells:
+          Key: "Content-Type"
+          Value: "application/json"
+    body: |
+      {
+        "title": "<agent.title>",
+        "description": "<agent.description>",
+        "priority": "high"
+      }
+  connections:
+    success: ticket-created
+    error: ticket-error
+```
+
+### URL dinámica con parámetros de consulta
+
+```yaml
+search-api:
+  type: api
+  name: "Search Products"
+  inputs:
+    url: "https://api.store.com/products"
+    method: GET
+    params:
+      - id: search-param-uuid
+        cells:
+          Key: "q"
+          Value: <start.searchTerm>
+      - id: limit-param-uuid
+        cells:
+          Key: "limit"
+          Value: "10"
+      - id: category-param-uuid
+        cells:
+          Key: "category"
+          Value: <filter.category>
+    headers:
+      - id: auth-header-uuid
+        cells:
+          Key: "Authorization"
+          Value: "Bearer {{STORE_API_KEY}}"
+  connections:
+    success: display-results
+```
+
+## Formato de parámetros
+
+Los encabezados y parámetros (parámetros de consulta) utilizan el formato de tabla con la siguiente estructura:
+
+```yaml
+headers:
+  - id: unique-identifier-here
+    cells:
+      Key: "Content-Type"
+      Value: "application/json"
+  - id: another-unique-identifier
+    cells:
+      Key: "Authorization"
+      Value: "Bearer {{API_TOKEN}}"
+
+params:
+  - id: param-identifier-here
+    cells:
+      Key: "limit"
+      Value: "10"
+```
+
+**Detalles de la estructura:**
+- `id`: Identificador único para rastrear la fila de la tabla
+- `cells.Key`: El nombre del parámetro/encabezado
+- `cells.Value`: El valor del parámetro/encabezado
+- Este formato permite una gestión adecuada de la tabla y la preservación del estado de la interfaz de usuario
+
+## Referencias de salida
+
+Después de que un bloque API se ejecuta, puedes hacer referencia a sus salidas en bloques posteriores. El bloque API proporciona tres salidas principales:
+
+### Salidas disponibles
+
+| Salida | Tipo | Descripción |
+|--------|------|-------------|
+| `data` | cualquiera | El cuerpo/carga de respuesta de la API |
+| `status` | número | Código de estado HTTP (200, 404, 500, etc.) |
+| `headers` | objeto | Encabezados de respuesta devueltos por el servidor |
+
+### Ejemplos de uso
+
+```yaml
+# Reference API response data
+process-data:
+  type: function
+  name: "Process API Data"
+  inputs:
+    code: |
+      const responseData = <fetchuserdata.data>;
+      const statusCode = <fetchuserdata.status>;
+      const responseHeaders = <fetchuserdata.headers>;
+      
+      if (statusCode === 200) {
+        return {
+          success: true,
+          user: responseData,
+          contentType: responseHeaders['content-type']
+        };
+      } else {
+        return {
+          success: false,
+          error: `API call failed with status ${statusCode}`
+        };
+      }
+
+# Use API data in an agent block
+analyze-response:
+  type: agent
+  name: "Analyze Response"
+  inputs:
+    userPrompt: |
+      Analyze this API response:
+      
+      Status: <fetchuserdata.status>
+      Data: <fetchuserdata.data>
+      
+      Provide insights about the response.
+
+# Conditional logic based on status
+check-status:
+  type: condition
+  name: "Check API Status"
+  inputs:
+    condition: <fetchuserdata.status> === 200
+  connections:
+    true: success-handler
+    false: error-handler
+```
+
+### Ejemplo práctico
+
+```yaml
+user-api:
+  type: api
+  name: "Fetch User Data"
+  inputs:
+    url: "https://api.example.com/users/123"
+    method: GET
+  connections:
+    success: process-response
+
+process-response:
+  type: function
+  name: "Process Response"
+  inputs:
+    code: |
+      const user = <fetchuserdata.data>;
+      const status = <fetchuserdata.status>;
+      
+      console.log(`API returned status: ${status}`);
+      console.log(`User data:`, user);
+      
+      return {
+        userId: user.id,
+        email: user.email,
+        isActive: status === 200
+      };
+```
+
+### Manejo de errores
+
+```yaml
+api-with-error-handling:
+  type: api
+  name: "API Call"
+  inputs:
+    url: "https://api.example.com/data"
+    method: GET
+  connections:
+    success: check-response
+    error: handle-error
+
+check-response:
+  type: condition
+  name: "Check Response Status"
+  inputs:
+    condition: <apicall.status> >= 200 && <apicall.status> < 300
+  connections:
+    true: process-success
+    false: handle-api-error
+
+process-success:
+  type: function
+  name: "Process Success"
+  inputs:
+    code: |
+      return {
+        success: true,
+        data: <apicall.data>,
+        message: "API call successful"
+      };
+
+handle-api-error:
+  type: function
+  name: "Handle API Error"
+  inputs:
+    code: |
+      return {
+        success: false,
+        status: <apicall.status>,
+        error: "API call failed",
+        data: <apicall.data>
+      };
+```
+
+## Escape de cadenas en YAML
+
+Al escribir YAML, ciertas cadenas deben estar entre comillas para ser analizadas correctamente:
+
+### Cadenas que deben estar entre comillas
+
+```yaml
+# URLs with hyphens, colons, special characters
+url: "https://api.example.com/users/123"
+url: "https://my-api.example.com/data"
+
+# Header values with hyphens or special characters  
+headers:
+  - id: header-uuid
+    cells:
+      Key: "User-Agent"
+      Value: "My-Application/1.0"
+  - id: auth-uuid
+    cells:
+      Key: "Authorization" 
+      Value: "Bearer my-token-123"
+
+# Parameter values with hyphens
+params:
+  - id: param-uuid
+    cells:
+      Key: "sort-by"
+      Value: "created-at"
+```
+
+### Cuándo usar comillas
+
+- ✅ **Siempre usar comillas para**: URLs, tokens, valores con guiones, dos puntos o caracteres especiales
+- ✅ **Siempre usar comillas para**: Valores que comienzan con números pero deben ser cadenas
+- ✅ **Siempre usar comillas para**: Cadenas que parecen booleanos pero deben permanecer como cadenas
+- ❌ **No usar comillas para**: Cadenas alfanuméricas simples sin caracteres especiales
+
+### Ejemplos
+
+```yaml
+# ✅ Correct
+url: "https://api.stripe.com/v1/charges"
+headers:
+  - id: auth-header
+    cells:
+      Key: "Authorization"
+      Value: "Bearer sk-test-123456789"
+
+# ❌ Incorrect (may cause parsing errors)
+url: https://api.stripe.com/v1/charges
+headers:
+  - id: auth-header
+    cells:
+      Key: Authorization
+      Value: Bearer sk-test-123456789
+```
+
+## Mejores prácticas
+
+- Usar variables de entorno para claves API: `{{API_KEY_NAME}}`
+- Incluir manejo de errores con conexiones de error
+- Establecer tiempos de espera apropiados para tu caso de uso
+- Validar códigos de estado de respuesta en bloques subsiguientes
+- Usar nombres de bloque significativos para facilitar la referencia
+- **Siempre poner entre comillas las cadenas con caracteres especiales, URLs y tokens**

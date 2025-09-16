@@ -1,0 +1,140 @@
+---
+title: Jira
+description: Interactúa con Jira
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="jira"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      viewBox='0 0 30 30'
+      
+      
+      focusable='false'
+      aria-hidden='true'
+    >
+      <path
+        fill='#1868DB'
+        d='M11.034 21.99h-2.22c-3.346 0-5.747-2.05-5.747-5.052h11.932c.619 0 1.019.44 1.019 1.062v12.007c-2.983 0-4.984-2.416-4.984-5.784zm5.893-5.967h-2.219c-3.347 0-5.748-2.013-5.748-5.015h11.933c.618 0 1.055.402 1.055 1.025V24.04c-2.983 0-5.02-2.416-5.02-5.784zm5.93-5.93h-2.219c-3.347 0-5.748-2.05-5.748-5.052h11.933c.618 0 1.018.439 1.018 1.025v12.007c-2.983 0-4.984-2.416-4.984-5.784z'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Jira](https://www.atlassian.com/jira) es una plataforma líder de gestión de proyectos y seguimiento de incidencias que ayuda a los equipos a planificar, rastrear y gestionar proyectos de desarrollo de software ágil de manera efectiva. Como parte de la suite de Atlassian, Jira se ha convertido en el estándar de la industria para equipos de desarrollo de software y profesionales de gestión de proyectos en todo el mundo.
+
+Jira proporciona un conjunto completo de herramientas para gestionar proyectos complejos a través de su sistema de flujo de trabajo flexible y personalizable. Con su robusta API y capacidades de integración, Jira permite a los equipos optimizar sus procesos de desarrollo y mantener una clara visibilidad del progreso del proyecto.
+
+Las características principales de Jira incluyen:
+
+- Gestión de proyectos ágiles: Soporte para metodologías Scrum y Kanban con tableros y flujos de trabajo personalizables
+- Seguimiento de incidencias: Sistema sofisticado de seguimiento para errores, historias, épicas y tareas con informes detallados
+- Automatización de flujos de trabajo: Potentes reglas de automatización para optimizar tareas y procesos repetitivos
+- Búsqueda avanzada: JQL (Jira Query Language) para filtrado e informes complejos de incidencias
+
+En Sim, la integración con Jira permite a tus agentes interactuar sin problemas con tu flujo de trabajo de gestión de proyectos. Esto crea oportunidades para la creación, actualización y seguimiento automatizado de incidencias como parte de tus flujos de trabajo de IA. La integración permite a los agentes crear, recuperar y actualizar incidencias de Jira de forma programática, facilitando tareas automatizadas de gestión de proyectos y asegurando que la información importante sea debidamente rastreada y documentada. Al conectar Sim con Jira, puedes construir agentes inteligentes que mantengan la visibilidad del proyecto mientras automatizan tareas rutinarias de gestión de proyectos, mejorando la productividad del equipo y asegurando un seguimiento consistente del proyecto.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Conéctate a espacios de trabajo de Jira para leer, escribir y actualizar incidencias. Accede a contenido, metadatos e integra la documentación de Jira en tus flujos de trabajo.
+
+## Herramientas
+
+### `jira_retrieve`
+
+Recupera información detallada sobre una incidencia específica de Jira
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `projectId` | string | No | ID del proyecto de Jira \(opcional; no es necesario para recuperar una sola incidencia\). |
+| `issueKey` | string | Sí | Clave de la incidencia de Jira a recuperar \(p. ej., PROJ-123\) |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá usando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Detalles de la incidencia de Jira con clave de incidencia, resumen, descripción, marcas de tiempo de creación y actualización |
+
+### `jira_update`
+
+Actualizar una incidencia de Jira
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `projectId` | string | No | ID del proyecto de Jira para actualizar incidencias. Si no se proporciona, se recuperarán todas las incidencias. |
+| `issueKey` | string | Sí | Clave de la incidencia de Jira a actualizar |
+| `summary` | string | No | Nuevo resumen para la incidencia |
+| `description` | string | No | Nueva descripción para la incidencia |
+| `status` | string | No | Nuevo estado para la incidencia |
+| `priority` | string | No | Nueva prioridad para la incidencia |
+| `assignee` | string | No | Nuevo asignado para la incidencia |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá usando el dominio. |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Detalles actualizados de la incidencia de Jira con marca de tiempo, clave de incidencia, resumen y estado de éxito |
+
+### `jira_write`
+
+Escribir una incidencia de Jira
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `projectId` | string | Sí | ID del proyecto para la incidencia |
+| `summary` | string | Sí | Resumen de la incidencia |
+| `description` | string | No | Descripción de la incidencia |
+| `priority` | string | No | Prioridad de la incidencia |
+| `assignee` | string | No | Asignado para la incidencia |
+| `cloudId` | string | No | ID de Jira Cloud para la instancia. Si no se proporciona, se obtendrá utilizando el dominio. |
+| `issueType` | string | Sí | Tipo de incidencia a crear \(p. ej., Tarea, Historia\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Detalles de la incidencia de Jira creada con marca de tiempo, clave de incidencia, resumen, estado de éxito y URL |
+
+### `jira_bulk_read`
+
+Recuperar múltiples incidencias de Jira en bloque
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Sí | Tu dominio de Jira \(p. ej., tuempresa.atlassian.net\) |
+| `projectId` | string | Sí | ID del proyecto de Jira |
+| `cloudId` | string | No | ID de Jira cloud |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | array | Array de incidencias de Jira con resumen, descripción, marcas de tiempo de creación y actualización |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `jira`

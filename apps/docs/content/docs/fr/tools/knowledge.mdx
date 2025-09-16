@@ -1,0 +1,121 @@
+---
+title: Connaissances
+description: Utiliser la recherche vectorielle
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="knowledge"
+  color="#00B0B0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='1.5'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+    >
+      <path d='M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14' />
+      <path d='m7.5 4.27 9 5.15' />
+      <polyline points='3.29 7 12 12 20.71 7' />
+      <line x1='12' x2='12' y1='22' y2='12' />
+      <circle cx='18.5' cy='15.5' r='2.5' />
+      <path d='M20.27 17.27 22 19' />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+La base de connaissances de Sim est une fonctionnalité native puissante qui vous permet de créer, gérer et interroger des bases de connaissances personnalisées directement au sein de la plateforme. Utilisant des embeddings IA avancés et la technologie de recherche vectorielle, le bloc Base de connaissances vous permet d'intégrer des capacités de recherche intelligente dans vos flux de travail, facilitant ainsi la recherche et l'utilisation d'informations pertinentes à travers votre organisation.
+
+Le système de base de connaissances offre une solution complète pour gérer les connaissances organisationnelles grâce à son architecture flexible et évolutive. Avec ses capacités de recherche vectorielle intégrées, les équipes peuvent effectuer des recherches sémantiques qui comprennent le sens et le contexte, allant au-delà de la simple correspondance de mots-clés traditionnelle.
+
+Les fonctionnalités clés de la base de connaissances incluent :
+
+- Recherche sémantique : recherche avancée propulsée par l'IA qui comprend le sens et le contexte, pas seulement les mots-clés
+- Embeddings vectoriels : conversion automatique du texte en vecteurs multidimensionnels pour une correspondance intelligente par similarité
+- Bases de connaissances personnalisées : création et gestion de plusieurs bases de connaissances pour différents objectifs ou départements
+- Types de contenu flexibles : prise en charge de divers formats de documents et types de contenu
+- Mises à jour en temps réel : indexation immédiate du nouveau contenu pour une recherche instantanée
+
+Dans Sim, le bloc Base de connaissances permet à vos agents d'effectuer des recherches sémantiques intelligentes dans vos bases de connaissances personnalisées. Cela crée des opportunités pour la récupération automatisée d'informations, les recommandations de contenu et la découverte de connaissances dans le cadre de vos flux de travail IA. L'intégration permet aux agents de rechercher et de récupérer des informations pertinentes de manière programmatique, facilitant les tâches automatisées de gestion des connaissances et garantissant que les informations importantes sont facilement accessibles. En utilisant le bloc Base de connaissances, vous pouvez créer des agents intelligents qui améliorent la découverte d'informations tout en automatisant les tâches routinières de gestion des connaissances, améliorant ainsi l'efficacité de l'équipe et assurant un accès cohérent aux connaissances organisationnelles.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Effectuez une recherche vectorielle sémantique dans les bases de connaissances, téléchargez des fragments individuels dans des documents existants ou créez de nouveaux documents à partir de contenu textuel. Utilise des embeddings IA avancés pour comprendre le sens et le contexte des opérations de recherche.
+
+## Outils
+
+### `knowledge_search`
+
+Rechercher du contenu similaire dans une base de connaissances en utilisant la similarité vectorielle
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `knowledgeBaseId` | chaîne | Oui | ID de la base de connaissances dans laquelle effectuer la recherche |
+| `query` | chaîne | Non | Texte de la requête de recherche \(facultatif lors de l'utilisation de filtres par tags\) |
+| `topK` | nombre | Non | Nombre de résultats les plus similaires à retourner \(1-100\) |
+| `tagFilters` | quelconque | Non | Tableau de filtres de tags avec les propriétés tagName et tagValue |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | tableau | Tableau des résultats de recherche de la base de connaissances |
+
+### `knowledge_upload_chunk`
+
+Télécharger un nouveau fragment dans un document d'une base de connaissances
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `knowledgeBaseId` | chaîne | Oui | ID de la base de connaissances contenant le document |
+| `documentId` | chaîne | Oui | ID du document dans lequel télécharger le fragment |
+| `content` | chaîne | Oui | Contenu du fragment à télécharger |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | objet | Informations sur le fragment téléchargé |
+
+### `knowledge_create_document`
+
+Créer un nouveau document dans une base de connaissances
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `knowledgeBaseId` | chaîne | Oui | ID de la base de connaissances contenant le document |
+| `name` | chaîne | Oui | Nom du document |
+| `content` | chaîne | Oui | Contenu du document |
+| `tag1` | chaîne | Non | Valeur de l'étiquette 1 pour le document |
+| `tag2` | chaîne | Non | Valeur de l'étiquette 2 pour le document |
+| `tag3` | chaîne | Non | Valeur de l'étiquette 3 pour le document |
+| `tag4` | chaîne | Non | Valeur de l'étiquette 4 pour le document |
+| `tag5` | chaîne | Non | Valeur de l'étiquette 5 pour le document |
+| `tag6` | chaîne | Non | Valeur de l'étiquette 6 pour le document |
+| `tag7` | chaîne | Non | Valeur de l'étiquette 7 pour le document |
+| `documentTagsData` | tableau | Non | Données d'étiquettes structurées avec noms, types et valeurs |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | object | Informations sur le document créé |
+
+## Notes
+
+- Catégorie : `blocks`
+- Type : `knowledge`

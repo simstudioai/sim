@@ -1,0 +1,208 @@
+---
+title: Supabase
+description: Usa la base de datos Supabase
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="supabase"
+  color="#1C1C1C"
+  icon={true}
+  iconSvg={`<svg className="block-icon"    viewBox='0 0 27 27' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        d='M15.4057 26.2606C14.7241 27.1195 13.3394 26.649 13.3242 25.5519L13.083 9.50684H23.8724C25.8262 9.50684 26.9157 11.7636 25.7006 13.2933L15.4057 26.2606Z'
+        fill='url(#paint0_linear)'
+      />
+      <path
+        d='M15.4057 26.2606C14.7241 27.1195 13.3394 26.649 13.3242 25.5519L13.083 9.50684H23.8724C25.8262 9.50684 26.9157 11.7636 25.7006 13.2933L15.4057 26.2606Z'
+        fill='url(#paint1_linear)'
+        fillOpacity='0.2'
+      />
+      <path
+        d='M11.0167 0.443853C11.6983 -0.415083 13.0832 0.0553814 13.0982 1.15237L13.2042 17.1976H2.55005C0.596215 17.1976 -0.493259 14.9408 0.721603 13.4111L11.0167 0.443853Z'
+        fill='#3ECF8E'
+      />
+      <defs>
+        <linearGradient
+          id='paint0_linear'
+          x1='13.084'
+          y1='13.0655'
+          x2='22.6727'
+          y2='17.087'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop stopColor='#249361' />
+          <stop offset='1' stopColor='#3ECF8E' />
+        </linearGradient>
+        <linearGradient
+          id='paint1_linear'
+          x1='8.83277'
+          y1='7.24485'
+          x2='13.2057'
+          y2='15.477'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop />
+          <stop offset='1' stopOpacity='0' />
+        </linearGradient>
+      </defs>
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Supabase](https://www.supabase.com/) es una potente plataforma backend-as-a-service de código abierto que proporciona a los desarrolladores un conjunto de herramientas para construir, escalar y gestionar aplicaciones modernas. Supabase ofrece una base de datos [PostgreSQL](https://www.postgresql.org/) completamente gestionada, autenticación robusta, APIs RESTful y GraphQL instantáneas, suscripciones en tiempo real, almacenamiento de archivos y funciones edge, todo accesible a través de una interfaz unificada y amigable para desarrolladores. Su naturaleza de código abierto y compatibilidad con frameworks populares la convierten en una alternativa convincente a Firebase, con el beneficio adicional de la flexibilidad y transparencia de SQL.
+
+**¿Por qué Supabase?**
+- **APIs instantáneas:** Cada tabla y vista en tu base de datos está disponible instantáneamente a través de endpoints REST y GraphQL, facilitando la creación de aplicaciones basadas en datos sin escribir código backend personalizado.
+- **Datos en tiempo real:** Supabase permite suscripciones en tiempo real, permitiendo que tus aplicaciones reaccionen instantáneamente a los cambios en tu base de datos.
+- **Autenticación y autorización:** Gestión de usuarios incorporada con soporte para email, OAuth, SSO y más, además de seguridad a nivel de fila para un control de acceso granular.
+- **Almacenamiento:** Sube, sirve y gestiona archivos de forma segura con almacenamiento integrado que se integra perfectamente con tu base de datos.
+- **Funciones Edge:** Despliega funciones serverless cerca de tus usuarios para lógica personalizada de baja latencia.
+
+**Uso de Supabase en Sim**
+
+La integración de Supabase en Sim facilita la conexión de tus flujos de trabajo basados en agentes con tus proyectos de Supabase. Con solo unos pocos campos de configuración —tu ID de proyecto, nombre de tabla y clave secreta de rol de servicio— puedes interactuar de forma segura con tu base de datos directamente desde tus bloques de Sim. La integración abstrae la complejidad de las llamadas a la API, permitiéndote concentrarte en construir lógica y automatizaciones.
+
+**Beneficios clave de usar Supabase en Sim:**
+- **Operaciones de base de datos sin código/con poco código:** Consulta, inserta, actualiza y elimina filas en tus tablas de Supabase sin escribir SQL o código backend.
+- **Consultas flexibles:** Utiliza la [sintaxis de filtro de PostgREST](https://postgrest.org/en/stable/api.html#operators) para realizar consultas avanzadas, incluyendo filtrado, ordenamiento y limitación de resultados.
+- **Integración perfecta:** Conecta fácilmente Supabase con otras herramientas y servicios en tu flujo de trabajo, habilitando potentes automatizaciones como sincronización de datos, activación de notificaciones o enriquecimiento de registros.
+- **Seguro y escalable:** Todas las operaciones utilizan tu clave secreta de rol de servicio de Supabase, asegurando un acceso seguro a tus datos con la escalabilidad de una plataforma cloud gestionada.
+
+Ya sea que estés construyendo herramientas internas, automatizando procesos de negocio o impulsando aplicaciones de producción, Supabase en Sim proporciona una forma rápida, confiable y amigable para desarrolladores de gestionar tus datos y lógica de backend—sin necesidad de gestionar infraestructura. Simplemente configura tu bloque, selecciona la operación que necesitas y deja que Sim se encargue del resto.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Intégrate con Supabase para gestionar tu base de datos, autenticación, almacenamiento y más. Consulta datos, gestiona usuarios e interactúa con los servicios de Supabase directamente.
+
+## Herramientas
+
+### `supabase_query`
+
+Consultar datos de una tabla de Supabase
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | string | Sí | Tu ID de proyecto de Supabase \(ej., jdrkgepadsdopsntdlom\) |
+| `table` | string | Sí | El nombre de la tabla de Supabase a consultar |
+| `filter` | string | No | Filtro de PostgREST \(ej., "id=eq.123"\) |
+| `orderBy` | string | No | Columna para ordenar \(añade DESC para orden descendente\) |
+| `limit` | number | No | Número máximo de filas a devolver |
+| `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `results` | array | Array de registros devueltos por la consulta |
+
+### `supabase_insert`
+
+Insertar datos en una tabla de Supabase
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Sí | ID de tu proyecto de Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
+| `table` | string | Sí | Nombre de la tabla de Supabase donde insertar los datos |
+| `data` | any | Sí | Los datos a insertar |
+| `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `results` | array | Array de registros insertados |
+
+### `supabase_get_row`
+
+Obtener una sola fila de una tabla de Supabase basada en criterios de filtro
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Sí | ID de tu proyecto de Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
+| `table` | string | Sí | Nombre de la tabla de Supabase para consultar |
+| `filter` | string | Sí | Filtro PostgREST para encontrar la fila específica \(p. ej., "id=eq.123"\) |
+| `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `results` | array | Array que contiene los datos de la fila si se encuentran, array vacío si no se encuentran |
+
+### `supabase_update`
+
+Actualizar filas en una tabla de Supabase según criterios de filtro
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
+| `table` | string | Sí | Nombre de la tabla Supabase a actualizar |
+| `filter` | string | Sí | Filtro PostgREST para identificar las filas a actualizar \(p. ej., "id=eq.123"\) |
+| `data` | object | Sí | Datos para actualizar en las filas coincidentes |
+| `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `results` | array | Array de registros actualizados |
+
+### `supabase_delete`
+
+Eliminar filas de una tabla de Supabase según criterios de filtro
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
+| `table` | string | Sí | Nombre de la tabla Supabase de la que eliminar |
+| `filter` | string | Sí | Filtro PostgREST para identificar las filas a eliminar \(p. ej., "id=eq.123"\) |
+| `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `results` | array | Array de registros eliminados |
+
+### `supabase_upsert`
+
+Insertar o actualizar datos en una tabla de Supabase (operación upsert)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | string | Sí | El ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
+| `table` | string | Sí | El nombre de la tabla de Supabase donde insertar o actualizar datos |
+| `data` | any | Sí | Los datos a insertar o actualizar \(upsert\) |
+| `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `results` | array | Array de registros insertados o actualizados |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `supabase`

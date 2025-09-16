@@ -1,0 +1,68 @@
+---
+title: Perplexity
+description: 使用 Perplexity AI 聊天模型
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="perplexity"
+  color="#20808D"
+  icon={true}
+  iconSvg={`<svg className="block-icon"   viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' >
+      <path
+        d='M19.785 0v7.272H22.5V17.62h-2.935V24l-7.037-6.194v6.145h-1.091v-6.152L4.392 24v-6.465H1.5V7.188h2.884V0l7.053 6.494V.19h1.09v6.49L19.786 0zm-7.257 9.044v7.319l5.946 5.234V14.44l-5.946-5.397zm-1.099-.08l-5.946 5.398v7.235l5.946-5.234V8.965zm8.136 7.58h1.844V8.349H13.46l6.105 5.54v2.655zm-8.982-8.28H2.59v8.195h1.8v-2.576l6.192-5.62zM5.475 2.476v4.71h5.115l-5.115-4.71zm13.219 0l-5.115 4.71h5.115v-4.71z'
+        fill='currentColor'
+        fillRule='nonzero'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Perplexity AI](https://www.perplexity.ai) 是一个由 AI 驱动的搜索引擎和答案引擎，它结合了大型语言模型的能力与实时网络搜索，提供准确、最新的信息以及复杂问题的全面答案。
+
+使用 Perplexity AI，您可以：
+
+- **获取准确答案**：通过可靠来源的引用，获得全面的问题解答
+- **访问实时信息**：通过 Perplexity 的网络搜索功能获取最新信息
+- **深入探索主题**：通过后续问题和相关信息更深入地研究主题
+- **验证信息**：通过提供的来源和参考检查答案的可信度
+- **生成内容**：基于当前信息创建摘要、分析和创意内容
+- **高效研究**：通过对复杂查询的全面解答简化研究过程
+- **互动式对话**：通过自然对话优化问题并探索主题
+
+在 Sim 中，Perplexity 集成使您的代理能够以编程方式利用这些强大的 AI 功能作为其工作流程的一部分。这允许创建结合自然语言理解、实时信息检索和内容生成的复杂自动化场景。您的代理可以制定查询，接收带有引用的全面答案，并将这些信息整合到其决策过程或输出中。此集成弥合了工作流程自动化与获取当前可靠信息之间的差距，使您的代理能够做出更明智的决策并提供更准确的响应。通过将 Sim 与 Perplexity 连接，您可以创建能够跟上最新信息、提供经过充分研究的答案并为用户提供更有价值见解的代理——这一切都无需手动研究或信息收集。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+使用 Perplexity AI 模型生成具有实时知识和搜索功能的补全内容。通过可自定义的参数创建响应、回答问题并生成内容。
+
+## 工具
+
+### `perplexity_chat`
+
+使用 Perplexity AI 聊天模型生成补全内容
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `systemPrompt` | string | 否 | 指导模型行为的系统提示 |
+| `content` | string | 是 | 发送给模型的用户消息内容 |
+| `model` | string | 是 | 用于聊天补全的模型（例如：sonar，mistral） |
+| `max_tokens` | number | 否 | 要生成的最大 token 数量 |
+| `temperature` | number | 否 | 介于 0 和 1 之间的采样温度 |
+| `apiKey` | string | 是 | Perplexity API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | 操作成功状态 |
+| `output` | object | 聊天补全结果 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`perplexity`

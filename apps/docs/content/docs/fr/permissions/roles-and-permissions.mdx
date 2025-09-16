@@ -1,0 +1,161 @@
+---
+title: Rôles et permissions
+---
+
+import { Video } from '@/components/ui/video'
+
+Lorsque vous invitez des membres de l'équipe dans votre organisation ou espace de travail, vous devrez choisir le niveau d'accès à leur accorder. Ce guide explique ce que chaque niveau de permission permet aux utilisateurs de faire, vous aidant à comprendre les rôles d'équipe et l'accès fourni par chaque niveau de permission.
+
+## Comment inviter quelqu'un à un espace de travail
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="invitations.mp4" width={700} height={450} />
+</div>
+
+## Niveaux de permission dans l'espace de travail
+
+Lorsque vous invitez quelqu'un dans un espace de travail, vous pouvez attribuer l'un des trois niveaux de permission :
+
+| Permission | Ce qu'ils peuvent faire |
+|------------|------------------|
+| **Lecture** | Voir les workflows, consulter les résultats d'exécution, mais ne peut effectuer aucune modification |
+| **Écriture** | Créer et modifier des workflows, exécuter des workflows, gérer les variables d'environnement |
+| **Admin** | Tout ce que le niveau Écriture peut faire, plus inviter/supprimer des utilisateurs et gérer les paramètres de l'espace de travail |
+
+## Ce que chaque niveau de permission peut faire
+
+Voici une répartition détaillée de ce que les utilisateurs peuvent faire avec chaque niveau de permission :
+
+### Permission de lecture
+**Parfait pour :** Les parties prenantes, observateurs ou membres d'équipe qui ont besoin de visibilité mais ne devraient pas faire de modifications
+
+**Ce qu'ils peuvent faire :**
+- Voir tous les workflows dans l'espace de travail
+- Consulter les résultats d'exécution et les journaux des workflows
+- Parcourir les configurations et paramètres des workflows
+- Voir les variables d'environnement (mais pas les modifier)
+
+**Ce qu'ils ne peuvent pas faire :**
+- Créer, modifier ou supprimer des workflows
+- Exécuter ou déployer des workflows
+- Modifier les paramètres de l'espace de travail
+- Inviter d'autres utilisateurs
+
+### Permission d'écriture  
+**Parfait pour :** Les développeurs, créateurs de contenu ou membres d'équipe travaillant activement sur l'automatisation
+
+**Ce qu'ils peuvent faire :**
+- Tout ce que les utilisateurs avec permission de lecture peuvent faire, plus :
+- Créer, modifier et supprimer des workflows
+- Exécuter et déployer des workflows
+- Ajouter, modifier et supprimer des variables d'environnement de l'espace de travail
+- Utiliser tous les outils et intégrations disponibles
+- Collaborer en temps réel sur l'édition de workflow
+
+**Ce qu'ils ne peuvent pas faire :**
+- Inviter ou supprimer des utilisateurs de l'espace de travail
+- Modifier les paramètres de l'espace de travail
+- Supprimer l'espace de travail
+
+### Permission d'administrateur
+**Parfait pour :** les chefs d'équipe, les chefs de projet ou les responsables techniques qui doivent gérer l'espace de travail
+
+**Ce qu'ils peuvent faire :**
+- Tout ce que les utilisateurs avec permission d'écriture peuvent faire, plus :
+- Inviter de nouveaux utilisateurs dans l'espace de travail avec n'importe quel niveau de permission
+- Supprimer des utilisateurs de l'espace de travail
+- Gérer les paramètres et les intégrations de l'espace de travail
+- Configurer les connexions avec des outils externes
+- Supprimer les flux de travail créés par d'autres utilisateurs
+
+**Ce qu'ils ne peuvent pas faire :**
+- Supprimer l'espace de travail (seul le propriétaire de l'espace de travail peut le faire)
+- Retirer le propriétaire de l'espace de travail
+
+---
+
+## Propriétaire vs administrateur de l'espace de travail
+
+Chaque espace de travail a un **propriétaire** (la personne qui l'a créé) ainsi qu'un nombre illimité d'**administrateurs**.
+
+### Propriétaire de l'espace de travail
+- Possède toutes les permissions d'administrateur
+- Peut supprimer l'espace de travail
+- Ne peut pas être retiré de l'espace de travail
+- Peut transférer la propriété à un autre utilisateur
+
+### Administrateur de l'espace de travail  
+- Peut tout faire sauf supprimer l'espace de travail ou retirer le propriétaire
+- Peut être retiré de l'espace de travail par le propriétaire ou d'autres administrateurs
+
+---
+
+## Scénarios courants
+
+### Ajouter un nouveau développeur à votre équipe
+1. **Niveau organisation** : invitez-le en tant que **membre de l'organisation**
+2. **Niveau espace de travail** : donnez-lui la permission d'**écriture** pour qu'il puisse créer et modifier des flux de travail
+
+### Ajouter un chef de projet
+1. **Niveau organisation** : invitez-le en tant que **membre de l'organisation** 
+2. **Niveau espace de travail** : donnez-lui la permission d'**administrateur** pour qu'il puisse gérer l'équipe et tout voir
+
+### Ajouter une partie prenante ou un client
+1. **Niveau organisation** : invitez-le en tant que **membre de l'organisation**
+2. **Niveau espace de travail** : donnez-lui la permission de **lecture** pour qu'il puisse voir les progrès mais sans faire de modifications
+
+---
+
+## Variables d'environnement
+
+Les utilisateurs peuvent créer deux types de variables d'environnement :
+
+### Variables d'environnement personnelles
+- Visibles uniquement par l'utilisateur individuel
+- Disponibles dans tous les workflows qu'ils exécutent
+- Gérées dans les paramètres utilisateur
+
+### Variables d'environnement de l'espace de travail
+- **Permission de lecture** : Peut voir les noms et valeurs des variables
+- **Permission d'écriture/administrateur** : Peut ajouter, modifier et supprimer des variables
+- Disponibles pour tous les membres de l'espace de travail
+- Si une variable personnelle a le même nom qu'une variable d'espace de travail, la variable personnelle est prioritaire
+
+---
+
+## Bonnes pratiques
+
+### Commencer avec des permissions minimales
+Accordez aux utilisateurs le niveau de permission le plus bas dont ils ont besoin pour faire leur travail. Vous pourrez toujours augmenter les permissions plus tard.
+
+### Utiliser judicieusement la structure de l'organisation
+- Faites des chefs d'équipe de confiance des **administrateurs d'organisation**
+- La plupart des membres de l'équipe devraient être des **membres de l'organisation**
+- Réservez les permissions d'**administrateur** d'espace de travail aux personnes qui doivent gérer les utilisateurs
+
+### Réviser régulièrement les permissions
+Examinez périodiquement qui a accès à quoi, surtout lorsque les membres de l'équipe changent de rôle ou quittent l'entreprise.
+
+### Sécurité des variables d'environnement
+- Utilisez des variables d'environnement personnelles pour les clés API sensibles
+- Utilisez des variables d'environnement d'espace de travail pour la configuration partagée
+- Vérifiez régulièrement qui a accès aux variables sensibles
+
+---
+
+## Rôles dans l'organisation
+
+Lorsque vous invitez quelqu'un dans votre organisation, vous pouvez attribuer l'un des deux rôles suivants :
+
+### Administrateur d'organisation
+**Ce qu'ils peuvent faire :**
+- Inviter et retirer des membres de l'équipe de l'organisation
+- Créer de nouveaux espaces de travail
+- Gérer la facturation et les paramètres d'abonnement
+- Accéder à tous les espaces de travail au sein de l'organisation
+
+### Membre de l'organisation  
+**Ce qu'ils peuvent faire :**
+- Accéder aux espaces de travail auxquels ils ont été spécifiquement invités
+- Voir la liste des membres de l'organisation
+- Ne peuvent pas inviter de nouvelles personnes ou gérer les paramètres de l'organisation

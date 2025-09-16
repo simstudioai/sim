@@ -1,0 +1,63 @@
+---
+title: Starter
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+
+El bloque Starter te permite iniciar manualmente la ejecución del flujo de trabajo con parámetros de entrada, ofreciendo dos modos de entrada: parámetros estructurados o chat conversacional.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/starter.png"
+    alt="Bloque Starter con opciones de modo manual y modo chat"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Modos de ejecución
+
+Elige tu método de entrada desde el menú desplegable:
+
+<Tabs items={['Manual Mode', 'Chat Mode']}>
+  <Tab>
+    <div className="space-y-4">
+      <ul className="list-disc space-y-1 pl-6">
+        <li><strong>Entradas estructuradas compatibles con API</strong>: Define parámetros específicos (texto, número, booleano, JSON, archivo, fecha)</li>
+        <li><strong>Pruebas mientras construyes tu flujo de trabajo</strong>: Iteración rápida durante la depuración de flujos de trabajo</li>
+      </ul>
+      
+      <div className="mx-auto w-full overflow-hidden rounded-lg">
+        <Video src="input-format.mp4" width={700} height={450} />
+      </div>
+      
+      <p className="text-sm text-gray-600">Configura parámetros de entrada que estarán disponibles al implementar como un punto final de API.</p>
+    </div>
+  </Tab>
+  <Tab>
+    <div className="space-y-4">
+      <ul className="list-disc space-y-1 pl-6">
+        <li><strong>Lenguaje natural</strong>: Los usuarios escriben preguntas o solicitudes</li>
+        <li><strong>Conversacional</strong>: Ideal para flujos de trabajo impulsados por IA</li>
+      </ul>
+      
+      <div className="mx-auto w-full overflow-hidden rounded-lg">
+        <Video src="chat-input.mp4" width={700} height={450} />
+      </div>
+      
+      <p className="text-sm text-gray-600">Chatea con tu flujo de trabajo y accede al texto de entrada, ID de conversación y archivos subidos para respuestas contextualizadas.</p>
+    </div>
+  </Tab>
+</Tabs>
+
+## Uso de variables de chat
+
+En el modo Chat, accede a la entrada del usuario y al contexto de la conversación a través de variables especiales:
+
+- **`<start.input>`** - Contiene el texto del mensaje del usuario
+- **`<start.conversationId>`** - Identificador único para el hilo de conversación
+- **`<start.files>`** - Array de archivos subidos por el usuario (si los hay)

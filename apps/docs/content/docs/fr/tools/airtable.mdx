@@ -1,0 +1,161 @@
+---
+title: Airtable
+description: Lire, créer et mettre à jour Airtable
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="airtable"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      
+      
+      viewBox='0 -20.5 256 256'
+      version='1.1'
+      xmlns='http://www.w3.org/2000/svg'
+      xmlnsXlink='http://www.w3.org/1999/xlink'
+      preserveAspectRatio='xMidYMid'
+    >
+      <g>
+        <path
+          d='M114.25873,2.70101695 L18.8604023,42.1756384 C13.5552723,44.3711638 13.6102328,51.9065311 18.9486282,54.0225085 L114.746142,92.0117514 C123.163769,95.3498757 132.537419,95.3498757 140.9536,92.0117514 L236.75256,54.0225085 C242.08951,51.9065311 242.145916,44.3711638 236.83934,42.1756384 L141.442459,2.70101695 C132.738459,-0.900338983 122.961284,-0.900338983 114.25873,2.70101695'
+          fill='#FFBF00'
+        />
+        <path
+          d='M136.349071,112.756863 L136.349071,207.659101 C136.349071,212.173089 140.900664,215.263892 145.096461,213.600615 L251.844122,172.166219 C254.281184,171.200072 255.879376,168.845451 255.879376,166.224705 L255.879376,71.3224678 C255.879376,66.8084791 251.327783,63.7176768 247.131986,65.3809537 L140.384325,106.815349 C137.94871,107.781496 136.349071,110.136118 136.349071,112.756863'
+          fill='#26B5F8'
+        />
+        <path
+          d='M111.422771,117.65355 L79.742409,132.949912 L76.5257763,134.504714 L9.65047684,166.548104 C5.4112904,168.593211 0.000578531073,165.503855 0.000578531073,160.794612 L0.000578531073,71.7210757 C0.000578531073,70.0173017 0.874160452,68.5463864 2.04568588,67.4384994 C2.53454463,66.9481944 3.08848814,66.5446689 3.66412655,66.2250305 C5.26231864,65.2661153 7.54173107,65.0101153 9.47981017,65.7766689 L110.890522,105.957098 C116.045234,108.002206 116.450206,115.225166 111.422771,117.65355'
+          fill='#ED3049'
+        />
+        <path
+          d='M111.422771,117.65355 L79.742409,132.949912 L2.04568588,67.4384994 C2.53454463,66.9481944 3.08848814,66.5446689 3.66412655,66.2250305 C5.26231864,65.2661153 7.54173107,65.0101153 9.47981017,65.7766689 L110.890522,105.957098 C116.045234,108.002206 116.450206,115.225166 111.422771,117.65355'
+          fillOpacity='0.25'
+          fill='#000000'
+        />
+      </g>
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Airtable](https://airtable.com/) est une plateforme puissante basée sur le cloud qui combine les fonctionnalités d'une base de données avec la simplicité d'un tableur. Elle permet aux utilisateurs de créer des bases de données flexibles pour organiser, stocker et collaborer sur des informations.
+
+Avec Airtable, vous pouvez :
+
+- **Créer des bases de données personnalisées** : élaborer des solutions sur mesure pour la gestion de projets, les calendriers de contenu, le suivi des stocks, et plus encore
+- **Visualiser les données** : afficher vos informations sous forme de grille, de tableau kanban, de calendrier ou de galerie
+- **Automatiser les flux de travail** : configurer des déclencheurs et des actions pour automatiser les tâches répétitives
+- **Intégrer d'autres outils** : se connecter à des centaines d'autres applications grâce aux intégrations natives et aux API
+
+Dans Sim, l'intégration Airtable permet à vos agents d'interagir avec vos bases Airtable de manière programmatique. Cela permet des opérations de données fluides comme la récupération d'informations, la création de nouveaux enregistrements et la mise à jour de données existantes - le tout au sein de vos flux de travail d'agents. Utilisez Airtable comme source ou destination dynamique de données pour vos agents, leur permettant d'accéder et de manipuler des informations structurées dans le cadre de leurs processus de prise de décision et d'exécution de tâches.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez les fonctionnalités d'Airtable pour gérer les enregistrements de table. Lister, obtenir, créer, 
+
+## Outils
+
+### `airtable_list_records`
+
+Lire les enregistrements d'une table Airtable
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `baseId` | chaîne | Oui | ID de la base Airtable |
+| `tableId` | chaîne | Oui | ID de la table |
+| `maxRecords` | nombre | Non | Nombre maximum d'enregistrements à retourner |
+| `filterFormula` | chaîne | Non | Formule pour filtrer les enregistrements \(ex. : "\(\{Nom du champ\} = \'Valeur\'\)"\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | json | Tableau des enregistrements Airtable récupérés |
+
+### `airtable_get_record`
+
+Récupérer un seul enregistrement d'une table Airtable par son ID
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `baseId` | chaîne | Oui | ID de la base Airtable |
+| `tableId` | chaîne | Oui | ID ou nom de la table |
+| `recordId` | chaîne | Oui | ID de l'enregistrement à récupérer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Enregistrement Airtable récupéré avec id, createdTime et fields |
+| `metadata` | json | Métadonnées de l'opération incluant le nombre d'enregistrements |
+
+### `airtable_create_records`
+
+Écrire de nouveaux enregistrements dans une table Airtable
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `baseId` | string | Oui | ID de la base Airtable |
+| `tableId` | string | Oui | ID ou nom de la table |
+| `records` | json | Oui | Tableau d'enregistrements à créer, chacun avec un objet `fields` |
+| `fields` | string | Non | Pas de description |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | json | Tableau des enregistrements Airtable créés |
+
+### `airtable_update_record`
+
+Mettre à jour un enregistrement existant dans une table Airtable par ID
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `baseId` | string | Oui | ID de la base Airtable |
+| `tableId` | string | Oui | ID ou nom de la table |
+| `recordId` | string | Oui | ID de l'enregistrement à mettre à jour |
+| `fields` | json | Oui | Un objet contenant les noms des champs et leurs nouvelles valeurs |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Enregistrement Airtable mis à jour avec id, createdTime et fields |
+| `metadata` | json | Métadonnées de l'opération incluant le nombre d'enregistrements et les noms des champs mis à jour |
+
+### `airtable_update_multiple_records`
+
+Mettre à jour plusieurs enregistrements existants dans une table Airtable
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `baseId` | string | Oui | ID de la base Airtable |
+| `tableId` | string | Oui | ID ou nom de la table |
+| `records` | json | Oui | Tableau d'enregistrements à mettre à jour, chacun avec un `id` et un objet `fields` |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | json | Tableau des enregistrements Airtable mis à jour |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `airtable`

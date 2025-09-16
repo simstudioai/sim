@@ -1,0 +1,150 @@
+---
+title: Journalisation
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Sim fournit une journalisation complète pour toutes les exécutions de flux de travail, vous donnant une visibilité totale sur le fonctionnement de vos flux, les données qui les traversent et les éventuels problèmes.
+
+## Système de journalisation
+
+Sim propose deux interfaces de journalisation complémentaires pour s'adapter à différents flux de travail et cas d'utilisation :
+
+### Console en temps réel
+
+Pendant l'exécution manuelle ou par chat d'un flux de travail, les journaux apparaissent en temps réel dans le panneau Console situé à droite de l'éditeur de flux :
+
+<div className="flex justify-center">
+  <Image
+    src="/static/logs/console.png"
+    alt="Panneau de console en temps réel"
+    width={400}
+    height={300}
+    className="my-6"
+  />
+</div>
+
+La console affiche :
+- La progression de l'exécution des blocs avec mise en évidence du bloc actif
+- Les sorties en temps réel à mesure que les blocs se terminent
+- Le temps d'exécution pour chaque bloc
+- Les indicateurs de statut succès/erreur
+
+### Page de journaux
+
+Toutes les exécutions de flux de travail — qu'elles soient déclenchées manuellement, via API, Chat, Planification ou Webhook — sont enregistrées dans la page dédiée aux journaux :
+
+<div className="flex justify-center">
+  <Image
+    src="/static/logs/logs.png"
+    alt="Page de journaux"
+    width={600}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+La page de journaux offre :
+- Un filtrage complet par plage de temps, statut, type de déclencheur, dossier et flux de travail
+- Une fonctionnalité de recherche dans tous les journaux
+- Un mode en direct pour les mises à jour en temps réel
+- Une conservation des journaux de 7 jours (extensible pour une conservation plus longue)
+
+## Barre latérale de détails des journaux
+
+Cliquer sur n'importe quelle entrée de journal ouvre une vue détaillée dans la barre latérale :
+
+<div className="flex justify-center">
+  <Image
+    src="/static/logs/logs-sidebar.png"
+    alt="Détails de la barre latérale des journaux"
+    width={600}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+### Entrée/Sortie de bloc
+
+Visualisez le flux de données complet pour chaque bloc avec des onglets pour basculer entre :
+
+<Tabs items={['Output', 'Input']}>
+  <Tab>
+    L'**onglet Sortie** montre le résultat de l'exécution du bloc :
+    - Données structurées avec formatage JSON
+    - Rendu Markdown pour le contenu généré par IA
+    - Bouton de copie pour une extraction facile des données
+  </Tab>
+  
+  <Tab>
+    L'**onglet Entrée** affiche ce qui a été transmis au bloc :
+    - Valeurs des variables résolues
+    - Sorties référencées d'autres blocs
+    - Variables d'environnement utilisées
+    - Les clés API sont automatiquement masquées pour la sécurité
+  </Tab>
+</Tabs>
+
+### Chronologie d'exécution
+
+Pour les journaux au niveau du workflow, consultez les métriques d'exécution détaillées :
+- Horodatages de début et de fin
+- Durée totale du workflow
+- Temps d'exécution des blocs individuels
+- Identification des goulots d'étranglement de performance
+
+## Instantanés de workflow
+
+Pour toute exécution enregistrée, cliquez sur « Voir l'instantané » pour visualiser l'état exact du workflow au moment de l'exécution :
+
+<div className="flex justify-center">
+  <Image
+    src="/static/logs/logs-frozen-canvas.png"
+    alt="Instantané de workflow"
+    width={600}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+L'instantané fournit :
+- Un canevas figé montrant la structure du workflow
+- Les états des blocs et les connexions tels qu'ils étaient pendant l'exécution
+- Cliquez sur n'importe quel bloc pour voir ses entrées et sorties
+- Utile pour déboguer des workflows qui ont été modifiés depuis
+
+<Callout type="info">
+  Les instantanés de workflow ne sont disponibles que pour les exécutions postérieures à l'introduction du système de journalisation amélioré. Les anciens journaux migrés affichent un message « État enregistré non trouvé ».
+</Callout>
+
+## Conservation des journaux
+
+- **Plan gratuit** : conservation des journaux pendant 7 jours
+- **Plan Pro** : conservation des journaux pendant 30 jours
+- **Plan Équipe** : conservation des journaux pendant 90 jours
+- **Plan Entreprise** : périodes de conservation personnalisées disponibles
+
+## Bonnes pratiques
+
+### Pour le développement
+- Utilisez la console en temps réel pour un retour immédiat pendant les tests
+- Vérifiez les entrées et sorties des blocs pour confirmer le flux de données
+- Utilisez les instantanés de workflow pour comparer les versions fonctionnelles et défectueuses
+
+### Pour la production
+- Surveillez régulièrement la page des journaux pour détecter les erreurs ou problèmes de performance
+- Configurez des filtres pour vous concentrer sur des workflows ou périodes spécifiques
+- Utilisez le mode en direct pendant les déploiements critiques pour observer les exécutions en temps réel
+
+### Pour le débogage
+- Vérifiez toujours la chronologie d'exécution pour identifier les blocs lents
+- Comparez les entrées entre les exécutions fonctionnelles et défaillantes
+- Utilisez les instantanés de workflow pour voir l'état exact lorsque des problèmes sont survenus
+
+## Prochaines étapes
+
+- Découvrez le [Calcul des coûts](/execution/costs) pour comprendre la tarification des workflows
+- Explorez l'[API externe](/execution/api) pour un accès programmatique aux journaux
+- Configurez les [notifications Webhook](/execution/api#webhook-subscriptions) pour des alertes en temps réel

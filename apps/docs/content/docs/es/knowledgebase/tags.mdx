@@ -1,0 +1,108 @@
+---
+title: Etiquetas y filtrado
+---
+
+import { Video } from '@/components/ui/video'
+
+Las etiquetas proporcionan una forma poderosa de organizar tus documentos y crear filtros precisos para tus búsquedas vectoriales. Al combinar el filtrado basado en etiquetas con la búsqueda semántica, puedes recuperar exactamente el contenido que necesitas de tu base de conocimientos.
+
+## Añadir etiquetas a documentos
+
+Puedes añadir etiquetas personalizadas a cualquier documento en tu base de conocimientos para organizar y categorizar tu contenido para una recuperación más fácil.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="knowledgebase-tag.mp4" width={700} height={450} />
+</div>
+
+### Gestión de etiquetas
+- **Etiquetas personalizadas**: Crea tu propio sistema de etiquetas que se adapte a tu flujo de trabajo
+- **Múltiples etiquetas por documento**: Aplica tantas etiquetas como necesites a cada documento, hay 7 espacios para etiquetas disponibles por base de conocimientos que son compartidos por todos los documentos en la base de conocimientos
+- **Organización de etiquetas**: Agrupa documentos relacionados con un etiquetado consistente
+
+### Mejores prácticas para etiquetas
+- **Nomenclatura consistente**: Usa nombres de etiquetas estandarizados en todos tus documentos
+- **Etiquetas descriptivas**: Utiliza nombres de etiquetas claros y significativos
+- **Limpieza regular**: Elimina periódicamente las etiquetas no utilizadas u obsoletas
+
+## Uso de etiquetas en bloques de conocimiento
+
+Las etiquetas se vuelven poderosas cuando se combinan con el bloque de Conocimiento en tus flujos de trabajo. Puedes filtrar tus búsquedas a contenido específico etiquetado, asegurando que tus agentes de IA obtengan la información más relevante.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="knowledgebase-tag2.mp4" width={700} height={450} />
+</div>
+
+## Modos de búsqueda
+
+El bloque de Conocimiento admite tres modos diferentes de búsqueda dependiendo de lo que proporciones:
+
+### 1. Búsqueda solo por etiquetas
+Cuando **solo proporcionas etiquetas** (sin consulta de búsqueda):
+- **Recuperación directa**: Obtiene todos los documentos que tienen las etiquetas especificadas
+- **Sin búsqueda vectorial**: Los resultados se basan puramente en la coincidencia de etiquetas
+- **Rendimiento rápido**: Recuperación rápida sin procesamiento semántico
+- **Coincidencia exacta**: Solo se devuelven documentos con todas las etiquetas especificadas
+
+**Caso de uso**: Cuando necesitas todos los documentos de una categoría o proyecto específico
+
+### 2. Solo búsqueda vectorial
+Cuando **solo proporcionas una consulta de búsqueda** (sin etiquetas):
+- **Búsqueda semántica**: Encuentra contenido basado en significado y contexto
+- **Base de conocimiento completa**: Busca en todos los documentos
+- **Clasificación por relevancia**: Resultados ordenados por similitud semántica
+- **Lenguaje natural**: Usa preguntas o frases para encontrar contenido relevante
+
+**Caso de uso**: Cuando necesitas el contenido más relevante independientemente de la organización
+
+### 3. Combinación de filtrado por etiquetas + búsqueda vectorial
+Cuando **proporcionas tanto etiquetas como una consulta de búsqueda**:
+1. **Primero**: Filtra documentos solo a aquellos con las etiquetas especificadas
+2. **Luego**: Realiza una búsqueda vectorial dentro de ese subconjunto filtrado
+3. **Resultado**: Contenido semánticamente relevante solo de tus documentos etiquetados
+
+**Caso de uso**: Cuando necesitas contenido relevante de una categoría o proyecto específico
+
+### Configuración de búsqueda
+
+#### Filtrado por etiquetas
+- **Múltiples etiquetas**: Usa múltiples etiquetas para lógica OR (el documento debe tener una o más de las etiquetas)
+- **Combinaciones de etiquetas**: Mezcla diferentes tipos de etiquetas para un filtrado preciso
+- **Sensibilidad a mayúsculas**: La coincidencia de etiquetas no distingue entre mayúsculas y minúsculas
+- **Coincidencia parcial**: Se requiere coincidencia exacta del nombre de la etiqueta
+
+#### Parámetros de búsqueda vectorial
+- **Complejidad de consulta**: Las preguntas en lenguaje natural funcionan mejor
+- **Límites de resultados**: Configura cuántos fragmentos recuperar
+- **Umbral de relevancia**: Establece puntuaciones mínimas de similitud
+- **Ventana de contexto**: Ajusta el tamaño del fragmento para tu caso de uso
+
+## Integración con flujos de trabajo
+
+### Configuración del bloque de conocimiento
+1. **Seleccionar base de conocimiento**: Elige qué base de conocimiento buscar
+2. **Añadir etiquetas**: Especifica etiquetas de filtrado (opcional)
+3. **Introducir consulta**: Añade tu consulta de búsqueda (opcional)
+4. **Configurar resultados**: Establece el número de fragmentos a recuperar
+5. **Probar búsqueda**: Vista previa de resultados antes de usar en el flujo de trabajo
+
+### Uso dinámico de etiquetas
+- **Etiquetas variables**: Usa variables de flujo de trabajo como valores de etiquetas
+- **Filtrado condicional**: Aplica diferentes etiquetas según la lógica del flujo de trabajo
+- **Búsqueda contextual**: Ajusta las etiquetas según el contexto de la conversación
+- **Filtrado en múltiples pasos**: Refina las búsquedas a través de los pasos del flujo de trabajo
+
+### Optimización del rendimiento
+- **Filtrado eficiente**: El filtrado por etiquetas ocurre antes de la búsqueda vectorial para un mejor rendimiento
+- **Almacenamiento en caché**: Las combinaciones de etiquetas utilizadas con frecuencia se almacenan en caché para mayor velocidad
+- **Procesamiento paralelo**: Múltiples búsquedas de etiquetas pueden ejecutarse simultáneamente
+- **Gestión de recursos**: Optimización automática de los recursos de búsqueda
+
+## Primeros pasos con etiquetas
+
+1. **Planifica tu estructura de etiquetas**: Decide convenciones de nomenclatura consistentes
+2. **Comienza a etiquetar**: Añade etiquetas relevantes a tus documentos existentes
+3. **Prueba combinaciones**: Experimenta con combinaciones de etiquetas + consultas de búsqueda
+4. **Integra en flujos de trabajo**: Usa el bloque de Conocimiento con tu estrategia de etiquetado
+5. **Refina con el tiempo**: Ajusta tu enfoque de etiquetado basándote en los resultados de búsqueda
+
+Las etiquetas transforman tu base de conocimiento de un simple almacén de documentos a un sistema de inteligencia organizado con precisión que tus flujos de trabajo de IA pueden navegar con precisión quirúrgica.
