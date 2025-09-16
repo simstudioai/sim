@@ -9,6 +9,7 @@ import { GithubIcon } from '@/components/icons'
 import { useBrandConfig } from '@/lib/branding/branding'
 import { isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
 import { soehne } from '@/app/fonts/soehne/soehne'
 
 const logger = createLogger('nav')
@@ -31,13 +32,8 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
     const timeoutId = setTimeout(() => {
       const fetchStars = async () => {
         try {
-          const response = await fetch('/api/github-stars', {
-            headers: {
-              'Cache-Control': 'max-age=3600', // Cache for 1 hour
-            },
-          })
-          const data = await response.json()
-          setGithubStars(data.stars)
+          const stars = await getFormattedGitHubStars()
+          setGithubStars(stars)
         } catch (error) {
           logger.warn('Error fetching GitHub stars:', error)
         }
