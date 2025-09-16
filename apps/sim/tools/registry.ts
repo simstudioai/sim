@@ -73,6 +73,7 @@ import {
 } from '@/tools/knowledge'
 import { linearCreateIssueTool, linearReadIssuesTool } from '@/tools/linear'
 import { linkupSearchTool } from '@/tools/linkup'
+import { mailSendTool } from '@/tools/mail'
 import { mem0AddMemoriesTool, mem0GetMemoriesTool, mem0SearchMemoriesTool } from '@/tools/mem0'
 import { memoryAddTool, memoryDeleteTool, memoryGetAllTool, memoryGetTool } from '@/tools/memory'
 import {
@@ -201,6 +202,7 @@ export const tools: Record<string, ToolConfig> = {
   google_search: googleSearchTool,
   jina_read_url: readUrlTool,
   linkup_search: linkupSearchTool,
+  mail_send: mailSendTool,
   jira_retrieve: jiraRetrieveTool,
   jira_update: jiraUpdateTool,
   jira_write: jiraWriteTool,
