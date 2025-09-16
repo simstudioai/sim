@@ -82,7 +82,7 @@ export const GoogleFormsBlock: BlockConfig = {
     credential: { type: 'string', description: 'Google OAuth credential' },
     formId: { type: 'string', description: 'Google Form ID' },
     responseId: { type: 'string', description: 'Specific response ID' },
-    pageSize: { type: 'number', description: 'Max responses to retrieve (default 5000)' },
+    pageSize: { type: 'string', description: 'Max responses to retrieve (default 5000)' },
   },
   outputs: {
     data: { type: 'json', description: 'Response or list of responses' },

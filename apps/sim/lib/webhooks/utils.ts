@@ -512,7 +512,7 @@ export function formatWebhookInput(
     }
   }
 
-  if (foundWebhook.provider === 'googleforms' || foundWebhook.provider === 'google_forms') {
+  if (foundWebhook.provider === 'google_forms') {
     const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
 
     // Normalize answers: if value is an array with single element, collapse to scalar; keep multi-select arrays

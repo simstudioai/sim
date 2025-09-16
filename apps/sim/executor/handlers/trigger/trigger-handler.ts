@@ -174,7 +174,7 @@ export class TriggerBlockHandler implements BlockHandler {
             }
 
             // Keep nested structure for backwards compatibility
-            result[provider === 'google_forms' ? provider : provider] = providerData
+            result[provider] = providerData
           }
 
           // Pattern 2: Provider data directly in webhook.data (based on actual structure)
