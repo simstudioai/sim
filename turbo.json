@@ -1,6 +1,9 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "envMode": "loose",
+  "remoteCache": {
+    "enabled": true
+  },
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
