@@ -9,7 +9,8 @@ export interface MailSendParams {
 export interface MailSendResult extends ToolResponse {
   output: {
     success: boolean
-    message: string
-    data?: any
+    to: string
+    subject: string
+    body: string
   }
 }

@@ -42,22 +42,24 @@ export const mailSendTool: ToolConfig<MailSendParams, MailSendResult> = {
     }),
   },
 
-  transformResponse: async (response: Response): Promise<MailSendResult> => {
+  transformResponse: async (response: Response, params): Promise<MailSendResult> => {
     const result = await response.json()
 
     return {
       success: true,
       output: {
         success: result.success,
-        message: result.message,
-        data: result.data,
+        to: params?.to || '',
+        subject: params?.subject || '',
+        body: params?.body || '',
       },
     }
   },
 
   outputs: {
     success: { type: 'boolean', description: 'Whether the email was sent successfully' },
-    message: { type: 'string', description: 'Result message from the mail service' },
-    data: { type: 'json', description: 'Additional response data from the mail service' },
+    to: { type: 'string', description: 'Recipient email address' },
+    subject: { type: 'string', description: 'Email subject' },
+    body: { type: 'string', description: 'Email body content' },
   },
 }
