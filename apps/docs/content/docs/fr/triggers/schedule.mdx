@@ -1,0 +1,73 @@
+---
+title: Planification
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+
+Le bloc Planification déclenche automatiquement des workflows de manière récurrente à des intervalles ou moments spécifiés.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/schedule.png"
+    alt="Bloc de planification"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Options de planification
+
+Configurez quand votre workflow s'exécute en utilisant les options du menu déroulant :
+
+<Tabs items={['Intervalles simples', 'Expressions cron']}>
+  <Tab>
+    <ul className="list-disc space-y-1 pl-6">
+      <li><strong>Toutes les quelques minutes</strong> : intervalles de 5, 15, 30 minutes</li>
+      <li><strong>Toutes les heures</strong> : chaque heure ou toutes les quelques heures</li>
+      <li><strong>Quotidien</strong> : une ou plusieurs fois par jour</li>
+      <li><strong>Hebdomadaire</strong> : jours spécifiques de la semaine</li>
+      <li><strong>Mensuel</strong> : jours spécifiques du mois</li>
+    </ul>
+  </Tab>
+  <Tab>
+    <p>Utilisez des expressions cron pour une planification avancée :</p>
+    <div className="text-sm space-y-1">
+      <div><code>0 9 * * 1-5</code> - Chaque jour de semaine à 9h</div>
+      <div><code>*/15 * * * *</code> - Toutes les 15 minutes</div>
+      <div><code>0 0 1 * *</code> - Premier jour de chaque mois</div>
+    </div>
+  </Tab>
+</Tabs>
+
+## Configuration des planifications
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="configure-schedule.mp4" width={700} height={450} />
+</div>
+
+Lorsqu'un workflow est planifié :
+- La planification devient **active** et affiche la prochaine heure d'exécution
+- Cliquez sur le bouton **"Planifié"** pour désactiver la planification
+- Les planifications se désactivent automatiquement après **3 échecs consécutifs**
+
+## Planifications désactivées
+
+<div className="flex justify-center">
+  <Image
+    src="/static/schedule-disabled.png"
+    alt="Planification désactivée"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+Les planifications désactivées indiquent quand elles ont été actives pour la dernière fois et peuvent être réactivées à tout moment.
+
+<Callout>
+Les blocs de planification ne peuvent pas recevoir de connexions entrantes et servent uniquement de déclencheurs de workflow.
+</Callout>

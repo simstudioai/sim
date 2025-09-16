@@ -1,0 +1,211 @@
+---
+title: Loop
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Le bloc Loop est un bloc conteneur dans Sim qui vous permet de créer des flux de travail itératifs en exécutant un groupe de blocs de façon répétée. Les boucles permettent un traitement itératif dans vos flux de travail.
+
+Le bloc Loop prend en charge deux types d'itération :
+
+<Callout type="info">
+  Les blocs Loop sont des nœuds conteneurs qui peuvent contenir d'autres blocs. Les blocs à l'intérieur d'une boucle s'exécuteront plusieurs fois selon votre configuration.
+</Callout>
+
+## Aperçu
+
+Le bloc Loop vous permet de :
+
+<Steps>
+  <Step>
+    <strong>Itérer sur des collections</strong> : traiter des tableaux ou des objets un élément à la fois
+  </Step>
+  <Step>
+    <strong>Répéter des opérations</strong> : exécuter des blocs un nombre fixe de fois
+  </Step>
+  <Step>
+    <strong>Traitement séquentiel</strong> : gérer la transformation des données dans des itérations ordonnées
+  </Step>
+  <Step>
+    <strong>Agréger les résultats</strong> : collecter les sorties de toutes les itérations de la boucle
+  </Step>
+</Steps>
+
+## Comment ça fonctionne
+
+Le bloc Loop exécute les blocs contenus par itération séquentielle :
+
+1. **Initialisation de la boucle** - Configuration des paramètres d'itération (compteur ou collection)
+2. **Exécution de l'itération** - Exécution des blocs contenus pour l'itération actuelle
+3. **Collecte des résultats** - Stockage de la sortie de chaque itération
+4. **Continuer ou terminer** - Passer à l'itération suivante ou terminer la boucle
+
+## Options de configuration
+
+### Type de boucle
+
+Choisissez entre deux types de boucles :
+
+<Tabs items={['For Loop', 'ForEach Loop']}>
+  <Tab>
+    **For Loop (Itérations)** - Une boucle numérique qui s'exécute un nombre fixe de fois :
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-1.png"
+        alt="Boucle For avec itérations"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    Utilisez cette option lorsque vous devez répéter une opération un nombre spécifique de fois.
+    
+
+    ```
+    Example: Run 5 times
+    - Iteration 1
+    - Iteration 2
+    - Iteration 3
+    - Iteration 4
+    - Iteration 5
+    ```
+
+  </Tab>
+  <Tab>
+    **Boucle ForEach (Collection)** - Une boucle basée sur une collection qui itère sur chaque élément d'un tableau ou d'un objet :
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-2.png"
+        alt="Boucle ForEach avec collection"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    Utilisez cette option lorsque vous devez traiter une collection d'éléments.
+    
+
+    ```
+    Example: Process ["apple", "banana", "orange"]
+    - Iteration 1: Process "apple"
+    - Iteration 2: Process "banana"
+    - Iteration 3: Process "orange"
+    ```
+
+  </Tab>
+</Tabs>
+
+## Comment utiliser les boucles
+
+### Création d'une boucle
+
+1. Faites glisser un bloc Boucle depuis la barre d'outils vers votre canevas
+2. Configurez le type de boucle et les paramètres
+3. Faites glisser d'autres blocs à l'intérieur du conteneur de boucle
+4. Connectez les blocs selon vos besoins
+
+### Accès aux résultats
+
+Une fois qu'une boucle est terminée, vous pouvez accéder aux résultats agrégés :
+
+- **`<loop.results>`** : tableau des résultats de toutes les itérations de la boucle
+
+## Exemples de cas d'utilisation
+
+### Traitement des résultats d'API
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scénario : traiter plusieurs enregistrements clients</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Le bloc API récupère la liste des clients</li>
+    <li>La boucle ForEach itère sur chaque client</li>
+    <li>À l'intérieur de la boucle : l'agent analyse les données client</li>
+    <li>À l'intérieur de la boucle : la fonction stocke les résultats d'analyse</li>
+  </ol>
+</div>
+
+### Génération itérative de contenu
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scénario : générer plusieurs variations</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Définir une boucle For à 5 itérations</li>
+    <li>À l'intérieur de la boucle : l'agent génère une variation de contenu</li>
+    <li>À l'intérieur de la boucle : l'évaluateur note le contenu</li>
+    <li>Après la boucle : la fonction sélectionne la meilleure variation</li>
+  </ol>
+</div>
+
+## Fonctionnalités avancées
+
+### Limitations
+
+<Callout type="warning">
+  Les blocs conteneurs (Boucles et Parallèles) ne peuvent pas être imbriqués les uns dans les autres. Cela signifie :
+  - Vous ne pouvez pas placer un bloc Boucle à l'intérieur d'un autre bloc Boucle
+  - Vous ne pouvez pas placer un bloc Parallèle à l'intérieur d'un bloc Boucle
+  - Vous ne pouvez pas placer un bloc conteneur à l'intérieur d'un autre bloc conteneur
+  
+  Si vous avez besoin d'une itération multidimensionnelle, envisagez de restructurer votre flux de travail pour utiliser des boucles séquentielles ou traiter les données par étapes.
+</Callout>
+
+<Callout type="info">
+  Les boucles s'exécutent séquentiellement, pas en parallèle. Si vous avez besoin d'une exécution simultanée, utilisez plutôt le bloc Parallèle.
+</Callout>
+
+## Entrées et sorties
+
+<Tabs items={['Configuration', 'Variables', 'Résultats']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Type de boucle</strong> : choisissez entre 'for' ou 'forEach'
+      </li>
+      <li>
+        <strong>Itérations</strong> : nombre de fois à exécuter (pour les boucles for)
+      </li>
+      <li>
+        <strong>Collection</strong> : tableau ou objet à parcourir (pour les boucles forEach)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>loop.currentItem</strong> : élément en cours de traitement
+      </li>
+      <li>
+        <strong>loop.index</strong> : numéro d'itération actuel (base 0)
+      </li>
+      <li>
+        <strong>loop.items</strong> : collection complète (boucles forEach)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>loop.results</strong> : tableau de tous les résultats d'itération
+      </li>
+      <li>
+        <strong>Structure</strong> : les résultats conservent l'ordre d'itération
+      </li>
+      <li>
+        <strong>Accès</strong> : disponible dans les blocs après la boucle
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Bonnes pratiques
+
+- **Définir des limites raisonnables** : gardez un nombre d'itérations raisonnable pour éviter des temps d'exécution longs
+- **Utiliser ForEach pour les collections** : lors du traitement de tableaux ou d'objets, utilisez les boucles ForEach plutôt que les boucles For
+- **Gérer les erreurs avec élégance** : envisagez d'ajouter une gestion des erreurs à l'intérieur des boucles pour des flux de travail robustes

@@ -1,0 +1,211 @@
+---
+title: 循环
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+循环块是 Sim 中的一个容器块，它允许您通过重复执行一组块来创建迭代工作流。循环使您的工作流能够进行迭代处理。
+
+循环块支持两种类型的迭代：
+
+<Callout type="info">
+  循环块是容器节点，可以在其中包含其他块。根据您的配置，循环中的块将多次执行。
+</Callout>
+
+## 概述
+
+循环块可以让您：
+
+<Steps>
+  <Step>
+    <strong>迭代集合</strong>：逐项处理数组或对象
+  </Step>
+  <Step>
+    <strong>重复操作</strong>：执行固定次数的块
+  </Step>
+  <Step>
+    <strong>顺序处理</strong>：按顺序迭代处理数据转换
+  </Step>
+  <Step>
+    <strong>汇总结果</strong>：收集所有循环迭代的输出
+  </Step>
+</Steps>
+
+## 工作原理
+
+循环块通过顺序迭代执行包含的块：
+
+1. **初始化循环** - 设置迭代参数（计数或集合）
+2. **执行迭代** - 为当前迭代运行包含的块
+3. **收集结果** - 存储每次迭代的输出
+4. **继续或完成** - 进入下一次迭代或结束循环
+
+## 配置选项
+
+### 循环类型
+
+选择两种循环类型之一：
+
+<Tabs items={['For 循环', 'ForEach 循环']}>
+  <Tab>
+    **For 循环（迭代次数）** - 一种执行固定次数的数字循环：
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-1.png"
+        alt="具有迭代次数的 For 循环"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    当您需要重复操作特定次数时使用此选项。
+    
+
+    ```
+    Example: Run 5 times
+    - Iteration 1
+    - Iteration 2
+    - Iteration 3
+    - Iteration 4
+    - Iteration 5
+    ```
+
+  </Tab>
+  <Tab>
+    **ForEach 循环（集合）** - 基于集合的循环，用于遍历数组或对象中的每个项目：
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-2.png"
+        alt="基于集合的 ForEach 循环"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    当需要处理一组项目时使用此方法。
+    
+
+    ```
+    Example: Process ["apple", "banana", "orange"]
+    - Iteration 1: Process "apple"
+    - Iteration 2: Process "banana"
+    - Iteration 3: Process "orange"
+    ```
+
+  </Tab>
+</Tabs>
+
+## 如何使用循环
+
+### 创建循环
+
+1. 从工具栏中拖动一个循环块到画布上
+2. 配置循环类型和参数
+3. 将其他块拖入循环容器中
+4. 根据需要连接这些块
+
+### 访问结果
+
+循环完成后，您可以访问聚合结果：
+
+- **`<loop.results>`**：来自所有循环迭代的结果数组
+
+## 示例用例
+
+### 处理 API 结果
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">场景：处理多个客户记录</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>API 块获取客户列表</li>
+    <li>ForEach 循环遍历每个客户</li>
+    <li>循环内：代理分析客户数据</li>
+    <li>循环内：函数存储分析结果</li>
+  </ol>
+</div>
+
+### 迭代内容生成
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">场景：生成多个变体</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>将 For 循环设置为 5 次迭代</li>
+    <li>循环内：代理生成内容变体</li>
+    <li>循环内：评估器对内容进行评分</li>
+    <li>循环后：函数选择最佳变体</li>
+  </ol>
+</div>
+
+## 高级功能
+
+### 限制
+
+<Callout type="warning">
+  容器块（循环和并行）不能嵌套在彼此内部。这意味着：
+  - 您不能将一个循环块放入另一个循环块中
+  - 您不能将一个并行块放入循环块中
+  - 您不能将任何容器块放入另一个容器块中
+  
+  如果需要多维迭代，请考虑重构您的工作流程以使用顺序循环或分阶段处理数据。
+</Callout>
+
+<Callout type="info">
+  循环是按顺序执行的，而不是并行执行。如果需要并发执行，请改用 Parallel 块。
+</Callout>
+
+## 输入和输出
+
+<Tabs items={['Configuration', 'Variables', 'Results']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>循环类型</strong>：选择 'for' 或 'forEach'
+      </li>
+      <li>
+        <strong>迭代次数</strong>：执行的次数（适用于 for 循环）
+      </li>
+      <li>
+        <strong>集合</strong>：要迭代的数组或对象（适用于 forEach 循环）
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>loop.currentItem</strong>：当前正在处理的项目
+      </li>
+      <li>
+        <strong>loop.index</strong>：当前迭代的编号（从 0 开始）
+      </li>
+      <li>
+        <strong>loop.items</strong>：完整的集合（适用于 forEach 循环）
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>loop.results</strong>：所有迭代结果的数组
+      </li>
+      <li>
+        <strong>结构</strong>：结果保持迭代顺序
+      </li>
+      <li>
+        <strong>访问</strong>：可在循环后的块中使用
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## 最佳实践
+
+- **设置合理的限制**：保持迭代次数在合理范围内，以避免长时间执行
+- **对集合使用 ForEach**：在处理数组或对象时，使用 ForEach 而不是 For 循环
+- **优雅地处理错误**：考虑在循环中添加错误处理，以实现更健壮的工作流

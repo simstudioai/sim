@@ -1,0 +1,186 @@
+---
+title: Calcul des coûts
+---
+
+import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Sim calcule automatiquement les coûts pour toutes les exécutions de flux de travail, offrant une tarification transparente basée sur l'utilisation des modèles d'IA et les frais d'exécution. Comprendre ces coûts vous aide à optimiser les flux de travail et à gérer efficacement votre budget.
+
+## Comment les coûts sont calculés
+
+Chaque exécution de flux de travail comprend deux composantes de coût :
+
+**Frais d'exécution de base** : 0,001 $ par exécution
+
+**Utilisation du modèle d'IA** : coût variable basé sur la consommation de tokens
+
+```javascript
+modelCost = (inputTokens × inputPrice + outputTokens × outputPrice) / 1,000,000
+totalCost = baseExecutionCharge + modelCost
+```
+
+<Callout type="info">
+  Les prix des modèles d'IA sont par million de tokens. Le calcul divise par 1 000 000 pour obtenir le coût réel. Les flux de travail sans blocs d'IA n'engendrent que les frais d'exécution de base.
+</Callout>
+
+## Répartition des modèles dans les journaux
+
+Pour les flux de travail utilisant des blocs d'IA, vous pouvez consulter des informations détaillées sur les coûts dans les journaux :
+
+<div className="flex justify-center">
+  <Image
+    src="/static/logs/logs-cost.png"
+    alt="Répartition des modèles"
+    width={600}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+La répartition des modèles montre :
+- **Utilisation des tokens** : nombre de tokens d'entrée et de sortie pour chaque modèle
+- **Ventilation des coûts** : coûts individuels par modèle et opération
+- **Distribution des modèles** : quels modèles ont été utilisés et combien de fois
+- **Coût total** : coût global pour l'ensemble de l'exécution du flux de travail
+
+## Options de tarification
+
+<Tabs items={['Modèles hébergés', 'Apportez votre propre clé API']}>
+  <Tab>
+    **Modèles hébergés** - Sim fournit des clés API avec un multiplicateur de prix de 2,5x :
+    
+    | Modèle | Prix de base (Entrée/Sortie) | Prix hébergé (Entrée/Sortie) |
+    |-------|---------------------------|----------------------------|
+    | GPT-4o | 2,50 $ / 10,00 $ | 6,25 $ / 25,00 $ |
+    | GPT-4.1 | 2,00 $ / 8,00 $ | 5,00 $ / 20,00 $ |
+    | o1 | 15,00 $ / 60,00 $ | 37,50 $ / 150,00 $ |
+    | o3 | 2,00 $ / 8,00 $ | 5,00 $ / 20,00 $ |
+    | Claude 3.5 Sonnet | 3,00 $ / 15,00 $ | 7,50 $ / 37,50 $ |
+    | Claude Opus 4.0 | 15,00 $ / 75,00 $ | 37,50 $ / 187,50 $ |
+    
+    *Le multiplicateur de 2,5x couvre les coûts d'infrastructure et de gestion des API.*
+  </Tab>
+  
+  <Tab>
+    **Vos propres clés API** - Utilisez n'importe quel modèle au prix de base :
+    
+    | Fournisseur | Modèles | Entrée / Sortie |
+    |----------|---------|----------------|
+    | Google | Gemini 2.5 | 0,15 $ / 0,60 $ |
+    | Deepseek | V3, R1 | 0,75 $ / 1,00 $ |
+    | xAI | Grok 4, Grok 3 | 5,00 $ / 25,00 $ |
+    | Groq | Llama 4 Scout | 0,40 $ / 0,60 $ |
+    | Cerebras | Llama 3.3 70B | 0,94 $ / 0,94 $ |
+    | Ollama | Modèles locaux | Gratuit |
+    
+    *Payez directement les fournisseurs sans majoration*
+  </Tab>
+</Tabs>
+
+<Callout type="warning">
+  Les tarifs indiqués reflètent les taux en vigueur au 10 septembre 2025. Consultez la documentation du fournisseur pour connaître les tarifs actuels.
+</Callout>
+
+## Stratégies d'optimisation des coûts
+
+<Accordions>
+  <Accordion title="Sélection du modèle">
+    Choisissez les modèles en fonction de la complexité de la tâche. Les tâches simples peuvent utiliser GPT-4.1-nano (0,10 $/0,40 $) tandis que le raisonnement complexe pourrait nécessiter o1 ou Claude Opus.
+  </Accordion>
+  
+  <Accordion title="Ingénierie de prompt">
+    Des prompts bien structurés et concis réduisent l'utilisation de tokens sans sacrifier la qualité.
+  </Accordion>
+  
+  <Accordion title="Modèles locaux">
+    Utilisez Ollama pour les tâches non critiques afin d'éliminer complètement les coûts d'API.
+  </Accordion>
+  
+  <Accordion title="Mise en cache et réutilisation">
+    Stockez les résultats fréquemment utilisés dans des variables ou des fichiers pour éviter les appels répétés au modèle d'IA.
+  </Accordion>
+  
+  <Accordion title="Traitement par lots">
+    Traitez plusieurs éléments dans une seule requête d'IA plutôt que de faire des appels individuels.
+  </Accordion>
+</Accordions>
+
+## Surveillance de l'utilisation
+
+Surveillez votre utilisation et votre facturation dans Paramètres → Abonnement :
+
+- **Utilisation actuelle** : utilisation et coûts en temps réel pour la période en cours
+- **Limites d'utilisation** : limites du forfait avec indicateurs visuels de progression
+- **Détails de facturation** : frais prévisionnels et engagements minimums
+- **Gestion du forfait** : options de mise à niveau et historique de facturation
+
+### Suivi programmatique de l'utilisation
+
+Vous pouvez interroger votre utilisation actuelle et vos limites par programmation à l'aide de l'API :
+
+**Point de terminaison :**
+
+```text
+GET /api/users/me/usage-limits
+```
+
+**Authentification :**
+- Incluez votre clé API dans l'en-tête `X-API-Key`
+
+**Exemple de requête :**
+
+```bash
+curl -X GET -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" https://sim.ai/api/users/me/usage-limits
+```
+
+**Exemple de réponse :**
+
+```json
+{
+  "success": true,
+  "rateLimit": {
+    "sync": { "isLimited": false, "limit": 10, "remaining": 10, "resetAt": "2025-09-08T22:51:55.999Z" },
+    "async": { "isLimited": false, "limit": 50, "remaining": 50, "resetAt": "2025-09-08T22:51:56.155Z" },
+    "authType": "api"
+  },
+  "usage": {
+    "currentPeriodCost": 12.34,
+    "limit": 100,
+    "plan": "pro"
+  }
+}
+```
+
+**Champs de réponse :**
+- `currentPeriodCost` reflète l'utilisation dans la période de facturation en cours
+- `limit` est dérivé des limites individuelles (Gratuit/Pro) ou des limites d'organisation mutualisées (Équipe/Entreprise)
+- `plan` est le forfait actif de plus haute priorité associé à votre utilisateur
+
+## Limites des forfaits
+
+Les différents forfaits d'abonnement ont des limites d'utilisation différentes :
+
+| Forfait | Limite d'utilisation mensuelle | Limites de débit (par minute) |
+|------|-------------------|-------------------------|
+| **Gratuit** | 10 $ | 5 sync, 10 async |
+| **Pro** | 100 $ | 10 sync, 50 async |
+| **Équipe** | 500 $ (mutualisé) | 50 sync, 100 async |
+| **Entreprise** | Personnalisé | Personnalisé |
+
+## Meilleures pratiques de gestion des coûts
+
+1. **Surveillez régulièrement** : vérifiez fréquemment votre tableau de bord d'utilisation pour éviter les surprises
+2. **Définissez des budgets** : utilisez les limites du plan comme garde-fous pour vos dépenses
+3. **Optimisez les flux de travail** : examinez les exécutions à coût élevé et optimisez les prompts ou la sélection de modèles
+4. **Utilisez des modèles appropriés** : adaptez la complexité du modèle aux exigences de la tâche
+5. **Regroupez les tâches similaires** : combinez plusieurs requêtes lorsque c'est possible pour réduire les frais généraux
+
+## Prochaines étapes
+
+- Examinez votre utilisation actuelle dans [Paramètres → Abonnement](https://sim.ai/settings/subscription)
+- Apprenez-en plus sur la [Journalisation](/execution/logging) pour suivre les détails d'exécution
+- Explorez l'[API externe](/execution/api) pour la surveillance programmatique des coûts
+- Découvrez les [techniques d'optimisation de flux de travail](/blocks) pour réduire les coûts

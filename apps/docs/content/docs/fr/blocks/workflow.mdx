@@ -1,0 +1,168 @@
+---
+title: Flux de travail
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Le bloc Flux de travail vous permet d'exécuter d'autres flux de travail comme composants réutilisables au sein de votre flux de travail actuel. Cela permet une conception modulaire, la réutilisation du code et la création de flux de travail imbriqués complexes qui peuvent être composés à partir de flux de travail plus petits et ciblés.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/workflow.png"
+    alt="Bloc de flux de travail"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+<Callout type="info">
+  Les blocs de flux de travail permettent une conception modulaire en vous permettant de composer des flux de travail complexes à partir de composants plus petits et réutilisables.
+</Callout>
+
+## Aperçu
+
+Le bloc Flux de travail sert de pont entre les flux de travail, vous permettant de :
+
+<Steps>
+  <Step>
+    <strong>Réutiliser des flux de travail existants</strong> : exécuter des flux de travail précédemment créés comme composants dans de nouveaux flux de travail
+  </Step>
+  <Step>
+    <strong>Créer des conceptions modulaires</strong> : décomposer des processus complexes en flux de travail plus petits et gérables
+  </Step>
+  <Step>
+    <strong>Maintenir la séparation des préoccupations</strong> : garder différentes logiques métier isolées dans des flux de travail séparés
+  </Step>
+  <Step>
+    <strong>Permettre la collaboration d'équipe</strong> : partager et réutiliser des flux de travail entre différents projets et membres d'équipe
+  </Step>
+</Steps>
+
+## Comment ça fonctionne
+
+Le bloc Flux de travail :
+
+1. Prend une référence à un autre flux de travail dans votre espace de travail
+2. Transmet les données d'entrée du flux de travail actuel au flux de travail enfant (disponibles via start.input)
+3. Exécute le flux de travail enfant dans un contexte isolé
+4. Renvoie le résultat au flux de travail parent pour un traitement ultérieur
+
+## Options de configuration
+
+### Sélection du flux de travail
+
+Choisissez quel flux de travail exécuter à partir d'une liste déroulante des flux de travail disponibles dans votre espace de travail. La liste comprend :
+
+- Tous les flux de travail auxquels vous avez accès dans l'espace de travail actuel
+- Les flux de travail partagés avec vous par d'autres membres de l'équipe
+- Les flux de travail activés et désactivés (bien que seuls les flux de travail activés puissent être exécutés)
+
+### Contexte d'exécution
+
+Le workflow enfant s'exécute avec :
+
+- Son propre contexte d'exécution isolé
+- Accès aux mêmes ressources de l'espace de travail (clés API, variables d'environnement)
+- Vérifications appropriées d'appartenance et de permissions de l'espace de travail
+- Segment de trace imbriqué dans le journal d'exécution
+
+<Callout type="warning">
+  **Détection de cycles** : Le système détecte et empêche automatiquement les dépendances circulaires entre les workflows pour éviter les boucles infinies.
+</Callout>
+
+## Entrées et sorties
+
+<Tabs items={['Configuration', 'Variables', 'Résultats']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Sélection du workflow</strong> : Choisir quel workflow exécuter
+      </li>
+      <li>
+        <strong>Données d'entrée</strong> : Variable ou référence de bloc à transmettre au workflow enfant
+      </li>
+      <li>
+        <strong>Contexte d'exécution</strong> : Environnement isolé avec les ressources de l'espace de travail
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>workflow.success</strong> : Booléen indiquant le statut d'achèvement
+      </li>
+      <li>
+        <strong>workflow.childWorkflowName</strong> : Nom du workflow enfant exécuté
+      </li>
+      <li>
+        <strong>workflow.result</strong> : Résultat renvoyé par le workflow enfant
+      </li>
+      <li>
+        <strong>workflow.error</strong> : Détails de l'erreur si le workflow a échoué
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Réponse du workflow</strong> : Sortie principale du workflow enfant
+      </li>
+      <li>
+        <strong>Statut d'exécution</strong> : Statut de réussite et informations d'erreur
+      </li>
+      <li>
+        <strong>Accès</strong> : Disponible dans les blocs après le workflow
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Exemples de cas d'utilisation
+
+### Intégration modulaire des clients
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scénario : Décomposer une intégration complexe en composants réutilisables</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Le workflow principal reçoit les données client</li>
+    <li>Le bloc workflow exécute le workflow de validation</li>
+    <li>Le bloc workflow exécute le workflow de configuration du compte</li>
+    <li>Le bloc workflow exécute le workflow d'e-mail de bienvenue</li>
+  </ol>
+</div>
+
+### Architecture de microservices
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scénario : Créer des workflows de services indépendants</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Le workflow de traitement des paiements gère les transactions</li>
+    <li>Le workflow de gestion des stocks met à jour l'inventaire</li>
+    <li>Le workflow de notification envoie les confirmations</li>
+    <li>Le workflow principal orchestre tous les services</li>
+  </ol>
+</div>
+
+### Traitement conditionnel
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scénario : exécuter différents workflows selon les conditions</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Le bloc de condition évalue le type d'utilisateur</li>
+    <li>Utilisateurs entreprise → Workflow d'approbation complexe</li>
+    <li>Utilisateurs standard → Workflow d'approbation simple</li>
+    <li>Utilisateurs gratuits → Workflow de traitement basique</li>
+  </ol>
+</div>
+
+## Bonnes pratiques
+
+- **Gardez les workflows ciblés** : concevez des workflows enfants pour gérer des tâches spécifiques et bien définies avec des entrées et sorties claires
+- **Minimisez la profondeur d'imbrication** : évitez les hiérarchies de workflow profondément imbriquées pour une meilleure maintenabilité et performance
+- **Gérez les erreurs avec élégance** : implémentez une gestion d'erreurs appropriée pour les échecs de workflows enfants et prévoyez des mécanismes de secours
+- **Testez indépendamment** : assurez-vous que les workflows enfants peuvent être testés et validés indépendamment des workflows parents
+- **Utilisez une nomenclature sémantique** : donnez aux workflows des noms descriptifs qui indiquent clairement leur objectif et leur fonctionnalité

@@ -1,0 +1,68 @@
+---
+title: Perplexity
+description: Usa los modelos de chat de Perplexity AI
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="perplexity"
+  color="#20808D"
+  icon={true}
+  iconSvg={`<svg className="block-icon"   viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' >
+      <path
+        d='M19.785 0v7.272H22.5V17.62h-2.935V24l-7.037-6.194v6.145h-1.091v-6.152L4.392 24v-6.465H1.5V7.188h2.884V0l7.053 6.494V.19h1.09v6.49L19.786 0zm-7.257 9.044v7.319l5.946 5.234V14.44l-5.946-5.397zm-1.099-.08l-5.946 5.398v7.235l5.946-5.234V8.965zm8.136 7.58h1.844V8.349H13.46l6.105 5.54v2.655zm-8.982-8.28H2.59v8.195h1.8v-2.576l6.192-5.62zM5.475 2.476v4.71h5.115l-5.115-4.71zm13.219 0l-5.115 4.71h5.115v-4.71z'
+        fill='currentColor'
+        fillRule='nonzero'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Perplexity AI](https://www.perplexity.ai) es un motor de búsqueda y respuestas impulsado por IA que combina las capacidades de los grandes modelos de lenguaje con búsquedas web en tiempo real para proporcionar información precisa y actualizada, así como respuestas completas a preguntas complejas.
+
+Con Perplexity AI, puedes:
+
+- **Obtener respuestas precisas**: Recibir respuestas completas a preguntas con citas de fuentes confiables
+- **Acceder a información en tiempo real**: Obtener información actualizada a través de las capacidades de búsqueda web de Perplexity
+- **Explorar temas en profundidad**: Profundizar en temas con preguntas de seguimiento e información relacionada
+- **Verificar información**: Comprobar la credibilidad de las respuestas a través de las fuentes y referencias proporcionadas
+- **Generar contenido**: Crear resúmenes, análisis y contenido creativo basado en información actual
+- **Investigar eficientemente**: Agilizar procesos de investigación con respuestas completas a consultas complejas
+- **Interactuar conversacionalmente**: Participar en diálogos naturales para refinar preguntas y explorar temas
+
+En Sim, la integración de Perplexity permite a tus agentes aprovechar estas potentes capacidades de IA de forma programática como parte de sus flujos de trabajo. Esto permite escenarios de automatización sofisticados que combinan comprensión del lenguaje natural, recuperación de información en tiempo real y generación de contenido. Tus agentes pueden formular consultas, recibir respuestas completas con citas e incorporar esta información en sus procesos de toma de decisiones o resultados. Esta integración cierra la brecha entre la automatización de tu flujo de trabajo y el acceso a información actual y confiable, permitiendo que tus agentes tomen decisiones más informadas y proporcionen respuestas más precisas. Al conectar Sim con Perplexity, puedes crear agentes que se mantengan actualizados con la información más reciente, proporcionen respuestas bien investigadas y entreguen insights más valiosos a los usuarios - todo sin requerir investigación manual o recopilación de información.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Genera completados utilizando los modelos de Perplexity AI con capacidades de búsqueda y conocimiento en tiempo real. Crea respuestas, contesta preguntas y genera contenido con parámetros personalizables.
+
+## Herramientas
+
+### `perplexity_chat`
+
+Genera completados utilizando los modelos de chat de Perplexity AI
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `systemPrompt` | string | No | Instrucción del sistema para guiar el comportamiento del modelo |
+| `content` | string | Sí | El contenido del mensaje del usuario para enviar al modelo |
+| `model` | string | Sí | Modelo a utilizar para los completados de chat (p. ej., sonar, mistral) |
+| `max_tokens` | number | No | Número máximo de tokens a generar |
+| `temperature` | number | No | Temperatura de muestreo entre 0 y 1 |
+| `apiKey` | string | Sí | Clave API de Perplexity |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Resultados del completado de chat |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `perplexity`

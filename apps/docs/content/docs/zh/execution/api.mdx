@@ -1,0 +1,551 @@
+---
+title: 外部 API
+---
+
+import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { CodeBlock } from 'fumadocs-ui/components/codeblock'
+import { Video } from '@/components/ui/video'
+
+Sim 提供了一个全面的外部 API，用于查询工作流执行日志，并在工作流完成时设置实时通知的 webhook。
+
+## 身份验证
+
+所有 API 请求都需要在 `x-api-key` 标头中传递 API 密钥：
+
+```bash
+curl -H "x-api-key: YOUR_API_KEY" \
+  https://sim.ai/api/v1/logs?workspaceId=YOUR_WORKSPACE_ID
+```
+
+您可以在 Sim 仪表板的用户设置中生成 API 密钥。
+
+## 日志 API
+
+所有 API 响应都包含有关您的工作流执行限制和使用情况的信息：
+
+```json
+"limits": {
+  "workflowExecutionRateLimit": {
+    "sync": {
+      "limit": 60,        // Max sync workflow executions per minute
+      "remaining": 58,    // Remaining sync workflow executions
+      "resetAt": "..."    // When the window resets
+    },
+    "async": {
+      "limit": 60,        // Max async workflow executions per minute
+      "remaining": 59,    // Remaining async workflow executions
+      "resetAt": "..."    // When the window resets
+    }
+  },
+  "usage": {
+    "currentPeriodCost": 1.234,  // Current billing period usage in USD
+    "limit": 10,                  // Usage limit in USD
+    "plan": "pro",                // Current subscription plan
+    "isExceeded": false           // Whether limit is exceeded
+  }
+}
+```
+
+**注意：** 响应正文中的速率限制是针对工作流执行的。调用此 API 端点的速率限制在响应标头中（`X-RateLimit-*`）。
+
+### 查询日志
+
+使用广泛的过滤选项查询工作流执行日志。
+
+<Tabs items={['Request', 'Response']}>
+  <Tab value="Request">
+
+    ```http
+    GET /api/v1/logs
+    ```
+
+    **必需参数：**
+    - `workspaceId` - 您的工作区 ID
+
+    **可选过滤器：**
+    - `workflowIds` - 逗号分隔的工作流 ID
+    - `folderIds` - 逗号分隔的文件夹 ID
+    - `triggers` - 逗号分隔的触发类型：`api`、`webhook`、`schedule`、`manual`、`chat`
+    - `level` - 按级别过滤：`info`、`error`
+    - `startDate` - 日期范围起始的 ISO 时间戳
+    - `endDate` - 日期范围结束的 ISO 时间戳
+    - `executionId` - 精确执行 ID 匹配
+    - `minDurationMs` - 最小执行持续时间（毫秒）
+    - `maxDurationMs` - 最大执行持续时间（毫秒）
+    - `minCost` - 最小执行成本
+    - `maxCost` - 最大执行成本
+    - `model` - 按使用的 AI 模型过滤
+
+    **分页：**
+    - `limit` - 每页结果数（默认：100）
+    - `cursor` - 下一页的游标
+    - `order` - 排序顺序：`desc`、`asc`（默认：降序）
+
+    **详细级别：**
+    - `details` - 响应详细级别：`basic`, `full`（默认：basic）
+    - `includeTraceSpans` - 包含跟踪跨度（默认：false）
+    - `includeFinalOutput` - 包含最终输出（默认：false）
+  </Tab>
+  <Tab value="Response">
+
+    ```json
+    {
+      "data": [
+        {
+          "id": "log_abc123",
+          "workflowId": "wf_xyz789",
+          "executionId": "exec_def456",
+          "level": "info",
+          "trigger": "api",
+          "startedAt": "2025-01-01T12:34:56.789Z",
+          "endedAt": "2025-01-01T12:34:57.123Z",
+          "totalDurationMs": 334,
+          "cost": {
+            "total": 0.00234
+          },
+          "files": null
+        }
+      ],
+      "nextCursor": "eyJzIjoiMjAyNS0wMS0wMVQxMjozNDo1Ni43ODlaIiwiaWQiOiJsb2dfYWJjMTIzIn0",
+      "limits": {
+        "workflowExecutionRateLimit": {
+          "sync": {
+            "limit": 60,
+            "remaining": 58,
+            "resetAt": "2025-01-01T12:35:56.789Z"
+          },
+          "async": {
+            "limit": 60,
+            "remaining": 59,
+            "resetAt": "2025-01-01T12:35:56.789Z"
+          }
+        },
+        "usage": {
+          "currentPeriodCost": 1.234,
+          "limit": 10,
+          "plan": "pro",
+          "isExceeded": false
+        }
+      }
+    }
+    ```
+
+  </Tab>
+</Tabs>
+
+### 获取日志详情
+
+检索特定日志条目的详细信息。
+
+<Tabs items={['Request', 'Response']}>
+  <Tab value="Request">
+
+    ```http
+    GET /api/v1/logs/{id}
+    ```
+
+  </Tab>
+  <Tab value="Response">
+
+    ```json
+    {
+      "data": {
+        "id": "log_abc123",
+        "workflowId": "wf_xyz789",
+        "executionId": "exec_def456",
+        "level": "info",
+        "trigger": "api",
+        "startedAt": "2025-01-01T12:34:56.789Z",
+        "endedAt": "2025-01-01T12:34:57.123Z",
+        "totalDurationMs": 334,
+        "workflow": {
+          "id": "wf_xyz789",
+          "name": "My Workflow",
+          "description": "Process customer data"
+        },
+        "executionData": {
+          "traceSpans": [...],
+          "finalOutput": {...}
+        },
+        "cost": {
+          "total": 0.00234,
+          "tokens": {
+            "prompt": 123,
+            "completion": 456,
+            "total": 579
+          },
+          "models": {
+            "gpt-4o": {
+              "input": 0.001,
+              "output": 0.00134,
+              "total": 0.00234,
+              "tokens": {
+                "prompt": 123,
+                "completion": 456,
+                "total": 579
+              }
+            }
+          }
+        },
+        "limits": {
+          "workflowExecutionRateLimit": {
+            "sync": {
+              "limit": 60,
+              "remaining": 58,
+              "resetAt": "2025-01-01T12:35:56.789Z"
+            },
+            "async": {
+              "limit": 60,
+              "remaining": 59,
+              "resetAt": "2025-01-01T12:35:56.789Z"
+            }
+          },
+          "usage": {
+            "currentPeriodCost": 1.234,
+            "limit": 10,
+            "plan": "pro",
+            "isExceeded": false
+          }
+        }
+      }
+    }
+    ```
+
+  </Tab>
+</Tabs>
+
+### 获取执行详情
+
+检索执行详情，包括工作流状态快照。
+
+<Tabs items={['Request', 'Response']}>
+  <Tab value="Request">
+
+    ```http
+    GET /api/v1/logs/executions/{executionId}
+    ```
+
+  </Tab>
+  <Tab value="Response">
+
+    ```json
+    {
+      "executionId": "exec_def456",
+      "workflowId": "wf_xyz789",
+      "workflowState": {
+        "blocks": {...},
+        "edges": [...],
+        "loops": {...},
+        "parallels": {...}
+      },
+      "executionMetadata": {
+        "trigger": "api",
+        "startedAt": "2025-01-01T12:34:56.789Z",
+        "endedAt": "2025-01-01T12:34:57.123Z",
+        "totalDurationMs": 334,
+        "cost": {...}
+      }
+    }
+    ```
+
+  </Tab>
+</Tabs>
+
+## Webhook 订阅
+
+在工作流执行完成时获取实时通知。Webhook 可通过 Sim UI 的工作流编辑器进行配置。
+
+### 配置
+
+可以通过工作流编辑器 UI 为每个工作流配置 Webhook。点击控制栏中的 Webhook 图标以设置 Webhook 订阅。
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="configure-webhook.mp4" width={700} height={450} />
+</div>
+
+**可用配置选项：**
+- `url`：您的 Webhook 端点 URL
+- `secret`：用于 HMAC 签名验证的可选密钥
+- `includeFinalOutput`：在负载中包含工作流的最终输出
+- `includeTraceSpans`：包含详细的执行跟踪跨度
+- `includeRateLimits`：包含工作流所有者的速率限制信息
+- `includeUsageData`：包含工作流所有者的使用和计费数据
+- `levelFilter`：接收的日志级别数组（`info`, `error`）
+- `triggerFilter`：接收的触发类型数组（`api`, `webhook`, `schedule`, `manual`, `chat`）
+- `active`：启用/禁用 Webhook 订阅
+
+### Webhook 负载
+
+当工作流执行完成时，Sim 会向您的 Webhook URL 发送一个 POST 请求：
+
+```json
+{
+  "id": "evt_123",
+  "type": "workflow.execution.completed",
+  "timestamp": 1735925767890,
+  "data": {
+    "workflowId": "wf_xyz789",
+    "executionId": "exec_def456",
+    "status": "success",
+    "level": "info",
+    "trigger": "api",
+    "startedAt": "2025-01-01T12:34:56.789Z",
+    "endedAt": "2025-01-01T12:34:57.123Z",
+    "totalDurationMs": 334,
+    "cost": {
+      "total": 0.00234,
+      "tokens": {
+        "prompt": 123,
+        "completion": 456,
+        "total": 579
+      },
+      "models": {
+        "gpt-4o": {
+          "input": 0.001,
+          "output": 0.00134,
+          "total": 0.00234,
+          "tokens": {
+            "prompt": 123,
+            "completion": 456,
+            "total": 579
+          }
+        }
+      }
+    },
+    "files": null,
+    "finalOutput": {...},  // Only if includeFinalOutput=true
+    "traceSpans": [...],   // Only if includeTraceSpans=true
+    "rateLimits": {...},   // Only if includeRateLimits=true
+    "usage": {...}         // Only if includeUsageData=true
+  },
+  "links": {
+    "log": "/v1/logs/log_abc123",
+    "execution": "/v1/logs/executions/exec_def456"
+  }
+}
+```
+
+### Webhook 请求头
+
+每个 webhook 请求都包含以下请求头：
+
+- `sim-event`：事件类型（始终为 `workflow.execution.completed`）
+- `sim-timestamp`：以毫秒为单位的 Unix 时间戳
+- `sim-delivery-id`：用于幂等性的唯一交付 ID
+- `sim-signature`：用于验证的 HMAC-SHA256 签名（如果配置了密钥）
+- `Idempotency-Key`：与交付 ID 相同，用于检测重复
+
+### 签名验证
+
+如果您配置了 webhook 密钥，请验证签名以确保 webhook 来自 Sim：
+
+<Tabs items={['Node.js', 'Python']}>
+  <Tab value="Node.js">
+
+    ```javascript
+    import crypto from 'crypto';
+
+    function verifyWebhookSignature(body, signature, secret) {
+      const [timestampPart, signaturePart] = signature.split(',');
+      const timestamp = timestampPart.replace('t=', '');
+      const expectedSignature = signaturePart.replace('v1=', '');
+      
+      const signatureBase = `${timestamp}.${body}`;
+      const hmac = crypto.createHmac('sha256', secret);
+      hmac.update(signatureBase);
+      const computedSignature = hmac.digest('hex');
+      
+      return computedSignature === expectedSignature;
+    }
+
+    // In your webhook handler
+    app.post('/webhook', (req, res) => {
+      const signature = req.headers['sim-signature'];
+      const body = JSON.stringify(req.body);
+      
+      if (!verifyWebhookSignature(body, signature, process.env.WEBHOOK_SECRET)) {
+        return res.status(401).send('Invalid signature');
+      }
+      
+      // Process the webhook...
+    });
+    ```
+
+  </Tab>
+  <Tab value="Python">
+
+    ```python
+    import hmac
+    import hashlib
+    import json
+
+    def verify_webhook_signature(body: str, signature: str, secret: str) -> bool:
+        timestamp_part, signature_part = signature.split(',')
+        timestamp = timestamp_part.replace('t=', '')
+        expected_signature = signature_part.replace('v1=', '')
+        
+        signature_base = f"{timestamp}.{body}"
+        computed_signature = hmac.new(
+            secret.encode(),
+            signature_base.encode(),
+            hashlib.sha256
+        ).hexdigest()
+        
+        return hmac.compare_digest(computed_signature, expected_signature)
+
+    # In your webhook handler
+    @app.route('/webhook', methods=['POST'])
+    def webhook():
+        signature = request.headers.get('sim-signature')
+        body = json.dumps(request.json)
+        
+        if not verify_webhook_signature(body, signature, os.environ['WEBHOOK_SECRET']):
+            return 'Invalid signature', 401
+        
+        # Process the webhook...
+    ```
+
+  </Tab>
+</Tabs>
+
+### 重试策略
+
+失败的 webhook 交付会使用指数退避和抖动进行重试：
+
+- 最大尝试次数：5
+- 重试延迟：5 秒、15 秒、1 分钟、3 分钟、10 分钟
+- 抖动：最多额外延迟 10% 以防止蜂拥效应
+- 仅 HTTP 5xx 和 429 响应会触发重试
+- 交付在 30 秒后超时
+
+<Callout type="info">
+  Webhook 交付是异步处理的，不会影响工作流执行性能。
+</Callout>
+
+## 最佳实践
+
+1. **轮询策略**：在轮询日志时，使用基于游标的分页与 `order=asc` 和 `startDate` 高效获取新日志。
+
+2. **Webhook 安全性**：始终配置 webhook 密钥并验证签名以确保请求来自 Sim。
+
+3. **幂等性**：使用 `Idempotency-Key` 请求头检测并处理重复的 webhook 交付。
+
+4. **隐私**：默认情况下，`finalOutput` 和 `traceSpans` 不包含在响应中。仅在需要这些数据并了解隐私影响时启用它们。
+
+5. **速率限制**：当收到 429 响应时，实施指数退避。检查 `Retry-After` 请求头以获取推荐的等待时间。
+
+## 速率限制
+
+API 实现了速率限制以确保公平使用：
+
+- **免费计划**：每分钟 10 次请求
+- **专业计划**：每分钟 30 次请求
+- **团队计划**：每分钟 60 次请求
+- **企业计划**：自定义限制
+
+速率限制信息包含在响应头中：
+- `X-RateLimit-Limit`：每个窗口的最大请求数
+- `X-RateLimit-Remaining`：当前窗口中剩余的请求数
+- `X-RateLimit-Reset`：窗口重置时的 ISO 时间戳
+
+## 示例：轮询新日志
+
+```javascript
+let cursor = null;
+const workspaceId = 'YOUR_WORKSPACE_ID';
+const startDate = new Date().toISOString();
+
+async function pollLogs() {
+  const params = new URLSearchParams({
+    workspaceId,
+    startDate,
+    order: 'asc',
+    limit: '100'
+  });
+  
+  if (cursor) {
+    params.append('cursor', cursor);
+  }
+  
+  const response = await fetch(
+    `https://sim.ai/api/v1/logs?${params}`,
+    {
+      headers: {
+        'x-api-key': 'YOUR_API_KEY'
+      }
+    }
+  );
+  
+  if (response.ok) {
+    const data = await response.json();
+    
+    // Process new logs
+    for (const log of data.data) {
+      console.log(`New execution: ${log.executionId}`);
+    }
+    
+    // Update cursor for next poll
+    if (data.nextCursor) {
+      cursor = data.nextCursor;
+    }
+  }
+}
+
+// Poll every 30 seconds
+setInterval(pollLogs, 30000);
+```
+
+## 示例：处理 Webhooks
+
+```javascript
+import express from 'express';
+import crypto from 'crypto';
+
+const app = express();
+app.use(express.json());
+
+app.post('/sim-webhook', (req, res) => {
+  // Verify signature
+  const signature = req.headers['sim-signature'];
+  const body = JSON.stringify(req.body);
+  
+  if (!verifyWebhookSignature(body, signature, process.env.WEBHOOK_SECRET)) {
+    return res.status(401).send('Invalid signature');
+  }
+  
+  // Check timestamp to prevent replay attacks
+  const timestamp = parseInt(req.headers['sim-timestamp']);
+  const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+  
+  if (timestamp < fiveMinutesAgo) {
+    return res.status(401).send('Timestamp too old');
+  }
+  
+  // Process the webhook
+  const event = req.body;
+  
+  switch (event.type) {
+    case 'workflow.execution.completed':
+      const { workflowId, executionId, status, cost } = event.data;
+      
+      if (status === 'error') {
+        console.error(`Workflow ${workflowId} failed: ${executionId}`);
+        // Handle error...
+      } else {
+        console.log(`Workflow ${workflowId} completed: ${executionId}`);
+        console.log(`Cost: ${cost.total}`);
+        // Process successful execution...
+      }
+      break;
+  }
+  
+  // Return 200 to acknowledge receipt
+  res.status(200).send('OK');
+});
+
+app.listen(3000, () => {
+  console.log('Webhook server listening on port 3000');
+});
+```

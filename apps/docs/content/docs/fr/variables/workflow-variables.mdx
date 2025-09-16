@@ -1,0 +1,138 @@
+---
+title: Variables de flux de travail
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Video } from '@/components/ui/video'
+
+Les variables dans Sim agissent comme un stockage global de données qui peuvent être consultées et modifiées par n'importe quel bloc dans votre flux de travail, vous permettant de stocker et partager des données à travers votre flux de travail avec des variables globales. Elles offrent un moyen puissant de partager des informations entre différentes parties de votre flux de travail, de maintenir un état et de créer des applications plus dynamiques.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="variables.mp4" />
+</div>
+
+<Callout type="info">
+  Les variables vous permettent de stocker et partager des données à travers tout votre flux de travail, facilitant le maintien d'état et la création de systèmes complexes et interconnectés.
+</Callout>
+
+## Aperçu
+
+La fonctionnalité Variables sert de stockage central de données pour votre flux de travail, vous permettant de :
+
+<Steps>
+  <Step>
+    <strong>Stocker des données globales</strong> : créer des variables qui persistent tout au long de l'exécution du flux de travail
+  </Step>
+  <Step>
+    <strong>Partager des informations entre les blocs</strong> : accéder aux mêmes données depuis n'importe quel bloc dans votre flux de travail
+  </Step>
+  <Step>
+    <strong>Maintenir l'état du flux de travail</strong> : suivre les valeurs importantes pendant l'exécution de votre flux de travail
+  </Step>
+  <Step>
+    <strong>Créer des flux de travail dynamiques</strong> : construire des systèmes plus flexibles qui peuvent s'adapter en fonction des valeurs stockées
+  </Step>
+</Steps>
+
+## Création de variables
+
+Vous pouvez créer et gérer des variables depuis le panneau Variables dans la barre latérale. Chaque variable possède :
+
+- **Nom** : un identifiant unique utilisé pour référencer la variable
+- **Valeur** : les données stockées dans la variable (prend en charge divers types de données)
+- **Description** (facultative) : une note expliquant l'objectif de la variable
+
+## Accès aux variables
+
+Les variables sont accessibles depuis n'importe quel bloc dans votre flux de travail en utilisant le menu déroulant des variables. Il suffit de :
+
+1. Tapez `<` dans n'importe quel champ de texte à l'intérieur d'un bloc
+2. Parcourez le menu déroulant pour sélectionner parmi les variables disponibles
+3. Sélectionnez la variable que vous souhaitez utiliser
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="variables-dropdown.mp4" />
+</div>
+
+<Callout>
+  Vous pouvez également faire glisser l'étiquette de connexion dans un champ pour ouvrir le menu déroulant des variables et accéder
+  aux variables disponibles.
+</Callout>
+
+## Types de variables
+
+Les variables dans Sim peuvent stocker différents types de données :
+
+<Tabs items={['Text', 'Numbers', 'Boolean', 'Objects', 'Arrays']}>
+  <Tab>
+
+    ```
+    "Hello, World!"
+    ```
+
+    <p className="mt-2">Les variables de texte stockent des chaînes de caractères. Elles sont utiles pour stocker des messages, des noms et d'autres données textuelles.</p>
+  </Tab>
+  <Tab>
+
+    ```
+    42
+    ```
+
+    <p className="mt-2">Les variables numériques stockent des valeurs numériques qui peuvent être utilisées dans des calculs ou des comparaisons.</p>
+  </Tab>
+  <Tab>
+
+    ```
+    true
+    ```
+
+    <p className="mt-2">Les variables booléennes stockent des valeurs vrai/faux, parfaites pour les indicateurs et les vérifications de conditions.</p>
+  </Tab>
+  <Tab>
+
+    ```json
+    {
+      "name": "John",
+      "age": 30,
+      "city": "New York"
+    }
+    ```
+
+    <p className="mt-2">Les variables d'objet stockent des données structurées avec des propriétés et des valeurs.</p>
+  </Tab>
+  <Tab>
+
+    ```json
+    [1, 2, 3, "four", "five"]
+    ```
+
+    <p className="mt-2">Les variables de tableau stockent des collections ordonnées d'éléments.</p>
+  </Tab>
+</Tabs>
+
+## Utilisation des variables dans les blocs
+
+Lorsque vous accédez à une variable depuis un bloc, vous pouvez :
+
+- **Lire sa valeur** : utiliser la valeur actuelle de la variable dans la logique de votre bloc
+- **La modifier** : mettre à jour la valeur de la variable en fonction du traitement de votre bloc
+- **L'utiliser dans des expressions** : inclure des variables dans des expressions et des calculs
+
+## Portée des variables
+
+Les variables dans Sim ont une portée globale, ce qui signifie :
+
+- Elles sont accessibles depuis n'importe quel bloc de votre flux de travail
+- Les modifications apportées aux variables persistent tout au long de l'exécution du flux de travail
+- Les variables conservent leurs valeurs entre les exécutions, sauf si elles sont explicitement réinitialisées
+
+## Bonnes pratiques
+
+- **Utilisez des noms descriptifs** : choisissez des noms de variables qui indiquent clairement ce que la variable représente. Par exemple, utilisez `userPreferences` au lieu de `up`.
+- **Documentez vos variables** : ajoutez des descriptions à vos variables pour aider les autres membres de l'équipe à comprendre leur objectif et leur utilisation.
+- **Tenez compte de la portée des variables** : n'oubliez pas que les variables sont globales et peuvent être modifiées par n'importe quel bloc. Concevez votre flux de travail en tenant compte de cela pour éviter un comportement inattendu.
+- **Initialisez les variables tôt** : configurez et initialisez vos variables au début de votre flux de travail pour vous assurer qu'elles sont disponibles lorsque nécessaire.
+- **Gérez les variables manquantes** : tenez toujours compte du cas où une variable pourrait ne pas encore exister ou pourrait avoir une valeur inattendue. Ajoutez une validation appropriée dans vos blocs.
+- **Limitez le nombre de variables** : gardez le nombre de variables gérable. Trop de variables peuvent rendre votre flux de travail difficile à comprendre et à maintenir.

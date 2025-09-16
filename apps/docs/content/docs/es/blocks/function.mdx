@@ -1,0 +1,156 @@
+---
+title: Función
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+El bloque Función te permite ejecutar código JavaScript o TypeScript personalizado en tus flujos de trabajo. Úsalo para transformar datos, realizar cálculos o implementar lógica personalizada que no está disponible en otros bloques.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/function.png"
+    alt="Bloque de función con editor de código"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+## Descripción general
+
+El bloque Función te permite:
+
+<Steps>
+  <Step>
+    <strong>Transformar datos</strong>: Convertir formatos, analizar texto, manipular arrays y objetos
+  </Step>
+  <Step>
+    <strong>Realizar cálculos</strong>: Operaciones matemáticas, estadísticas, cálculos financieros
+  </Step>
+  <Step>
+    <strong>Implementar lógica personalizada</strong>: Condicionales complejos, bucles y algoritmos
+  </Step>
+  <Step>
+    <strong>Procesar datos externos</strong>: Analizar respuestas, formatear solicitudes, gestionar autenticación
+  </Step>
+</Steps>
+
+## Cómo funciona
+
+El bloque Función ejecuta tu código en un entorno seguro y aislado:
+
+1. **Recibir entrada**: Accede a los datos de bloques anteriores a través del objeto `input`
+2. **Ejecutar código**: Ejecuta tu código JavaScript/Python 
+3. **Devolver resultados**: Usa `return` para pasar datos al siguiente bloque
+4. **Manejar errores**: Gestión de errores y registro integrados
+
+## Ejecución remota (E2B)
+
+  - **Lenguajes**: Ejecuta JavaScript y Python en un sandbox E2B aislado.
+  - **Cómo activarlo**: Activa “Ejecución de código remoto” en el bloque Función.
+  - **Cuándo usarlo**: Lógica más pesada, bibliotecas externas o código específico de Python.
+  - **Rendimiento**: Más lento que JS local debido al inicio del sandbox y la sobrecarga de red.
+  - **Notas**: Requiere `E2B_API_KEY` si se ejecuta localmente. Para la menor latencia, usa JS nativo local (Modo rápido).
+
+## Entradas y salidas
+
+<Tabs items={['Configuration', 'Variables']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Código</strong>: Tu código JavaScript/Python para ejecutar
+      </li>
+      <li>
+        <strong>Tiempo de espera</strong>: Tiempo máximo de ejecución (por defecto 30 segundos)
+      </li>
+      <li>
+        <strong>Datos de entrada</strong>: Todas las salidas de bloques conectados disponibles a través de variables
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>function.result</strong>: El valor devuelto por tu función
+      </li>
+      <li>
+        <strong>function.stdout</strong>: Salida de console.log() de tu código
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Casos de uso de ejemplo
+
+### Pipeline de procesamiento de datos
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Escenario: Transformar respuesta de API en datos estructurados</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>El bloque de API obtiene datos brutos del cliente</li>
+    <li>El bloque de función procesa y valida los datos</li>
+    <li>El bloque de función calcula métricas derivadas</li>
+    <li>El bloque de respuesta devuelve resultados formateados</li>
+  </ol>
+</div>
+
+### Implementación de lógica de negocio
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Escenario: Calcular puntuaciones y niveles de fidelidad</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>El agente recupera el historial de compras del cliente</li>
+    <li>El bloque de función calcula métricas de fidelidad</li>
+    <li>El bloque de función determina el nivel del cliente</li>
+    <li>El bloque de condición enruta según el nivel</li>
+  </ol>
+</div>
+
+### Validación y limpieza de datos
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Escenario: Validar y limpiar la entrada del usuario</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Entrada del usuario recibida desde el envío del formulario</li>
+    <li>El bloque de función valida el formato de correo electrónico y números de teléfono</li>
+    <li>El bloque de función limpia y normaliza los datos</li>
+    <li>El bloque de API guarda los datos validados en la base de datos</li>
+  </ol>
+</div>
+
+### Ejemplo: Calculadora de puntuación de fidelidad
+
+```javascript title="loyalty-calculator.js"
+// Process customer data and calculate loyalty score
+const { purchaseHistory, accountAge, supportTickets } = <agent>;
+
+// Calculate metrics
+const totalSpent = purchaseHistory.reduce((sum, purchase) => sum + purchase.amount, 0);
+const purchaseFrequency = purchaseHistory.length / (accountAge / 365);
+const ticketRatio = supportTickets.resolved / supportTickets.total;
+
+// Calculate loyalty score (0-100)
+const spendScore = Math.min(totalSpent / 1000 * 30, 30);
+const frequencyScore = Math.min(purchaseFrequency * 20, 40);
+const supportScore = ticketRatio * 30;
+
+const loyaltyScore = Math.round(spendScore + frequencyScore + supportScore);
+
+return {
+  customer: <agent.name>,
+  loyaltyScore,
+  loyaltyTier: loyaltyScore >= 80 ? "Platinum" : loyaltyScore >= 60 ? "Gold" : "Silver",
+  metrics: { spendScore, frequencyScore, supportScore }
+};
+```
+
+## Mejores prácticas
+
+- **Mantén las funciones enfocadas**: Escribe funciones que hagan una sola cosa bien para mejorar la mantenibilidad y la depuración
+- **Maneja los errores con elegancia**: Usa bloques try/catch para manejar posibles errores y proporcionar mensajes de error significativos
+- **Prueba casos extremos**: Asegúrate de que tu código maneje correctamente entradas inusuales, valores nulos y condiciones límite
+- **Optimiza el rendimiento**: Ten en cuenta la complejidad computacional y el uso de memoria para grandes conjuntos de datos
+- **Usa console.log() para depuración**: Aprovecha la salida stdout para depurar y monitorear la ejecución de funciones

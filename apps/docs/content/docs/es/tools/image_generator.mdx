@@ -1,0 +1,79 @@
+---
+title: Generador de imágenes
+description: Generar imágenes
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="image_generator"
+  color="#4D5FFF"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      
+      
+      viewBox='0 0 26 26'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+      stroke='currentColor'
+      strokeWidth='2'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+    >
+      <path d='M24.903 10.32C16.0897 9.10933 8.48966 15.6533 9.00033 24.3333M5.66699 7.66667C5.66699 8.37391 5.94794 9.05219 6.44804 9.55228C6.94814 10.0524 7.62641 10.3333 8.33366 10.3333C9.0409 10.3333 9.71918 10.0524 10.2193 9.55228C10.7194 9.05219 11.0003 8.37391 11.0003 7.66667C11.0003 6.95942 10.7194 6.28115 10.2193 5.78105C9.71918 5.28095 9.0409 5 8.33366 5C7.62641 5 6.94814 5.28095 6.44804 5.78105C5.94794 6.28115 5.66699 6.95942 5.66699 7.66667Z' />
+      <path d='M1 14.4213C4.70667 13.908 8.03333 15.6986 9.832 18.5546' />
+      <path d='M1 9.53333C1 6.54667 1 5.05333 1.58133 3.912C2.09265 2.90851 2.90851 2.09265 3.912 1.58133C5.05333 1 6.54667 1 9.53333 1H16.4667C19.4533 1 20.9467 1 22.088 1.58133C23.0915 2.09265 23.9073 2.90851 24.4187 3.912C25 5.05333 25 6.54667 25 9.53333V16.4667C25 19.4533 25 20.9467 24.4187 22.088C23.9073 23.0915 23.0915 23.9073 22.088 24.4187C20.9467 25 19.4533 25 16.4667 25H9.53333C6.54667 25 5.05333 25 3.912 24.4187C2.90851 23.9073 2.09265 23.0915 1.58133 22.088C1 20.9467 1 19.4533 1 16.4667V9.53333Z' />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[DALL-E](https://openai.com/dall-e-3) es el sistema avanzado de IA de OpenAI diseñado para generar imágenes y arte realistas a partir de descripciones en lenguaje natural. Como modelo de generación de imágenes de última generación, DALL-E puede crear visuales detallados y creativos basados en indicaciones textuales, permitiendo a los usuarios transformar sus ideas en contenido visual sin necesidad de habilidades artísticas.
+
+Con DALL-E, puedes:
+
+- **Generar imágenes realistas**: Crear visuales fotorrealistas a partir de descripciones textuales
+- **Diseñar arte conceptual**: Transformar ideas abstractas en representaciones visuales
+- **Producir variaciones**: Generar múltiples interpretaciones de la misma indicación
+- **Controlar el estilo artístico**: Especificar estilos artísticos, medios y estéticas visuales
+- **Crear escenas detalladas**: Describir escenas complejas con múltiples elementos y relaciones
+- **Visualizar productos**: Generar maquetas de productos y conceptos de diseño
+- **Ilustrar ideas**: Convertir conceptos escritos en ilustraciones visuales
+
+En Sim, la integración con DALL-E permite a tus agentes generar imágenes de forma programática como parte de sus flujos de trabajo. Esto permite potentes escenarios de automatización como creación de contenido, diseño visual e ideación creativa. Tus agentes pueden formular instrucciones detalladas, generar imágenes correspondientes e incorporar estos elementos visuales en sus resultados o procesos posteriores. Esta integración cierra la brecha entre el procesamiento del lenguaje natural y la creación de contenido visual, permitiendo que tus agentes se comuniquen no solo a través de texto sino también mediante imágenes convincentes. Al conectar Sim con DALL-E, puedes crear agentes que produzcan contenido visual bajo demanda, ilustren conceptos, generen recursos de diseño y mejoren las experiencias de usuario con elementos visuales enriquecidos - todo sin requerir intervención humana en el proceso creativo.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Crea imágenes de alta calidad utilizando los modelos de generación de imágenes de OpenAI. Configura resolución, calidad, estilo y otros parámetros para obtener exactamente la imagen que necesitas.
+
+## Herramientas
+
+### `openai_image`
+
+Generar imágenes usando OpenAI
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `model` | string | Sí | El modelo a utilizar \(gpt-image-1 o dall-e-3\) |
+| `prompt` | string | Sí | Una descripción textual de la imagen deseada |
+| `size` | string | Sí | El tamaño de las imágenes generadas \(1024x1024, 1024x1792, o 1792x1024\) |
+| `quality` | string | No | La calidad de la imagen \(standard o hd\) |
+| `style` | string | No | El estilo de la imagen \(vivid o natural\) |
+| `background` | string | No | El color de fondo, solo para gpt-image-1 |
+| `n` | number | No | El número de imágenes a generar \(1-10\) |
+| `apiKey` | string | Sí | Tu clave API de OpenAI |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito de la operación |
+| `output` | object | Datos de la imagen generada |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `image_generator`

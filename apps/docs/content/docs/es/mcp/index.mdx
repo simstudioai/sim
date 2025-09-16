@@ -1,0 +1,140 @@
+---
+title: MCP (Protocolo de Contexto de Modelo)
+---
+
+import { Video } from '@/components/ui/video'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+El Protocolo de Contexto de Modelo ([MCP](https://modelcontextprotocol.com/)) te permite conectar herramientas y servicios externos utilizando un protocolo estandarizado, permitiéndote integrar APIs y servicios directamente en tus flujos de trabajo. Con MCP, puedes ampliar las capacidades de Sim añadiendo integraciones personalizadas que funcionan perfectamente con tus agentes y flujos de trabajo.
+
+## ¿Qué es MCP?
+
+MCP es un estándar abierto que permite a los asistentes de IA conectarse de forma segura a fuentes de datos y herramientas externas. Proporciona una forma estandarizada para:
+
+- Conectar a bases de datos, APIs y sistemas de archivos
+- Acceder a datos en tiempo real desde servicios externos
+- Ejecutar herramientas y scripts personalizados
+- Mantener un acceso seguro y controlado a recursos externos
+
+## Añadir servidores MCP
+
+Los servidores MCP proporcionan colecciones de herramientas que tus agentes pueden utilizar. Puedes añadir servidores MCP de dos maneras:
+
+### Desde la configuración del espacio de trabajo
+
+Configura los servidores MCP a nivel de espacio de trabajo para que todos los miembros del equipo puedan utilizarlos:
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="mcp-1.mp4" width={700} height={450} />
+</div>
+
+1. Navega a la configuración de tu espacio de trabajo
+2. Ve a la sección **Servidores MCP**
+3. Haz clic en **Añadir servidor MCP**
+4. Introduce los detalles de configuración del servidor
+5. Guarda la configuración
+
+<Callout type="info">
+Los servidores MCP configurados en la configuración del espacio de trabajo están disponibles para todos los miembros del espacio de trabajo según sus niveles de permisos.
+</Callout>
+
+### Desde la configuración del agente
+
+También puedes añadir y configurar servidores MCP directamente desde un bloque de agente:
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="mcp-2.mp4" width={700} height={450} />
+</div>
+
+Esto es útil cuando necesitas configurar rápidamente una integración específica para un flujo de trabajo particular.
+
+## Uso de herramientas MCP en agentes
+
+Una vez que los servidores MCP están configurados, sus herramientas quedan disponibles dentro de tus bloques de agente:
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="mcp-3.mp4" width={700} height={450} />
+</div>
+
+1. Abre un bloque de **Agente**
+2. En la sección de **Herramientas**, verás las herramientas MCP disponibles
+3. Selecciona las herramientas que quieres que el agente utilice
+4. El agente ahora puede acceder a estas herramientas durante la ejecución
+
+## Bloque de herramienta MCP independiente
+
+Para un control más preciso, puedes usar el bloque dedicado de herramienta MCP para ejecutar herramientas MCP específicas:
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="mcp-4.mp4" width={700} height={450} />
+</div>
+
+El bloque de herramienta MCP te permite:
+- Ejecutar cualquier herramienta MCP configurada directamente
+- Pasar parámetros específicos a la herramienta
+- Usar la salida de la herramienta en pasos posteriores del flujo de trabajo
+- Encadenar múltiples herramientas MCP
+
+### Cuándo usar herramienta MCP vs agente
+
+**Usa el agente con herramientas MCP cuando:**
+- Quieres que la IA decida qué herramientas usar
+- Necesitas un razonamiento complejo sobre cuándo y cómo usar las herramientas
+- Deseas una interacción en lenguaje natural con las herramientas
+
+**Usa el bloque de herramienta MCP cuando:**
+- Necesitas una ejecución determinista de herramientas
+- Quieres ejecutar una herramienta específica con parámetros conocidos
+- Estás construyendo flujos de trabajo estructurados con pasos predecibles
+
+## Requisitos de permisos
+
+La funcionalidad MCP requiere permisos específicos del espacio de trabajo:
+
+| Acción | Permiso requerido |
+|--------|-------------------|
+| Configurar servidores MCP en ajustes | **Admin** |
+| Usar herramientas MCP en agentes | **Write** o **Admin** |
+| Ver herramientas MCP disponibles | **Read**, **Write**, o **Admin** |
+| Ejecutar bloques de herramienta MCP | **Write** o **Admin** |
+
+## Casos de uso comunes
+
+### Integración de bases de datos
+Conéctate a bases de datos para consultar, insertar o actualizar datos dentro de tus flujos de trabajo.
+
+### Integraciones de API
+Accede a APIs externas y servicios web que no tienen integraciones Sim incorporadas.
+
+### Acceso al sistema de archivos
+Lee, escribe y manipula archivos en sistemas de archivos locales o remotos.
+
+### Lógica de negocio personalizada
+Ejecuta scripts o herramientas personalizadas específicas para las necesidades de tu organización.
+
+### Acceso a datos en tiempo real
+Obtén datos en vivo de sistemas externos durante la ejecución del flujo de trabajo.
+
+## Consideraciones de seguridad
+
+- Los servidores MCP se ejecutan con los permisos del usuario que los configuró
+- Verifica siempre las fuentes del servidor MCP antes de la instalación
+- Utiliza variables de entorno para datos de configuración sensibles
+- Revisa las capacidades del servidor MCP antes de conceder acceso a los agentes
+
+## Solución de problemas
+
+### El servidor MCP no aparece
+- Verifica que la configuración del servidor sea correcta
+- Comprueba que tienes los permisos necesarios
+- Asegúrate de que el servidor MCP esté en funcionamiento y sea accesible
+
+### Fallos en la ejecución de herramientas
+- Verifica que los parámetros de la herramienta estén correctamente formateados
+- Revisa los registros del servidor MCP para ver mensajes de error
+- Asegúrate de que la autenticación requerida esté configurada
+
+### Errores de permisos
+- Confirma tu nivel de permiso en el espacio de trabajo
+- Comprueba si el servidor MCP requiere autenticación adicional
+- Verifica que el servidor esté configurado correctamente para tu espacio de trabajo

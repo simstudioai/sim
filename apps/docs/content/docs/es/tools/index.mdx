@@ -1,0 +1,71 @@
+---
+title: Herramientas
+description: Herramientas potentes para mejorar tus flujos de trabajo agénticos
+---
+
+import { Card, Cards } from "fumadocs-ui/components/card";
+import { Step, Steps } from "fumadocs-ui/components/steps";
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+
+Las herramientas son componentes potentes en Sim que permiten a tus flujos de trabajo interactuar con servicios externos, procesar datos y realizar tareas especializadas. Amplían las capacidades de tus agentes y flujos de trabajo proporcionando acceso a varias APIs y servicios.
+
+## ¿Qué es una herramienta?
+
+Una herramienta es un componente especializado que proporciona una funcionalidad específica o integración con servicios externos. Las herramientas pueden usarse para buscar en la web, interactuar con bases de datos, procesar imágenes, generar texto o imágenes, comunicarse a través de plataformas de mensajería y mucho más.
+
+## Uso de herramientas en flujos de trabajo
+
+Hay dos formas principales de usar herramientas en tus flujos de trabajo de Sim:
+
+<Steps>
+  <Step>
+    <strong>Como bloques independientes</strong>: Las herramientas pueden añadirse como bloques individuales en el lienzo cuando necesitas acceso determinista y directo a su funcionalidad. Esto te da un control preciso sobre cuándo y cómo se llama a la herramienta.
+  </Step>
+  <Step>
+    <strong>Como herramientas de agente</strong>: Las herramientas pueden añadirse a los bloques de Agente haciendo clic en "Añadir herramientas" y configurando los parámetros requeridos. Esto permite a los agentes elegir dinámicamente qué herramientas usar según el contexto y los requisitos de la tarea.
+  </Step>
+</Steps>
+
+## Configuración de herramientas
+
+Cada herramienta requiere una configuración específica para funcionar correctamente. Los elementos comunes de configuración incluyen:
+
+- **Claves API**: Muchas herramientas requieren autenticación mediante claves API
+- **Parámetros de conexión**: Endpoints, identificadores de base de datos, etc.
+- **Formato de entrada**: Cómo deben estructurarse los datos para la herramienta
+- **Manejo de salida**: Cómo procesar los resultados de la herramienta
+
+## Herramientas disponibles
+
+Sim proporciona una colección diversa de herramientas para varios propósitos, incluyendo:
+
+- **IA y procesamiento de lenguaje**: OpenAI, ElevenLabs, servicios de traducción
+- **Búsqueda e investigación**: Google Search, Tavily, Exa, Perplexity
+- **Manipulación de documentos**: Google Docs, Google Sheets, Notion, Confluence
+- **Procesamiento de medios**: Vision, Image Generator
+- **Comunicación**: Slack, WhatsApp, Twilio SMS, Gmail
+- **Almacenamiento de datos**: Pinecone, Supabase, Airtable
+- **Desarrollo**: GitHub
+
+Cada herramienta tiene su propia página de documentación dedicada con instrucciones detalladas sobre configuración y uso.
+
+## Resultados de las herramientas
+
+Las herramientas normalmente devuelven datos estructurados que pueden ser procesados por bloques subsiguientes en tu flujo de trabajo. El formato de estos datos varía dependiendo de la herramienta y operación, pero generalmente incluye:
+
+- El contenido principal o resultado
+- Metadatos sobre la operación
+- Información de estado
+
+Consulta la documentación específica de cada herramienta para entender su formato exacto de salida.
+
+## Configuración YAML
+
+Para una configuración detallada del flujo de trabajo en YAML y su sintaxis, consulta la documentación de [Referencia de flujos de trabajo YAML](/yaml). Esto incluye guías completas para:
+
+- **Sintaxis de referencia de bloques**: Cómo conectar y referenciar datos entre bloques
+- **Configuración de herramientas**: Uso de herramientas tanto en bloques independientes como en configuraciones de agentes
+- **Variables de entorno**: Manejo seguro de claves API y credenciales
+- **Ejemplos completos**: Patrones y configuraciones de flujos de trabajo del mundo real
+
+Para parámetros específicos de herramientas y opciones de configuración, consulta la página de documentación individual de cada herramienta.

@@ -1,0 +1,312 @@
+---
+title: Schéma YAML des blocs parallèles
+description: Référence de configuration YAML pour les blocs parallèles
+---
+
+## Définition du schéma
+
+```yaml
+type: object
+required:
+  - type
+  - name
+  - inputs
+  - connections
+properties:
+  type:
+    type: string
+    enum: [parallel]
+    description: Block type identifier
+  name:
+    type: string
+    description: Display name for this parallel block
+  inputs:
+    type: object
+    required:
+      - parallelType
+    properties:
+      parallelType:
+        type: string
+        enum: [count, collection]
+        description: Type of parallel execution
+      count:
+        type: number
+        description: Number of parallel instances (for 'count' type)
+        minimum: 1
+        maximum: 100
+      collection:
+        type: string
+        description: Collection to distribute across instances (for 'collection' type)
+      maxConcurrency:
+        type: number
+        description: Maximum concurrent executions
+        default: 10
+        minimum: 1
+        maximum: 50
+  connections:
+    type: object
+    required:
+      - parallel
+    properties:
+      parallel:
+        type: object
+        required:
+          - start
+        properties:
+          start:
+            type: string
+            description: Target block ID to execute inside each parallel instance
+          end:
+            type: string
+            description: Target block ID after all parallel instances complete (optional)
+      error:
+        type: string
+        description: Target block ID for error handling
+```
+
+## Configuration de connexion
+
+Les blocs parallèles utilisent un format de connexion spécial avec une section `parallel` :
+
+```yaml
+connections:
+  parallel:
+    start: <string>                     # Target block ID to execute inside each parallel instance
+    end: <string>                       # Target block ID after all instances complete (optional)
+  error: <string>                       # Target block ID for error handling (optional)
+```
+
+## Configuration des blocs enfants
+
+Les blocs à l'intérieur d'un bloc parallèle doivent avoir leur `parentId` défini sur l'ID du bloc parallèle :
+
+```yaml
+parallel-1:
+  type: parallel
+  name: "Process Items"
+  inputs:
+    parallelType: collection
+    collection: <start.items>
+  connections:
+    parallel:
+      start: process-item
+      end: aggregate-results
+
+# Child block inside the parallel
+process-item:
+  type: agent
+  name: "Process Item"
+  parentId: parallel-1                  # References the parallel block
+  inputs:
+    systemPrompt: "Process this item"
+    userPrompt: <parallel.currentItem>
+    model: gpt-4o
+    apiKey: '{{OPENAI_API_KEY}}'
+```
+
+## Exemples
+
+### Traitement parallèle basé sur le comptage
+
+```yaml
+worker-parallel:
+  type: parallel
+  name: "Worker Parallel"
+  inputs:
+    parallelType: count
+    count: 5
+    maxConcurrency: 3
+  connections:
+    parallel:
+      start: worker-task
+      end: collect-worker-results
+
+worker-task:
+  type: api
+  name: "Worker Task"
+  parentId: worker-parallel
+  inputs:
+    url: "https://api.worker.com/process"
+    method: POST
+    headers:
+      - key: "Authorization"
+        value: "Bearer {{WORKER_API_KEY}}"
+    body: |
+      {
+        "instanceId": <parallel.index>,
+        "timestamp": "{{new Date().toISOString()}}"
+      }
+  connections:
+    success: worker-complete
+```
+
+### Traitement parallèle basé sur les collections
+
+```yaml
+api-parallel:
+  type: parallel
+  name: "API Parallel"
+  inputs:
+    parallelType: collection
+    collection: <start.apiEndpoints>
+    maxConcurrency: 10
+  connections:
+    parallel:
+      start: call-api
+      end: merge-api-results
+
+call-api:
+  type: api
+  name: "Call API"
+  parentId: api-parallel
+  inputs:
+    url: <parallel.currentItem.endpoint>
+    method: <parallel.currentItem.method>
+    headers:
+      - key: "Authorization"
+        value: "Bearer {{API_TOKEN}}"
+  connections:
+    success: api-complete
+```
+
+### Pipeline de traitement parallèle complexe
+
+```yaml
+data-processing-parallel:
+  type: parallel
+  name: "Data Processing Parallel"
+  inputs:
+    parallelType: collection
+    collection: <data-loader.records>
+    maxConcurrency: 8
+  connections:
+    parallel:
+      start: validate-data
+      end: final-aggregation
+    error: parallel-error-handler
+
+validate-data:
+  type: function
+  name: "Validate Data"
+  parentId: data-processing-parallel
+  inputs:
+    code: |
+      const record = <parallel.currentItem>;
+      const index = <parallel.index>;
+      
+      // Validate record structure
+      if (!record.id || !record.content) {
+        throw new Error(`Invalid record at index ${index}`);
+      }
+      
+      return {
+        valid: true,
+        recordId: record.id,
+        validatedAt: new Date().toISOString()
+      };
+  connections:
+    success: process-data
+    error: validation-error
+
+process-data:
+  type: agent
+  name: "Process Data"
+  parentId: data-processing-parallel
+  inputs:
+    systemPrompt: "Process and analyze this data record"
+    userPrompt: |
+      Record ID: <validatedata.recordId>
+      Content: <parallel.currentItem.content>
+      Instance: <parallel.index>
+    model: gpt-4o
+    temperature: 0.3
+    apiKey: '{{OPENAI_API_KEY}}'
+  connections:
+    success: store-result
+
+store-result:
+  type: function
+  name: "Store Result"
+  parentId: data-processing-parallel
+  inputs:
+    code: |
+      const processed = <processdata.content>;
+      const recordId = <validatedata.recordId>;
+      
+      return {
+        recordId,
+        processed,
+        completedAt: new Date().toISOString(),
+        instanceIndex: <parallel.index>
+      };
+```
+
+### Analyse IA concurrente
+
+```yaml
+multi-model-parallel:
+  type: parallel
+  name: "Multi-Model Analysis"
+  inputs:
+    parallelType: collection
+    collection: |
+      [
+        {"model": "gpt-4o", "focus": "technical accuracy"},
+        {"model": "claude-3-5-sonnet-20241022", "focus": "creative quality"},
+        {"model": "gemini-2.0-flash-exp", "focus": "factual verification"}
+      ]
+    maxConcurrency: 3
+  connections:
+    parallel:
+      start: analyze-content
+      end: combine-analyses
+
+analyze-content:
+  type: agent
+  name: "Analyze Content"
+  parentId: multi-model-parallel
+  inputs:
+    systemPrompt: |
+      You are analyzing content with a focus on <parallel.currentItem.focus>.
+      Provide detailed analysis from this perspective.
+    userPrompt: |
+      Content to analyze: <start.content>
+      Analysis focus: <parallel.currentItem.focus>
+    model: <parallel.currentItem.model>
+    apiKey: '{{OPENAI_API_KEY}}'
+  connections:
+    success: analysis-complete
+```
+
+## Variables parallèles
+
+À l'intérieur des blocs enfants parallèles, ces variables spéciales sont disponibles :
+
+```yaml
+# Available in all child blocks of the parallel
+<parallel.index>                # Instance number (0-based)
+<parallel.currentItem>          # Item for this instance (collection type)
+<parallel.items>                # Full collection (collection type)
+```
+
+## Références de sortie
+
+Une fois qu'un bloc parallèle est terminé, vous pouvez référencer ses résultats agrégés :
+
+```yaml
+# In blocks after the parallel
+final-processor:
+  inputs:
+    all-results: <parallel-name.results>  # Array of all instance results
+    total-count: <parallel-name.count>    # Number of instances completed
+```
+
+## Bonnes pratiques
+
+- Utilisez un maxConcurrency approprié pour éviter de surcharger les API
+- Assurez-vous que les opérations sont indépendantes et ne dépendent pas les unes des autres
+- Incluez une gestion des erreurs pour une exécution parallèle robuste
+- Testez d'abord avec de petites collections
+- Surveillez les limites de taux pour les API externes
+- Utilisez le type collection pour distribuer le travail, le type count pour les instances fixes
+- Tenez compte de l'utilisation de la mémoire avec de grandes collections

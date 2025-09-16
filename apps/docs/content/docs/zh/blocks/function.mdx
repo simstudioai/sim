@@ -1,0 +1,156 @@
+---
+title: 函数
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+函数模块允许您在工作流中执行自定义的 JavaScript 或 TypeScript 代码。使用它可以转换数据、执行计算或实现其他模块中不可用的自定义逻辑。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/function.png"
+    alt="带有代码编辑器的函数模块"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+## 概述
+
+函数模块可以让您：
+
+<Steps>
+  <Step>
+    <strong>转换数据</strong>：转换格式、解析文本、操作数组和对象
+  </Step>
+  <Step>
+    <strong>执行计算</strong>：数学运算、统计分析、财务计算
+  </Step>
+  <Step>
+    <strong>实现自定义逻辑</strong>：复杂条件、循环和算法
+  </Step>
+  <Step>
+    <strong>处理外部数据</strong>：解析响应、格式化请求、处理身份验证
+  </Step>
+</Steps>
+
+## 工作原理
+
+函数模块在一个安全、隔离的环境中运行您的代码：
+
+1. **接收输入**：通过 `input` 对象访问来自前置模块的数据
+2. **执行代码**：运行您的 JavaScript/Python 代码
+3. **返回结果**：使用 `return` 将数据传递到下一个模块
+4. **处理错误**：内置错误处理和日志记录
+
+## 远程执行 (E2B)
+
+  - **支持语言**：在隔离的 E2B 沙箱中运行 JavaScript 和 Python。
+  - **如何启用**：在函数模块中切换 “远程代码执行”。
+  - **使用场景**：更复杂的逻辑、外部库或特定于 Python 的代码。
+  - **性能**：由于沙箱启动和网络开销，速度比本地 JS 慢。
+  - **注意事项**：如果在本地运行，需要 `E2B_API_KEY`。为了最低延迟，请使用本地 JS（快速模式）。
+
+## 输入和输出
+
+<Tabs items={['配置', '变量']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>代码</strong>：要执行的 JavaScript/Python 代码
+      </li>
+      <li>
+        <strong>超时时间</strong>：最大执行时间（默认为 30 秒）
+      </li>
+      <li>
+        <strong>输入数据</strong>：通过变量访问所有连接模块的输出
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>function.result</strong>：函数返回的值
+      </li>
+      <li>
+        <strong>function.stdout</strong>：代码中 Console.log() 的输出
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## 示例用例
+
+### 数据处理管道
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">场景：将 API 响应转换为结构化数据</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>API 模块获取原始客户数据</li>
+    <li>函数模块处理并验证数据</li>
+    <li>函数模块计算派生指标</li>
+    <li>响应模块返回格式化结果</li>
+  </ol>
+</div>
+
+### 业务逻辑实现
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">场景：计算忠诚度分数和等级</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>代理检索客户购买历史</li>
+    <li>函数模块计算忠诚度指标</li>
+    <li>函数模块确定客户等级</li>
+    <li>条件模块根据等级级别进行路由</li>
+  </ol>
+</div>
+
+### 数据验证与清理
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">场景：验证并清理用户输入</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>从表单提交中接收用户输入</li>
+    <li>函数模块验证电子邮件格式和电话号码</li>
+    <li>函数模块清理并规范化数据</li>
+    <li>API 模块将验证后的数据保存到数据库</li>
+  </ol>
+</div>
+
+### 示例：忠诚度分数计算器
+
+```javascript title="loyalty-calculator.js"
+// Process customer data and calculate loyalty score
+const { purchaseHistory, accountAge, supportTickets } = <agent>;
+
+// Calculate metrics
+const totalSpent = purchaseHistory.reduce((sum, purchase) => sum + purchase.amount, 0);
+const purchaseFrequency = purchaseHistory.length / (accountAge / 365);
+const ticketRatio = supportTickets.resolved / supportTickets.total;
+
+// Calculate loyalty score (0-100)
+const spendScore = Math.min(totalSpent / 1000 * 30, 30);
+const frequencyScore = Math.min(purchaseFrequency * 20, 40);
+const supportScore = ticketRatio * 30;
+
+const loyaltyScore = Math.round(spendScore + frequencyScore + supportScore);
+
+return {
+  customer: <agent.name>,
+  loyaltyScore,
+  loyaltyTier: loyaltyScore >= 80 ? "Platinum" : loyaltyScore >= 60 ? "Gold" : "Silver",
+  metrics: { spendScore, frequencyScore, supportScore }
+};
+```
+
+## 最佳实践
+
+- **保持函数专注**：编写专注于单一功能的函数，以提高可维护性和调试效率
+- **优雅地处理错误**：使用 try/catch 块处理潜在错误，并提供有意义的错误信息
+- **测试边界情况**：确保代码能够正确处理异常输入、空值和边界条件
+- **优化性能**：注意大数据集的计算复杂性和内存使用
+- **使用 console.log() 进行调试**：利用标准输出调试和监控函数执行

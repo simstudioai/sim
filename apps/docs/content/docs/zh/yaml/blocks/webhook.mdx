@@ -1,0 +1,403 @@
+---
+title: Webhook 块 YAML 模式
+description: Webhook 块的 YAML 配置参考
+---
+
+## 模式定义
+
+```yaml
+type: object
+required:
+  - type
+  - name
+properties:
+  type:
+    type: string
+    enum: [webhook]
+    description: Block type identifier
+  name:
+    type: string
+    description: Display name for this webhook block
+  inputs:
+    type: object
+    properties:
+      webhookConfig:
+        type: object
+        description: Webhook configuration settings
+        properties:
+          enabled:
+            type: boolean
+            description: Whether the webhook is active
+            default: true
+          secret:
+            type: string
+            description: Secret key for webhook verification
+          headers:
+            type: array
+            description: Expected headers for validation as table entries
+            items:
+              type: object
+              properties:
+                id:
+                  type: string
+                  description: Unique identifier for the header entry
+                key:
+                  type: string
+                  description: Header name
+                value:
+                  type: string
+                  description: Expected header value
+                cells:
+                  type: object
+                  description: Cell display values for the table interface
+                  properties:
+                    Key:
+                      type: string
+                      description: Display value for the key column
+                    Value:
+                      type: string
+                      description: Display value for the value column
+          methods:
+            type: array
+            description: Allowed HTTP methods
+            items:
+              type: string
+              enum: [GET, POST, PUT, DELETE, PATCH]
+            default: [POST]
+      responseConfig:
+        type: object
+        description: Response configuration for the webhook
+        properties:
+          status:
+            type: number
+            description: HTTP status code to return
+            default: 200
+            minimum: 100
+            maximum: 599
+          headers:
+            type: array
+            description: Response headers as table entries
+            items:
+              type: object
+              properties:
+                id:
+                  type: string
+                  description: Unique identifier for the header entry
+                key:
+                  type: string
+                  description: Header name
+                value:
+                  type: string
+                  description: Header value
+                cells:
+                  type: object
+                  description: Cell display values for the table interface
+                  properties:
+                    Key:
+                      type: string
+                      description: Display value for the key column
+                    Value:
+                      type: string
+                      description: Display value for the value column
+          body:
+            type: string
+            description: Response body content
+  connections:
+    type: object
+    properties:
+      success:
+        type: string
+        description: Target block ID for successful webhook processing
+      error:
+        type: string
+        description: Target block ID for error handling
+```
+
+## 连接配置
+
+连接定义了基于 Webhook 处理的工作流走向：
+
+```yaml
+connections:
+  success: <string>                     # Target block ID for successful processing
+  error: <string>                       # Target block ID for error handling (optional)
+```
+
+## 示例
+
+### 基本 Webhook 触发器
+
+```yaml
+github-webhook:
+  type: webhook
+  name: "GitHub Webhook"
+  inputs:
+    webhookConfig:
+      enabled: true
+      secret: "{{GITHUB_WEBHOOK_SECRET}}"
+      methods: [POST]
+      headers:
+        - key: "X-GitHub-Event"
+          value: "push"
+    responseConfig:
+      status: 200
+      body: |
+        {
+          "message": "Webhook received successfully",
+          "timestamp": "{{new Date().toISOString()}}"
+        }
+  connections:
+    success: process-github-event
+    error: webhook-error-handler
+```
+
+### Slack 事件 Webhook
+
+```yaml
+slack-events:
+  type: webhook
+  name: "Slack Events"
+  inputs:
+    webhookConfig:
+      enabled: true
+      secret: "{{SLACK_SIGNING_SECRET}}"
+      methods: [POST]
+      headers:
+        - key: "Content-Type"
+          value: "application/json"
+    responseConfig:
+      status: 200
+      headers:
+        - key: "Content-Type"
+          value: "application/json"
+      body: |
+        {
+          "challenge": "<webhook.challenge>"
+        }
+  connections:
+    success: handle-slack-event
+```
+
+### 支付 Webhook (Stripe)
+
+```yaml
+stripe-webhook:
+  type: webhook
+  name: "Stripe Payment Webhook"
+  inputs:
+    webhookConfig:
+      enabled: true
+      secret: "{{STRIPE_WEBHOOK_SECRET}}"
+      methods: [POST]
+      headers:
+        - key: "Stripe-Signature"
+          value: "*"
+    responseConfig:
+      status: 200
+      headers:
+        - key: "Content-Type"
+          value: "application/json"
+      body: |
+        {
+          "received": true
+        }
+  connections:
+    success: process-payment-event
+    error: payment-webhook-error
+```
+
+### 带完整表头格式的 Webhook
+
+当通过 UI 表格界面创建表头时，YAML 包含额外的元数据：
+
+```yaml
+api-webhook-complete:
+  type: webhook
+  name: "API Webhook with Table Headers"
+  inputs:
+    webhookConfig:
+      enabled: true
+      methods: [POST]
+      headers:
+        - id: header-1-uuid-here
+          key: "Authorization"
+          value: "Bearer {{WEBHOOK_API_KEY}}"
+          cells:
+            Key: "Authorization"
+            Value: "Bearer {{WEBHOOK_API_KEY}}"
+        - id: header-2-uuid-here
+          key: "Content-Type"
+          value: "application/json"
+          cells:
+            Key: "Content-Type"
+            Value: "application/json"
+    responseConfig:
+      status: 200
+      headers:
+        - id: response-header-1-uuid
+          key: "Content-Type"
+          value: "application/json"
+          cells:
+            Key: "Content-Type"
+            Value: "application/json"
+        - id: response-header-2-uuid
+          key: "X-Webhook-Response"
+          value: "processed"
+          cells:
+            Key: "X-Webhook-Response"
+            Value: "processed"
+      body: |
+        {
+          "status": "received",
+          "timestamp": "{{new Date().toISOString()}}"
+        }
+  connections:
+    success: process-webhook-complete
+```
+
+### 通用 API Webhook
+
+```yaml
+api-webhook:
+  type: webhook
+  name: "API Webhook"
+  inputs:
+    webhookConfig:
+      enabled: true
+      methods: [POST, PUT]
+      headers:
+        - key: "Authorization"
+          value: "Bearer {{WEBHOOK_API_KEY}}"
+        - key: "Content-Type"
+          value: "application/json"
+    responseConfig:
+      status: 202
+      headers:
+        - key: "Content-Type"
+          value: "application/json"
+        - key: "X-Processed-By"
+          value: "Sim"
+      body: |
+        {
+          "status": "accepted",
+          "id": "{{Math.random().toString(36).substr(2, 9)}}",
+          "received_at": "{{new Date().toISOString()}}"
+        }
+  connections:
+    success: process-webhook-data
+```
+
+### 多方法 Webhook
+
+```yaml
+crud-webhook:
+  type: webhook
+  name: "CRUD Webhook"
+  inputs:
+    webhookConfig:
+      enabled: true
+      methods: [GET, POST, PUT, DELETE]
+      headers:
+        - key: "X-API-Key"
+          value: "{{CRUD_API_KEY}}"
+    responseConfig:
+      status: 200
+      headers:
+        - key: "Content-Type"
+          value: "application/json"
+      body: |
+        {
+          "method": "<webhook.method>",
+          "processed": true,
+          "timestamp": "{{new Date().toISOString()}}"
+        }
+  connections:
+    success: route-by-method
+```
+
+## 表格参数格式
+
+Webhook 块支持两种表头格式（包括验证表头和响应表头）：
+
+### 简化格式（手动 YAML）
+
+在手动编写 YAML 时，可以使用简化格式：
+
+```yaml
+headers:
+  - key: "Authorization"
+    value: "Bearer {{API_TOKEN}}"
+  - key: "Content-Type"
+    value: "application/json"
+```
+
+### 完整表格格式（由 UI 生成）
+
+当通过 UI 表格界面创建表头时，YAML 包含额外的元数据：
+
+```yaml
+headers:
+  - id: unique-identifier-here
+    key: "Authorization"
+    value: "Bearer {{API_TOKEN}}"
+    cells:
+      Key: "Authorization"
+      Value: "Bearer {{API_TOKEN}}"
+```
+
+**主要区别：**
+- `id`：用于跟踪表格行的唯一标识符
+- `cells`：UI 表格界面使用的显示值
+- 两种格式在 webhook 处理方面功能等效
+- 完整格式在导入/导出工作流时保留 UI 状态
+
+**重要提示：** 始终为包含特殊字符的表头名称和值加上引号：
+
+```yaml
+headers:
+  - id: auth-header-uuid
+    cells:
+      Key: "Authorization"
+      Value: "Bearer {{WEBHOOK_API_KEY}}"
+  - id: content-type-uuid
+    cells:
+      Key: "Content-Type"
+      Value: "application/json"
+```
+
+## Webhook 变量
+
+在 webhook 触发的工作流中，可用以下特殊变量：
+
+```yaml
+# Available in blocks after the webhook
+<webhook.payload>               # Full request payload/body
+<webhook.headers>               # Request headers
+<webhook.method>                # HTTP method used
+<webhook.query>                 # Query parameters
+<webhook.path>                  # Request path
+<webhook.challenge>             # Challenge parameter (for verification)
+```
+
+## 输出引用
+
+在 webhook 处理请求后，您可以引用其数据：
+
+```yaml
+# In subsequent blocks
+process-webhook:
+  inputs:
+    payload: <webhook-name.payload>      # Request payload
+    headers: <webhook-name.headers>      # Request headers
+    method: <webhook-name.method>        # HTTP method
+```
+
+## 安全最佳实践
+
+- 始终使用 webhook 密钥进行验证
+- 验证预期的表头和方法
+- 实现适当的错误处理
+- 在生产环境中使用 HTTPS 端点
+- 监控 webhook 活动和失败情况
+- 设置适当的响应超时时间
+- 在处理之前验证有效负载结构

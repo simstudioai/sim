@@ -1,0 +1,67 @@
+---
+title: Twilio SMS
+description: Envoyer des messages SMS
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="twilio_sms"
+  color="#F22F46"
+  icon={true}
+  iconSvg={`<svg className="block-icon"  xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'>
+      <path
+        fill='currentColor'
+        d='M128 0c70.656 0 128 57.344 128 128s-57.344 128-128 128S0 198.656 0 128 57.344 0 128 0zm0 33.792c-52.224 0-94.208 41.984-94.208 94.208S75.776 222.208 128 222.208s94.208-41.984 94.208-94.208S180.224 33.792 128 33.792zm31.744 99.328c14.704 0 26.624 11.92 26.624 26.624 0 14.704-11.92 26.624-26.624 26.624-14.704 0-26.624-11.92-26.624-26.624 0-14.704 11.92-26.624 26.624-26.624zm-63.488 0c14.704 0 26.624 11.92 26.624 26.624 0 14.704-11.92 26.624-26.624 26.624-14.704 0-26.624-11.92-26.624-26.624 0-14.704 11.92-26.624 26.624-26.624zm63.488-63.488c14.704 0 26.624 11.92 26.624 26.624 0 14.704-11.92 26.624-26.624 26.624-14.704 0-26.624-11.92-26.624-26.624 0-14.704 11.92-26.624 26.624-26.624zm-63.488 0c14.704 0 26.624 11.92 26.624 26.624 0 14.704-11.92 26.624-26.624 26.624-14.704 0-26.624-11.92-26.624-26.624 0-14.704 11.92-26.624 26.624-26.624z'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Twilio SMS](https://www.twilio.com/en-us/sms) est une plateforme de communication cloud puissante qui permet aux entreprises d'intégrer des fonctionnalités de messagerie dans leurs applications et services.
+
+Twilio SMS fournit une API robuste pour l'envoi et la réception programmatiques de messages texte à l'échelle mondiale. Avec une couverture dans plus de 180 pays et un SLA de disponibilité de 99,999 %, Twilio s'est imposé comme un leader du secteur dans les technologies de communication.
+
+Les fonctionnalités clés de Twilio SMS comprennent :
+
+- **Portée mondiale** : envoyez des messages aux destinataires du monde entier avec des numéros de téléphone locaux dans plusieurs pays
+- **Messagerie programmable** : personnalisez la livraison des messages avec des webhooks, des accusés de réception et des options de planification
+- **Analyses avancées** : suivez les taux de livraison, les métriques d'engagement et optimisez vos campagnes de messagerie
+
+Dans Sim, l'intégration de Twilio SMS permet à vos agents d'exploiter ces puissantes fonctionnalités de messagerie dans le cadre de leurs flux de travail. Cela crée des opportunités pour des scénarios sophistiqués d'engagement client comme les rappels de rendez-vous, les codes de vérification, les alertes et les conversations interactives. L'intégration comble le fossé entre vos flux de travail IA et les canaux de communication client, permettant à vos agents de délivrer des informations opportunes et pertinentes directement sur les appareils mobiles des utilisateurs. En connectant Sim avec Twilio SMS, vous pouvez construire des agents intelligents qui engagent les clients via leur canal de communication préféré, améliorant l'expérience utilisateur tout en automatisant les tâches de messagerie routinières.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Envoyez des messages texte à un ou plusieurs destinataires en utilisant l'API Twilio.
+
+## Outils
+
+### `twilio_send_sms`
+
+Envoyez des messages texte à un ou plusieurs destinataires en utilisant l'API Twilio.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `phoneNumbers` | chaîne | Oui | Numéros de téléphone auxquels envoyer le message, séparés par des sauts de ligne |
+| `message` | chaîne | Oui | Message à envoyer |
+| `accountSid` | chaîne | Oui | SID du compte Twilio |
+| `authToken` | chaîne | Oui | Jeton d'authentification Twilio |
+| `fromNumber` | chaîne | Oui | Numéro de téléphone Twilio à partir duquel envoyer le message |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Statut de réussite d'envoi du SMS |
+| `messageId` | chaîne | Identifiant unique du message Twilio \(SID\) |
+| `status` | chaîne | Statut de livraison du message de Twilio |
+| `fromNumber` | chaîne | Numéro de téléphone à partir duquel le message a été envoyé |
+| `toNumber` | chaîne | Numéro de téléphone auquel le message a été envoyé |
+
+## Remarques
+
+- Catégorie : `tools`
+- Type : `twilio_sms`

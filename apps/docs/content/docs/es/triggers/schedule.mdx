@@ -1,0 +1,73 @@
+---
+title: Programación
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+
+El bloque de Programación activa automáticamente flujos de trabajo de forma recurrente en intervalos o momentos específicos.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/schedule.png"
+    alt="Bloque de programación"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Opciones de programación
+
+Configura cuándo se ejecuta tu flujo de trabajo utilizando las opciones desplegables:
+
+<Tabs items={['Intervalos simples', 'Expresiones cron']}>
+  <Tab>
+    <ul className="list-disc space-y-1 pl-6">
+      <li><strong>Cada pocos minutos</strong>: intervalos de 5, 15, 30 minutos</li>
+      <li><strong>Por hora</strong>: Cada hora o cada pocas horas</li>
+      <li><strong>Diariamente</strong>: Una o varias veces al día</li>
+      <li><strong>Semanalmente</strong>: Días específicos de la semana</li>
+      <li><strong>Mensualmente</strong>: Días específicos del mes</li>
+    </ul>
+  </Tab>
+  <Tab>
+    <p>Usa expresiones cron para programación avanzada:</p>
+    <div className="text-sm space-y-1">
+      <div><code>0 9 * * 1-5</code> - Cada día laborable a las 9 AM</div>
+      <div><code>*/15 * * * *</code> - Cada 15 minutos</div>
+      <div><code>0 0 1 * *</code> - Primer día de cada mes</div>
+    </div>
+  </Tab>
+</Tabs>
+
+## Configuración de programaciones
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="configure-schedule.mp4" width={700} height={450} />
+</div>
+
+Cuando un flujo de trabajo está programado:
+- La programación se vuelve **activa** y muestra el próximo tiempo de ejecución
+- Haz clic en el botón **"Programado"** para desactivar la programación
+- Las programaciones se desactivan automáticamente después de **3 fallos consecutivos**
+
+## Programaciones desactivadas
+
+<div className="flex justify-center">
+  <Image
+    src="/static/schedule-disabled.png"
+    alt="Programación desactivada"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+Las programaciones desactivadas muestran cuándo estuvieron activas por última vez y pueden ser reactivadas en cualquier momento.
+
+<Callout>
+Los bloques de programación no pueden recibir conexiones entrantes y funcionan exclusivamente como disparadores de flujos de trabajo.
+</Callout>

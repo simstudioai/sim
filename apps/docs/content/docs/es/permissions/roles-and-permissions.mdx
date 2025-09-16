@@ -1,0 +1,161 @@
+---
+title: Roles y permisos
+---
+
+import { Video } from '@/components/ui/video'
+
+Cuando invitas a miembros del equipo a tu organización o espacio de trabajo, necesitarás elegir qué nivel de acceso otorgarles. Esta guía explica lo que permite hacer cada nivel de permiso, ayudándote a entender los roles del equipo y qué acceso proporciona cada nivel de permiso.
+
+## Cómo invitar a alguien a un espacio de trabajo
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="invitations.mp4" width={700} height={450} />
+</div>
+
+## Niveles de permiso del espacio de trabajo
+
+Al invitar a alguien a un espacio de trabajo, puedes asignar uno de tres niveles de permiso:
+
+| Permiso | Lo que pueden hacer |
+|------------|------------------|
+| **Lectura** | Ver flujos de trabajo, ver resultados de ejecución, pero no pueden realizar ningún cambio |
+| **Escritura** | Crear y editar flujos de trabajo, ejecutar flujos de trabajo, gestionar variables de entorno |
+| **Administrador** | Todo lo que puede hacer Escritura, además de invitar/eliminar usuarios y gestionar la configuración del espacio de trabajo |
+
+## Lo que puede hacer cada nivel de permiso
+
+Aquí hay un desglose detallado de lo que los usuarios pueden hacer con cada nivel de permiso:
+
+### Permiso de lectura
+**Perfecto para:** Interesados, observadores o miembros del equipo que necesitan visibilidad pero no deberían hacer cambios
+
+**Lo que pueden hacer:**
+- Ver todos los flujos de trabajo en el espacio de trabajo
+- Ver resultados y registros de ejecución de flujos de trabajo
+- Explorar configuraciones y ajustes de flujos de trabajo
+- Ver variables de entorno (pero no editarlas)
+
+**Lo que no pueden hacer:**
+- Crear, editar o eliminar flujos de trabajo
+- Ejecutar o implementar flujos de trabajo
+- Cambiar cualquier configuración del espacio de trabajo
+- Invitar a otros usuarios
+
+### Permiso de escritura  
+**Perfecto para:** Desarrolladores, creadores de contenido o miembros del equipo que trabajan activamente en automatización
+
+**Lo que pueden hacer:**
+- Todo lo que pueden hacer los usuarios de Lectura, además de:
+- Crear, editar y eliminar flujos de trabajo
+- Ejecutar e implementar flujos de trabajo
+- Añadir, editar y eliminar variables de entorno del espacio de trabajo
+- Usar todas las herramientas e integraciones disponibles
+- Colaborar en tiempo real en la edición de flujos de trabajo
+
+**Lo que no pueden hacer:**
+- Invitar o eliminar usuarios del espacio de trabajo
+- Cambiar la configuración del espacio de trabajo
+- Eliminar el espacio de trabajo
+
+### Permiso de administrador
+**Perfecto para:** Líderes de equipo, gerentes de proyecto o líderes técnicos que necesitan gestionar el espacio de trabajo
+
+**Lo que pueden hacer:**
+- Todo lo que los usuarios con permiso de escritura pueden hacer, además de:
+- Invitar a nuevos usuarios al espacio de trabajo con cualquier nivel de permiso
+- Eliminar usuarios del espacio de trabajo
+- Gestionar la configuración e integraciones del espacio de trabajo
+- Configurar conexiones con herramientas externas
+- Eliminar flujos de trabajo creados por otros usuarios
+
+**Lo que no pueden hacer:**
+- Eliminar el espacio de trabajo (solo el propietario del espacio de trabajo puede hacer esto)
+- Eliminar al propietario del espacio de trabajo
+
+---
+
+## Propietario del espacio de trabajo vs administrador
+
+Cada espacio de trabajo tiene un **Propietario** (la persona que lo creó) además de cualquier número de **Administradores**.
+
+### Propietario del espacio de trabajo
+- Tiene todos los permisos de administrador
+- Puede eliminar el espacio de trabajo
+- No puede ser eliminado del espacio de trabajo
+- Puede transferir la propiedad a otro usuario
+
+### Administrador del espacio de trabajo  
+- Puede hacer todo excepto eliminar el espacio de trabajo o eliminar al propietario
+- Puede ser eliminado del espacio de trabajo por el propietario u otros administradores
+
+---
+
+## Escenarios comunes
+
+### Añadir un nuevo desarrollador a tu equipo
+1. **Nivel de organización**: Invítalo como **Miembro de la organización**
+2. **Nivel de espacio de trabajo**: Dale permiso de **Escritura** para que pueda crear y editar flujos de trabajo
+
+### Añadir un gerente de proyecto
+1. **Nivel de organización**: Invítalo como **Miembro de la organización** 
+2. **Nivel de espacio de trabajo**: Dale permiso de **Administrador** para que pueda gestionar el equipo y ver todo
+
+### Añadir un interesado o cliente
+1. **Nivel de organización**: Invítalo como **Miembro de la organización**
+2. **Nivel de espacio de trabajo**: Dale permiso de **Lectura** para que pueda ver el progreso pero no hacer cambios
+
+---
+
+## Variables de entorno
+
+Los usuarios pueden crear dos tipos de variables de entorno:
+
+### Variables de entorno personales
+- Solo visibles para el usuario individual
+- Disponibles en todos los flujos de trabajo que ejecutan
+- Gestionadas en la configuración del usuario
+
+### Variables de entorno del espacio de trabajo
+- **Permiso de lectura**: Puede ver nombres y valores de variables
+- **Permiso de escritura/administración**: Puede añadir, editar y eliminar variables
+- Disponibles para todos los miembros del espacio de trabajo
+- Si una variable personal tiene el mismo nombre que una variable del espacio de trabajo, la personal tiene prioridad
+
+---
+
+## Mejores prácticas
+
+### Comienza con permisos mínimos
+Otorga a los usuarios el nivel de permiso más bajo que necesiten para hacer su trabajo. Siempre puedes aumentar los permisos más tarde.
+
+### Usa la estructura de la organización sabiamente
+- Haz que los líderes de equipo de confianza sean **Administradores de la organización**
+- La mayoría de los miembros del equipo deberían ser **Miembros de la organización**
+- Reserva los permisos de **Administrador** del espacio de trabajo para personas que necesiten gestionar usuarios
+
+### Revisa los permisos regularmente
+Revisa periódicamente quién tiene acceso a qué, especialmente cuando los miembros del equipo cambian de roles o dejan la empresa.
+
+### Seguridad de las variables de entorno
+- Usa variables de entorno personales para claves API sensibles
+- Usa variables de entorno del espacio de trabajo para configuración compartida
+- Audita regularmente quién tiene acceso a variables sensibles
+
+---
+
+## Roles de la organización
+
+Al invitar a alguien a tu organización, puedes asignar uno de dos roles:
+
+### Administrador de la organización
+**Lo que pueden hacer:**
+- Invitar y eliminar miembros del equipo de la organización
+- Crear nuevos espacios de trabajo
+- Gestionar la facturación y configuración de suscripción
+- Acceder a todos los espacios de trabajo dentro de la organización
+
+### Miembro de la organización  
+**Lo que pueden hacer:**
+- Acceder a espacios de trabajo a los que han sido específicamente invitados
+- Ver la lista de miembros de la organización
+- No pueden invitar a nuevas personas ni gestionar la configuración de la organización

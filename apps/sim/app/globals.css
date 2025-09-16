@@ -28,6 +28,30 @@
 }
 
 /* ==========================================================================
+   LANDING LOOP ANIMATION
+   ========================================================================== */
+@keyframes dash-animation {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+
+.landing-loop-animated-dash {
+  animation: dash-animation 1.5s linear infinite;
+  /* Ensure animation works in React Flow context */
+  will-change: stroke-dashoffset;
+  transform: translateZ(0);
+}
+
+/* Ensure React Flow doesn't override our animation */
+.react-flow__node-landingLoop svg rect.landing-loop-animated-dash {
+  animation: dash-animation 1.5s linear infinite !important;
+}
+
+/* ==========================================================================
    THEME SYSTEM - CSS CUSTOM PROPERTIES
    ========================================================================== */
 @layer base {
@@ -96,12 +120,12 @@
     --gradient-secondary: 336 95% 65%; /* More vibrant pink */
 
     /* Brand Colors (Default Sim Theme) */
-    --brand-primary-hex: #701ffc; /* Primary brand purple */
-    --brand-primary-hover-hex: #802fff; /* Primary brand purple hover */
-    --brand-secondary-hex: #6518e6; /* Secondary brand purple */
-    --brand-accent-hex: #9d54ff; /* Accent purple for links */
-    --brand-accent-hover-hex: #a66fff; /* Accent purple hover */
-    --brand-background-hex: #0c0c0c; /* Primary dark background */
+    --brand-primary-hex: #8357ff; /* Primary brand purple - matches Get Started gradient start */
+    --brand-primary-hover-hex: #9266ff; /* Primary brand purple hover - matches Get Started hover */
+    --brand-secondary-hex: #6f3dfa; /* Secondary brand purple - matches Get Started gradient end */
+    --brand-accent-hex: #6f3dfa; /* Accent purple for links - matches sign in button */
+    --brand-accent-hover-hex: #8357ff; /* Accent purple hover - matches sign in gradient start */
+    --brand-background-hex: #ffffff; /* Primary light background */
 
     /* UI Surface Colors */
     --surface-elevated: #202020; /* Elevated surface background for dark mode */
@@ -166,7 +190,7 @@
     --gradient-primary: 263 90% 75%; /* More vibrant purple for dark mode */
     --gradient-secondary: 336 100% 72%; /* More vibrant pink for dark mode */
 
-    /* Brand Colors (Same in dark mode) */
+    /* Brand Colors (Keep dark background for actual dark mode) */
     --brand-primary-hex: #701ffc; /* Primary brand purple */
     --brand-primary-hover-hex: #802fff; /* Primary brand purple hover */
     --brand-secondary-hex: #6518e6; /* Secondary brand purple */
@@ -371,34 +395,6 @@ input[type="search"]::-ms-clear {
     background-color: var(--brand-primary-hover-hex);
   }
 
-  .bg-brand-secondary {
-    background-color: var(--brand-secondary-hex);
-  }
-
-  .bg-brand-accent {
-    background-color: var(--brand-accent-hex);
-  }
-
-  .bg-brand-background {
-    background-color: var(--brand-background-hex);
-  }
-
-  .text-brand-primary {
-    color: var(--brand-primary-hex);
-  }
-
-  .text-brand-accent {
-    color: var(--brand-accent-hex);
-  }
-
-  .text-brand-accent-hover {
-    color: var(--brand-accent-hover-hex);
-  }
-
-  .border-brand-primary {
-    border-color: var(--brand-primary-hex);
-  }
-
   .hover\:bg-brand-primary-hover:hover {
     background-color: var(--brand-primary-hover-hex);
   }
@@ -409,6 +405,63 @@ input[type="search"]::-ms-clear {
 
   .hover\:text-brand-accent-hover:hover {
     color: var(--brand-accent-hover-hex);
+  }
+
+  /* Gradient Button Utilities */
+  .bg-brand-gradient {
+    background: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--brand-primary-hex) 85%, white),
+      var(--brand-primary-hex)
+    );
+  }
+
+  .border-brand-gradient {
+    border-color: var(--brand-primary-hex);
+  }
+
+  .shadow-brand-gradient {
+    box-shadow: inset 0 2px 4px 0 color-mix(in srgb, var(--brand-primary-hex) 60%, transparent);
+  }
+
+  .hover\:bg-brand-gradient-hover:hover {
+    background: linear-gradient(
+      to bottom,
+      var(--brand-primary-hover-hex),
+      color-mix(in srgb, var(--brand-primary-hex) 90%, black)
+    );
+  }
+
+  /* Apply fixed default light theme values for auth components */
+  .auth-card {
+    background-color: rgba(255, 255, 255, 0.9) !important;
+    border-color: #e5e5e5 !important;
+  }
+
+  .auth-text-primary {
+    color: #1a1a1a !important;
+  }
+
+  .auth-text-secondary {
+    color: #4a4a4a !important;
+  }
+
+  .auth-text-muted {
+    color: #737373 !important;
+  }
+
+  .auth-divider {
+    border-color: #e5e5e5 !important;
+  }
+
+  .auth-card-shadow {
+    box-shadow:
+      0 10px 15px -3px rgba(0, 0, 0, 0.05),
+      0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+  }
+
+  .auth-link {
+    color: #737373 !important;
   }
 
   /* Surface Utilities */
@@ -472,6 +525,32 @@ input[type="search"]::-ms-clear {
 
   .loading-placeholder::placeholder {
     animation: placeholder-pulse 1.5s ease-in-out infinite;
+  }
+
+  /* Auth Button Styles - Default Gradient */
+  .auth-button-gradient {
+    background: linear-gradient(to bottom, #8357ff, #6f3dfa) !important;
+    border-color: #6f3dfa !important;
+    box-shadow: inset 0 2px 4px 0 #9b77ff !important;
+  }
+
+  .auth-button-gradient:hover {
+    background: linear-gradient(to bottom, #8357ff, #6f3dfa) !important;
+    opacity: 0.9;
+  }
+
+  /* Auth Button Styles - CSS Variable Based */
+  .auth-button-custom {
+    background: var(--brand-accent-hex) !important;
+    border-color: var(--brand-accent-hex) !important;
+    /* Remove purple shadow when using custom color */
+    box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.1) !important;
+  }
+
+  .auth-button-custom:hover {
+    background: var(--brand-accent-hover-hex, var(--brand-accent-hex)) !important;
+    border-color: var(--brand-accent-hover-hex, var(--brand-accent-hex)) !important;
+    opacity: 1;
   }
 
   /* ==========================================================================

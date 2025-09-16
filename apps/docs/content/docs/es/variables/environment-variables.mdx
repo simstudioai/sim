@@ -1,0 +1,96 @@
+---
+title: Variables de entorno
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+Las variables de entorno proporcionan una forma segura de gestionar valores de configuración y secretos en tus flujos de trabajo, incluyendo claves API y otros datos sensibles que tus flujos de trabajo necesitan acceder. Mantienen los secretos fuera de las definiciones de tu flujo de trabajo mientras los hacen disponibles durante la ejecución.
+
+## Tipos de variables
+
+Las variables de entorno en Sim funcionan en dos niveles:
+
+- **Variables de entorno personales**: Privadas para tu cuenta, solo tú puedes verlas y usarlas
+- **Variables de entorno del espacio de trabajo**: Compartidas en todo el espacio de trabajo, disponibles para todos los miembros del equipo
+
+<Callout type="info">
+Las variables de entorno del espacio de trabajo tienen prioridad sobre las personales cuando hay un conflicto de nombres.
+</Callout>
+
+## Configuración de variables de entorno
+
+Navega a Configuración para configurar tus variables de entorno:
+
+<Image
+  src="/static/environment/environment-1.png"
+  alt="Modal de variables de entorno para crear nuevas variables"
+  width={500}
+  height={350}
+/>
+
+Desde la configuración de tu espacio de trabajo, puedes crear y gestionar variables de entorno tanto personales como a nivel de espacio de trabajo. Las variables personales son privadas para tu cuenta, mientras que las variables del espacio de trabajo se comparten con todos los miembros del equipo.
+
+### Hacer variables con ámbito de espacio de trabajo
+
+Usa el interruptor de ámbito del espacio de trabajo para hacer que las variables estén disponibles para todo tu equipo:
+
+<Image
+  src="/static/environment/environment-2.png"
+  alt="Interruptor de ámbito del espacio de trabajo para variables de entorno"
+  width={500}
+  height={350}
+/>
+
+Cuando habilitas el ámbito del espacio de trabajo, la variable se vuelve disponible para todos los miembros del espacio de trabajo y puede ser utilizada en cualquier flujo de trabajo dentro de ese espacio de trabajo.
+
+### Vista de variables del espacio de trabajo
+
+Una vez que tienes variables con ámbito de espacio de trabajo, aparecen en tu lista de variables de entorno:
+
+<Image
+  src="/static/environment/environment-3.png"
+  alt="Variables con ámbito de espacio de trabajo en la lista de variables de entorno"
+  width={500}
+  height={350}
+/>
+
+## Uso de variables en flujos de trabajo
+
+Para hacer referencia a variables de entorno en tus flujos de trabajo, utiliza la notación `{{}}`. Cuando escribas `{{` en cualquier campo de entrada, aparecerá un menú desplegable mostrando tanto tus variables de entorno personales como las del espacio de trabajo. Simplemente selecciona la variable que deseas utilizar.
+
+<Image
+  src="/static/environment/environment-4.png"
+  alt="Uso de variables de entorno con notación de doble llave"
+  width={500}
+  height={350}
+/>
+
+## Precedencia de variables
+
+Cuando tienes variables personales y de espacio de trabajo con el mismo nombre:
+
+1. **Las variables del espacio de trabajo tienen precedencia** sobre las variables personales
+2. Esto previene conflictos de nombres y asegura un comportamiento consistente en los flujos de trabajo del equipo
+3. Si existe una variable de espacio de trabajo, la variable personal con el mismo nombre será ignorada
+
+<Callout type="warning">
+Elige los nombres de las variables cuidadosamente para evitar sobrescrituras no deseadas. Considera usar prefijos con tus iniciales para variables personales o con el nombre del proyecto para variables del espacio de trabajo.
+</Callout>
+
+## Mejores prácticas de seguridad
+
+### Para datos sensibles
+- Almacena claves API, tokens y contraseñas como variables de entorno en lugar de codificarlos directamente
+- Usa variables de espacio de trabajo para recursos compartidos que varios miembros del equipo necesitan
+- Mantén las credenciales personales en variables personales
+
+### Nomenclatura de variables
+- Usa nombres descriptivos: `DATABASE_URL` en lugar de `DB`
+- Sigue convenciones de nomenclatura consistentes en todo tu equipo
+- Considera usar prefijos para evitar conflictos: `PROD_API_KEY`, `DEV_API_KEY`
+
+### Control de acceso
+- Las variables de entorno del espacio de trabajo respetan los permisos del espacio de trabajo
+- Solo los usuarios con acceso de escritura o superior pueden crear/modificar variables del espacio de trabajo
+- Las variables personales siempre son privadas para el usuario individual

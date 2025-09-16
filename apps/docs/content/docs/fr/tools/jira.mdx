@@ -1,0 +1,140 @@
+---
+title: Jira
+description: Interagir avec Jira
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="jira"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      viewBox='0 0 30 30'
+      
+      
+      focusable='false'
+      aria-hidden='true'
+    >
+      <path
+        fill='#1868DB'
+        d='M11.034 21.99h-2.22c-3.346 0-5.747-2.05-5.747-5.052h11.932c.619 0 1.019.44 1.019 1.062v12.007c-2.983 0-4.984-2.416-4.984-5.784zm5.893-5.967h-2.219c-3.347 0-5.748-2.013-5.748-5.015h11.933c.618 0 1.055.402 1.055 1.025V24.04c-2.983 0-5.02-2.416-5.02-5.784zm5.93-5.93h-2.219c-3.347 0-5.748-2.05-5.748-5.052h11.933c.618 0 1.018.439 1.018 1.025v12.007c-2.983 0-4.984-2.416-4.984-5.784z'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Jira](https://www.atlassian.com/jira) est une plateforme leader de gestion de projet et de suivi des problèmes qui aide les équipes à planifier, suivre et gérer efficacement les projets de développement logiciel agile. En tant que partie de la suite Atlassian, Jira est devenu la référence dans l'industrie pour les équipes de développement logiciel et les professionnels de la gestion de projet dans le monde entier.
+
+Jira fournit un ensemble complet d'outils pour gérer des projets complexes grâce à son système de flux de travail flexible et personnalisable. Avec son API robuste et ses capacités d'intégration, Jira permet aux équipes de rationaliser leurs processus de développement et de maintenir une visibilité claire sur l'avancement des projets.
+
+Les fonctionnalités clés de Jira comprennent :
+
+- Gestion de projet agile : prise en charge des méthodologies Scrum et Kanban avec des tableaux et des flux de travail personnalisables
+- Suivi des problèmes : système sophistiqué de suivi des bugs, des récits utilisateurs, des épopées et des tâches avec des rapports détaillés
+- Automatisation des flux de travail : règles d'automatisation puissantes pour rationaliser les tâches et processus répétitifs
+- Recherche avancée : JQL (Jira Query Language) pour le filtrage et la création de rapports complexes
+
+Dans Sim, l'intégration de Jira permet à vos agents d'interagir de manière transparente avec votre flux de travail de gestion de projet. Cela crée des opportunités pour la création, la mise à jour et le suivi automatisés des problèmes dans le cadre de vos flux de travail IA. L'intégration permet aux agents de créer, récupérer et mettre à jour des tickets Jira par programmation, facilitant les tâches de gestion de projet automatisées et garantissant que les informations importantes sont correctement suivies et documentées. En connectant Sim avec Jira, vous pouvez créer des agents intelligents qui maintiennent la visibilité du projet tout en automatisant les tâches routinières de gestion de projet, améliorant la productivité de l'équipe et assurant un suivi cohérent des projets.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Connectez-vous aux espaces de travail Jira pour lire, écrire et mettre à jour des tickets. Accédez au contenu, aux métadonnées et intégrez la documentation Jira dans vos flux de travail.
+
+## Outils
+
+### `jira_retrieve`
+
+Récupérer des informations détaillées sur un ticket Jira spécifique
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `projectId` | chaîne | Non | ID du projet Jira \(facultatif ; non requis pour récupérer un seul ticket\). |
+| `issueKey` | chaîne | Oui | Clé du ticket Jira à récupérer \(ex. : PROJ-123\) |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Statut de réussite de l'opération |
+| `output` | objet | Détails du ticket Jira avec la clé du ticket, le résumé, la description, les horodatages de création et de mise à jour |
+
+### `jira_update`
+
+Mettre à jour un ticket Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `domain` | chaîne | Oui | Votre domaine Jira \(ex. : votreentreprise.atlassian.net\) |
+| `projectId` | chaîne | Non | ID du projet Jira pour mettre à jour les tickets. S'il n'est pas fourni, tous les tickets seront récupérés. |
+| `issueKey` | chaîne | Oui | Clé du ticket Jira à mettre à jour |
+| `summary` | chaîne | Non | Nouveau résumé pour le ticket |
+| `description` | chaîne | Non | Nouvelle description pour le ticket |
+| `status` | chaîne | Non | Nouveau statut pour le ticket |
+| `priority` | chaîne | Non | Nouvelle priorité pour le ticket |
+| `assignee` | chaîne | Non | Nouvel assigné pour le ticket |
+| `cloudId` | chaîne | Non | ID Cloud Jira pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Détails de la demande Jira mise à jour avec horodatage, clé de la demande, résumé et statut de réussite |
+
+### `jira_write`
+
+Rédiger une demande Jira
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Oui | Votre domaine Jira (ex. : votreentreprise.atlassian.net) |
+| `projectId` | string | Oui | ID du projet pour la demande |
+| `summary` | string | Oui | Résumé de la demande |
+| `description` | string | Non | Description de la demande |
+| `priority` | string | Non | Priorité de la demande |
+| `assignee` | string | Non | Assigné de la demande |
+| `cloudId` | string | Non | ID Jira Cloud pour l'instance. S'il n'est pas fourni, il sera récupéré à l'aide du domaine. |
+| `issueType` | string | Oui | Type de demande à créer (ex. : Tâche, Story) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Détails de la demande Jira créée avec horodatage, clé de la demande, résumé, statut de réussite et URL |
+
+### `jira_bulk_read`
+
+Récupérer plusieurs demandes Jira en masse
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Oui | Votre domaine Jira (ex. : votreentreprise.atlassian.net) |
+| `projectId` | string | Oui | ID du projet Jira |
+| `cloudId` | string | Non | ID Jira Cloud |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | array | Tableau des tickets Jira avec résumé, description, horodatages de création et de mise à jour |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `jira`

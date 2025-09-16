@@ -1,0 +1,295 @@
+---
+title: Loop Block YAML 架构
+description: Loop 块的 YAML 配置参考
+---
+
+## 架构定义
+
+```yaml
+type: object
+required:
+  - type
+  - name
+  - inputs
+  - connections
+properties:
+  type:
+    type: string
+    enum: [loop]
+    description: Block type identifier
+  name:
+    type: string
+    description: Display name for this loop block
+  inputs:
+    type: object
+    required:
+      - loopType
+    properties:
+      loopType:
+        type: string
+        enum: [for, forEach]
+        description: Type of loop to execute
+      iterations:
+        type: number
+        description: Number of iterations (for 'for' loops)
+        minimum: 1
+        maximum: 1000
+      collection:
+        type: string
+        description: Collection to iterate over (for 'forEach' loops)
+      maxConcurrency:
+        type: number
+        description: Maximum concurrent executions
+        default: 1
+        minimum: 1
+        maximum: 10
+  connections:
+    type: object
+    required:
+      - loop
+    properties:
+      loop:
+        type: object
+        required:
+          - start
+        properties:
+          start:
+            type: string
+            description: Target block ID to execute inside the loop
+          end:
+            type: string
+            description: Target block ID for loop completion (optional)
+      error:
+        type: string
+        description: Target block ID for error handling
+```
+
+## 连接配置
+
+Loop 块使用一种特殊的连接格式，其中包含一个 `loop` 部分：
+
+```yaml
+connections:
+  loop:
+    start: <string>                     # Target block ID to execute inside the loop
+    end: <string>                       # Target block ID after loop completion (optional)
+  error: <string>                       # Target block ID for error handling (optional)
+```
+
+## 子块配置
+
+循环中的块必须将其 `parentId` 设置为循环块的 ID：
+
+```yaml
+loop-1:
+  type: loop
+  name: "Process Items"
+  inputs:
+    loopType: forEach
+    collection: <start.items>
+  connections:
+    loop:
+      start: process-item
+      end: final-results
+
+# Child block inside the loop
+process-item:
+  type: agent
+  name: "Process Item"
+  parentId: loop-1                      # References the loop block
+  inputs:
+    systemPrompt: "Process this item"
+    userPrompt: <loop.currentItem>
+    model: gpt-4o
+    apiKey: '{{OPENAI_API_KEY}}'
+```
+
+## 示例
+
+### For 循环（固定迭代次数）
+
+```yaml
+countdown-loop:
+  type: loop
+  name: "Countdown Loop"
+  inputs:
+    loopType: for
+    iterations: 5
+  connections:
+    loop:
+      start: countdown-agent
+      end: countdown-complete
+
+countdown-agent:
+  type: agent
+  name: "Countdown Agent"
+  parentId: countdown-loop
+  inputs:
+    systemPrompt: "Generate a countdown message"
+    userPrompt: "Count down from 5. Current number: <loop.index>"
+    model: gpt-4o
+    apiKey: '{{OPENAI_API_KEY}}'
+```
+
+### ForEach 循环（集合处理）
+
+```yaml
+email-processor-loop:
+  type: loop
+  name: "Email Processor Loop"
+  inputs:
+    loopType: forEach
+    collection: <start.emails>
+  connections:
+    loop:
+      start: process-single-email
+      end: all-emails-processed
+
+process-single-email:
+  type: agent
+  name: "Process Single Email"
+  parentId: email-processor-loop
+  inputs:
+    systemPrompt: "Classify and respond to this email"
+    userPrompt: "Email content: <loop.currentItem>"
+    model: gpt-4o
+    apiKey: '{{OPENAI_API_KEY}}'
+```
+
+### 包含多个子块的循环
+
+```yaml
+data-analysis-loop:
+  type: loop
+  name: "Data Analysis Loop"
+  inputs:
+    loopType: forEach
+    collection: <data-fetcher.records>
+    maxConcurrency: 3
+  connections:
+    loop:
+      start: validate-record
+      end: generate-report
+    error: handle-loop-error
+
+validate-record:
+  type: function
+  name: "Validate Record"
+  parentId: data-analysis-loop
+  inputs:
+    code: |
+      const record = <loop.currentItem>;
+      const index = <loop.index>;
+      
+      // Validate the record
+      if (!record.id || !record.data) {
+        throw new Error(`Invalid record at index ${index}`);
+      }
+      
+      return {
+        valid: true,
+        recordId: record.id,
+        processedAt: new Date().toISOString()
+      };
+  connections:
+    success: analyze-record
+    error: record-error
+
+analyze-record:
+  type: agent
+  name: "Analyze Record"
+  parentId: data-analysis-loop
+  inputs:
+    systemPrompt: "Analyze this data record and extract insights"
+    userPrompt: |
+      Record ID: <validaterecord.recordId>
+      Data: <loop.currentItem.data>
+      Position in collection: <loop.index>
+    model: gpt-4o
+    apiKey: '{{OPENAI_API_KEY}}'
+  connections:
+    success: store-analysis
+
+store-analysis:
+  type: function
+  name: "Store Analysis"
+  parentId: data-analysis-loop
+  inputs:
+    code: |
+      const analysis = <analyzerecord.content>;
+      const recordId = <validaterecord.recordId>;
+      
+      // Store analysis result
+      return {
+        recordId,
+        analysis,
+        completedAt: new Date().toISOString()
+      };
+```
+
+### 并发处理循环
+
+```yaml
+parallel-processing-loop:
+  type: loop
+  name: "Parallel Processing Loop"
+  inputs:
+    loopType: forEach
+    collection: <start.tasks>
+    maxConcurrency: 5
+  connections:
+    loop:
+      start: process-task
+      end: aggregate-results
+
+process-task:
+  type: api
+  name: "Process Task"
+  parentId: parallel-processing-loop
+  inputs:
+    url: "https://api.example.com/process"
+    method: POST
+    headers:
+      - key: "Authorization"
+        value: "Bearer {{API_TOKEN}}"
+    body: |
+      {
+        "taskId": "<loop.currentItem.id>",
+        "data": "<loop.currentItem.data>"
+      }
+  connections:
+    success: task-completed
+```
+
+## 循环变量
+
+在循环的子块中，可以使用以下特殊变量：
+
+```yaml
+# Available in all child blocks of the loop
+<loop.index>                    # Current iteration number (0-based)
+<loop.currentItem>              # Current item being processed (forEach loops)
+<loop.items>                    # Full collection (forEach loops)
+```
+
+## 输出引用
+
+循环完成后，可以引用其聚合结果：
+
+```yaml
+# In blocks after the loop
+final-processor:
+  inputs:
+    all-results: <loop-name.results>    # Array of all iteration results
+    total-count: <loop-name.count>      # Number of iterations completed
+```
+
+## 最佳实践
+
+- 设置合理的迭代限制以避免长时间的执行
+- 使用 forEach 处理集合，使用 for 循环处理固定迭代
+- 对于 I/O 密集型操作，考虑使用 maxConcurrency
+- 包含错误处理以确保循环执行的健壮性
+- 为循环子块使用描述性名称
+- 先用小集合进行测试
+- 对大集合的执行时间进行监控

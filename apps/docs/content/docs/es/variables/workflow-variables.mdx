@@ -1,0 +1,141 @@
+---
+title: Variables de flujo de trabajo
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Video } from '@/components/ui/video'
+
+Las variables en Sim actúan como un almacén global de datos que puede ser accedido y modificado por cualquier bloque en tu flujo de trabajo, permitiéndote almacenar y compartir datos a través de tu flujo de trabajo con variables globales. Proporcionan una forma poderosa de compartir información entre diferentes partes de tu flujo de trabajo, mantener el estado y crear aplicaciones más dinámicas.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="variables.mp4" />
+</div>
+
+<Callout type="info">
+  Las variables te permiten almacenar y compartir datos a través de todo tu flujo de trabajo, facilitando
+  el mantenimiento del estado y la creación de sistemas complejos e interconectados.
+</Callout>
+
+## Descripción general
+
+La función de Variables sirve como un almacén central de datos para tu flujo de trabajo, permitiéndote:
+
+<Steps>
+  <Step>
+    <strong>Almacenar datos globales</strong>: Crear variables que persisten durante toda la ejecución del flujo de trabajo
+  </Step>
+  <Step>
+    <strong>Compartir información entre bloques</strong>: Acceder a los mismos datos desde cualquier bloque en tu
+    flujo de trabajo
+  </Step>
+  <Step>
+    <strong>Mantener el estado del flujo de trabajo</strong>: Realizar un seguimiento de valores importantes mientras se ejecuta tu flujo de trabajo
+  </Step>
+  <Step>
+    <strong>Crear flujos de trabajo dinámicos</strong>: Construir sistemas más flexibles que pueden adaptarse según los
+    valores almacenados
+  </Step>
+</Steps>
+
+## Creación de variables
+
+Puedes crear y gestionar variables desde el panel de Variables en la barra lateral. Cada variable tiene:
+
+- **Nombre**: Un identificador único utilizado para referenciar la variable
+- **Valor**: Los datos almacenados en la variable (admite varios tipos de datos)
+- **Descripción** (opcional): Una nota que explica el propósito de la variable
+
+## Acceso a variables
+
+Se puede acceder a las variables desde cualquier bloque en tu flujo de trabajo utilizando el menú desplegable de variables. Simplemente:
+
+1. Escribe `<` en cualquier campo de texto dentro de un bloque
+2. Navega por el menú desplegable para seleccionar entre las variables disponibles
+3. Selecciona la variable que quieres usar
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="variables-dropdown.mp4" />
+</div>
+
+<Callout>
+  También puedes arrastrar la etiqueta de conexión a un campo para abrir el desplegable de variables y acceder a
+  las variables disponibles.
+</Callout>
+
+## Tipos de variables
+
+Las variables en Sim pueden almacenar varios tipos de datos:
+
+<Tabs items={['Text', 'Numbers', 'Boolean', 'Objects', 'Arrays']}>
+  <Tab>
+
+    ```
+    "Hello, World!"
+    ```
+
+    <p className="mt-2">Las variables de texto almacenan cadenas de caracteres. Son útiles para guardar mensajes, nombres y otros datos de texto.</p>
+  </Tab>
+  <Tab>
+
+    ```
+    42
+    ```
+
+    <p className="mt-2">Las variables numéricas almacenan valores numéricos que pueden usarse en cálculos o comparaciones.</p>
+  </Tab>
+  <Tab>
+
+    ```
+    true
+    ```
+
+    <p className="mt-2">Las variables booleanas almacenan valores verdadero/falso, perfectas para indicadores y comprobaciones de condiciones.</p>
+  </Tab>
+  <Tab>
+
+    ```json
+    {
+      "name": "John",
+      "age": 30,
+      "city": "New York"
+    }
+    ```
+
+    <p className="mt-2">Las variables de objeto almacenan datos estructurados con propiedades y valores.</p>
+  </Tab>
+  <Tab>
+
+    ```json
+    [1, 2, 3, "four", "five"]
+    ```
+
+    <p className="mt-2">Las variables de array almacenan colecciones ordenadas de elementos.</p>
+  </Tab>
+</Tabs>
+
+## Uso de variables en bloques
+
+Cuando accedes a una variable desde un bloque, puedes:
+
+- **Leer su valor**: Utilizar el valor actual de la variable en la lógica de tu bloque
+- **Modificarla**: Actualizar el valor de la variable según el procesamiento de tu bloque
+- **Usarla en expresiones**: Incluir variables en expresiones y cálculos
+
+## Ámbito de las variables
+
+Las variables en Sim tienen ámbito global, lo que significa:
+
+- Son accesibles desde cualquier bloque en tu flujo de trabajo
+- Los cambios en las variables persisten durante toda la ejecución del flujo de trabajo
+- Las variables mantienen sus valores entre ejecuciones, a menos que se restablezcan explícitamente
+
+## Mejores prácticas
+
+- **Usa nombres descriptivos**: Elige nombres de variables que indiquen claramente lo que representa la variable. Por ejemplo, usa `userPreferences` en lugar de `up`.
+- **Documenta tus variables**: Añade descripciones a tus variables para ayudar a otros miembros del equipo a entender su propósito y uso.
+- **Considera el ámbito de las variables**: Recuerda que las variables son globales y pueden ser modificadas por cualquier bloque. Diseña tu flujo de trabajo teniendo esto en cuenta para evitar comportamientos inesperados.
+- **Inicializa las variables temprano**: Configura e inicializa tus variables al principio de tu flujo de trabajo para asegurarte de que estén disponibles cuando se necesiten.
+- **Maneja variables ausentes**: Siempre considera el caso en que una variable podría no existir todavía o podría tener un valor inesperado. Añade la validación apropiada en tus bloques.
+- **Limita la cantidad de variables**: Mantén el número de variables manejable. Demasiadas variables pueden hacer que tu flujo de trabajo sea difícil de entender y mantener.

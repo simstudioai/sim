@@ -1,0 +1,96 @@
+---
+title: Variables d'environnement
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+Les variables d'environnement offrent un moyen sécurisé de gérer les valeurs de configuration et les secrets dans vos workflows, y compris les clés API et autres données sensibles dont vos workflows ont besoin. Elles gardent les secrets en dehors de vos définitions de workflow tout en les rendant disponibles pendant l'exécution.
+
+## Types de variables
+
+Les variables d'environnement dans Sim fonctionnent à deux niveaux :
+
+- **Variables d'environnement personnelles** : privées à votre compte, vous seul pouvez les voir et les utiliser
+- **Variables d'environnement d'espace de travail** : partagées dans tout l'espace de travail, disponibles pour tous les membres de l'équipe
+
+<Callout type="info">
+Les variables d'environnement d'espace de travail ont priorité sur les variables personnelles en cas de conflit de noms.
+</Callout>
+
+## Configuration des variables d'environnement
+
+Accédez aux Paramètres pour configurer vos variables d'environnement :
+
+<Image
+  src="/static/environment/environment-1.png"
+  alt="Fenêtre modale de variables d'environnement pour créer de nouvelles variables"
+  width={500}
+  height={350}
+/>
+
+Depuis les paramètres de votre espace de travail, vous pouvez créer et gérer des variables d'environnement personnelles et au niveau de l'espace de travail. Les variables personnelles sont privées à votre compte, tandis que les variables d'espace de travail sont partagées avec tous les membres de l'équipe.
+
+### Définir des variables au niveau de l'espace de travail
+
+Utilisez le bouton de portée d'espace de travail pour rendre les variables disponibles à toute votre équipe :
+
+<Image
+  src="/static/environment/environment-2.png"
+  alt="Activer la portée d'espace de travail pour les variables d'environnement"
+  width={500}
+  height={350}
+/>
+
+Lorsque vous activez la portée d'espace de travail, la variable devient disponible pour tous les membres de l'espace de travail et peut être utilisée dans n'importe quel workflow au sein de cet espace de travail.
+
+### Vue des variables d'espace de travail
+
+Une fois que vous avez des variables à portée d'espace de travail, elles apparaissent dans votre liste de variables d'environnement :
+
+<Image
+  src="/static/environment/environment-3.png"
+  alt="Variables à portée d'espace de travail dans la liste des variables d'environnement"
+  width={500}
+  height={350}
+/>
+
+## Utilisation des variables dans les workflows
+
+Pour référencer des variables d'environnement dans vos workflows, utilisez la notation `{{}}`. Lorsque vous tapez `{{` dans n'importe quel champ de saisie, un menu déroulant apparaîtra affichant à la fois vos variables d'environnement personnelles et celles au niveau de l'espace de travail. Sélectionnez simplement la variable que vous souhaitez utiliser.
+
+<Image
+  src="/static/environment/environment-4.png"
+  alt="Utilisation des variables d'environnement avec la notation à double accolade"
+  width={500}
+  height={350}
+/>
+
+## Priorité des variables
+
+Lorsque vous avez à la fois des variables personnelles et d'espace de travail portant le même nom :
+
+1. **Les variables d'espace de travail ont la priorité** sur les variables personnelles
+2. Cela évite les conflits de nommage et assure un comportement cohérent dans les workflows d'équipe
+3. Si une variable d'espace de travail existe, la variable personnelle portant le même nom est ignorée
+
+<Callout type="warning">
+Choisissez les noms de variables avec soin pour éviter les remplacements involontaires. Envisagez de préfixer les variables personnelles avec vos initiales ou les variables d'espace de travail avec le nom du projet.
+</Callout>
+
+## Bonnes pratiques de sécurité
+
+### Pour les données sensibles
+- Stockez les clés API, les jetons et les mots de passe comme variables d'environnement au lieu de les coder en dur
+- Utilisez des variables d'espace de travail pour les ressources partagées dont plusieurs membres de l'équipe ont besoin
+- Conservez vos identifiants personnels dans des variables personnelles
+
+### Nommage des variables
+- Utilisez des noms descriptifs : `DATABASE_URL` au lieu de `DB`
+- Suivez des conventions de nommage cohérentes au sein de votre équipe
+- Envisagez des préfixes pour éviter les conflits : `PROD_API_KEY`, `DEV_API_KEY`
+
+### Contrôle d'accès
+- Les variables d'environnement de l'espace de travail respectent les permissions de l'espace de travail
+- Seuls les utilisateurs disposant d'un accès en écriture ou supérieur peuvent créer/modifier les variables d'espace de travail
+- Les variables personnelles sont toujours privées pour l'utilisateur individuel

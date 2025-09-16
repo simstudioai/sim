@@ -1,0 +1,208 @@
+---
+title: Supabase
+description: 使用 Supabase 数据库
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="supabase"
+  color="#1C1C1C"
+  icon={true}
+  iconSvg={`<svg className="block-icon"    viewBox='0 0 27 27' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        d='M15.4057 26.2606C14.7241 27.1195 13.3394 26.649 13.3242 25.5519L13.083 9.50684H23.8724C25.8262 9.50684 26.9157 11.7636 25.7006 13.2933L15.4057 26.2606Z'
+        fill='url(#paint0_linear)'
+      />
+      <path
+        d='M15.4057 26.2606C14.7241 27.1195 13.3394 26.649 13.3242 25.5519L13.083 9.50684H23.8724C25.8262 9.50684 26.9157 11.7636 25.7006 13.2933L15.4057 26.2606Z'
+        fill='url(#paint1_linear)'
+        fillOpacity='0.2'
+      />
+      <path
+        d='M11.0167 0.443853C11.6983 -0.415083 13.0832 0.0553814 13.0982 1.15237L13.2042 17.1976H2.55005C0.596215 17.1976 -0.493259 14.9408 0.721603 13.4111L11.0167 0.443853Z'
+        fill='#3ECF8E'
+      />
+      <defs>
+        <linearGradient
+          id='paint0_linear'
+          x1='13.084'
+          y1='13.0655'
+          x2='22.6727'
+          y2='17.087'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop stopColor='#249361' />
+          <stop offset='1' stopColor='#3ECF8E' />
+        </linearGradient>
+        <linearGradient
+          id='paint1_linear'
+          x1='8.83277'
+          y1='7.24485'
+          x2='13.2057'
+          y2='15.477'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop />
+          <stop offset='1' stopOpacity='0' />
+        </linearGradient>
+      </defs>
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Supabase](https://www.supabase.com/) 是一个强大的开源后端即服务平台，为开发者提供了一套工具，用于构建、扩展和管理现代应用程序。Supabase 提供了完全托管的 [PostgreSQL](https://www.postgresql.org/) 数据库、强大的身份验证、即时的 RESTful 和 GraphQL API、实时订阅、文件存储以及边缘函数——所有功能都通过统一且对开发者友好的界面访问。其开源特性和对流行框架的兼容性使其成为 Firebase 的一个有吸引力的替代方案，同时还具有 SQL 的灵活性和透明性。
+
+**为什么选择 Supabase？**
+- **即时 API：** 数据库中的每个表和视图都可以通过 REST 和 GraphQL 端点即时访问，无需编写自定义后端代码即可轻松构建数据驱动的应用程序。
+- **实时数据：** Supabase 支持实时订阅，使您的应用程序能够对数据库中的更改即时作出反应。
+- **身份验证与授权：** 内置用户管理，支持电子邮件、OAuth、SSO 等多种方式，并提供行级安全性以实现精细的访问控制。
+- **存储：** 通过内置存储安全地上传、提供和管理文件，并与您的数据库无缝集成。
+- **边缘函数：** 部署无服务器函数到用户附近，以实现低延迟的自定义逻辑。
+
+**在 Sim 中使用 Supabase**
+
+Sim 的 Supabase 集成使您能够轻松地将代理工作流连接到您的 Supabase 项目。只需填写几个配置字段——您的项目 ID、表名和服务角色密钥，您就可以直接从 Sim 模块中安全地与数据库交互。该集成简化了 API 调用的复杂性，让您专注于构建逻辑和自动化流程。
+
+**在 Sim 中使用 Supabase 的主要优势：**
+- **无代码/低代码的数据库操作：** 无需编写 SQL 或后端代码即可查询、插入、更新和删除 Supabase 表中的行。
+- **灵活的查询：** 使用 [PostgREST 过滤语法](https://postgrest.org/en/stable/api.html#operators) 执行高级查询，包括过滤、排序和限制结果。
+- **无缝集成：** 轻松将 Supabase 连接到工作流中的其他工具和服务，实现强大的自动化功能，例如数据同步、触发通知或丰富记录。
+- **安全且可扩展：** 所有操作都使用您的 Supabase 服务角色密钥，确保数据访问的安全性，同时享受托管云平台的可扩展性。
+
+无论您是在构建内部工具、自动化业务流程，还是支持生产应用程序，Sim 中的 Supabase 都为您提供了一种快速、可靠且对开发者友好的方式来管理数据和后端逻辑——无需基础设施管理。只需配置模块，选择所需的操作，其余的交给 Sim 处理。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+集成 Supabase 以管理您的数据库、身份验证、存储等。查询数据、管理用户，并直接与 Supabase 服务交互。
+
+## 工具
+
+### `supabase_query`
+
+从 Supabase 表中查询数据
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | 字符串 | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
+| `table` | 字符串 | 是 | 要查询的 Supabase 表名 |
+| `filter` | 字符串 | 否 | PostgREST 过滤条件 \(例如："id=eq.123"\) |
+| `orderBy` | 字符串 | 否 | 排序的列名 \(添加 DESC 表示降序\) |
+| `limit` | 数字 | 否 | 返回的最大行数 |
+| `apiKey` | 字符串 | 是 | 您的 Supabase 服务角色密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `results` | array | 查询返回的记录数组 |
+
+### `supabase_insert`
+
+向 Supabase 表中插入数据
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
+| `table` | string | 是 | 要插入数据的 Supabase 表名 |
+| `data` | any | 是 | 要插入的数据 |
+| `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `results` | array | 插入的记录数组 |
+
+### `supabase_get_row`
+
+根据筛选条件从 Supabase 表中获取单行数据
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
+| `table` | string | 是 | 要查询的 Supabase 表名 |
+| `filter` | string | 是 | PostgREST 筛选条件以找到特定行 \(例如："id=eq.123"\) |
+| `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `results` | array | 包含行数据的数组（如果找到），如果未找到则为空数组 |
+
+### `supabase_update`
+
+根据筛选条件更新 Supabase 表中的行
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
+| `table` | string | 是 | 要更新的 Supabase 表的名称 |
+| `filter` | string | 是 | 用于标识要更新行的 PostgREST 筛选条件 \(例如："id=eq.123"\) |
+| `data` | object | 是 | 要更新到匹配行的数据 |
+| `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `results` | array | 更新记录的数组 |
+
+### `supabase_delete`
+
+根据筛选条件从 Supabase 表中删除行
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
+| `table` | string | 是 | 要删除的 Supabase 表的名称 |
+| `filter` | string | 是 | 用于标识要删除行的 PostgREST 筛选条件 \(例如："id=eq.123"\) |
+| `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `results` | array | 已删除记录的数组 |
+
+### `supabase_upsert`
+
+在 Supabase 表中插入或更新数据（upsert 操作）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
+| `table` | string | 是 | 要进行 upsert 数据操作的 Supabase 表名 |
+| `data` | any | 是 | 要 upsert（插入或更新）的数据 |
+| `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `results` | array | 已 upsert 的记录数组 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`supabase`

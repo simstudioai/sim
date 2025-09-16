@@ -2271,11 +2271,9 @@ describe('InputResolver', () => {
 
       const result = resolver.resolveInputs(testBlock, mockContext)
 
-      // Should include inputs without conditions
       expect(result).toHaveProperty('operation', 'upload')
       expect(result).toHaveProperty('alwaysVisible', 'always here')
 
-      // Should NOT include conditional field that doesn't match
       expect(result).not.toHaveProperty('conditionalField')
     })
 
@@ -2303,7 +2301,6 @@ describe('InputResolver', () => {
         ],
       })
 
-      // Test upload_chunk operation
       const uploadChunkBlock: SerializedBlock = {
         id: 'knowledge-block',
         metadata: { id: 'knowledge', name: 'Knowledge Block' },
@@ -2324,7 +2321,6 @@ describe('InputResolver', () => {
       expect(result1).toHaveProperty('operation', 'upload_chunk')
       expect(result1).toHaveProperty('content', 'chunk content here')
 
-      // Test create_document operation
       const createDocBlock: SerializedBlock = {
         id: 'knowledge-block',
         metadata: { id: 'knowledge', name: 'Knowledge Block' },
@@ -2345,7 +2341,6 @@ describe('InputResolver', () => {
       expect(result2).toHaveProperty('operation', 'create_document')
       expect(result2).toHaveProperty('content', 'document content here')
 
-      // Test search operation (should NOT include content)
       const searchBlock: SerializedBlock = {
         id: 'knowledge-block',
         metadata: { id: 'knowledge', name: 'Knowledge Block' },
@@ -2368,8 +2363,471 @@ describe('InputResolver', () => {
     })
   })
 
+  describe('2D Array Indexing', () => {
+    let arrayResolver: InputResolver
+    let arrayContext: any
+
+    beforeEach(() => {
+      const extendedWorkflow = {
+        ...sampleWorkflow,
+        blocks: [
+          ...sampleWorkflow.blocks,
+          {
+            id: 'array-block',
+            metadata: { id: 'generic', name: 'Array Block' },
+            position: { x: 100, y: 200 },
+            config: { tool: 'generic', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'non-array-block',
+            metadata: { id: 'generic', name: 'Non Array Block' },
+            position: { x: 300, y: 200 },
+            config: { tool: 'generic', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'single-array-block',
+            metadata: { id: 'generic', name: 'Single Array Block' },
+            position: { x: 400, y: 200 },
+            config: { tool: 'generic', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+        ],
+        connections: [
+          ...sampleWorkflow.connections,
+          { source: 'starter-block', target: 'array-block' },
+          { source: 'starter-block', target: 'non-array-block' },
+          { source: 'starter-block', target: 'single-array-block' },
+        ],
+      }
+
+      const extendedAccessibilityMap = new Map<string, Set<string>>()
+      const allBlockIds = extendedWorkflow.blocks.map((b) => b.id)
+      const testBlockIds = ['test-block', 'function-test', 'condition-test']
+      const allIds = [...allBlockIds, ...testBlockIds]
+
+      extendedWorkflow.blocks.forEach((block) => {
+        const accessibleBlocks = new Set(allIds)
+        extendedAccessibilityMap.set(block.id, accessibleBlocks)
+      })
+
+      testBlockIds.forEach((testId) => {
+        const accessibleBlocks = new Set(allIds)
+        extendedAccessibilityMap.set(testId, accessibleBlocks)
+      })
+
+      arrayResolver = new InputResolver(
+        extendedWorkflow,
+        mockEnvironmentVars,
+        mockWorkflowVars,
+        undefined,
+        extendedAccessibilityMap
+      )
+
+      arrayContext = {
+        ...mockContext,
+        workflow: extendedWorkflow,
+        blockStates: new Map([
+          ...mockContext.blockStates,
+          [
+            'array-block',
+            {
+              output: {
+                matrix: [
+                  ['a', 'b', 'c'],
+                  ['d', 'e', 'f'],
+                  ['g', 'h', 'i'],
+                ],
+                nestedData: {
+                  values: [
+                    [10, 20, 30],
+                    [40, 50, 60],
+                    [70, 80, 90],
+                  ],
+                },
+                deepNested: [
+                  [
+                    [1, 2, 3],
+                    [4, 5, 6],
+                  ],
+                  [
+                    [7, 8, 9],
+                    [10, 11, 12],
+                  ],
+                ],
+              },
+            },
+          ],
+          [
+            'non-array-block',
+            {
+              output: {
+                notAnArray: 'just a string',
+              },
+            },
+          ],
+          [
+            'single-array-block',
+            {
+              output: {
+                items: ['first', 'second', 'third'],
+              },
+            },
+          ],
+        ]),
+        activeExecutionPath: new Set([
+          ...mockContext.activeExecutionPath,
+          'array-block',
+          'non-array-block',
+          'single-array-block',
+        ]),
+      }
+    })
+
+    it.concurrent('should resolve basic 2D array access like matrix[0][1]', () => {
+      const block: SerializedBlock = {
+        id: 'test-block',
+        metadata: { id: 'generic', name: 'Test Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'generic',
+          params: {
+            value: '<array-block.matrix[0][1]>',
+          },
+        },
+        inputs: {
+          value: 'string',
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      const result = arrayResolver.resolveInputs(block, arrayContext)
+      expect(result.value).toBe('b')
+    })
+
+    it.concurrent('should resolve 2D array access with different indices', () => {
+      const block: SerializedBlock = {
+        id: 'test-block',
+        metadata: { id: 'generic', name: 'Test Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'generic',
+          params: {
+            topLeft: '<array-block.matrix[0][0]>',
+            center: '<array-block.matrix[1][1]>',
+            bottomRight: '<array-block.matrix[2][2]>',
+          },
+        },
+        inputs: {
+          topLeft: 'string',
+          center: 'string',
+          bottomRight: 'string',
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      const result = arrayResolver.resolveInputs(block, arrayContext)
+      expect(result.topLeft).toBe('a')
+      expect(result.center).toBe('e')
+      expect(result.bottomRight).toBe('i')
+    })
+
+    it.concurrent('should resolve property access combined with 2D array indexing', () => {
+      const block: SerializedBlock = {
+        id: 'test-block',
+        metadata: { id: 'generic', name: 'Test Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'generic',
+          params: {
+            value1: '<array-block.nestedData.values[0][1]>',
+            value2: '<array-block.nestedData.values[1][2]>',
+            value3: '<array-block.nestedData.values[2][0]>',
+          },
+        },
+        inputs: {
+          value1: 'string',
+          value2: 'string',
+          value3: 'string',
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      const result = arrayResolver.resolveInputs(block, arrayContext)
+      expect(result.value1).toBe('20')
+      expect(result.value2).toBe('60')
+      expect(result.value3).toBe('70')
+    })
+
+    it.concurrent('should resolve 3D array access (multiple nested indices)', () => {
+      const block: SerializedBlock = {
+        id: 'test-block',
+        metadata: { id: 'generic', name: 'Test Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'generic',
+          params: {
+            deep1: '<array-block.deepNested[0][0][1]>',
+            deep2: '<array-block.deepNested[0][1][2]>',
+            deep3: '<array-block.deepNested[1][0][0]>',
+            deep4: '<array-block.deepNested[1][1][2]>',
+          },
+        },
+        inputs: {
+          deep1: 'string',
+          deep2: 'string',
+          deep3: 'string',
+          deep4: 'string',
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      const result = arrayResolver.resolveInputs(block, arrayContext)
+      expect(result.deep1).toBe('2')
+      expect(result.deep2).toBe('6')
+      expect(result.deep3).toBe('7')
+      expect(result.deep4).toBe('12')
+    })
+
+    it.concurrent('should handle start block with 2D array access', () => {
+      arrayContext.blockStates.set('starter-block', {
+        output: {
+          input: 'Hello World',
+          type: 'text',
+          data: [
+            ['row1col1', 'row1col2'],
+            ['row2col1', 'row2col2'],
+          ],
+        },
+      })
+
+      const block: SerializedBlock = {
+        id: 'test-block',
+        metadata: { id: 'generic', name: 'Test Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'generic',
+          params: {
+            value1: '<start.data[0][0]>',
+            value2: '<start.data[0][1]>',
+            value3: '<start.data[1][0]>',
+            value4: '<start.data[1][1]>',
+          },
+        },
+        inputs: {
+          value1: 'string',
+          value2: 'string',
+          value3: 'string',
+          value4: 'string',
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      const result = arrayResolver.resolveInputs(block, arrayContext)
+      expect(result.value1).toBe('row1col1')
+      expect(result.value2).toBe('row1col2')
+      expect(result.value3).toBe('row2col1')
+      expect(result.value4).toBe('row2col2')
+    })
+
+    it.concurrent('should throw error for out of bounds 2D array access', () => {
+      const block: SerializedBlock = {
+        id: 'test-block',
+        metadata: { id: 'generic', name: 'Test Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'generic',
+          params: {
+            value: '<array-block.matrix[5][1]>', // Row 5 doesn't exist
+          },
+        },
+        inputs: {
+          value: 'string',
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      expect(() => arrayResolver.resolveInputs(block, arrayContext)).toThrow(
+        /Array index 5 is out of bounds/
+      )
+    })
+
+    it.concurrent('should throw error for out of bounds second dimension access', () => {
+      const block: SerializedBlock = {
+        id: 'test-block',
+        metadata: { id: 'generic', name: 'Test Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'generic',
+          params: {
+            value: '<array-block.matrix[1][5]>', // Column 5 doesn't exist
+          },
+        },
+        inputs: {
+          value: 'string',
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      expect(() => arrayResolver.resolveInputs(block, arrayContext)).toThrow(
+        /Array index 5 is out of bounds/
+      )
+    })
+
+    it.concurrent('should throw error when accessing non-array as array', () => {
+      const block: SerializedBlock = {
+        id: 'test-block',
+        metadata: { id: 'generic', name: 'Test Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'generic',
+          params: {
+            value: '<non-array-block.notAnArray[0][1]>',
+          },
+        },
+        inputs: {
+          value: 'string',
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      expect(() => arrayResolver.resolveInputs(block, arrayContext)).toThrow(/Invalid path/)
+    })
+
+    it.concurrent('should throw error with invalid index format', () => {
+      const block: SerializedBlock = {
+        id: 'test-block',
+        metadata: { id: 'generic', name: 'Test Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'generic',
+          params: {
+            value: '<array-block.matrix[0][abc]>', // Non-numeric index
+          },
+        },
+        inputs: {
+          value: 'string',
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      expect(() => arrayResolver.resolveInputs(block, arrayContext)).toThrow(
+        /No value found at path/
+      )
+    })
+
+    it.concurrent('should maintain backward compatibility with single array indexing', () => {
+      // Data is already set up in beforeEach
+
+      const block: SerializedBlock = {
+        id: 'test-block',
+        metadata: { id: 'generic', name: 'Test Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'generic',
+          params: {
+            first: '<single-array-block.items[0]>',
+            second: '<single-array-block.items[1]>',
+            third: '<single-array-block.items[2]>',
+          },
+        },
+        inputs: {
+          first: 'string',
+          second: 'string',
+          third: 'string',
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      const result = arrayResolver.resolveInputs(block, arrayContext)
+      expect(result.first).toBe('first')
+      expect(result.second).toBe('second')
+      expect(result.third).toBe('third')
+    })
+
+    it.concurrent('should handle mixed single and multi-dimensional access in same block', () => {
+      const block: SerializedBlock = {
+        id: 'test-block',
+        metadata: { id: 'generic', name: 'Test Block' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'generic',
+          params: {
+            singleDim: '<array-block.matrix[1]>', // Should return the whole row
+            multiDim: '<array-block.matrix[1][1]>', // Should return specific element
+          },
+        },
+        inputs: {
+          singleDim: 'string',
+          multiDim: 'string',
+        },
+        outputs: {},
+        enabled: true,
+      }
+
+      const result = arrayResolver.resolveInputs(block, arrayContext)
+      expect(result.singleDim).toEqual(['d', 'e', 'f']) // Whole row as array
+      expect(result.multiDim).toBe('e') // Specific element
+    })
+
+    it.concurrent('should properly format 2D array values for different block types', () => {
+      const functionBlock: SerializedBlock = {
+        id: 'function-test',
+        metadata: { id: BlockType.FUNCTION, name: 'Function Test' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: BlockType.FUNCTION,
+          params: {
+            code: 'return <array-block.matrix[0][1]>',
+          },
+        },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      }
+
+      const conditionBlock: SerializedBlock = {
+        id: 'condition-test',
+        metadata: { id: BlockType.CONDITION, name: 'Condition Test' },
+        position: { x: 0, y: 0 },
+        config: {
+          tool: BlockType.CONDITION,
+          params: {
+            conditions: '<array-block.matrix[0][1]> === "b"',
+          },
+        },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      }
+
+      const functionResult = arrayResolver.resolveInputs(functionBlock, arrayContext)
+      const conditionResult = arrayResolver.resolveInputs(conditionBlock, arrayContext)
+
+      expect(functionResult.code).toBe('return "b"') // Should be quoted for function
+      expect(conditionResult.conditions).toBe('<array-block.matrix[0][1]> === "b"') // Not resolved at input level
+    })
+  })
+
   describe('Variable Reference Validation', () => {
-    it('should allow block references without dots like <start>', () => {
+    it.concurrent('should allow block references without dots like <start>', () => {
       const block: SerializedBlock = {
         id: 'test-block',
         metadata: { id: 'generic', name: 'Test Block' },
@@ -2392,7 +2850,7 @@ describe('InputResolver', () => {
       expect(result.content).not.toBe('Value from <start> block')
     })
 
-    it('should allow other block references without dots', () => {
+    it.concurrent('should allow other block references without dots', () => {
       const testAccessibility = new Map<string, Set<string>>()
       const allIds = [
         'starter-block',
@@ -2405,14 +2863,6 @@ describe('InputResolver', () => {
         testAccessibility.set(id, new Set(allIds))
       })
       testAccessibility.set('test-block', new Set(allIds))
-
-      const testResolver = new InputResolver(
-        sampleWorkflow,
-        mockEnvironmentVars,
-        mockWorkflowVars,
-        undefined,
-        testAccessibility
-      )
 
       const extendedWorkflow = {
         ...sampleWorkflow,
@@ -2468,7 +2918,7 @@ describe('InputResolver', () => {
       expect(() => testResolverWithExtended.resolveInputs(block, extendedContext)).not.toThrow()
     })
 
-    it('should reject operator expressions that look like comparisons', () => {
+    it.concurrent('should reject operator expressions that look like comparisons', () => {
       const block: SerializedBlock = {
         id: 'condition-block',
         metadata: { id: BlockType.CONDITION, name: 'Condition Block' },
@@ -2491,7 +2941,7 @@ describe('InputResolver', () => {
       expect(result.conditions).toBe('x < 5 && 8 > b')
     })
 
-    it('should still allow regular dotted references', () => {
+    it.concurrent('should still allow regular dotted references', () => {
       const block: SerializedBlock = {
         id: 'test-block',
         metadata: { id: 'generic', name: 'Test Block' },
@@ -2520,33 +2970,36 @@ describe('InputResolver', () => {
       expect(result.variableRef).toBe('Hello')
     })
 
-    it('should handle complex expressions with both valid references and operators', () => {
-      const block: SerializedBlock = {
-        id: 'condition-block',
-        metadata: { id: BlockType.CONDITION, name: 'Condition Block' },
-        position: { x: 0, y: 0 },
-        config: {
-          tool: 'condition',
-          params: {
-            conditions:
-              '<start.input> === "Hello" && x < 5 && 8 > y && <function-block.result> !== null',
+    it.concurrent(
+      'should handle complex expressions with both valid references and operators',
+      () => {
+        const block: SerializedBlock = {
+          id: 'condition-block',
+          metadata: { id: BlockType.CONDITION, name: 'Condition Block' },
+          position: { x: 0, y: 0 },
+          config: {
+            tool: 'condition',
+            params: {
+              conditions:
+                '<start.input> === "Hello" && x < 5 && 8 > y && <function-block.result> !== null',
+            },
           },
-        },
-        inputs: {
-          conditions: 'string',
-        },
-        outputs: {},
-        enabled: true,
+          inputs: {
+            conditions: 'string',
+          },
+          outputs: {},
+          enabled: true,
+        }
+
+        const result = resolver.resolveInputs(block, mockContext)
+
+        expect(result.conditions).toBe(
+          '<start.input> === "Hello" && x < 5 && 8 > y && <function-block.result> !== null'
+        )
       }
+    )
 
-      const result = resolver.resolveInputs(block, mockContext)
-
-      expect(result.conditions).toBe(
-        '<start.input> === "Hello" && x < 5 && 8 > y && <function-block.result> !== null'
-      )
-    })
-
-    it('should reject numeric patterns that look like arithmetic', () => {
+    it.concurrent('should reject numeric patterns that look like arithmetic', () => {
       const block: SerializedBlock = {
         id: 'test-block',
         metadata: { id: 'generic', name: 'Test Block' },

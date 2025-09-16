@@ -1,0 +1,131 @@
+---
+title: GitHub
+description: Interagissez avec GitHub ou déclenchez des workflows à partir
+  d'événements GitHub
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="github"
+  color="#181C1E"
+  icon={true}
+  iconSvg={`<svg className="block-icon"    viewBox='0 0 26 26' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        d='M13 0C11.2928 0 9.60235 0.336255 8.02511 0.989566C6.44788 1.64288 5.01477 2.60045 3.80761 3.80761C1.36964 6.24558 0 9.55219 0 13C0 18.746 3.731 23.621 8.892 25.35C9.542 25.454 9.75 25.051 9.75 24.7V22.503C6.149 23.283 5.382 20.761 5.382 20.761C4.784 19.253 3.939 18.85 3.939 18.85C2.756 18.044 4.03 18.07 4.03 18.07C5.33 18.161 6.019 19.409 6.019 19.409C7.15 21.385 9.061 20.8 9.802 20.488C9.919 19.643 10.257 19.071 10.621 18.746C7.735 18.421 4.706 17.303 4.706 12.35C4.706 10.907 5.2 9.75 6.045 8.827C5.915 8.502 5.46 7.15 6.175 5.395C6.175 5.395 7.267 5.044 9.75 6.721C10.777 6.435 11.895 6.292 13 6.292C14.105 6.292 15.223 6.435 16.25 6.721C18.733 5.044 19.825 5.395 19.825 5.395C20.54 7.15 20.085 8.502 19.955 8.827C20.8 9.75 21.294 10.907 21.294 12.35C21.294 17.316 18.252 18.408 15.353 18.733C15.821 19.136 16.25 19.929 16.25 21.138V24.7C16.25 25.051 16.458 25.467 17.121 25.35C22.282 23.608 26 18.746 26 13C26 11.2928 25.6637 9.60235 25.0104 8.02511C24.3571 6.44788 23.3995 5.01477 22.1924 3.80761C20.9852 2.60045 19.5521 1.64288 17.9749 0.989566C16.3977 0.336255 14.7072 0 13 0Z'
+        fill='currentColor'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[GitHub](https://github.com/) est la plateforme leader mondiale pour le développement logiciel et le contrôle de version utilisant Git. Elle fournit un environnement collaboratif où les développeurs peuvent héberger et réviser du code, gérer des projets et construire des logiciels ensemble.
+
+Avec GitHub, vous pouvez :
+
+- **Héberger des dépôts** : stockez votre code dans des dépôts publics ou privés avec contrôle de version
+- **Collaborer sur le code** : utilisez les pull requests pour proposer des modifications, réviser le code et fusionner les contributions
+- **Suivre les problèmes** : créez, assignez et gérez des issues pour organiser le travail et suivre les bugs
+- **Automatiser les workflows** : utilisez GitHub Actions pour construire, tester et déployer du code automatiquement
+- **Gérer des projets** : organisez le travail avec des tableaux de projet, des jalons et le suivi des tâches
+- **Documenter le code** : créez et maintenez de la documentation avec GitHub Pages et les wikis
+
+Dans Sim, l'intégration GitHub permet à vos agents d'interagir directement avec les dépôts et les flux de travail GitHub. Cela permet des scénarios d'automatisation puissants tels que l'assistance à la revue de code, la gestion des pull requests, le suivi des problèmes et l'exploration des dépôts. Vos agents peuvent récupérer les données des dépôts, analyser les modifications de code, publier des commentaires sur les pull requests et effectuer d'autres opérations GitHub de manière programmatique. Cette intégration comble le fossé entre vos flux de travail IA et vos processus de développement, permettant une collaboration transparente entre vos agents et votre équipe de développement.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Accédez aux dépôts GitHub, aux pull requests et aux commentaires via l'API GitHub. Automatisez les revues de code, la gestion des PR et les interactions avec les dépôts au sein de votre flux de travail. Déclenchez des workflows à partir d'événements GitHub comme les push, les pull requests et les issues.
+
+## Outils
+
+### `github_pr`
+
+Récupérer les détails des PR, y compris les différences et les fichiers modifiés
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Oui | Propriétaire du dépôt |
+| `repo` | string | Oui | Nom du dépôt |
+| `pullNumber` | number | Oui | Numéro de la pull request |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Résumé de la PR lisible par l'humain |
+| `metadata` | object | Métadonnées détaillées de la PR, y compris les modifications de fichiers |
+
+### `github_comment`
+
+Créer des commentaires sur les PR GitHub
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Oui | Propriétaire du dépôt |
+| `repo` | string | Oui | Nom du dépôt |
+| `body` | string | Oui | Contenu du commentaire |
+| `pullNumber` | number | Oui | Numéro de la pull request |
+| `path` | string | Non | Chemin du fichier pour le commentaire de revue |
+| `position` | number | Non | Numéro de ligne pour le commentaire de revue |
+| `commentType` | string | Non | Type de commentaire \(pr_comment ou file_comment\) |
+| `line` | number | Non | Numéro de ligne pour le commentaire de revue |
+| `side` | string | Non | Côté de la différence \(LEFT ou RIGHT\) |
+| `commitId` | string | Non | Le SHA du commit à commenter |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Confirmation de commentaire lisible par l'humain |
+| `metadata` | object | Métadonnées du commentaire |
+
+### `github_repo_info`
+
+Récupérez des métadonnées complètes du dépôt GitHub, y compris les étoiles, les forks, les problèmes et le langage principal. Prend en charge les dépôts publics et privés avec authentification optionnelle.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `owner` | string | Oui | Propriétaire du dépôt \(utilisateur ou organisation\) |
+| `repo` | string | Oui | Nom du dépôt |
+| `apiKey` | string | Oui | Jeton d'accès personnel GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Résumé du dépôt lisible par l'humain |
+| `metadata` | object | Métadonnées du dépôt |
+
+### `github_latest_commit`
+
+Récupérer le dernier commit d'un dépôt GitHub
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `owner` | string | Oui | Propriétaire du dépôt \(utilisateur ou organisation\) |
+| `repo` | string | Oui | Nom du dépôt |
+| `branch` | string | Non | Nom de la branche \(par défaut, la branche principale du dépôt\) |
+| `apiKey` | string | Oui | Jeton d'API GitHub |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Résumé du commit lisible par l'humain |
+| `metadata` | object | Métadonnées du commit |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `github`

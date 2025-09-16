@@ -12,6 +12,8 @@ import { quickValidateEmail } from '@/lib/email/validation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
+import { inter } from '@/app/fonts/inter'
+import { soehne } from '@/app/fonts/soehne/soehne'
 
 const logger = createLogger('SignupForm')
 
@@ -91,6 +93,7 @@ function SignupFormContent({
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
   const [redirectUrl, setRedirectUrl] = useState('')
   const [isInviteFlow, setIsInviteFlow] = useState(false)
+  const [buttonClass, setButtonClass] = useState('auth-button-gradient')
 
   // Name validation state
   const [name, setName] = useState('')
@@ -119,6 +122,34 @@ function SignupFormContent({
     const inviteFlowParam = searchParams.get('invite_flow')
     if (inviteFlowParam === 'true') {
       setIsInviteFlow(true)
+    }
+
+    // Check if CSS variable has been customized
+    const checkCustomBrand = () => {
+      const computedStyle = getComputedStyle(document.documentElement)
+      const brandAccent = computedStyle.getPropertyValue('--brand-accent-hex').trim()
+
+      // Check if the CSS variable exists and is different from the default
+      if (brandAccent && brandAccent !== '#6f3dfa') {
+        setButtonClass('auth-button-custom')
+      } else {
+        setButtonClass('auth-button-gradient')
+      }
+    }
+
+    checkCustomBrand()
+
+    // Also check on window resize or theme changes
+    window.addEventListener('resize', checkCustomBrand)
+    const observer = new MutationObserver(checkCustomBrand)
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['style', 'class'],
+    })
+
+    return () => {
+      window.removeEventListener('resize', checkCustomBrand)
+      observer.disconnect()
     }
   }, [searchParams])
 
@@ -361,166 +392,180 @@ function SignupFormContent({
   }
 
   return (
-    <div className='space-y-6'>
-      <div className='space-y-2 text-center'>
-        <h1 className='font-semibold text-[32px] text-white tracking-tight'>Create Account</h1>
-        <p className='text-neutral-400 text-sm'>Enter your details to create a new account</p>
+    <>
+      <div className='space-y-1 text-center'>
+        <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
+          Create an account
+        </h1>
+        <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+          Create an account or log in
+        </p>
       </div>
 
-      <div className='flex flex-col gap-6'>
-        <div className='rounded-xl border border-neutral-700/40 bg-neutral-800/50 p-6 backdrop-blur-sm'>
-          <SocialLoginButtons
-            githubAvailable={githubAvailable}
-            googleAvailable={googleAvailable}
-            callbackURL={redirectUrl || '/workspace'}
-            isProduction={isProduction}
-          />
-
-          {(githubAvailable || googleAvailable) && (
-            <div className='relative mt-2 py-4'>
-              <div className='absolute inset-0 flex items-center'>
-                <div className='w-full border-neutral-700/50 border-t' />
-              </div>
+      <form onSubmit={onSubmit} className={`${inter.className} mt-8 space-y-8`}>
+        <div className='space-y-6'>
+          <div className='space-y-2'>
+            <div className='flex items-center justify-between'>
+              <Label htmlFor='name'>Full Name</Label>
             </div>
-          )}
-
-          <form onSubmit={onSubmit} className='space-y-5'>
-            <div className='space-y-4'>
-              <div className='space-y-2'>
-                <Label htmlFor='name' className='text-neutral-300'>
-                  Full Name
-                </Label>
-                <Input
-                  id='name'
-                  name='name'
-                  placeholder='Enter your name'
-                  type='text'
-                  autoCapitalize='words'
-                  autoComplete='name'
-                  title='Name can only contain letters, spaces, hyphens, and apostrophes'
-                  value={name}
-                  onChange={handleNameChange}
-                  className={cn(
-                    'border-neutral-700 bg-neutral-900 text-white placeholder:text-white/60',
-                    showNameValidationError &&
-                      nameErrors.length > 0 &&
-                      'border-red-500 focus-visible:ring-red-500'
-                  )}
-                />
-                {showNameValidationError && nameErrors.length > 0 && (
-                  <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                    {nameErrors.map((error, index) => (
-                      <p key={index}>{error}</p>
-                    ))}
-                  </div>
-                )}
+            <Input
+              id='name'
+              name='name'
+              placeholder='Enter your name'
+              type='text'
+              autoCapitalize='words'
+              autoComplete='name'
+              title='Name can only contain letters, spaces, hyphens, and apostrophes'
+              value={name}
+              onChange={handleNameChange}
+              className={cn(
+                'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
+                showNameValidationError &&
+                  nameErrors.length > 0 &&
+                  'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+              )}
+            />
+            {showNameValidationError && nameErrors.length > 0 && (
+              <div className='mt-1 space-y-1 text-red-400 text-xs'>
+                {nameErrors.map((error, index) => (
+                  <p key={index}>{error}</p>
+                ))}
               </div>
-              <div className='space-y-2'>
-                <Label htmlFor='email' className='text-neutral-300'>
-                  Email
-                </Label>
-                <Input
-                  id='email'
-                  name='email'
-                  placeholder='Enter your email'
-                  autoCapitalize='none'
-                  autoComplete='email'
-                  autoCorrect='off'
-                  value={email}
-                  onChange={handleEmailChange}
-                  className={cn(
-                    'border-neutral-700 bg-neutral-900 text-white placeholder:text-white/60',
-                    (emailError || (showEmailValidationError && emailErrors.length > 0)) &&
-                      'border-red-500 focus-visible:ring-red-500'
-                  )}
-                />
-                {showEmailValidationError && emailErrors.length > 0 && (
-                  <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                    {emailErrors.map((error, index) => (
-                      <p key={index}>{error}</p>
-                    ))}
-                  </div>
-                )}
-                {emailError && !showEmailValidationError && (
-                  <div className='mt-1 text-red-400 text-xs'>
-                    <p>{emailError}</p>
-                  </div>
-                )}
-              </div>
-              <div className='space-y-2'>
-                <Label htmlFor='password' className='text-neutral-300'>
-                  Password
-                </Label>
-                <div className='relative'>
-                  <Input
-                    id='password'
-                    name='password'
-                    type={showPassword ? 'text' : 'password'}
-                    autoCapitalize='none'
-                    autoComplete='new-password'
-                    placeholder='Enter your password'
-                    autoCorrect='off'
-                    value={password}
-                    onChange={handlePasswordChange}
-                    className='border-neutral-700 bg-neutral-900 pr-10 text-white placeholder:text-white/60'
-                  />
-                  <button
-                    type='button'
-                    onClick={() => setShowPassword(!showPassword)}
-                    className='-translate-y-1/2 absolute top-1/2 right-3 text-neutral-400 transition hover:text-white'
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-                {showValidationError && passwordErrors.length > 0 && (
-                  <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                    {passwordErrors.map((error, index) => (
-                      <p key={index}>{error}</p>
-                    ))}
-                  </div>
-                )}
-              </div>
+            )}
+          </div>
+          <div className='space-y-2'>
+            <div className='flex items-center justify-between'>
+              <Label htmlFor='email'>Email</Label>
             </div>
-
-            <Button
-              type='submit'
-              className='flex h-11 w-full items-center justify-center gap-2 bg-[var(--brand-primary-hex)] font-medium text-base text-white shadow-[var(--brand-primary-hex)]/20 shadow-lg transition-colors duration-200 hover:bg-[var(--brand-primary-hover-hex)]'
-              disabled={isLoading}
-            >
-              {isLoading ? 'Creating account...' : 'Create Account'}
-            </Button>
-          </form>
+            <Input
+              id='email'
+              name='email'
+              placeholder='Enter your email'
+              autoCapitalize='none'
+              autoComplete='email'
+              autoCorrect='off'
+              value={email}
+              onChange={handleEmailChange}
+              className={cn(
+                'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
+                (emailError || (showEmailValidationError && emailErrors.length > 0)) &&
+                  'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+              )}
+            />
+            {showEmailValidationError && emailErrors.length > 0 && (
+              <div className='mt-1 space-y-1 text-red-400 text-xs'>
+                {emailErrors.map((error, index) => (
+                  <p key={index}>{error}</p>
+                ))}
+              </div>
+            )}
+            {emailError && !showEmailValidationError && (
+              <div className='mt-1 text-red-400 text-xs'>
+                <p>{emailError}</p>
+              </div>
+            )}
+          </div>
+          <div className='space-y-2'>
+            <div className='flex items-center justify-between'>
+              <Label htmlFor='password'>Password</Label>
+            </div>
+            <div className='relative'>
+              <Input
+                id='password'
+                name='password'
+                type={showPassword ? 'text' : 'password'}
+                autoCapitalize='none'
+                autoComplete='new-password'
+                placeholder='Enter your password'
+                autoCorrect='off'
+                value={password}
+                onChange={handlePasswordChange}
+                className={cn(
+                  'rounded-[10px] pr-10 shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
+                  showValidationError &&
+                    passwordErrors.length > 0 &&
+                    'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+                )}
+              />
+              <button
+                type='button'
+                onClick={() => setShowPassword(!showPassword)}
+                className='-translate-y-1/2 absolute top-1/2 right-3 text-gray-500 transition hover:text-gray-700'
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+            {showValidationError && passwordErrors.length > 0 && (
+              <div className='mt-1 space-y-1 text-red-400 text-xs'>
+                {passwordErrors.map((error, index) => (
+                  <p key={index}>{error}</p>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className='text-center text-sm'>
-          <span className='text-neutral-400'>Already have an account? </span>
-          <Link
-            href={isInviteFlow ? `/login?invite_flow=true&callbackUrl=${redirectUrl}` : '/login'}
-            className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
-          >
-            Sign in
-          </Link>
-        </div>
+        <Button
+          type='submit'
+          className={`${buttonClass} flex w-full items-center justify-center gap-2 rounded-[10px] border font-medium text-[15px] text-white transition-all duration-200`}
+          disabled={isLoading}
+        >
+          {isLoading ? 'Creating account...' : 'Create Account'}
+        </Button>
+      </form>
 
-        <div className='text-center text-neutral-500/80 text-xs leading-relaxed'>
-          By creating an account, you agree to our{' '}
-          <Link
-            href='/terms'
-            className='text-neutral-400 underline-offset-4 transition hover:text-neutral-300 hover:underline'
-          >
-            Terms of Service
-          </Link>{' '}
-          and{' '}
-          <Link
-            href='/privacy'
-            className='text-neutral-400 underline-offset-4 transition hover:text-neutral-300 hover:underline'
-          >
-            Privacy Policy
-          </Link>
+      {(githubAvailable || googleAvailable) && (
+        <div className={`${inter.className} relative my-6 font-light`}>
+          <div className='absolute inset-0 flex items-center'>
+            <div className='auth-divider w-full border-t' />
+          </div>
+          <div className='relative flex justify-center text-sm'>
+            <span className='bg-white px-4 font-[340] text-muted-foreground'>Or continue with</span>
+          </div>
         </div>
+      )}
+
+      <SocialLoginButtons
+        githubAvailable={githubAvailable}
+        googleAvailable={googleAvailable}
+        callbackURL={redirectUrl || '/workspace'}
+        isProduction={isProduction}
+      />
+
+      <div className={`${inter.className} pt-6 text-center font-light text-[14px]`}>
+        <span className='font-normal'>Already have an account? </span>
+        <Link
+          href={isInviteFlow ? `/login?invite_flow=true&callbackUrl=${redirectUrl}` : '/login'}
+          className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
+        >
+          Sign in
+        </Link>
       </div>
-    </div>
+
+      <div
+        className={`${inter.className} auth-text-muted fixed right-0 bottom-0 left-0 z-50 pb-8 text-center font-[340] text-[13px] leading-relaxed`}
+      >
+        By creating an account, you agree to our{' '}
+        <Link
+          href='/terms'
+          target='_blank'
+          rel='noopener noreferrer'
+          className='auth-link underline-offset-4 transition hover:underline'
+        >
+          Terms of Service
+        </Link>{' '}
+        and{' '}
+        <Link
+          href='/privacy'
+          target='_blank'
+          rel='noopener noreferrer'
+          className='auth-link underline-offset-4 transition hover:underline'
+        >
+          Privacy Policy
+        </Link>
+      </div>
+    </>
   )
 }
 

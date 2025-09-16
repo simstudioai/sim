@@ -1,0 +1,104 @@
+---
+title: Tavily
+description: Buscar y extraer información
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="tavily"
+  color="#0066FF"
+  icon={true}
+  iconSvg={`<svg className="block-icon" viewBox='0 0 600 600' xmlns='http://www.w3.org/2000/svg' >
+      <path
+        d='M432 291C415 294 418 313 417 326C380 328 342 327 306 328C316 344 312 368 301 381C339 384 377 383 414 384C419 393 415 404 419 412C424 419 431 422 437 421C554 393 539 314 425 290'
+        fill='rgb(248,202,81)'
+      />
+      <path
+        d='M263 87C260 88 257 89 255 93C237 121 219 147 204 174C203 184 206 191 212 195C222 198 231 196 239 197C241 238 240 277 241 316C257 307 276 309 294 308C296 273 295 234 296 199C309 196 328 200 333 183C314 149 299 103 267 83'
+        fill='rgb(109,164,249)'
+      />
+      <path
+        d='M314 356L316 354C386 355 457 354 527 355C504 385 469 400 440 421C431 421 424 418 421 411C415 402 420 389 416 383C384 371 284 406 312 358'
+        fill='rgb(250,188,28)'
+      />
+      <path
+        d='M314 356C281 405 384 369 410 384C422 388 415 402 421 409C425 417 431 420 437 420C469 400 504 384 529 360C456 355 386 356 317 355'
+        fill='rgb(251,186,23)'
+      />
+      <path
+        d='M264 325C271 325 290 329 283 339C236 384 186 436 139 482C133 481 133 477 131 474C133 477 133 481 135 482C174 490 213 472 250 466C261 447 246 435 235 426C254 406 271 389 289 372C303 352 287 324 266 326'
+        fill='rgb(251,156,158)'
+      />
+      <path
+        d='M263 327C260 328 256 328 253 330C233 348 216 367 197 384C188 381 183 371 175 368C166 367 161 369 156 372C148 409 133 447 133 482C173 430 281 366 277 323'
+        fill='rgb(248,56,63)'
+      />
+      <path
+        d='M258 326C235 341 218 365 198 382C186 376 176 360 161 368L160 369L157 369C149 378 150 391 146 401C150 391 149 379 157 370C174 359 185 376 195 385C219 365 238 337 262 325'
+        fill='rgb(242,165,165)'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Tavily](https://www.tavily.com/) es una API de búsqueda impulsada por IA diseñada específicamente para aplicaciones LLM. Proporciona capacidades de recuperación de información confiables y en tiempo real con características optimizadas para casos de uso de IA, incluyendo búsqueda semántica, extracción de contenido y recuperación de datos estructurados.
+
+Con Tavily, puedes:
+
+- **Realizar búsquedas contextuales**: Obtener resultados relevantes basados en la comprensión semántica en lugar de solo coincidencia de palabras clave
+- **Extraer contenido estructurado**: Obtener información específica de páginas web en un formato limpio y utilizable
+- **Acceder a información en tiempo real**: Recuperar datos actualizados de toda la web
+- **Procesar múltiples URLs simultáneamente**: Extraer contenido de varias páginas web en una sola solicitud
+- **Recibir resultados optimizados para IA**: Obtener resultados de búsqueda específicamente formateados para el consumo por sistemas de IA
+
+En Sim, la integración de Tavily permite a tus agentes buscar en la web y extraer información como parte de sus flujos de trabajo. Esto permite escenarios de automatización sofisticados que requieren información actualizada de internet. Tus agentes pueden formular consultas de búsqueda, recuperar resultados relevantes y extraer contenido de páginas web específicas para informar sus procesos de toma de decisiones. Esta integración cierra la brecha entre la automatización de tu flujo de trabajo y el vasto conocimiento disponible en la web, permitiendo a tus agentes acceder a información en tiempo real sin intervención manual. Al conectar Sim con Tavily, puedes crear agentes que se mantengan actualizados con la información más reciente, proporcionen respuestas más precisas y entreguen más valor a los usuarios.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Accede al motor de búsqueda impulsado por IA de Tavily para encontrar información relevante de toda la web. Extrae y procesa contenido de URLs específicas con opciones de profundidad personalizables.
+
+## Herramientas
+
+### `tavily_search`
+
+Realiza búsquedas web potenciadas por IA usando Tavily
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Sí | La consulta de búsqueda a ejecutar |
+| `max_results` | number | No | Número máximo de resultados \(1-20\) |
+| `apiKey` | string | Sí | Clave API de Tavily |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `query` | string | La consulta de búsqueda que se ejecutó |
+| `results` | array | Resultados generados por la herramienta |
+
+### `tavily_extract`
+
+Extrae contenido en bruto de múltiples páginas web simultáneamente usando Tavily
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `urls` | string | Sí | URL o array de URLs para extraer contenido |
+| `extract_depth` | string | No | La profundidad de extracción \(básica=1 crédito/5 URLs, avanzada=2 créditos/5 URLs\) |
+| `apiKey` | string | Sí | Clave API de Tavily |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `results` | array | La URL que fue extraída |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `tavily`

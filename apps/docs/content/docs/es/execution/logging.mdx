@@ -1,0 +1,150 @@
+---
+title: Registro
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Sim proporciona un registro completo para todas las ejecuciones de flujos de trabajo, dándote visibilidad total sobre cómo se ejecutan tus flujos de trabajo, qué datos fluyen a través de ellos y dónde podrían ocurrir problemas.
+
+## Sistema de registro
+
+Sim ofrece dos interfaces de registro complementarias para adaptarse a diferentes flujos de trabajo y casos de uso:
+
+### Consola en tiempo real
+
+Durante la ejecución manual o por chat del flujo de trabajo, los registros aparecen en tiempo real en el panel de Consola en el lado derecho del editor de flujo de trabajo:
+
+<div className="flex justify-center">
+  <Image
+    src="/static/logs/console.png"
+    alt="Panel de consola en tiempo real"
+    width={400}
+    height={300}
+    className="my-6"
+  />
+</div>
+
+La consola muestra:
+- Progreso de ejecución de bloques con resaltado del bloque activo
+- Resultados en tiempo real a medida que se completan los bloques
+- Tiempo de ejecución para cada bloque
+- Indicadores de estado de éxito/error
+
+### Página de registros
+
+Todas las ejecuciones de flujos de trabajo, ya sean activadas manualmente, a través de API, Chat, Programación o Webhook, se registran en la página dedicada de Registros:
+
+<div className="flex justify-center">
+  <Image
+    src="/static/logs/logs.png"
+    alt="Página de registros"
+    width={600}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+La página de Registros proporciona:
+- Filtrado completo por rango de tiempo, estado, tipo de activación, carpeta y flujo de trabajo
+- Funcionalidad de búsqueda en todos los registros
+- Modo en vivo para actualizaciones en tiempo real
+- Retención de registros de 7 días (ampliable para una retención más larga)
+
+## Barra lateral de detalles de registro
+
+Al hacer clic en cualquier entrada de registro se abre una vista detallada en la barra lateral:
+
+<div className="flex justify-center">
+  <Image
+    src="/static/logs/logs-sidebar.png"
+    alt="Detalles de la barra lateral de registros"
+    width={600}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+### Entrada/Salida de bloque
+
+Visualiza el flujo de datos completo para cada bloque con pestañas para cambiar entre:
+
+<Tabs items={['Output', 'Input']}>
+  <Tab>
+    **Pestaña de salida** muestra el resultado de la ejecución del bloque:
+    - Datos estructurados con formato JSON
+    - Renderizado de Markdown para contenido generado por IA
+    - Botón de copiar para fácil extracción de datos
+  </Tab>
+  
+  <Tab>
+    **Pestaña de entrada** muestra lo que se pasó al bloque:
+    - Valores de variables resueltos
+    - Salidas referenciadas de otros bloques
+    - Variables de entorno utilizadas
+    - Las claves API se redactan automáticamente por seguridad
+  </Tab>
+</Tabs>
+
+### Cronología de ejecución
+
+Para los registros a nivel de flujo de trabajo, visualiza métricas detalladas de ejecución:
+- Marcas de tiempo de inicio y fin
+- Duración total del flujo de trabajo
+- Tiempos de ejecución de bloques individuales
+- Identificación de cuellos de botella de rendimiento
+
+## Instantáneas del flujo de trabajo
+
+Para cualquier ejecución registrada, haz clic en "Ver instantánea" para ver el estado exacto del flujo de trabajo en el momento de la ejecución:
+
+<div className="flex justify-center">
+  <Image
+    src="/static/logs/logs-frozen-canvas.png"
+    alt="Instantánea del flujo de trabajo"
+    width={600}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+La instantánea proporciona:
+- Lienzo congelado que muestra la estructura del flujo de trabajo
+- Estados de los bloques y conexiones tal como estaban durante la ejecución
+- Haz clic en cualquier bloque para ver sus entradas y salidas
+- Útil para depurar flujos de trabajo que han sido modificados desde entonces
+
+<Callout type="info">
+  Las instantáneas de flujo de trabajo solo están disponibles para ejecuciones posteriores a la introducción del sistema mejorado de registro. Los registros migrados más antiguos muestran un mensaje de "Estado registrado no encontrado".
+</Callout>
+
+## Retención de registros
+
+- **Plan gratuito**: 7 días de retención de registros
+- **Plan pro**: 30 días de retención de registros
+- **Plan de equipo**: 90 días de retención de registros
+- **Plan empresarial**: Períodos de retención personalizados disponibles
+
+## Mejores prácticas
+
+### Para desarrollo
+- Utiliza la consola en tiempo real para obtener retroalimentación inmediata durante las pruebas
+- Verifica las entradas y salidas de los bloques para comprobar el flujo de datos
+- Usa instantáneas del flujo de trabajo para comparar versiones funcionales vs. defectuosas
+
+### Para producción
+- Supervisa regularmente la página de registros para detectar errores o problemas de rendimiento
+- Configura filtros para centrarte en flujos de trabajo específicos o períodos de tiempo
+- Utiliza el modo en vivo durante implementaciones críticas para observar las ejecuciones en tiempo real
+
+### Para depuración
+- Siempre verifica la cronología de ejecución para identificar bloques lentos
+- Compara las entradas entre ejecuciones exitosas y fallidas
+- Utiliza instantáneas del flujo de trabajo para ver el estado exacto cuando ocurrieron los problemas
+
+## Próximos pasos
+
+- Aprende sobre [Cálculo de costos](/execution/costs) para entender los precios de los flujos de trabajo
+- Explora la [API externa](/execution/api) para acceso programático a los registros
+- Configura [notificaciones por Webhook](/execution/api#webhook-subscriptions) para alertas en tiempo real

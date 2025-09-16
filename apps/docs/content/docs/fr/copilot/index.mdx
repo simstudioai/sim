@@ -1,0 +1,161 @@
+---
+title: Copilot
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
+import { MessageCircle, Package, Zap, Infinity as InfinityIcon, Brain, BrainCircuit } from 'lucide-react'
+
+Copilot est votre assistant intégré à l'éditeur qui vous aide à créer et à modifier des flux de travail avec Sim Copilot, ainsi qu'à les comprendre et à les améliorer. Il peut :
+
+- **Expliquer** : répondre aux questions sur Sim et votre flux de travail actuel
+- **Guider** : suggérer des modifications et des bonnes pratiques
+- **Modifier** : apporter des changements aux blocs, connexions et paramètres lorsque vous les approuvez
+
+<Callout type="info">
+  Copilot est un service géré par Sim. Pour les déploiements auto-hébergés, générez une clé API Copilot dans l'application hébergée (sim.ai → Paramètres → Copilot)
+  1. Allez sur [sim.ai](https://sim.ai) → Paramètres → Copilot et générez une clé API Copilot
+  2. Définissez `COPILOT_API_KEY` dans votre environnement auto-hébergé avec cette valeur
+</Callout>
+
+## Menu contextuel (@)
+
+Utilisez le symbole `@` pour référencer diverses ressources et donner à Copilot plus de contexte sur votre espace de travail :
+
+<Image
+  src="/static/copilot/copilot-menu.png"
+  alt="Menu contextuel de Copilot montrant les options de référence disponibles"
+  width={600}
+  height={400}
+/>
+
+Le menu `@` donne accès à :
+- **Discussions** : référencer les conversations précédentes avec Copilot
+- **Tous les flux de travail** : référencer n'importe quel flux de travail dans votre espace de travail
+- **Blocs de flux de travail** : référencer des blocs spécifiques des flux de travail
+- **Blocs** : référencer des types de blocs et des modèles
+- **Connaissances** : référencer vos documents téléchargés et votre base de connaissances
+- **Documentation** : référencer la documentation de Sim
+- **Modèles** : référencer des modèles de flux de travail
+- **Journaux** : référencer les journaux d'exécution et les résultats
+
+Ces informations contextuelles aident Copilot à fournir une assistance plus précise et pertinente pour votre cas d'utilisation spécifique.
+
+## Modes
+
+<Cards>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <MessageCircle className="h-4 w-4 text-muted-foreground" />
+        Demander
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">
+      Mode questions-réponses pour des explications, des conseils et des suggestions sans apporter de modifications à votre flux de travail.
+    </div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <Package className="h-4 w-4 text-muted-foreground" />
+        Agent
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">
+      Mode de création et de modification. Copilot propose des modifications spécifiques (ajouter des blocs, connecter des variables, ajuster des paramètres) et les applique lorsque vous les approuvez.
+    </div>
+  </Card>
+</Cards>
+
+## Niveaux de profondeur
+
+<Cards>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <Zap className="h-4 w-4 text-muted-foreground" />
+        Rapide
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">Plus rapide et moins coûteux. Idéal pour les petites modifications, les flux de travail simples et les ajustements mineurs.</div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <InfinityIcon className="h-4 w-4 text-muted-foreground" />
+        Auto
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">Équilibre entre vitesse et raisonnement. Recommandé par défaut pour la plupart des tâches.</div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <Brain className="h-4 w-4 text-muted-foreground" />
+        Avancé
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">Plus de raisonnement pour les flux de travail plus importants et les modifications complexes tout en restant performant.</div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <BrainCircuit className="h-4 w-4 text-muted-foreground" />
+        Mastodonte
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">Raisonnement maximal pour la planification approfondie, le débogage et les changements architecturaux complexes.</div>
+  </Card>
+</Cards>
+
+### Interface de sélection du mode
+
+Vous pouvez facilement basculer entre différents modes de raisonnement à l'aide du sélecteur de mode dans l'interface Copilot :
+
+<Image
+  src="/static/copilot/copilot-models.png"
+  alt="Sélection du mode Copilot montrant le mode Avancé avec l'option MAX activée"
+  width={600}
+  height={300}
+/>
+
+L'interface vous permet de :
+- **Sélectionner le niveau de raisonnement** : choisissez entre Rapide, Auto, Avancé ou Mastodonte
+- **Activer le mode MAX** : basculez pour des capacités de raisonnement maximales lorsque vous avez besoin de l'analyse la plus approfondie
+- **Voir les descriptions des modes** : comprendre pour quoi chaque mode est optimisé
+
+Choisissez votre mode en fonction de la complexité de votre tâche - utilisez Rapide pour des questions simples et Mastodonte pour des changements architecturaux complexes.
+
+## Facturation et calcul des coûts
+
+### Comment les coûts sont calculés
+
+L'utilisation de Copilot est facturée par token depuis le LLM sous-jacent :
+
+- **Tokens d'entrée** : facturés au tarif de base du fournisseur (**au prix coûtant**)
+- **Tokens de sortie** : facturés à **1,5×** le tarif de base de sortie du fournisseur
+
+```javascript
+copilotCost = (inputTokens × inputPrice + outputTokens × (outputPrice × 1.5)) / 1,000,000
+```
+
+| Composant | Tarif appliqué        |
+|-----------|----------------------|
+| Entrée    | inputPrice           |
+| Sortie    | outputPrice × 1,5    |
+
+<Callout type="warning">
+  Les tarifs affichés reflètent les taux en vigueur au 4 septembre 2025. Consultez la documentation du fournisseur pour connaître les tarifs actuels.
+</Callout>
+
+<Callout type="info">
+  Les prix des modèles sont indiqués par million de tokens. Le calcul divise par 1 000 000 pour obtenir le coût réel. Consultez <a href="/execution/costs">la page de calcul des coûts</a> pour plus d'informations et des exemples.
+</Callout>

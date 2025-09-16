@@ -1,0 +1,412 @@
+---
+title: Python SDK
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+官方的 Python SDK 允许您通过 Python 应用程序以编程方式执行工作流。
+
+<Callout type="info">
+  Python SDK 支持 Python 3.8+，并提供同步工作流执行。目前所有工作流执行均为同步模式。
+</Callout>
+
+## 安装
+
+使用 pip 安装 SDK：
+
+```bash
+pip install simstudio-sdk
+```
+
+## 快速开始
+
+以下是一个简单的示例，帮助您快速入门：
+
+```python
+from simstudio import SimStudioClient
+
+# Initialize the client
+client = SimStudioClient(
+    api_key="your-api-key-here",
+    base_url="https://sim.ai"  # optional, defaults to https://sim.ai
+)
+
+# Execute a workflow
+try:
+    result = client.execute_workflow("workflow-id")
+    print("Workflow executed successfully:", result)
+except Exception as error:
+    print("Workflow execution failed:", error)
+```
+
+## API 参考
+
+### SimStudioClient
+
+#### 构造函数
+
+```python
+SimStudioClient(api_key: str, base_url: str = "https://sim.ai")
+```
+
+**参数：**
+- `api_key` (str): 您的 Sim API 密钥
+- `base_url` (str, 可选): Sim API 的基础 URL
+
+#### 方法
+
+##### execute_workflow()
+
+执行带有可选输入数据的工作流。
+
+```python
+result = client.execute_workflow(
+    "workflow-id",
+    input_data={"message": "Hello, world!"},
+    timeout=30.0  # 30 seconds
+)
+```
+
+**参数：**
+- `workflow_id` (str): 要执行的工作流 ID
+- `input_data` (dict, 可选): 传递给工作流的输入数据
+- `timeout` (float, 可选): 超时时间（以秒为单位，默认值：30.0）
+
+**返回值：** `WorkflowExecutionResult`
+
+##### get_workflow_status()
+
+获取工作流的状态（部署状态等）。
+
+```python
+status = client.get_workflow_status("workflow-id")
+print("Is deployed:", status.is_deployed)
+```
+
+**参数：**
+- `workflow_id` (str): 工作流的 ID
+
+**返回值：** `WorkflowStatus`
+
+##### validate_workflow()
+
+验证工作流是否已准备好执行。
+
+```python
+is_ready = client.validate_workflow("workflow-id")
+if is_ready:
+    # Workflow is deployed and ready
+    pass
+```
+
+**参数：**
+- `workflow_id` (str)：工作流的 ID
+
+**返回值：** `bool`
+
+##### execute_workflow_sync()
+
+<Callout type="info">
+  当前，此方法与 `execute_workflow()` 相同，因为所有执行都是同步的。提供此方法是为了在将来添加异步执行时保持兼容性。
+</Callout>
+
+执行工作流（当前为同步，与 `execute_workflow()` 相同）。
+
+```python
+result = client.execute_workflow_sync(
+    "workflow-id",
+    input_data={"data": "some input"},
+    timeout=60.0
+)
+```
+
+**参数：**
+- `workflow_id` (str)：要执行的工作流 ID
+- `input_data` (dict, optional)：传递给工作流的输入数据
+- `timeout` (float)：初始请求的超时时间（以秒为单位）
+
+**返回值：** `WorkflowExecutionResult`
+
+##### set_api_key()
+
+更新 API 密钥。
+
+```python
+client.set_api_key("new-api-key")
+```
+
+##### set_base_url()
+
+更新基础 URL。
+
+```python
+client.set_base_url("https://my-custom-domain.com")
+```
+
+##### close()
+
+关闭底层 HTTP 会话。
+
+```python
+client.close()
+```
+
+## 数据类
+
+### WorkflowExecutionResult
+
+```python
+@dataclass
+class WorkflowExecutionResult:
+    success: bool
+    output: Optional[Any] = None
+    error: Optional[str] = None
+    logs: Optional[List[Any]] = None
+    metadata: Optional[Dict[str, Any]] = None
+    trace_spans: Optional[List[Any]] = None
+    total_duration: Optional[float] = None
+```
+
+### WorkflowStatus
+
+```python
+@dataclass
+class WorkflowStatus:
+    is_deployed: bool
+    deployed_at: Optional[str] = None
+    is_published: bool = False
+    needs_redeployment: bool = False
+```
+
+### SimStudioError
+
+```python
+class SimStudioError(Exception):
+    def __init__(self, message: str, code: Optional[str] = None, status: Optional[int] = None):
+        super().__init__(message)
+        self.code = code
+        self.status = status
+```
+
+## 示例
+
+### 基本工作流执行
+
+<Steps>
+  <Step title="初始化客户端">
+    使用您的 API 密钥设置 SimStudioClient。
+  </Step>
+  <Step title="验证工作流">
+    检查工作流是否已部署并准备好执行。
+  </Step>
+  <Step title="执行工作流">
+    使用您的输入数据运行工作流。
+  </Step>
+  <Step title="处理结果">
+    处理执行结果并处理任何错误。
+  </Step>
+</Steps>
+
+```python
+import os
+from simstudio import SimStudioClient
+
+client = SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY"))
+
+def run_workflow():
+    try:
+        # Check if workflow is ready
+        is_ready = client.validate_workflow("my-workflow-id")
+        if not is_ready:
+            raise Exception("Workflow is not deployed or ready")
+
+        # Execute the workflow
+        result = client.execute_workflow(
+            "my-workflow-id",
+            input_data={
+                "message": "Process this data",
+                "user_id": "12345"
+            }
+        )
+
+        if result.success:
+            print("Output:", result.output)
+            print("Duration:", result.metadata.get("duration") if result.metadata else None)
+        else:
+            print("Workflow failed:", result.error)
+            
+    except Exception as error:
+        print("Error:", error)
+
+run_workflow()
+```
+
+### 错误处理
+
+处理工作流执行过程中可能发生的不同类型的错误：
+
+```python
+from simstudio import SimStudioClient, SimStudioError
+import os
+
+client = SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY"))
+
+def execute_with_error_handling():
+    try:
+        result = client.execute_workflow("workflow-id")
+        return result
+    except SimStudioError as error:
+        if error.code == "UNAUTHORIZED":
+            print("Invalid API key")
+        elif error.code == "TIMEOUT":
+            print("Workflow execution timed out")
+        elif error.code == "USAGE_LIMIT_EXCEEDED":
+            print("Usage limit exceeded")
+        elif error.code == "INVALID_JSON":
+            print("Invalid JSON in request body")
+        else:
+            print(f"Workflow error: {error}")
+        raise
+    except Exception as error:
+        print(f"Unexpected error: {error}")
+        raise
+```
+
+### 上下文管理器的使用
+
+将客户端用作上下文管理器以自动处理资源清理：
+
+```python
+from simstudio import SimStudioClient
+import os
+
+# Using context manager to automatically close the session
+with SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY")) as client:
+    result = client.execute_workflow("workflow-id")
+    print("Result:", result)
+# Session is automatically closed here
+```
+
+### 批量工作流执行
+
+高效地执行多个工作流：
+
+```python
+from simstudio import SimStudioClient
+import os
+
+client = SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY"))
+
+def execute_workflows_batch(workflow_data_pairs):
+    """Execute multiple workflows with different input data."""
+    results = []
+    
+    for workflow_id, input_data in workflow_data_pairs:
+        try:
+            # Validate workflow before execution
+            if not client.validate_workflow(workflow_id):
+                print(f"Skipping {workflow_id}: not deployed")
+                continue
+                
+            result = client.execute_workflow(workflow_id, input_data)
+            results.append({
+                "workflow_id": workflow_id,
+                "success": result.success,
+                "output": result.output,
+                "error": result.error
+            })
+            
+        except Exception as error:
+            results.append({
+                "workflow_id": workflow_id,
+                "success": False,
+                "error": str(error)
+            })
+    
+    return results
+
+# Example usage
+workflows = [
+    ("workflow-1", {"type": "analysis", "data": "sample1"}),
+    ("workflow-2", {"type": "processing", "data": "sample2"}),
+]
+
+results = execute_workflows_batch(workflows)
+for result in results:
+    print(f"Workflow {result['workflow_id']}: {'Success' if result['success'] else 'Failed'}")
+```
+
+### 环境配置
+
+使用环境变量配置客户端：
+
+<Tabs items={['开发', '生产']}>
+  <Tab value="开发">
+
+    ```python
+    import os
+    from simstudio import SimStudioClient
+
+    # Development configuration
+    client = SimStudioClient(
+        api_key=os.getenv("SIMSTUDIO_API_KEY"),
+        base_url=os.getenv("SIMSTUDIO_BASE_URL", "https://sim.ai")
+    )
+    ```
+
+  </Tab>
+  <Tab value="生产">
+
+    ```python
+    import os
+    from simstudio import SimStudioClient
+
+    # Production configuration with error handling
+    api_key = os.getenv("SIMSTUDIO_API_KEY")
+    if not api_key:
+        raise ValueError("SIMSTUDIO_API_KEY environment variable is required")
+
+    client = SimStudioClient(
+        api_key=api_key,
+        base_url=os.getenv("SIMSTUDIO_BASE_URL", "https://sim.ai")
+    )
+    ```
+
+  </Tab>
+</Tabs>
+
+## 获取您的 API 密钥
+
+<Steps>
+  <Step title="登录 Sim">
+    访问 [Sim](https://sim.ai) 并登录您的账户。
+  </Step>
+  <Step title="打开您的工作流">
+    导航到您想要以编程方式执行的工作流。
+  </Step>
+  <Step title="部署您的工作流">
+    点击“部署”以部署您的工作流（如果尚未部署）。
+  </Step>
+  <Step title="创建或选择 API 密钥">
+    在部署过程中，选择或创建一个 API 密钥。
+  </Step>
+  <Step title="复制 API 密钥">
+    复制 API 密钥以在您的 Python 应用程序中使用。
+  </Step>
+</Steps>
+
+<Callout type="warning">
+  请确保您的 API 密钥安全，切勿将其提交到版本控制中。请使用环境变量或安全的配置管理工具。
+</Callout>
+
+## 要求
+
+- Python 3.8+
+- requests >= 2.25.0
+
+## 许可证
+
+Apache-2.0

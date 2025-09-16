@@ -1,0 +1,68 @@
+---
+title: WhatsApp
+description: Enviar mensajes de WhatsApp
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="whatsapp"
+  color="#25D366"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      fill='currentColor'
+      viewBox='0 0 16 16'
+    >
+      <path d='M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232' />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[WhatsApp](https://www.whatsapp.com/) es una plataforma de mensajería globalmente popular que permite una comunicación segura y confiable entre individuos y empresas.
+
+La API de WhatsApp Business proporciona a las organizaciones potentes capacidades para:
+
+- **Interactuar con clientes**: Enviar mensajes personalizados, notificaciones y actualizaciones directamente a la aplicación de mensajería preferida de los clientes
+- **Automatizar conversaciones**: Crear chatbots interactivos y sistemas de respuesta automatizada para consultas comunes
+- **Mejorar el soporte**: Proporcionar servicio al cliente en tiempo real a través de una interfaz familiar con soporte para contenido multimedia
+- **Impulsar conversiones**: Facilitar transacciones y seguimientos con clientes en un entorno seguro y conforme
+
+En Sim, la integración con WhatsApp permite a tus agentes aprovechar estas capacidades de mensajería como parte de sus flujos de trabajo. Esto crea oportunidades para escenarios sofisticados de interacción con clientes como recordatorios de citas, códigos de verificación, alertas y conversaciones interactivas. La integración conecta tus flujos de trabajo de IA con los canales de comunicación de los clientes, permitiendo que tus agentes entreguen información oportuna y relevante directamente a los dispositivos móviles de los usuarios. Al conectar Sim con WhatsApp, puedes construir agentes inteligentes que interactúen con los clientes a través de su plataforma de mensajería preferida, mejorando la experiencia del usuario mientras automatizas tareas rutinarias de mensajería.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Envía mensajes a usuarios de WhatsApp utilizando la API de WhatsApp Business. Requiere configuración de la API de WhatsApp Business.
+
+## Herramientas
+
+### `whatsapp_send_message`
+
+Enviar mensajes de WhatsApp
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ---------- | ----------- |
+| `phoneNumber` | string | Sí | Número de teléfono del destinatario con código de país |
+| `message` | string | Sí | Contenido del mensaje a enviar |
+| `phoneNumberId` | string | Sí | ID del número de teléfono de WhatsApp Business |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Estado de éxito del envío del mensaje de WhatsApp |
+| `messageId` | string | Identificador único del mensaje de WhatsApp |
+| `phoneNumber` | string | Número de teléfono del destinatario |
+| `status` | string | Estado de entrega del mensaje |
+| `timestamp` | string | Marca de tiempo del envío del mensaje |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `whatsapp`

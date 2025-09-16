@@ -1,0 +1,193 @@
+---
+title: 连接数据结构
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+当您连接模块时，了解不同模块输出的数据结构非常重要，因为源模块的输出数据结构决定了目标模块中可用的值。每种模块类型都会生成特定的输出结构，您可以在下游模块中引用这些结构。
+
+<Callout type="info">
+  理解这些数据结构对于有效使用连接标签和在工作流中访问正确的数据至关重要。
+</Callout>
+
+## 模块输出结构
+
+不同的模块类型会生成不同的输出结构。以下是每种模块类型的输出结构：
+
+<Tabs items={['代理输出', 'API 输出', '函数输出', '评估器输出', '条件输出', '路由器输出']}>
+  <Tab>
+
+    ```json
+    {
+      "content": "The generated text response",
+      "model": "gpt-4o",
+      "tokens": {
+        "prompt": 120,
+        "completion": 85,
+        "total": 205
+      },
+      "toolCalls": [...],
+      "cost": [...],
+      "usage": [...]
+    }
+    ```
+
+    ### 代理模块输出字段
+
+    - **content**: 代理生成的主要文本响应
+    - **model**: 使用的 AI 模型（例如："gpt-4o"，"claude-3-opus"）
+    - **tokens**: 令牌使用统计
+      - **prompt**: 提示中的令牌数量
+      - **completion**: 完成中的令牌数量
+      - **total**: 使用的令牌总数
+    - **toolCalls**: 代理调用的工具数组（如果有）
+    - **cost**: 每次工具调用的成本对象数组（如果有）
+    - **usage**: 整个响应的令牌使用统计
+
+  </Tab>
+  <Tab>
+
+    ```json
+    {
+      "data": "Response data",
+      "status": 200,
+      "headers": {
+        "content-type": "application/json",
+        "cache-control": "no-cache"
+      }
+    }
+    ```
+
+    ### API 模块输出字段
+
+    - **data**: 来自 API 的响应数据（可以是任何类型）
+    - **status**: 响应的 HTTP 状态码
+    - **headers**: API 返回的 HTTP 头信息
+
+  </Tab>
+  <Tab>
+
+    ```json
+    {
+      "result": "Function return value",
+      "stdout": "Console output",
+    }
+    ```
+
+    ### 函数模块输出字段
+
+    - **result**: 函数的返回值（可以是任何类型）
+    - **stdout**: 函数执行期间捕获的控制台输出
+
+  </Tab>
+  <Tab>
+
+    ```json
+    {
+      "content": "Evaluation summary",
+      "model": "gpt-5",
+      "tokens": {
+        "prompt": 120,
+        "completion": 85,
+        "total": 205
+      },
+      "metric1": 8.5,
+      "metric2": 7.2,
+      "metric3": 9.0
+    }
+    ```
+
+    ### 评估器模块输出字段
+
+    - **content**：评估的摘要
+    - **model**：用于评估的 AI 模型
+    - **tokens**：令牌使用统计
+    - **[metricName]**：评估器中定义的每个指标的分数（动态字段）
+
+  </Tab>
+  <Tab>
+
+    ```json
+    {
+      "content": "Original content passed through",
+      "conditionResult": true,
+      "selectedPath": {
+        "blockId": "2acd9007-27e8-4510-a487-73d3b825e7c1",
+        "blockType": "agent",
+        "blockTitle": "Follow-up Agent"
+      },
+      "selectedConditionId": "condition-1"
+    }
+    ```
+
+    ### 条件模块输出字段
+
+    - **content**：传递的原始内容
+    - **conditionResult**：条件评估的布尔结果
+    - **selectedPath**：关于选定路径的信息
+      - **blockId**：选定路径中下一个模块的 ID
+      - **blockType**：下一个模块的类型
+      - **blockTitle**：下一个模块的标题
+    - **selectedConditionId**：选定条件的 ID
+
+  </Tab>
+  <Tab>
+
+    ```json
+    {
+      "content": "Routing decision",
+      "model": "gpt-4o",
+      "tokens": {
+        "prompt": 120,
+        "completion": 85,
+        "total": 205
+      },
+      "selectedPath": {
+        "blockId": "2acd9007-27e8-4510-a487-73d3b825e7c1",
+        "blockType": "agent",
+        "blockTitle": "Customer Service Agent"
+      }
+    }
+    ```
+
+    ### 路由模块输出字段
+
+    - **content**：路由决策文本
+    - **model**：用于路由的 AI 模型
+    - **tokens**：令牌使用统计
+    - **selectedPath**：关于选定路径的信息
+      - **blockId**：选定目标模块的 ID
+      - **blockType**：选定模块的类型
+      - **blockTitle**：选定模块的标题
+
+  </Tab>
+</Tabs>
+
+## 自定义输出结构
+
+某些模块可能会根据其配置生成自定义输出结构：
+
+1. **带有响应格式的代理模块**：在代理模块中使用响应格式时，输出结构将匹配定义的模式，而不是标准结构。
+
+2. **函数模块**：`result` 字段可以包含函数代码返回的任何数据结构。
+
+3. **API 模块**：`data` 字段将包含 API 返回的内容，这可能是任何有效的 JSON 结构。
+
+<Callout type="warning">
+  在开发过程中始终检查模块的实际输出结构，以确保您在连接中引用了正确的字段。
+</Callout>
+
+## 嵌套数据结构
+
+许多块的输出包含嵌套数据结构。您可以在连接标签中使用点符号访问这些结构：
+
+```
+<blockName.path.to.nested.data>
+```
+
+例如：
+
+- `<agent1.tokens.total>` - 从 Agent 块访问总令牌数
+- `<api1.data.results[0].id>` - 从 API 响应中访问第一个结果的 ID
+- `<function1.result.calculations.total>` - 访问 Function 块结果中的嵌套字段

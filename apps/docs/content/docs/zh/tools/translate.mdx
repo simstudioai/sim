@@ -1,0 +1,89 @@
+---
+title: 翻译
+description: 将文本翻译成任何语言
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="translate"
+  color="#FF4B4B"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='2'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      
+    >
+      <path d='m5 8 6 6' />
+      <path d='m4 14 6-6 2-3' />
+      <path d='M2 5h12' />
+      <path d='M7 2h1' />
+      <path d='m22 22-5-10-5 10' />
+      <path d='M14 18h6' />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+翻译是一种工具，可以让您在不同语言之间翻译文本。
+
+使用翻译工具，您可以：
+
+- **翻译文本**：在不同语言之间翻译文本
+- **翻译文档**：在不同语言之间翻译文档
+- **翻译网站**：在不同语言之间翻译网站
+- **翻译图片**：在不同语言之间翻译图片
+- **翻译音频**：在不同语言之间翻译音频
+- **翻译视频**：在不同语言之间翻译视频
+- **翻译语音**：在不同语言之间翻译语音
+- **翻译文本**：在不同语言之间翻译文本
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+在保持意义、细微差别和格式的同时，在不同语言之间转换文本。利用强大的语言模型生成自然流畅的翻译，并进行适当的文化调整。
+
+## 工具
+
+### `openai_chat`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 翻译后的文本 |
+| `model` | string | 使用的模型 |
+| `tokens` | json | 令牌使用情况 |
+
+### `anthropic_chat`
+
+### `google_chat`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `content` | string | 翻译后的文本 |
+| `model` | string | 使用的模型 |
+| `tokens` | json | Token 使用情况 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`translate`

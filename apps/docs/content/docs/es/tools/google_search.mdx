@@ -1,0 +1,86 @@
+---
+title: Búsqueda de Google
+description: Buscar en la web
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_search"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"  xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'  >
+      <path
+        fill='#fbc02d'
+        d='M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12	s5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24s8.955,20,20,20	s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z'
+      />
+      <path
+        fill='#e53935'
+        d='M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039	l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z'
+      />
+      <path
+        fill='#4caf50'
+        d='M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36	c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z'
+      />
+      <path
+        fill='#1565c0'
+        d='M43.611,20.083L43.595,20L42,20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571	c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Search](https://www.google.com) es el motor de búsqueda más utilizado del mundo, que proporciona acceso a miles de millones de páginas web y fuentes de información. Google Search utiliza algoritmos sofisticados para ofrecer resultados de búsqueda relevantes basados en las consultas de los usuarios, lo que lo convierte en una herramienta esencial para encontrar información en internet.
+
+Aprende cómo integrar la herramienta de Google Search en Sim para obtener sin esfuerzo resultados de búsqueda en tiempo real a través de tus flujos de trabajo. Este tutorial te guía a través de la conexión con Google Search, la configuración de consultas de búsqueda y el uso de datos en vivo para mejorar la automatización. Perfecto para potenciar tus agentes con información actualizada y toma de decisiones más inteligente.
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/1B7hV9b5UMQ"
+  title="Usa la herramienta de Google Search en Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Con Google Search, puedes:
+
+- **Encontrar información relevante**: Accede a miles de millones de páginas web con los potentes algoritmos de búsqueda de Google
+- **Obtener resultados específicos**: Utiliza operadores de búsqueda para refinar y dirigir tus consultas
+- **Descubrir contenido diverso**: Encuentra texto, imágenes, videos, noticias y otros tipos de contenido
+- **Acceder a gráficos de conocimiento**: Obtén información estructurada sobre personas, lugares y cosas
+- **Utilizar funciones de búsqueda**: Aprovecha herramientas de búsqueda especializadas como calculadoras, convertidores de unidades y más
+
+En Sim, la integración de Google Search permite a tus agentes buscar en la web de forma programática e incorporar resultados de búsqueda en sus flujos de trabajo. Esto permite escenarios de automatización potentes como investigación, verificación de hechos, recopilación de datos y síntesis de información. Tus agentes pueden formular consultas de búsqueda, recuperar resultados relevantes y extraer información de esos resultados para tomar decisiones o generar ideas. Esta integración cierra la brecha entre tus flujos de trabajo de IA y la vasta información disponible en la web, permitiendo a tus agentes acceder a información actualizada de toda internet. Al conectar Sim con Google Search, puedes crear agentes que se mantengan informados con la información más reciente, verifiquen hechos, realicen investigaciones y proporcionen a los usuarios contenido web relevante, todo sin salir de tu flujo de trabajo.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Busca en la web utilizando la API de Google Custom Search, que proporciona resultados de búsqueda de alta calidad de toda internet o de un sitio específico definido por un ID de motor de búsqueda personalizado.
+
+## Herramientas
+
+### `google_search`
+
+Buscar en la web con la API de Custom Search
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `query` | string | Sí | La consulta de búsqueda a ejecutar |
+| `searchEngineId` | string | Sí | ID del motor de búsqueda personalizado |
+| `num` | string | No | Número de resultados a devolver \(predeterminado: 10, máximo: 10\) |
+| `apiKey` | string | Sí | Clave de API de Google |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `items` | array | Array de resultados de búsqueda de Google |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `google_search`

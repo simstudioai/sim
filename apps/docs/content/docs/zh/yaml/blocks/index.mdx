@@ -1,0 +1,151 @@
+---
+title: 块模式
+description: 所有 Sim 块的完整 YAML 模式参考
+---
+
+import { Card, Cards } from "fumadocs-ui/components/card";
+
+本节包含 Sim 中所有可用块类型的完整 YAML 模式定义。每种块类型都有特定的配置要求和输出格式。
+
+## 核心块
+
+这些是创建工作流的基本构建块：
+
+<Cards>
+  <Card title="起始块" href="/yaml/blocks/starter">
+    支持手动触发、Webhook 和计划任务的工作流入口点
+  </Card>
+  <Card title="代理块" href="/yaml/blocks/agent">
+    支持 LLM 集成和工具支持的 AI 驱动处理
+  </Card>
+  <Card title="功能块" href="/yaml/blocks/function">
+    自定义 JavaScript/TypeScript 代码执行环境
+  </Card>
+  <Card title="响应块" href="/yaml/blocks/response">
+    格式化并返回最终工作流结果
+  </Card>
+</Cards>
+
+## 逻辑与控制流
+
+用于实现条件逻辑和控制流的块：
+
+<Cards>
+  <Card title="条件块" href="/yaml/blocks/condition">
+    基于布尔表达式的条件分支
+  </Card>
+  <Card title="路由块" href="/yaml/blocks/router">
+    AI 驱动的智能路由到多个路径
+  </Card>
+  <Card title="循环块" href="/yaml/blocks/loop">
+    使用 for 和 forEach 循环的迭代处理
+  </Card>
+  <Card title="并行块" href="/yaml/blocks/parallel">
+    跨多个实例的并发执行
+  </Card>
+</Cards>
+
+## 集成块
+
+用于连接外部服务和系统的块：
+
+<Cards>
+  <Card title="API 块" href="/yaml/blocks/api">
+    对外部 REST API 的 HTTP 请求
+  </Card>
+  <Card title="Webhook 块" href="/yaml/blocks/webhook">
+    用于外部集成的 Webhook 触发器
+  </Card>
+</Cards>
+
+## 高级块
+
+用于复杂工作流模式的专用块：
+
+<Cards>
+  <Card title="评估器块" href="/yaml/blocks/evaluator">
+    根据定义的标准和指标验证输出
+  </Card>
+  <Card title="工作流块" href="/yaml/blocks/workflow">
+    将其他工作流作为可重用组件执行
+  </Card>
+</Cards>
+
+## 通用模式元素
+
+所有块共享以下通用元素：
+
+### 基本结构
+
+```yaml
+block-id:
+  type: <block-type>
+  name: <display-name>
+  inputs:
+    # Block-specific configuration
+  connections:
+    # Connection definitions
+```
+
+### 连接类型
+
+- **success**: 成功执行的目标块
+- **error**: 错误处理的目标块（可选）
+- **conditions**: 条件块的多条路径
+
+### 环境变量
+
+使用双花括号表示环境变量：
+
+```yaml
+inputs:
+  apiKey: '{{API_KEY_NAME}}'
+  endpoint: '{{SERVICE_ENDPOINT}}'
+```
+
+### 块引用
+
+使用小写的块名称引用其他块的输出：
+
+```yaml
+inputs:
+  userPrompt: <blockname.content>
+  data: <functionblock.output>
+  originalInput: <start.input>
+```
+
+## 验证规则
+
+所有 YAML 块都会根据其模式进行验证：
+
+1. **必填字段**：必须存在
+2. **类型验证**：值必须与预期类型匹配
+3. **枚举验证**：字符串值必须来自允许的列表
+4. **范围验证**：数字必须在指定范围内
+5. **模式验证**：字符串必须匹配正则表达式模式（如适用）
+
+## 快速参考
+
+### 块类型和属性
+
+| 块类型 | 主要输出 | 常见用例 |
+|------------|----------------|------------------|
+| starter | `.input` | 工作流入口点 |
+| agent | `.content` | AI 处理、文本生成 |
+| function | `.output` | 数据转换、计算 |
+| api | `.output` | 外部服务集成 |
+| condition | N/A（分支） | 条件逻辑 |
+| router | N/A（分支） | 智能路由 |
+| response | N/A（终端） | 最终输出格式化 |
+| loop | `.results` | 迭代处理 |
+| parallel | `.results` | 并发处理 |
+| webhook | `.payload` | 外部触发器 |
+| evaluator | `.score` | 输出验证、质量评估 |
+| workflow | `.output` | 子工作流执行、模块化 |
+
+### 必需与可选
+
+- **始终必需**：`type`, `name`
+- **通常必需**：`inputs`, `connections`
+- **上下文相关**：具体输入字段因块类型而异
+- **始终可选**：`error` 连接、UI 特定字段

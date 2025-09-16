@@ -1,0 +1,242 @@
+---
+title: Condition
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
+import { Image } from '@/components/ui/image'
+
+Le bloc Condition vous permet de ramifier le chemin d'exécution de votre flux de travail en fonction d'expressions booléennes, vous permettant ainsi de créer des flux de travail dynamiques et réactifs avec différents chemins d'exécution. Il évalue les conditions et achemine le flux de travail en conséquence, vous permettant de contrôler le flux d'exécution en fonction des données ou de la logique sans nécessiter un LLM.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/condition.png"
+    alt="Bloc Condition"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+<Callout>
+  Les blocs Condition permettent une prise de décision déterministe sans nécessiter un LLM, ce qui les rend idéaux
+  pour une logique de branchement simple.
+</Callout>
+
+## Aperçu
+
+Le bloc Condition vous permet de :
+
+<Steps>
+  <Step>
+    <strong>Créer une logique de branchement</strong> : acheminer les flux de travail en fonction d'expressions booléennes
+  </Step>
+  <Step>
+    <strong>Prendre des décisions basées sur les données</strong> : évaluer les conditions en utilisant les sorties des blocs précédents
+  </Step>
+  <Step>
+    <strong>Gérer plusieurs scénarios</strong> : définir plusieurs conditions avec différents chemins
+  </Step>
+  <Step>
+    <strong>Fournir un routage déterministe</strong> : prendre des décisions sans nécessiter un LLM
+  </Step>
+</Steps>
+
+## Comment ça fonctionne
+
+Le bloc Condition fonctionne par un processus d'évaluation séquentiel :
+
+1. **Évaluation de l'expression** - Traite l'expression booléenne JavaScript/TypeScript en utilisant les données actuelles du flux de travail
+2. **Détermination du résultat** - Renvoie vrai ou faux en fonction de l'évaluation de l'expression
+3. **Acheminement du flux de travail** - Dirige l'exécution vers le bloc de destination approprié en fonction du résultat  
+4. **Fourniture de contexte** - Génère des métadonnées sur la décision pour le débogage et la surveillance
+
+## Options de configuration
+
+### Conditions
+
+Définissez une ou plusieurs conditions qui seront évaluées. Chaque condition comprend :
+
+- **Expression** : une expression JavaScript/TypeScript qui s'évalue à vrai ou faux
+- **Chemin** : le bloc de destination vers lequel acheminer si la condition est vraie
+- **Description** : explication optionnelle de ce que vérifie la condition
+
+Vous pouvez créer plusieurs conditions qui sont évaluées dans l'ordre, la première condition correspondante déterminant le chemin d'exécution.
+
+### Format d'expression de condition
+
+Les conditions utilisent la syntaxe JavaScript et peuvent référencer des valeurs d'entrée provenant des blocs précédents.
+
+<Tabs items={['Seuil de score', 'Analyse de texte', 'Conditions multiples']}>
+  <Tab>
+
+    ```javascript
+    // Check if a score is above a threshold
+    <agent.score> > 75
+    ```
+
+  </Tab>
+  <Tab>
+
+    ```javascript
+    // Check if a text contains specific keywords
+    <agent.text>.includes('urgent') || <agent.text>.includes('emergency')
+    ```
+
+  </Tab>
+  <Tab>
+
+    ```javascript
+    // Check multiple conditions
+    <agent.age> >= 18 && <agent.country> === 'US'
+    ```
+
+  </Tab>
+</Tabs>
+
+### Accès aux résultats
+
+Après l'évaluation d'une condition, vous pouvez accéder à ses sorties :
+
+- **`<condition.result>`** : résultat booléen de l'évaluation de la condition
+- **`<condition.matched_condition>`** : identifiant de la condition qui a été satisfaite
+- **`<condition.content>`** : description du résultat de l'évaluation
+- **`<condition.path>`** : détails de la destination de routage choisie
+
+## Fonctionnalités avancées
+
+### Expressions complexes
+
+Utilisez des opérateurs et des fonctions JavaScript dans les conditions :
+
+```javascript
+// String operations
+<user.email>.endsWith('@company.com')
+
+// Array operations
+<api.tags>.includes('urgent')
+
+// Mathematical operations
+<agent.confidence> * 100 > 85
+
+// Date comparisons
+new Date(<api.created_at>) > new Date('2024-01-01')
+```
+
+### Évaluation de conditions multiples
+
+Les conditions sont évaluées dans l'ordre jusqu'à ce qu'une correspondance soit trouvée :
+
+```javascript
+// Condition 1: Check for high priority
+<ticket.priority> === 'high'
+
+// Condition 2: Check for urgent keywords
+<ticket.subject>.toLowerCase().includes('urgent')
+
+// Condition 3: Default fallback
+true
+```
+
+### Gestion des erreurs
+
+Les conditions gèrent automatiquement :
+- Les valeurs indéfinies ou nulles avec une évaluation sécurisée
+- Les incompatibilités de types avec des solutions de repli appropriées
+- Les expressions invalides avec journalisation des erreurs
+- Les variables manquantes avec des valeurs par défaut
+
+## Entrées et sorties
+
+<Tabs items={['Configuration', 'Variables', 'Résultats']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Conditions</strong> : tableau d'expressions booléennes à évaluer
+      </li>
+      <li>
+        <strong>Expressions</strong> : conditions JavaScript/TypeScript utilisant les sorties de blocs
+      </li>
+      <li>
+        <strong>Chemins de routage</strong> : blocs de destination pour chaque résultat de condition
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>condition.result</strong> : résultat booléen de l'évaluation de condition
+      </li>
+      <li>
+        <strong>condition.matched_condition</strong> : identifiant de la condition correspondante
+      </li>
+      <li>
+        <strong>condition.content</strong> : description du résultat d'évaluation
+      </li>
+      <li>
+        <strong>condition.path</strong> : détails de la destination de routage choisie
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Résultat booléen</strong> : résultat principal de l'évaluation de condition
+      </li>
+      <li>
+        <strong>Informations de routage</strong> : sélection de chemin et détails de condition
+      </li>
+      <li>
+        <strong>Accès</strong> : disponible dans les blocs après la condition
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Exemples de cas d'utilisation
+
+### Routage du support client
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scénario : acheminer les tickets de support selon leur priorité</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Le bloc API récupère les données des tickets de support</li>
+    <li>La condition vérifie si `<api.priority>` est égal à 'high'</li>
+    <li>Tickets haute priorité → Agent avec outils d'escalade</li>
+    <li>Tickets priorité normale → Agent de support standard</li>
+  </ol>
+</div>
+
+### Modération de contenu
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scénario : filtrer le contenu selon les résultats d'analyse</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>L'agent analyse le contenu généré par l'utilisateur</li>
+    <li>La condition vérifie si `<agent.toxicity_score>` > 0,7</li>
+    <li>Contenu toxique → Processus de modération</li>
+    <li>Contenu approprié → Processus de publication</li>
+  </ol>
+</div>
+
+### Parcours d'intégration utilisateur
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scénario : personnaliser l'intégration selon le type d'utilisateur</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Le bloc de fonction traite les données d'inscription de l'utilisateur</li>
+    <li>La condition vérifie si `<user.account_type>` === 'enterprise'</li>
+    <li>Utilisateurs entreprise → Processus de configuration avancée</li>
+    <li>Utilisateurs individuels → Processus d'intégration simplifié</li>
+  </ol>
+</div>
+
+## Bonnes pratiques
+
+- **Ordonner correctement les conditions** : placez les conditions spécifiques avant les générales pour garantir que la logique spécifique prévaut sur les solutions de repli
+- **Inclure une condition par défaut** : ajoutez une condition fourre-tout (`true`) comme dernière condition pour gérer les cas non correspondants et éviter que l'exécution du workflow ne se bloque
+- **Garder les expressions simples** : utilisez des expressions booléennes claires et directes pour une meilleure lisibilité et un débogage plus facile
+- **Documenter vos conditions** : ajoutez des descriptions pour expliquer l'objectif de chaque condition afin d'améliorer la collaboration en équipe et la maintenance
+- **Tester les cas limites** : vérifiez que les conditions gèrent correctement les valeurs limites en testant avec des valeurs aux extrémités de vos plages de conditions

@@ -1,0 +1,89 @@
+---
+title: Traducir
+description: Traduce texto a cualquier idioma
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="translate"
+  color="#FF4B4B"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='2'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      
+    >
+      <path d='m5 8 6 6' />
+      <path d='m4 14 6-6 2-3' />
+      <path d='M2 5h12' />
+      <path d='M7 2h1' />
+      <path d='m22 22-5-10-5 10' />
+      <path d='M14 18h6' />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Traducir es una herramienta que te permite traducir texto entre diferentes idiomas.
+
+Con Traducir, puedes:
+
+- **Traducir texto**: Traducir texto entre idiomas
+- **Traducir documentos**: Traducir documentos entre idiomas
+- **Traducir sitios web**: Traducir sitios web entre idiomas
+- **Traducir imágenes**: Traducir imágenes entre idiomas
+- **Traducir audio**: Traducir audio entre idiomas
+- **Traducir videos**: Traducir videos entre idiomas
+- **Traducir voz**: Traducir voz entre idiomas
+- **Traducir texto**: Traducir texto entre idiomas
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Convierte texto entre idiomas preservando el significado, los matices y el formato. Utiliza potentes modelos de lenguaje para producir traducciones naturales y fluidas con adaptaciones culturales apropiadas.
+
+## Herramientas
+
+### `openai_chat`
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Texto traducido |
+| `model` | string | Modelo utilizado |
+| `tokens` | json | Uso de tokens |
+
+### `anthropic_chat`
+
+### `google_chat`
+
+#### Entrada
+
+| Parámetro | Tipo | Requerido | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Texto traducido |
+| `model` | string | Modelo utilizado |
+| `tokens` | json | Uso de tokens |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `translate`

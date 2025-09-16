@@ -1,0 +1,85 @@
+---
+title: Introduction
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+Sim est un constructeur visuel de flux de travail pour les applications d'IA qui vous permet de créer des flux d'agents IA visuellement. Créez des agents IA puissants, des flux d'automatisation et des pipelines de traitement de données en connectant des blocs sur un canevas — sans programmation requise.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/introduction.png"
+    alt="Canevas de flux de travail visuel Sim"
+    width={700}
+    height={450}
+    className="my-6"
+  />
+</div>
+
+## Ce que vous pouvez construire
+
+**Assistants IA et chatbots**
+Créez des agents intelligents capables de rechercher sur le web, d'accéder à votre calendrier, d'envoyer des e-mails et d'interagir avec vos outils professionnels.
+
+**Automatisation des processus métier**
+Automatisez les tâches répétitives comme la saisie de données, la génération de rapports, les réponses au support client et la création de contenu.
+
+**Traitement et analyse de données**
+Extrayez des informations de documents, analysez des ensembles de données, générez des rapports et synchronisez des données entre systèmes.
+
+**Flux d'intégration d'API**
+Connectez plusieurs services en points de terminaison unifiés, orchestrez une logique métier complexe et gérez l'automatisation basée sur les événements.
+
+## Comment ça fonctionne
+
+**Canevas visuel**
+Glissez-déposez des blocs pour construire des flux de travail. Connectez des modèles d'IA, des bases de données, des API et des outils professionnels avec de simples connexions point-and-click.
+
+**Blocs intelligents**
+Choisissez parmi des blocs de traitement (agents IA, API, fonctions), des blocs logiques (conditions, boucles, routeurs) et des blocs de sortie (réponses, évaluateurs).
+
+**Déclencheurs multiples**
+Démarrez des flux de travail via une interface de chat, une API REST, des webhooks, des tâches planifiées ou des événements externes provenant de services comme Slack et GitHub.
+
+**Collaboration d'équipe**
+Travaillez simultanément avec les membres de l'équipe sur le même flux de travail avec édition en temps réel et gestion des permissions.
+
+## Intégrations intégrées
+
+Sim se connecte à plus de 80 services prêts à l'emploi :
+
+- **Modèles d'IA** : OpenAI, Anthropic, Google, Groq, Cerebras, modèles Ollama locaux
+- **Communication** : Gmail, Slack, Teams, Telegram, WhatsApp  
+- **Productivité** : Notion, Google Sheets, Airtable, Monday.com
+- **Développement** : GitHub, Jira, Linear, automatisation de navigateur
+- **Recherche et Web** : Google Search, Perplexity, Firecrawl, Exa AI
+- **Bases de données** : PostgreSQL, MySQL, Supabase, Pinecone, Qdrant
+
+Besoin de quelque chose sur mesure ? Utilisez notre [intégration MCP](/mcp) pour connecter n'importe quel service externe.
+
+## Options de déploiement
+
+**Hébergé dans le cloud** : Commencez instantanément sur [sim.ai](https://sim.ai) avec une infrastructure gérée, une mise à l'échelle automatique et une surveillance intégrée.
+
+**Auto-hébergé** : Déployez sur votre propre infrastructure en utilisant Docker, avec prise en charge des modèles d'IA locaux via Ollama pour une confidentialité complète des données.
+
+## Prochaines étapes
+
+Prêt à construire votre premier flux de travail IA ?
+
+<Cards>
+  <Card title="Premiers pas" href="/getting-started">
+    Créez votre premier flux de travail en 10 minutes
+  </Card>
+  <Card title="Blocs de flux de travail" href="/blocks">
+    Découvrez les éléments constitutifs
+  </Card>
+  <Card title="Outils et intégrations" href="/tools">
+    Explorez plus de 60 intégrations intégrées
+  </Card>
+  <Card title="Permissions d'équipe" href="/permissions/roles-and-permissions">
+    Configurez les rôles et permissions de l'espace de travail
+  </Card>
+</Cards>

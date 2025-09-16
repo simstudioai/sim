@@ -1,0 +1,72 @@
+---
+title: Embeddings
+description: Générer des embeddings Open AI
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="openai"
+  color="#10a37f"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      
+      
+      viewBox='0 0 24 24'
+      role='img'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <path
+        d='M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z'
+        fill='currentColor'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[OpenAI](https://www.openai.com) est une entreprise leader dans la recherche et le déploiement d'IA qui propose une suite de modèles et d'API d'IA puissants. OpenAI fournit des technologies de pointe, notamment des modèles de langage avancés (comme GPT-4), la génération d'images (DALL-E) et des embeddings qui permettent aux développeurs de créer des applications sophistiquées alimentées par l'IA.
+
+Avec OpenAI, vous pouvez :
+
+- **Générer du texte** : Créer du texte semblable à celui d'un humain pour diverses applications en utilisant les modèles GPT
+- **Créer des images** : Transformer des descriptions textuelles en contenu visuel avec DALL-E
+- **Produire des embeddings** : Convertir du texte en vecteurs numériques pour la recherche sémantique et l'analyse
+- **Construire des assistants IA** : Développer des agents conversationnels avec des connaissances spécialisées
+- **Traiter et analyser des données** : Extraire des insights et des modèles à partir de texte non structuré
+- **Traduire des langues** : Convertir du contenu entre différentes langues avec une grande précision
+- **Résumer du contenu** : Condenser du texte long tout en préservant les informations clés
+
+Dans Sim, l'intégration d'OpenAI permet à vos agents d'exploiter ces puissantes capacités d'IA de manière programmatique dans le cadre de leurs flux de travail. Cela permet des scénarios d'automatisation sophistiqués qui combinent la compréhension du langage naturel, la génération de contenu et l'analyse sémantique. Vos agents peuvent générer des embeddings vectoriels à partir de texte, qui sont des représentations numériques capturant le sens sémantique, permettant des systèmes avancés de recherche, de classification et de recommandation. De plus, grâce à l'intégration de DALL-E, les agents peuvent créer des images à partir de descriptions textuelles, ouvrant des possibilités pour la génération de contenu visuel. Cette intégration comble le fossé entre votre automatisation de flux de travail et les capacités d'IA de pointe, permettant à vos agents de comprendre le contexte, de générer du contenu pertinent et de prendre des décisions intelligentes basées sur la compréhension sémantique. En connectant Sim avec OpenAI, vous pouvez créer des agents qui traitent l'information de manière plus intelligente, génèrent du contenu créatif et offrent des expériences plus personnalisées aux utilisateurs.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Convertissez du texte en représentations vectorielles numériques en utilisant les modèles d'embedding d'OpenAI. Transformez des données textuelles en embeddings pour la recherche sémantique, le clustering et d'autres opérations basées sur les vecteurs.
+
+## Outils
+
+### `openai_embeddings`
+
+Générer des embeddings à partir de texte en utilisant OpenAI
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `input` | chaîne | Oui | Texte pour générer les embeddings |
+| `model` | chaîne | Non | Modèle à utiliser pour les embeddings |
+| `encodingFormat` | chaîne | Non | Format de retour des embeddings |
+| `apiKey` | chaîne | Oui | Clé API OpenAI |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Statut de réussite de l'opération |
+| `output` | objet | Résultats de génération des embeddings |
+
+## Remarques
+
+- Catégorie : `tools`
+- Type : `openai`

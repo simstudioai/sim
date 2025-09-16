@@ -1,0 +1,127 @@
+---
+title: Wikipedia
+description: Busca y recupera contenido de Wikipedia
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="wikipedia"
+  color="#000000"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      fill='currentColor'
+      version='1.1'
+      id='Capa_1'
+      xmlns='http://www.w3.org/2000/svg'
+      xmlnsXlink='http://www.w3.org/1999/xlink'
+      
+      
+      viewBox='0 0 98.05 98.05'
+      xmlSpace='preserve'
+    >
+      <g>
+        <path
+          d='M98.023,17.465l-19.584-0.056c-0.004,0.711-0.006,1.563-0.017,2.121c1.664,0.039,5.922,0.822,7.257,4.327L66.92,67.155
+		c-0.919-2.149-9.643-21.528-10.639-24.02l9.072-18.818c1.873-2.863,5.455-4.709,8.918-4.843l-0.01-1.968L55.42,17.489
+		c-0.045,0.499,0.001,1.548-0.068,2.069c5.315,0.144,7.215,1.334,5.941,4.508c-2.102,4.776-6.51,13.824-7.372,15.475
+		c-2.696-5.635-4.41-9.972-7.345-16.064c-1.266-2.823,1.529-3.922,4.485-4.004v-1.981l-21.82-0.067
+		c0.016,0.93-0.021,1.451-0.021,2.131c3.041,0.046,6.988,0.371,8.562,3.019c2.087,4.063,9.044,20.194,11.149,24.514
+		c-2.685,5.153-9.207,17.341-11.544,21.913c-3.348-7.43-15.732-36.689-19.232-44.241c-1.304-3.218,3.732-5.077,6.646-5.213
+		l0.019-2.148L0,17.398c0.005,0.646,0.027,1.71,0.029,2.187c4.025-0.037,9.908,6.573,11.588,10.683
+		c7.244,16.811,14.719,33.524,21.928,50.349c0.002,0.029,2.256,0.059,2.281,0.008c4.717-9.653,10.229-19.797,15.206-29.56
+		L63.588,80.64c0.005,0.004,2.082,0.016,2.093,0.007c7.962-18.196,19.892-46.118,23.794-54.933c1.588-3.767,4.245-6.064,8.543-6.194
+		l0.032-1.956L98.023,17.465z'
+        />
+      </g>
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Wikipedia](https://www.wikipedia.org/) es la enciclopedia en línea gratuita más grande del mundo, que ofrece millones de artículos sobre una amplia gama de temas, escritos y mantenidos colaborativamente por voluntarios.
+
+Con Wikipedia, puedes:
+
+- **Buscar artículos**: Encuentra páginas relevantes de Wikipedia buscando por palabras clave o temas
+- **Obtener resúmenes de artículos**: Recupera resúmenes concisos de páginas de Wikipedia para consultas rápidas
+- **Acceder al contenido completo**: Obtén el contenido completo de los artículos de Wikipedia para información detallada
+- **Descubrir artículos aleatorios**: Explora nuevos temas recuperando páginas aleatorias de Wikipedia
+
+En Sim, la integración con Wikipedia permite a tus agentes acceder e interactuar programáticamente con el contenido de Wikipedia como parte de sus flujos de trabajo. Los agentes pueden buscar artículos, obtener resúmenes, recuperar contenido completo de páginas y descubrir artículos aleatorios, potenciando tus automatizaciones con información actualizada y confiable de la enciclopedia más grande del mundo. Esta integración es ideal para escenarios como investigación, enriquecimiento de contenido, verificación de hechos y descubrimiento de conocimiento, permitiendo a tus agentes incorporar perfectamente datos de Wikipedia en sus procesos de toma de decisiones y ejecución de tareas.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Accede a artículos de Wikipedia, busca páginas, obtén resúmenes, recupera contenido completo y descubre artículos aleatorios de la enciclopedia más grande del mundo.
+
+## Herramientas
+
+### `wikipedia_summary`
+
+Obtén un resumen y metadatos de una página específica de Wikipedia.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `pageTitle` | string | Sí | Título de la página de Wikipedia para obtener el resumen |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `summary` | object | Resumen y metadatos de la página de Wikipedia |
+
+### `wikipedia_search`
+
+Buscar páginas de Wikipedia por título o contenido.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Sí | Consulta de búsqueda para encontrar páginas de Wikipedia |
+| `searchLimit` | number | No | Número máximo de resultados a devolver \(predeterminado: 10, máximo: 50\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `searchResults` | array | Array de páginas de Wikipedia coincidentes |
+
+### `wikipedia_content`
+
+Obtener el contenido HTML completo de una página de Wikipedia.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `pageTitle` | string | Sí | Título de la página de Wikipedia para obtener su contenido |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | object | Contenido HTML completo y metadatos de la página de Wikipedia |
+
+### `wikipedia_random`
+
+Obtener una página aleatoria de Wikipedia.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `randomPage` | object | Datos de una página aleatoria de Wikipedia |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `wikipedia`

@@ -1,0 +1,231 @@
+---
+title: 并行
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+并行块是 Sim 中的一个容器块，它允许您同时执行多个块实例，从而加快工作流程的处理速度。
+
+并行块支持两种类型的并发执行：
+
+<Callout type="info">
+  并行块是容器节点，可以同时多次执行其内容，而循环是按顺序执行的。
+</Callout>
+
+## 概述
+
+并行块可以让您：
+
+<Steps>
+  <Step>
+    <strong>分配工作</strong>：同时处理多个项目
+  </Step>
+  <Step>
+    <strong>加快执行速度</strong>：同时运行独立操作
+  </Step>
+  <Step>
+    <strong>处理批量操作</strong>：高效处理大型数据集
+  </Step>
+  <Step>
+    <strong>汇总结果</strong>：收集所有并行执行的输出
+  </Step>
+</Steps>
+
+## 配置选项
+
+### 并行类型
+
+选择两种并行执行类型之一：
+
+<Tabs items={['基于计数', '基于集合']}>
+  <Tab>
+    **基于计数的并行** - 执行固定数量的并行实例：
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/parallel-1.png"
+        alt="基于计数的并行执行"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    当您需要同时多次运行相同操作时使用此选项。
+    
+
+    ```
+    Example: Run 5 parallel instances
+    - Instance 1 ┐
+    - Instance 2 ├─ All execute simultaneously
+    - Instance 3 │
+    - Instance 4 │
+    - Instance 5 ┘
+    ```
+
+  </Tab>
+  <Tab>
+    **基于集合的并行** - 将一个集合分配到并行实例中：
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/parallel-2.png"
+        alt="基于集合的并行执行"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    每个实例同时处理集合中的一个项目。
+    
+
+    ```
+    Example: Process ["task1", "task2", "task3"] in parallel
+    - Instance 1: Process "task1" ┐
+    - Instance 2: Process "task2" ├─ All execute simultaneously
+    - Instance 3: Process "task3" ┘
+    ```
+
+  </Tab>
+</Tabs>
+
+## 如何使用并行块
+
+### 创建并行块
+
+1. 从工具栏中拖动一个并行块到画布上
+2. 配置并行类型和参数
+3. 在并行容器中拖入一个单独的块
+4. 根据需要连接该块
+
+### 访问结果
+
+并行块完成后，您可以访问汇总的结果：
+
+- **`<parallel.results>`**：所有并行实例的结果数组
+
+## 示例用例
+
+### 批量 API 处理
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">场景：同时处理多个 API 调用</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>包含 API 端点集合的并行块</li>
+    <li>在并行块中：API 块调用每个端点</li>
+    <li>并行块之后：一起处理所有响应</li>
+  </ol>
+</div>
+
+### 多模型 AI 处理
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">场景：从多个 AI 模型获取响应</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>基于集合的并行处理模型 ID 列表（例如：["gpt-4o", "claude-3.7-sonnet", "gemini-2.5-pro"]）</li>
+    <li>在并行块中：代理的模型设置为集合中的当前项</li>
+    <li>并行块之后：比较并选择最佳响应</li>
+  </ol>
+</div>
+
+## 高级功能
+
+### 结果聚合
+
+所有并行实例的结果会自动收集：
+
+```javascript
+// In a Function block after the parallel
+const allResults = input.parallel.results;
+// Returns: [result1, result2, result3, ...]
+```
+
+### 实例隔离
+
+每个并行实例独立运行：
+- 独立的变量作用域
+- 实例之间没有共享状态
+- 一个实例的失败不会影响其他实例
+
+### 限制
+
+<Callout type="warning">
+  容器块（循环和并行）不能嵌套在彼此内部。这意味着：
+  - 您不能在并行块中放置循环块
+  - 您不能在并行块中放置另一个并行块
+  - 您不能在一个容器块中放置另一个容器块
+</Callout>
+
+<Callout type="warning">
+  并行块只能包含一个块。您不能在并行块中连接多个块——在这种情况下，只有第一个块会执行。
+</Callout>
+
+<Callout type="info">
+  虽然并行执行更快，但请注意：
+  - 在进行并发请求时的 API 速率限制
+  - 使用大数据集时的内存使用情况
+  - 最多 20 个并发实例，以防止资源耗尽
+</Callout>
+
+## 并行与循环
+
+了解何时使用每种方式：
+
+| 特性 | 并行 | 循环 |
+|---------|----------|------|
+| 执行 | 并发 | 顺序 |
+| 速度 | 独立操作更快 | 较慢但有序 |
+| 顺序 | 无保证顺序 | 保持顺序 |
+| 使用场景 | 独立操作 | 依赖操作 |
+| 资源使用 | 较高 | 较低 |
+
+## 输入与输出
+
+<Tabs items={['配置', '变量', '结果']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>并行类型</strong>：选择 'count' 或 'collection'
+      </li>
+      <li>
+        <strong>计数</strong>：运行实例的数量（基于计数）
+      </li>
+      <li>
+        <strong>集合</strong>：分配的数组或对象（基于集合）
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>parallel.currentItem</strong>：当前实例的项目
+      </li>
+      <li>
+        <strong>parallel.index</strong>：实例编号（从 0 开始）
+      </li>
+      <li>
+        <strong>parallel.items</strong>：完整集合（基于集合）
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>parallel.results</strong>：所有实例结果的数组
+      </li>
+      <li>
+        <strong>访问</strong>：在并行之后的模块中可用
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## 最佳实践
+
+- **仅限独立操作**：确保操作之间没有依赖关系
+- **处理速率限制**：为依赖 API 的工作流添加延迟或节流
+- **错误处理**：每个实例应优雅地处理自己的错误

@@ -1,0 +1,67 @@
+---
+title: ElevenLabs
+description: 使用 ElevenLabs 转换 TTS
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="elevenlabs"
+  color="#181C1E"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='0 0 876 876'
+      fill='none'
+    >
+      <path d='M498 138H618V738H498V138Z' fill='currentColor' />
+      <path d='M258 138H378V738H258V138Z' fill='currentColor' />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[ElevenLabs](https://elevenlabs.io/) 是一个最先进的文本转语音平台，可以生成极其自然且富有表现力的 AI 声音。它提供了当今最逼真且情感细腻的合成语音，非常适合创建逼真的音频内容。
+
+使用 ElevenLabs，您可以：
+
+- **生成自然的语音**：创建几乎与人类语音无法区分的音频
+- **选择多样化的语音选项**：访问具有不同口音、语调和特征的预制语音库
+- **克隆语音**：根据音频样本创建自定义语音（需获得适当的权限）
+- **控制语音参数**：调整稳定性、清晰度和情感语调以微调输出
+- **添加真实情感**：融入自然的情感，如快乐、悲伤或兴奋
+
+在 Sim 中，ElevenLabs 集成使您的代理能够将文本转换为逼真的语音，从而增强应用程序的互动性和参与度。这对于创建语音助手、生成音频内容、开发无障碍应用程序或构建更具人性化的对话界面尤为有价值。该集成允许您将 ElevenLabs 的高级语音合成功能无缝集成到代理工作流中，弥合基于文本的 AI 与自然人类交流之间的差距。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+使用 ElevenLabs 语音从文本生成逼真的语音。
+
+## 工具
+
+### `elevenlabs_tts`
+
+使用 ElevenLabs 语音转换 TTS
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | 是 | 要转换为语音的文本 |
+| `voiceId` | string | 是 | 要使用的语音 ID |
+| `modelId` | string | 否 | 要使用的模型 ID \(默认为 eleven_monolingual_v1\) |
+| `apiKey` | string | 是 | 您的 ElevenLabs API 密钥 |
+
+#### 输出
+
+| 参数       | 类型  | 描述           |
+| --------- | ---- | ------------- |
+| `audioUrl` | string | 生成音频的 URL |
+
+## 注意事项
+
+- 类别: `tools`
+- 类型: `elevenlabs`

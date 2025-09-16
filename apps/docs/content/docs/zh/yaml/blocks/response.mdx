@@ -1,0 +1,239 @@
+---
+title: 响应块 YAML 模式
+description: 响应块的 YAML 配置参考
+---
+
+## 模式定义
+
+```yaml
+type: object
+required:
+  - type
+  - name
+properties:
+  type:
+    type: string
+    enum: [response]
+    description: Block type identifier
+  name:
+    type: string
+    description: Display name for this response block
+  inputs:
+    type: object
+    properties:
+      dataMode:
+        type: string
+        enum: [structured, json]
+        description: Mode for defining response data structure
+        default: structured
+      builderData:
+        type: object
+        description: Structured response data (when dataMode is 'structured')
+      data:
+        type: object
+        description: JSON response data (when dataMode is 'json')
+      status:
+        type: number
+        description: HTTP status code
+        default: 200
+        minimum: 100
+        maximum: 599
+      headers:
+        type: array
+        description: Response headers as table entries
+        items:
+          type: object
+          properties:
+            id:
+              type: string
+              description: Unique identifier for the header entry
+            key:
+              type: string
+              description: Header name
+            value:
+              type: string
+              description: Header value
+            cells:
+              type: object
+              description: Cell display values for the table interface
+              properties:
+                Key:
+                  type: string
+                  description: Display value for the key column
+                Value:
+                  type: string
+                  description: Display value for the value column
+```
+
+## 连接配置
+
+响应块是终端块（无出站连接），用于定义最终输出：
+
+```yaml
+# No connections object needed - Response blocks are always terminal
+```
+
+## 示例
+
+### 简单响应
+
+```yaml
+simple-response:
+  type: response
+  name: "Simple Response"
+  inputs:
+    data:
+      message: "Hello World"
+      timestamp: <function.timestamp>
+    status: 200
+```
+
+### 成功响应
+
+```yaml
+success-response:
+  type: response
+  name: "Success Response"
+  inputs:
+    data:
+      success: true
+      user:
+        id: <agent.user_id>
+        name: <agent.user_name>
+        email: <agent.user_email>
+      created_at: <function.timestamp>
+    status: 201
+    headers:
+      - key: "Location"
+        value: "/api/users/<agent.user_id>"
+      - key: "X-Created-By"
+        value: "workflow-engine"
+```
+
+### 带完整表头格式的响应
+
+当通过 UI 表格界面创建表头时，YAML 包含额外的元数据：
+
+```yaml
+api-response:
+  type: response
+  name: "API Response"
+  inputs:
+    data:
+      message: "Request processed successfully"
+      id: <agent.request_id>
+    status: 200
+    headers:
+      - id: header-1-uuid-here
+        key: "Content-Type"
+        value: "application/json"
+        cells:
+          Key: "Content-Type"
+          Value: "application/json"
+      - id: header-2-uuid-here
+        key: "Cache-Control"
+        value: "no-cache"
+        cells:
+          Key: "Cache-Control"
+          Value: "no-cache"
+      - id: header-3-uuid-here
+        key: "X-API-Version"
+        value: "2.1"
+        cells:
+          Key: "X-API-Version"
+          Value: "2.1"
+```
+
+### 错误响应
+
+```yaml
+error-response:
+  type: response
+  name: "Error Response"
+  inputs:
+    data:
+      error: true
+      message: <agent.error_message>
+      code: "VALIDATION_FAILED"
+      details: <function.validation_errors>
+    status: 400
+    headers:
+      - key: "X-Error-Code"
+        value: "VALIDATION_FAILED"
+```
+
+### 分页响应
+
+```yaml
+paginated-response:
+  type: response
+  name: "Paginated Response"
+  inputs:
+    data:
+      data: <agent.results>
+      pagination:
+        page: <start.page>
+        per_page: <start.per_page>
+        total: <function.total_count>
+        total_pages: <function.total_pages>
+    status: 200
+    headers:
+      - key: "X-Total-Count"
+        value: <function.total_count>
+      - key: "Cache-Control"
+        value: "public, max-age=300"
+      - key: "Content-Type"
+        value: "application/json"
+```
+
+## 表格参数格式
+
+响应块支持两种表头格式：
+
+### 简化格式（手动 YAML）
+
+在手动编写 YAML 时，可以使用简化格式：
+
+```yaml
+headers:
+  - key: "Content-Type"
+    value: "application/json"
+  - key: "Cache-Control"
+    value: "no-cache"
+```
+
+### 完整表格格式（UI 生成）
+
+当通过 UI 表格界面创建标题时，YAML 会包含额外的元数据：
+
+```yaml
+headers:
+  - id: unique-identifier-here
+    key: "Content-Type"
+    value: "application/json"
+    cells:
+      Key: "Content-Type"
+      Value: "application/json"
+```
+
+**关键区别：**
+- `id`：用于跟踪表格行的唯一标识符
+- `cells`：UI 表格界面使用的显示值
+- 两种格式在工作流执行中功能等效
+- 完整格式在导入/导出工作流时保留 UI 状态
+
+**重要提示：** 始终为包含特殊字符的标题名称和值加上引号：
+
+```yaml
+headers:
+  - id: content-type-uuid
+    cells:
+      Key: "Content-Type"
+      Value: "application/json"
+  - id: cache-control-uuid
+    cells:
+      Key: "Cache-Control" 
+      Value: "no-cache"
+```
+
+```

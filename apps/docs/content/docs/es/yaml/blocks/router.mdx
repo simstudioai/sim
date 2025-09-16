@@ -1,0 +1,200 @@
+---
+title: Esquema YAML del bloque Router
+description: Referencia de configuración YAML para bloques Router
+---
+
+## Definición del esquema
+
+```yaml
+type: object
+required:
+  - type
+  - name
+  - inputs
+properties:
+  type:
+    type: string
+    enum: [router]
+    description: Block type identifier
+  name:
+    type: string
+    description: Display name for this router block
+  inputs:
+    type: object
+    required:
+      - prompt
+      - model
+      - apiKey
+    properties:
+      prompt:
+        type: string
+        description: Instructions for routing decisions and criteria
+      model:
+        type: string
+        description: AI model identifier (e.g., gpt-4o, gemini-2.5-pro, deepseek-chat)
+      apiKey:
+        type: string
+        description: API key for the model provider (use {{ENV_VAR}} format)
+      temperature:
+        type: number
+        minimum: 0
+        maximum: 2
+        description: Model temperature for routing decisions
+        default: 0.3
+      azureEndpoint:
+        type: string
+        description: Azure OpenAI endpoint URL (required for Azure models)
+      azureApiVersion:
+        type: string
+        description: Azure API version (required for Azure models)
+  connections:
+    type: object
+    description: Multiple connection paths for different routing outcomes
+    properties:
+      success:
+        type: array
+        items:
+          type: string
+        description: Array of target block IDs for routing destinations
+```
+
+## Configuración de conexión
+
+Los bloques Router utilizan un array de éxito que contiene todos los posibles destinos de enrutamiento:
+
+```yaml
+connections:
+  success:
+    - <string>                          # Target block ID option 1
+    - <string>                          # Target block ID option 2
+    - <string>                          # Target block ID option 3
+    # Additional target block IDs as needed
+```
+
+## Ejemplos
+
+### Router de tipo de contenido
+
+```yaml
+content-router:
+  type: router
+  name: "Content Type Router"
+  inputs:
+    prompt: |
+      Route this content based on its type:
+      - If it's a question, route to question-handler
+      - If it's a complaint, route to complaint-handler  
+      - If it's feedback, route to feedback-handler
+      - If it's a request, route to request-handler
+      
+      Content: <start.input>
+    model: gpt-4o
+    apiKey: '{{OPENAI_API_KEY}}'
+  connections:
+    success:
+      - question-handler
+      - complaint-handler
+      - feedback-handler
+      - request-handler
+```
+
+### Router de prioridad
+
+```yaml
+priority-router:
+  type: router
+  name: "Priority Router" 
+  inputs:
+    prompt: |
+      Analyze the urgency and route accordingly:
+      - urgent-queue: High priority, needs immediate attention
+      - standard-queue: Normal priority, standard processing
+      - low-queue: Low priority, can be delayed
+      
+      Email content: <email-analyzer.content>
+      
+      Route based on urgency indicators, deadlines, and tone.
+    model: gpt-4o
+    temperature: 0.2
+    apiKey: '{{OPENAI_API_KEY}}'
+  connections:
+    success:
+      - urgent-queue
+      - standard-queue  
+      - low-queue
+```
+
+### Router de departamento
+
+```yaml
+department-router:
+  type: router
+  name: "Department Router"
+  inputs:
+    prompt: |
+      Route this customer inquiry to the appropriate department:
+      
+      - sales-team: Sales questions, pricing, demos
+      - support-team: Technical issues, bug reports, how-to questions
+      - billing-team: Payment issues, subscription changes, invoices
+      - general-team: General inquiries, feedback, other topics
+      
+      Customer message: <start.input>
+      Customer type: <customer-analyzer.type>
+    model: claude-3-5-sonnet-20241022
+    apiKey: '{{ANTHROPIC_API_KEY}}'
+  connections:
+    success:
+      - sales-team
+      - support-team
+      - billing-team
+      - general-team
+```
+
+## Configuración avanzada
+
+### Router de múltiples modelos
+
+```yaml
+model-selector-router:
+  type: router
+  name: "Model Selection Router"
+  inputs:
+    prompt: |
+      Based on the task complexity, route to the appropriate model:
+      - simple-gpt35: Simple questions, basic tasks
+      - advanced-gpt4: Complex analysis, detailed reasoning
+      - specialized-claude: Creative writing, nuanced analysis
+      
+      Task: <start.task>
+      Complexity indicators: <analyzer.complexity>
+    model: gpt-4o-mini
+    temperature: 0.1
+    apiKey: '{{OPENAI_API_KEY}}'
+  connections:
+    success:
+      - simple-gpt35
+      - advanced-gpt4
+      - specialized-claude
+```
+
+## Referencias de salida
+
+Los bloques Router no producen salidas directas, sino que controlan la ruta del flujo de trabajo:
+
+```yaml
+# Router decisions affect which subsequent blocks execute
+# Access the routed block's outputs normally:
+final-step:
+  inputs:
+    routed-result: <routed-block-name.content>
+```
+
+## Mejores prácticas
+
+- Proporcionar criterios de enrutamiento claros en el prompt
+- Usar nombres de bloques de destino específicos y descriptivos
+- Incluir ejemplos de contenido para cada ruta de enrutamiento
+- Utilizar valores de temperatura más bajos para un enrutamiento consistente
+- Probar con diversos tipos de entrada para garantizar un enrutamiento preciso
+- Considerar rutas alternativas para casos excepcionales

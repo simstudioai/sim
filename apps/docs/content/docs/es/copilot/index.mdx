@@ -1,0 +1,161 @@
+---
+title: Copilot
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
+import { MessageCircle, Package, Zap, Infinity as InfinityIcon, Brain, BrainCircuit } from 'lucide-react'
+
+Copilot es tu asistente integrado en el editor que te ayuda a crear y editar flujos de trabajo con Sim Copilot, así como a entenderlos y mejorarlos. Puede:
+
+- **Explicar**: Responder preguntas sobre Sim y tu flujo de trabajo actual
+- **Guiar**: Sugerir ediciones y mejores prácticas
+- **Editar**: Realizar cambios en bloques, conexiones y configuraciones cuando los apruebes
+
+<Callout type="info">
+  Copilot es un servicio gestionado por Sim. Para implementaciones autoalojadas, genera una clave API de Copilot en la aplicación alojada (sim.ai → Configuración → Copilot)
+  1. Ve a [sim.ai](https://sim.ai) → Configuración → Copilot y genera una clave API de Copilot
+  2. Establece `COPILOT_API_KEY` en tu entorno autoalojado con ese valor
+</Callout>
+
+## Menú contextual (@)
+
+Usa el símbolo `@` para hacer referencia a varios recursos y proporcionar a Copilot más contexto sobre tu espacio de trabajo:
+
+<Image
+  src="/static/copilot/copilot-menu.png"
+  alt="Menú contextual de Copilot mostrando opciones de referencia disponibles"
+  width={600}
+  height={400}
+/>
+
+El menú `@` proporciona acceso a:
+- **Chats**: Referencia conversaciones previas con copilot
+- **Todos los flujos de trabajo**: Referencia cualquier flujo de trabajo en tu espacio de trabajo
+- **Bloques de flujo de trabajo**: Referencia bloques específicos de los flujos de trabajo
+- **Bloques**: Referencia tipos de bloques y plantillas
+- **Conocimiento**: Referencia tus documentos subidos y base de conocimientos
+- **Documentación**: Referencia la documentación de Sim
+- **Plantillas**: Referencia plantillas de flujo de trabajo
+- **Registros**: Referencia registros de ejecución y resultados
+
+Esta información contextual ayuda a Copilot a proporcionar asistencia más precisa y relevante para tu caso de uso específico.
+
+## Modos
+
+<Cards>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <MessageCircle className="h-4 w-4 text-muted-foreground" />
+        Preguntar
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">
+      Modo de preguntas y respuestas para explicaciones, orientación y sugerencias sin realizar cambios en tu flujo de trabajo.
+    </div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <Package className="h-4 w-4 text-muted-foreground" />
+        Agente
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">
+      Modo de construcción y edición. Copilot propone ediciones específicas (añadir bloques, conectar variables, ajustar configuraciones) y las aplica cuando las apruebas.
+    </div>
+  </Card>
+</Cards>
+
+## Niveles de profundidad
+
+<Cards>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <Zap className="h-4 w-4 text-muted-foreground" />
+        Rápido
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">El más rápido y económico. Ideal para ediciones pequeñas, flujos de trabajo simples y ajustes menores.</div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <InfinityIcon className="h-4 w-4 text-muted-foreground" />
+        Auto
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">Equilibrio entre velocidad y razonamiento. Opción predeterminada recomendada para la mayoría de las tareas.</div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <Brain className="h-4 w-4 text-muted-foreground" />
+        Avanzado
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">Mayor capacidad de razonamiento para flujos de trabajo más grandes y ediciones complejas sin perder rendimiento.</div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <BrainCircuit className="h-4 w-4 text-muted-foreground" />
+        Behemoth
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">Máxima capacidad de razonamiento para planificación profunda, depuración y cambios arquitectónicos complejos.</div>
+  </Card>
+</Cards>
+
+### Interfaz de selección de modo
+
+Puedes cambiar fácilmente entre diferentes modos de razonamiento usando el selector de modo en la interfaz de Copilot:
+
+<Image
+  src="/static/copilot/copilot-models.png"
+  alt="Selección de modo de Copilot mostrando el modo Avanzado con el interruptor MAX"
+  width={600}
+  height={300}
+/>
+
+La interfaz te permite:
+- **Seleccionar nivel de razonamiento**: Elige entre Rápido, Auto, Avanzado o Behemoth
+- **Activar modo MAX**: Activa el interruptor para obtener las máximas capacidades de razonamiento cuando necesites el análisis más exhaustivo
+- **Ver descripciones de modos**: Comprende para qué está optimizado cada modo
+
+Elige tu modo según la complejidad de tu tarea - usa Rápido para preguntas simples y Behemoth para cambios arquitectónicos complejos.
+
+## Facturación y cálculo de costos
+
+### Cómo se calculan los costos
+
+El uso de Copilot se factura por token del LLM subyacente:
+
+- **Tokens de entrada**: facturados a la tarifa base del proveedor (**a costo**)
+- **Tokens de salida**: facturados a **1,5×** la tarifa base de salida del proveedor
+
+```javascript
+copilotCost = (inputTokens × inputPrice + outputTokens × (outputPrice × 1.5)) / 1,000,000
+```
+
+| Componente | Tarifa aplicada       |
+|------------|----------------------|
+| Entrada    | inputPrice           |
+| Salida     | outputPrice × 1.5    |
+
+<Callout type="warning">
+  Los precios mostrados reflejan las tarifas a partir del 4 de septiembre de 2025. Consulte la documentación del proveedor para conocer los precios actuales.
+</Callout>
+
+<Callout type="info">
+  Los precios de los modelos son por millón de tokens. El cálculo divide por 1.000.000 para obtener el costo real. Consulte <a href="/execution/costs">la página de Cálculo de Costos</a> para antecedentes y ejemplos.
+</Callout>

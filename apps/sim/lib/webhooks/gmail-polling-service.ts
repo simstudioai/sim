@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
+import { pollingIdempotency } from '@/lib/idempotency/service'
 import { createLogger } from '@/lib/logs/console/logger'
-import { hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
@@ -16,7 +16,6 @@ interface GmailWebhookConfig {
   maxEmailsPerPoll?: number
   lastCheckedTimestamp?: string
   historyId?: string
-  processedEmailIds?: string[]
   pollingInterval?: number
   includeRawEmail?: boolean
 }
@@ -138,30 +137,10 @@ export async function pollGmailWebhooks() {
 
         logger.info(`[${requestId}] Found ${emails.length} new emails for webhook ${webhookId}`)
 
-        // Get processed email IDs (to avoid duplicates)
-        const processedEmailIds = config.processedEmailIds || []
-
-        // Filter out emails that have already been processed
-        const newEmails = emails.filter((email) => !processedEmailIds.includes(email.id))
-
-        if (newEmails.length === 0) {
-          logger.info(
-            `[${requestId}] All emails have already been processed for webhook ${webhookId}`
-          )
-          await updateWebhookLastChecked(
-            webhookId,
-            now.toISOString(),
-            latestHistoryId || config.historyId
-          )
-          return { success: true, webhookId, status: 'already_processed' }
-        }
-
-        logger.info(
-          `[${requestId}] Processing ${newEmails.length} new emails for webhook ${webhookId}`
-        )
+        logger.info(`[${requestId}] Processing ${emails.length} emails for webhook ${webhookId}`)
 
         // Process all emails (process each email as a separate workflow trigger)
-        const emailsToProcess = newEmails
+        const emailsToProcess = emails
 
         // Process emails
         const processed = await processEmails(
@@ -172,24 +151,13 @@ export async function pollGmailWebhooks() {
           requestId
         )
 
-        // Record which email IDs have been processed
-        const newProcessedIds = [...processedEmailIds, ...emailsToProcess.map((email) => email.id)]
-        // Keep only the most recent 100 IDs to prevent the list from growing too large
-        const trimmedProcessedIds = newProcessedIds.slice(-100)
-
-        // Update webhook with latest history ID, timestamp, and processed email IDs
-        await updateWebhookData(
-          webhookId,
-          now.toISOString(),
-          latestHistoryId || config.historyId,
-          trimmedProcessedIds
-        )
+        // Update webhook with latest history ID and timestamp
+        await updateWebhookData(webhookId, now.toISOString(), latestHistoryId || config.historyId)
 
         return {
           success: true,
           webhookId,
           emailsFound: emails.length,
-          newEmails: newEmails.length,
           emailsProcessed: processed,
         }
       } catch (error) {
@@ -508,156 +476,157 @@ async function processEmails(
 
   for (const email of emails) {
     try {
-      // Deduplicate at Redis level (guards against races between cron runs)
-      const dedupeKey = `gmail:${webhookData.id}:${email.id}`
-      try {
-        const alreadyProcessed = await hasProcessedMessage(dedupeKey)
-        if (alreadyProcessed) {
-          logger.info(
-            `[${requestId}] Duplicate email ${email.id} for webhook ${webhookData.id} – skipping`
+      const result = await pollingIdempotency.executeWithIdempotency(
+        'gmail',
+        `${webhookData.id}:${email.id}`,
+        async () => {
+          // Extract useful information from email to create a simplified payload
+          // First, extract headers into a map for easy access
+          const headers: Record<string, string> = {}
+          if (email.payload?.headers) {
+            for (const header of email.payload.headers) {
+              headers[header.name.toLowerCase()] = header.value
+            }
+          }
+
+          // Extract and decode email body content
+          let textContent = ''
+          let htmlContent = ''
+
+          // Function to extract content from parts recursively
+          const extractContent = (part: any) => {
+            if (!part) return
+
+            // Extract current part content if it exists
+            if (part.mimeType === 'text/plain' && part.body?.data) {
+              textContent = Buffer.from(part.body.data, 'base64').toString('utf-8')
+            } else if (part.mimeType === 'text/html' && part.body?.data) {
+              htmlContent = Buffer.from(part.body.data, 'base64').toString('utf-8')
+            }
+
+            // Process nested parts
+            if (part.parts && Array.isArray(part.parts)) {
+              for (const subPart of part.parts) {
+                extractContent(subPart)
+              }
+            }
+          }
+
+          // Extract content from the email payload
+          if (email.payload) {
+            extractContent(email.payload)
+          }
+
+          // Parse date into standard format
+          let date: string | null = null
+          if (headers.date) {
+            try {
+              date = new Date(headers.date).toISOString()
+            } catch (_e) {
+              // Keep date as null if parsing fails
+            }
+          } else if (email.internalDate) {
+            // Use internalDate as fallback (convert from timestamp to ISO string)
+            date = new Date(Number.parseInt(email.internalDate)).toISOString()
+          }
+
+          // Extract attachment information if present
+          const attachments: Array<{ filename: string; mimeType: string; size: number }> = []
+
+          const findAttachments = (part: any) => {
+            if (!part) return
+
+            if (part.filename && part.filename.length > 0) {
+              attachments.push({
+                filename: part.filename,
+                mimeType: part.mimeType || 'application/octet-stream',
+                size: part.body?.size || 0,
+              })
+            }
+
+            // Look for attachments in nested parts
+            if (part.parts && Array.isArray(part.parts)) {
+              for (const subPart of part.parts) {
+                findAttachments(subPart)
+              }
+            }
+          }
+
+          if (email.payload) {
+            findAttachments(email.payload)
+          }
+
+          // Create simplified email object
+          const simplifiedEmail: SimplifiedEmail = {
+            id: email.id,
+            threadId: email.threadId,
+            subject: headers.subject || '[No Subject]',
+            from: headers.from || '',
+            to: headers.to || '',
+            cc: headers.cc || '',
+            date: date,
+            bodyText: textContent,
+            bodyHtml: htmlContent,
+            labels: email.labelIds || [],
+            hasAttachments: attachments.length > 0,
+            attachments: attachments,
+          }
+
+          // Prepare webhook payload with simplified email and optionally raw email
+          const payload: GmailWebhookPayload = {
+            email: simplifiedEmail,
+            timestamp: new Date().toISOString(),
+            ...(config.includeRawEmail ? { rawEmail: email } : {}),
+          }
+
+          logger.debug(
+            `[${requestId}] Sending ${config.includeRawEmail ? 'simplified + raw' : 'simplified'} email payload for ${email.id}`
           )
-          continue
-        }
-      } catch (err) {
-        logger.warn(`[${requestId}] Redis check failed for ${email.id}, continuing`, err)
-      }
 
-      // Extract useful information from email to create a simplified payload
-      // First, extract headers into a map for easy access
-      const headers: Record<string, string> = {}
-      if (email.payload?.headers) {
-        for (const header of email.payload.headers) {
-          headers[header.name.toLowerCase()] = header.value
-        }
-      }
+          // Trigger the webhook
+          const webhookUrl = `${getBaseUrl()}/api/webhooks/trigger/${webhookData.path}`
 
-      // Extract and decode email body content
-      let textContent = ''
-      let htmlContent = ''
-
-      // Function to extract content from parts recursively
-      const extractContent = (part: any) => {
-        if (!part) return
-
-        // Extract current part content if it exists
-        if (part.mimeType === 'text/plain' && part.body?.data) {
-          textContent = Buffer.from(part.body.data, 'base64').toString('utf-8')
-        } else if (part.mimeType === 'text/html' && part.body?.data) {
-          htmlContent = Buffer.from(part.body.data, 'base64').toString('utf-8')
-        }
-
-        // Process nested parts
-        if (part.parts && Array.isArray(part.parts)) {
-          for (const subPart of part.parts) {
-            extractContent(subPart)
-          }
-        }
-      }
-
-      // Extract content from the email payload
-      if (email.payload) {
-        extractContent(email.payload)
-      }
-
-      // Parse date into standard format
-      let date: string | null = null
-      if (headers.date) {
-        try {
-          date = new Date(headers.date).toISOString()
-        } catch (_e) {
-          // Keep date as null if parsing fails
-        }
-      } else if (email.internalDate) {
-        // Use internalDate as fallback (convert from timestamp to ISO string)
-        date = new Date(Number.parseInt(email.internalDate)).toISOString()
-      }
-
-      // Extract attachment information if present
-      const attachments: Array<{ filename: string; mimeType: string; size: number }> = []
-
-      const findAttachments = (part: any) => {
-        if (!part) return
-
-        if (part.filename && part.filename.length > 0) {
-          attachments.push({
-            filename: part.filename,
-            mimeType: part.mimeType || 'application/octet-stream',
-            size: part.body?.size || 0,
+          const response = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Webhook-Secret': webhookData.secret || '',
+              'User-Agent': 'SimStudio/1.0',
+            },
+            body: JSON.stringify(payload),
           })
-        }
 
-        // Look for attachments in nested parts
-        if (part.parts && Array.isArray(part.parts)) {
-          for (const subPart of part.parts) {
-            findAttachments(subPart)
+          if (!response.ok) {
+            const errorText = await response.text()
+            logger.error(
+              `[${requestId}] Failed to trigger webhook for email ${email.id}:`,
+              response.status,
+              errorText
+            )
+            throw new Error(`Webhook request failed: ${response.status} - ${errorText}`)
+          }
+
+          // Mark email as read if configured
+          if (config.markAsRead) {
+            await markEmailAsRead(accessToken, email.id)
+          }
+
+          return {
+            emailId: email.id,
+            webhookStatus: response.status,
+            processed: true,
           }
         }
-      }
-
-      if (email.payload) {
-        findAttachments(email.payload)
-      }
-
-      // Create simplified email object
-      const simplifiedEmail: SimplifiedEmail = {
-        id: email.id,
-        threadId: email.threadId,
-        subject: headers.subject || '[No Subject]',
-        from: headers.from || '',
-        to: headers.to || '',
-        cc: headers.cc || '',
-        date: date,
-        bodyText: textContent,
-        bodyHtml: htmlContent,
-        labels: email.labelIds || [],
-        hasAttachments: attachments.length > 0,
-        attachments: attachments,
-      }
-
-      // Prepare webhook payload with simplified email and optionally raw email
-      const payload: GmailWebhookPayload = {
-        email: simplifiedEmail,
-        timestamp: new Date().toISOString(),
-        ...(config.includeRawEmail ? { rawEmail: email } : {}),
-      }
-
-      logger.debug(
-        `[${requestId}] Sending ${config.includeRawEmail ? 'simplified + raw' : 'simplified'} email payload for ${email.id}`
       )
 
-      // Trigger the webhook
-      const webhookUrl = `${getBaseUrl()}/api/webhooks/trigger/${webhookData.path}`
-
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Webhook-Secret': webhookData.secret || '',
-          'User-Agent': 'SimStudio/1.0',
-        },
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        logger.error(
-          `[${requestId}] Failed to trigger webhook for email ${email.id}:`,
-          response.status,
-          await response.text()
-        )
-        continue
-      }
-
-      // Mark email as read if configured
-      if (config.markAsRead) {
-        await markEmailAsRead(accessToken, email.id)
-      }
-
+      logger.info(
+        `[${requestId}] Successfully processed email ${email.id} for webhook ${webhookData.id}`
+      )
       processedCount++
-
-      await markMessageAsProcessed(dedupeKey)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       logger.error(`[${requestId}] Error processing email ${email.id}:`, errorMessage)
+      // Continue processing other emails even if one fails
     }
   }
 
@@ -706,12 +675,7 @@ async function updateWebhookLastChecked(webhookId: string, timestamp: string, hi
     .where(eq(webhook.id, webhookId))
 }
 
-async function updateWebhookData(
-  webhookId: string,
-  timestamp: string,
-  historyId?: string,
-  processedEmailIds?: string[]
-) {
+async function updateWebhookData(webhookId: string, timestamp: string, historyId?: string) {
   const existingConfig =
     (await db.select().from(webhook).where(eq(webhook.id, webhookId)))[0]?.providerConfig || {}
 
@@ -722,7 +686,6 @@ async function updateWebhookData(
         ...existingConfig,
         lastCheckedTimestamp: timestamp,
         ...(historyId ? { historyId } : {}),
-        ...(processedEmailIds ? { processedEmailIds } : {}),
       },
       updatedAt: new Date(),
     })

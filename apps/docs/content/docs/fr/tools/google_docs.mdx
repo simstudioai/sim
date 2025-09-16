@@ -1,0 +1,144 @@
+---
+title: Google Docs
+description: Lisez, écrivez et créez des documents
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_docs"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      viewBox='0 0 48 48'
+      
+      
+    >
+      <path
+        fill='#2196f3'
+        d='M37,45H11c-1.657,0-3-1.343-3-3V6c0-1.657,1.343-3,3-3h19l10,10v29C40,43.657,38.657,45,37,45z'
+      />
+      <path fill='#bbdefb' d='M40 13L30 13 30 3z' />
+      <path fill='#1565c0' d='M30 13L40 23 40 13z' />
+      <path fill='#e3f2fd' d='M15 23H33V25H15zM15 27H33V29H15zM15 31H33V33H15zM15 35H25V37H15z' />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Docs](https://docs.google.com) est un service puissant de création et d'édition de documents basé sur le cloud qui permet aux utilisateurs de créer, modifier et collaborer sur des documents en temps réel. En tant que partie intégrante de la suite de productivité de Google, Google Docs offre une plateforme polyvalente pour les documents texte avec de solides capacités de formatage, de commentaires et de partage.
+
+Apprenez à intégrer l'outil « Lecture » de Google Docs dans Sim pour récupérer sans effort les données de vos documents et les intégrer dans vos flux de travail. Ce tutoriel vous guide à travers la connexion à Google Docs, la configuration des lectures de données et l'utilisation de ces informations pour automatiser les processus en temps réel. Parfait pour synchroniser des données en direct avec vos agents.
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/f41gy9rBHhE"
+  title="Utiliser l'outil de lecture Google Docs dans Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Apprenez à intégrer l'outil « Mise à jour » de Google Docs dans Sim pour ajouter facilement du contenu à vos documents via vos flux de travail. Ce tutoriel vous guide à travers la connexion à Google Docs, la configuration des écritures de données et l'utilisation de ces informations pour automatiser les mises à jour de documents de manière transparente. Parfait pour maintenir une documentation dynamique en temps réel avec un minimum d'effort.
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/L64ROHS2ivA"
+  title="Utiliser l'outil de mise à jour Google Docs dans Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Apprenez à intégrer l'outil « Création » de Google Docs dans Sim pour générer facilement de nouveaux documents via vos flux de travail. Ce tutoriel vous guide à travers la connexion à Google Docs, la configuration de la création de documents et l'utilisation des données de flux de travail pour remplir automatiquement le contenu. Parfait pour rationaliser la génération de documents et améliorer la productivité.
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/lWpHH4qddWk"
+  title="Utiliser l'outil de création Google Docs dans Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Avec Google Docs, vous pouvez :
+
+- **Créer et modifier des documents** : développer des documents texte avec des options de mise en forme complètes
+- **Collaborer en temps réel** : travailler simultanément avec plusieurs utilisateurs sur le même document
+- **Suivre les modifications** : consulter l'historique des révisions et restaurer les versions précédentes
+- **Commenter et suggérer** : fournir des commentaires et proposer des modifications sans changer le contenu original
+- **Accéder partout** : utiliser Google Docs sur différents appareils avec synchronisation automatique dans le cloud
+- **Travailler hors ligne** : continuer à travailler sans connexion internet avec synchronisation des modifications lors de la reconnexion
+- **Intégrer avec d'autres services** : se connecter à Google Drive, Sheets, Slides et des applications tierces
+
+Dans Sim, l'intégration de Google Docs permet à vos agents d'interagir directement avec le contenu des documents de manière programmatique. Cela permet des scénarios d'automatisation puissants tels que la création de documents, l'extraction de contenu, l'édition collaborative et la gestion documentaire. Vos agents peuvent lire des documents existants pour extraire des informations, écrire dans des documents pour mettre à jour le contenu et créer de nouveaux documents à partir de zéro. Cette intégration comble le fossé entre vos flux de travail IA et la gestion documentaire, permettant une interaction fluide avec l'une des plateformes de documents les plus utilisées au monde. En connectant Sim avec Google Docs, vous pouvez automatiser les flux de travail documentaires, générer des rapports, extraire des informations des documents et maintenir la documentation - le tout grâce à vos agents intelligents.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez les fonctionnalités de Google Docs pour gérer des documents. Lisez le contenu de documents existants, écrivez dans des documents et créez de nouveaux documents en utilisant l'authentification OAuth. Prend en charge la manipulation de contenu textuel pour la création et l'édition de documents.
+
+## Outils
+
+### `google_docs_read`
+
+Lire le contenu d'un document Google Docs
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `documentId` | chaîne | Oui | L'ID du document à lire |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | chaîne | Contenu textuel extrait du document |
+| `metadata` | json | Métadonnées du document incluant l'ID, le titre et l'URL |
+
+### `google_docs_write`
+
+Écrire ou mettre à jour le contenu d'un document Google Docs
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `documentId` | chaîne | Oui | L'ID du document dans lequel écrire |
+| `content` | chaîne | Oui | Le contenu à écrire dans le document |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `updatedContent` | booléen | Indique si le contenu du document a été mis à jour avec succès |
+| `metadata` | json | Métadonnées du document mis à jour incluant l'ID, le titre et l'URL |
+
+### `google_docs_create`
+
+Créer un nouveau document Google Docs
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `title` | chaîne | Oui | Le titre du document à créer |
+| `content` | chaîne | Non | Le contenu du document à créer |
+| `folderSelector` | chaîne | Non | Sélectionner le dossier dans lequel créer le document |
+| `folderId` | chaîne | Non | L'ID du dossier dans lequel créer le document \(usage interne\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `metadata` | json | Métadonnées du document créé incluant l'ID, le titre et l'URL |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `google_docs`

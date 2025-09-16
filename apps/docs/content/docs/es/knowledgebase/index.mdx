@@ -1,0 +1,113 @@
+---
+title: Base de conocimientos
+---
+
+import { Video } from '@/components/ui/video'
+import { Image } from '@/components/ui/image'
+
+La base de conocimientos te permite cargar, procesar y buscar a través de tus documentos con búsqueda vectorial inteligente y fragmentación. Los documentos de varios tipos se procesan, incorporan y hacen buscables automáticamente. Tus documentos se fragmentan de manera inteligente, y puedes verlos, editarlos y buscar a través de ellos utilizando consultas en lenguaje natural.
+
+## Carga y procesamiento
+
+Simplemente carga tus documentos para comenzar. Sim los procesa automáticamente en segundo plano, extrayendo texto, creando incrustaciones y dividiéndolos en fragmentos buscables.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="knowledgebase-1.mp4" width={700} height={450} />
+</div>
+
+El sistema maneja todo el proceso por ti:
+
+1. **Extracción de texto**: El contenido se extrae de tus documentos utilizando analizadores especializados para cada tipo de archivo
+2. **Fragmentación inteligente**: Los documentos se dividen en fragmentos significativos con tamaño y superposición configurables
+3. **Generación de incrustaciones**: Se crean incrustaciones vectoriales para capacidades de búsqueda semántica
+4. **Estado del procesamiento**: Sigue el progreso mientras tus documentos son procesados
+
+## Tipos de archivos compatibles
+
+Sim admite archivos PDF, Word (DOC/DOCX), texto plano (TXT), Markdown (MD), HTML, Excel (XLS/XLSX), PowerPoint (PPT/PPTX) y CSV. Los archivos pueden tener hasta 100MB cada uno, con un rendimiento óptimo para archivos de menos de 50MB. Puedes cargar múltiples documentos simultáneamente, y los archivos PDF incluyen procesamiento OCR para documentos escaneados.
+
+## Visualización y edición de fragmentos
+
+Una vez que tus documentos están procesados, puedes ver y editar los fragmentos individuales. Esto te da control total sobre cómo se organiza y busca tu contenido.
+
+<Image src="/static/knowledgebase/knowledgebase.png" alt="Vista de fragmentos de documentos mostrando contenido procesado" width={800} height={500} />
+
+### Configuración de fragmentos
+- **Tamaño predeterminado del fragmento**: 1.024 caracteres
+- **Rango configurable**: 100-4.000 caracteres por fragmento
+- **Superposición inteligente**: 200 caracteres por defecto para preservar el contexto
+- **División jerárquica**: Respeta la estructura del documento (secciones, párrafos, oraciones)
+
+### Capacidades de edición
+- **Editar contenido de fragmentos**: Modificar el contenido de texto de fragmentos individuales
+- **Ajustar límites de fragmentos**: Fusionar o dividir fragmentos según sea necesario
+- **Añadir metadatos**: Mejorar fragmentos con contexto adicional
+- **Operaciones masivas**: Gestionar múltiples fragmentos de manera eficiente
+
+## Procesamiento avanzado de PDF
+
+Para documentos PDF, Sim ofrece capacidades de procesamiento mejoradas:
+
+### Soporte OCR
+Cuando se configura con Azure o [Mistral OCR](https://docs.mistral.ai/ocr/):
+- **Procesamiento de documentos escaneados**: Extraer texto de PDFs basados en imágenes
+- **Manejo de contenido mixto**: Procesar PDFs con texto e imágenes
+- **Alta precisión**: Modelos avanzados de IA aseguran una extracción precisa del texto
+
+## Uso del bloque de conocimiento en flujos de trabajo
+
+Una vez que tus documentos son procesados, puedes utilizarlos en tus flujos de trabajo de IA a través del bloque de Conocimiento. Esto permite la Generación Aumentada por Recuperación (RAG), permitiendo a tus agentes de IA acceder y razonar sobre el contenido de tus documentos para proporcionar respuestas más precisas y contextuales.
+
+<Image src="/static/knowledgebase/knowledgebase-2.png" alt="Uso del bloque de conocimiento en flujos de trabajo" width={800} height={500} />
+
+### Características del bloque de conocimiento
+- **Búsqueda semántica**: Encontrar contenido relevante usando consultas en lenguaje natural
+- **Integración de contexto**: Incluir automáticamente fragmentos relevantes en los prompts del agente
+- **Recuperación dinámica**: La búsqueda ocurre en tiempo real durante la ejecución del flujo de trabajo
+- **Puntuación de relevancia**: Resultados clasificados por similitud semántica
+
+### Opciones de integración
+- **Prompts del sistema**: Proporcionar contexto a tus agentes de IA
+- **Contexto dinámico**: Buscar e incluir información relevante durante las conversaciones
+- **Búsqueda multi-documento**: Consultar a través de toda tu base de conocimiento
+- **Búsqueda filtrada**: Combinar con etiquetas para una recuperación precisa de contenido
+
+## Tecnología de búsqueda vectorial
+
+Sim utiliza búsqueda vectorial impulsada por [pgvector](https://github.com/pgvector/pgvector) para entender el significado y contexto de tu contenido:
+
+### Comprensión semántica
+- **Búsqueda contextual**: Encuentra contenido relevante incluso cuando las palabras clave exactas no coinciden
+- **Recuperación basada en conceptos**: Comprende las relaciones entre ideas
+- **Soporte multilingüe**: Funciona en diferentes idiomas
+- **Reconocimiento de sinónimos**: Encuentra términos y conceptos relacionados
+
+### Capacidades de búsqueda
+- **Consultas en lenguaje natural**: Haz preguntas en español simple
+- **Búsqueda por similitud**: Encuentra contenido conceptualmente similar
+- **Búsqueda híbrida**: Combina búsqueda vectorial y tradicional por palabras clave
+- **Resultados configurables**: Controla el número y umbral de relevancia de los resultados
+
+## Gestión de documentos
+
+### Características de organización
+- **Carga masiva**: Sube múltiples archivos a la vez mediante la API asíncrona
+- **Estado de procesamiento**: Actualizaciones en tiempo real sobre el procesamiento de documentos
+- **Búsqueda y filtrado**: Encuentra documentos rápidamente en grandes colecciones
+- **Seguimiento de metadatos**: Captura automática de información de archivos y detalles de procesamiento
+
+### Seguridad y privacidad
+- **Almacenamiento seguro**: Documentos almacenados con seguridad de nivel empresarial
+- **Control de acceso**: Permisos basados en espacios de trabajo
+- **Aislamiento de procesamiento**: Cada espacio de trabajo tiene procesamiento de documentos aislado
+- **Retención de datos**: Configura políticas de retención de documentos
+
+## Primeros pasos
+
+1. **Navega a tu base de conocimiento**: Accede desde la barra lateral de tu espacio de trabajo
+2. **Sube documentos**: Arrastra y suelta o selecciona archivos para subir
+3. **Monitorea el procesamiento**: Observa cómo se procesan y dividen los documentos
+4. **Explora fragmentos**: Visualiza y edita el contenido procesado
+5. **Añade a flujos de trabajo**: Usa el bloque de Conocimiento para integrarlo con tus agentes de IA
+
+La base de conocimiento transforma tus documentos estáticos en un recurso inteligente y consultable que tus flujos de trabajo de IA pueden aprovechar para obtener respuestas más informadas y contextuales.

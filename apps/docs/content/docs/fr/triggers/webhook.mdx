@@ -1,0 +1,126 @@
+---
+title: Webhooks
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Video } from '@/components/ui/video'
+
+Les webhooks permettent aux services externes de déclencher l'exécution de flux de travail à partir de webhooks externes en envoyant des requêtes HTTP à votre flux de travail. Sim prend en charge deux approches pour les déclencheurs basés sur les webhooks.
+
+## Déclencheur de webhook générique
+
+Le bloc Webhook générique crée un point de terminaison flexible qui peut recevoir n'importe quelle charge utile et déclencher votre flux de travail :
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="webhooks-1.mp4" width={700} height={450} />
+</div>
+
+### Comment ça fonctionne
+
+1. **Ajoutez un bloc Webhook générique** - Faites glisser le bloc Webhook générique pour démarrer votre flux de travail
+2. **Configurez la charge utile** - Définissez la structure de charge utile attendue (facultatif)
+3. **Obtenez l'URL du webhook** - Copiez le point de terminaison unique généré automatiquement
+4. **Intégration externe** - Configurez votre service externe pour envoyer des requêtes POST à cette URL
+5. **Exécution du flux de travail** - Chaque requête vers l'URL du webhook déclenche le flux de travail
+
+### Fonctionnalités
+
+- **Charge utile flexible** : accepte n'importe quelle structure de charge utile JSON
+- **Analyse automatique** : les données du webhook sont automatiquement analysées et disponibles pour les blocs suivants
+- **Authentification** : authentification optionnelle par jeton bearer ou en-tête personnalisé
+- **Limitation de débit** : protection intégrée contre les abus
+- **Déduplication** : empêche les exécutions en double provenant de requêtes répétées
+
+<Callout type="info">
+Le déclencheur Webhook générique s'active chaque fois que l'URL du webhook reçoit une requête, ce qui le rend parfait pour les intégrations en temps réel.
+</Callout>
+
+## Mode déclencheur pour les blocs de service
+
+Alternativement, vous pouvez utiliser des blocs de service spécifiques (comme Slack, GitHub, etc.) en "mode déclencheur" pour créer des points de terminaison webhook plus spécialisés :
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="slack-trigger.mp4" width={700} height={450} />
+</div>
+
+### Configuration du mode déclencheur
+
+1. **Ajouter un bloc de service** - Choisissez un bloc de service (par ex., Slack, GitHub, Airtable)
+2. **Activer le mode déclencheur** - Basculez sur « Utiliser comme déclencheur » dans les paramètres du bloc
+3. **Configurer le service** - Configurez l'authentification et les filtres d'événements spécifiques à ce service
+4. **Enregistrement du webhook** - Le service enregistre automatiquement le webhook auprès de la plateforme externe
+5. **Exécution basée sur les événements** - Le workflow se déclenche uniquement pour des événements spécifiques de ce service
+
+### Quand utiliser chaque approche
+
+**Utilisez le webhook générique quand :**
+- Vous intégrez des applications ou services personnalisés
+- Vous avez besoin d'une flexibilité maximale dans la structure de la charge utile
+- Vous travaillez avec des services qui n'ont pas de blocs dédiés
+- Vous créez des intégrations internes
+
+**Utilisez le mode déclencheur quand :**
+- Vous travaillez avec des services pris en charge (Slack, GitHub, etc.)
+- Vous souhaitez un filtrage d'événements spécifique au service
+- Vous avez besoin d'un enregistrement automatique du webhook
+- Vous voulez une gestion structurée des données pour ce service
+
+## Services pris en charge pour le mode déclencheur
+
+Les blocs de service suivants prennent en charge le mode déclencheur :
+
+- **Slack** - Messages, mentions, réactions
+- **GitHub** - Événements de push, PR, problèmes  
+- **Airtable** - Modifications d'enregistrements
+- **Telegram** - Messages et commandes de bot
+- **Gmail** - Notifications par e-mail
+- **WhatsApp** - Événements de messagerie
+- **Jira** - Mises à jour de tickets, commentaires
+- **Linear** - Changements d'état des tickets
+- **Notion** - Mises à jour de pages
+
+## Sécurité et bonnes pratiques
+
+### Options d'authentification
+
+- **Jetons Bearer** : Inclure l'en-tête `Authorization: Bearer <token>`
+- **En-têtes personnalisés** : Définir des en-têtes d'authentification personnalisés
+
+### Gestion de la charge utile
+
+- **Validation** : Validez les charges utiles entrantes pour éviter les données mal formées
+- **Limites de taille** : Les webhooks ont des limites de taille de charge utile pour la sécurité
+- **Gestion des erreurs** : Configurez les réponses d'erreur pour les requêtes invalides
+
+### Tester les webhooks
+
+1. Utilisez des outils comme Postman ou curl pour tester vos points de terminaison webhook
+2. Vérifiez les journaux d'exécution des workflows pour le débogage
+3. Vérifiez que la structure de la charge utile correspond à vos attentes
+4. Testez l'authentification et les scénarios d'erreur
+
+<Callout type="warning">
+Validez et assainissez toujours les données webhook entrantes avant de les traiter dans vos workflows.
+</Callout>
+
+## Cas d'utilisation courants
+
+### Notifications en temps réel
+- Messages Slack déclenchant des réponses automatisées
+- Notifications par e-mail pour les événements critiques
+
+### Intégration CI/CD  
+- Pushes GitHub déclenchant des workflows de déploiement
+- Mises à jour du statut de build
+- Pipelines de tests automatisés
+
+### Synchronisation des données
+- Modifications Airtable mettant à jour d'autres systèmes
+- Soumissions de formulaires déclenchant des actions de suivi
+- Traitement des commandes e-commerce
+
+### Support client
+- Workflows de création de tickets de support
+- Processus d'escalade automatisés
+- Routage de communication multicanal

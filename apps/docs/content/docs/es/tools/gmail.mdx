@@ -1,0 +1,142 @@
+---
+title: Gmail
+description: Envía Gmail o activa flujos de trabajo desde eventos de Gmail
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="gmail"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      xmlns='http://www.w3.org/2000/svg'
+      viewBox='0 0 48 48'
+      
+      
+      
+    >
+      <path fill='#4caf50' d='M45,16.2l-5,2.75l-5,4.75L35,40h7c1.657,0,3-1.343,3-3V16.2z' />
+      <path fill='#1e88e5' d='M3,16.2l3.614,1.71L13,23.7V40H6c-1.657,0-3-1.343-3-3V16.2z' />
+      <polygon
+        fill='#e53935'
+        points='35,11.2 24,19.45 13,11.2 12,17 13,23.7 24,31.95 35,23.7 36,17'
+      />
+      <path
+        fill='#c62828'
+        d='M3,12.298V16.2l10,7.5V11.2L9.876,8.859C9.132,8.301,8.228,8,7.298,8h0C4.924,8,3,9.924,3,12.298z'
+      />
+      <path
+        fill='#fbc02d'
+        d='M45,12.298V16.2l-10,7.5V11.2l3.124-2.341C38.868,8.301,39.772,8,40.702,8h0 C43.076,8,45,9.924,45,12.298z'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Gmail](https://gmail.com) es el popular servicio de correo electrónico de Google que proporciona una plataforma robusta para enviar, recibir y gestionar comunicaciones por correo electrónico. Con más de 1.800 millones de usuarios activos en todo el mundo, Gmail ofrece una experiencia rica en funciones con potentes capacidades de búsqueda, herramientas de organización y opciones de integración.
+
+Con Gmail, puedes:
+
+- **Enviar y recibir correos electrónicos**: Comunícate con contactos a través de una interfaz limpia e intuitiva
+- **Organizar mensajes**: Usa etiquetas, carpetas y filtros para mantener tu bandeja de entrada organizada
+- **Buscar eficientemente**: Encuentra mensajes específicos rápidamente con la potente tecnología de búsqueda de Google
+- **Automatizar flujos de trabajo**: Crea filtros y reglas para procesar automáticamente los correos entrantes
+- **Acceder desde cualquier lugar**: Usa Gmail en diferentes dispositivos con contenido y configuraciones sincronizados
+- **Integrar con otros servicios**: Conéctate con Google Calendar, Drive y otras herramientas de productividad
+
+En Sim, la integración de Gmail permite a tus agentes enviar, leer y buscar correos electrónicos de forma programática. Esto permite potentes escenarios de automatización como enviar notificaciones, procesar mensajes entrantes, extraer información de correos electrónicos y gestionar flujos de comunicación. Tus agentes pueden redactar y enviar correos electrónicos personalizados, buscar mensajes específicos utilizando la sintaxis de consulta de Gmail y extraer contenido de correos electrónicos para usarlo en otras partes de tu flujo de trabajo. Próximamente, los agentes también podrán escuchar nuevos correos electrónicos en tiempo real, permitiendo flujos de trabajo receptivos que pueden activar acciones basadas en mensajes entrantes. Esta integración cierra la brecha entre tus flujos de trabajo de IA y las comunicaciones por correo electrónico, permitiendo una interacción perfecta con una de las plataformas de comunicación más utilizadas del mundo.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integración completa con Gmail mediante autenticación OAuth. Envía mensajes de correo electrónico, lee contenido de correos y activa flujos de trabajo a partir de eventos de Gmail como nuevos correos y cambios de etiquetas.
+
+## Herramientas
+
+### `gmail_send`
+
+Enviar correos electrónicos usando Gmail
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `to` | string | Sí | Dirección de correo electrónico del destinatario |
+| `subject` | string | Sí | Asunto del correo electrónico |
+| `body` | string | Sí | Contenido del cuerpo del correo electrónico |
+| `cc` | string | No | Destinatarios en CC \(separados por comas\) |
+| `bcc` | string | No | Destinatarios en CCO \(separados por comas\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Mensaje de éxito |
+| `metadata` | object | Metadatos del correo electrónico |
+
+### `gmail_draft`
+
+Crear borradores de correos electrónicos usando Gmail
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `to` | string | Sí | Dirección de correo electrónico del destinatario |
+| `subject` | string | Sí | Asunto del correo electrónico |
+| `body` | string | Sí | Contenido del cuerpo del correo electrónico |
+| `cc` | string | No | Destinatarios en CC \(separados por comas\) |
+| `bcc` | string | No | Destinatarios en CCO \(separados por comas\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Mensaje de éxito |
+| `metadata` | object | Metadatos del borrador |
+
+### `gmail_read`
+
+Leer correos electrónicos de Gmail
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | No | ID del mensaje a leer |
+| `folder` | string | No | Carpeta/etiqueta desde donde leer los correos |
+| `unreadOnly` | boolean | No | Recuperar solo mensajes no leídos |
+| `maxResults` | number | No | Número máximo de mensajes a recuperar \(predeterminado: 1, máximo: 10\) |
+| `includeAttachments` | boolean | No | Descargar e incluir archivos adjuntos del correo |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Contenido de texto del correo electrónico |
+| `metadata` | json | Metadatos del correo electrónico |
+| `attachments` | file[] | Archivos adjuntos del correo electrónico |
+
+### `gmail_search`
+
+Buscar correos electrónicos en Gmail
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Sí | Consulta de búsqueda para correos electrónicos |
+| `maxResults` | number | No | Número máximo de resultados a devolver |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `content` | string | Resumen de resultados de búsqueda |
+| `metadata` | object | Metadatos de búsqueda |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `gmail`

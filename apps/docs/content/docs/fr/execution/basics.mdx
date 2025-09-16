@@ -1,0 +1,132 @@
+---
+title: Principes de base de l'exécution
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+
+Comprendre comment les workflows s'exécutent dans Sim est essentiel pour créer des automatisations efficaces et fiables. Le moteur d'exécution gère automatiquement les dépendances, la concurrence et le flux de données pour garantir que vos workflows fonctionnent de manière fluide et prévisible.
+
+## Comment les workflows s'exécutent
+
+Le moteur d'exécution de Sim traite les workflows de manière intelligente en analysant les dépendances et en exécutant les blocs dans l'ordre le plus efficace possible.
+
+### Exécution concurrente par défaut
+
+Plusieurs blocs s'exécutent simultanément lorsqu'ils ne dépendent pas les uns des autres. Cette exécution parallèle améliore considérablement les performances sans nécessiter de configuration manuelle.
+
+<Image
+  src="/static/execution/concurrency.png"
+  alt="Plusieurs blocs s'exécutant simultanément après le bloc de démarrage"
+  width={800}
+  height={500}
+/>
+
+Dans cet exemple, les blocs d'agent de support client et de chercheur approfondi s'exécutent simultanément après le bloc de démarrage, maximisant ainsi l'efficacité.
+
+### Combinaison automatique des sorties
+
+Lorsque des blocs ont plusieurs dépendances, le moteur d'exécution attend automatiquement que toutes les dépendances soient terminées, puis fournit leurs sorties combinées au bloc suivant. Aucune combinaison manuelle n'est requise.
+
+<Image
+  src="/static/execution/combination.png"
+  alt="Bloc de fonction recevant automatiquement les sorties de plusieurs blocs précédents"
+  width={800}
+  height={500}
+/>
+
+Le bloc de fonction reçoit les sorties des deux blocs d'agent dès qu'ils sont terminés, vous permettant de traiter les résultats combinés.
+
+### Routage intelligent
+
+Les workflows peuvent se ramifier dans plusieurs directions en utilisant des blocs de routage. Le moteur d'exécution prend en charge à la fois le routage déterministe (avec des blocs de condition) et le routage basé sur l'IA (avec des blocs de routeur).
+
+<Image
+  src="/static/execution/routing.png"
+  alt="Workflow montrant à la fois des ramifications conditionnelles et basées sur un routeur"
+  width={800}
+  height={500}
+/>
+
+Ce flux de travail démontre comment l'exécution peut suivre différents chemins basés sur des conditions ou des décisions d'IA, chaque chemin s'exécutant indépendamment.
+
+## Types de blocs
+
+Sim fournit différents types de blocs qui servent à des fins spécifiques dans vos flux de travail :
+
+<Cards>
+  <Card title="Déclencheurs" href="/triggers">
+    Les **blocs de démarrage** initient les flux de travail et les **blocs Webhook** répondent aux événements externes. Chaque flux de travail nécessite un déclencheur pour commencer l'exécution.
+  </Card>
+  
+  <Card title="Blocs de traitement" href="/blocks">
+    Les **blocs Agent** interagissent avec les modèles d'IA, les **blocs Fonction** exécutent du code personnalisé, et les **blocs API** se connectent à des services externes. Ces blocs transforment et traitent vos données.
+  </Card>
+  
+  <Card title="Flux de contrôle" href="/blocks">
+    Les **blocs Routeur** utilisent l'IA pour choisir des chemins, les **blocs Condition** créent des branches basées sur la logique, et les **blocs Boucle/Parallèle** gèrent les itérations et la concurrence.
+  </Card>
+  
+  <Card title="Sortie et réponse" href="/blocks">
+    Les **blocs Réponse** formatent les sorties finales pour les API et les interfaces de chat, renvoyant des résultats structurés de vos flux de travail.
+  </Card>
+</Cards>
+
+Tous les blocs s'exécutent automatiquement en fonction de leurs dépendances - vous n'avez pas besoin de gérer manuellement l'ordre ou le timing d'exécution.
+
+## Déclencheurs d'exécution
+
+Les flux de travail peuvent être déclenchés de plusieurs façons, selon votre cas d'utilisation :
+
+### Test manuel
+Cliquez sur "Exécuter" dans l'éditeur de flux de travail pour tester votre flux pendant le développement. Parfait pour le débogage et la validation.
+
+### Exécution programmée  
+Configurez des exécutions récurrentes à l'aide d'expressions cron. Idéal pour le traitement régulier des données, les rapports ou les tâches de maintenance.
+
+### Déploiement d'API
+Déployez des flux de travail comme points de terminaison HTTP qui peuvent être appelés par programmation depuis vos applications.
+
+### Intégration Webhook
+Répondez en temps réel aux événements provenant de services externes comme GitHub, Stripe ou des systèmes personnalisés.
+
+### Interface de chat
+Créez des interfaces conversationnelles hébergées sur des sous-domaines personnalisés pour des applications d'IA destinées aux utilisateurs.
+
+<Callout type="info">
+  Apprenez-en plus sur chaque type de déclencheur dans la [section Déclencheurs](/triggers) de la documentation.
+</Callout>
+
+## Surveillance de l'exécution
+
+Lorsque les workflows s'exécutent, Sim offre une visibilité en temps réel sur le processus d'exécution :
+
+- **États des blocs en direct** : visualisez quels blocs sont en cours d'exécution, terminés ou en échec
+- **Journaux d'exécution** : des journaux détaillés apparaissent en temps réel montrant les entrées, les sorties et les éventuelles erreurs
+- **Métriques de performance** : suivez le temps d'exécution et les coûts pour chaque bloc
+- **Visualisation du parcours** : comprenez quels chemins d'exécution ont été empruntés dans votre workflow
+
+<Callout type="info">
+  Tous les détails d'exécution sont capturés et disponibles pour examen même après la fin des workflows, facilitant le débogage et l'optimisation.
+</Callout>
+
+## Principes clés d'exécution
+
+Comprendre ces principes fondamentaux vous aidera à créer de meilleurs workflows :
+
+1. **Exécution basée sur les dépendances** : les blocs ne s'exécutent que lorsque toutes leurs dépendances sont terminées
+2. **Parallélisation automatique** : les blocs indépendants s'exécutent simultanément sans configuration
+3. **Flux de données intelligent** : les sorties circulent automatiquement vers les blocs connectés
+4. **Gestion des erreurs** : les blocs en échec arrêtent leur chemin d'exécution mais n'affectent pas les chemins indépendants
+5. **Persistance d'état** : toutes les sorties de blocs et les détails d'exécution sont conservés pour le débogage
+
+## Prochaines étapes
+
+Maintenant que vous comprenez les bases de l'exécution, explorez :
+- **[Types de blocs](/blocks)** - Découvrez les capacités spécifiques des blocs
+- **[Journalisation](/execution/logging)** - Surveillez les exécutions de workflow et déboguez les problèmes
+- **[Calcul des coûts](/execution/costs)** - Comprenez et optimisez les coûts des workflows
+- **[Déclencheurs](/triggers)** - Configurez différentes façons d'exécuter vos workflows

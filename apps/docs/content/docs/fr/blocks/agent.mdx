@@ -1,0 +1,306 @@
+---
+title: Agent
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+
+Le bloc Agent sert d'interface entre votre flux de travail et les grands modèles de langage (LLM). Il exécute des requêtes d'inférence auprès de divers fournisseurs d'IA, traite les entrées en langage naturel selon des instructions définies, et génère des sorties structurées ou non structurées pour une utilisation en aval.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/agent.png"
+    alt="Configuration du bloc Agent"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Aperçu
+
+Le bloc Agent vous permet de :
+
+<Steps>
+  <Step>
+    <strong>Traiter le langage naturel</strong> : analyser les entrées utilisateur et générer des réponses contextuelles
+  </Step>
+  <Step>
+    <strong>Exécuter des tâches basées sur l'IA</strong> : effectuer des analyses de contenu, de la génération et de la prise de décision
+  </Step>
+  <Step>
+    <strong>Appeler des outils externes</strong> : accéder aux API, bases de données et services pendant le traitement
+  </Step>
+  <Step>
+    <strong>Générer des sorties structurées</strong> : renvoyer des données JSON correspondant à vos exigences de schéma
+  </Step>
+</Steps> 
+
+## Options de configuration
+
+### Prompt système
+
+Le prompt système établit les paramètres opérationnels et les contraintes comportementales de l'agent. Cette configuration définit le rôle de l'agent, sa méthodologie de réponse et les limites de traitement pour toutes les requêtes entrantes.
+
+```markdown
+You are a helpful assistant that specializes in financial analysis.
+Always provide clear explanations and cite sources when possible.
+When responding to questions about investments, include risk disclaimers.
+```
+
+### Prompt utilisateur
+
+Le prompt utilisateur représente les données d'entrée principales pour le traitement d'inférence. Ce paramètre accepte du texte en langage naturel ou des données structurées que l'agent analysera pour y répondre. Les sources d'entrée comprennent :
+
+- **Configuration statique** : saisie directe de texte spécifiée dans la configuration du bloc
+- **Entrée dynamique** : données transmises depuis des blocs en amont via des interfaces de connexion
+- **Génération à l'exécution** : contenu généré par programmation pendant l'exécution du flux de travail
+
+### Sélection du modèle
+
+Le bloc Agent prend en charge plusieurs fournisseurs de LLM via une interface d'inférence unifiée. Les modèles disponibles comprennent :
+
+**Modèles OpenAI** : GPT-5, GPT-4o, o1, o3, o4-mini, gpt-4.1 (inférence basée sur API)
+**Modèles Anthropic** : Claude 3.7 Sonnet (inférence basée sur API)
+**Modèles Google** : Gemini 2.5 Pro, Gemini 2.0 Flash (inférence basée sur API)
+**Fournisseurs alternatifs** : Groq, Cerebras, xAI, DeepSeek (inférence basée sur API)
+**Déploiement local** : modèles compatibles Ollama (inférence auto-hébergée)
+
+<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
+  <Video src="models.mp4" width={500} height={350} />
+</div>
+
+### Température
+
+Contrôlez la créativité et l'aléatoire des réponses :
+
+<Tabs items={['Basse (0-0,3)', 'Moyenne (0,3-0,7)', 'Haute (0,7-2,0)']}>
+  <Tab>
+    Réponses plus déterministes et ciblées. Idéal pour les tâches factuelles, le support client et
+    les situations où la précision est essentielle.
+  </Tab>
+  <Tab>
+    Équilibre entre créativité et concentration. Convient aux applications générales qui nécessitent à la fois
+    précision et créativité.
+  </Tab>
+  <Tab>
+    Réponses plus créatives et variées. Parfait pour l'écriture créative, le brainstorming et la génération
+    d'idées diverses.
+  </Tab>
+</Tabs>
+
+<div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+  La plage de température (0-1 ou 0-2) varie selon le modèle sélectionné.
+</div>
+
+### Clé API
+
+Votre clé API pour le fournisseur de LLM sélectionné. Elle est stockée de manière sécurisée et utilisée pour l'authentification.
+
+### Outils
+
+Les outils étendent les capacités de l'agent grâce à des intégrations d'API externes et des connexions à des services. Le système d'outils permet l'appel de fonctions, permettant à l'agent d'exécuter des opérations au-delà de la génération de texte.
+
+**Processus d'intégration d'outils** :
+1. Accédez à la section de configuration des outils dans le bloc Agent
+2. Sélectionnez parmi plus de 60 intégrations préconstruites ou définissez des fonctions personnalisées
+3. Configurez les paramètres d'authentification et les contraintes opérationnelles
+
+<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
+  <Video src="tools.mp4" width={500} height={350} />
+</div>
+
+**Catégories d'outils disponibles** :
+- **Communication** : Gmail, Slack, Telegram, WhatsApp, Microsoft Teams
+- **Sources de données** : Notion, Google Sheets, Airtable, Supabase, Pinecone
+- **Services web** : Firecrawl, Google Search, Exa AI, automatisation de navigateur
+- **Développement** : GitHub, Jira, gestion des dépôts et des problèmes Linear
+- **Services IA** : OpenAI, Perplexity, Hugging Face, ElevenLabs
+
+**Contrôle d'exécution des outils** :
+- **Auto** : Le modèle détermine l'invocation d'outils selon le contexte et la nécessité
+- **Obligatoire** : L'outil doit être appelé lors de chaque demande d'inférence
+- **Aucun** : Définition d'outil disponible mais exclue du contexte du modèle
+
+<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
+  <Video src="granular-tool-control.mp4" width={500} height={350} />
+</div>
+
+### Format de réponse
+
+Le paramètre Format de réponse impose la génération de sorties structurées via la validation par schéma JSON. Cela garantit des réponses cohérentes et lisibles par machine qui se conforment aux structures de données prédéfinies :
+
+```json
+{
+  "name": "user_analysis",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "sentiment": {
+        "type": "string",
+        "enum": ["positive", "negative", "neutral"]
+      },
+      "confidence": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    "required": ["sentiment", "confidence"]
+  }
+}
+```
+
+Cette configuration contraint la sortie du modèle à respecter le schéma spécifié, empêchant les réponses en texte libre et assurant la génération de données structurées.
+
+### Accès aux résultats
+
+Une fois qu'un agent a terminé, vous pouvez accéder à ses sorties :
+
+- **`<agent.content>`** : Le texte de réponse de l'agent ou les données structurées
+- **`<agent.tokens>`** : Statistiques d'utilisation des tokens (prompt, complétion, total)
+- **`<agent.tool_calls>`** : Détails des outils que l'agent a utilisés pendant l'exécution
+- **`<agent.cost>`** : Coût estimé de l'appel API (si disponible)
+
+## Fonctionnalités avancées
+
+### Mémoire + Agent : historique de conversation
+
+Utilisez un bloc `Memory` avec un `id` cohérent (par exemple, `chat`) pour conserver les messages entre les exécutions, et inclure cet historique dans le prompt de l'Agent.
+
+- Ajoutez le message de l'utilisateur avant l'Agent
+- Lisez l'historique de conversation pour le contexte
+- Ajoutez la réponse de l'Agent après son exécution
+
+```yaml
+# 1) Add latest user message
+- Memory (operation: add)
+  id: chat
+  role: user
+  content: {{input}}
+
+# 2) Load conversation history
+- Memory (operation: get)
+  id: chat
+
+# 3) Run the agent with prior messages available
+- Agent
+  System Prompt: ...
+  User Prompt: |
+    Use the conversation so far:
+    {{memory_get.memories}}
+    Current user message: {{input}}
+
+# 4) Store the agent reply
+- Memory (operation: add)
+  id: chat
+  role: assistant
+  content: {{agent.content}}
+```
+
+Consultez la référence du bloc `Memory` pour plus de détails : [/tools/memory](/tools/memory).
+
+## Entrées et sorties
+
+<Tabs items={['Configuration', 'Variables', 'Résultats']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Prompt système</strong> : Instructions définissant le comportement et le rôle de l'agent
+      </li>
+      <li>
+        <strong>Prompt utilisateur</strong> : Texte d'entrée ou données à traiter
+      </li>
+      <li>
+        <strong>Modèle</strong> : Sélection du modèle d'IA (OpenAI, Anthropic, Google, etc.)
+      </li>
+      <li>
+        <strong>Température</strong> : Contrôle de l'aléatoire des réponses (0-2)
+      </li>
+      <li>
+        <strong>Outils</strong> : Tableau d'outils disponibles pour l'appel de fonctions
+      </li>
+      <li>
+        <strong>Format de réponse</strong> : Schéma JSON pour une sortie structurée
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>agent.content</strong> : Texte de réponse de l'agent ou données structurées
+      </li>
+      <li>
+        <strong>agent.tokens</strong> : Objet de statistiques d'utilisation des tokens
+      </li>
+      <li>
+        <strong>agent.tool_calls</strong> : Tableau des détails d'exécution des outils
+      </li>
+      <li>
+        <strong>agent.cost</strong> : Coût estimé de l'appel API (si disponible)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Contenu</strong> : Sortie de réponse principale de l'agent
+      </li>
+      <li>
+        <strong>Métadonnées</strong> : Statistiques d'utilisation et détails d'exécution
+      </li>
+      <li>
+        <strong>Accès</strong> : Disponible dans les blocs après l'agent
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Exemples de cas d'utilisation
+
+### Automatisation du support client
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scénario : traiter les demandes des clients avec accès à la base de données</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>L'utilisateur soumet un ticket de support via le bloc API</li>
+    <li>L'agent vérifie les commandes/abonnements dans Postgres et recherche des conseils dans la base de connaissances</li>
+    <li>Si une escalade est nécessaire, l'agent crée un ticket Linear avec le contexte pertinent</li>
+    <li>L'agent rédige une réponse par e-mail claire</li>
+    <li>Gmail envoie la réponse au client</li>
+    <li>La conversation est enregistrée dans Memory pour conserver l'historique des messages futurs</li>
+  </ol>
+</div>
+
+### Analyse de contenu multi-modèles
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scénario : analyser du contenu avec différents modèles d'IA</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Le bloc de fonction traite le document téléchargé</li>
+    <li>L'agent avec GPT-4o effectue une analyse technique</li>
+    <li>L'agent avec Claude analyse le sentiment et le ton</li>
+    <li>Le bloc de fonction combine les résultats pour le rapport final</li>
+  </ol>
+</div>
+
+### Assistant de recherche alimenté par des outils
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scénario : assistant de recherche avec recherche web et accès aux documents</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Requête de l'utilisateur reçue via l'entrée</li>
+    <li>L'agent effectue des recherches sur le web à l'aide de l'outil Google Search</li>
+    <li>L'agent accède à la base de données Notion pour les documents internes</li>
+    <li>L'agent compile un rapport de recherche complet</li>
+  </ol>
+</div>
+
+## Bonnes pratiques
+
+- **Soyez précis dans les instructions système** : définissez clairement le rôle, le ton et les limites de l'agent. Plus vos instructions sont précises, mieux l'agent pourra remplir sa fonction prévue.
+- **Choisissez le bon réglage de température** : utilisez des réglages de température plus bas (0-0,3) lorsque la précision est importante, ou augmentez la température (0,7-2,0) pour des réponses plus créatives ou variées
+- **Utilisez efficacement les outils** : intégrez des outils qui complètent l'objectif de l'agent et améliorent ses capacités. Soyez sélectif quant aux outils que vous fournissez pour éviter de surcharger l'agent. Pour les tâches avec peu de chevauchement, utilisez un autre bloc Agent pour obtenir les meilleurs résultats.

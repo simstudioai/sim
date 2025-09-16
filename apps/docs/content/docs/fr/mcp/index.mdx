@@ -1,0 +1,140 @@
+---
+title: MCP (Model Context Protocol)
+---
+
+import { Video } from '@/components/ui/video'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Le Model Context Protocol ([MCP](https://modelcontextprotocol.com/)) vous permet de connecter des outils et services externes en utilisant un protocole standardisé, vous permettant d'intégrer des API et des services directement dans vos flux de travail. Avec MCP, vous pouvez étendre les capacités de Sim en ajoutant des intégrations personnalisées qui fonctionnent parfaitement avec vos agents et flux de travail.
+
+## Qu'est-ce que MCP ?
+
+MCP est une norme ouverte qui permet aux assistants IA de se connecter de manière sécurisée à des sources de données et outils externes. Il fournit une méthode standardisée pour :
+
+- Se connecter aux bases de données, API et systèmes de fichiers
+- Accéder aux données en temps réel depuis des services externes
+- Exécuter des outils et scripts personnalisés
+- Maintenir un accès sécurisé et contrôlé aux ressources externes
+
+## Ajout de serveurs MCP
+
+Les serveurs MCP fournissent des collections d'outils que vos agents peuvent utiliser. Vous pouvez ajouter des serveurs MCP de deux façons :
+
+### Depuis les paramètres de l'espace de travail
+
+Configurez les serveurs MCP au niveau de l'espace de travail pour que tous les membres de l'équipe puissent les utiliser :
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="mcp-1.mp4" width={700} height={450} />
+</div>
+
+1. Accédez aux paramètres de votre espace de travail
+2. Allez à la section **Serveurs MCP**
+3. Cliquez sur **Ajouter un serveur MCP**
+4. Saisissez les détails de configuration du serveur
+5. Enregistrez la configuration
+
+<Callout type="info">
+Les serveurs MCP configurés dans les paramètres de l'espace de travail sont disponibles pour tous les membres de l'espace de travail selon leurs niveaux de permission.
+</Callout>
+
+### Depuis la configuration d'un agent
+
+Vous pouvez également ajouter et configurer des serveurs MCP directement depuis un bloc d'agent :
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="mcp-2.mp4" width={700} height={450} />
+</div>
+
+C'est utile lorsque vous devez rapidement configurer une intégration spécifique pour un flux de travail particulier.
+
+## Utilisation des outils MCP dans les agents
+
+Une fois les serveurs MCP configurés, leurs outils deviennent disponibles dans vos blocs d'agents :
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="mcp-3.mp4" width={700} height={450} />
+</div>
+
+1. Ouvrez un bloc **Agent**
+2. Dans la section **Outils**, vous verrez les outils MCP disponibles
+3. Sélectionnez les outils que vous souhaitez que l'agent utilise
+4. L'agent peut maintenant accéder à ces outils pendant l'exécution
+
+## Bloc d'outil MCP autonome
+
+Pour un contrôle plus précis, vous pouvez utiliser le bloc d'outil MCP dédié pour exécuter des outils MCP spécifiques :
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="mcp-4.mp4" width={700} height={450} />
+</div>
+
+Le bloc d'outil MCP vous permet de :
+- Exécuter directement n'importe quel outil MCP configuré
+- Transmettre des paramètres spécifiques à l'outil
+- Utiliser la sortie de l'outil dans les étapes suivantes du flux de travail
+- Enchaîner plusieurs outils MCP
+
+### Quand utiliser l'outil MCP vs l'agent
+
+**Utilisez l'agent avec les outils MCP quand :**
+- Vous voulez que l'IA décide quels outils utiliser
+- Vous avez besoin d'un raisonnement complexe sur quand et comment utiliser les outils
+- Vous souhaitez une interaction en langage naturel avec les outils
+
+**Utilisez le bloc d'outil MCP quand :**
+- Vous avez besoin d'une exécution déterministe des outils
+- Vous voulez exécuter un outil spécifique avec des paramètres connus
+- Vous construisez des flux de travail structurés avec des étapes prévisibles
+
+## Exigences en matière de permissions
+
+Les fonctionnalités MCP nécessitent des permissions spécifiques dans l'espace de travail :
+
+| Action | Permission requise |
+|--------|-------------------|
+| Configurer les serveurs MCP dans les paramètres | **Admin** |
+| Utiliser les outils MCP dans les agents | **Écriture** ou **Admin** |
+| Voir les outils MCP disponibles | **Lecture**, **Écriture** ou **Admin** |
+| Exécuter des blocs d'outil MCP | **Écriture** ou **Admin** |
+
+## Cas d'utilisation courants
+
+### Intégration de bases de données
+Connectez-vous aux bases de données pour interroger, insérer ou mettre à jour des données dans vos flux de travail.
+
+### Intégrations d'API
+Accédez aux API externes et aux services web qui n'ont pas d'intégrations Sim intégrées.
+
+### Accès au système de fichiers
+Lisez, écrivez et manipulez des fichiers sur des systèmes de fichiers locaux ou distants.
+
+### Logique métier personnalisée
+Exécutez des scripts ou des outils personnalisés spécifiques aux besoins de votre organisation.
+
+### Accès aux données en temps réel
+Récupérez des données en direct à partir de systèmes externes pendant l'exécution du flux de travail.
+
+## Considérations de sécurité
+
+- Les serveurs MCP s'exécutent avec les permissions de l'utilisateur qui les a configurés
+- Vérifiez toujours les sources des serveurs MCP avant l'installation
+- Utilisez des variables d'environnement pour les données de configuration sensibles
+- Examinez les capacités du serveur MCP avant d'accorder l'accès aux agents
+
+## Dépannage
+
+### Le serveur MCP n'apparaît pas
+- Vérifiez que la configuration du serveur est correcte
+- Vérifiez que vous disposez des permissions requises
+- Assurez-vous que le serveur MCP est en cours d'exécution et accessible
+
+### Échecs d'exécution d'outils
+- Vérifiez que les paramètres de l'outil sont correctement formatés
+- Consultez les journaux du serveur MCP pour les messages d'erreur
+- Assurez-vous que l'authentification requise est configurée
+
+### Erreurs de permission
+- Confirmez votre niveau de permission d'espace de travail
+- Vérifiez si le serveur MCP nécessite une authentification supplémentaire
+- Vérifiez que le serveur est correctement configuré pour votre espace de travail

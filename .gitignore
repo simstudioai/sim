@@ -69,3 +69,4 @@ start-collector.sh
 
 ## Helm Chart Tests
 helm/sim/test
+i18n.cache

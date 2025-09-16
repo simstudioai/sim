@@ -1,0 +1,74 @@
+---
+title: Réflexion
+description: Force le modèle à exposer son processus de réflexion.
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="thinking"
+  color="#181C1E"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='2'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+    >
+      <path d='M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z' />
+      <path d='M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z' />
+      <path d='M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4' />
+      <path d='M17.599 6.5a3 3 0 0 0 .399-1.375' />
+      <path d='M6.003 5.125A3 3 0 0 0 6.401 6.5' />
+      <path d='M3.477 10.896a4 4 0 0 1 .585-.396' />
+      <path d='M19.938 10.5a4 4 0 0 1 .585.396' />
+      <path d='M6 18a4 4 0 0 1-1.967-.516' />
+      <path d='M19.967 17.484A4 4 0 0 1 18 18' />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+L'outil Réflexion encourage les modèles d'IA à s'engager dans un raisonnement explicite avant de répondre à des questions complexes. En offrant un espace dédié à l'analyse étape par étape, cet outil aide les modèles à décomposer les problèmes, à considérer plusieurs perspectives et à parvenir à des conclusions plus réfléchies.
+
+Des recherches ont démontré que le fait d'inciter les modèles de langage à « réfléchir étape par étape » peut améliorer considérablement leurs capacités de raisonnement. Selon [les recherches d'Anthropic sur l'outil Think de Claude](https://www.anthropic.com/engineering/claude-think-tool), lorsque les modèles disposent d'un espace pour développer explicitement leur raisonnement, ils démontrent :
+
+- **Résolution de problèmes améliorée** : décomposition de problèmes complexes en étapes gérables
+- **Précision accrue** : réduction des erreurs en travaillant soigneusement sur chaque composante d'un problème
+- **Plus grande transparence** : rendre visible et vérifiable le processus de raisonnement du modèle
+- **Réponses plus nuancées** : considération de multiples angles avant d'arriver à des conclusions
+
+Dans Sim, l'outil de Réflexion crée une opportunité structurée pour que vos agents s'engagent dans ce type de raisonnement délibéré. En incorporant des étapes de réflexion dans vos flux de travail, vous pouvez aider vos agents à aborder des tâches complexes plus efficacement, éviter les pièges de raisonnement courants et produire des résultats de meilleure qualité. Cela est particulièrement précieux pour les tâches impliquant un raisonnement en plusieurs étapes, une prise de décision complexe ou des situations où la précision est essentielle.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Ajoute une étape où le modèle expose explicitement son processus de réflexion avant de continuer. Cela peut améliorer la qualité du raisonnement en encourageant une analyse étape par étape.
+
+## Outils
+
+### `thinking_tool`
+
+Traite une réflexion/instruction fournie, la rendant disponible pour les étapes suivantes.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `thought` | chaîne | Oui | Le processus de réflexion ou l'instruction fournie par l'utilisateur dans le bloc Étape de Réflexion. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `acknowledgedThought` | chaîne | La réflexion qui a été traitée et reconnue |
+
+## Remarques
+
+- Catégorie : `tools`
+- Type : `thinking`

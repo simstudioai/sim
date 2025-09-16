@@ -1325,6 +1325,27 @@ export const workflowDeploymentVersion = pgTable(
   })
 )
 
+// Idempotency keys for preventing duplicate processing across all webhooks and triggers
+export const idempotencyKey = pgTable(
+  'idempotency_key',
+  {
+    key: text('key').notNull(),
+    namespace: text('namespace').notNull().default('default'),
+    result: json('result').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Primary key is combination of key and namespace
+    keyNamespacePk: uniqueIndex('idempotency_key_namespace_unique').on(table.key, table.namespace),
+
+    // Index for cleanup operations by creation time
+    createdAtIdx: index('idempotency_key_created_at_idx').on(table.createdAt),
+
+    // Index for namespace-based queries
+    namespaceIdx: index('idempotency_key_namespace_idx').on(table.namespace),
+  })
+)
+
 export const mcpServers = pgTable(
   'mcp_servers',
   {

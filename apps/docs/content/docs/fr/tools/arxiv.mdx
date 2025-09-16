@@ -1,0 +1,109 @@
+---
+title: ArXiv
+description: Rechercher et récupérer des articles académiques depuis ArXiv
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="arxiv"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"  id='logomark' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 17.732 24.269'>
+      <g id='tiny'>
+        <path
+          d='M573.549,280.916l2.266,2.738,6.674-7.84c.353-.47.52-.717.353-1.117a1.218,1.218,0,0,0-1.061-.748h0a.953.953,0,0,0-.712.262Z'
+          transform='translate(-566.984 -271.548)'
+          fill='#bdb9b4'
+        />
+        <path
+          d='M579.525,282.225l-10.606-10.174a1.413,1.413,0,0,0-.834-.5,1.09,1.09,0,0,0-1.027.66c-.167.4-.047.681.319,1.206l8.44,10.242h0l-6.282,7.716a1.336,1.336,0,0,0-.323,1.3,1.114,1.114,0,0,0,1.04.69A.992.992,0,0,0,571,293l8.519-7.92A1.924,1.924,0,0,0,579.525,282.225Z'
+          transform='translate(-566.984 -271.548)'
+          fill='#b31b1b'
+        />
+        <path
+          d='M584.32,293.912l-8.525-10.275,0,0L573.53,280.9l-1.389,1.254a2.063,2.063,0,0,0,0,2.965l10.812,10.419a.925.925,0,0,0,.742.282,1.039,1.039,0,0,0,.953-.667A1.261,1.261,0,0,0,584.32,293.912Z'
+          transform='translate(-566.984 -271.548)'
+          fill='#bdb9b4'
+        />
+      </g>
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[ArXiv](https://arxiv.org/) est un dépôt gratuit et en libre accès d'articles de recherche scientifique dans des domaines tels que la physique, les mathématiques, l'informatique, la biologie quantitative, la finance quantitative, les statistiques, le génie électrique, les sciences des systèmes et l'économie. ArXiv fournit une vaste collection de prépublications et d'articles publiés, ce qui en fait une ressource essentielle pour les chercheurs et les praticiens du monde entier.
+
+Avec ArXiv, vous pouvez :
+
+- **Rechercher des articles académiques** : trouvez des recherches par mots-clés, noms d'auteurs, titres, catégories, et plus encore
+- **Récupérer les métadonnées des articles** : accédez aux résumés, listes d'auteurs, dates de publication et autres informations bibliographiques
+- **Télécharger des PDF en texte intégral** : obtenez le texte complet de la plupart des articles pour une étude approfondie
+- **Explorer les contributions des auteurs** : consultez tous les articles d'un auteur spécifique
+- **Rester à jour** : découvrez les dernières soumissions et les sujets tendance dans votre domaine
+
+Dans Sim, l'intégration d'ArXiv permet à vos agents de rechercher, récupérer et analyser programmatiquement des articles scientifiques depuis ArXiv. Cela vous permet d'automatiser les revues de littérature, de créer des assistants de recherche ou d'incorporer des connaissances scientifiques à jour dans vos flux de travail agentiques. Utilisez ArXiv comme source dynamique de données pour la recherche, la découverte et l'extraction de connaissances au sein de vos projets Sim.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Recherchez des articles académiques, récupérez des métadonnées, téléchargez des articles et accédez à la vaste collection de recherches scientifiques sur ArXiv.
+
+## Outils
+
+### `arxiv_search`
+
+Recherchez des articles académiques sur ArXiv par mots-clés, auteurs, titres ou autres champs.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `searchQuery` | string | Oui | La requête de recherche à exécuter |
+| `searchField` | string | Non | Champ dans lequel rechercher : all, ti \(titre\), au \(auteur\), abs \(résumé\), co \(commentaire\), jr \(journal\), cat \(catégorie\), rn \(numéro de rapport\) |
+| `maxResults` | number | Non | Nombre maximum de résultats à retourner \(par défaut : 10, max : 2000\) |
+| `sortBy` | string | Non | Trier par : relevance, lastUpdatedDate, submittedDate \(par défaut : relevance\) |
+| `sortOrder` | string | Non | Ordre de tri : ascending, descending \(par défaut : descending\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `papers` | json | Tableau d'articles correspondant à la requête de recherche |
+
+### `arxiv_get_paper`
+
+Obtenez des informations détaillées sur un article spécifique d'ArXiv par son identifiant.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `paperId` | string | Oui | Identifiant de l'article ArXiv \(ex. : "1706.03762"\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `paper` | json | Informations détaillées sur l'article ArXiv demandé |
+
+### `arxiv_get_author_papers`
+
+Recherchez des articles d'un auteur spécifique sur ArXiv.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `authorName` | string | Oui | Nom de l'auteur à rechercher |
+| `maxResults` | number | Non | Nombre maximum de résultats à retourner \(par défaut : 10, max : 2000\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `authorPapers` | json | Tableau des articles rédigés par l'auteur spécifié |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `arxiv`

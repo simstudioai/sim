@@ -1,0 +1,106 @@
+---
+title: 连接标签
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Video } from '@/components/ui/video'
+
+连接标签是连接块中可用数据的可视化表示，提供了一种在工作流中引用块之间数据和前置块输出的简便方式。
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="connections.mp4" />
+</div>
+
+### 什么是连接标签？
+
+连接标签是块连接时出现的交互元素。它们表示可以从一个块流向另一个块的数据，并允许您：
+
+- 可视化源块中可用的数据
+- 在目标块中引用特定的数据字段
+- 在块之间创建动态数据流
+
+<Callout type="info">
+  连接标签使您可以轻松查看前置块中可用的数据，并在当前块中使用这些数据，而无需记住复杂的数据结构。
+</Callout>
+
+## 使用连接标签
+
+在工作流中使用连接标签主要有两种方式：
+
+<div className="my-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+  <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+    <h3 className="mb-2 text-lg font-medium">拖放操作</h3>
+    <div className="text-sm text-gray-600 dark:text-gray-400">
+      点击连接标签并将其拖动到目标块的输入字段中。一个下拉菜单会显示可用的值。
+    </div>
+    <ol className="mt-2 list-decimal pl-5 text-sm text-gray-600 dark:text-gray-400">
+      <li>将鼠标悬停在连接标签上以查看可用数据</li>
+      <li>点击并拖动标签到输入字段</li>
+      <li>从下拉菜单中选择特定的数据字段</li>
+      <li>引用会自动插入</li>
+    </ol>
+  </div>
+
+  <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+    <h3 className="mb-2 text-lg font-medium">尖括号语法</h3>
+    <div className="text-sm text-gray-600 dark:text-gray-400">
+      在输入字段中键入 <code>&lt;&gt;</code>，即可看到前置块中可用连接值的下拉菜单。
+    </div>
+    <ol className="mt-2 list-decimal pl-5 text-sm text-gray-600 dark:text-gray-400">
+      <li>点击任意输入字段，选择您想使用的连接数据</li>
+      <li>
+        键入 <code>&lt;&gt;</code> 以触发连接下拉菜单
+      </li>
+      <li>浏览并选择您想引用的数据</li>
+      <li>继续输入或从下拉菜单中选择以完成引用</li>
+    </ol>
+  </div>
+</div>
+
+## 标签语法
+
+连接标签使用简单的语法来引用数据：
+
+```
+<blockName.path.to.data>
+```
+
+其中：
+
+- `blockName` 是源块的名称
+- `path.to.data` 是特定数据字段的路径
+
+例如：
+
+- `<agent1.content>` - 引用 ID 为 "agent1" 的块中的内容字段
+- `<api2.data.users[0].name>` - 引用 ID 为 "api2" 的块中数据字段的用户数组中第一个用户的名称
+
+## 动态标签引用
+
+连接标签在运行时进行评估，这意味着：
+
+1. 它们始终引用最新的数据
+2. 它们可以在表达式中使用，并与静态文本结合
+3. 它们可以嵌套在其他数据结构中
+
+### 示例
+
+```javascript
+// Reference in text
+"The user's name is <userBlock.name>"
+
+// Reference in JSON
+{
+  "userName": "<userBlock.name>",
+  "orderTotal": <apiBlock.data.total>
+}
+
+// Reference in code
+const greeting = "Hello, <userBlock.name>!";
+const total = <apiBlock.data.total> * 1.1; // Add 10% tax
+```
+
+<Callout type="warning">
+  在数字上下文中使用连接标签时，请确保引用的数据实际上是数字，
+  以避免类型转换问题。
+</Callout>

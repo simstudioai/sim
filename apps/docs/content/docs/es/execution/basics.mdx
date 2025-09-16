@@ -1,0 +1,132 @@
+---
+title: Conceptos básicos de ejecución
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+
+Entender cómo se ejecutan los flujos de trabajo en Sim es clave para crear automatizaciones eficientes y confiables. El motor de ejecución gestiona automáticamente las dependencias, la concurrencia y el flujo de datos para garantizar que tus flujos de trabajo funcionen de manera fluida y predecible.
+
+## Cómo se ejecutan los flujos de trabajo
+
+El motor de ejecución de Sim procesa los flujos de trabajo de manera inteligente analizando las dependencias y ejecutando los bloques en el orden más eficiente posible.
+
+### Ejecución concurrente por defecto
+
+Múltiples bloques se ejecutan simultáneamente cuando no dependen entre sí. Esta ejecución paralela mejora dramáticamente el rendimiento sin requerir configuración manual.
+
+<Image
+  src="/static/execution/concurrency.png"
+  alt="Múltiples bloques ejecutándose concurrentemente después del bloque de Inicio"
+  width={800}
+  height={500}
+/>
+
+En este ejemplo, tanto el bloque de agente de Atención al Cliente como el de Investigador Profundo se ejecutan simultáneamente después del bloque de Inicio, maximizando la eficiencia.
+
+### Combinación automática de salidas
+
+Cuando los bloques tienen múltiples dependencias, el motor de ejecución espera automáticamente a que todas las dependencias se completen, y luego proporciona sus salidas combinadas al siguiente bloque. No se requiere combinación manual.
+
+<Image
+  src="/static/execution/combination.png"
+  alt="Bloque de función recibiendo automáticamente salidas de múltiples bloques anteriores"
+  width={800}
+  height={500}
+/>
+
+El bloque de Función recibe las salidas de ambos bloques de agente tan pronto como se completan, permitiéndote procesar los resultados combinados.
+
+### Enrutamiento inteligente
+
+Los flujos de trabajo pueden ramificarse en múltiples direcciones utilizando bloques de enrutamiento. El motor de ejecución admite tanto el enrutamiento determinista (con bloques de Condición) como el enrutamiento basado en IA (con bloques de Router).
+
+<Image
+  src="/static/execution/routing.png"
+  alt="Flujo de trabajo mostrando ramificación tanto condicional como basada en router"
+  width={800}
+  height={500}
+/>
+
+Este flujo de trabajo demuestra cómo la ejecución puede seguir diferentes caminos basados en condiciones o decisiones de IA, con cada camino ejecutándose independientemente.
+
+## Tipos de bloques
+
+Sim proporciona diferentes tipos de bloques que sirven para propósitos específicos en tus flujos de trabajo:
+
+<Cards>
+  <Card title="Disparadores" href="/triggers">
+    Los **bloques de inicio** inician flujos de trabajo y los **bloques de Webhook** responden a eventos externos. Cada flujo de trabajo necesita un disparador para comenzar la ejecución.
+  </Card>
+  
+  <Card title="Bloques de procesamiento" href="/blocks">
+    Los **bloques de agente** interactúan con modelos de IA, los **bloques de función** ejecutan código personalizado, y los **bloques de API** conectan con servicios externos. Estos bloques transforman y procesan tus datos.
+  </Card>
+  
+  <Card title="Control de flujo" href="/blocks">
+    Los **bloques de enrutador** usan IA para elegir caminos, los **bloques de condición** ramifican basándose en lógica, y los **bloques de bucle/paralelo** manejan iteraciones y concurrencia.
+  </Card>
+  
+  <Card title="Salida y respuesta" href="/blocks">
+    Los **bloques de respuesta** formatean las salidas finales para APIs e interfaces de chat, devolviendo resultados estructurados de tus flujos de trabajo.
+  </Card>
+</Cards>
+
+Todos los bloques se ejecutan automáticamente basándose en sus dependencias - no necesitas gestionar manualmente el orden de ejecución o el tiempo.
+
+## Disparadores de ejecución
+
+Los flujos de trabajo pueden activarse de varias maneras, dependiendo de tu caso de uso:
+
+### Pruebas manuales
+Haz clic en "Ejecutar" en el editor de flujo de trabajo para probar tu flujo de trabajo durante el desarrollo. Perfecto para depuración y validación.
+
+### Ejecución programada  
+Configura ejecuciones recurrentes usando expresiones cron. Ideal para procesamiento regular de datos, informes o tareas de mantenimiento.
+
+### Despliegue de API
+Despliega flujos de trabajo como endpoints HTTP que pueden ser llamados programáticamente desde tus aplicaciones.
+
+### Integración de Webhook
+Responde a eventos de servicios externos como GitHub, Stripe o sistemas personalizados en tiempo real.
+
+### Interfaz de chat
+Crea interfaces conversacionales alojadas en subdominios personalizados para aplicaciones de IA orientadas al usuario.
+
+<Callout type="info">
+  Aprende más sobre cada tipo de disparador en la [sección de Disparadores](/triggers) de la documentación.
+</Callout>
+
+## Monitoreo de ejecución
+
+Cuando los flujos de trabajo se ejecutan, Sim proporciona visibilidad en tiempo real del proceso de ejecución:
+
+- **Estados de bloques en vivo**: Ve qué bloques se están ejecutando actualmente, cuáles han completado o fallado
+- **Registros de ejecución**: Los registros detallados aparecen en tiempo real mostrando entradas, salidas y cualquier error
+- **Métricas de rendimiento**: Realiza seguimiento del tiempo de ejecución y costos para cada bloque
+- **Visualización de rutas**: Comprende qué rutas de ejecución se tomaron a través de tu flujo de trabajo
+
+<Callout type="info">
+  Todos los detalles de ejecución son capturados y están disponibles para revisión incluso después de que los flujos de trabajo se completen, ayudando con la depuración y optimización.
+</Callout>
+
+## Principios clave de ejecución
+
+Entender estos principios fundamentales te ayudará a construir mejores flujos de trabajo:
+
+1. **Ejecución basada en dependencias**: Los bloques solo se ejecutan cuando todas sus dependencias han completado
+2. **Paralelización automática**: Los bloques independientes se ejecutan simultáneamente sin configuración
+3. **Flujo inteligente de datos**: Las salidas fluyen automáticamente a los bloques conectados
+4. **Manejo de errores**: Los bloques fallidos detienen su ruta de ejecución pero no afectan rutas independientes
+5. **Persistencia de estado**: Todas las salidas de bloques y detalles de ejecución se conservan para depuración
+
+## Próximos pasos
+
+Ahora que entiendes los conceptos básicos de ejecución, explora:
+- **[Tipos de bloques](/blocks)** - Aprende sobre las capacidades específicas de los bloques
+- **[Registro](/execution/logging)** - Monitorea ejecuciones de flujos de trabajo y depura problemas
+- **[Cálculo de costos](/execution/costs)** - Comprende y optimiza los costos de flujos de trabajo
+- **[Disparadores](/triggers)** - Configura diferentes formas de ejecutar tus flujos de trabajo

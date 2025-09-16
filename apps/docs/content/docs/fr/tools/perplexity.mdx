@@ -1,0 +1,68 @@
+---
+title: Perplexity
+description: Utilisez les modèles de chat Perplexity AI
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="perplexity"
+  color="#20808D"
+  icon={true}
+  iconSvg={`<svg className="block-icon"   viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' >
+      <path
+        d='M19.785 0v7.272H22.5V17.62h-2.935V24l-7.037-6.194v6.145h-1.091v-6.152L4.392 24v-6.465H1.5V7.188h2.884V0l7.053 6.494V.19h1.09v6.49L19.786 0zm-7.257 9.044v7.319l5.946 5.234V14.44l-5.946-5.397zm-1.099-.08l-5.946 5.398v7.235l5.946-5.234V8.965zm8.136 7.58h1.844V8.349H13.46l6.105 5.54v2.655zm-8.982-8.28H2.59v8.195h1.8v-2.576l6.192-5.62zM5.475 2.476v4.71h5.115l-5.115-4.71zm13.219 0l-5.115 4.71h5.115v-4.71z'
+        fill='currentColor'
+        fillRule='nonzero'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Perplexity AI](https://www.perplexity.ai) est un moteur de recherche et de réponse alimenté par l'IA qui combine les capacités des grands modèles de langage avec la recherche web en temps réel pour fournir des informations précises et à jour ainsi que des réponses complètes à des questions complexes.
+
+Avec Perplexity AI, vous pouvez :
+
+- **Obtenir des réponses précises** : recevoir des réponses complètes à vos questions avec des citations de sources fiables
+- **Accéder à des informations en temps réel** : obtenir des informations à jour grâce aux capacités de recherche web de Perplexity
+- **Explorer des sujets en profondeur** : approfondir des sujets avec des questions complémentaires et des informations connexes
+- **Vérifier les informations** : contrôler la crédibilité des réponses grâce aux sources et références fournies
+- **Générer du contenu** : créer des résumés, des analyses et du contenu créatif basés sur des informations actuelles
+- **Rechercher efficacement** : simplifier les processus de recherche avec des réponses complètes à des requêtes complexes
+- **Interagir de manière conversationnelle** : engager un dialogue naturel pour affiner les questions et explorer des sujets
+
+Dans Sim, l'intégration de Perplexity permet à vos agents d'exploiter ces puissantes capacités d'IA de manière programmatique dans le cadre de leurs flux de travail. Cela permet des scénarios d'automatisation sophistiqués qui combinent la compréhension du langage naturel, la récupération d'informations en temps réel et la génération de contenu. Vos agents peuvent formuler des requêtes, recevoir des réponses complètes avec citations, et intégrer ces informations dans leurs processus de décision ou leurs résultats. Cette intégration comble le fossé entre l'automatisation de votre flux de travail et l'accès à des informations actuelles et fiables, permettant à vos agents de prendre des décisions plus éclairées et de fournir des réponses plus précises. En connectant Sim avec Perplexity, vous pouvez créer des agents qui restent à jour avec les dernières informations, fournissent des réponses bien documentées et délivrent des insights plus précieux aux utilisateurs - le tout sans nécessiter de recherche manuelle ou de collecte d'informations.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Générez des compléments à l'aide des modèles Perplexity AI avec des capacités de recherche et de connaissances en temps réel. Créez des réponses, répondez à des questions et générez du contenu avec des paramètres personnalisables.
+
+## Outils
+
+### `perplexity_chat`
+
+Générez des compléments à l'aide des modèles de chat Perplexity AI
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `systemPrompt` | string | Non | Instruction système pour guider le comportement du modèle |
+| `content` | string | Oui | Le contenu du message utilisateur à envoyer au modèle |
+| `model` | string | Oui | Modèle à utiliser pour les compléments de chat (ex. : sonar, mistral) |
+| `max_tokens` | number | Non | Nombre maximum de tokens à générer |
+| `temperature` | number | Non | Température d'échantillonnage entre 0 et 1 |
+| `apiKey` | string | Oui | Clé API Perplexity |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Statut de réussite de l'opération |
+| `output` | object | Résultats du complément de chat |
+
+## Remarques
+
+- Catégorie : `tools`
+- Type : `perplexity`

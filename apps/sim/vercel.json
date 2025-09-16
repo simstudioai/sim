@@ -15,6 +15,10 @@
     {
       "path": "/api/logs/cleanup",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/webhooks/cleanup/idempotency",
+      "schedule": "0 2 * * *"
     }
   ]
 }

@@ -1,0 +1,197 @@
+---
+title: Google Sheets
+description: Leer, escribir y actualizar datos
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_sheets"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      viewBox='0 0 48 48'
+      
+      
+    >
+      <path
+        fill='#43a047'
+        d='M37,45H11c-1.657,0-3-1.343-3-3V6c0-1.657,1.343-3,3-3h19l10,10v29C40,43.657,38.657,45,37,45z'
+      />
+      <path fill='#c8e6c9' d='M40 13L30 13 30 3z' />
+      <path fill='#2e7d32' d='M30 13L40 23 40 13z' />
+      <path
+        fill='#e8f5e9'
+        d='M31,23H17h-2v2v2v2v2v2v2v2h18v-2v-2v-2v-2v-2v-2v-2H31z M17,25h4v2h-4V25z M17,29h4v2h-4V29z M17,33h4v2h-4V33z M31,35h-8v-2h8V35z M31,31h-8v-2h8V31z M31,27h-8v-2h8V27z'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Sheets](https://sheets.google.com) es una potente aplicación de hojas de cálculo basada en la nube que permite a los usuarios crear, editar y colaborar en hojas de cálculo en tiempo real. Como parte del conjunto de productividad de Google, Google Sheets ofrece una plataforma versátil para la organización, análisis y visualización de datos con sólidas capacidades de formato, fórmulas y opciones para compartir.
+
+Aprende cómo integrar la herramienta "Leer" de Google Sheets en Sim para obtener datos de tus hojas de cálculo sin esfuerzo e integrarlos en tus flujos de trabajo. Este tutorial te guía a través de la conexión con Google Sheets, la configuración de lecturas de datos y el uso de esa información para automatizar procesos en tiempo real. Perfecto para sincronizar datos en vivo con tus agentes.
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/xxP7MZRuq_0"
+  title="Usa la herramienta Leer de Google Sheets en Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Descubre cómo usar la herramienta "Escribir" de Google Sheets en Sim para enviar automáticamente datos desde tus flujos de trabajo a tus hojas de cálculo de Google. Este tutorial cubre la configuración de la integración, la configuración de operaciones de escritura y la actualización de tus hojas sin problemas a medida que se ejecutan los flujos de trabajo. Perfecto para mantener registros en tiempo real sin entrada manual.
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/cO86qTj7qeY"
+  title="Usa la herramienta Escribir de Google Sheets en Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Explora cómo aprovechar la herramienta "Actualizar" de Google Sheets en Sim para modificar entradas existentes en tus hojas de cálculo basadas en la ejecución del flujo de trabajo. Este tutorial demuestra cómo configurar la lógica de actualización, mapear campos de datos y sincronizar cambios instantáneamente. Perfecto para mantener tus datos actualizados y consistentes.
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/95by2fL9yn4"
+  title="Usa la herramienta de actualización de Google Sheets en Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Aprende a usar la herramienta "Añadir" de Google Sheets en Sim para agregar sin esfuerzo nuevas filas de datos a tus hojas de cálculo durante la ejecución del flujo de trabajo. Este tutorial te guía a través de la configuración de la integración, la configuración de acciones de añadir y asegurando un crecimiento fluido de datos. ¡Perfecto para expandir registros sin esfuerzo manual!
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/8DgNvLBCsAo"
+  title="Usa la herramienta Añadir de Google Sheets en Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Con Google Sheets, puedes:
+
+- **Crear y editar hojas de cálculo**: Desarrolla documentos basados en datos con opciones completas de formato y cálculo
+- **Colaborar en tiempo real**: Trabaja simultáneamente con múltiples usuarios en la misma hoja de cálculo
+- **Analizar datos**: Usa fórmulas, funciones y tablas dinámicas para procesar y entender tus datos
+- **Visualizar información**: Crea gráficos, diagramas y formato condicional para representar datos visualmente
+- **Acceder desde cualquier lugar**: Usa Google Sheets en diferentes dispositivos con sincronización automática en la nube
+- **Trabajar sin conexión**: Continúa trabajando sin conexión a internet con cambios que se sincronizan cuando vuelves a estar en línea
+- **Integrar con otros servicios**: Conéctate con Google Drive, Forms y aplicaciones de terceros
+
+En Sim, la integración con Google Sheets permite a tus agentes interactuar directamente con datos de hojas de cálculo de forma programática. Esto permite potentes escenarios de automatización como extracción de datos, análisis, informes y gestión. Tus agentes pueden leer hojas de cálculo existentes para extraer información, escribir en hojas de cálculo para actualizar datos y crear nuevas hojas de cálculo desde cero. Esta integración cierra la brecha entre tus flujos de trabajo de IA y la gestión de datos, permitiendo una interacción fluida con datos estructurados. Al conectar Sim con Google Sheets, puedes automatizar flujos de trabajo de datos, generar informes, extraer información de los datos y mantener información actualizada - todo a través de tus agentes inteligentes. La integración admite varios formatos de datos y especificaciones de rangos, haciéndola lo suficientemente flexible para manejar diversas necesidades de gestión de datos mientras mantiene la naturaleza colaborativa y accesible de Google Sheets.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra la funcionalidad de Google Sheets para gestionar datos de hojas de cálculo. Lee datos de rangos específicos, escribe nuevos datos, actualiza celdas existentes y añade datos al final de las hojas utilizando autenticación OAuth. Compatible con varios formatos de entrada y salida para un manejo flexible de datos.
+
+## Herramientas
+
+### `google_sheets_read`
+
+Leer datos de una hoja de cálculo de Google Sheets
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `spreadsheetId` | string | Sí | El ID de la hoja de cálculo de la que leer |
+| `range` | string | No | El rango de celdas del que leer |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `data` | json | Datos de la hoja incluyendo rango y valores de celdas |
+| `metadata` | json | Metadatos de la hoja de cálculo incluyendo ID y URL |
+
+### `google_sheets_write`
+
+Escribir datos en una hoja de cálculo de Google Sheets
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `spreadsheetId` | string | Sí | El ID de la hoja de cálculo en la que escribir |
+| `range` | string | No | El rango de celdas en el que escribir |
+| `values` | array | Sí | Los datos a escribir en la hoja de cálculo |
+| `valueInputOption` | string | No | El formato de los datos a escribir |
+| `includeValuesInResponse` | boolean | No | Si se deben incluir los valores escritos en la respuesta |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `updatedRange` | string | Rango de celdas que fueron actualizadas |
+| `updatedRows` | number | Número de filas actualizadas |
+| `updatedColumns` | number | Número de columnas actualizadas |
+| `updatedCells` | number | Número de celdas actualizadas |
+| `metadata` | json | Metadatos de la hoja de cálculo incluyendo ID y URL |
+
+### `google_sheets_update`
+
+Actualizar datos en una hoja de cálculo de Google Sheets
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `spreadsheetId` | string | Sí | El ID de la hoja de cálculo a actualizar |
+| `range` | string | No | El rango de celdas a actualizar |
+| `values` | array | Sí | Los datos para actualizar en la hoja de cálculo |
+| `valueInputOption` | string | No | El formato de los datos a actualizar |
+| `includeValuesInResponse` | boolean | No | Si se deben incluir los valores actualizados en la respuesta |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `updatedRange` | string | Rango de celdas que fueron actualizadas |
+| `updatedRows` | number | Número de filas actualizadas |
+| `updatedColumns` | number | Número de columnas actualizadas |
+| `updatedCells` | number | Número de celdas actualizadas |
+| `metadata` | json | Metadatos de la hoja de cálculo incluyendo ID y URL |
+
+### `google_sheets_append`
+
+Añadir datos al final de una hoja de cálculo de Google Sheets
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Sí | El ID de la hoja de cálculo a la que añadir datos |
+| `range` | string | No | El rango de celdas después del cual añadir datos |
+| `values` | array | Sí | Los datos a añadir a la hoja de cálculo |
+| `valueInputOption` | string | No | El formato de los datos a añadir |
+| `insertDataOption` | string | No | Cómo insertar los datos \(OVERWRITE o INSERT_ROWS\) |
+| `includeValuesInResponse` | boolean | No | Si se deben incluir los valores añadidos en la respuesta |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `tableRange` | string | Rango de la tabla donde se añadieron los datos |
+| `updatedRange` | string | Rango de celdas que fueron actualizadas |
+| `updatedRows` | number | Número de filas actualizadas |
+| `updatedColumns` | number | Número de columnas actualizadas |
+| `updatedCells` | number | Número de celdas actualizadas |
+| `metadata` | json | Metadatos de la hoja de cálculo incluyendo ID y URL |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `google_sheets`

@@ -1,0 +1,159 @@
+---
+title: YAML 工作流参考
+description: Sim 中编写 YAML 工作流的完整指南
+---
+
+import { Card, Cards } from "fumadocs-ui/components/card";
+import { Step, Steps } from "fumadocs-ui/components/steps";
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+
+YAML 工作流为在 Sim 中定义、版本化和共享工作流配置提供了一种强大的方式。本参考指南涵盖了完整的 YAML 语法、块模式以及创建健壮工作流的最佳实践。
+
+## 快速开始
+
+每个 Sim 工作流都遵循以下基本结构：
+
+```yaml
+version: '1.0'
+blocks:
+  start:
+    type: starter
+    name: Start
+    inputs:
+      startWorkflow: manual
+    connections:
+      success: agent-1
+
+  agent-1:
+    type: agent
+    name: "AI Assistant"
+    inputs:
+      systemPrompt: "You are a helpful assistant."
+      userPrompt: 'Hi'
+      model: gpt-4o
+      apiKey: '{{OPENAI_API_KEY}}'
+```
+
+## 核心概念
+
+<Steps>
+  <Step>
+    <strong>版本声明</strong>：必须精确为 `version: '1.0'`（带引号）
+  </Step>
+  <Step>
+    <strong>块结构</strong>：所有工作流块都定义在 `blocks` 键下
+  </Step>
+  <Step>
+    <strong>块引用</strong>：使用小写且去掉空格的块名称（例如，`<aiassistant.content>`）
+  </Step>
+  <Step>
+    <strong>环境变量</strong>：使用双大括号引用 `{{VARIABLE_NAME}}`
+  </Step>
+</Steps>
+
+## 块类型
+
+Sim 支持多种核心块类型，每种类型都有特定的 YAML 模式：
+
+<Cards>
+  <Card title="起始块" href="/yaml/blocks/starter">
+    工作流的入口点，支持手动、Webhook 和定时触发器
+  </Card>
+  <Card title="代理块" href="/yaml/blocks/agent">
+    支持工具和结构化输出的 AI 驱动处理
+  </Card>
+  <Card title="函数块" href="/yaml/blocks/function">
+    自定义 JavaScript/TypeScript 代码执行
+  </Card>
+  <Card title="API 块" href="/yaml/blocks/api">
+    向外部服务发送 HTTP 请求
+  </Card>
+  <Card title="条件块" href="/yaml/blocks/condition">
+    基于布尔表达式的条件分支
+  </Card>
+  <Card title="路由块" href="/yaml/blocks/router">
+    AI 驱动的智能路由到多个路径
+  </Card>
+  <Card title="循环块" href="/yaml/blocks/loop">
+    使用 for 和 forEach 循环进行迭代处理
+  </Card>
+  <Card title="并行块" href="/yaml/blocks/parallel">
+    在多个实例间并发执行
+  </Card>
+  <Card title="Webhook 块" href="/yaml/blocks/webhook">
+    用于外部集成的 Webhook 触发器
+  </Card>
+  <Card title="评估器块" href="/yaml/blocks/evaluator">
+    根据定义的标准和指标验证输出
+  </Card>
+  <Card title="工作流块" href="/yaml/blocks/workflow">
+    将其他工作流作为可重用组件执行
+  </Card>
+  <Card title="响应块" href="/yaml/blocks/response">
+    最终工作流输出格式化
+  </Card>
+</Cards>
+
+## 块引用语法
+
+YAML 工作流中最关键的部分是理解如何在块之间引用数据：
+
+### 基本规则
+
+1. **使用块名称**（而不是块 ID），将其转换为小写并去掉空格
+2. **添加适当的属性**（对于代理使用 .content，对于工具使用 .output）
+3. **在使用聊天时，引用起始块**为 `<start.input>`
+
+### 示例
+
+```yaml
+# Block definitions
+email-processor:
+  type: agent
+  name: "Email Agent"
+  # ... configuration
+
+data-formatter:
+  type: function
+  name: "Data Agent"
+  # ... configuration
+
+# Referencing their outputs
+next-block:
+  type: agent
+  name: "Next Step"
+  inputs:
+    userPrompt: |
+      Process this email: <emailagent.content>
+      Use this formatted data: <dataagent.output>
+      Original input: <start.input>
+```
+
+### 特殊情况
+
+- **循环变量**：`<loop.index>`、`<loop.currentItem>`、`<loop.items>`
+- **并行变量**：`<parallel.index>`、`<parallel.currentItem>`
+
+## 环境变量
+
+使用环境变量存储敏感数据，例如 API 密钥：
+
+```yaml
+inputs:
+  apiKey: '{{OPENAI_API_KEY}}'
+  database: '{{DATABASE_URL}}'
+  token: '{{SLACK_BOT_TOKEN}}'
+```
+
+## 最佳实践
+
+- **保持块名称易于阅读**：例如用于 UI 显示的 "Email Processor"
+- **引用环境变量**：切勿硬编码 API 密钥
+- **结构清晰可读**：逻辑分组相关块
+- **逐步测试**：逐步构建工作流
+
+## 下一步
+
+- [块引用语法](/yaml/block-reference) - 详细的引用规则
+- [完整的块模式](/yaml/blocks) - 所有可用的块类型
+- [工作流示例](/yaml/examples) - 真实的工作流模式

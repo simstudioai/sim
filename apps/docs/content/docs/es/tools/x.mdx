@@ -1,0 +1,117 @@
+---
+title: X
+description: Interactúa con X
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="x"
+  color="#000000"
+  icon={true}
+  iconSvg={`<svg className="block-icon" xmlns='http://www.w3.org/2000/svg' viewBox='0 0 50 50'   >
+      <path
+        d='M 5.9199219 6 L 20.582031 27.375 L 6.2304688 44 L 9.4101562 44 L 21.986328 29.421875 L 31.986328 44 L 44 44 L 28.681641 21.669922 L 42.199219 6 L 39.029297 6 L 27.275391 19.617188 L 17.933594 6 L 5.9199219 6 z M 9.7167969 8 L 16.880859 8 L 40.203125 42 L 33.039062 42 L 9.7167969 8 z'
+        fill='currentColor'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[X](https://x.com/) (anteriormente Twitter) es una plataforma popular de redes sociales que permite la comunicación en tiempo real, compartir contenido e interactuar con audiencias en todo el mundo.
+
+La integración de X en Sim utiliza autenticación OAuth para conectarse de forma segura con la API de X, permitiendo a tus agentes interactuar con la plataforma de manera programática. Esta implementación OAuth garantiza un acceso seguro a las funciones de X mientras mantiene la privacidad y seguridad del usuario.
+
+Con la integración de X, tus agentes pueden:
+
+- **Publicar contenido**: crear nuevos tweets, responder a conversaciones existentes o compartir medios directamente desde tus flujos de trabajo
+- **Monitorear conversaciones**: seguir menciones, palabras clave o cuentas específicas para mantenerse informado sobre discusiones relevantes
+- **Interactuar con audiencias**: responder automáticamente a menciones, mensajes directos o activadores específicos
+- **Analizar tendencias**: obtener información de temas tendencia, hashtags o patrones de interacción de usuarios
+- **Investigar información**: buscar contenido específico, perfiles de usuario o conversaciones para informar decisiones de agentes
+
+En Sim, la integración con X permite escenarios sofisticados de automatización de redes sociales. Tus agentes pueden monitorear menciones de marca y responder adecuadamente, programar y publicar contenido basado en activadores específicos, realizar escucha social para investigación de mercado, o crear experiencias interactivas que abarquen tanto la IA conversacional como la interacción en redes sociales. Al conectar Sim con X a través de OAuth, puedes construir agentes inteligentes que mantengan una presencia consistente y receptiva en redes sociales mientras se adhieren a las políticas de la plataforma y las mejores prácticas para el uso de API.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Conéctate con X para publicar tweets, leer contenido, buscar información y acceder a perfiles de usuarios. Integra capacidades de redes sociales en tu flujo de trabajo con acceso completo a la plataforma X.
+
+## Herramientas
+
+### `x_write`
+
+Publica nuevos tweets, responde a tweets o crea encuestas en X (Twitter)
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | Sí | El contenido de texto de tu tweet |
+| `replyTo` | string | No | ID del tweet al que responder |
+| `mediaIds` | array | No | Array de IDs de medios para adjuntar al tweet |
+| `poll` | object | No | Configuración de encuesta para el tweet |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `tweet` | object | Los datos del tweet recién creado |
+
+### `x_read`
+
+Lee detalles de tweets, incluyendo respuestas y contexto de la conversación
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `tweetId` | string | Sí | ID del tweet a leer |
+| `includeReplies` | boolean | No | Si se deben incluir las respuestas al tweet |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `tweet` | object | Los datos del tweet principal |
+
+### `x_search`
+
+Busca tweets usando palabras clave, hashtags o consultas avanzadas
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Sí | Consulta de búsqueda \(admite operadores de búsqueda de X\) |
+| `maxResults` | number | No | Número máximo de resultados a devolver \(predeterminado: 10, máximo: 100\) |
+| `startTime` | string | No | Hora de inicio para la búsqueda \(formato ISO 8601\) |
+| `endTime` | string | No | Hora de finalización para la búsqueda \(formato ISO 8601\) |
+| `sortOrder` | string | No | Orden de clasificación para los resultados \(recency o relevancy\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `tweets` | array | Array de tweets que coinciden con la consulta de búsqueda |
+
+### `x_user`
+
+Obtener información del perfil de usuario
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `username` | string | Sí | Nombre de usuario a buscar \(sin el símbolo @\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `user` | object | Información del perfil de usuario de X |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `x`

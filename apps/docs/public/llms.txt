@@ -1,0 +1,53 @@
+# Sim Documentation
+
+Sim is a visual workflow builder for AI applications that lets you build AI agent workflows visually. Create powerful AI agents, automation workflows, and data processing pipelines by connecting blocks on a canvas—no coding required.
+
+## What is Sim?
+
+Sim provides a complete ecosystem for AI workflow automation including:
+- Visual workflow builder with drag-and-drop interface
+- AI agent creation and automation
+- 80+ built-in integrations (OpenAI, Slack, Gmail, GitHub, etc.)
+- Real-time team collaboration
+- Multiple deployment options (cloud-hosted or self-hosted)
+- Custom integrations via MCP protocol
+
+## Main Documentation Sections
+
+Here are the key areas covered in our documentation:
+
+/introduction - Getting started with Sim visual workflow builder
+/getting-started - Quick start guide for building your first workflow
+/blocks - Understanding workflow blocks (AI agents, APIs, functions)
+/tools - 80+ built-in integrations and tools
+/webhooks - Webhook triggers and handling
+/mcp - Custom integrations via MCP protocol
+/deployment - Cloud-hosted vs self-hosted deployment
+/permissions - Team collaboration and workspace management
+/collaboration - Real-time editing and team features
+/workflows - Building complex automation workflows
+
+## Technical Information
+
+- Framework: Fumadocs (Next.js-based documentation platform)
+- Content: MDX files with interactive examples
+- Languages: English (primary), French, Chinese
+- Search: AI-powered search and assistance available
+
+## Complete Documentation
+
+For the full documentation with all pages, examples, and interactive features, visit our documentation site. We also provide machine-readable versions at /llms.txt (full content) for AI systems.
+
+## Additional Resources
+
+- GitHub repository with workflow examples
+- Discord community for support and discussions
+- 80+ built-in integrations with detailed guides
+- MCP protocol documentation for custom integrations
+- Self-hosting guides and Docker deployment
+
+For the complete documentation with interactive examples and visual workflow builder guides, visit https://docs.sim.ai
+
+---
+
+Last updated: 2025-09-15

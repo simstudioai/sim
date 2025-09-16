@@ -1,0 +1,246 @@
+---
+title: Respuesta
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+El bloque de Respuesta es el paso final en tu flujo de trabajo que formatea y envía una respuesta estructurada a las llamadas API. Es como la declaración "return" para todo tu flujo de trabajo—empaqueta los resultados y los envía de vuelta.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/response.png"
+    alt="Configuración del bloque de respuesta"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<Callout type="info">
+  Los bloques de respuesta son bloques terminales - finalizan la ejecución del flujo de trabajo y no pueden conectarse a otros bloques.
+</Callout>
+
+## Descripción general
+
+El bloque de Respuesta te permite:
+
+<Steps>
+  <Step>
+    <strong>Formatear respuestas API</strong>: Estructurar los resultados del flujo de trabajo en respuestas HTTP adecuadas
+  </Step>
+  <Step>
+    <strong>Establecer códigos de estado</strong>: Configurar códigos de estado HTTP apropiados según los resultados del flujo de trabajo
+  </Step>
+  <Step>
+    <strong>Controlar encabezados</strong>: Añadir encabezados personalizados para respuestas API y webhooks
+  </Step>
+  <Step>
+    <strong>Transformar datos</strong>: Convertir variables del flujo de trabajo en formatos de respuesta amigables para el cliente
+  </Step>
+</Steps>
+
+## Cómo funciona
+
+El bloque de Respuesta finaliza la ejecución del flujo de trabajo:
+
+1. **Recopilar datos** - Reúne variables y salidas de bloques anteriores
+2. **Formatear respuesta** - Estructura los datos según tu configuración
+3. **Establecer detalles HTTP** - Aplica códigos de estado y encabezados
+4. **Enviar respuesta** - Devuelve la respuesta formateada al solicitante de la API
+
+## Cuándo necesitas bloques de respuesta
+
+- **Endpoints API**: Cuando tu flujo de trabajo es llamado vía API, los bloques de Respuesta formatean los datos de retorno
+- **Webhooks**: Devuelven confirmación o datos al sistema que realiza la llamada
+- **Pruebas**: Ver resultados formateados al probar tu flujo de trabajo
+
+## Dos formas de construir respuestas
+
+### Modo constructor (recomendado)
+Interfaz visual para construir la estructura de respuesta:
+- Arrastrar y soltar campos
+- Referenciar variables de flujo de trabajo fácilmente
+- Vista previa visual de la estructura de respuesta
+
+### Modo editor (avanzado)
+Escribir JSON directamente:
+- Control total sobre el formato de respuesta
+- Soporte para estructuras anidadas complejas
+- Usar sintaxis `<variable.name>` para valores dinámicos
+
+## Opciones de configuración
+
+### Datos de respuesta
+
+Los datos de respuesta son el contenido principal que se enviará de vuelta al solicitante de la API. Deben estar formateados como JSON y pueden incluir:
+
+- Valores estáticos
+- Referencias dinámicas a variables de flujo de trabajo usando la sintaxis `<variable.name>`
+- Objetos y matrices anidados
+- Cualquier estructura JSON válida
+
+### Código de estado
+
+Establece el código de estado HTTP para la respuesta. Los códigos de estado comunes incluyen:
+
+<Tabs items={['Éxito (2xx)', 'Error del cliente (4xx)', 'Error del servidor (5xx)']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li><strong>200</strong>: OK - Respuesta estándar de éxito</li>
+      <li><strong>201</strong>: Creado - Recurso creado con éxito</li>
+      <li><strong>204</strong>: Sin contenido - Éxito sin cuerpo de respuesta</li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li><strong>400</strong>: Solicitud incorrecta - Parámetros de solicitud inválidos</li>
+      <li><strong>401</strong>: No autorizado - Se requiere autenticación</li>
+      <li><strong>404</strong>: No encontrado - El recurso no existe</li>
+      <li><strong>422</strong>: Entidad no procesable - Errores de validación</li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li><strong>500</strong>: Error interno del servidor - Error del lado del servidor</li>
+      <li><strong>502</strong>: Puerta de enlace incorrecta - Error de servicio externo</li>
+      <li><strong>503</strong>: Servicio no disponible - Servicio temporalmente inactivo</li>
+    </ul>
+  </Tab>
+</Tabs>
+
+<div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+  El código de estado predeterminado es 200 si no se especifica.
+</div>
+
+### Cabeceras de respuesta
+
+Configura cabeceras HTTP adicionales para incluir en la respuesta.
+
+Los encabezados se configuran como pares clave-valor:
+
+| Clave | Valor |
+|-----|-------|
+| Content-Type | application/json |
+| Cache-Control | no-cache |
+| X-API-Version | 1.0 |
+
+## Ejemplos de casos de uso
+
+### Respuesta del punto final de la API
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Escenario: Devolver datos estructurados desde una API de búsqueda</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>El flujo de trabajo procesa la consulta de búsqueda y recupera resultados</li>
+    <li>El bloque de función formatea y pagina los resultados</li>
+    <li>El bloque de respuesta devuelve JSON con datos, paginación y metadatos</li>
+    <li>El cliente recibe una respuesta estructurada con estado 200</li>
+  </ol>
+</div>
+
+### Confirmación de webhook
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Escenario: Confirmar recepción y procesamiento del webhook</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>El disparador de webhook recibe datos del sistema externo</li>
+    <li>El flujo de trabajo procesa los datos entrantes</li>
+    <li>El bloque de respuesta devuelve una confirmación con el estado del procesamiento</li>
+    <li>El sistema externo recibe la confirmación</li>
+  </ol>
+</div>
+
+### Manejo de respuestas de error
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Escenario: Devolver respuestas de error apropiadas</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>El bloque de condición detecta fallos de validación o errores del sistema</li>
+    <li>El enrutador dirige hacia la ruta de manejo de errores</li>
+    <li>El bloque de respuesta devuelve estado 400/500 con detalles del error</li>
+    <li>El cliente recibe información estructurada del error</li>
+  </ol>
+</div>
+
+## Entradas y salidas
+
+<Tabs items={['Configuration', 'Variables', 'Results']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Datos de respuesta</strong>: Estructura JSON para el cuerpo de la respuesta
+      </li>
+      <li>
+        <strong>Código de estado</strong>: Código de estado HTTP (predeterminado: 200)
+      </li>
+      <li>
+        <strong>Encabezados</strong>: Encabezados HTTP personalizados como pares clave-valor
+      </li>
+      <li>
+        <strong>Modo</strong>: Modo Constructor o Editor para la construcción de respuestas
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>response.data</strong>: El cuerpo de respuesta estructurado
+      </li>
+      <li>
+        <strong>response.status</strong>: Código de estado HTTP enviado
+      </li>
+      <li>
+        <strong>response.headers</strong>: Encabezados incluidos en la respuesta
+      </li>
+      <li>
+        <strong>response.success</strong>: Booleano que indica finalización exitosa
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Respuesta HTTP</strong>: Respuesta completa enviada al solicitante de la API
+      </li>
+      <li>
+        <strong>Terminación del flujo de trabajo</strong>: Finaliza la ejecución del flujo de trabajo
+      </li>
+      <li>
+        <strong>Acceso</strong>: Los bloques de respuesta son terminales - no hay bloques subsiguientes
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Referencias de variables
+
+Utiliza la sintaxis `<variable.name>` para insertar dinámicamente variables del flujo de trabajo en tu respuesta:
+
+```json
+{
+  "user": {
+    "id": "<variable.userId>",
+    "name": "<variable.userName>",
+    "email": "<variable.userEmail>"
+  },
+  "query": "<variable.searchQuery>",
+  "results": "<variable.searchResults>",
+  "totalFound": "<variable.resultCount>",
+  "processingTime": "<variable.executionTime>ms"
+}
+```
+
+<Callout type="warning">
+  Los nombres de variables distinguen entre mayúsculas y minúsculas y deben coincidir exactamente con las variables disponibles en tu flujo de trabajo.
+</Callout>
+
+## Mejores prácticas
+
+- **Usa códigos de estado significativos**: Elige códigos de estado HTTP apropiados que reflejen con precisión el resultado del flujo de trabajo
+- **Estructura tus respuestas de manera consistente**: Mantén una estructura JSON consistente en todos tus endpoints de API para una mejor experiencia del desarrollador
+- **Incluye metadatos relevantes**: Añade marcas de tiempo e información de versión para ayudar con la depuración y el monitoreo
+- **Maneja los errores con elegancia**: Utiliza lógica condicional en tu flujo de trabajo para establecer respuestas de error apropiadas con mensajes descriptivos
+- **Valida las referencias de variables**: Asegúrate de que todas las variables referenciadas existan y contengan los tipos de datos esperados antes de que se ejecute el bloque de Respuesta
