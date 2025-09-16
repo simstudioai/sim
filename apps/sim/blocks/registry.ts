@@ -25,6 +25,7 @@ import { GoogleSearchBlock } from '@/blocks/blocks/google'
 import { GoogleCalendarBlock } from '@/blocks/blocks/google_calendar'
 import { GoogleDocsBlock } from '@/blocks/blocks/google_docs'
 import { GoogleDriveBlock } from '@/blocks/blocks/google_drive'
+import { GoogleFormsBlock } from '@/blocks/blocks/google_form'
 import { GoogleSheetsBlock } from '@/blocks/blocks/google_sheets'
 import { HuggingFaceBlock } from '@/blocks/blocks/huggingface'
 import { HunterBlock } from '@/blocks/blocks/hunter'
@@ -103,6 +104,7 @@ export const registry: Record<string, BlockConfig> = {
   google_calendar: GoogleCalendarBlock,
   google_docs: GoogleDocsBlock,
   google_drive: GoogleDriveBlock,
+  google_forms: GoogleFormsBlock,
   google_search: GoogleSearchBlock,
   google_sheets: GoogleSheetsBlock,
   huggingface: HuggingFaceBlock,

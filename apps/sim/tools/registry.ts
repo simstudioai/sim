@@ -48,6 +48,7 @@ import {
   googleDriveListTool,
   googleDriveUploadTool,
 } from '@/tools/google_drive'
+import { googleFormsGetResponsesTool } from '@/tools/google_form'
 import {
   googleSheetsAppendTool,
   googleSheetsReadTool,
@@ -335,6 +336,7 @@ export const tools: Record<string, ToolConfig> = {
   google_calendar_list: googleCalendarListTool,
   google_calendar_quick_add: googleCalendarQuickAddTool,
   google_calendar_invite: googleCalendarInviteTool,
+  google_forms_get_responses: googleFormsGetResponsesTool,
   workflow_executor: workflowExecutorTool,
   wealthbox_read_contact: wealthboxReadContactTool,
   wealthbox_write_contact: wealthboxWriteContactTool,
