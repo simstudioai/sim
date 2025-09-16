@@ -38,6 +38,22 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
     </svg>`}
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Google Forms](https://forms.google.com) is Google's online survey and form tool that allows users to create forms, collect responses, and analyze results. As part of Google's productivity suite, Google Forms makes it easy to gather information, feedback, and data from users.
+
+Learn how to integrate the Google Forms tool in Sim to automatically read and process form responses in your workflows. This tutorial walks you through connecting Google Forms, retrieving responses, and using collected data to power automation. Perfect for syncing survey results, registrations, or feedback with your agents in real-time.
+
+With Google Forms, you can:
+
+- **Create surveys and forms**: Design custom forms for feedback, registration, quizzes, and more
+- **Collect responses automatically**: Gather data from users in real-time
+- **Analyze results**: View responses in Google Forms or export to Google Sheets for further analysis
+- **Collaborate easily**: Share forms and work with others to build and review questions
+- **Integrate with other Google services**: Connect with Google Sheets, Drive, and more
+
+In Sim, the Google Forms integration enables your agents to programmatically access form responses. This allows for powerful automation scenarios such as processing survey data, triggering workflows based on new submissions, and syncing form results with other tools. Your agents can fetch all responses for a form, retrieve a specific response, and use the data to drive intelligent automation. By connecting Sim with Google Forms, you can automate data collection, streamline feedback processing, and incorporate form responses into your agent's capabilities.
+{/* MANUAL-CONTENT-END */}
+
 ## Usage Instructions
 
 Integrate Google Forms into your workflow. Provide a Form ID to list responses, or specify a Response ID to fetch a single response. Requires OAuth.
@@ -52,6 +68,9 @@ Integrate Google Forms into your workflow. Provide a Form ID to list responses, 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| formId | string | Yes | The ID of the Google Form |
+| responseId | string | No | If provided, returns this specific response |
+| pageSize | number | No | Max responses to return (service may return fewer). Defaults to 5000 |
 
 #### Output
 
