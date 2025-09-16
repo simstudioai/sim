@@ -123,6 +123,7 @@
         "geist": "1.4.2",
         "groq-sdk": "^0.15.0",
         "html-to-text": "^9.0.5",
+        "@better-auth/stripe": "https://pkg.pr.new/better-auth/better-auth/@better-auth/stripe@4683",
         "iconv-lite": "0.7.0",
         "input-otp": "^1.4.2",
         "ioredis": "^5.6.0",
