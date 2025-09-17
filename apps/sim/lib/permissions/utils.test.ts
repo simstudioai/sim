@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/db', () => ({
+vi.mock('@sim/db', () => ({
   db: {
     select: vi.fn(),
     from: vi.fn(),
@@ -12,7 +12,7 @@ vi.mock('@/db', () => ({
   },
 }))
 
-vi.mock('@/db/schema', () => ({
+vi.mock('@sim/db/schema', () => ({
   permissions: {
     permissionType: 'permission_type',
     userId: 'user_id',
@@ -41,6 +41,7 @@ vi.mock('drizzle-orm', () => ({
   or: vi.fn().mockReturnValue('or-condition'),
 }))
 
+import { db } from '@sim/db'
 import {
   getManageableWorkspaces,
   getUserEntityPermissions,
@@ -48,7 +49,6 @@ import {
   hasAdminPermission,
   hasWorkspaceAdminAccess,
 } from '@/lib/permissions/utils'
-import { db } from '@/db'
 
 const mockDb = db as any
 type PermissionType = 'admin' | 'write' | 'read'

@@ -125,7 +125,7 @@ export function TriggerConfigSection({
                 <Button
                   variant='outline'
                   role='combobox'
-                  className='h-10 w-full justify-between text-left font-normal'
+                  className='h-9 w-full justify-between rounded-[8px] text-left font-normal'
                 >
                   <div className='flex w-full items-center justify-between'>
                     {selectedValues.length > 0 ? (
@@ -209,6 +209,7 @@ export function TriggerConfigSection({
               placeholder={fieldDef.placeholder}
               value={value}
               onChange={(e) => onChange(fieldId, Number(e.target.value))}
+              className='h-9 rounded-[8px]'
             />
             {fieldDef.description && (
               <p className='text-muted-foreground text-sm'>{fieldDef.description}</p>
@@ -247,62 +248,62 @@ export function TriggerConfigSection({
                 </Tooltip>
               )}
             </div>
-            <div className='flex'>
-              <div className='relative flex-1'>
-                <Input
-                  id={fieldId}
-                  type={isSecret && !showSecret ? 'password' : 'text'}
-                  placeholder={fieldDef.placeholder}
-                  value={value}
-                  onChange={(e) => onChange(fieldId, e.target.value)}
-                  className={cn(
-                    'h-10 flex-1 rounded-[8px]',
-                    isSecret ? 'pr-24' : '',
-                    'focus-visible:ring-2 focus-visible:ring-primary/20'
-                  )}
-                />
-                {isSecret && (
-                  <div className='absolute inset-y-0 right-0 z-10 flex items-center pr-1'>
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      size='sm'
-                      className={cn(
-                        'h-7 w-7 rounded-md p-0 text-muted-foreground/70',
-                        'transition-colors hover:bg-transparent hover:text-foreground'
-                      )}
-                      onClick={() => toggleSecretVisibility(fieldId)}
-                      aria-label={showSecret ? 'Hide secret' : 'Show secret'}
-                    >
-                      {showSecret ? (
-                        <EyeOff className='h-3.5 w-3.5' />
-                      ) : (
-                        <Eye className='h-3.5 w-3.5' />
-                      )}
-                      <span className='sr-only'>{showSecret ? 'Hide secret' : 'Show secret'}</span>
-                    </Button>
-                    <Button
-                      type='button'
-                      size='sm'
-                      variant='ghost'
-                      className={cn(
-                        'ml-1 h-7 w-7 rounded-md p-0 text-muted-foreground/70',
-                        'transition-colors hover:bg-transparent hover:text-foreground'
-                      )}
-                      onClick={() => copyToClipboard(value, fieldId)}
-                      disabled={!value}
-                      aria-label='Copy secret'
-                    >
-                      {copied === fieldId ? (
-                        <Check className='h-3.5 w-3.5 text-green-500' />
-                      ) : (
-                        <Copy className='h-3.5 w-3.5' />
-                      )}
-                    </Button>
-                    <div className='pointer-events-none absolute top-[1px] right-[1px] bottom-[1px] z-[-1] w-10 rounded-r-[7px] bg-gradient-to-l from-background to-transparent' />
-                  </div>
+            <div className='relative'>
+              <Input
+                id={fieldId}
+                type={isSecret && !showSecret ? 'password' : 'text'}
+                placeholder={fieldDef.placeholder}
+                value={value}
+                onChange={(e) => onChange(fieldId, e.target.value)}
+                className={cn(
+                  'h-9 rounded-[8px]',
+                  isSecret ? 'pr-32' : '',
+                  'focus-visible:ring-2 focus-visible:ring-primary/20'
                 )}
-              </div>
+              />
+              {isSecret && (
+                <div className='absolute top-0.5 right-0.5 flex h-8 items-center gap-1 pr-1'>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='sm'
+                    className={cn(
+                      'group h-7 w-7 rounded-md p-0',
+                      'text-muted-foreground/60 transition-all duration-200',
+                      'hover:bg-muted/50 hover:text-foreground',
+                      'focus-visible:ring-2 focus-visible:ring-muted-foreground/20 focus-visible:ring-offset-1'
+                    )}
+                    onClick={() => toggleSecretVisibility(fieldId)}
+                    aria-label={showSecret ? 'Hide secret' : 'Show secret'}
+                  >
+                    {showSecret ? (
+                      <EyeOff className='h-3.5 w-3.5 ' />
+                    ) : (
+                      <Eye className='h-3.5 w-3.5 ' />
+                    )}
+                    <span className='sr-only'>{showSecret ? 'Hide secret' : 'Show secret'}</span>
+                  </Button>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='sm'
+                    className={cn(
+                      'group h-7 w-7 rounded-md p-0',
+                      'text-muted-foreground/60 transition-all duration-200',
+                      'hover:bg-muted/50 hover:text-foreground',
+                      'focus-visible:ring-2 focus-visible:ring-muted-foreground/20 focus-visible:ring-offset-1'
+                    )}
+                    onClick={() => copyToClipboard(value, fieldId)}
+                    disabled={!value}
+                  >
+                    {copied === fieldId ? (
+                      <Check className='h-3.5 w-3.5 text-foreground' />
+                    ) : (
+                      <Copy className='h-3.5 w-3.5 ' />
+                    )}
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         )
@@ -338,36 +339,36 @@ export function TriggerConfigSection({
               </Tooltip>
             </TooltipProvider>
           </div>
-          <div className='flex'>
-            <div className='relative flex-1'>
-              <Input
-                value={webhookUrl}
-                readOnly
+          <div className='relative'>
+            <Input
+              value={webhookUrl}
+              readOnly
+              className={cn(
+                'h-9 cursor-text rounded-[8px] pr-10 font-mono text-xs',
+                'focus-visible:ring-2 focus-visible:ring-primary/20'
+              )}
+              onClick={(e) => (e.target as HTMLInputElement).select()}
+            />
+            <div className='absolute top-0.5 right-0.5 flex h-8 items-center gap-1 pr-1'>
+              <Button
+                type='button'
+                variant='ghost'
+                size='sm'
                 className={cn(
-                  'h-10 flex-1 cursor-text rounded-[8px] pr-12 font-mono text-xs',
-                  'focus-visible:ring-2 focus-visible:ring-primary/20'
+                  'group h-7 w-7 rounded-md p-0',
+                  'text-muted-foreground/60 transition-all duration-200',
+                  'hover:scale-105 hover:bg-muted/50 hover:text-foreground',
+                  'active:scale-95',
+                  'focus-visible:ring-2 focus-visible:ring-muted-foreground/20 focus-visible:ring-offset-1'
                 )}
-                onClick={(e) => (e.target as HTMLInputElement).select()}
-              />
-              <div className='absolute inset-y-0 right-0 z-10 flex items-center pr-1'>
-                <Button
-                  type='button'
-                  size='sm'
-                  variant='ghost'
-                  className={cn(
-                    'h-7 w-7 rounded-md p-0 text-muted-foreground/70',
-                    'transition-colors hover:bg-transparent hover:text-foreground'
-                  )}
-                  onClick={() => copyToClipboard(webhookUrl, 'url')}
-                >
-                  {copied === 'url' ? (
-                    <Check className='h-3.5 w-3.5 text-green-500' />
-                  ) : (
-                    <Copy className='h-3.5 w-3.5' />
-                  )}
-                </Button>
-                <div className='pointer-events-none absolute top-[1px] right-[1px] bottom-[1px] z-[-1] w-10 rounded-r-[7px] bg-gradient-to-l from-background to-transparent' />
-              </div>
+                onClick={() => copyToClipboard(webhookUrl, 'url')}
+              >
+                {copied === 'url' ? (
+                  <Check className='h-3.5 w-3.5 text-foreground' />
+                ) : (
+                  <Copy className='h-3.5 w-3.5 ' />
+                )}
+              </Button>
             </div>
           </div>
         </div>

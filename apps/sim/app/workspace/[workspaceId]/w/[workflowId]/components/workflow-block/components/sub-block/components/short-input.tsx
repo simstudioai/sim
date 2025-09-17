@@ -366,7 +366,7 @@ export function ShortInput({
         <Input
           ref={inputRef}
           className={cn(
-            'allow-scroll w-full overflow-auto text-transparent caret-foreground placeholder:text-muted-foreground/50',
+            'allow-scroll w-full overflow-auto text-transparent caret-foreground [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-muted-foreground/50 [&::-webkit-scrollbar]:hidden',
             isConnecting &&
               config?.connectionDroppable !== false &&
               'ring-2 ring-blue-500 ring-offset-2 focus-visible:ring-blue-500'
@@ -403,13 +403,13 @@ export function ShortInput({
           onWheel={handleWheel}
           onKeyDown={handleKeyDown}
           autoComplete='off'
-          style={{ overflowX: 'auto' }}
+          style={{ overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           disabled={disabled}
         />
         <div
           ref={overlayRef}
-          className='pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-3 text-sm'
-          style={{ overflowX: 'auto' }}
+          className='pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-3 text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+          style={{ overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           <div
             className='w-full whitespace-pre'

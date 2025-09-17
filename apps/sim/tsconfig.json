@@ -24,8 +24,8 @@
       "@/tools/*": ["./tools/*"],
       "@/serializer": ["./serializer"],
       "@/serializer/*": ["./serializer/*"],
-      "@/db": ["./db"],
-      "@/db/*": ["./db/*"],
+      "@sim/db": ["../../packages/db"],
+      "@sim/db/*": ["../../packages/db/*"],
       "@/executor": ["./executor"],
       "@/executor/*": ["./executor/*"]
     },

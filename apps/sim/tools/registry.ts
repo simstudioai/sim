@@ -48,6 +48,7 @@ import {
   googleDriveListTool,
   googleDriveUploadTool,
 } from '@/tools/google_drive'
+import { googleFormsGetResponsesTool } from '@/tools/google_form'
 import {
   googleSheetsAppendTool,
   googleSheetsReadTool,
@@ -73,6 +74,7 @@ import {
 } from '@/tools/knowledge'
 import { linearCreateIssueTool, linearReadIssuesTool } from '@/tools/linear'
 import { linkupSearchTool } from '@/tools/linkup'
+import { mailSendTool } from '@/tools/mail'
 import { mem0AddMemoriesTool, mem0GetMemoriesTool, mem0SearchMemoriesTool } from '@/tools/mem0'
 import { memoryAddTool, memoryDeleteTool, memoryGetAllTool, memoryGetTool } from '@/tools/memory'
 import {
@@ -148,6 +150,7 @@ import {
   sharepointReadPageTool,
 } from '@/tools/sharepoint'
 import { slackCanvasTool, slackMessageReaderTool, slackMessageTool } from '@/tools/slack'
+import { smsSendTool } from '@/tools/sms'
 import { stagehandAgentTool, stagehandExtractTool } from '@/tools/stagehand'
 import {
   supabaseDeleteTool,
@@ -201,6 +204,8 @@ export const tools: Record<string, ToolConfig> = {
   google_search: googleSearchTool,
   jina_read_url: readUrlTool,
   linkup_search: linkupSearchTool,
+  mail_send: mailSendTool,
+  sms_send: smsSendTool,
   jira_retrieve: jiraRetrieveTool,
   jira_update: jiraUpdateTool,
   jira_write: jiraWriteTool,
@@ -335,6 +340,7 @@ export const tools: Record<string, ToolConfig> = {
   google_calendar_list: googleCalendarListTool,
   google_calendar_quick_add: googleCalendarQuickAddTool,
   google_calendar_invite: googleCalendarInviteTool,
+  google_forms_get_responses: googleFormsGetResponsesTool,
   workflow_executor: workflowExecutorTool,
   wealthbox_read_contact: wealthboxReadContactTool,
   wealthbox_write_contact: wealthboxWriteContactTool,

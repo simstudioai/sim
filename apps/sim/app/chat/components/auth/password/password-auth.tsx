@@ -1,10 +1,17 @@
 'use client'
 
-import { type KeyboardEvent, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { type KeyboardEvent, useEffect, useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { createLogger } from '@/lib/logs/console/logger'
+import { cn } from '@/lib/utils'
+import Nav from '@/app/(landing)/components/nav/nav'
+import { inter } from '@/app/fonts/inter'
+import { soehne } from '@/app/fonts/soehne/soehne'
+
+const logger = createLogger('PasswordAuth')
 
 interface PasswordAuthProps {
   subdomain: string
@@ -23,6 +30,40 @@ export default function PasswordAuth({
   const [password, setPassword] = useState('')
   const [authError, setAuthError] = useState<string | null>(null)
   const [isAuthenticating, setIsAuthenticating] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showValidationError, setShowValidationError] = useState(false)
+  const [passwordErrors, setPasswordErrors] = useState<string[]>([])
+  const [buttonClass, setButtonClass] = useState('auth-button-gradient')
+
+  useEffect(() => {
+    // Check if CSS variable has been customized
+    const checkCustomBrand = () => {
+      const computedStyle = getComputedStyle(document.documentElement)
+      const brandAccent = computedStyle.getPropertyValue('--brand-accent-hex').trim()
+
+      // Check if the CSS variable exists and is different from the default
+      if (brandAccent && brandAccent !== '#6f3dfa') {
+        setButtonClass('auth-button-custom')
+      } else {
+        setButtonClass('auth-button-gradient')
+      }
+    }
+
+    checkCustomBrand()
+
+    // Also check on window resize or theme changes
+    window.addEventListener('resize', checkCustomBrand)
+    const observer = new MutationObserver(checkCustomBrand)
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['style', 'class'],
+    })
+
+    return () => {
+      window.removeEventListener('resize', checkCustomBrand)
+      observer.disconnect()
+    }
+  }, [])
 
   // Handle keyboard input for auth forms
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -32,10 +73,18 @@ export default function PasswordAuth({
     }
   }
 
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newPassword = e.target.value
+    setPassword(newPassword)
+    setShowValidationError(false)
+    setPasswordErrors([])
+  }
+
   // Handle authentication
   const handleAuthenticate = async () => {
     if (!password.trim()) {
-      setAuthError('Password is required')
+      setPasswordErrors(['Password is required'])
+      setShowValidationError(true)
       return
     }
 
@@ -57,7 +106,8 @@ export default function PasswordAuth({
 
       if (!response.ok) {
         const errorData = await response.json()
-        setAuthError(errorData.error || 'Authentication failed')
+        setPasswordErrors([errorData.error || 'Invalid password. Please try again.'])
+        setShowValidationError(true)
         return
       }
 
@@ -67,118 +117,96 @@ export default function PasswordAuth({
       // Reset auth state
       setPassword('')
     } catch (error) {
-      console.error('Authentication error:', error)
-      setAuthError('An error occurred during authentication')
+      logger.error('Authentication error:', error)
+      setPasswordErrors(['An error occurred during authentication'])
+      setShowValidationError(true)
     } finally {
       setIsAuthenticating(false)
     }
   }
 
   return (
-    <Dialog open={true} onOpenChange={() => {}}>
-      <DialogContent
-        className='flex flex-col gap-0 overflow-hidden p-0 sm:max-w-[450px]'
-        hideCloseButton
-      >
-        <DialogHeader className='border-b px-6 py-4'>
-          <div className='flex items-center justify-center'>
-            <a href='https://sim.ai' target='_blank' rel='noopener noreferrer' className='mb-2'>
-              <svg
-                width='40'
-                height='40'
-                viewBox='0 0 50 50'
-                fill='none'
-                xmlns='http://www.w3.org/2000/svg'
-                className='rounded-[6px]'
+    <div className='bg-white'>
+      <Nav variant='auth' />
+      <div className='flex min-h-[calc(100vh-120px)] items-center justify-center px-4'>
+        <div className='w-full max-w-[410px]'>
+          <div className='flex flex-col items-center justify-center'>
+            {/* Header */}
+            <div className='space-y-1 text-center'>
+              <h1
+                className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}
               >
-                <rect width='50' height='50' fill='var(--brand-primary-hex)' />
-                <path
-                  d='M34.1455 20.0728H16.0364C12.7026 20.0728 10 22.7753 10 26.1091V35.1637C10 38.4975 12.7026 41.2 16.0364 41.2H34.1455C37.4792 41.2 40.1818 38.4975 40.1818 35.1637V26.1091C40.1818 22.7753 37.4792 20.0728 34.1455 20.0728Z'
-                  fill='var(--brand-primary-hex)'
-                  stroke='white'
-                  strokeWidth='3.5'
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                />
-                <path
-                  d='M25.0919 14.0364C26.7588 14.0364 28.1101 12.6851 28.1101 11.0182C28.1101 9.35129 26.7588 8 25.0919 8C23.425 8 22.0737 9.35129 22.0737 11.0182C22.0737 12.6851 23.425 14.0364 25.0919 14.0364Z'
-                  fill='var(--brand-primary-hex)'
-                  stroke='white'
-                  strokeWidth='4'
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                />
-                <path
-                  d='M25.0915 14.856V19.0277V14.856ZM20.5645 32.1398V29.1216V32.1398ZM29.619 29.1216V32.1398V29.1216Z'
-                  fill='var(--brand-primary-hex)'
-                />
-                <path
-                  d='M25.0915 14.856V19.0277M20.5645 32.1398V29.1216M29.619 29.1216V32.1398'
-                  stroke='white'
-                  strokeWidth='4'
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                />
-                <circle cx='25' cy='11' r='2' fill='var(--brand-primary-hex)' />
-              </svg>
-            </a>
-          </div>
-          <DialogTitle className='text-center font-medium text-lg'>{title}</DialogTitle>
-        </DialogHeader>
-
-        <div className='p-6'>
-          <div className='mb-4 text-center'>
-            <p className='text-muted-foreground'>
-              This chat is password-protected. Please enter the password to continue.
-            </p>
-          </div>
-
-          {authError && (
-            <div className='mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-red-600 text-sm'>
-              {authError}
-            </div>
-          )}
-
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              handleAuthenticate()
-            }}
-            className='space-y-4'
-          >
-            <div className='space-y-2'>
-              <Input
-                id='password'
-                type='password'
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder='Enter password'
-                disabled={isAuthenticating}
-                autoComplete='new-password'
-                className='w-full'
-                autoFocus
-              />
+                Password Required
+              </h1>
+              <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+                This chat is password-protected
+              </p>
             </div>
 
-            <Button
-              type='submit'
-              disabled={!password || isAuthenticating}
-              className='w-full'
-              style={{ backgroundColor: primaryColor }}
+            {/* Form */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                handleAuthenticate()
+              }}
+              className={`${inter.className} mt-8 w-full space-y-8`}
             >
-              {isAuthenticating ? (
-                <div className='flex items-center justify-center'>
-                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                  Authenticating...
+              <div className='space-y-6'>
+                <div className='space-y-2'>
+                  <div className='flex items-center justify-between'>
+                    <Label htmlFor='password'>Password</Label>
+                  </div>
+                  <div className='relative'>
+                    <Input
+                      id='password'
+                      name='password'
+                      required
+                      type={showPassword ? 'text' : 'password'}
+                      autoCapitalize='none'
+                      autoComplete='new-password'
+                      autoCorrect='off'
+                      placeholder='Enter password'
+                      value={password}
+                      onChange={handlePasswordChange}
+                      onKeyDown={handleKeyDown}
+                      className={cn(
+                        'rounded-[10px] pr-10 shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
+                        showValidationError &&
+                          passwordErrors.length > 0 &&
+                          'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+                      )}
+                      autoFocus
+                    />
+                    <button
+                      type='button'
+                      onClick={() => setShowPassword(!showPassword)}
+                      className='-translate-y-1/2 absolute top-1/2 right-3 text-gray-500 transition hover:text-gray-700'
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  {showValidationError && passwordErrors.length > 0 && (
+                    <div className='mt-1 space-y-1 text-red-400 text-xs'>
+                      {passwordErrors.map((error, index) => (
+                        <p key={index}>{error}</p>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              ) : (
-                'Continue'
-              )}
-            </Button>
-          </form>
+              </div>
+
+              <Button
+                type='submit'
+                className={`${buttonClass} flex w-full items-center justify-center gap-2 rounded-[10px] border font-medium text-[15px] text-white transition-all duration-200`}
+                disabled={isAuthenticating}
+              >
+                {isAuthenticating ? 'Authenticating...' : 'Continue'}
+              </Button>
+            </form>
+          </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   )
 }

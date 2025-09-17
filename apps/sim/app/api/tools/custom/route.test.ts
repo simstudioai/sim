@@ -91,7 +91,7 @@ describe('Custom Tools API Routes', () => {
     mockDelete.mockReturnValue({ where: mockWhere })
 
     // Mock database
-    vi.doMock('@/db', () => ({
+    vi.doMock('@sim/db', () => ({
       db: {
         select: mockSelect,
         insert: mockInsert,
@@ -110,7 +110,7 @@ describe('Custom Tools API Routes', () => {
     }))
 
     // Mock schema
-    vi.doMock('@/db/schema', () => ({
+    vi.doMock('@sim/db/schema', () => ({
       customTools: {
         userId: 'userId', // Add these properties to enable WHERE clauses with eq()
         id: 'id',

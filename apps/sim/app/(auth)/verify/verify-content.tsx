@@ -232,14 +232,14 @@ function VerificationForm({
             </div>
           )}
 
-          <div className='text-center font-light text-[14px]'>
+          {/* <div className='text-center font-light text-[14px]'>
             <button
               onClick={handleCancelVerification}
               className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
             >
               Back to login
             </button>
-          </div>
+          </div> */}
         </div>
       )}
     </>

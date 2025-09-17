@@ -1,6 +1,6 @@
+import { db } from '@sim/db'
+import * as schema from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
-import { db } from '@/db'
-import * as schema from '@/db/schema'
 
 /**
  * Check if a user is authorized to manage billing for a given reference ID

@@ -1,4 +1,6 @@
 import { stripe } from '@better-auth/stripe'
+import { db } from '@sim/db'
+import * as schema from '@sim/db/schema'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { nextCookies } from 'better-auth/next-js'
@@ -36,8 +38,6 @@ import { quickValidateEmail } from '@/lib/email/validation'
 import { env, isTruthy } from '@/lib/env'
 import { isBillingEnabled, isProd } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import * as schema from '@/db/schema'
 
 const logger = createLogger('Auth')
 
@@ -439,6 +439,21 @@ export const auth = betterAuth({
           ],
           prompt: 'consent',
           redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/google-sheets`,
+        },
+
+        {
+          providerId: 'google-forms',
+          clientId: env.GOOGLE_CLIENT_ID as string,
+          clientSecret: env.GOOGLE_CLIENT_SECRET as string,
+          discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+          accessType: 'offline',
+          scopes: [
+            'https://www.googleapis.com/auth/userinfo.email',
+            'https://www.googleapis.com/auth/userinfo.profile',
+            'https://www.googleapis.com/auth/forms.responses.readonly',
+          ],
+          prompt: 'consent',
+          redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/google-forms`,
         },
 
         {

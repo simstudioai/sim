@@ -32,6 +32,7 @@ import {
   StripeIcon,
   SupabaseIcon,
 } from '@/components/icons'
+import { LandingPromptStorage } from '@/lib/browser-storage'
 import { soehne } from '@/app/fonts/soehne/soehne'
 import {
   CARD_WIDTH,
@@ -271,6 +272,7 @@ export default function Hero() {
    */
   const handleSubmit = () => {
     if (!isEmpty) {
+      LandingPromptStorage.store(textValue)
       router.push('/signup')
     }
   }

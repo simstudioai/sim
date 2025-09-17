@@ -1,3 +1,4 @@
+import { apiKey, db, workflow, workflowDeploymentVersion } from '@sim/db'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
@@ -7,8 +8,6 @@ import { generateRequestId } from '@/lib/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-import { db } from '@/db'
-import { apiKey, workflow, workflowDeploymentVersion } from '@/db/schema'
 
 const logger = createLogger('WorkflowDeployAPI')
 

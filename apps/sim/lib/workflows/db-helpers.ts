@@ -1,15 +1,15 @@
+import {
+  db,
+  workflowBlocks,
+  workflowDeploymentVersion,
+  workflowEdges,
+  workflowSubflows,
+} from '@sim/db'
 import type { InferSelectModel } from 'drizzle-orm'
 import { and, desc, eq } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { createLogger } from '@/lib/logs/console/logger'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/validation'
-import { db } from '@/db'
-import {
-  workflowBlocks,
-  workflowDeploymentVersion,
-  workflowEdges,
-  workflowSubflows,
-} from '@/db/schema'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
 import { SUBFLOW_TYPES } from '@/stores/workflows/workflow/types'
 

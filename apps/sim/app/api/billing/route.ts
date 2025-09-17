@@ -1,11 +1,11 @@
+import { db } from '@sim/db'
+import { member, userStats } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getSimplifiedBillingSummary } from '@/lib/billing/core/billing'
 import { getOrganizationBillingData } from '@/lib/billing/core/organization'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { member, userStats } from '@/db/schema'
 
 const logger = createLogger('UnifiedBillingAPI')
 

@@ -1,8 +1,8 @@
+import { db } from '@sim/db'
+import { userRateLimits } from '@sim/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { userRateLimits } from '@/db/schema'
 import {
   MANUAL_EXECUTION_LIMIT,
   RATE_LIMIT_WINDOW_MS,

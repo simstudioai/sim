@@ -65,7 +65,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
     'The Agent block is a core workflow block that is a wrapper around an LLM. It takes in system/user prompts and calls an LLM provider. It can also make tool calls by directly containing tools inside of its tool input. It can additionally return structured output.',
   docsLink: 'https://docs.sim.ai/blocks/agent',
   category: 'blocks',
-  bgColor: 'var(--brand-primary-hover-hex)',
+  bgColor: 'var(--brand-primary-hex)',
   icon: AgentIcon,
   subBlocks: [
     {

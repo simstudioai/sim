@@ -1,3 +1,5 @@
+import { db } from '@sim/db'
+import { userStats, webhook, workflow as workflowTable } from '@sim/db/schema'
 import { task } from '@trigger.dev/sdk'
 import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
@@ -14,8 +16,6 @@ import {
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/db-helpers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
-import { db } from '@/db'
-import { userStats, webhook, workflow as workflowTable } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'

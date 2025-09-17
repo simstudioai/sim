@@ -99,7 +99,7 @@ describe('Workflow Deployment API Route', () => {
     }))
 
     // Mock the database schema module
-    vi.doMock('@/db/schema', () => ({
+    vi.doMock('@sim/db/schema', () => ({
       workflow: {},
       apiKey: {},
       workflowBlocks: {},
@@ -115,7 +115,7 @@ describe('Workflow Deployment API Route', () => {
 
     // Mock the database module with proper chainable query builder
     let selectCallCount = 0
-    vi.doMock('@/db', () => ({
+    vi.doMock('@sim/db', () => ({
       db: {
         select: vi.fn().mockImplementation(() => {
           selectCallCount++
@@ -186,7 +186,7 @@ describe('Workflow Deployment API Route', () => {
    * Test GET deployment status
    */
   it('should fetch deployment info successfully', async () => {
-    vi.doMock('@/db', () => ({
+    vi.doMock('@sim/db', () => ({
       db: {
         select: vi.fn().mockReturnValue({
           from: vi.fn().mockReturnValue({
@@ -234,7 +234,7 @@ describe('Workflow Deployment API Route', () => {
       }),
     }))
 
-    vi.doMock('@/db', () => ({
+    vi.doMock('@sim/db', () => ({
       db: {
         update: mockUpdate,
         transaction: vi.fn().mockImplementation(async (callback) => {

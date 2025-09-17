@@ -1,12 +1,12 @@
 import { createHmac } from 'crypto'
+import { db } from '@sim/db'
+import { permissions, workflow, workflowLogWebhook } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { decryptSecret } from '@/lib/utils'
-import { db } from '@/db'
-import { permissions, workflow, workflowLogWebhook } from '@/db/schema'
 
 const logger = createLogger('WorkflowLogWebhookTestAPI')
 

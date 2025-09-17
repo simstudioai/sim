@@ -25,6 +25,7 @@ import { GoogleSearchBlock } from '@/blocks/blocks/google'
 import { GoogleCalendarBlock } from '@/blocks/blocks/google_calendar'
 import { GoogleDocsBlock } from '@/blocks/blocks/google_docs'
 import { GoogleDriveBlock } from '@/blocks/blocks/google_drive'
+import { GoogleFormsBlock } from '@/blocks/blocks/google_form'
 import { GoogleSheetsBlock } from '@/blocks/blocks/google_sheets'
 import { HuggingFaceBlock } from '@/blocks/blocks/huggingface'
 import { HunterBlock } from '@/blocks/blocks/hunter'
@@ -34,6 +35,7 @@ import { JiraBlock } from '@/blocks/blocks/jira'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
 import { LinearBlock } from '@/blocks/blocks/linear'
 import { LinkupBlock } from '@/blocks/blocks/linkup'
+import { MailBlock } from '@/blocks/blocks/mail'
 import { McpBlock } from '@/blocks/blocks/mcp'
 import { Mem0Block } from '@/blocks/blocks/mem0'
 import { MemoryBlock } from '@/blocks/blocks/memory'
@@ -103,6 +105,7 @@ export const registry: Record<string, BlockConfig> = {
   google_calendar: GoogleCalendarBlock,
   google_docs: GoogleDocsBlock,
   google_drive: GoogleDriveBlock,
+  google_forms: GoogleFormsBlock,
   google_search: GoogleSearchBlock,
   google_sheets: GoogleSheetsBlock,
   huggingface: HuggingFaceBlock,
@@ -113,6 +116,7 @@ export const registry: Record<string, BlockConfig> = {
   knowledge: KnowledgeBlock,
   linear: LinearBlock,
   linkup: LinkupBlock,
+  mail: MailBlock,
   mcp: McpBlock,
   mem0: Mem0Block,
   microsoft_excel: MicrosoftExcelBlock,
@@ -138,6 +142,7 @@ export const registry: Record<string, BlockConfig> = {
   s3: S3Block,
   serper: SerperBlock,
   sharepoint: SharepointBlock,
+  // sms: SMSBlock,
   stagehand: StagehandBlock,
   stagehand_agent: StagehandAgentBlock,
   slack: SlackBlock,

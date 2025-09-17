@@ -72,7 +72,7 @@ describe('Knowledge Base By ID API Route', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
 
-    vi.doMock('@/db', () => ({
+    vi.doMock('@sim/db', () => ({
       db: mockDbChain,
     }))
 

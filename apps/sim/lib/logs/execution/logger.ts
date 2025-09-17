@@ -1,3 +1,12 @@
+import { db } from '@sim/db'
+import {
+  member,
+  organization,
+  userStats,
+  user as userTable,
+  workflow,
+  workflowExecutionLogs,
+} from '@sim/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
@@ -16,15 +25,6 @@ import type {
   WorkflowExecutionSnapshot,
   WorkflowState,
 } from '@/lib/logs/types'
-import { db } from '@/db'
-import {
-  member,
-  organization,
-  userStats,
-  user as userTable,
-  workflow,
-  workflowExecutionLogs,
-} from '@/db/schema'
 
 export interface ToolCall {
   name: string

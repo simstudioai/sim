@@ -36,8 +36,9 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Copy the entire sim app since socket-server has dependencies on other modules
+# Copy the sim app and the shared db package needed by socket-server
 COPY --from=builder /app/apps/sim ./apps/sim
+COPY --from=builder /app/packages/db ./packages/db
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CheckCheck, Copy, Info, RefreshCw, Trash2 } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -9,8 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
@@ -32,7 +30,6 @@ interface TriggerModalProps {
   onDelete?: () => Promise<boolean>
   triggerId?: string
   blockId: string
-  workflowId: string
 }
 
 export function TriggerModal({
@@ -45,7 +42,6 @@ export function TriggerModal({
   onDelete,
   triggerId,
   blockId,
-  workflowId,
 }: TriggerModalProps) {
   const [config, setConfig] = useState<Record<string, any>>(initialConfig)
   const [isSaving, setIsSaving] = useState(false)
@@ -65,7 +61,7 @@ export function TriggerModal({
   // Track if config has changed from initial snapshot
   const hasConfigChanged = useMemo(() => {
     return JSON.stringify(config) !== JSON.stringify(initialConfigRef.current)
-  }, [config, initialConfigRef.current])
+  }, [config])
 
   // Track if credential has changed from initial snapshot (computed later once selectedCredentialId is declared)
   let hasCredentialChanged = false
@@ -74,16 +70,13 @@ export function TriggerModal({
   const [generatedPath, setGeneratedPath] = useState('')
   const [hasCredentials, setHasCredentials] = useState(false)
   const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null)
-  const [isGeneratingTestUrl, setIsGeneratingTestUrl] = useState(false)
-  const [testUrl, setTestUrl] = useState('')
-  const [testUrlExpiresAt, setTestUrlExpiresAt] = useState('')
-  const [copiedTest, setCopiedTest] = useState(false)
   hasCredentialChanged = selectedCredentialId !== initialCredentialRef.current
   const [dynamicOptions, setDynamicOptions] = useState<
     Record<string, Array<{ id: string; name: string }>>
   >({})
   const lastCredentialIdRef = useRef<string | null>(null)
 
+  // Reset provider-dependent config fields when credentials change
   const resetFieldsForCredentialChange = () => {
     setConfig((prev) => {
       const next = { ...prev }
@@ -99,22 +92,27 @@ export function TriggerModal({
     })
   }
 
+  // Initialize config with default values from trigger definition
   useEffect(() => {
     const defaultConfig: Record<string, any> = {}
 
+    // Apply default values from trigger definition
     Object.entries(triggerDef.configFields).forEach(([fieldId, field]) => {
       if (field.defaultValue !== undefined && !(fieldId in initialConfig)) {
         defaultConfig[fieldId] = field.defaultValue
       }
     })
 
+    // Merge with initial config, prioritizing initial config values
     const mergedConfig = { ...defaultConfig, ...initialConfig }
 
+    // Only update if there are actually default values to apply
     if (Object.keys(defaultConfig).length > 0) {
       setConfig(mergedConfig)
     }
   }, [triggerDef.configFields, initialConfig])
 
+  // Monitor credential selection across collaborators; clear options on change/clear
   useEffect(() => {
     if (triggerDef.requiresCredentials && triggerDef.credentialProvider) {
       const checkCredentials = () => {
@@ -126,17 +124,23 @@ export function TriggerModal({
         const hasCredential = Boolean(currentCredentialId)
         setHasCredentials(hasCredential)
 
+        // If credential was cleared by another user, reset local state and dynamic options
         if (!hasCredential) {
           if (selectedCredentialId !== null) {
             setSelectedCredentialId(null)
           }
+          // Clear provider-specific dynamic options
           setDynamicOptions({})
+          // Per requirements: only clear dependent selections on actual credential CHANGE,
+          // not when it becomes empty. So we do NOT reset fields here.
           lastCredentialIdRef.current = null
           return
         }
 
+        // If credential changed, clear options immediately and load for new cred
         const previousCredentialId = lastCredentialIdRef.current
 
+        // First detection (prev null → current non-null): do not clear selections
         if (previousCredentialId === null) {
           setSelectedCredentialId(currentCredentialId)
           lastCredentialIdRef.current = currentCredentialId
@@ -150,6 +154,7 @@ export function TriggerModal({
           return
         }
 
+        // Real change (prev non-null → different non-null): clear dependent selections
         if (
           typeof currentCredentialId === 'string' &&
           currentCredentialId !== previousCredentialId
@@ -181,6 +186,7 @@ export function TriggerModal({
     triggerDef.provider,
   ])
 
+  // Load Gmail labels for the selected credential
   const loadGmailLabels = async (credentialId: string) => {
     try {
       const response = await fetch(`/api/tools/gmail/labels?credentialId=${credentialId}`)
@@ -204,6 +210,7 @@ export function TriggerModal({
     }
   }
 
+  // Load Outlook folders for the selected credential
   const loadOutlookFolders = async (credentialId: string) => {
     try {
       const response = await fetch(`/api/tools/outlook/folders?credentialId=${credentialId}`)
@@ -229,6 +236,7 @@ export function TriggerModal({
 
   // Generate webhook path and URL
   useEffect(() => {
+    // For triggers that don't use webhooks (like Gmail polling), skip URL generation
     if (triggerDef.requiresCredentials && !triggerDef.webhook) {
       setWebhookUrl('')
       setGeneratedPath('')
@@ -237,11 +245,14 @@ export function TriggerModal({
 
     let finalPath = triggerPath
 
+    // If no path exists and we haven't generated one yet, generate one
     if (!finalPath && !generatedPath) {
+      // Use UUID format consistent with other webhooks
       const newPath = crypto.randomUUID()
       setGeneratedPath(newPath)
       finalPath = newPath
     } else if (generatedPath && !triggerPath) {
+      // Use the already generated path
       finalPath = generatedPath
     }
 
@@ -269,32 +280,24 @@ export function TriggerModal({
 
     setIsSaving(true)
     try {
+      // Use the existing trigger path or the generated one
       const path = triggerPath || generatedPath
 
+      // For credential-based triggers that don't use webhooks (like Gmail), path is optional
       const requiresPath = triggerDef.webhook !== undefined
 
       if (requiresPath && !path) {
         logger.error('No webhook path available for saving trigger')
-        setIsSaving(false)
         return
       }
 
       const success = await onSave(path || '', config)
       if (success) {
-        initialConfigRef.current = JSON.parse(JSON.stringify(config))
-        initialCredentialRef.current = selectedCredentialId
-        if (triggerDef.requiresCredentials && !triggerDef.webhook) {
-          setIsSaving(false)
-          handleClose()
-          return
-        }
-
-        setIsSaving(false)
-      } else {
-        setIsSaving(false)
+        onClose()
       }
     } catch (error) {
       logger.error('Error saving trigger:', error)
+    } finally {
       setIsSaving(false)
     }
   }
@@ -306,7 +309,7 @@ export function TriggerModal({
     try {
       const success = await onDelete()
       if (success) {
-        handleClose()
+        onClose()
       }
     } catch (error) {
       logger.error('Error deleting trigger:', error)
@@ -330,60 +333,10 @@ export function TriggerModal({
     return true
   }
 
-  const generateTestUrl = async () => {
-    if (!triggerId) return
-    try {
-      setIsGeneratingTestUrl(true)
-      const res = await fetch(`/api/webhooks/${triggerId}/test-url`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err?.error || 'Failed to generate test URL')
-      }
-      const json = await res.json()
-      setTestUrl(json.url)
-      setTestUrlExpiresAt(json.expiresAt)
-    } catch (e) {
-      logger.error('Failed to generate test webhook URL', { error: e })
-    } finally {
-      setIsGeneratingTestUrl(false)
-    }
-  }
-
-  // Auto-generate test URL when a trigger exists (after save)
-  useEffect(() => {
-    if (!triggerId) return
-    if (testUrl) return
-    // Only generate for webhook triggers
-    if (triggerDef.requiresCredentials && !triggerDef.webhook) return
-
-    logger.info('Trigger saved, generating test URL', { triggerId })
-    void generateTestUrl()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [triggerId])
-
-  const copyTestUrl = async () => {
-    if (!testUrl) return
-    try {
-      await navigator.clipboard.writeText(testUrl)
-      setCopiedTest(true)
-      setTimeout(() => setCopiedTest(false), 1500)
-    } catch (e) {
-      logger.error('Failed to copy test URL', { error: e })
-    }
-  }
-
-  const handleClose = () => {
-    onClose()
-  }
-
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
+    <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent
-        className='flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[650px]'
+        className='flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[800px]'
         hideCloseButton
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
@@ -447,110 +400,6 @@ export function TriggerModal({
               dynamicOptions={dynamicOptions}
             />
 
-            {/* Only show test URL section for webhook-based triggers */}
-            {(!triggerDef.requiresCredentials || triggerDef.webhook) && (
-              <div className='space-y-2 rounded-md border border-border bg-card p-4 shadow-sm'>
-                <div className='flex items-center gap-2'>
-                  <Label htmlFor='test-webhook-url' className='font-medium text-sm'>
-                    Test Webhook URL
-                  </Label>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        className='h-6 w-6 p-1 text-gray-500'
-                        aria-label='Learn more about test webhook URL'
-                      >
-                        <Info className='h-4 w-4' />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent
-                      side='right'
-                      align='center'
-                      className='z-[100] max-w-[320px] p-3'
-                    >
-                      <p className='text-sm'>
-                        Use this URL to send test webhooks that run against the live workflow state
-                        without changing the deployed version.
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-                <div className='flex'>
-                  <div className='relative flex-1'>
-                    <Input
-                      id='test-webhook-url'
-                      readOnly
-                      value={testUrl}
-                      placeholder={
-                        triggerId
-                          ? testUrl
-                            ? ''
-                            : 'Generating test URL...'
-                          : 'Save the trigger to enable test URL'
-                      }
-                      className={cn(
-                        'h-10 flex-1 cursor-text rounded-[8px] pr-24 font-mono text-xs',
-                        'focus-visible:ring-2 focus-visible:ring-primary/20'
-                      )}
-                      onClick={(e) => (e.target as HTMLInputElement).select()}
-                      disabled={isGeneratingTestUrl}
-                    />
-                    <div className='absolute inset-y-0 right-0 z-10 flex items-center pr-1'>
-                      <Button
-                        type='button'
-                        size='sm'
-                        variant='ghost'
-                        className={cn(
-                          'h-7 w-7 rounded-md p-0 text-muted-foreground/70',
-                          'transition-colors hover:bg-transparent hover:text-foreground'
-                        )}
-                        onClick={copyTestUrl}
-                        disabled={!testUrl || isGeneratingTestUrl}
-                        aria-label='Copy test URL'
-                      >
-                        {copiedTest ? (
-                          <CheckCheck className='h-3.5 w-3.5 text-green-500' />
-                        ) : (
-                          <Copy className='h-3.5 w-3.5' />
-                        )}
-                      </Button>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            type='button'
-                            size='sm'
-                            variant='ghost'
-                            className={cn(
-                              'ml-1 h-7 w-7 rounded-md p-0 text-muted-foreground/70',
-                              'transition-colors hover:bg-transparent hover:text-foreground'
-                            )}
-                            onClick={() => void generateTestUrl()}
-                            disabled={isGeneratingTestUrl || !triggerId}
-                            aria-label='Generate test URL'
-                          >
-                            <RefreshCw
-                              className={cn('h-3.5 w-3.5', isGeneratingTestUrl && 'animate-spin')}
-                            />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side='top' align='center'>
-                          {testUrl ? 'Refresh test URL' : 'Generate test URL'}
-                        </TooltipContent>
-                      </Tooltip>
-                      <div className='pointer-events-none absolute top-[1px] right-[1px] bottom-[1px] z-[-1] w-10 rounded-r-[7px] bg-gradient-to-l from-background to-transparent' />
-                    </div>
-                  </div>
-                </div>
-                {testUrlExpiresAt && (
-                  <p className='text-muted-foreground text-xs'>
-                    Expires at: {new Date(testUrlExpiresAt).toLocaleString()}
-                  </p>
-                )}
-              </div>
-            )}
-
             <TriggerInstructions
               instructions={triggerDef.instructions}
               webhookUrl={webhookUrl}
@@ -570,7 +419,7 @@ export function TriggerModal({
                   onClick={handleDelete}
                   disabled={isDeleting || isSaving}
                   size='default'
-                  className='h-10'
+                  className='h-9 rounded-[8px]'
                 >
                   {isDeleting ? (
                     <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
@@ -582,7 +431,12 @@ export function TriggerModal({
               )}
             </div>
             <div className='flex gap-2'>
-              <Button variant='outline' onClick={handleClose} size='default' className='h-10'>
+              <Button
+                variant='outline'
+                onClick={onClose}
+                size='default'
+                className='h-9 rounded-[8px]'
+              >
                 Cancel
               </Button>
               <Button
@@ -593,7 +447,7 @@ export function TriggerModal({
                   (!(hasConfigChanged || hasCredentialChanged) && !!triggerId)
                 }
                 className={cn(
-                  'h-10',
+                  'h-9 rounded-[8px]',
                   isConfigValid() && (hasConfigChanged || hasCredentialChanged || !triggerId)
                     ? 'bg-primary hover:bg-primary/90'
                     : '',

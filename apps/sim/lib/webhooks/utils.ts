@@ -1,9 +1,9 @@
+import { db } from '@sim/db'
+import { account, webhook } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-import { db } from '@/db'
-import { account, webhook } from '@/db/schema'
 
 const logger = createLogger('WebhookUtils')
 
@@ -504,6 +504,64 @@ export function formatWebhookInput(
           path: foundWebhook.path,
           providerConfig: foundWebhook.providerConfig,
           payload: body,
+          headers: Object.fromEntries(request.headers.entries()),
+          method: request.method,
+        },
+      },
+      workflowId: foundWorkflow.id,
+    }
+  }
+
+  if (foundWebhook.provider === 'google_forms') {
+    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+
+    // Normalize answers: if value is an array with single element, collapse to scalar; keep multi-select arrays
+    const normalizeAnswers = (src: unknown): Record<string, unknown> => {
+      if (!src || typeof src !== 'object') return {}
+      const out: Record<string, unknown> = {}
+      for (const [k, v] of Object.entries(src as Record<string, unknown>)) {
+        if (Array.isArray(v)) {
+          out[k] = v.length === 1 ? v[0] : v
+        } else {
+          out[k] = v as unknown
+        }
+      }
+      return out
+    }
+
+    const responseId = body?.responseId || body?.id || ''
+    const createTime = body?.createTime || body?.timestamp || new Date().toISOString()
+    const lastSubmittedTime = body?.lastSubmittedTime || createTime
+    const formId = body?.formId || providerConfig.formId || ''
+    const includeRaw = providerConfig.includeRawPayload !== false
+
+    const normalizedAnswers = normalizeAnswers(body?.answers)
+
+    const summaryCount = Object.keys(normalizedAnswers).length
+    const input = `Google Form response${responseId ? ` ${responseId}` : ''} (${summaryCount} answers)`
+
+    return {
+      input,
+      responseId,
+      createTime,
+      lastSubmittedTime,
+      formId,
+      answers: normalizedAnswers,
+      ...(includeRaw ? { raw: body?.raw ?? body } : {}),
+      google_forms: {
+        responseId,
+        createTime,
+        lastSubmittedTime,
+        formId,
+        answers: normalizedAnswers,
+        ...(includeRaw ? { raw: body?.raw ?? body } : {}),
+      },
+      webhook: {
+        data: {
+          provider: 'google_forms',
+          path: foundWebhook.path,
+          providerConfig: foundWebhook.providerConfig,
+          payload: includeRaw ? body : undefined,
           headers: Object.fromEntries(request.headers.entries()),
           method: request.method,
         },

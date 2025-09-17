@@ -30,6 +30,7 @@ interface CopilotProps {
 
 interface CopilotRef {
   createNewChat: () => void
+  setInputValueAndFocus: (value: string) => void
 }
 
 export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref) => {
@@ -326,13 +327,24 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     }, 100) // Small delay to ensure DOM updates are complete
   }, [createNewChat])
 
+  const handleSetInputValueAndFocus = useCallback(
+    (value: string) => {
+      setInputValue(value)
+      setTimeout(() => {
+        userInputRef.current?.focus()
+      }, 150)
+    },
+    [setInputValue]
+  )
+
   // Expose functions to parent
   useImperativeHandle(
     ref,
     () => ({
       createNewChat: handleStartNewChat,
+      setInputValueAndFocus: handleSetInputValueAndFocus,
     }),
-    [handleStartNewChat]
+    [handleStartNewChat, handleSetInputValueAndFocus]
   )
 
   // Handle abort action

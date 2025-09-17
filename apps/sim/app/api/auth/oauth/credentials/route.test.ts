@@ -45,11 +45,11 @@ describe('OAuth Credentials API Route', () => {
       parseProvider: mockParseProvider,
     }))
 
-    vi.doMock('@/db', () => ({
+    vi.doMock('@sim/db', () => ({
       db: mockDb,
     }))
 
-    vi.doMock('@/db/schema', () => ({
+    vi.doMock('@sim/db/schema', () => ({
       account: { userId: 'userId', providerId: 'providerId' },
       user: { email: 'email', id: 'id' },
     }))

@@ -1,8 +1,8 @@
+import { db } from '@sim/db'
+import { docsEmbeddings } from '@sim/db/schema'
 import { sql } from 'drizzle-orm'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { docsEmbeddings } from '@/db/schema'
 
 interface DocsSearchParams {
   query: string
