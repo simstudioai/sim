@@ -149,6 +149,7 @@ import {
   sharepointReadPageTool,
 } from '@/tools/sharepoint'
 import { slackCanvasTool, slackMessageReaderTool, slackMessageTool } from '@/tools/slack'
+import { smsSendTool } from '@/tools/sms'
 import { stagehandAgentTool, stagehandExtractTool } from '@/tools/stagehand'
 import {
   supabaseDeleteTool,
@@ -203,6 +204,7 @@ export const tools: Record<string, ToolConfig> = {
   jina_read_url: readUrlTool,
   linkup_search: linkupSearchTool,
   mail_send: mailSendTool,
+  sms_send: smsSendTool,
   jira_retrieve: jiraRetrieveTool,
   jira_update: jiraUpdateTool,
   jira_write: jiraWriteTool,
