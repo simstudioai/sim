@@ -5,7 +5,6 @@ import {
   AirtableIcon,
   GithubIcon,
   GmailIcon,
-  GoogleFormsIcon,
   MicrosoftTeamsIcon,
   OutlookIcon,
   SlackIcon,
@@ -94,12 +93,6 @@ export interface MicrosoftTeamsConfig {
   hmacSecret: string
 }
 
-export interface GoogleFormsProviderConfig {
-  token?: string
-  secretHeaderName?: string
-  formId?: string
-}
-
 // Union type for all provider configurations
 export type ProviderConfig =
   | WhatsAppConfig
@@ -112,7 +105,6 @@ export type ProviderConfig =
   | GmailConfig
   | OutlookConfig
   | MicrosoftTeamsConfig
-  | GoogleFormsProviderConfig
   | Record<string, never>
 
 // Define available webhook providers
@@ -314,32 +306,6 @@ export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
         label: 'Bot Token',
         placeholder: 'Enter your Telegram Bot Token',
         description: 'The token for your Telegram bot.',
-      },
-    },
-  },
-  google_forms: {
-    id: 'google_forms',
-    name: 'Google Forms',
-    icon: (props) => <GoogleFormsIcon {...props} />,
-    configFields: {
-      token: {
-        type: 'string',
-        label: 'Shared Secret',
-        placeholder: 'Enter a secret used by your Apps Script',
-        description: 'Used to authenticate requests from Apps Script.',
-      },
-      secretHeaderName: {
-        type: 'string',
-        label: 'Custom Secret Header',
-        placeholder: 'X-GForms-Secret',
-        description:
-          'If set, Apps Script must send this header with the Shared Secret. Otherwise, use Authorization: Bearer.',
-      },
-      formId: {
-        type: 'string',
-        label: 'Form ID',
-        placeholder: '1FAIpQLSd...',
-        description: 'Optional Form ID for clarity in workflow runs.',
       },
     },
   },
