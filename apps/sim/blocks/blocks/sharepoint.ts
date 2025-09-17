@@ -99,23 +99,23 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
 
     {
       id: 'listItemId',
-      title: 'List Item ID',
+      title: 'Item ID',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Enter list item ID',
-      condition: { field: 'operation', value: ['update_list', 'read_list'] },
+      placeholder: 'Enter item ID',
+      condition: { field: 'operation', value: ['update_list'] },
     },
 
+    // Read List - target a specific list
     {
-      id: 'pageContent',
-      title: 'Page Content',
-      type: 'long-input',
+      id: 'listId',
+      title: 'List ID',
+      type: 'short-input',
       layout: 'full',
-      placeholder: 'Content of the page',
-      condition: { field: 'operation', value: ['create_page', 'create_list', 'update_list'] },
+      placeholder: 'Enter list ID (GUID). Leave blank to list all.',
+      condition: { field: 'operation', value: 'read_list' },
     },
 
-    // Create List fields
     {
       id: 'listDisplayName',
       title: 'List Display Name',
@@ -123,6 +123,25 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       layout: 'full',
       placeholder: 'Name of the list',
       condition: { field: 'operation', value: 'create_list' },
+    },
+
+    {
+      id: 'listTemplate',
+      title: 'List Template',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: "Template (e.g., 'genericList')",
+      condition: { field: 'operation', value: 'create_list' },
+    },
+
+    {
+      id: 'pageContent',
+      title: 'Page Content',
+      type: 'long-input',
+      layout: 'full',
+      placeholder:
+        "For Create Page: enter page content. For Create List: optionally provide JSON like { \"columns\": [ { \"name\": \"Author\", \"text\": {} }, { \"name\": \"PageCount\", \"number\": {} } ] } to create columns.",
+      condition: { field: 'operation', value: ['create_page', 'create_list', 'update_list'] },
     },
     {
       id: 'listDescription',
@@ -132,14 +151,8 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       placeholder: 'Optional description',
       condition: { field: 'operation', value: 'create_list' },
     },
-    {
-      id: 'listTemplate',
-      title: 'List Template',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: "Template (e.g., 'genericList')",
-      condition: { field: 'operation', value: 'create_list' },
-    },
+
+    
 
     {
       id: 'manualSiteId',

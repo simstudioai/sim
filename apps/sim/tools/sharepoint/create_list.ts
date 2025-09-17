@@ -75,16 +75,33 @@ export const createListTool: ToolConfig<SharepointToolParams, SharepointCreateLi
         throw new Error('listDisplayName is required')
       }
 
-      const payload = {
+      // Derive columns from pageContent JSON wrapper
+      let columns: unknown[] | undefined
+      if (params.pageContent && typeof params.pageContent === 'string') {
+        try {
+          const parsed = JSON.parse(params.pageContent)
+          if (parsed && Array.isArray(parsed.columns)) {
+            columns = parsed.columns
+          }
+        } catch (error) {
+          logger.warn('Invalid JSON in pageContent for create list; ignoring', {
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
+      }
+
+      const payload: any = {
         displayName: params.listDisplayName,
         description: params.listDescription,
         list: { template: params.listTemplate || 'genericList' },
       }
+      if (columns && columns.length > 0) payload.columns = columns
 
       logger.info('Creating SharePoint list', {
         displayName: payload.displayName,
         template: payload.list.template,
         hasDescription: !!payload.description,
+        columnsCount: Array.isArray(payload.columns) ? payload.columns.length : 0,
       })
 
       return payload
