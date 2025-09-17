@@ -1,11 +1,11 @@
+import { db } from '@sim/db'
+import { workflow } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import type { NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-import { db } from '@/db'
-import { workflow } from '@/db/schema'
 
 const logger = createLogger('WorkflowDeployedStateAPI')
 

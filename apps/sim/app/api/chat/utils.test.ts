@@ -7,7 +7,7 @@ import type { NextResponse } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { env } from '@/lib/env'
 
-vi.mock('@/db', () => ({
+vi.mock('@sim/db', () => ({
   db: {
     select: vi.fn(),
     update: vi.fn(),

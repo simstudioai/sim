@@ -41,7 +41,7 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
-              cd /app/apps/sim
+              cd /app/packages/db
               export DATABASE_URL="{{ include "sim.databaseUrl" . }}"
               bun run db:migrate
           {{- if .Values.postgresql.enabled }}

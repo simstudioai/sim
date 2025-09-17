@@ -29,14 +29,14 @@ describe('Chat API Route', () => {
     mockInsert.mockReturnValue({ values: mockValues })
     mockValues.mockReturnValue({ returning: mockReturning })
 
-    vi.doMock('@/db', () => ({
+    vi.doMock('@sim/db', () => ({
       db: {
         select: mockSelect,
         insert: mockInsert,
       },
     }))
 
-    vi.doMock('@/db/schema', () => ({
+    vi.doMock('@sim/db/schema', () => ({
       chat: { userId: 'userId', subdomain: 'subdomain' },
       workflow: { id: 'id', userId: 'userId', isDeployed: 'isDeployed' },
     }))

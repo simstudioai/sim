@@ -1,12 +1,12 @@
 #!/usr/bin/env bun
 
 import path from 'path'
+import { db } from '@sim/db'
+import { docsEmbeddings } from '@sim/db/schema'
 import { sql } from 'drizzle-orm'
 import { isDev } from '@/lib/environment'
 import { DocsChunker } from '@/lib/knowledge/documents/docs-chunker'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { docsEmbeddings } from '@/db/schema'
 
 const logger = createLogger('ProcessDocsEmbeddings')
 

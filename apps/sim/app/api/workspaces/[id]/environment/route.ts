@@ -1,3 +1,5 @@
+import { db } from '@sim/db'
+import { environment, workspace, workspaceEnvironment } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -5,8 +7,6 @@ import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { decryptSecret, encryptSecret, generateRequestId } from '@/lib/utils'
-import { db } from '@/db'
-import { environment, workspace, workspaceEnvironment } from '@/db/schema'
 
 const logger = createLogger('WorkspaceEnvironmentAPI')
 

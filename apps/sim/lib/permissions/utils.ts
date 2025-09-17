@@ -1,6 +1,6 @@
+import { db } from '@sim/db'
+import { permissions, type permissionTypeEnum, user, workspace } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
-import { db } from '@/db'
-import { permissions, type permissionTypeEnum, user, workspace } from '@/db/schema'
 
 export type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
 

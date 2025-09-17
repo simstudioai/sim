@@ -1,3 +1,5 @@
+import { db } from '@sim/db'
+import { workflow as workflowTable } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { env } from '@/lib/env'
@@ -7,8 +9,6 @@ import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { resolveOutputType } from '@/blocks/utils'
-import { db } from '@/db'
-import { workflow as workflowTable } from '@/db/schema'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 interface EditWorkflowOperation {

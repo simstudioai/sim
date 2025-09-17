@@ -1,3 +1,5 @@
+import { db } from '@sim/db'
+import { apiKey } from '@sim/db/schema'
 import { and, eq, not } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -5,8 +7,6 @@ import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { generateRequestId } from '@/lib/utils'
-import { db } from '@/db'
-import { apiKey } from '@/db/schema'
 
 const logger = createLogger('WorkspaceApiKeyAPI')
 

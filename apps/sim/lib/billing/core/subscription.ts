@@ -1,3 +1,5 @@
+import { db } from '@sim/db'
+import { member, subscription, user, userStats } from '@sim/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import {
   checkEnterprisePlan,
@@ -10,8 +12,6 @@ import type { UserSubscriptionState } from '@/lib/billing/types'
 import { env } from '@/lib/env'
 import { isProd } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { member, subscription, user, userStats } from '@/db/schema'
 
 const logger = createLogger('SubscriptionCore')
 

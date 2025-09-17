@@ -1,11 +1,11 @@
+import { db } from '@sim/db'
+import { workflow, workflowBlocks, workspace } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
-import { db } from '@/db'
-import { workflow, workflowBlocks, workspace } from '@/db/schema'
 import { verifyWorkspaceMembership } from './utils'
 
 const logger = createLogger('WorkflowAPI')

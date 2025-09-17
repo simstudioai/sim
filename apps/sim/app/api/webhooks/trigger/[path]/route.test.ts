@@ -86,7 +86,7 @@ vi.mock('@/executor', () => ({
   })),
 }))
 
-vi.mock('@/db', () => {
+vi.mock('@sim/db', () => {
   const dbMock = {
     select: vi.fn().mockImplementation((columns) => ({
       from: vi.fn().mockImplementation((table) => ({
@@ -202,7 +202,7 @@ describe('Webhook Trigger API Route', () => {
     const req = new NextRequest(new URL(mockUrl))
 
     // Mock database to return a WhatsApp webhook with matching token
-    const { db } = await import('@/db')
+    const { db } = await import('@sim/db')
     const whereMock = vi.fn().mockReturnValue([
       {
         id: 'webhook-id',
@@ -250,7 +250,7 @@ describe('Webhook Trigger API Route', () => {
    */
   it('should handle 404 for non-existent webhooks', async () => {
     // Configure DB mock to return empty result (no webhook found)
-    const { db } = await import('@/db')
+    const { db } = await import('@sim/db')
     const limitMock = vi.fn().mockReturnValue([])
     const whereMock = vi.fn().mockReturnValue({ limit: limitMock })
     const innerJoinMock = vi.fn().mockReturnValue({ where: whereMock })
@@ -281,7 +281,7 @@ describe('Webhook Trigger API Route', () => {
 
   describe('Generic Webhook Authentication', () => {
     const setupGenericWebhook = async (config: Record<string, any>) => {
-      const { db } = await import('@/db')
+      const { db } = await import('@sim/db')
       const limitMock = vi.fn().mockReturnValue([
         {
           webhook: {

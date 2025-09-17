@@ -1,11 +1,11 @@
+import { db } from '@sim/db'
+import { apiKey } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createApiKey, getApiKeyDisplayFormat } from '@/lib/api-key/auth'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { apiKey } from '@/db/schema'
 
 const logger = createLogger('ApiKeysAPI')
 

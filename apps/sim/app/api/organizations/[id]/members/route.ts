@@ -1,4 +1,6 @@
 import { randomUUID } from 'crypto'
+import { db } from '@sim/db'
+import { invitation, member, organization, user, userStats } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getEmailSubject, renderInvitationEmail } from '@/components/emails/render-email'
@@ -9,8 +11,6 @@ import { sendEmail } from '@/lib/email/mailer'
 import { quickValidateEmail } from '@/lib/email/validation'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { invitation, member, organization, user, userStats } from '@/db/schema'
 
 const logger = createLogger('OrganizationMembersAPI')
 

@@ -1,10 +1,10 @@
+import { db } from '@sim/db'
+import { workflowFolder } from '@sim/db/schema'
 import { and, asc, desc, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
-import { db } from '@/db'
-import { workflowFolder } from '@/db/schema'
 
 const logger = createLogger('FoldersAPI')
 

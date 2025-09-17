@@ -1,3 +1,5 @@
+import { db } from '@sim/db'
+import { webhook, workflow } from '@sim/db/schema'
 import { tasks } from '@trigger.dev/sdk'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -13,8 +15,6 @@ import {
   validateMicrosoftTeamsSignature,
 } from '@/lib/webhooks/utils'
 import { executeWebhookJob } from '@/background/webhook-execution'
-import { db } from '@/db'
-import { webhook, workflow } from '@/db/schema'
 import { RateLimiter } from '@/services/queue'
 
 const logger = createLogger('WebhookTriggerAPI')

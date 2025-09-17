@@ -31,7 +31,7 @@ describe('OAuth Utils', () => {
       getSession: vi.fn().mockResolvedValue(mockSession),
     }))
 
-    vi.doMock('@/db', () => ({
+    vi.doMock('@sim/db', () => ({
       db: mockDb,
     }))
 

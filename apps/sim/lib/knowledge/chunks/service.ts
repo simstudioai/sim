@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from 'crypto'
+import { db } from '@sim/db'
+import { document, embedding } from '@sim/db/schema'
 import { and, asc, eq, ilike, inArray, sql } from 'drizzle-orm'
 import { generateEmbeddings } from '@/lib/embeddings/utils'
 import type {
@@ -10,8 +12,6 @@ import type {
 } from '@/lib/knowledge/chunks/types'
 import { createLogger } from '@/lib/logs/console/logger'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
-import { db } from '@/db'
-import { document, embedding } from '@/db/schema'
 
 const logger = createLogger('ChunksService')
 

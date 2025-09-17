@@ -1,4 +1,6 @@
 import crypto from 'crypto'
+import { db } from '@sim/db'
+import { customTools, workflowCheckpoints, workflow as workflowTable } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -15,8 +17,6 @@ import { getUserId } from '@/app/api/auth/oauth/utils'
 import { getAllBlocks, getBlock } from '@/blocks'
 import type { BlockConfig } from '@/blocks/types'
 import { resolveOutputType } from '@/blocks/utils'
-import { db } from '@/db'
-import { customTools, workflowCheckpoints, workflow as workflowTable } from '@/db/schema'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('YamlWorkflowAPI')

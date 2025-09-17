@@ -1,4 +1,6 @@
 import { stripe } from '@better-auth/stripe'
+import { db } from '@sim/db'
+import * as schema from '@sim/db/schema'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { nextCookies } from 'better-auth/next-js'
@@ -36,8 +38,6 @@ import { quickValidateEmail } from '@/lib/email/validation'
 import { env, isTruthy } from '@/lib/env'
 import { isBillingEnabled, isProd } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import * as schema from '@/db/schema'
 
 const logger = createLogger('Auth')
 

@@ -1,3 +1,5 @@
+import { db } from '@sim/db'
+import { workflow, workflowSchedule } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -13,8 +15,6 @@ import {
   validateCronExpression,
 } from '@/lib/schedules/utils'
 import { generateRequestId } from '@/lib/utils'
-import { db } from '@/db'
-import { workflow, workflowSchedule } from '@/db/schema'
 
 const logger = createLogger('ScheduledAPI')
 

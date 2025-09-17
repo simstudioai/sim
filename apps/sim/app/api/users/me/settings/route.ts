@@ -1,3 +1,5 @@
+import { db } from '@sim/db'
+import { settings } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { NextResponse } from 'next/server'
@@ -5,8 +7,6 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
-import { db } from '@/db'
-import { settings } from '@/db/schema'
 
 const logger = createLogger('UserSettingsAPI')
 

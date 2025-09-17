@@ -1,4 +1,6 @@
 import { createHash } from 'crypto'
+import { db } from '@sim/db'
+import { workflowExecutionSnapshots } from '@sim/db/schema'
 import { and, eq, lt } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -9,8 +11,6 @@ import type {
   WorkflowExecutionSnapshotInsert,
   WorkflowState,
 } from '@/lib/logs/types'
-import { db } from '@/db'
-import { workflowExecutionSnapshots } from '@/db/schema'
 
 const logger = createLogger('SnapshotService')
 

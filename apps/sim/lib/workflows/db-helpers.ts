@@ -1,8 +1,8 @@
+import { db } from '@sim/db'
+import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/validation'
-import { db } from '@/db'
-import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@/db/schema'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { SUBFLOW_TYPES } from '@/stores/workflows/workflow/types'
 

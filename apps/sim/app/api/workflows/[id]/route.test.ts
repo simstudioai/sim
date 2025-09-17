@@ -60,7 +60,7 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
-      vi.doMock('@/db', () => ({
+      vi.doMock('@sim/db', () => ({
         db: {
           select: vi.fn().mockReturnValue({
             from: vi.fn().mockReturnValue({
@@ -105,7 +105,7 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
-      vi.doMock('@/db', () => ({
+      vi.doMock('@sim/db', () => ({
         db: {
           select: vi.fn().mockReturnValue({
             from: vi.fn().mockReturnValue({
@@ -154,7 +154,7 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
-      vi.doMock('@/db', () => ({
+      vi.doMock('@sim/db', () => ({
         db: {
           select: vi.fn().mockReturnValue({
             from: vi.fn().mockReturnValue({
@@ -200,7 +200,7 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
-      vi.doMock('@/db', () => ({
+      vi.doMock('@sim/db', () => ({
         db: {
           select: vi.fn().mockReturnValue({
             from: vi.fn().mockReturnValue({
@@ -250,7 +250,7 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
-      vi.doMock('@/db', () => ({
+      vi.doMock('@sim/db', () => ({
         db: {
           select: vi.fn().mockReturnValue({
             from: vi.fn().mockReturnValue({
@@ -294,7 +294,7 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
-      vi.doMock('@/db', () => ({
+      vi.doMock('@sim/db', () => ({
         db: {
           select: vi.fn().mockReturnValue({
             from: vi.fn().mockReturnValue({
@@ -340,7 +340,7 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
-      vi.doMock('@/db', () => ({
+      vi.doMock('@sim/db', () => ({
         db: {
           select: vi.fn().mockReturnValue({
             from: vi.fn().mockReturnValue({
@@ -391,7 +391,7 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
-      vi.doMock('@/db', () => ({
+      vi.doMock('@sim/db', () => ({
         db: {
           select: vi.fn().mockReturnValue({
             from: vi.fn().mockReturnValue({
@@ -439,7 +439,7 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
-      vi.doMock('@/db', () => ({
+      vi.doMock('@sim/db', () => ({
         db: {
           select: vi.fn().mockReturnValue({
             from: vi.fn().mockReturnValue({
@@ -488,7 +488,7 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
-      vi.doMock('@/db', () => ({
+      vi.doMock('@sim/db', () => ({
         db: {
           select: vi.fn().mockReturnValue({
             from: vi.fn().mockReturnValue({
@@ -542,7 +542,7 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
-      vi.doMock('@/db', () => ({
+      vi.doMock('@sim/db', () => ({
         db: {
           select: vi.fn().mockReturnValue({
             from: vi.fn().mockReturnValue({
@@ -587,7 +587,7 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
-      vi.doMock('@/db', () => ({
+      vi.doMock('@sim/db', () => ({
         db: {
           select: vi.fn().mockReturnValue({
             from: vi.fn().mockReturnValue({
@@ -625,7 +625,7 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
-      vi.doMock('@/db', () => ({
+      vi.doMock('@sim/db', () => ({
         db: {
           select: vi.fn().mockReturnValue({
             from: vi.fn().mockReturnValue({

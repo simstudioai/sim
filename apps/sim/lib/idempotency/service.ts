@@ -1,9 +1,9 @@
 import * as crypto from 'crypto'
+import { db } from '@sim/db'
+import { idempotencyKey } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getRedisClient } from '@/lib/redis'
-import { db } from '@/db'
-import { idempotencyKey } from '@/db/schema'
 
 const logger = createLogger('IdempotencyService')
 

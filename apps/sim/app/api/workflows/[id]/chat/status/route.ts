@@ -1,9 +1,9 @@
+import { db } from '@sim/db'
+import { chat } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-import { db } from '@/db'
-import { chat } from '@/db/schema'
 
 const logger = createLogger('ChatStatusAPI')
 

@@ -1,9 +1,9 @@
+import { db } from '@sim/db'
+import { permissions, workflow, workflowBlocks, workspace } from '@sim/db/schema'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { permissions, workflow, workflowBlocks, workspace } from '@/db/schema'
 
 const logger = createLogger('Workspaces')
 

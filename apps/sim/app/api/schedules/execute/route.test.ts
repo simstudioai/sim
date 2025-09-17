@@ -33,7 +33,7 @@ describe('Scheduled Workflow Execution API Route', () => {
       })),
     }))
 
-    vi.doMock('@/db', () => {
+    vi.doMock('@sim/db', () => {
       const mockDb = {
         select: vi.fn().mockImplementation(() => ({
           from: vi.fn().mockImplementation((table: string) => {
@@ -147,7 +147,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('should handle case with no due schedules', async () => {
-    vi.doMock('@/db', () => {
+    vi.doMock('@sim/db', () => {
       const mockDb = {
         select: vi.fn().mockImplementation(() => ({
           from: vi.fn().mockImplementation(() => ({
@@ -183,7 +183,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('should handle scheduler-level errors gracefully', async () => {
-    vi.doMock('@/db', () => {
+    vi.doMock('@sim/db', () => {
       const mockDb = {
         select: vi.fn().mockImplementation(() => {
           throw new Error('Database error')
