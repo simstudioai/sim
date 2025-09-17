@@ -3682,7 +3682,7 @@ export function GoogleFormsIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
-        
+
 export const SMSIcon = (props: SVGProps<SVGSVGElement>) => (
   <svg
     {...props}
