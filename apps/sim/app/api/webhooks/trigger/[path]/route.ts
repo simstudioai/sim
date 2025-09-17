@@ -24,22 +24,28 @@ export async function POST(
   const requestId = generateRequestId()
   const { path } = await params
 
-  const { body, rawBody } = await parseWebhookBody(request, path, requestId)
+  const parseResult = await parseWebhookBody(request, requestId)
 
-  const challengeResponse = await handleProviderChallenges(request, body, requestId)
+  // Check if parseWebhookBody returned an error response
+  if (parseResult instanceof NextResponse) {
+    return parseResult
+  }
+
+  const { body, rawBody } = parseResult
+
+  const challengeResponse = await handleProviderChallenges(body, request, requestId, path)
   if (challengeResponse) {
     return challengeResponse
   }
 
-  const { webhook: foundWebhook, workflow: foundWorkflow } = await findWebhookAndWorkflow(
-    path,
-    requestId
-  )
+  const findResult = await findWebhookAndWorkflow({ requestId, path })
 
-  if (!foundWebhook || !foundWorkflow) {
+  if (!findResult) {
     logger.warn(`[${requestId}] Webhook or workflow not found for path: ${path}`)
     return new NextResponse('Not Found', { status: 404 })
   }
+
+  const { webhook: foundWebhook, workflow: foundWorkflow } = findResult
 
   const authError = await verifyProviderAuth(foundWebhook, request, rawBody, requestId)
   if (authError) {

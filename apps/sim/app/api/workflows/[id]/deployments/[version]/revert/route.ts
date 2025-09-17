@@ -1,3 +1,4 @@
+import { db, workflow, workflowDeploymentVersion } from '@sim/db'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { env } from '@/lib/env'
@@ -5,8 +6,6 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/db-helpers'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-import { db } from '@/db'
-import { workflow, workflowDeploymentVersion } from '@/db/schema'
 
 const logger = createLogger('RevertToDeploymentVersionAPI')
 

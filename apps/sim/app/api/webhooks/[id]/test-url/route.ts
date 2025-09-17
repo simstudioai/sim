@@ -1,3 +1,4 @@
+import { db, webhook, workflow } from '@sim/db'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
@@ -6,8 +7,6 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { generateRequestId } from '@/lib/utils'
 import { signTestWebhookToken } from '@/lib/webhooks/test-tokens'
-import { db } from '@/db'
-import { webhook, workflow } from '@/db/schema'
 
 const logger = createLogger('MintWebhookTestUrlAPI')
 
