@@ -13,7 +13,7 @@ const rootDir = path.resolve(__dirname, '..')
 
 // Paths configuration
 const BLOCKS_PATH = path.join(rootDir, 'apps/sim/blocks/blocks')
-const DOCS_OUTPUT_PATH = path.join(rootDir, 'apps/docs/content/docs/tools')
+const DOCS_OUTPUT_PATH = path.join(rootDir, 'apps/docs/content/docs/en/tools')
 const ICONS_PATH = path.join(rootDir, 'apps/sim/components/icons.tsx')
 
 // Make sure the output directory exists

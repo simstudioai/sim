@@ -1,6 +1,11 @@
 'use client'
 
-import { ChatHeader } from '../'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
+import Nav from '@/app/(landing)/components/nav/nav'
+import { inter } from '@/app/fonts/inter'
+import { soehne } from '@/app/fonts/soehne/soehne'
 
 interface ChatErrorStateProps {
   error: string
@@ -8,54 +13,69 @@ interface ChatErrorStateProps {
 }
 
 export function ChatErrorState({ error, starCount }: ChatErrorStateProps) {
+  const router = useRouter()
+  const [buttonClass, setButtonClass] = useState('auth-button-gradient')
+
+  useEffect(() => {
+    // Check if CSS variable has been customized
+    const checkCustomBrand = () => {
+      const computedStyle = getComputedStyle(document.documentElement)
+      const brandAccent = computedStyle.getPropertyValue('--brand-accent-hex').trim()
+
+      // Check if the CSS variable exists and is different from the default
+      if (brandAccent && brandAccent !== '#6f3dfa') {
+        setButtonClass('auth-button-custom')
+      } else {
+        setButtonClass('auth-button-gradient')
+      }
+    }
+
+    checkCustomBrand()
+
+    // Also check on window resize or theme changes
+    window.addEventListener('resize', checkCustomBrand)
+    const observer = new MutationObserver(checkCustomBrand)
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['style', 'class'],
+    })
+
+    return () => {
+      window.removeEventListener('resize', checkCustomBrand)
+      observer.disconnect()
+    }
+  }, [])
+
   return (
-    <div className='flex min-h-screen items-center justify-center bg-gray-50'>
-      <div className='mx-auto max-w-md rounded-xl bg-white p-6 shadow-md'>
-        <div className='mb-2 flex items-center justify-between'>
-          <a href='https://sim.ai' target='_blank' rel='noopener noreferrer'>
-            <svg
-              width='32'
-              height='32'
-              viewBox='0 0 50 50'
-              fill='none'
-              xmlns='http://www.w3.org/2000/svg'
-              className='rounded-[6px]'
-            >
-              <rect width='50' height='50' fill='var(--brand-primary-hex)' />
-              <path
-                d='M34.1455 20.0728H16.0364C12.7026 20.0728 10 22.7753 10 26.1091V35.1637C10 38.4975 12.7026 41.2 16.0364 41.2H34.1455C37.4792 41.2 40.1818 38.4975 40.1818 35.1637V26.1091C40.1818 22.7753 37.4792 20.0728 34.1455 20.0728Z'
-                fill='var(--brand-primary-hex)'
-                stroke='white'
-                strokeWidth='3.5'
-                strokeLinecap='round'
-                strokeLinejoin='round'
-              />
-              <path
-                d='M25.0919 14.0364C26.7588 14.0364 28.1101 12.6851 28.1101 11.0182C28.1101 9.35129 26.7588 8 25.0919 8C23.425 8 22.0737 9.35129 22.0737 11.0182C22.0737 12.6851 23.425 14.0364 25.0919 14.0364Z'
-                fill='var(--brand-primary-hex)'
-                stroke='white'
-                strokeWidth='4'
-                strokeLinecap='round'
-                strokeLinejoin='round'
-              />
-              <path
-                d='M25.0915 14.856V19.0277V14.856ZM20.5645 32.1398V29.1216V32.1398ZM29.619 29.1216V32.1398V29.1216Z'
-                fill='var(--brand-primary-hex)'
-              />
-              <path
-                d='M25.0915 14.856V19.0277M20.5645 32.1398V29.1216M29.619 29.1216V32.1398'
-                stroke='white'
-                strokeWidth='4'
-                strokeLinecap='round'
-                strokeLinejoin='round'
-              />
-              <circle cx='25' cy='11' r='2' fill='var(--brand-primary-hex)' />
-            </svg>
-          </a>
-          <ChatHeader chatConfig={null} starCount={starCount} />
+    <div className='bg-white'>
+      <Nav variant='auth' />
+      <div className='flex min-h-[calc(100vh-120px)] items-center justify-center px-4'>
+        <div className='w-full max-w-[410px]'>
+          <div className='flex flex-col items-center justify-center'>
+            {/* Error content */}
+            <div className='space-y-1 text-center'>
+              <h1
+                className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}
+              >
+                Chat Unavailable
+              </h1>
+              <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+                {error}
+              </p>
+            </div>
+
+            {/* Action button - matching login form */}
+            <div className='mt-8 w-full'>
+              <Button
+                type='button'
+                onClick={() => router.push('/workspace')}
+                className={`${buttonClass} flex w-full items-center justify-center gap-2 rounded-[10px] border font-medium text-[15px] text-white transition-all duration-200`}
+              >
+                Return to Workspace
+              </Button>
+            </div>
+          </div>
         </div>
-        <h2 className='mb-2 font-bold text-red-500 text-xl'>Error</h2>
-        <p className='text-gray-700'>{error}</p>
       </div>
     </div>
   )
