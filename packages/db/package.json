@@ -24,7 +24,7 @@
     "db:studio": "bunx drizzle-kit studio --config=./drizzle.config.ts",
     "type-check": "tsc --noEmit"
   },
-  "dependencies": {
+  "peerDependencies": {
     "drizzle-orm": "^0.41.0",
     "postgres": "^3.4.5"
   },
