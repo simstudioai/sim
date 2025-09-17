@@ -336,7 +336,7 @@ export function TriggerModal({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent
-        className='flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]'
+        className='flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[800px]'
         hideCloseButton
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
@@ -419,7 +419,7 @@ export function TriggerModal({
                   onClick={handleDelete}
                   disabled={isDeleting || isSaving}
                   size='default'
-                  className='h-10'
+                  className='h-9 rounded-[8px]'
                 >
                   {isDeleting ? (
                     <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
@@ -431,7 +431,12 @@ export function TriggerModal({
               )}
             </div>
             <div className='flex gap-2'>
-              <Button variant='outline' onClick={onClose} size='default' className='h-10'>
+              <Button
+                variant='outline'
+                onClick={onClose}
+                size='default'
+                className='h-9 rounded-[8px]'
+              >
                 Cancel
               </Button>
               <Button
@@ -442,7 +447,7 @@ export function TriggerModal({
                   (!(hasConfigChanged || hasCredentialChanged) && !!triggerId)
                 }
                 className={cn(
-                  'h-10',
+                  'h-9 rounded-[8px]',
                   isConfigValid() && (hasConfigChanged || hasCredentialChanged || !triggerId)
                     ? 'bg-primary hover:bg-primary/90'
                     : '',

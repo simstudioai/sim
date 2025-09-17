@@ -53,7 +53,7 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
 
   instructions: [
     'Open your Google Form → More (⋮) → Script editor.',
-    'Paste the Apps Script snippet from this modal into <code>Code.gs</code> → Save.',
+    'Paste the Apps Script snippet from below into <code>Code.gs</code> → Save.',
     'Triggers (clock icon) → Add Trigger → Function: <code>onFormSubmit</code> → Event source: <code>From form</code> → Event type: <code>On form submit</code> → Save.',
     'Authorize when prompted. Submit a test response and verify the run in Sim → Logs.',
   ],
