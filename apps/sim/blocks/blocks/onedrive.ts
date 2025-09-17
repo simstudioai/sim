@@ -1,13 +1,14 @@
 import { MicrosoftOneDriveIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { OneDriveResponse } from '@/tools/onedrive/types'
 
 export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
   type: 'onedrive',
   name: 'OneDrive',
   description: 'Create, upload, and list files',
-  longDescription:
-    'Integrate OneDrive into the workflow. Can create, upload, and list files. Requires OAuth.',
+  authMode: AuthMode.OAuth,
+  longDescription: 'Integrate OneDrive into the workflow. Can create, upload, and list files.',
   docsLink: 'https://docs.sim.ai/tools/onedrive',
   category: 'tools',
   bgColor: '#E0E0E0',

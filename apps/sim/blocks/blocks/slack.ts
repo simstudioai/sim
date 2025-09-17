@@ -1,17 +1,20 @@
 import { SlackIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { SlackResponse } from '@/tools/slack/types'
 
 export const SlackBlock: BlockConfig<SlackResponse> = {
   type: 'slack',
   name: 'Slack',
   description: 'Send messages to Slack or trigger workflows from Slack events',
+  authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Slack into the workflow. Can send messages, create canvases, and read messages. Requires OAuth. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.',
+    'Integrate Slack into the workflow. Can send messages, create canvases, and read messages. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.',
   docsLink: 'https://docs.sim.ai/tools/slack',
   category: 'tools',
   bgColor: '#611f69',
   icon: SlackIcon,
+  triggerAllowed: true,
   subBlocks: [
     {
       id: 'operation',

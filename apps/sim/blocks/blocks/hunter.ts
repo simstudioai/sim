@@ -1,13 +1,14 @@
 import { HunterIOIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { HunterResponse } from '@/tools/hunter/types'
 
 export const HunterBlock: BlockConfig<HunterResponse> = {
   type: 'hunter',
   name: 'Hunter io',
   description: 'Find and verify professional email addresses',
+  authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Hunter into the workflow. Can search domains, find email addresses, verify email addresses, discover companies, find companies, and count email addresses. Requires API Key.',
+    'Integrate Hunter into the workflow. Can search domains, find email addresses, verify email addresses, discover companies, find companies, and count email addresses.',
   docsLink: 'https://docs.sim.ai/tools/hunter',
   category: 'tools',
   bgColor: '#E0E0E0',

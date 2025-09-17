@@ -10,8 +10,16 @@ export type ExecuteResponseSuccess = z.infer<typeof ExecuteResponseSuccessSchema
 // get_blocks_and_tools
 export const GetBlocksAndToolsInput = z.object({})
 export const GetBlocksAndToolsResult = z.object({
-  blocks: z.array(z.object({ id: z.string(), type: z.string(), name: z.string() }).passthrough()),
-  tools: z.array(z.object({ id: z.string(), type: z.string(), name: z.string() }).passthrough()),
+  blocks: z.array(
+    z
+      .object({
+        type: z.string(),
+        name: z.string(),
+        triggerAllowed: z.boolean().optional(),
+        longDescription: z.string().optional(),
+      })
+      .passthrough()
+  ),
 })
 export type GetBlocksAndToolsResultType = z.infer<typeof GetBlocksAndToolsResult>
 

@@ -1,13 +1,15 @@
 import { xIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { XResponse } from '@/tools/x/types'
 
 export const XBlock: BlockConfig<XResponse> = {
   type: 'x',
   name: 'X',
   description: 'Interact with X',
+  authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate X into the workflow. Can post a new tweet, get tweet details, search tweets, and get user profile. Requires OAuth.',
+    'Integrate X into the workflow. Can post a new tweet, get tweet details, search tweets, and get user profile.',
   docsLink: 'https://docs.sim.ai/tools/x',
   category: 'tools',
   bgColor: '#000000', // X's black color

@@ -241,6 +241,59 @@ async function upsertCustomToolsFromBlocks(
 }
 
 /**
+ * Convert blocks with 'inputs' field to standard 'subBlocks' structure
+ * This handles trigger blocks that may come from YAML/copilot with legacy format
+ */
+function normalizeBlockStructure(blocks: Record<string, any>): Record<string, any> {
+  const normalizedBlocks: Record<string, any> = {}
+
+  for (const [blockId, block] of Object.entries(blocks)) {
+    const normalizedBlock = { ...block }
+
+    // Check if this is a trigger block with 'inputs' field
+    if (
+      block.inputs &&
+      (block.type === 'api_trigger' ||
+        block.type === 'input_trigger' ||
+        block.type === 'starter' ||
+        block.type === 'chat_trigger' ||
+        block.type === 'generic_webhook')
+    ) {
+      // Convert inputs.inputFormat to subBlocks.inputFormat
+      if (block.inputs.inputFormat) {
+        if (!normalizedBlock.subBlocks) {
+          normalizedBlock.subBlocks = {}
+        }
+
+        normalizedBlock.subBlocks.inputFormat = {
+          id: 'inputFormat',
+          type: 'input-format',
+          value: block.inputs.inputFormat,
+        }
+      }
+
+      // Copy any other inputs fields to subBlocks
+      for (const [inputKey, inputValue] of Object.entries(block.inputs)) {
+        if (inputKey !== 'inputFormat' && !normalizedBlock.subBlocks[inputKey]) {
+          normalizedBlock.subBlocks[inputKey] = {
+            id: inputKey,
+            type: 'short-input', // Default type, may need adjustment based on actual field
+            value: inputValue,
+          }
+        }
+      }
+
+      // Remove the inputs field after conversion
+      normalizedBlock.inputs = undefined
+    }
+
+    normalizedBlocks[blockId] = normalizedBlock
+  }
+
+  return normalizedBlocks
+}
+
+/**
  * PUT /api/workflows/[id]/yaml
  * Consolidated YAML workflow saving endpoint
  * Handles copilot edits, imports, and text editor saves
@@ -342,6 +395,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         errors: conversionResult.errors,
         warnings: conversionResult.warnings || [],
       })
+    }
+
+    // Normalize blocks that use 'inputs' field to standard 'subBlocks' structure
+    if (workflowState.blocks) {
+      workflowState.blocks = normalizeBlockStructure(workflowState.blocks)
     }
 
     // Ensure all blocks have required fields

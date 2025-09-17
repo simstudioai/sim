@@ -11,6 +11,7 @@ import { hasAdminPermission } from '@/lib/permissions/utils'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import { getEmailDomain } from '@/lib/urls/utils'
 import { decryptSecret, generateRequestId } from '@/lib/utils'
+import { TriggerUtils } from '@/lib/workflows/triggers'
 import { getBlock } from '@/blocks'
 import { db } from '@/db'
 import { chat, userStats, workflow } from '@/db/schema'
@@ -613,9 +614,29 @@ export async function executeWorkflowForChat(
       // Set up logging on the executor
       loggingSession.setupExecutor(executor)
 
+      // Determine the start block for chat execution
+      const startBlock = TriggerUtils.findStartBlock(mergedStates, 'chat')
+
+      if (!startBlock) {
+        const errorMessage =
+          'No Chat trigger configured for this workflow. Add a Chat Trigger block to enable chat execution.'
+        logger.error(`[${requestId}] ${errorMessage}`)
+        await loggingSession.safeCompleteWithError({
+          endedAt: new Date().toISOString(),
+          totalDurationMs: 0,
+          error: {
+            message: errorMessage,
+            stackTrace: undefined,
+          },
+        })
+        throw new Error(errorMessage)
+      }
+
+      const startBlockId = startBlock.blockId
+
       let result
       try {
-        result = await executor.execute(workflowId)
+        result = await executor.execute(workflowId, startBlockId)
       } catch (error: any) {
         logger.error(`[${requestId}] Chat workflow execution failed:`, error)
         await loggingSession.safeCompleteWithError({

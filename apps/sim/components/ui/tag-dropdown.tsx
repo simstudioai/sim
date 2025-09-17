@@ -4,6 +4,7 @@ import { ChevronRight } from 'lucide-react'
 import { BlockPathCalculator } from '@/lib/block-path-calculator'
 import { extractFieldsFromSchema, parseResponseFormatSafely } from '@/lib/response-format'
 import { cn } from '@/lib/utils'
+import { getBlockOutputPaths, getBlockOutputType } from '@/lib/workflows/block-outputs'
 import { getBlock } from '@/blocks'
 import type { BlockConfig } from '@/blocks/types'
 import { Serializer } from '@/serializer'
@@ -146,6 +147,11 @@ const getOutputTypeForPath = (
         return field.type
       }
     }
+  } else if (blockConfig?.category === 'triggers') {
+    // For trigger blocks, use the dynamic output helper
+    const blockState = useWorkflowStore.getState().blocks[blockId]
+    const subBlocks = blockState?.subBlocks || {}
+    return getBlockOutputType(block.type, outputPath, subBlocks)
   } else {
     const operationValue = getSubBlockValue(blockId, 'operation')
     if (blockConfig && operationValue) {
@@ -630,7 +636,29 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
       let blockTags: string[]
 
-      if (accessibleBlock.type === 'evaluator') {
+      // For trigger blocks, use the dynamic output helper
+      if (blockConfig.category === 'triggers' || accessibleBlock.type === 'starter') {
+        const subBlocks = blocks[accessibleBlockId]?.subBlocks || {}
+        const dynamicOutputs = getBlockOutputPaths(accessibleBlock.type, subBlocks)
+
+        if (dynamicOutputs.length > 0) {
+          blockTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
+        } else if (accessibleBlock.type === 'starter') {
+          // Legacy starter block fallback
+          const startWorkflowValue = getSubBlockValue(accessibleBlockId, 'startWorkflow')
+          if (startWorkflowValue === 'chat') {
+            blockTags = [
+              `${normalizedBlockName}.input`,
+              `${normalizedBlockName}.conversationId`,
+              `${normalizedBlockName}.files`,
+            ]
+          } else {
+            blockTags = [normalizedBlockName]
+          }
+        } else {
+          blockTags = []
+        }
+      } else if (accessibleBlock.type === 'evaluator') {
         const metricsValue = getSubBlockValue(accessibleBlockId, 'metrics')
 
         if (metricsValue && Array.isArray(metricsValue) && metricsValue.length > 0) {
@@ -651,34 +679,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
         }
       } else if (!blockConfig.outputs || Object.keys(blockConfig.outputs).length === 0) {
-        if (accessibleBlock.type === 'starter') {
-          const startWorkflowValue = getSubBlockValue(accessibleBlockId, 'startWorkflow')
-
-          if (startWorkflowValue === 'chat') {
-            // For chat mode, provide input, conversationId, and files
-            blockTags = [
-              `${normalizedBlockName}.input`,
-              `${normalizedBlockName}.conversationId`,
-              `${normalizedBlockName}.files`,
-            ]
-          } else {
-            const inputFormatValue = getSubBlockValue(accessibleBlockId, 'inputFormat')
-
-            if (
-              inputFormatValue &&
-              Array.isArray(inputFormatValue) &&
-              inputFormatValue.length > 0
-            ) {
-              blockTags = inputFormatValue
-                .filter((field: { name?: string }) => field.name && field.name.trim() !== '')
-                .map((field: { name: string }) => `${normalizedBlockName}.${field.name}`)
-            } else {
-              blockTags = [normalizedBlockName]
-            }
-          }
-        } else {
-          blockTags = [normalizedBlockName]
-        }
+        blockTags = [normalizedBlockName]
       } else {
         const blockState = blocks[accessibleBlockId]
         if (blockState?.triggerMode && blockConfig.triggers?.enabled) {

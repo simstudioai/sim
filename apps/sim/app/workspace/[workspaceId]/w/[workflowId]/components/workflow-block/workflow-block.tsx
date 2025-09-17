@@ -891,7 +891,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                         <p className='mb-1 font-medium text-sm'>Description</p>
                         <p className='text-muted-foreground text-sm'>{config.longDescription}</p>
                       </div>
-                      {config.outputs && (
+                      {config.outputs && Object.keys(config.outputs).length > 0 && (
                         <div>
                           <p className='mb-1 font-medium text-sm'>Output</p>
                           <div className='text-sm'>

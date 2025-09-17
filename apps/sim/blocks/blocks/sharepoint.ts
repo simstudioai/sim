@@ -1,13 +1,15 @@
 import { MicrosoftSharepointIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { SharepointResponse } from '@/tools/sharepoint/types'
 
 export const SharepointBlock: BlockConfig<SharepointResponse> = {
   type: 'sharepoint',
   name: 'Sharepoint',
   description: 'Read and create pages',
+  authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Sharepoint into the workflow. Can read and create pages, and list sites. Requires OAuth.',
+    'Integrate Sharepoint into the workflow. Can read and create pages, and list sites.',
   docsLink: 'https://docs.sim.ai/tools/sharepoint',
   category: 'tools',
   bgColor: '#E0E0E0',

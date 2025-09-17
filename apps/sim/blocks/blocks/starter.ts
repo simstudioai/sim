@@ -9,6 +9,7 @@ export const StarterBlock: BlockConfig = {
   category: 'blocks',
   bgColor: '#2FB3FF',
   icon: StartIcon,
+  hideFromToolbar: true,
   subBlocks: [
     // Main trigger selector
     {
