@@ -9,7 +9,7 @@ export const MailBlock: BlockConfig<MailSendResult> = {
   longDescription:
     'Send emails directly using the internal mail service. Uses MAIL_BLOCK_FROM_ADDRESS if configured, otherwise falls back to FROM_EMAIL_ADDRESS. No external configuration or OAuth required. Perfect for sending notifications, alerts, or general purpose emails from your workflows. Supports HTML formatting.',
   category: 'tools',
-  bgColor: '#181C1E',
+  bgColor: '#E0E0E0',
   icon: MailIcon,
 
   subBlocks: [

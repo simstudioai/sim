@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import { type SMSOptions, sendSMS } from '@/lib/sms/sms-service'
+import { type SMSOptions, sendSMS } from '@/lib/sms/service'
 import { generateRequestId } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'

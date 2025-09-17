@@ -34,8 +34,6 @@ const twilioPhoneNumber = env.TWILIO_PHONE_NUMBER
 const twilioClient =
   twilioAccountSid &&
   twilioAuthToken &&
-  twilioAccountSid !== 'placeholder' &&
-  twilioAuthToken !== 'placeholder' &&
   twilioAccountSid.trim() !== '' &&
   twilioAuthToken.trim() !== ''
     ? new Twilio(twilioAccountSid, twilioAuthToken)
@@ -46,7 +44,7 @@ export async function sendSMS(options: SMSOptions): Promise<SendSMSResult> {
     const { to, body, from } = options
     const fromNumber = from || twilioPhoneNumber
 
-    if (!fromNumber || fromNumber.trim() === '' || fromNumber === 'placeholder') {
+    if (!fromNumber || fromNumber.trim() === '') {
       logger.error('No Twilio phone number configured')
       return {
         success: false,
