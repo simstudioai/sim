@@ -1,9 +1,9 @@
+import { db } from '@sim/db'
+import { member, organization, subscription, user, userStats } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { getPlanPricing } from '@/lib/billing/core/billing'
 import { getFreeTierLimit } from '@/lib/billing/subscriptions/utils'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { member, organization, subscription, user, userStats } from '@/db/schema'
 
 const logger = createLogger('OrganizationBilling')
 

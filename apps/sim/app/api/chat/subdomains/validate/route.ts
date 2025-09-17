@@ -1,10 +1,10 @@
+import { db } from '@sim/db'
+import { chat } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-import { db } from '@/db'
-import { chat } from '@/db/schema'
 
 const logger = createLogger('SubdomainValidateAPI')
 

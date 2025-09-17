@@ -1,3 +1,5 @@
+import { db } from '@sim/db'
+import { chat, workflow } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -10,8 +12,6 @@ import {
   validateChatAuth,
 } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-import { db } from '@/db'
-import { chat, workflow } from '@/db/schema'
 
 const logger = createLogger('ChatSubdomainAPI')
 

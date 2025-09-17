@@ -1,4 +1,14 @@
 import { randomUUID } from 'crypto'
+import { db } from '@sim/db'
+import {
+  invitation,
+  member,
+  organization,
+  user,
+  type WorkspaceInvitationStatus,
+  workspace,
+  workspaceInvitation,
+} from '@sim/db/schema'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -16,16 +26,6 @@ import { quickValidateEmail } from '@/lib/email/validation'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { hasWorkspaceAdminAccess } from '@/lib/permissions/utils'
-import { db } from '@/db'
-import {
-  invitation,
-  member,
-  organization,
-  user,
-  type WorkspaceInvitationStatus,
-  workspace,
-  workspaceInvitation,
-} from '@/db/schema'
 
 const logger = createLogger('OrganizationInvitations')
 

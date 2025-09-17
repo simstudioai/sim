@@ -1,3 +1,5 @@
+import { db } from '@sim/db'
+import { organization, subscription, user } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import {
@@ -7,8 +9,6 @@ import {
 import { sendEmail } from '@/lib/email/mailer'
 import { getFromEmailAddress } from '@/lib/email/utils'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { organization, subscription, user } from '@/db/schema'
 import type { EnterpriseSubscriptionMetadata } from '../types'
 
 const logger = createLogger('BillingEnterprise')

@@ -1,14 +1,14 @@
+import { workflow } from '@sim/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
-import { workflow } from '@/db/schema'
 
 const logger = createLogger('WorkspaceByIdAPI')
 
+import { db } from '@sim/db'
+import { knowledgeBase, permissions, templates, workspace } from '@sim/db/schema'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
-import { db } from '@/db'
-import { knowledgeBase, permissions, templates, workspace } from '@/db/schema'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

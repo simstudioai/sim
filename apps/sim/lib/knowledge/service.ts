@@ -1,4 +1,6 @@
 import { randomUUID } from 'crypto'
+import { db } from '@sim/db'
+import { document, knowledgeBase, permissions } from '@sim/db/schema'
 import { and, count, eq, isNotNull, isNull, or } from 'drizzle-orm'
 import type {
   ChunkingConfig,
@@ -7,8 +9,6 @@ import type {
 } from '@/lib/knowledge/types'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
-import { db } from '@/db'
-import { document, knowledgeBase, permissions } from '@/db/schema'
 
 const logger = createLogger('KnowledgeBaseService')
 

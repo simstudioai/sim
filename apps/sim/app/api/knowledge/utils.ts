@@ -1,7 +1,7 @@
+import { db } from '@sim/db'
+import { document, embedding, knowledgeBase } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
-import { db } from '@/db'
-import { document, embedding, knowledgeBase } from '@/db/schema'
 
 export interface KnowledgeBaseData {
   id: string

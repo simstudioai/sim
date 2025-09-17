@@ -50,11 +50,11 @@ const mockWorkflowSubflows = {
   config: 'config',
 }
 
-vi.doMock('@/db', () => ({
+vi.doMock('@sim/db', () => ({
   db: mockDb,
 }))
 
-vi.doMock('@/db/schema', () => ({
+vi.doMock('@sim/db/schema', () => ({
   workflowBlocks: mockWorkflowBlocks,
   workflowEdges: mockWorkflowEdges,
   workflowSubflows: mockWorkflowSubflows,

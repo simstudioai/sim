@@ -1,11 +1,11 @@
+import { db } from '@sim/db'
+import { permissions, workflow, workflowLogWebhook } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { encryptSecret } from '@/lib/utils'
-import { db } from '@/db'
-import { permissions, workflow, workflowLogWebhook } from '@/db/schema'
 
 const logger = createLogger('WorkflowLogWebhookUpdate')
 

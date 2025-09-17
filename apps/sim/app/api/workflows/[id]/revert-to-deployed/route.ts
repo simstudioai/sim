@@ -1,3 +1,5 @@
+import { db } from '@sim/db'
+import { workflow } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { env } from '@/lib/env'
@@ -6,8 +8,6 @@ import { generateRequestId } from '@/lib/utils'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/db-helpers'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-import { db } from '@/db'
-import { workflow } from '@/db/schema'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('RevertToDeployedAPI')

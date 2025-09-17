@@ -29,7 +29,7 @@ describe('Subscription Transfer API Routes', () => {
       createLogger: vi.fn().mockReturnValue(mockLogger),
     }))
 
-    vi.doMock('@/db', () => ({
+    vi.doMock('@sim/db', () => ({
       db: mockDb,
     }))
 
@@ -60,7 +60,7 @@ describe('Subscription Transfer API Routes', () => {
         }),
       }))
 
-      vi.doMock('@/db/schema', () => ({
+      vi.doMock('@sim/db/schema', () => ({
         subscription: { id: 'id', referenceId: 'referenceId' },
         organization: { id: 'id' },
         member: { userId: 'userId', organizationId: 'organizationId', role: 'role' },

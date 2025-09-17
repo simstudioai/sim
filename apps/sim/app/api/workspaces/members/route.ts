@@ -1,9 +1,9 @@
+import { db } from '@sim/db'
+import { permissions, type permissionTypeEnum, user } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { hasAdminPermission } from '@/lib/permissions/utils'
-import { db } from '@/db'
-import { permissions, type permissionTypeEnum, user } from '@/db/schema'
 
 type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
 
