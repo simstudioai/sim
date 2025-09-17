@@ -1,17 +1,16 @@
-name: 'Auto-translate Documentation'
+name: 'Auto-translate on Staging Merge'
 
 on:
   push:
-    branches: [ main ]
-    paths: 
-      - 'apps/docs/content/docs/en/**'
-      - 'apps/docs/i18n.json'
-  pull_request:
-    branches: [ main ]
+    branches: [ staging ]
     paths: 
       - 'apps/docs/content/docs/en/**'
       - 'apps/docs/i18n.json'
   workflow_dispatch: # Allow manual triggers
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
   translate:
@@ -24,12 +23,12 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
-      
+
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+        uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      
+
       - name: Run Lingo.dev translations
         env:
           LINGODOTDEV_API_KEY: ${{ secrets.LINGODOTDEV_API_KEY }}
@@ -50,38 +49,56 @@ jobs:
             echo "changes=false" >> $GITHUB_OUTPUT
           fi
       
-      - name: Commit and push translation updates
+      - name: Create Pull Request with translations
         if: steps.changes.outputs.changes == 'true'
-        run: |
-          cd apps/docs
-          git add content/docs/es/ content/docs/fr/ content/docs/zh/ i18n.lock
-          git commit -m "feat: update translations"
-          git push origin ${{ github.ref_name }}
-      
-      - name: Create Pull Request (for feature branches)
-        if: steps.changes.outputs.changes == 'true' && github.event_name == 'pull_request'
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "feat: update translations"
-          title: "🌐 Auto-update translations"
+          commit-message: "feat(i18n): update translations from staging merge"
+          title: "🌐 Auto-update translations from staging merge"
           body: |
             ## Summary
-            Automated translation updates for documentation.
+            Automated translation updates triggered by merge to staging branch.
             
-            - Updated translations for modified English content
-            - Generated using Lingo.dev AI translation
-            - Maintains consistency with source documentation
+            This PR was automatically created after content changes were merged to staging, updating translations for all supported languages using Lingo.dev AI translation engine.
             
-            ## Test Plan
-            - [ ] Verify translated content accuracy
-            - [ ] Check that all links and references work correctly
-            - [ ] Ensure formatting and structure are preserved
-          branch: auto-translations
-          base: ${{ github.base_ref }}
+            **Original trigger**: ${{ github.event.head_commit.message }}
+            **Commit**: ${{ github.sha }}
+            **Workflow**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            
+            ## Type of Change
+            - [ ] Bug fix
+            - [ ] New feature  
+            - [ ] Breaking change
+            - [x] Documentation
+            - [ ] Other: ___________
+            
+            ## Testing
+            This PR includes automated translations for modified English documentation content:
+            - 🇪🇸 Spanish (es) translations
+            - 🇫🇷 French (fr) translations  
+            - 🇨🇳 Chinese (zh) translations
+            
+            **What reviewers should focus on:**
+            - Verify translated content accuracy and context
+            - Check that all links and references work correctly in translated versions
+            - Ensure formatting, code blocks, and structure are preserved
+            - Validate that technical terms are appropriately translated
+            
+            ## Checklist
+            - [x] Code follows project style guidelines (automated translation)
+            - [x] Self-reviewed my changes (automated process)
+            - [ ] Tests added/updated and passing
+            - [x] No new warnings introduced
+            - [x] I confirm that I have read and agree to the terms outlined in the [Contributor License Agreement (CLA)](./CONTRIBUTING.md#contributor-license-agreement-cla)
+            
+            ## Screenshots/Videos
+            <!-- Translation changes are text-based - no visual changes expected -->
+            <!-- Reviewers should check the documentation site renders correctly for all languages -->
+          branch: auto-translate/staging-merge-${{ github.run_id }}
+          base: staging
           labels: |
             i18n
-            auto-generated
 
   verify-translations:
     needs: translate
@@ -91,26 +108,30 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+        with:
+          ref: staging
+
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+        uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      
+
       - name: Install dependencies
         run: |
           cd apps/docs
           bun install
-      
+
       - name: Build documentation to verify translations
         run: |
           cd apps/docs
           bun run build
-      
+
       - name: Report translation status
         run: |
           cd apps/docs
           echo "## Translation Status Report" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by merge to staging branch**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           
           en_count=$(find content/docs/en -name "*.mdx" | wc -l)
           es_count=$(find content/docs/es -name "*.mdx" 2>/dev/null | wc -l || echo 0)
@@ -121,6 +142,10 @@ jobs:
           fr_percentage=$((fr_count * 100 / en_count))
           zh_percentage=$((zh_count * 100 / en_count))
           
+          echo "### Coverage Statistics" >> $GITHUB_STEP_SUMMARY
+          echo "- **🇬🇧 English**: $en_count files (source)" >> $GITHUB_STEP_SUMMARY
           echo "- **🇪🇸 Spanish**: $es_count/$en_count files ($es_percentage%)" >> $GITHUB_STEP_SUMMARY
           echo "- **🇫🇷 French**: $fr_count/$en_count files ($fr_percentage%)" >> $GITHUB_STEP_SUMMARY
           echo "- **🇨🇳 Chinese**: $zh_count/$en_count files ($zh_percentage%)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🔄 **Auto-translation PR**: Check for new pull request with updated translations" >> $GITHUB_STEP_SUMMARY
