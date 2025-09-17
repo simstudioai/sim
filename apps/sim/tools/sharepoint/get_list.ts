@@ -46,32 +46,19 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
       visibility: 'user-only',
       description: 'The ID of the list to retrieve',
     },
-    listTitle: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'The title of the list to retrieve (alternative to listId)',
-    },
-    includeColumns: {
-      type: 'boolean',
-      required: false,
-      visibility: 'user-only',
-      description: 'Include the list columns in the response',
-    },
-    includeItems: {
-      type: 'boolean',
-      required: false,
-      visibility: 'user-only',
-      description: 'Include list items (with fields) in the response',
-    },
   },
 
   request: {
     url: (params) => {
       const siteId = params.siteId || params.siteSelector || 'root'
 
+      // If neither listId nor listTitle provided, list all lists in the site
       if (!params.listId && !params.listTitle) {
-        throw new Error('Either listId or listTitle must be provided')
+        const baseUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists`
+        const url = new URL(baseUrl)
+        const finalUrl = url.toString()
+        logger.info('SharePoint List All Lists URL', { finalUrl, siteId })
+        return finalUrl
       }
 
       const listSegment = params.listId || params.listTitle
@@ -105,6 +92,38 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
+    // If this is a collection response
+    if (Array.isArray((data as any).value)) {
+      const lists: SharepointList[] = (data as any).value.map((l: any) => ({
+        id: l.id,
+        displayName: l.displayName ?? l.name,
+        name: l.name,
+        webUrl: l.webUrl,
+        createdDateTime: l.createdDateTime,
+        lastModifiedDateTime: l.lastModifiedDateTime,
+        list: l.list,
+      }))
+
+      // Microsoft Graph pagination uses @odata.nextLink; surface token via raw value
+      const nextLink: string | undefined = (data as any)['@odata.nextLink']
+      const nextPageToken = nextLink
+        ? (() => {
+            try {
+              const u = new URL(nextLink)
+              return u.searchParams.get('$skiptoken') || u.searchParams.get('$skip') || undefined
+            } catch {
+              return undefined
+            }
+          })()
+        : undefined
+
+      return {
+        success: true,
+        output: { lists, nextPageToken },
+      }
+    }
+
+    // Single list response
     const list: SharepointList = {
       id: data.id,
       displayName: data.displayName ?? data.name,
@@ -170,6 +189,11 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
           },
         },
       },
+    },
+    lists: {
+      type: 'array',
+      description: 'All lists in the site when no listId/title provided',
+      items: { type: 'object' },
     },
   },
 }

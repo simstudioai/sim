@@ -103,7 +103,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter list item ID',
-      condition: { field: 'operation', value: 'update_list' },
+      condition: { field: 'operation', value: ['update_list', 'read_list'] },
     },
 
     {

@@ -262,7 +262,9 @@ export type SharepointResponse =
 
 export interface SharepointGetListResponse extends ToolResponse {
   output: {
-    list: SharepointList
+    list?: SharepointList
+    lists?: SharepointList[]
+    nextPageToken?: string
   }
 }
 
