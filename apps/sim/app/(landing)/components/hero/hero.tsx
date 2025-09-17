@@ -272,18 +272,7 @@ export default function Hero() {
    */
   const handleSubmit = () => {
     if (!isEmpty) {
-      // Store the prompt in localStorage before navigating
-      console.log('Landing page: Storing prompt before navigation:', {
-        prompt: textValue,
-        length: textValue.length,
-      })
-      const stored = LandingPromptStorage.store(textValue)
-      console.log('Landing page: Storage result:', stored)
-
-      // Verify it was stored
-      const hasPrompt = LandingPromptStorage.hasPrompt()
-      console.log('Landing page: Verification - prompt exists in storage:', hasPrompt)
-
+      LandingPromptStorage.store(textValue)
       router.push('/signup')
     }
   }
