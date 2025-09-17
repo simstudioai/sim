@@ -57,7 +57,7 @@ export async function sendSMS(options: SMSOptions): Promise<SendSMSResult> {
     if (!twilioClient) {
       logger.error('SMS sending failed: Twilio not configured', {
         to,
-        body: body.substring(0, 50) + '...',
+        body: `${body.substring(0, 50)}...`,
         from: fromNumber,
       })
       return {
