@@ -147,7 +147,7 @@ export const auth = betterAuth({
   },
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: false,
+    requireEmailVerification: isProd,
     sendVerificationOnSignUp: false,
     throwOnMissingCredentials: true,
     throwOnInvalidCredentials: true,
@@ -281,6 +281,7 @@ export const auth = betterAuth({
           throw error
         }
       },
+      // We will explicitly send a 'sign-in' OTP after signup on the client
       sendVerificationOnSignUp: false,
       otpLength: 6, // Explicitly set the OTP length
       expiresIn: 15 * 60, // 15 minutes in seconds

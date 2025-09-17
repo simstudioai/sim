@@ -232,14 +232,22 @@ function VerificationForm({
             </div>
           )}
 
-          {/* <div className='text-center font-light text-[14px]'>
+          <div className='text-center font-light text-[14px]'>
             <button
-              onClick={handleCancelVerification}
+              onClick={() => {
+                // Clear verification data and go back to signup
+                if (typeof window !== 'undefined') {
+                  sessionStorage.removeItem('verificationEmail')
+                  sessionStorage.removeItem('inviteRedirectUrl')
+                  sessionStorage.removeItem('isInviteFlow')
+                }
+                router.push('/signup')
+              }}
               className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
             >
-              Back to login
+              Back to signup
             </button>
-          </div> */}
+          </div>
         </div>
       )}
     </>

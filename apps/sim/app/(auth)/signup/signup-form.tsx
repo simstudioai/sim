@@ -244,7 +244,8 @@ function SignupFormContent({
     setIsLoading(true)
 
     const formData = new FormData(e.currentTarget)
-    const emailValue = formData.get('email') as string
+    const emailValueRaw = formData.get('email') as string
+    const emailValue = emailValueRaw.trim().toLowerCase()
     const passwordValue = formData.get('password') as string
     const nameValue = formData.get('name') as string
 
@@ -356,34 +357,26 @@ function SignupFormContent({
         logger.error('Failed to refresh session after signup:', sessionError)
       }
 
-      // For new signups, always require verification
+      // Store verification context client-side, but rely on server to enforce verification
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('verificationEmail', emailValue)
         localStorage.setItem('has_logged_in_before', 'true')
-
-        // Set cookie flag for middleware check
-        document.cookie = 'requiresEmailVerification=true; path=/; max-age=900; SameSite=Lax' // 15 min expiry
-        document.cookie = 'has_logged_in_before=true; path=/; max-age=31536000; SameSite=Lax'
-
-        // Store invitation flow state if applicable
         if (isInviteFlow && redirectUrl) {
           sessionStorage.setItem('inviteRedirectUrl', redirectUrl)
           sessionStorage.setItem('isInviteFlow', 'true')
         }
       }
 
-      // Send verification OTP manually
+      // Send a sign-in OTP and redirect to verify
       try {
         await client.emailOtp.sendVerificationOtp({
           email: emailValue,
-          type: 'email-verification',
+          type: 'sign-in',
         })
-      } catch (otpError) {
-        logger.error('Failed to send OTP:', otpError)
-        // Continue anyway - user can use resend button
+      } catch (otpErr) {
+        logger.warn('Failed to send sign-in OTP after signup; user can press Resend', otpErr)
       }
 
-      // Always redirect to verification for new signups
       router.push('/verify?fromSignup=true')
     } catch (error) {
       logger.error('Signup error:', error)

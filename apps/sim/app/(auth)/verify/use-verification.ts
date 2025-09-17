@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { client, useSession } from '@/lib/auth-client'
-import { env, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('useVerification')
@@ -79,27 +78,12 @@ export function useVerification({
     }
   }, [searchParams])
 
-  // Send initial OTP code if this is the first load
+  // Do not auto-send OTP on mount; allow user to trigger resend explicitly
   useEffect(() => {
     if (email && !isSendingInitialOtp && hasResendKey) {
       setIsSendingInitialOtp(true)
-
-      // Only send verification OTP if we're coming from login page
-      // Skip this if coming from signup since the OTP is already sent
-      if (!searchParams.get('fromSignup')) {
-        client.emailOtp
-          .sendVerificationOtp({
-            email,
-            type: 'email-verification',
-          })
-          .then(() => {})
-          .catch((error) => {
-            logger.error('Failed to send initial verification code:', error)
-            setErrorMessage('Failed to send verification code. Please use the resend button.')
-          })
-      }
     }
-  }, [email, isSendingInitialOtp, searchParams, hasResendKey])
+  }, [email, isSendingInitialOtp, hasResendKey])
 
   // Enable the verify button when all 6 digits are entered
   const isOtpComplete = otp.length === 6
@@ -112,9 +96,11 @@ export function useVerification({
     setErrorMessage('')
 
     try {
-      // Call the verification API with the OTP code
-      const response = await client.emailOtp.verifyEmail({
-        email,
+      // Normalize email before verifying
+      const normalizedEmail = email.trim().toLowerCase()
+      // Use sign-in OTP verification to create a session directly
+      const response = await client.signIn.emailOtp({
+        email: normalizedEmail,
         otp,
       })
 
@@ -122,13 +108,16 @@ export function useVerification({
       if (response && !response.error) {
         setIsVerified(true)
 
+        // Refresh session after verification to avoid redirect bounce
+        try {
+          await refetchSession()
+        } catch (e) {
+          logger.warn('Failed to refetch session after verification', e)
+        }
+
         // Clear verification requirements and session storage
         if (typeof window !== 'undefined') {
           sessionStorage.removeItem('verificationEmail')
-
-          // Clear the verification requirement flag
-          document.cookie =
-            'requiresEmailVerification=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
 
           // Also clear invite-related items
           if (isInviteFlow) {
@@ -192,10 +181,11 @@ export function useVerification({
     setIsLoading(true)
     setErrorMessage('')
 
+    const normalizedEmail = email.trim().toLowerCase()
     client.emailOtp
       .sendVerificationOtp({
-        email,
-        type: 'email-verification',
+        email: normalizedEmail,
+        type: 'sign-in',
       })
       .then(() => {})
       .catch(() => {
@@ -228,17 +218,9 @@ export function useVerification({
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // Dev-only skip (do not skip in production even if running in Docker)
       if (!isProduction || !hasResendKey) {
-        const storedEmail = sessionStorage.getItem('verificationEmail')
-      }
-
-      const isDevOrDocker = !isProduction || isTruthy(env.DOCKER_BUILD)
-
-      if (isDevOrDocker || !hasResendKey) {
         setIsVerified(true)
-
-        document.cookie =
-          'requiresEmailVerification=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
 
         const timeoutId = setTimeout(() => {
           window.location.href = '/workspace'

@@ -210,7 +210,8 @@ export default function LoginPage({
     setIsLoading(true)
 
     const formData = new FormData(e.currentTarget)
-    const email = formData.get('email') as string
+    const emailRaw = formData.get('email') as string
+    const email = emailRaw.trim().toLowerCase()
 
     // Validate email on submit
     const emailValidationErrors = validateEmailField(email)
@@ -295,29 +296,15 @@ export default function LoginPage({
       // Mark that the user has previously logged in
       if (typeof window !== 'undefined') {
         localStorage.setItem('has_logged_in_before', 'true')
-        document.cookie = 'has_logged_in_before=true; path=/; max-age=31536000; SameSite=Lax' // 1 year expiry
       }
     } catch (err: any) {
       // Handle only the special verification case that requires a redirect
       if (err.message?.includes('not verified') || err.code?.includes('EMAIL_NOT_VERIFIED')) {
-        try {
-          await client.emailOtp.sendVerificationOtp({
-            email,
-            type: 'email-verification',
-          })
-
-          if (typeof window !== 'undefined') {
-            sessionStorage.setItem('verificationEmail', email)
-          }
-
-          router.push('/verify')
-          return
-        } catch (_verifyErr) {
-          setPasswordErrors(['Failed to send verification code. Please try again later.'])
-          setShowValidationError(true)
-          setIsLoading(false)
-          return
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('verificationEmail', email)
         }
+        router.push('/verify')
+        return
       }
 
       console.error('Uncaught login error:', err)

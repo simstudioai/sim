@@ -138,12 +138,7 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
 
-    // Check if user needs email verification
-    const requiresVerification = request.cookies.get('requiresEmailVerification')
-    if (requiresVerification?.value === 'true') {
-      return NextResponse.redirect(new URL('/verify', request.url))
-    }
-
+    // Email verification is enforced by Better Auth (server-side). No cookie gating here.
     return NextResponse.next()
   }
 
