@@ -172,7 +172,7 @@
     "sharp"
   ],
   "overrides": {
-    "next": "^15.4.1",
-    "@next/env": "^15.4.1"
+    "next": "15.4.1",
+    "@next/env": "15.4.1"
   }
 }
