@@ -3,7 +3,6 @@ import { getEnv } from '@/lib/env'
 export interface ThemeColors {
   primaryColor?: string
   primaryHoverColor?: string
-  secondaryColor?: string
   accentColor?: string
   accentHoverColor?: string
   backgroundColor?: string
@@ -36,7 +35,6 @@ const defaultConfig: BrandConfig = {
   theme: {
     primaryColor: '#701ffc',
     primaryHoverColor: '#802fff',
-    secondaryColor: '#6518e6',
     accentColor: '#9d54ff',
     accentHoverColor: '#a66fff',
     backgroundColor: '#0c0c0c',
@@ -48,8 +46,6 @@ const getThemeColors = (): ThemeColors => {
     primaryColor: getEnv('NEXT_PUBLIC_BRAND_PRIMARY_COLOR') || defaultConfig.theme?.primaryColor,
     primaryHoverColor:
       getEnv('NEXT_PUBLIC_BRAND_PRIMARY_HOVER_COLOR') || defaultConfig.theme?.primaryHoverColor,
-    secondaryColor:
-      getEnv('NEXT_PUBLIC_BRAND_SECONDARY_COLOR') || defaultConfig.theme?.secondaryColor,
     accentColor: getEnv('NEXT_PUBLIC_BRAND_ACCENT_COLOR') || defaultConfig.theme?.accentColor,
     accentHoverColor:
       getEnv('NEXT_PUBLIC_BRAND_ACCENT_HOVER_COLOR') || defaultConfig.theme?.accentHoverColor,

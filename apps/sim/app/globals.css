@@ -120,11 +120,10 @@
     --gradient-secondary: 336 95% 65%; /* More vibrant pink */
 
     /* Brand Colors (Default Sim Theme) */
-    --brand-primary-hex: #8357ff; /* Primary brand purple - matches Get Started gradient start */
-    --brand-primary-hover-hex: #9266ff; /* Primary brand purple hover - matches Get Started hover */
-    --brand-secondary-hex: #6f3dfa; /* Secondary brand purple - matches Get Started gradient end */
+    --brand-primary-hex: #6f3dfa; /* Primary brand purple - matches Get Started gradient start */
+    --brand-primary-hover-hex: #6338d9; /* Primary brand purple hover - matches Get Started hover */
     --brand-accent-hex: #6f3dfa; /* Accent purple for links - matches sign in button */
-    --brand-accent-hover-hex: #8357ff; /* Accent purple hover - matches sign in gradient start */
+    --brand-accent-hover-hex: #6f3dfa; /* Accent purple hover - matches sign in gradient start */
     --brand-background-hex: #ffffff; /* Primary light background */
 
     /* UI Surface Colors */
@@ -193,7 +192,6 @@
     /* Brand Colors (Keep dark background for actual dark mode) */
     --brand-primary-hex: #701ffc; /* Primary brand purple */
     --brand-primary-hover-hex: #802fff; /* Primary brand purple hover */
-    --brand-secondary-hex: #6518e6; /* Secondary brand purple */
     --brand-accent-hex: #9d54ff; /* Accent purple for links */
     --brand-accent-hover-hex: #a66fff; /* Accent purple hover */
     --brand-background-hex: #0c0c0c; /* Primary dark background */
@@ -397,10 +395,6 @@ input[type="search"]::-ms-clear {
 
   .hover\:bg-brand-primary-hover:hover {
     background-color: var(--brand-primary-hover-hex);
-  }
-
-  .hover\:bg-brand-secondary:hover {
-    background-color: var(--brand-secondary-hex);
   }
 
   .hover\:text-brand-accent-hover:hover {

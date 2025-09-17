@@ -19,10 +19,6 @@ export function generateThemeCSS(): string {
     cssVars.push(`--brand-primary-hover-hex: ${process.env.NEXT_PUBLIC_BRAND_PRIMARY_HOVER_COLOR};`)
   }
 
-  if (process.env.NEXT_PUBLIC_BRAND_SECONDARY_COLOR) {
-    cssVars.push(`--brand-secondary-hex: ${process.env.NEXT_PUBLIC_BRAND_SECONDARY_COLOR};`)
-  }
-
   if (process.env.NEXT_PUBLIC_BRAND_ACCENT_COLOR) {
     cssVars.push(`--brand-accent-hex: ${process.env.NEXT_PUBLIC_BRAND_ACCENT_COLOR};`)
   }
