@@ -72,15 +72,25 @@ export async function middleware(request: NextRequest) {
     return NextResponse.rewrite(new URL(`/chat/${subdomain}${url.pathname}`, request.url))
   }
 
-  // For self-hosted deployments, redirect root path based on session status
+  // Handle root path redirects based on session status and hosting type
   // Only apply redirects to the main domain, not subdomains
-  if (!isHosted && !isCustomDomain && url.pathname === '/') {
-    if (hasActiveSession) {
-      // User has active session, redirect to workspace
+  if (!isCustomDomain && (url.pathname === '/' || url.pathname === '/homepage')) {
+    if (!isHosted) {
+      // Self-hosted: Always redirect based on session
+      if (hasActiveSession) {
+        return NextResponse.redirect(new URL('/workspace', request.url))
+      }
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
+    // Hosted: Allow access to /homepage route even for authenticated users
+    if (url.pathname === '/homepage') {
+      return NextResponse.rewrite(new URL('/', request.url))
+    }
+
+    // For root path, redirect authenticated users to workspace
+    if (hasActiveSession && url.pathname === '/') {
       return NextResponse.redirect(new URL('/workspace', request.url))
     }
-    // User doesn't have active session, redirect to login
-    return NextResponse.redirect(new URL('/login', request.url))
   }
 
   // Handle whitelabel redirects for terms and privacy pages
@@ -112,6 +122,14 @@ export async function middleware(request: NextRequest) {
     }
     // Simple /w redirect to workspace root
     return NextResponse.redirect(new URL('/workspace', request.url))
+  }
+
+  // Handle login page - redirect authenticated users to workspace
+  if (url.pathname === '/login' || url.pathname === '/signup') {
+    if (hasActiveSession) {
+      return NextResponse.redirect(new URL('/workspace', request.url))
+    }
+    return NextResponse.next()
   }
 
   // Handle protected routes that require authentication
@@ -218,6 +236,7 @@ export const config = {
     '/login',
     '/signup',
     '/invite/:path*', // Match invitation routes
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    // Catch-all for other pages, excluding static assets and public directories
+    '/((?!_next/static|_next/image|favicon.ico|logo/|static/|footer/|social/|enterprise/|favicon/|twitter/|robots.txt|sitemap.xml).*)',
   ],
 }

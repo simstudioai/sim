@@ -247,23 +247,3 @@ export function General() {
     </div>
   )
 }
-
-const SettingRowSkeleton = ({
-  hasInfoButton = false,
-  isSwitch = false,
-}: {
-  hasInfoButton?: boolean
-  isSwitch?: boolean
-}) => (
-  <div className='flex items-center justify-between'>
-    <div className='flex items-center gap-2'>
-      <Skeleton className='h-5 w-32' />
-      {hasInfoButton && <Skeleton className='h-5 w-5 rounded' />}
-    </div>
-    {isSwitch ? (
-      <Skeleton className='h-6 w-11 rounded-full' />
-    ) : (
-      <Skeleton className='h-9 w-[180px]' />
-    )}
-  </div>
-)

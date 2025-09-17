@@ -40,7 +40,8 @@
     "mongodb": "6.19.0",
     "react-colorful": "5.6.1",
     "remark-gfm": "4.0.1",
-    "socket.io-client": "4.8.1"
+    "socket.io-client": "4.8.1",
+    "twilio": "5.9.0"
   },
   "devDependencies": {
     "@biomejs/biome": "2.0.0-beta.5",

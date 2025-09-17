@@ -1,7 +1,7 @@
 # ========================================
 # Dependencies Stage: Install Dependencies
 # ========================================
-FROM oven/bun:alpine AS deps
+FROM oven/bun:1.2.21-alpine AS deps
 WORKDIR /app
 
 # Copy only package files needed for migrations
@@ -15,7 +15,7 @@ RUN bun install --omit dev --ignore-scripts && \
 # ========================================
 # Runner Stage: Production Environment
 # ========================================
-FROM oven/bun:alpine AS runner
+FROM oven/bun:1.2.21-alpine AS runner
 WORKDIR /app
 
 # Copy only the necessary files from deps
