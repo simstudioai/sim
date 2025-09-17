@@ -71,7 +71,7 @@ jobs:
         run: bun install
 
       - name: Apply migrations
-        working-directory: ./apps/db
+        working-directory: ./packages/db
         env:
           DATABASE_URL: ${{ github.ref == 'refs/heads/main' && secrets.DATABASE_URL || secrets.STAGING_DATABASE_URL }}
         run: bunx drizzle-kit migrate --config=./drizzle.config.ts

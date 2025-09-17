@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Copy only package files needed for migrations
 COPY package.json bun.lock turbo.json ./
-COPY apps/db/package.json ./apps/db/package.json
+COPY packages/db/package.json ./packages/db/package.json
 
 # Install minimal dependencies in one layer
 RUN bun install --omit dev --ignore-scripts && \
@@ -20,7 +20,7 @@ WORKDIR /app
 
 # Copy only the necessary files from deps
 COPY --from=deps /app/node_modules ./node_modules
-COPY apps/db/drizzle.config.ts ./apps/db/drizzle.config.ts
-COPY apps/db ./apps/db
+COPY packages/db/drizzle.config.ts ./packages/db/drizzle.config.ts
+COPY packages/db ./packages/db
 
-WORKDIR /app/apps/db
+WORKDIR /app/packages/db
