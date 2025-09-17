@@ -125,10 +125,11 @@ Update your `.env` file with the database URL:
 DATABASE_URL="postgresql://postgres:your_password@localhost:5432/simstudio"
 ```
 
-4. Set up the database:
+4. Set up the database (from apps/db):
 
 ```bash
-bunx drizzle-kit migrate 
+cd apps/db
+bunx drizzle-kit migrate --config=./drizzle.config.ts
 ```
 
 5. Start the development servers:
