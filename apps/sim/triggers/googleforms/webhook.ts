@@ -43,6 +43,7 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
   },
 
   outputs: {
+    // Expose flattened fields at the root; nested google_forms exists at runtime for back-compat
     responseId: { type: 'string', description: 'Unique response identifier (if available)' },
     createTime: { type: 'string', description: 'Response creation timestamp' },
     lastSubmittedTime: { type: 'string', description: 'Last submitted timestamp' },

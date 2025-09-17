@@ -34,34 +34,7 @@ export class TriggerBlockHandler implements BlockHandler {
       const existingOutput = existingState.output as any
       const existingProvider = existingOutput?.webhook?.data?.provider
 
-      // If this is a Google Forms webhook and the output hasn't been flattened yet,
-      // flatten it here using the payload inside webhook.data.payload.
-      if (existingProvider === 'google_forms') {
-        const payload = (existingOutput.webhook?.data?.payload as any) || {}
-
-        const flattened: any = {
-          input: existingOutput.input,
-          responseId: existingOutput.responseId ?? payload.responseId,
-          createTime: existingOutput.createTime ?? payload.createTime,
-          lastSubmittedTime: existingOutput.lastSubmittedTime ?? payload.lastSubmittedTime,
-          formId: existingOutput.formId ?? payload.formId,
-          answers: existingOutput.answers ?? payload.answers,
-          raw: existingOutput.raw ?? payload.raw ?? payload,
-          webhook: existingOutput.webhook,
-        }
-
-        // Preserve nested provider object for discoverability/back-compat
-        flattened.google_forms = {
-          responseId: flattened.responseId,
-          createTime: flattened.createTime,
-          lastSubmittedTime: flattened.lastSubmittedTime,
-          formId: flattened.formId,
-          answers: flattened.answers,
-          raw: flattened.raw,
-        }
-
-        return flattened
-      }
+      // Provider-specific output shaping should be handled upstream per trigger's webhook formatter
 
       return existingOutput
     }
@@ -105,37 +78,6 @@ export class TriggerBlockHandler implements BlockHandler {
               [provider]: providerData,
               webhook: starterOutput.webhook,
             }
-          }
-
-          // Provider-specific handling for Google Forms: ensure answers and metadata are at the root
-          if (provider === 'google_forms') {
-            const providerData =
-              (starterOutput as any)[provider] || (webhookData.payload as any) || {}
-
-            const flatOutput: any = {
-              input: starterOutput.input,
-              // Prefer already-flattened root values if present, otherwise pull from providerData/payload
-              responseId: (starterOutput as any).responseId ?? providerData.responseId,
-              createTime: (starterOutput as any).createTime ?? providerData.createTime,
-              lastSubmittedTime:
-                (starterOutput as any).lastSubmittedTime ?? providerData.lastSubmittedTime,
-              formId: (starterOutput as any).formId ?? providerData.formId,
-              answers: (starterOutput as any).answers ?? providerData.answers,
-              raw: (starterOutput as any).raw ?? providerData.raw ?? (webhookData as any).payload,
-              webhook: starterOutput.webhook,
-            }
-
-            // Keep nested copy for backwards compatibility
-            flatOutput[provider] = {
-              responseId: flatOutput.responseId,
-              createTime: flatOutput.createTime,
-              lastSubmittedTime: flatOutput.lastSubmittedTime,
-              formId: flatOutput.formId,
-              answers: flatOutput.answers,
-              raw: flatOutput.raw,
-            }
-
-            return flatOutput
           }
 
           // Provider-specific early return for Airtable: preserve raw shape entirely
