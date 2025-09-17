@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { LandingPromptStorage } from '@/lib/browser-storage'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useCopilotStore } from '@/stores/copilot/store'
 import { useChatStore } from '@/stores/panel/chat/store'
@@ -31,6 +32,7 @@ export function Panel() {
   const [resizeStartWidth, setResizeStartWidth] = useState(0)
   const copilotRef = useRef<{
     createNewChat: () => void
+    setInputValueAndFocus: (value: string) => void
   }>(null)
   const lastLoadedWorkflowRef = useRef<string | null>(null)
 
@@ -288,6 +290,59 @@ export function Panel() {
       }
     }
   }, [activeWorkflowId, copilotWorkflowId, ensureCopilotDataLoaded])
+
+  // Check for stored landing page prompt when component mounts
+  useEffect(() => {
+    console.log('Panel: useEffect running, checking for stored prompt...')
+    const storedPrompt = LandingPromptStorage.consume()
+    console.log('Panel: Stored prompt result:', {
+      hasPrompt: !!storedPrompt,
+      prompt: storedPrompt,
+      length: storedPrompt?.length || 0,
+    })
+
+    if (storedPrompt && storedPrompt.trim().length > 0) {
+      console.log('Panel: Found stored landing page prompt, auto-opening copilot panel', {
+        prompt: storedPrompt,
+        currentIsOpen: isOpen,
+        currentActiveTab: activeTab,
+      })
+
+      // Open copilot panel and set active tab
+      console.log('Panel: Setting active tab to copilot...')
+      setActiveTab('copilot')
+      if (!isOpen) {
+        console.log('Panel: Panel is closed, opening it...')
+        togglePanel()
+      }
+
+      // Wait for panel to open and copilot to be available, then set the input
+      setTimeout(() => {
+        console.log(
+          'Panel: Attempting to set input value, copilotRef available:',
+          !!copilotRef.current
+        )
+        if (copilotRef.current) {
+          console.log('Panel: Calling setInputValueAndFocus with:', storedPrompt)
+          copilotRef.current.setInputValueAndFocus(storedPrompt)
+        } else {
+          console.warn('Panel: Copilot ref not available, retrying...')
+          // Retry after a longer delay
+          setTimeout(() => {
+            console.log('Panel: Retry - copilotRef available:', !!copilotRef.current)
+            if (copilotRef.current) {
+              console.log('Panel: Retry successful, calling setInputValueAndFocus')
+              copilotRef.current.setInputValueAndFocus(storedPrompt)
+            } else {
+              console.error('Panel: Unable to set stored prompt - copilot ref still not available')
+            }
+          }, 500)
+        }
+      }, 200)
+    } else {
+      console.log('Panel: No stored prompt found')
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- Run only on mount
 
   return (
     <>
