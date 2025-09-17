@@ -40,7 +40,18 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = MailSendSchema.parse(body)
 
-    const fromAddress = env.MAIL_BLOCK_FROM_ADDRESS || env.FROM_EMAIL_ADDRESS || 'system default'
+    const fromAddress = env.MAIL_BLOCK_FROM_ADDRESS || env.FROM_EMAIL_ADDRESS
+
+    if (!fromAddress) {
+      logger.error(`[${requestId}] Email sending failed: No from address configured`)
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Email sending failed: No from address configured.',
+        },
+        { status: 500 }
+      )
+    }
 
     logger.info(`[${requestId}] Sending email via internal mail API`, {
       to: validatedData.to,

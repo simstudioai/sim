@@ -39,7 +39,18 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = SMSSendSchema.parse(body)
 
-    const fromNumber = env.TWILIO_PHONE_NUMBER || 'system default'
+    const fromNumber = env.TWILIO_PHONE_NUMBER
+
+    if (!fromNumber) {
+      logger.error(`[${requestId}] SMS sending failed: No phone number configured`)
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'SMS sending failed: No phone number configured.',
+        },
+        { status: 500 }
+      )
+    }
 
     logger.info(`[${requestId}] Sending SMS via internal SMS API`, {
       to: validatedData.to,

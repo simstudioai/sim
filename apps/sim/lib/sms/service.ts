@@ -14,17 +14,27 @@ export interface BatchSMSOptions {
   messages: SMSOptions[]
 }
 
+export interface SMSResponseData {
+  sid?: string
+  status?: string
+  to?: string
+  from?: string
+  id?: string
+  results?: SendSMSResult[]
+  count?: number
+}
+
 export interface SendSMSResult {
   success: boolean
   message: string
-  data?: any
+  data?: SMSResponseData
 }
 
 export interface BatchSendSMSResult {
   success: boolean
   message: string
   results: SendSMSResult[]
-  data?: any
+  data?: SMSResponseData
 }
 
 const twilioAccountSid = env.TWILIO_ACCOUNT_SID
