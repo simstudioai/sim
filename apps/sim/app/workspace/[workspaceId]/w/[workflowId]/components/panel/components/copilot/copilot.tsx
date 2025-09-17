@@ -108,8 +108,6 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
       !isInitialized
     ) {
       setIsInitialized(true)
-
-      // Prompt checking is now handled by the Panel component
     }
   }, [activeWorkflowId, isLoadingChats, chatsLoadedForWorkflow, isInitialized])
 
@@ -329,11 +327,9 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     }, 100) // Small delay to ensure DOM updates are complete
   }, [createNewChat])
 
-  // Handle setting input value and focusing from external call
   const handleSetInputValueAndFocus = useCallback(
     (value: string) => {
       setInputValue(value)
-      // Focus the input after a brief delay to ensure DOM is ready
       setTimeout(() => {
         userInputRef.current?.focus()
       }, 150)

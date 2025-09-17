@@ -291,23 +291,19 @@ export function Panel() {
     }
   }, [activeWorkflowId, copilotWorkflowId, ensureCopilotDataLoaded])
 
-  // Check for stored landing page prompt when component mounts
   useEffect(() => {
     const storedPrompt = LandingPromptStorage.consume()
 
     if (storedPrompt && storedPrompt.trim().length > 0) {
-      // Open copilot panel and set active tab
       setActiveTab('copilot')
       if (!isOpen) {
         togglePanel()
       }
 
-      // Wait for panel to open and copilot to be available, then set the input
       setTimeout(() => {
         if (copilotRef.current) {
           copilotRef.current.setInputValueAndFocus(storedPrompt)
         } else {
-          // Retry after a longer delay
           setTimeout(() => {
             if (copilotRef.current) {
               copilotRef.current.setInputValueAndFocus(storedPrompt)
