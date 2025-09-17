@@ -5,6 +5,7 @@ import { ArrowDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { LoadingAgent } from '@/components/ui/loading-agent'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { LandingPromptStorage } from '@/lib/browser-storage'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   CheckpointPanel,
@@ -20,6 +21,7 @@ import type {
 import { COPILOT_TOOL_IDS } from '@/stores/copilot/constants'
 import { usePreviewStore } from '@/stores/copilot/preview-store'
 import { useCopilotStore } from '@/stores/copilot/store'
+import { usePanelStore } from '@/stores/panel/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('Copilot')
@@ -49,6 +51,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
   const isUserScrollingRef = useRef(false) // Track if scroll event is user-initiated
 
   const { activeWorkflowId } = useWorkflowRegistry()
+  const { openCopilotPanel } = usePanelStore()
 
   // Use preview store to track seen previews
   const { isToolCallSeen, markToolCallAsSeen } = usePreviewStore()
@@ -107,8 +110,36 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
       !isInitialized
     ) {
       setIsInitialized(true)
+
+      // Check for stored landing page prompt and populate it
+      // Only do this if there are no existing messages (new chat)
+      if (messages.length === 0) {
+        const storedPrompt = LandingPromptStorage.consume()
+        if (storedPrompt && storedPrompt.trim().length > 0) {
+          logger.info('Found stored landing page prompt, auto-opening copilot and populating input')
+
+          // Automatically open the copilot panel
+          openCopilotPanel()
+
+          // Populate the input with the stored prompt
+          setInputValue(storedPrompt)
+
+          // Focus the input after a brief delay to ensure DOM is ready
+          setTimeout(() => {
+            userInputRef.current?.focus()
+          }, 150)
+        }
+      }
     }
-  }, [activeWorkflowId, isLoadingChats, chatsLoadedForWorkflow, isInitialized])
+  }, [
+    activeWorkflowId,
+    isLoadingChats,
+    chatsLoadedForWorkflow,
+    isInitialized,
+    messages.length,
+    setInputValue,
+    openCopilotPanel,
+  ])
 
   // Clear any existing preview when component mounts or workflow changes
   useEffect(() => {

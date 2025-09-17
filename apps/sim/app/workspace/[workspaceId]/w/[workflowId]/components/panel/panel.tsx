@@ -294,12 +294,12 @@ export function Panel() {
       {/* Tab Selector - Always visible */}
       <div className='fixed top-[76px] right-4 z-20 flex h-9 w-[308px] items-center gap-1 rounded-[14px] border bg-card px-[2.5px] py-1 shadow-xs'>
         <button
-          onClick={() => handleTabClick('chat')}
+          onClick={() => handleTabClick('copilot')}
           className={`panel-tab-base inline-flex flex-1 cursor-pointer items-center justify-center rounded-[10px] border border-transparent py-1 font-[450] text-sm outline-none transition-colors duration-200 ${
-            isOpen && activeTab === 'chat' ? 'panel-tab-active' : 'panel-tab-inactive'
+            isOpen && activeTab === 'copilot' ? 'panel-tab-active' : 'panel-tab-inactive'
           }`}
         >
-          Chat
+          Copilot
         </button>
         <button
           onClick={() => handleTabClick('console')}
@@ -310,12 +310,12 @@ export function Panel() {
           Console
         </button>
         <button
-          onClick={() => handleTabClick('copilot')}
+          onClick={() => handleTabClick('chat')}
           className={`panel-tab-base inline-flex flex-1 cursor-pointer items-center justify-center rounded-[10px] border border-transparent py-1 font-[450] text-sm outline-none transition-colors duration-200 ${
-            isOpen && activeTab === 'copilot' ? 'panel-tab-active' : 'panel-tab-inactive'
+            isOpen && activeTab === 'chat' ? 'panel-tab-active' : 'panel-tab-inactive'
           }`}
         >
-          Copilot
+          Chat
         </button>
         <button
           onClick={() => handleTabClick('variables')}
