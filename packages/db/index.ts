@@ -2,6 +2,10 @@ import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import * as schema from './schema'
 
+// Re-export everything from schema for type consistency
+export * from './schema'
+export type { PostgresJsDatabase }
+
 // In production, use the Vercel-generated POSTGRES_URL
 // In development, use the direct DATABASE_URL
 const connectionString = process.env.POSTGRES_URL ?? process.env.DATABASE_URL ?? ''

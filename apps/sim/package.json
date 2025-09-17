@@ -154,7 +154,6 @@
     "concurrently": "^9.1.0",
     "critters": "^0.0.23",
     "dotenv": "^16.4.7",
-    "drizzle-kit": "^0.31.1",
     "jsdom": "^26.0.0",
     "postcss": "^8",
     "react-email": "^4.0.13",
@@ -170,6 +169,8 @@
   ],
   "overrides": {
     "next": "15.4.1",
-    "@next/env": "15.4.1"
+    "@next/env": "15.4.1",
+    "drizzle-orm": "^0.41.0",
+    "postgres": "^3.4.5"
   }
 }

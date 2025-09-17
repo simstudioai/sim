@@ -1,5 +1,4 @@
-import { db } from '@sim/db'
-import { account, user } from '@sim/db/schema'
+import { account, db, user } from '@sim/db'
 import { eq } from 'drizzle-orm'
 import { jwtDecode } from 'jwt-decode'
 import { type NextRequest, NextResponse } from 'next/server'

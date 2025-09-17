@@ -29,7 +29,9 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "next": "15.4.1",
-    "@next/env": "15.4.1"
+    "@next/env": "15.4.1",
+    "drizzle-orm": "^0.41.0",
+    "postgres": "^3.4.5"
   },
   "dependencies": {
     "@linear/sdk": "40.0.0",
@@ -49,6 +51,7 @@
     "@biomejs/biome": "2.0.0-beta.5",
     "@next/env": "15.4.1",
     "@types/bcryptjs": "3.0.0",
+    "drizzle-kit": "^0.31.1",
     "husky": "9.1.7",
     "lint-staged": "16.0.0",
     "turbo": "2.5.6"
