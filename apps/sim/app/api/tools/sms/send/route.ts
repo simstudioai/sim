@@ -1,19 +1,18 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
-import { type EmailOptions, sendEmail } from '@/lib/email/mailer'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { type SMSOptions, sendSMS } from '@/lib/sms/service'
 import { generateRequestId } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
-const logger = createLogger('MailSendAPI')
+const logger = createLogger('SMSSendAPI')
 
-const MailSendSchema = z.object({
-  to: z.string().email('Invalid email address').min(1, 'To email is required'),
-  subject: z.string().min(1, 'Subject is required'),
-  body: z.string().min(1, 'Email body is required'),
+const SMSSendSchema = z.object({
+  to: z.string().min(1, 'To phone number is required'),
+  body: z.string().min(1, 'SMS body is required'),
 })
 
 export async function POST(request: NextRequest) {
@@ -23,7 +22,7 @@ export async function POST(request: NextRequest) {
     const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
 
     if (!authResult.success) {
-      logger.warn(`[${requestId}] Unauthorized mail send attempt: ${authResult.error}`)
+      logger.warn(`[${requestId}] Unauthorized SMS send attempt: ${authResult.error}`)
       return NextResponse.json(
         {
           success: false,
@@ -33,46 +32,41 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    logger.info(`[${requestId}] Authenticated mail request via ${authResult.authType}`, {
+    logger.info(`[${requestId}] Authenticated SMS request via ${authResult.authType}`, {
       userId: authResult.userId,
     })
 
     const body = await request.json()
-    const validatedData = MailSendSchema.parse(body)
+    const validatedData = SMSSendSchema.parse(body)
 
-    const fromAddress = env.MAIL_BLOCK_FROM_ADDRESS || env.FROM_EMAIL_ADDRESS
+    const fromNumber = env.TWILIO_PHONE_NUMBER
 
-    if (!fromAddress) {
-      logger.error(`[${requestId}] Email sending failed: No from address configured`)
+    if (!fromNumber) {
+      logger.error(`[${requestId}] SMS sending failed: No phone number configured`)
       return NextResponse.json(
         {
           success: false,
-          message: 'Email sending failed: No from address configured.',
+          message: 'SMS sending failed: No phone number configured.',
         },
         { status: 500 }
       )
     }
 
-    logger.info(`[${requestId}] Sending email via internal mail API`, {
+    logger.info(`[${requestId}] Sending SMS via internal SMS API`, {
       to: validatedData.to,
-      subject: validatedData.subject,
       bodyLength: validatedData.body.length,
-      from: fromAddress,
+      from: fromNumber,
     })
 
-    const emailOptions: EmailOptions = {
+    const smsOptions: SMSOptions = {
       to: validatedData.to,
-      subject: validatedData.subject,
-      html: validatedData.body,
-      text: validatedData.body.replace(/<[^>]*>/g, ''),
-      from: fromAddress, // Use the determined FROM address
-      emailType: 'transactional',
-      includeUnsubscribe: false,
+      body: validatedData.body,
+      from: fromNumber,
     }
 
-    const result = await sendEmail(emailOptions)
+    const result = await sendSMS(smsOptions)
 
-    logger.info(`[${requestId}] Email send result`, {
+    logger.info(`[${requestId}] SMS send result`, {
       success: result.success,
       message: result.message,
     })
@@ -91,12 +85,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    logger.error(`[${requestId}] Error sending email via API:`, error)
+    logger.error(`[${requestId}] Error sending SMS via API:`, error)
 
     return NextResponse.json(
       {
         success: false,
-        message: 'Internal server error while sending email',
+        message: 'Internal server error while sending SMS',
         data: {},
       },
       { status: 500 }

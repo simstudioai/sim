@@ -57,6 +57,11 @@ export const env = createEnv({
     MAIL_BLOCK_FROM_ADDRESS:               z.string().min(1).optional(),           // Custom from address for mail block tool (e.g., "Bot <bot@domain.com>")
     AZURE_ACS_CONNECTION_STRING:           z.string().optional(),                  // Azure Communication Services connection string
 
+    // SMS & Messaging
+    TWILIO_ACCOUNT_SID:                    z.string().min(1).optional(),           // Twilio Account SID for SMS sending
+    TWILIO_AUTH_TOKEN:                     z.string().min(1).optional(),           // Twilio Auth Token for API authentication
+    TWILIO_PHONE_NUMBER:                   z.string().min(1).optional(),           // Twilio phone number for sending SMS
+
     // AI/LLM Provider API Keys
     OPENAI_API_KEY:                        z.string().min(1).optional(),           // Primary OpenAI API key
     OPENAI_API_KEY_1:                      z.string().min(1).optional(),           // Additional OpenAI API key for load balancing
