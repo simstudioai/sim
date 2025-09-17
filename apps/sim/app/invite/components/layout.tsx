@@ -17,7 +17,7 @@ function isColorDark(hexColor: string): boolean {
   return luminance < 0.5
 }
 
-export function InviteLayout({ children }: InviteLayoutProps) {
+export default function InviteLayout({ children }: InviteLayoutProps) {
   useEffect(() => {
     const rootStyle = getComputedStyle(document.documentElement)
     const brandBackground = rootStyle.getPropertyValue('--brand-background-hex').trim()
