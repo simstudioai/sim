@@ -4,6 +4,7 @@ import { airtableWebhookTrigger } from './airtable'
 import { genericWebhookTrigger } from './generic'
 import { githubWebhookTrigger } from './github'
 import { gmailPollingTrigger } from './gmail'
+import { googleFormsWebhookTrigger } from './googleforms/webhook'
 import { microsoftTeamsWebhookTrigger } from './microsoftteams'
 import { outlookPollingTrigger } from './outlook'
 import { slackWebhookTrigger } from './slack'
@@ -24,6 +25,7 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   stripe_webhook: stripeWebhookTrigger,
   telegram_webhook: telegramWebhookTrigger,
   whatsapp_webhook: whatsappWebhookTrigger,
+  google_forms_webhook: googleFormsWebhookTrigger,
 }
 
 // Utility functions for working with triggers

@@ -1,0 +1,86 @@
+---
+title: Google Forms
+description: Read responses from a Google Form
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_forms"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"  xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 65' fill='none'>
+      <path
+        d='M29.583 0H4.438C1.997 0 0 1.997 0 4.438v56.208C0 63.086 1.997 65.083 4.438 65.083h38.458c2.44 0 4.437-1.997 4.437-4.437V17.75L36.979 10.354 29.583 0Z'
+        fill='#673AB7'
+      />
+      <path
+        d='M29.583 0v10.354c0 2.45 1.986 4.438 4.438 4.438h13.312L36.979 10.354 29.583 0Z'
+        fill='#B39DDB'
+      />
+      <path
+        d='M19.229 50.292h16.271v-2.959H19.229v2.959Zm0-17.75v2.958h16.271v-2.958H19.229Zm-3.698 1.479c0 1.224-0.995 2.219-2.219 2.219s-2.219-0.995-2.219-2.219c0-1.224 0.995-2.219 2.219-2.219s2.219 0.995 2.219 2.219Zm0 7.396c0 1.224-0.995 2.219-2.219 2.219s-2.219-0.995-2.219-2.219c0-1.224 0.995-2.219 2.219-2.219s2.219 0.995 2.219 2.219Zm0 7.396c0 1.224-0.995 2.219-2.219 2.219s-2.219-0.995-2.219-2.219c0-1.224 0.995-2.219 2.219-2.219s2.219 0.995 2.219 2.219Zm3.698-5.917h16.271v-2.959H19.229v2.959Z'
+        fill='#F1F1F1'
+      />
+      <defs>
+        <linearGradient
+          id='gf-gradient'
+          x1='30.881'
+          y1='16.452'
+          x2='47.333'
+          y2='32.9'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop stopColor='#9575CD' />
+          <stop offset='1' stopColor='#7E57C2' />
+        </linearGradient>
+      </defs>
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Forms](https://forms.google.com) is Google's online survey and form tool that allows users to create forms, collect responses, and analyze results. As part of Google's productivity suite, Google Forms makes it easy to gather information, feedback, and data from users.
+
+Learn how to integrate the Google Forms tool in Sim to automatically read and process form responses in your workflows. This tutorial walks you through connecting Google Forms, retrieving responses, and using collected data to power automation. Perfect for syncing survey results, registrations, or feedback with your agents in real-time.
+
+With Google Forms, you can:
+
+- **Create surveys and forms**: Design custom forms for feedback, registration, quizzes, and more
+- **Collect responses automatically**: Gather data from users in real-time
+- **Analyze results**: View responses in Google Forms or export to Google Sheets for further analysis
+- **Collaborate easily**: Share forms and work with others to build and review questions
+- **Integrate with other Google services**: Connect with Google Sheets, Drive, and more
+
+In Sim, the Google Forms integration enables your agents to programmatically access form responses. This allows for powerful automation scenarios such as processing survey data, triggering workflows based on new submissions, and syncing form results with other tools. Your agents can fetch all responses for a form, retrieve a specific response, and use the data to drive intelligent automation. By connecting Sim with Google Forms, you can automate data collection, streamline feedback processing, and incorporate form responses into your agent's capabilities.
+{/* MANUAL-CONTENT-END */}
+
+## Usage Instructions
+
+Integrate Google Forms into your workflow. Provide a Form ID to list responses, or specify a Response ID to fetch a single response. Requires OAuth.
+
+
+
+## Tools
+
+### `google_forms_get_responses`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| formId | string | Yes | The ID of the Google Form |
+| responseId | string | No | If provided, returns this specific response |
+| pageSize | number | No | Max responses to return (service may return fewer). Defaults to 5000 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | json | Response or list of responses |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `google_forms`

@@ -31,7 +31,12 @@ export class TriggerBlockHandler implements BlockHandler {
     // (e.g., webhook payload injected at init), return it as-is to preserve the raw shape.
     const existingState = context.blockStates.get(block.id)
     if (existingState?.output && Object.keys(existingState.output).length > 0) {
-      return existingState.output
+      const existingOutput = existingState.output as any
+      const existingProvider = existingOutput?.webhook?.data?.provider
+
+      // Provider-specific output shaping should be handled upstream per trigger's webhook formatter
+
+      return existingOutput
     }
 
     // For trigger blocks, return the starter block's output which contains the workflow input
