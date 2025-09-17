@@ -41,7 +41,6 @@ export function TriggerConfig({
   const [isLoading, setIsLoading] = useState(false)
 
   // Get trigger configuration from the block state
-  const [storeTriggerProvider, setTriggerProvider] = useSubBlockValue(blockId, 'triggerProvider')
   const [storeTriggerPath, setTriggerPath] = useSubBlockValue(blockId, 'triggerPath')
   const [storeTriggerConfig, setTriggerConfig] = useSubBlockValue(blockId, 'triggerConfig')
   const [storeTriggerId, setStoredTriggerId] = useSubBlockValue(blockId, 'triggerId')
