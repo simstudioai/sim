@@ -11,7 +11,6 @@ import { soehne } from '@/app/fonts/soehne/soehne'
 
 interface VerifyContentProps {
   hasResendKey: boolean
-  baseUrl: string
   isProduction: boolean
 }
 
@@ -56,30 +55,13 @@ function VerificationForm({
     setCountdown(30)
   }
 
-  const handleCancelVerification = () => {
-    // Clear verification data
-    if (typeof window !== 'undefined') {
-      sessionStorage.removeItem('verificationEmail')
-      sessionStorage.removeItem('inviteRedirectUrl')
-      sessionStorage.removeItem('isInviteFlow')
-
-      // Clear the verification requirement cookie
-      document.cookie = 'requiresEmailVerification=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
-    }
-
-    // Redirect to login
-    router.push('/login')
-  }
-
   const [buttonClass, setButtonClass] = useState('auth-button-gradient')
 
   useEffect(() => {
-    // Check if CSS variable has been customized
     const checkCustomBrand = () => {
       const computedStyle = getComputedStyle(document.documentElement)
       const brandAccent = computedStyle.getPropertyValue('--brand-accent-hex').trim()
 
-      // Check if the CSS variable exists and is different from the default
       if (brandAccent && brandAccent !== '#6f3dfa') {
         setButtonClass('auth-button-custom')
       } else {
@@ -89,7 +71,6 @@ function VerificationForm({
 
     checkCustomBrand()
 
-    // Also check on window resize or theme changes
     window.addEventListener('resize', checkCustomBrand)
     const observer = new MutationObserver(checkCustomBrand)
     observer.observe(document.documentElement, {
@@ -235,7 +216,6 @@ function VerificationForm({
           <div className='text-center font-light text-[14px]'>
             <button
               onClick={() => {
-                // Clear verification data and go back to signup
                 if (typeof window !== 'undefined') {
                   sessionStorage.removeItem('verificationEmail')
                   sessionStorage.removeItem('inviteRedirectUrl')
@@ -254,7 +234,6 @@ function VerificationForm({
   )
 }
 
-// Fallback component while the verification form is loading
 function VerificationFormFallback() {
   return (
     <div className='text-center'>
@@ -266,7 +245,7 @@ function VerificationFormFallback() {
   )
 }
 
-export function VerifyContent({ hasResendKey, baseUrl, isProduction }: VerifyContentProps) {
+export function VerifyContent({ hasResendKey, isProduction }: VerifyContentProps) {
   return (
     <Suspense fallback={<VerificationFormFallback />}>
       <VerificationForm hasResendKey={hasResendKey} isProduction={isProduction} />

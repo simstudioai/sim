@@ -74,12 +74,12 @@ const validatePassword = (passwordValue: string): string[] => {
 
   if (!PASSWORD_VALIDATIONS.required.test(passwordValue)) {
     errors.push(PASSWORD_VALIDATIONS.required.message)
-    return errors // Return early for required field
+    return errors
   }
 
   if (!PASSWORD_VALIDATIONS.notEmpty.test(passwordValue)) {
     errors.push(PASSWORD_VALIDATIONS.notEmpty.message)
-    return errors // Return early for empty field
+    return errors
   }
 
   return errors
@@ -104,11 +104,9 @@ export default function LoginPage({
   const [showValidationError, setShowValidationError] = useState(false)
   const [buttonClass, setButtonClass] = useState('auth-button-gradient')
 
-  // Initialize state for URL parameters
   const [callbackUrl, setCallbackUrl] = useState('/workspace')
   const [isInviteFlow, setIsInviteFlow] = useState(false)
 
-  // Forgot password states
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false)
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('')
   const [isSubmittingReset, setIsSubmittingReset] = useState(false)
@@ -117,25 +115,20 @@ export default function LoginPage({
     message: string
   }>({ type: null, message: '' })
 
-  // Email validation state
   const [email, setEmail] = useState('')
   const [emailErrors, setEmailErrors] = useState<string[]>([])
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
 
-  // Extract URL parameters after component mounts to avoid SSR issues
   useEffect(() => {
     setMounted(true)
 
-    // Only access search params on the client side
     if (searchParams) {
       const callback = searchParams.get('callbackUrl')
       if (callback) {
-        // Validate the callbackUrl before setting it
         if (validateCallbackUrl(callback)) {
           setCallbackUrl(callback)
         } else {
           logger.warn('Invalid callback URL detected and blocked:', { url: callback })
-          // Keep the default safe value ('/workspace')
         }
       }
 
@@ -143,12 +136,10 @@ export default function LoginPage({
       setIsInviteFlow(inviteFlow)
     }
 
-    // Check if CSS variable has been customized
     const checkCustomBrand = () => {
       const computedStyle = getComputedStyle(document.documentElement)
       const brandAccent = computedStyle.getPropertyValue('--brand-accent-hex').trim()
 
-      // Check if the CSS variable exists and is different from the default
       if (brandAccent && brandAccent !== '#6f3dfa') {
         setButtonClass('auth-button-custom')
       } else {
@@ -158,7 +149,6 @@ export default function LoginPage({
 
     checkCustomBrand()
 
-    // Also check on window resize or theme changes
     window.addEventListener('resize', checkCustomBrand)
     const observer = new MutationObserver(checkCustomBrand)
     observer.observe(document.documentElement, {
@@ -189,7 +179,6 @@ export default function LoginPage({
     const newEmail = e.target.value
     setEmail(newEmail)
 
-    // Silently validate but don't show errors until submit
     const errors = validateEmailField(newEmail)
     setEmailErrors(errors)
     setShowEmailValidationError(false)
@@ -199,7 +188,6 @@ export default function LoginPage({
     const newPassword = e.target.value
     setPassword(newPassword)
 
-    // Silently validate but don't show errors until submit
     const errors = validatePassword(newPassword)
     setPasswordErrors(errors)
     setShowValidationError(false)
@@ -213,24 +201,20 @@ export default function LoginPage({
     const emailRaw = formData.get('email') as string
     const email = emailRaw.trim().toLowerCase()
 
-    // Validate email on submit
     const emailValidationErrors = validateEmailField(email)
     setEmailErrors(emailValidationErrors)
     setShowEmailValidationError(emailValidationErrors.length > 0)
 
-    // Validate password on submit
     const passwordValidationErrors = validatePassword(password)
     setPasswordErrors(passwordValidationErrors)
     setShowValidationError(passwordValidationErrors.length > 0)
 
-    // If there are validation errors, stop submission
     if (emailValidationErrors.length > 0 || passwordValidationErrors.length > 0) {
       setIsLoading(false)
       return
     }
 
     try {
-      // Final validation before submission
       const safeCallbackUrl = validateCallbackUrl(callbackUrl) ? callbackUrl : '/workspace'
 
       const result = await client.signIn.email(
@@ -292,13 +276,7 @@ export default function LoginPage({
         setIsLoading(false)
         return
       }
-
-      // Mark that the user has previously logged in
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('has_logged_in_before', 'true')
-      }
     } catch (err: any) {
-      // Handle only the special verification case that requires a redirect
       if (err.message?.includes('not verified') || err.code?.includes('EMAIL_NOT_VERIFIED')) {
         if (typeof window !== 'undefined') {
           sessionStorage.setItem('verificationEmail', email)

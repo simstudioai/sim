@@ -46,46 +46,39 @@ export function useVerification({
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // Get stored email
       const storedEmail = sessionStorage.getItem('verificationEmail')
       if (storedEmail) {
         setEmail(storedEmail)
       }
 
-      // Check for redirect information
       const storedRedirectUrl = sessionStorage.getItem('inviteRedirectUrl')
       if (storedRedirectUrl) {
         setRedirectUrl(storedRedirectUrl)
       }
 
-      // Check if this is an invite flow
       const storedIsInviteFlow = sessionStorage.getItem('isInviteFlow')
       if (storedIsInviteFlow === 'true') {
         setIsInviteFlow(true)
       }
     }
 
-    // Also check URL parameters for redirect information
     const redirectParam = searchParams.get('redirectAfter')
     if (redirectParam) {
       setRedirectUrl(redirectParam)
     }
 
-    // Check for invite_flow parameter
     const inviteFlowParam = searchParams.get('invite_flow')
     if (inviteFlowParam === 'true') {
       setIsInviteFlow(true)
     }
   }, [searchParams])
 
-  // Do not auto-send OTP on mount; allow user to trigger resend explicitly
   useEffect(() => {
     if (email && !isSendingInitialOtp && hasResendKey) {
       setIsSendingInitialOtp(true)
     }
   }, [email, isSendingInitialOtp, hasResendKey])
 
-  // Enable the verify button when all 6 digits are entered
   const isOtpComplete = otp.length === 6
 
   async function verifyCode() {
@@ -96,30 +89,24 @@ export function useVerification({
     setErrorMessage('')
 
     try {
-      // Normalize email before verifying
       const normalizedEmail = email.trim().toLowerCase()
-      // Use sign-in OTP verification to create a session directly
       const response = await client.signIn.emailOtp({
         email: normalizedEmail,
         otp,
       })
 
-      // Check if verification was successful
       if (response && !response.error) {
         setIsVerified(true)
 
-        // Refresh session after verification to avoid redirect bounce
         try {
           await refetchSession()
         } catch (e) {
           logger.warn('Failed to refetch session after verification', e)
         }
 
-        // Clear verification requirements and session storage
         if (typeof window !== 'undefined') {
           sessionStorage.removeItem('verificationEmail')
 
-          // Also clear invite-related items
           if (isInviteFlow) {
             sessionStorage.removeItem('inviteRedirectUrl')
             sessionStorage.removeItem('isInviteFlow')
@@ -128,24 +115,20 @@ export function useVerification({
 
         setTimeout(() => {
           if (isInviteFlow && redirectUrl) {
-            // For invitation flow, redirect to the invitation page
             window.location.href = redirectUrl
           } else {
-            // Default redirect to dashboard
             window.location.href = '/workspace'
           }
         }, 1000)
       } else {
         logger.info('Setting invalid OTP state - API error response')
         const message = 'Invalid verification code. Please check and try again.'
-        // Set both state variables to ensure the error shows
         setIsInvalidOtp(true)
         setErrorMessage(message)
         logger.info('Error state after API error:', {
           isInvalidOtp: true,
           errorMessage: message,
         })
-        // Clear the OTP input on invalid code
         setOtp('')
       }
     } catch (error: any) {
@@ -160,7 +143,6 @@ export function useVerification({
         message = 'Too many failed attempts. Please request a new code.'
       }
 
-      // Set both state variables to ensure the error shows
       setIsInvalidOtp(true)
       setErrorMessage(message)
       logger.info('Error state after caught error:', {
@@ -168,7 +150,6 @@ export function useVerification({
         errorMessage: message,
       })
 
-      // Clear the OTP input on error
       setOtp('')
     } finally {
       setIsLoading(false)
@@ -197,7 +178,6 @@ export function useVerification({
   }
 
   function handleOtpChange(value: string) {
-    // Only clear error when user is actively typing a new code
     if (value.length === 6) {
       setIsInvalidOtp(false)
       setErrorMessage('')
@@ -205,12 +185,11 @@ export function useVerification({
     setOtp(value)
   }
 
-  // Auto-submit when OTP is complete
   useEffect(() => {
     if (otp.length === 6 && email && !isLoading && !isVerified) {
       const timeoutId = setTimeout(() => {
         verifyCode()
-      }, 300) // Small delay to ensure UI is ready
+      }, 300)
 
       return () => clearTimeout(timeoutId)
     }
@@ -218,7 +197,6 @@ export function useVerification({
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // Dev-only skip (do not skip in production even if running in Docker)
       if (!isProduction || !hasResendKey) {
         setIsVerified(true)
 
