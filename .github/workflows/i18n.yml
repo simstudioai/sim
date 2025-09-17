@@ -1,4 +1,4 @@
-name: 'Auto-translate on Staging Merge'
+name: 'Auto-translate Documentation'
 
 on:
   push:
@@ -54,13 +54,13 @@ jobs:
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "feat(i18n): update translations from staging merge"
-          title: "🌐 Auto-update translations from staging merge"
+          commit-message: "feat(i18n): update translations"
+          title: "🌐 Auto-update translations"
           body: |
             ## Summary
-            Automated translation updates triggered by merge to staging branch.
+            Automated translation updates triggered by changes to documentation.
             
-            This PR was automatically created after content changes were merged to staging, updating translations for all supported languages using Lingo.dev AI translation engine.
+            This PR was automatically created after content changes were made, updating translations for all supported languages using Lingo.dev AI translation engine.
             
             **Original trigger**: ${{ github.event.head_commit.message }}
             **Commit**: ${{ github.sha }}
