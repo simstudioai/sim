@@ -36,11 +36,9 @@ describe('OAuth Connections API Route', () => {
 
     vi.doMock('@sim/db', () => ({
       db: mockDb,
-    }))
-
-    vi.doMock('@sim/db/schema', () => ({
       account: { userId: 'userId', providerId: 'providerId' },
       user: { email: 'email', id: 'id' },
+      eq: vi.fn((field, value) => ({ field, value, type: 'eq' })),
     }))
 
     vi.doMock('drizzle-orm', () => ({
