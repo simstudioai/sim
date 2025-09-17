@@ -8,8 +8,10 @@
         "@t3-oss/env-nextjs": "0.13.4",
         "@vercel/analytics": "1.5.0",
         "bcryptjs": "3.0.2",
+        "drizzle-orm": "^0.41.0",
         "geist": "^1.4.2",
         "mongodb": "6.19.0",
+        "postgres": "^3.4.5",
         "react-colorful": "5.6.1",
         "remark-gfm": "4.0.1",
         "socket.io-client": "4.8.1",
@@ -116,7 +118,6 @@
         "csv-parse": "^5.6.0",
         "dat.gui": "0.7.9",
         "date-fns": "4.1.0",
-        "drizzle-orm": "^0.41.0",
         "entities": "6.0.1",
         "framer-motion": "^12.5.0",
         "fuse.js": "7.1.0",
@@ -140,7 +141,6 @@
         "openai": "^4.91.1",
         "papaparse": "5.5.3",
         "pdf-parse": "1.1.1",
-        "postgres": "^3.4.5",
         "prismjs": "^1.30.0",
         "react": "19.1.0",
         "react-colorful": "5.6.1",
@@ -220,13 +220,13 @@
     "packages/db": {
       "name": "@sim/db",
       "version": "0.1.0",
-      "dependencies": {
-        "drizzle-orm": "^0.41.0",
-        "postgres": "^3.4.5",
-      },
       "devDependencies": {
         "drizzle-kit": "^0.31.1",
         "typescript": "^5.7.3",
+      },
+      "peerDependencies": {
+        "drizzle-orm": "^0.41.0",
+        "postgres": "^3.4.5",
       },
     },
     "packages/ts-sdk": {
