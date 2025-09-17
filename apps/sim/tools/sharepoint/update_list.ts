@@ -7,7 +7,10 @@ import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SharePointUpdateListItem')
 
-export const updateListItemTool: ToolConfig<SharepointToolParams, SharepointUpdateListItemResponse> = {
+export const updateListItemTool: ToolConfig<
+  SharepointToolParams,
+  SharepointUpdateListItemResponse
+> = {
   id: 'sharepoint_update_list',
   name: 'Update SharePoint List Item',
   description: 'Update the properties (fields) on a SharePoint list item',
@@ -123,5 +126,3 @@ export const updateListItemTool: ToolConfig<SharepointToolParams, SharepointUpda
     },
   },
 }
-
-

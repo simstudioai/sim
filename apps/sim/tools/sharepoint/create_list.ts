@@ -151,5 +151,3 @@ export const createListTool: ToolConfig<SharepointToolParams, SharepointCreateLi
     },
   },
 }
-
-

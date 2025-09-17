@@ -1,7 +1,7 @@
 import { MicrosoftSharepointIcon } from '@/components/icons'
+import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockConfig } from '@/blocks/types'
 import type { SharepointResponse } from '@/tools/sharepoint/types'
-import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('SharepointBlock')
 
@@ -74,7 +74,14 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       mode: 'basic',
       condition: {
         field: 'operation',
-        value: ['create_page', 'read_page', 'list_sites', 'create_list', 'read_list', 'update_list'],
+        value: [
+          'create_page',
+          'read_page',
+          'list_sites',
+          'create_list',
+          'read_list',
+          'update_list',
+        ],
       },
     },
 
@@ -140,7 +147,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       type: 'long-input',
       layout: 'full',
       placeholder:
-        "For Create Page: enter page content. For Create List: optionally provide JSON like { \"columns\": [ { \"name\": \"Author\", \"text\": {} }, { \"name\": \"PageCount\", \"number\": {} } ] } to create columns.",
+        'For Create Page: enter page content. For Create List: optionally provide JSON like { "columns": [ { "name": "Author", "text": {} }, { "name": "PageCount", "number": {} } ] } to create columns.',
       condition: { field: 'operation', value: ['create_page', 'create_list', 'update_list'] },
     },
     {
@@ -151,8 +158,6 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       placeholder: 'Optional description',
       condition: { field: 'operation', value: 'create_list' },
     },
-
-    
 
     {
       id: 'manualSiteId',

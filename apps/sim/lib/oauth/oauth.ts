@@ -260,6 +260,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'email',
           'Sites.Read.All',
           'Sites.ReadWrite.All',
+          'Sites.Manage.All',
           'offline_access',
         ],
       },

@@ -2,7 +2,6 @@ import { createLogger } from '@/lib/logs/console/logger'
 import type {
   SharepointGetListResponse,
   SharepointList,
-  SharepointListItem,
   SharepointToolParams,
 } from '@/tools/sharepoint/types'
 import type { ToolConfig } from '@/tools/types'
@@ -147,7 +146,7 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
           }))
         : undefined,
       items: Array.isArray(data.items)
-        ? data.items.map((i: any) => ({ id: i.id, fields: (i.fields as Record<string, unknown>) }))
+        ? data.items.map((i: any) => ({ id: i.id, fields: i.fields as Record<string, unknown> }))
         : undefined,
     }
 
@@ -197,5 +196,3 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
     },
   },
 }
-
-
