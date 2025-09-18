@@ -19,6 +19,7 @@ import {
   getServiceIdFromScopes,
   type OAuthProvider,
 } from '@/lib/oauth'
+import { useFetchAttemptGuard } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/hooks/use-fetch-attempt-guard'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal'
 
 const logger = createLogger('WealthboxFileSelector')
@@ -72,20 +73,18 @@ export function WealthboxFileSelector({
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [credentialsLoaded, setCredentialsLoaded] = useState(false)
   const initialFetchRef = useRef(false)
+  const { shouldAttempt, markAttempt, reset } = useFetchAttemptGuard()
 
-  // Determine the appropriate service ID based on provider and scopes
   const getServiceId = (): string => {
     if (serviceId) return serviceId
     return getServiceIdFromScopes(provider, requiredScopes)
   }
 
-  // Determine the appropriate provider ID based on service and scopes
   const getProviderId = (): string => {
     const effectiveServiceId = getServiceId()
     return getProviderIdFromServiceId(effectiveServiceId)
   }
 
-  // Fetch available credentials for this provider
   const fetchCredentials = useCallback(async () => {
     setIsLoading(true)
     setCredentialsLoaded(false)
@@ -105,17 +104,14 @@ export function WealthboxFileSelector({
     }
   }, [provider, getProviderId, selectedCredentialId])
 
-  // Keep local credential state in sync with persisted credential
   useEffect(() => {
     if (credentialId && credentialId !== selectedCredentialId) {
       setSelectedCredentialId(credentialId)
     }
   }, [credentialId, selectedCredentialId])
 
-  // Debounced search function
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null)
 
-  // Fetch available items for the selected credential
   const fetchAvailableItems = useCallback(async () => {
     if (!selectedCredentialId) return
 
@@ -149,7 +145,6 @@ export function WealthboxFileSelector({
     }
   }, [selectedCredentialId, searchQuery, itemType])
 
-  // Fetch a single item by ID
   const fetchItemById = useCallback(
     async (itemId: string) => {
       if (!selectedCredentialId || !itemId) return null
@@ -193,7 +188,6 @@ export function WealthboxFileSelector({
     [selectedCredentialId, itemType, onFileInfoChange, onChange]
   )
 
-  // Fetch credentials on initial mount
   useEffect(() => {
     if (!initialFetchRef.current) {
       fetchCredentials()
@@ -201,14 +195,12 @@ export function WealthboxFileSelector({
     }
   }, [fetchCredentials])
 
-  // Fetch available items only when dropdown is opened
   useEffect(() => {
     if (selectedCredentialId && open) {
       fetchAvailableItems()
     }
   }, [selectedCredentialId, open, fetchAvailableItems])
 
-  // Fetch the selected item metadata only once when needed
   useEffect(() => {
     if (
       value &&
@@ -218,6 +210,9 @@ export function WealthboxFileSelector({
       !selectedItem &&
       !isLoadingSelectedItem
     ) {
+      const key = `${selectedCredentialId}:wealthbox:${value}`
+      if (!shouldAttempt(key)) return
+      markAttempt(key)
       fetchItemById(value)
     }
   }, [
@@ -230,29 +225,29 @@ export function WealthboxFileSelector({
     fetchItemById,
   ])
 
-  // Handle search input changes with debouncing
+  useEffect(() => {
+    reset()
+  }, [selectedCredentialId, reset])
+
   const handleSearchChange = useCallback(
     (newQuery: string) => {
       setSearchQuery(newQuery)
 
-      // Clear existing timeout
       if (searchTimeout) {
         clearTimeout(searchTimeout)
       }
 
-      // Set new timeout for search
       const timeout = setTimeout(() => {
         if (selectedCredentialId) {
           fetchAvailableItems()
         }
-      }, 300) // 300ms debounce
+      }, 300)
 
       setSearchTimeout(timeout)
     },
     [selectedCredentialId, fetchAvailableItems, searchTimeout]
   )
 
-  // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (searchTimeout) {
@@ -261,7 +256,6 @@ export function WealthboxFileSelector({
     }
   }, [searchTimeout])
 
-  // Handle selecting an item
   const handleItemSelect = (item: WealthboxItemInfo) => {
     setSelectedItemId(item.id)
     setSelectedItem(item)
@@ -271,14 +265,12 @@ export function WealthboxFileSelector({
     setSearchQuery('')
   }
 
-  // Handle adding a new credential
   const handleAddCredential = () => {
     setShowOAuthModal(true)
     setOpen(false)
     setSearchQuery('')
   }
 
-  // Clear selection
   const handleClearSelection = () => {
     setSelectedItemId('')
     setSelectedItem(null)

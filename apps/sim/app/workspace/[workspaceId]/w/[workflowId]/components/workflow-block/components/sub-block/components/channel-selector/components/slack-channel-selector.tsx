@@ -11,6 +11,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { useFetchAttemptGuard } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/hooks/use-fetch-attempt-guard'
 
 export interface SlackChannelInfo {
   id: string
@@ -43,8 +44,8 @@ export function SlackChannelSelector({
   const [open, setOpen] = useState(false)
   const [selectedChannel, setSelectedChannel] = useState<SlackChannelInfo | null>(null)
   const [initialFetchDone, setInitialFetchDone] = useState(false)
+  const { shouldAttempt, markAttempt, reset } = useFetchAttemptGuard()
 
-  // Fetch channels from Slack API
   const fetchChannels = useCallback(async () => {
     if (!credential) return
 
@@ -66,28 +67,28 @@ export function SlackChannelSelector({
         setChannels([])
       } else {
         setChannels(data.channels)
-        setInitialFetchDone(true)
       }
     } catch (err) {
       if ((err as Error).name === 'AbortError') return
       setError((err as Error).message)
       setChannels([])
     } finally {
+      setInitialFetchDone(true)
       setLoading(false)
     }
   }, [credential])
 
-  // Handle dropdown open/close - fetch channels when opening
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen)
 
-    // Only fetch channels when opening the dropdown and if we have valid credential
     if (isOpen && credential && (!initialFetchDone || channels.length === 0)) {
+      const attemptKey = `slack-channels:${credential}`
+      if (!shouldAttempt(attemptKey)) return
+      markAttempt(attemptKey)
       fetchChannels()
     }
   }
 
-  // Sync selected channel with value prop
   useEffect(() => {
     if (value && channels.length > 0) {
       const channelInfo = channels.find((c) => c.id === value)
@@ -97,12 +98,13 @@ export function SlackChannelSelector({
     }
   }, [value, channels])
 
-  // If we have a value but no channel info and haven't fetched yet, get just that channel
   useEffect(() => {
     if (value && !selectedChannel && !loading && !initialFetchDone && credential) {
-      // For now, we'll fetch all channels when needed
-      // In the future, we could optimize to fetch just the selected channel
-      fetchChannels()
+      const attemptKey = `slack-channels:init:${credential}`
+      if (shouldAttempt(attemptKey)) {
+        markAttempt(attemptKey)
+        fetchChannels()
+      }
     }
   }, [value, selectedChannel, loading, initialFetchDone, credential, fetchChannels])
 

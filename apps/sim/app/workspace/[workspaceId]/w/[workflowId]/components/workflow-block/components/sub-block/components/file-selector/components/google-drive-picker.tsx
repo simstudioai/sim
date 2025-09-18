@@ -16,6 +16,7 @@ import {
   type OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
+import { useFetchAttemptGuard } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/hooks/use-fetch-attempt-guard'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal'
 
 const logger = createLogger('GoogleDrivePicker')
@@ -75,21 +76,19 @@ export function GoogleDrivePicker({
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [credentialsLoaded, setCredentialsLoaded] = useState(false)
   const initialFetchRef = useRef(false)
+  const { shouldAttempt, markAttempt, reset } = useFetchAttemptGuard()
   const [openPicker, _authResponse] = useDrivePicker()
 
-  // Determine the appropriate service ID based on provider and scopes
   const getServiceId = (): string => {
     if (serviceId) return serviceId
     return getServiceIdFromScopes(provider, requiredScopes)
   }
 
-  // Determine the appropriate provider ID based on service and scopes
   const getProviderId = (): string => {
     const effectiveServiceId = getServiceId()
     return getProviderIdFromServiceId(effectiveServiceId)
   }
 
-  // Fetch available credentials for this provider
   const fetchCredentials = useCallback(async () => {
     setIsLoading(true)
     setCredentialsLoaded(false)
@@ -100,7 +99,6 @@ export function GoogleDrivePicker({
       if (response.ok) {
         const data = await response.json()
         setCredentials(data.credentials)
-        // Do not auto-select. Respect persisted credential via prop when provided.
       }
     } catch (error) {
       logger.error('Error fetching credentials:', { error })
@@ -110,21 +108,18 @@ export function GoogleDrivePicker({
     }
   }, [provider, getProviderId, selectedCredentialId])
 
-  // Prefer persisted credentialId if provided
   useEffect(() => {
     if (credentialId && credentialId !== selectedCredentialId) {
       setSelectedCredentialId(credentialId)
     }
   }, [credentialId, selectedCredentialId])
 
-  // Fetch a single file by ID when we have a selectedFileId but no metadata
   const fetchFileById = useCallback(
     async (fileId: string) => {
       if (!selectedCredentialId || !fileId) return null
 
       setIsLoadingSelectedFile(true)
       try {
-        // Construct query parameters
         const queryParams = new URLSearchParams({
           credentialId: selectedCredentialId,
           fileId: fileId,
@@ -144,7 +139,6 @@ export function GoogleDrivePicker({
           const errorText = await response.text()
           logger.error('Error fetching file by ID:', { error: errorText })
 
-          // If file not found or access denied, clear the selection
           if (response.status === 404 || response.status === 403) {
             logger.info('File not accessible, clearing selection')
             setSelectedFileId('')
@@ -163,7 +157,6 @@ export function GoogleDrivePicker({
     [selectedCredentialId, onChange, onFileInfoChange]
   )
 
-  // Fetch credentials on initial mount
   useEffect(() => {
     if (!initialFetchRef.current) {
       fetchCredentials()
@@ -171,42 +164,42 @@ export function GoogleDrivePicker({
     }
   }, [fetchCredentials])
 
-  // Keep internal selectedFileId in sync with the value prop
   useEffect(() => {
     if (value !== selectedFileId) {
       const previousFileId = selectedFileId
       setSelectedFileId(value)
-      // Only clear selected file info if we had a different file before (not initial load)
+
       if (previousFileId && previousFileId !== value && selectedFile) {
         setSelectedFile(null)
       }
+
+      reset()
     }
   }, [value, selectedFileId, selectedFile])
 
-  // Track previous credential ID to detect changes
   const prevCredentialIdRef = useRef<string>('')
 
-  // Clear selected file when credentials are removed or changed
   useEffect(() => {
     const prevCredentialId = prevCredentialIdRef.current
     prevCredentialIdRef.current = selectedCredentialId
 
     if (!selectedCredentialId) {
-      // No credentials - clear everything
       if (selectedFile) {
         setSelectedFile(null)
         setSelectedFileId('')
         onChange('')
       }
+
+      reset()
     } else if (prevCredentialId && prevCredentialId !== selectedCredentialId) {
-      // Credentials changed (not initial load) - clear file info to force refetch
       if (selectedFile) {
         setSelectedFile(null)
       }
+
+      reset()
     }
   }, [selectedCredentialId, selectedFile, onChange])
 
-  // Fetch the selected file metadata once credentials are loaded or changed
   useEffect(() => {
     // Only fetch if we have both a file ID and credentials, credentials are loaded, but no file info yet
     if (
@@ -216,6 +209,9 @@ export function GoogleDrivePicker({
       !selectedFile &&
       !isLoadingSelectedFile
     ) {
+      const attemptKey = `${selectedCredentialId}:${value}`
+      if (!shouldAttempt(attemptKey)) return
+      markAttempt(attemptKey)
       fetchFileById(value)
     }
   }, [
@@ -227,7 +223,6 @@ export function GoogleDrivePicker({
     fetchFileById,
   ])
 
-  // Fetch the access token for the selected credential
   const fetchAccessToken = async (credentialOverrideId?: string): Promise<string | null> => {
     const effectiveCredentialId = credentialOverrideId || selectedCredentialId
     if (!effectiveCredentialId) {
@@ -257,10 +252,8 @@ export function GoogleDrivePicker({
     }
   }
 
-  // Handle opening the Google Drive Picker
   const handleOpenPicker = async (credentialOverrideId?: string) => {
     try {
-      // First, get the access token for the selected credential
       const accessToken = await fetchAccessToken(credentialOverrideId)
 
       if (!accessToken) {
@@ -269,7 +262,6 @@ export function GoogleDrivePicker({
       }
 
       const viewIdForMimeType = () => {
-        // Return appropriate view based on mime type filter
         if (mimeTypeFilter?.includes('folder')) {
           return 'FOLDERS'
         }
@@ -279,20 +271,20 @@ export function GoogleDrivePicker({
         if (mimeTypeFilter?.includes('document')) {
           return 'DOCUMENTS'
         }
-        return 'DOCS' // Default view
+        return 'DOCS'
       }
 
       openPicker({
         clientId,
         developerKey: apiKey,
         viewId: viewIdForMimeType(),
-        token: accessToken, // Use the fetched access token
+        token: accessToken,
         showUploadView: true,
         showUploadFolders: true,
         supportDrives: true,
         multiselect: false,
         appId: getEnv('NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER'),
-        // Enable folder selection when mimeType is folder
+
         setSelectFolderEnabled: !!mimeTypeFilter?.includes('folder'),
         callbackFunction: (data) => {
           if (data.action === 'picked') {
@@ -304,8 +296,8 @@ export function GoogleDrivePicker({
                 mimeType: file.mimeType,
                 iconLink: file.iconUrl,
                 webViewLink: file.url,
-                // thumbnailLink is not directly available from the picker
-                thumbnailLink: file.iconUrl, // Use iconUrl as fallback
+
+                thumbnailLink: file.iconUrl,
                 modifiedTime: file.lastEditedUtc
                   ? new Date(file.lastEditedUtc).toISOString()
                   : undefined,
@@ -324,13 +316,10 @@ export function GoogleDrivePicker({
     }
   }
 
-  // Handle adding a new credential
   const handleAddCredential = () => {
-    // Show the OAuth modal
     setShowOAuthModal(true)
   }
 
-  // Clear selection
   const handleClearSelection = () => {
     setSelectedFileId('')
     setSelectedFile(null)
@@ -338,7 +327,6 @@ export function GoogleDrivePicker({
     onFileInfoChange?.(null)
   }
 
-  // Get provider icon
   const getProviderIcon = (providerName: OAuthProvider) => {
     const { baseProvider } = parseProvider(providerName)
     const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
@@ -347,7 +335,6 @@ export function GoogleDrivePicker({
       return <ExternalLink className='h-4 w-4' />
     }
 
-    // For compound providers, find the specific service
     if (providerName.includes('-')) {
       for (const service of Object.values(baseProviderConfig.services)) {
         if (service.providerId === providerName) {
@@ -356,24 +343,19 @@ export function GoogleDrivePicker({
       }
     }
 
-    // Fallback to base provider icon
     return baseProviderConfig.icon({ className: 'h-4 w-4' })
   }
 
-  // Get provider name
   const getProviderName = (providerName: OAuthProvider) => {
     const effectiveServiceId = getServiceId()
     try {
-      // First try to get the service by provider and service ID
       const service = getServiceByProviderAndId(providerName, effectiveServiceId)
       return service.name
     } catch (_error) {
-      // If that fails, try to get the service by parsing the provider
       try {
         const { baseProvider } = parseProvider(providerName)
         const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
 
-        // For compound providers like 'google-drive', try to find the specific service
         if (providerName.includes('-')) {
           const serviceKey = providerName.split('-')[1] || ''
           for (const [key, service] of Object.entries(baseProviderConfig?.services || {})) {
@@ -383,15 +365,11 @@ export function GoogleDrivePicker({
           }
         }
 
-        // Fallback to provider name if service not found
         if (baseProviderConfig) {
           return baseProviderConfig.name
         }
-      } catch (_parseError) {
-        // Ignore parse error and continue to final fallback
-      }
+      } catch (_parseError) {}
 
-      // Final fallback: capitalize the provider name
       return providerName
         .split('-')
         .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
@@ -399,7 +377,6 @@ export function GoogleDrivePicker({
     }
   }
 
-  // Get file icon based on mime type
   const getFileIcon = (file: FileInfo, size: 'sm' | 'md' = 'sm') => {
     const iconSize = size === 'sm' ? 'h-4 w-4' : 'h-5 w-5'
 
@@ -431,7 +408,6 @@ export function GoogleDrivePicker({
           className='h-10 w-full min-w-0 justify-between'
           disabled={disabled || isLoading}
           onClick={async () => {
-            // Decide which credential to use
             let idToUse = selectedCredentialId
             if (!idToUse && credentials.length === 1) {
               idToUse = credentials[0].id
@@ -439,7 +415,6 @@ export function GoogleDrivePicker({
             }
 
             if (!idToUse) {
-              // No credentials — prompt OAuth
               handleAddCredential()
               return
             }
@@ -467,7 +442,6 @@ export function GoogleDrivePicker({
           </div>
         </Button>
 
-        {/* File preview */}
         {canShowPreview && (
           <div className='relative mt-2 rounded-md border border-muted bg-muted/10 p-2'>
             <div className='absolute top-2 right-2'>

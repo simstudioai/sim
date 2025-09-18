@@ -20,6 +20,7 @@ import {
   getServiceIdFromScopes,
   type OAuthProvider,
 } from '@/lib/oauth'
+import { useFetchAttemptGuard } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/hooks/use-fetch-attempt-guard'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal'
 
 const logger = createLogger('TeamsMessageSelector')
@@ -83,14 +84,13 @@ export function TeamsMessageSelector({
   const initialFetchRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const [selectionStage, setSelectionStage] = useState<'team' | 'channel' | 'chat'>(selectionType)
+  const { shouldAttempt, markAttempt, reset } = useFetchAttemptGuard()
 
-  // Determine the appropriate service ID based on provider and scopes
   const getServiceId = (): string => {
     if (serviceId) return serviceId
     return getServiceIdFromScopes(provider, requiredScopes)
   }
 
-  // Determine the appropriate provider ID based on service and scopes
   const getProviderId = (): string => {
     const effectiveServiceId = getServiceId()
     return getProviderIdFromServiceId(effectiveServiceId)
@@ -113,7 +113,6 @@ export function TeamsMessageSelector({
     }
   }, [provider, getProviderId, selectedCredentialId])
 
-  // Fetch teams
   const fetchTeams = useCallback(async () => {
     if (!selectedCredentialId) return
 
@@ -135,7 +134,6 @@ export function TeamsMessageSelector({
       if (!response.ok) {
         const errorData = await response.json()
 
-        // If server indicates auth is required, show the auth modal
         if (response.status === 401 && errorData.authRequired) {
           logger.warn('Authentication required for Microsoft Teams')
           setShowOAuthModal(true)
@@ -156,7 +154,6 @@ export function TeamsMessageSelector({
 
       setTeams(teamsData)
 
-      // If we have a selected team ID, find it in the list
       if (selectedTeamId) {
         const team = teamsData.find((t: TeamsMessageInfo) => t.teamId === selectedTeamId)
         if (team) {
@@ -173,7 +170,6 @@ export function TeamsMessageSelector({
     }
   }, [selectedCredentialId, selectedTeamId, onMessageInfoChange, workflowId])
 
-  // Fetch channels for a selected team
   const fetchChannels = useCallback(
     async (teamId: string) => {
       if (!selectedCredentialId || !teamId) return
@@ -197,7 +193,6 @@ export function TeamsMessageSelector({
         if (!response.ok) {
           const errorData = await response.json()
 
-          // If server indicates auth is required, show the auth modal
           if (response.status === 401 && errorData.authRequired) {
             logger.warn('Authentication required for Microsoft Teams')
             setShowOAuthModal(true)
@@ -219,7 +214,6 @@ export function TeamsMessageSelector({
 
         setChannels(channelsData)
 
-        // If we have a selected channel ID, find it in the list
         if (selectedChannelId) {
           const channel = channelsData.find(
             (c: TeamsMessageInfo) => c.channelId === selectedChannelId
@@ -240,7 +234,6 @@ export function TeamsMessageSelector({
     [selectedCredentialId, selectedChannelId, onMessageInfoChange, workflowId]
   )
 
-  // Fetch chats
   const fetchChats = useCallback(async () => {
     if (!selectedCredentialId) return
 
@@ -262,7 +255,6 @@ export function TeamsMessageSelector({
       if (!response.ok) {
         const errorData = await response.json()
 
-        // If server indicates auth is required, show the auth modal
         if (response.status === 401 && errorData.authRequired) {
           logger.warn('Authentication required for Microsoft Teams')
           setShowOAuthModal(true)
@@ -283,7 +275,6 @@ export function TeamsMessageSelector({
 
       setChats(chatsData)
 
-      // If we have a selected chat ID, find it in the list
       if (selectedChatId) {
         const chat = chatsData.find((c: TeamsMessageInfo) => c.chatId === selectedChatId)
         if (chat) {
@@ -300,38 +291,31 @@ export function TeamsMessageSelector({
     }
   }, [selectedCredentialId, selectedChatId, onMessageInfoChange, workflowId])
 
-  // Update selection stage based on selected values and selectionType
   useEffect(() => {
-    // If we have explicit values selected, use those to determine the stage
     if (selectedChatId) {
       setSelectionStage('chat')
     } else if (selectedChannelId) {
       setSelectionStage('channel')
     } else if (selectionType === 'channel' && selectedTeamId) {
-      // If we're in channel mode and have a team selected, go to channel selection
       setSelectionStage('channel')
     } else if (selectionType !== 'team' && !selectedTeamId) {
-      // If no selections but we have a specific selection type, use that
-      // But for channel selection, start with team selection if no team is selected
       if (selectionType === 'channel') {
         setSelectionStage('team')
       } else {
         setSelectionStage(selectionType)
       }
     } else {
-      // Default to team selection
       setSelectionStage('team')
     }
   }, [selectedTeamId, selectedChannelId, selectedChatId, selectionType])
 
-  // Handle open change
   const handleOpenChange = (isOpen: boolean) => {
     if (disabled || isForeignCredential) {
       setOpen(false)
       return
     }
     setOpen(isOpen)
-    // Only fetch data when opening the dropdown
+
     if (isOpen && selectedCredentialId) {
       if (selectionStage === 'team') {
         fetchTeams()
@@ -343,14 +327,12 @@ export function TeamsMessageSelector({
     }
   }
 
-  // Keep internal selectedMessageId in sync with the value prop
   useEffect(() => {
     if (value !== selectedMessageId) {
       setSelectedMessageId(value)
     }
   }, [value])
 
-  // Handle team selection
   const handleSelectTeam = (team: TeamsMessageInfo) => {
     setSelectedTeamId(team.teamId || '')
     setSelectedChannelId('')
@@ -364,7 +346,6 @@ export function TeamsMessageSelector({
     setOpen(false)
   }
 
-  // Handle channel selection
   const handleSelectChannel = (channel: TeamsMessageInfo) => {
     setSelectedChannelId(channel.channelId || '')
     setSelectedChatId('')
@@ -375,7 +356,6 @@ export function TeamsMessageSelector({
     setOpen(false)
   }
 
-  // Handle chat selection
   const handleSelectChat = (chat: TeamsMessageInfo) => {
     setSelectedChatId(chat.chatId || '')
     setSelectedMessage(chat)
@@ -385,14 +365,11 @@ export function TeamsMessageSelector({
     setOpen(false)
   }
 
-  // Handle adding a new credential
   const handleAddCredential = () => {
-    // Show the OAuth modal
     setShowOAuthModal(true)
     setOpen(false)
   }
 
-  // Clear selection
   const handleClearSelection = () => {
     setSelectedMessageId('')
     setSelectedTeamId('')
@@ -402,10 +379,9 @@ export function TeamsMessageSelector({
     setError(null)
     onChange('', undefined)
     onMessageInfoChange?.(null)
-    setSelectionStage(selectionType) // Reset to the initial selection type
+    setSelectionStage(selectionType)
   }
 
-  // Render dropdown options based on the current selection stage
   const renderSelectionOptions = () => {
     if (selectionStage === 'team' && teams.length > 0) {
       return (
@@ -480,6 +456,9 @@ export function TeamsMessageSelector({
 
       setIsLoading(true)
       try {
+        const key = `${selectedCredentialId}:teams:team:${teamId}`
+        if (!shouldAttempt(key)) return
+        markAttempt(key)
         const response = await fetch('/api/tools/microsoft-teams/teams', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -518,6 +497,9 @@ export function TeamsMessageSelector({
 
       setIsLoading(true)
       try {
+        const key = `${selectedCredentialId}:teams:chat:${chatId}`
+        if (!shouldAttempt(key)) return
+        markAttempt(key)
         const response = await fetch('/api/tools/microsoft-teams/chats', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -556,6 +538,9 @@ export function TeamsMessageSelector({
 
       setIsLoading(true)
       try {
+        const key = `${selectedCredentialId}:teams:channel:${channelId}`
+        if (!shouldAttempt(key)) return
+        markAttempt(key)
         // First fetch teams to search through them
         const teamsResponse = await fetch('/api/tools/microsoft-teams/teams', {
           method: 'POST',
@@ -688,6 +673,11 @@ export function TeamsMessageSelector({
     restoreChatSelection,
     restoreChannelSelection,
   ])
+
+  // Reset attempt guard when credential or selection type changes
+  useEffect(() => {
+    reset()
+  }, [selectedCredentialId, selectionType, reset])
 
   return (
     <>

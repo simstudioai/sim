@@ -20,6 +20,7 @@ import {
   getServiceIdFromScopes,
   type OAuthProvider,
 } from '@/lib/oauth'
+import { useFetchAttemptGuard } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/hooks/use-fetch-attempt-guard'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal'
 
 const logger = createLogger('JiraIssueSelector')
@@ -75,11 +76,10 @@ export function JiraIssueSelector({
   const [selectedIssue, setSelectedIssue] = useState<JiraIssueInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
-  const initialFetchRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const [cloudId, setCloudId] = useState<string | null>(null)
+  const { shouldAttempt, markAttempt, reset } = useFetchAttemptGuard()
 
-  // Keep local credential state in sync with persisted credentialId prop
   useEffect(() => {
     if (credentialId && credentialId !== selectedCredentialId) {
       setSelectedCredentialId(credentialId)
@@ -88,27 +88,22 @@ export function JiraIssueSelector({
     }
   }, [credentialId, selectedCredentialId])
 
-  // Handle search with debounce
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const handleSearch = (value: string) => {
-    // Clear any existing timeout
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current)
     }
 
-    // Set a new timeout
     searchTimeoutRef.current = setTimeout(() => {
       if (value.length >= 1) {
-        // Changed from > 2 to >= 1 to be more responsive
         fetchIssues(value)
       } else {
-        setIssues([]) // Clear issues if search is empty
+        setIssues([])
       }
     }, 500) // 500ms debounce
   }
 
-  // Clean up the timeout on unmount
   useEffect(() => {
     return () => {
       if (searchTimeoutRef.current) {
@@ -117,19 +112,16 @@ export function JiraIssueSelector({
     }
   }, [])
 
-  // Determine the appropriate service ID based on provider and scopes
   const getServiceId = (): string => {
     if (serviceId) return serviceId
     return getServiceIdFromScopes(provider, requiredScopes)
   }
 
-  // Determine the appropriate provider ID based on service and scopes
   const getProviderId = (): string => {
     const effectiveServiceId = getServiceId()
     return getProviderIdFromServiceId(effectiveServiceId)
   }
 
-  // Fetch available credentials for this provider
   const fetchCredentials = useCallback(async () => {
     setIsLoading(true)
     try {
@@ -147,10 +139,8 @@ export function JiraIssueSelector({
     }
   }, [provider, getProviderId, selectedCredentialId])
 
-  // Fetch issue info when we have a selected issue ID
   const fetchIssueInfo = useCallback(
     async (issueId: string) => {
-      // Validate domain format
       const trimmedDomain = domain.trim().toLowerCase()
       if (!trimmedDomain.includes('.')) {
         setError(
@@ -163,7 +153,6 @@ export function JiraIssueSelector({
       setError(null)
 
       try {
-        // Get the access token from the selected credential
         const tokenResponse = await fetch('/api/auth/oauth/token', {
           method: 'POST',
           headers: {
@@ -187,7 +176,6 @@ export function JiraIssueSelector({
           throw new Error('No access token received')
         }
 
-        // Use the access token to fetch the issue info
         const response = await fetch('/api/tools/jira/issue', {
           method: 'POST',
           headers: {
@@ -225,7 +213,7 @@ export function JiraIssueSelector({
       } catch (error) {
         logger.error('Error fetching issue info:', error)
         setError((error as Error).message)
-        // Clear selection on error to prevent infinite retry loops
+
         setSelectedIssue(null)
         onIssueInfoChange?.(null)
       } finally {
@@ -235,17 +223,15 @@ export function JiraIssueSelector({
     [selectedCredentialId, domain, onIssueInfoChange, cloudId]
   )
 
-  // Fetch issues from Jira
   const fetchIssues = useCallback(
     async (searchQuery?: string) => {
       if (!selectedCredentialId || !domain) return
-      // If no search query is provided, require a projectId before fetching
+
       if (!searchQuery && !projectId) {
         setIssues([])
         return
       }
 
-      // Validate domain format
       const trimmedDomain = domain.trim().toLowerCase()
       if (!trimmedDomain.includes('.')) {
         setError(
@@ -260,7 +246,6 @@ export function JiraIssueSelector({
       setError(null)
 
       try {
-        // Get the access token from the selected credential
         const tokenResponse = await fetch('/api/auth/oauth/token', {
           method: 'POST',
           headers: {
@@ -276,7 +261,6 @@ export function JiraIssueSelector({
           const errorData = await tokenResponse.json()
           logger.error('Access token error:', errorData)
 
-          // If there's a token error, we might need to reconnect the account
           setError('Authentication failed. Please reconnect your Jira account.')
           setIsLoading(false)
           return
@@ -292,7 +276,6 @@ export function JiraIssueSelector({
           return
         }
 
-        // Build query parameters for the issues endpoint
         const queryParams = new URLSearchParams({
           domain,
           accessToken,
@@ -320,12 +303,9 @@ export function JiraIssueSelector({
           setCloudId(data.cloudId)
         }
 
-        // Process the issue picker results
         let foundIssues: JiraIssueInfo[] = []
 
-        // Handle the sections returned by the issue picker API
         if (data.sections) {
-          // Combine issues from all sections
           data.sections.forEach((section: any) => {
             if (section.issues && section.issues.length > 0) {
               const sectionIssues = section.issues.map((issue: any) => ({
@@ -343,14 +323,12 @@ export function JiraIssueSelector({
         logger.info(`Received ${foundIssues.length} issues from API`)
         setIssues(foundIssues)
 
-        // If we have a selected issue ID, find the issue info
         if (selectedIssueId) {
           const issueInfo = foundIssues.find((issue: JiraIssueInfo) => issue.id === selectedIssueId)
           if (issueInfo) {
             setSelectedIssue(issueInfo)
             onIssueInfoChange?.(issueInfo)
           } else if (!searchQuery && selectedIssueId) {
-            // If we can't find the issue in the list, try to fetch it directly
             fetchIssueInfo(selectedIssueId)
           }
         }
@@ -373,14 +351,12 @@ export function JiraIssueSelector({
     ]
   )
 
-  // Fetch credentials when the dropdown opens (avoid fetching on mount with no credential)
   useEffect(() => {
     if (open) {
       fetchCredentials()
     }
   }, [open, fetchCredentials])
 
-  // Handle open change
   const handleOpenChange = (isOpen: boolean) => {
     if (disabled || isForeignCredential) {
       setOpen(false)
@@ -388,16 +364,13 @@ export function JiraIssueSelector({
     }
     setOpen(isOpen)
 
-    // Only fetch recent/default issues when opening the dropdown
     if (isOpen && selectedCredentialId && domain && domain.includes('.')) {
-      // Only fetch on open when a project is selected; otherwise wait for user search
       if (projectId) {
         fetchIssues('')
       }
     }
   }
 
-  // Fetch selected issue metadata once credentials are ready or changed
   useEffect(() => {
     if (
       value &&
@@ -406,17 +379,21 @@ export function JiraIssueSelector({
       domain.includes('.') &&
       (!selectedIssue || selectedIssue.id !== value)
     ) {
+      const key = `${selectedCredentialId}:${domain}:jira:${value}`
+      if (!shouldAttempt(key)) return
+      markAttempt(key)
       fetchIssueInfo(value)
     }
   }, [value, selectedCredentialId, selectedIssue, domain, fetchIssueInfo])
 
-  // Keep internal selectedIssueId in sync with the value prop
+  useEffect(() => {
+    reset()
+  }, [selectedCredentialId, domain, reset])
+
   useEffect(() => {
     if (value !== selectedIssueId) {
       setSelectedIssueId(value)
     }
-    // When the upstream value is cleared (e.g., project changed or remote user cleared),
-    // clear local selection and preview immediately
     if (!value) {
       setSelectedIssue(null)
       setIssues([])
@@ -425,7 +402,6 @@ export function JiraIssueSelector({
     }
   }, [value])
 
-  // Handle issue selection
   const handleSelectIssue = (issue: JiraIssueInfo) => {
     setSelectedIssueId(issue.id)
     setSelectedIssue(issue)
@@ -434,18 +410,15 @@ export function JiraIssueSelector({
     setOpen(false)
   }
 
-  // Handle adding a new credential
   const handleAddCredential = () => {
-    // Show the OAuth modal
     setShowOAuthModal(true)
     setOpen(false)
   }
 
-  // Clear selection
   const handleClearSelection = () => {
     setSelectedIssueId('')
     setSelectedIssue(null)
-    setError(null) // Clear any existing errors
+    setError(null)
     onChange('', undefined)
     onIssueInfoChange?.(null)
   }

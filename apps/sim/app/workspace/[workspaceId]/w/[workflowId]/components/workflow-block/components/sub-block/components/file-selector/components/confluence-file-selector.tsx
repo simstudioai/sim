@@ -20,6 +20,7 @@ import {
   getServiceIdFromScopes,
   type OAuthProvider,
 } from '@/lib/oauth'
+import { useFetchAttemptGuard } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/hooks/use-fetch-attempt-guard'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal'
 
 const logger = createLogger('ConfluenceFileSelector')
@@ -75,33 +76,30 @@ export function ConfluenceFileSelector({
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const initialFetchRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
-  // Keep internal credential in sync with prop (handles late arrival and BFCache restores)
+  const { shouldAttempt, markAttempt, reset } = useFetchAttemptGuard()
+
   useEffect(() => {
     if (credentialId && credentialId !== selectedCredentialId) {
       setSelectedCredentialId(credentialId)
     }
   }, [credentialId, selectedCredentialId])
 
-  // Handle search with debounce
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const handleSearch = (value: string) => {
-    // Clear any existing timeout
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current)
     }
 
-    // Set a new timeout
     searchTimeoutRef.current = setTimeout(() => {
       if (value.length > 2) {
         fetchFiles(value)
       } else if (value.length === 0) {
         fetchFiles()
       }
-    }, 500) // 500ms debounce
+    }, 500)
   }
 
-  // Clean up the timeout on unmount
   useEffect(() => {
     return () => {
       if (searchTimeoutRef.current) {
@@ -110,19 +108,16 @@ export function ConfluenceFileSelector({
     }
   }, [])
 
-  // Determine the appropriate service ID based on provider and scopes
   const getServiceId = (): string => {
     if (serviceId) return serviceId
     return getServiceIdFromScopes(provider, requiredScopes)
   }
 
-  // Determine the appropriate provider ID based on service and scopes
   const getProviderId = (): string => {
     const effectiveServiceId = getServiceId()
     return getProviderIdFromServiceId(effectiveServiceId)
   }
 
-  // Fetch available credentials for this provider
   const fetchCredentials = useCallback(async () => {
     setIsLoading(true)
     try {
@@ -140,12 +135,10 @@ export function ConfluenceFileSelector({
     }
   }, [provider, getProviderId, selectedCredentialId])
 
-  // Fetch page info when we have a selected file ID
   const fetchPageInfo = useCallback(
     async (pageId: string) => {
       if (!selectedCredentialId || !domain) return
 
-      // Validate domain format
       const trimmedDomain = domain.trim().toLowerCase()
       if (!trimmedDomain.includes('.')) {
         setError(
@@ -158,7 +151,6 @@ export function ConfluenceFileSelector({
       setError(null)
 
       try {
-        // Get the access token from the selected credential
         const tokenResponse = await fetch('/api/auth/oauth/token', {
           method: 'POST',
           headers: {
@@ -178,7 +170,6 @@ export function ConfluenceFileSelector({
         const tokenData = await tokenResponse.json()
         const accessToken = tokenData.accessToken
 
-        // Use the access token to fetch the page info
         const response = await fetch('/api/tools/confluence/page', {
           method: 'POST',
           headers: {
@@ -223,13 +214,11 @@ export function ConfluenceFileSelector({
     [selectedCredentialId, domain, onFileInfoChange, workflowId]
   )
 
-  // Fetch pages from Confluence
   const fetchFiles = useCallback(
     async (searchQuery?: string) => {
       if (!selectedCredentialId || !domain) return
       if (isForeignCredential) return
 
-      // Validate domain format
       const trimmedDomain = domain.trim().toLowerCase()
       if (!trimmedDomain.includes('.')) {
         setError(
@@ -244,7 +233,6 @@ export function ConfluenceFileSelector({
       setError(null)
 
       try {
-        // Get the access token from the selected credential
         const tokenResponse = await fetch('/api/auth/oauth/token', {
           method: 'POST',
           headers: {
@@ -260,7 +248,6 @@ export function ConfluenceFileSelector({
           const errorData = await tokenResponse.json()
           logger.error('Access token error:', errorData)
 
-          // If there's a token error, we might need to reconnect the account
           setError('Authentication failed. Please reconnect your Confluence account.')
           setIsLoading(false)
           return
@@ -276,7 +263,6 @@ export function ConfluenceFileSelector({
           return
         }
 
-        // Simply fetch pages directly using the endpoint
         const response = await fetch('/api/tools/confluence/pages', {
           method: 'POST',
           headers: {
@@ -306,14 +292,12 @@ export function ConfluenceFileSelector({
         logger.info(`Received ${data.files?.length || 0} files from API`)
         setFiles(data.files || [])
 
-        // If we have a selected file ID, find the file info
         if (selectedFileId) {
           const fileInfo = data.files.find((file: ConfluenceFileInfo) => file.id === selectedFileId)
           if (fileInfo) {
             setSelectedFile(fileInfo)
             onFileInfoChange?.(fileInfo)
           } else if (!searchQuery && selectedFileId) {
-            // If we can't find the file in the list, try to fetch it directly
             fetchPageInfo(selectedFileId)
           }
         }
@@ -336,7 +320,6 @@ export function ConfluenceFileSelector({
     ]
   )
 
-  // Fetch credentials on initial mount
   useEffect(() => {
     if (!initialFetchRef.current) {
       fetchCredentials()
@@ -344,19 +327,19 @@ export function ConfluenceFileSelector({
     }
   }, [fetchCredentials])
 
-  // Only fetch files when the dropdown is opened, not on credential selection
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen)
 
-    // Only fetch files when opening the dropdown and if we have valid credentials and domain
     if (isOpen && !isForeignCredential && selectedCredentialId && domain && domain.includes('.')) {
       fetchFiles()
     }
   }
 
-  // Fetch the selected page metadata once credentials and domain are ready or changed
   useEffect(() => {
     if (value && selectedCredentialId && !selectedFile && domain && domain.includes('.')) {
+      const key = `${selectedCredentialId}:${domain}:confluence:${value}`
+      if (!shouldAttempt(key)) return
+      markAttempt(key)
       fetchPageInfo(value)
     }
   }, [
@@ -369,14 +352,16 @@ export function ConfluenceFileSelector({
     isForeignCredential,
   ])
 
-  // Keep internal selectedFileId in sync with the value prop
+  useEffect(() => {
+    reset()
+  }, [selectedCredentialId, domain, reset])
+
   useEffect(() => {
     if (value !== selectedFileId) {
       setSelectedFileId(value)
     }
   }, [value])
 
-  // Clear preview when value is cleared (e.g., collaborator cleared or domain change cascade)
   useEffect(() => {
     if (!value) {
       setSelectedFile(null)
@@ -384,7 +369,6 @@ export function ConfluenceFileSelector({
     }
   }, [value, onFileInfoChange])
 
-  // Handle file selection
   const handleSelectFile = (file: ConfluenceFileInfo) => {
     setSelectedFileId(file.id)
     setSelectedFile(file)
@@ -393,14 +377,12 @@ export function ConfluenceFileSelector({
     setOpen(false)
   }
 
-  // Handle adding a new credential
   const handleAddCredential = () => {
     // Show the OAuth modal
     setShowOAuthModal(true)
     setOpen(false)
   }
 
-  // Clear selection
   const handleClearSelection = () => {
     setSelectedFileId('')
     setSelectedFile(null)

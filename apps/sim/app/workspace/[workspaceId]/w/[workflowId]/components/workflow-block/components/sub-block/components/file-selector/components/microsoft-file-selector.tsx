@@ -23,6 +23,7 @@ import {
   type OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
+import { useFetchAttemptGuard } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/hooks/use-fetch-attempt-guard'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal'
 import type { PlannerTask } from '@/tools/microsoft_planner/types'
 
@@ -41,7 +42,6 @@ export interface MicrosoftFileInfo {
   owners?: { displayName: string; emailAddress: string }[]
 }
 
-// Union type for items that can be displayed in the file selector
 type SelectableItem = MicrosoftFileInfo | PlannerTask
 
 interface MicrosoftFileSelectorProps {
@@ -88,27 +88,22 @@ export function MicrosoftFileSelector({
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [credentialsLoaded, setCredentialsLoaded] = useState(false)
   const initialFetchRef = useRef(false)
-  // Track the last (credentialId, fileId) we attempted to resolve to avoid tight retry loops
-  const lastMetaAttemptRef = useRef<string>('')
+  const { shouldAttempt, markAttempt, reset } = useFetchAttemptGuard()
 
-  // Handle Microsoft Planner task selection
   const [plannerTasks, setPlannerTasks] = useState<PlannerTask[]>([])
   const [isLoadingTasks, setIsLoadingTasks] = useState(false)
   const [selectedTask, setSelectedTask] = useState<PlannerTask | null>(null)
 
-  // Determine the appropriate service ID based on provider and scopes
   const getServiceId = (): string => {
     if (serviceId) return serviceId
     return getServiceIdFromScopes(provider, requiredScopes)
   }
 
-  // Determine the appropriate provider ID based on service and scopes
   const getProviderId = (): string => {
     const effectiveServiceId = getServiceId()
     return getProviderIdFromServiceId(effectiveServiceId)
   }
 
-  // Fetch available credentials for this provider
   const fetchCredentials = useCallback(async () => {
     setIsLoading(true)
     setCredentialsLoaded(false)
@@ -120,7 +115,6 @@ export function MicrosoftFileSelector({
         const data = await response.json()
         setCredentials(data.credentials)
 
-        // If a credentialId prop is provided (collaborator case), do not auto-select
         if (!credentialId && data.credentials.length > 0 && !selectedCredentialId) {
           const defaultCred = data.credentials.find((cred: Credential) => cred.isDefault)
           if (defaultCred) setSelectedCredentialId(defaultCred.id)
@@ -135,14 +129,12 @@ export function MicrosoftFileSelector({
     }
   }, [provider, getProviderId, selectedCredentialId, credentialId])
 
-  // Keep internal credential in sync with prop
   useEffect(() => {
     if (credentialId && credentialId !== selectedCredentialId) {
       setSelectedCredentialId(credentialId)
     }
   }, [credentialId, selectedCredentialId])
 
-  // Fetch available files for the selected credential
   const fetchAvailableFiles = useCallback(async () => {
     if (!selectedCredentialId || isForeignCredential) return
 
@@ -152,12 +144,10 @@ export function MicrosoftFileSelector({
         credentialId: selectedCredentialId,
       })
 
-      // Add search query if provided
       if (searchQuery.trim()) {
         queryParams.append('query', searchQuery.trim())
       }
 
-      // Route to correct endpoint based on service
       let endpoint: string
       if (serviceId === 'onedrive') {
         endpoint = `/api/tools/onedrive/folders?${queryParams.toString()}`
@@ -175,7 +165,6 @@ export function MicrosoftFileSelector({
       } else {
         const txt = await response.text()
         if (response.status === 401 || response.status === 403) {
-          // Suppress noisy auth errors for collaborators; lists are intentionally gated
           logger.info('Skipping list fetch (auth)', { status: response.status })
         } else {
           logger.warn('Non-OK list fetch', { status: response.status, txt })
@@ -190,7 +179,6 @@ export function MicrosoftFileSelector({
     }
   }, [selectedCredentialId, searchQuery, serviceId, isForeignCredential])
 
-  // Fetch a single file by ID when we have a selectedFileId but no metadata
   const fetchFileById = useCallback(
     async (fileId: string) => {
       if (!selectedCredentialId || !fileId) return null
@@ -223,7 +211,7 @@ export function MicrosoftFileSelector({
           })
           if (!resp.ok) {
             const t = await resp.text()
-            // For 404/403, keep current selection; this often means the item moved or is shared differently.
+
             if (resp.status !== 404 && resp.status !== 403) {
               logger.warn('Graph error fetching file by ID', { status: resp.status, t })
             }
@@ -255,7 +243,6 @@ export function MicrosoftFileSelector({
           return fileInfo
         }
 
-        // SharePoint site: fetch via Graph sites endpoint for collaborator visibility
         const tokenRes = await fetch('/api/auth/oauth/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -291,7 +278,6 @@ export function MicrosoftFileSelector({
     [selectedCredentialId, onFileInfoChange, serviceId, workflowId, onChange]
   )
 
-  // Fetch Microsoft Planner tasks when planId and credentials are available
   const fetchPlannerTasks = useCallback(async () => {
     if (
       !selectedCredentialId ||
@@ -331,7 +317,6 @@ export function MicrosoftFileSelector({
         logger.info('Received task data:', data)
         const tasks = data.tasks || []
 
-        // Transform tasks to match file info format for consistency
         const transformedTasks = tasks.map((task: PlannerTask) => ({
           id: task.id,
           name: task.title,
@@ -371,7 +356,6 @@ export function MicrosoftFileSelector({
     }
   }, [selectedCredentialId, planId, serviceId, isForeignCredential])
 
-  // Fetch a single planner task by ID for collaborator preview
   const fetchPlannerTaskById = useCallback(
     async (taskId: string) => {
       if (!selectedCredentialId || !taskId || serviceId !== 'microsoft-planner') return null
@@ -414,7 +398,6 @@ export function MicrosoftFileSelector({
     [selectedCredentialId, workflowId, onFileInfoChange, serviceId]
   )
 
-  // Fetch credentials on initial mount
   useEffect(() => {
     if (!initialFetchRef.current) {
       fetchCredentials()
@@ -422,25 +405,22 @@ export function MicrosoftFileSelector({
     }
   }, [fetchCredentials])
 
-  // Fetch available files when credential changes
   useEffect(() => {
     if (selectedCredentialId) {
       fetchAvailableFiles()
     }
   }, [selectedCredentialId, fetchAvailableFiles])
 
-  // Refetch files when search query changes
   useEffect(() => {
     if (selectedCredentialId && searchQuery !== undefined) {
       const timeoutId = setTimeout(() => {
         fetchAvailableFiles()
-      }, 300) // Debounce search
+      }, 300)
 
       return () => clearTimeout(timeoutId)
     }
   }, [searchQuery, selectedCredentialId, fetchAvailableFiles])
 
-  // Fetch planner tasks when credentials and planId change
   useEffect(() => {
     if (
       serviceId === 'microsoft-planner' &&
@@ -452,10 +432,9 @@ export function MicrosoftFileSelector({
     }
   }, [selectedCredentialId, planId, serviceId, isForeignCredential, fetchPlannerTasks])
 
-  // Handle task selection for planner
   const handleTaskSelect = (task: PlannerTask) => {
     const taskId = task.id || ''
-    // Convert PlannerTask to MicrosoftFileInfo format for compatibility
+
     const taskAsFileInfo: MicrosoftFileInfo = {
       id: taskId,
       name: task.title,
@@ -465,54 +444,46 @@ export function MicrosoftFileSelector({
       modifiedTime: task.createdDateTime,
     }
 
-    // Update internal state first to avoid race with list refetch
     setSelectedFileId(taskId)
     setSelectedFile(taskAsFileInfo)
     setSelectedTask(task)
-    // Then propagate up
+
     onChange(taskId, taskAsFileInfo)
     onFileInfoChange?.(taskAsFileInfo)
     setOpen(false)
     setSearchQuery('')
   }
 
-  // Keep internal selectedFileId in sync with the value prop (do not clear selectedFile; we'll resolve new metadata below)
   useEffect(() => {
     if (value !== selectedFileId) {
       setSelectedFileId(value)
     }
   }, [value, selectedFileId])
 
-  // Track previous credential ID to detect changes
   const prevCredentialIdRef = useRef<string>('')
 
-  // Clear selected file when credentials are removed or changed
   useEffect(() => {
     const prevCredentialId = prevCredentialIdRef.current
     prevCredentialIdRef.current = selectedCredentialId
 
     if (!selectedCredentialId) {
-      // No credentials - clear everything
       if (selectedFile) {
         setSelectedFile(null)
         setSelectedFileId('')
         onChange('')
       }
-      // Reset memo when credential is cleared
-      lastMetaAttemptRef.current = ''
+
+      reset()
     } else if (prevCredentialId && prevCredentialId !== selectedCredentialId) {
-      // Credentials changed (not initial load) - clear file info to force refetch
       if (selectedFile) {
         setSelectedFile(null)
       }
-      // Reset memo when switching credentials
-      lastMetaAttemptRef.current = ''
+
+      reset()
     }
   }, [selectedCredentialId, selectedFile, onChange])
 
-  // Fetch the selected file metadata once credentials are loaded or changed
   useEffect(() => {
-    // Fetch metadata when the external value doesn't match our current selectedFile
     if (
       value &&
       selectedCredentialId &&
@@ -520,12 +491,9 @@ export function MicrosoftFileSelector({
       (!selectedFile || selectedFile.id !== value) &&
       !isLoadingSelectedFile
     ) {
-      // Avoid tight retry loops by memoizing the last attempt tuple
       const attemptKey = `${selectedCredentialId}::${value}`
-      if (lastMetaAttemptRef.current === attemptKey) {
-        return
-      }
-      lastMetaAttemptRef.current = attemptKey
+      if (!shouldAttempt(attemptKey)) return
+      markAttempt(attemptKey)
 
       if (serviceId === 'microsoft-planner') {
         void fetchPlannerTaskById(value)
@@ -544,7 +512,6 @@ export function MicrosoftFileSelector({
     serviceId,
   ])
 
-  // Resolve planner task selection for collaborators
   useEffect(() => {
     if (
       value &&
@@ -564,25 +531,21 @@ export function MicrosoftFileSelector({
     fetchPlannerTaskById,
   ])
 
-  // Handle selecting a file from the available files
   const handleFileSelect = (file: MicrosoftFileInfo) => {
     setSelectedFileId(file.id)
     setSelectedFile(file)
     onChange(file.id, file)
     onFileInfoChange?.(file)
     setOpen(false)
-    setSearchQuery('') // Clear search when file is selected
+    setSearchQuery('')
   }
 
-  // Handle adding a new credential
   const handleAddCredential = () => {
-    // Show the OAuth modal
     setShowOAuthModal(true)
     setOpen(false)
-    setSearchQuery('') // Clear search when closing
+    setSearchQuery('')
   }
 
-  // Clear selection
   const handleClearSelection = () => {
     setSelectedFileId('')
     setSelectedFile(null)
@@ -590,7 +553,6 @@ export function MicrosoftFileSelector({
     onFileInfoChange?.(null)
   }
 
-  // Get provider icon
   const getProviderIcon = (providerName: OAuthProvider) => {
     const { baseProvider } = parseProvider(providerName)
     const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
@@ -599,7 +561,6 @@ export function MicrosoftFileSelector({
       return <ExternalLink className='h-4 w-4' />
     }
 
-    // Handle OneDrive specifically by checking serviceId
     if (baseProvider === 'microsoft' && serviceId === 'onedrive') {
       const onedriveService = baseProviderConfig.services.onedrive
       if (onedriveService) {
@@ -607,7 +568,6 @@ export function MicrosoftFileSelector({
       }
     }
 
-    // Handle SharePoint specifically by checking serviceId
     if (baseProvider === 'microsoft' && serviceId === 'sharepoint') {
       const sharepointService = baseProviderConfig.services.sharepoint
       if (sharepointService) {
@@ -615,7 +575,6 @@ export function MicrosoftFileSelector({
       }
     }
 
-    // For compound providers, find the specific service
     if (providerName.includes('-')) {
       for (const service of Object.values(baseProviderConfig.services)) {
         if (service.providerId === providerName) {
@@ -624,24 +583,19 @@ export function MicrosoftFileSelector({
       }
     }
 
-    // Fallback to base provider icon
     return baseProviderConfig.icon({ className: 'h-4 w-4' })
   }
 
-  // Get provider name
   const getProviderName = (providerName: OAuthProvider) => {
     const effectiveServiceId = getServiceId()
     try {
-      // First try to get the service by provider and service ID
       const service = getServiceByProviderAndId(providerName, effectiveServiceId)
       return service.name
     } catch (_error) {
-      // If that fails, try to get the service by parsing the provider
       try {
         const { baseProvider } = parseProvider(providerName)
         const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
 
-        // For compound providers like 'google-drive', try to find the specific service
         if (providerName.includes('-')) {
           const serviceKey = providerName.split('-')[1] || ''
           for (const [key, service] of Object.entries(baseProviderConfig?.services || {})) {
@@ -651,15 +605,11 @@ export function MicrosoftFileSelector({
           }
         }
 
-        // Fallback to provider name if service not found
         if (baseProviderConfig) {
           return baseProviderConfig.name
         }
-      } catch (_parseError) {
-        // Ignore parse error and continue to final fallback
-      }
+      } catch (_parseError) {}
 
-      // Final fallback: capitalize the provider name
       return providerName
         .split('-')
         .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
@@ -667,7 +617,6 @@ export function MicrosoftFileSelector({
     }
   }
 
-  // Get file icon based on mime type
   const getFileIcon = (file: MicrosoftFileInfo, size: 'sm' | 'md' = 'sm') => {
     const iconSize = size === 'sm' ? 'h-4 w-4' : 'h-5 w-5'
 
@@ -677,16 +626,8 @@ export function MicrosoftFileSelector({
     if (file.mimeType === 'planner/task') {
       return getProviderIcon(provider)
     }
-    // if (file.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-    //   return <FileIcon className={`${iconSize} text-blue-600`} />
-    // }
-    // if (file.mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') {
-    //   return <FileIcon className={`${iconSize} text-orange-600`} />
-    // }
-    // return <FileIcon className={`${iconSize} text-muted-foreground`} />
   }
 
-  // Handle search input changes
   const handleSearch = (query: string) => {
     setSearchQuery(query)
   }
@@ -730,7 +671,6 @@ export function MicrosoftFileSelector({
     }
   }
 
-  // Filter tasks based on search query for planner
   const filteredTasks: SelectableItem[] =
     serviceId === 'microsoft-planner'
       ? plannerTasks.filter((task) => {

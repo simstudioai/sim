@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useFetchAttemptGuard } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/hooks/use-fetch-attempt-guard'
 
 const logger = createLogger('GoogleCalendarSelector')
 
@@ -55,6 +56,7 @@ export function GoogleCalendarSelector({
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [initialFetchDone, setInitialFetchDone] = useState(false)
+  const { shouldAttempt, markAttempt, reset } = useFetchAttemptGuard()
 
   const fetchCalendarsFromAPI = useCallback(async (): Promise<GoogleCalendarInfo[]> => {
     if (!credentialId) {
@@ -141,25 +143,28 @@ export function GoogleCalendarSelector({
     }
   }, [fetchCalendarsFromAPI, selectedCalendarId, onCalendarInfoChange])
 
-  // Fetch selected calendar info when component mounts or dependencies change
   useEffect(() => {
     if (value && credentialId && (!selectedCalendar || selectedCalendar.id !== value)) {
+      const key = `${credentialId}:gcal:${value}`
+      if (!shouldAttempt(key)) return
+      markAttempt(key)
       fetchSelectedCalendarInfo()
     }
   }, [value, credentialId, selectedCalendar, fetchSelectedCalendarInfo])
 
-  // Sync with external value
+  useEffect(() => {
+    reset()
+  }, [credentialId, reset])
+
   useEffect(() => {
     if (value !== selectedCalendarId) {
       setSelectedCalendarId(value)
 
-      // Find calendar info for the new value
       if (value && calendars.length > 0) {
         const calendarInfo = calendars.find((calendar) => calendar.id === value)
         setSelectedCalendar(calendarInfo || null)
         onCalendarInfoChange?.(calendarInfo || null)
       } else if (value) {
-        // If we have a value but no calendar info, we might need to fetch it
         if (!selectedCalendar || selectedCalendar.id !== value) {
           fetchSelectedCalendarInfo()
         }
@@ -177,7 +182,6 @@ export function GoogleCalendarSelector({
     onCalendarInfoChange,
   ])
 
-  // Handle calendar selection
   const handleSelectCalendar = (calendar: GoogleCalendarInfo) => {
     setSelectedCalendarId(calendar.id)
     setSelectedCalendar(calendar)
@@ -186,7 +190,6 @@ export function GoogleCalendarSelector({
     setOpen(false)
   }
 
-  // Clear selection
   const handleClearSelection = () => {
     setSelectedCalendarId('')
     setSelectedCalendar(null)
@@ -195,7 +198,6 @@ export function GoogleCalendarSelector({
     setError(null)
   }
 
-  // Get calendar display name
   const getCalendarDisplayName = (calendar: GoogleCalendarInfo) => {
     if (calendar.primary) {
       return `${calendar.summary} (Primary)`
