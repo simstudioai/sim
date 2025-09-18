@@ -337,7 +337,7 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
                   className='whitespace-nowrap'
                   style={{ transform: `translateX(-${urlScrollLeft}px)` }}
                 >
-                  {formatDisplayText(formData.url || '', true)}
+                  {formatDisplayText(formData.url || '')}
                 </div>
               </div>
             </div>
@@ -389,7 +389,7 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
                           transform: `translateX(-${headerScrollLeft[`key-${index}`] || 0}px)`,
                         }}
                       >
-                        {formatDisplayText(key || '', true)}
+                        {formatDisplayText(key || '')}
                       </div>
                     </div>
                   </div>
@@ -417,7 +417,7 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
                           transform: `translateX(-${headerScrollLeft[`value-${index}`] || 0}px)`,
                         }}
                       >
-                        {formatDisplayText(value || '', true)}
+                        {formatDisplayText(value || '')}
                       </div>
                     </div>
                   </div>
