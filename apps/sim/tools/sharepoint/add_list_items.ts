@@ -1,16 +1,10 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import type {
-  SharepointToolParams,
-  SharepointAddListItemResponse,
-} from '@/tools/sharepoint/types'
+import type { SharepointAddListItemResponse, SharepointToolParams } from '@/tools/sharepoint/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SharePointAddListItem')
 
-export const addListItemTool: ToolConfig<
-  SharepointToolParams,
-  SharepointAddListItemResponse
-> = {
+export const addListItemTool: ToolConfig<SharepointToolParams, SharepointAddListItemResponse> = {
   id: 'sharepoint_add_list_items',
   name: 'Add SharePoint List Item',
   description: 'Add a new item to a SharePoint list',
@@ -141,7 +135,7 @@ export const addListItemTool: ToolConfig<
   },
 
   transformResponse: async (response: Response, params) => {
-    let data: any = undefined
+    let data: any
     try {
       data = await response.json()
     } catch {
@@ -174,5 +168,3 @@ export const addListItemTool: ToolConfig<
     },
   },
 }
-
-
