@@ -8,9 +8,8 @@ WORKDIR /app
 COPY package.json bun.lock turbo.json ./
 COPY packages/db/package.json ./packages/db/package.json
 
-# Install minimal dependencies in one layer
-RUN bun install --omit dev --ignore-scripts && \
-    bun install --omit dev --ignore-scripts drizzle-kit drizzle-orm postgres
+# Install all dependencies including dev dependencies needed for migrations
+RUN bun install --ignore-scripts
 
 # ========================================
 # Runner Stage: Production Environment
