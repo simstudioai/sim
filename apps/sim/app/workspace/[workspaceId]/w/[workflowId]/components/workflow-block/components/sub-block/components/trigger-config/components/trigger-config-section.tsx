@@ -316,7 +316,7 @@ export function TriggerConfigSection({
         <div className='mb-4 space-y-1'>
           <div className='flex items-center gap-2'>
             <Label className='font-medium text-sm'>Webhook URL</Label>
-            <TooltipProvider>
+            <TooltipProvider delayDuration={0}>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
