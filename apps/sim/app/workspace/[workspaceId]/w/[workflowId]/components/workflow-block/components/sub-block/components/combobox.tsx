@@ -432,7 +432,7 @@ export function ComboBox({
           style={{ right: '42px' }}
         >
           <div className='w-full truncate text-foreground' style={{ scrollbarWidth: 'none' }}>
-            {formatDisplayText(displayValue, true)}
+            {formatDisplayText(displayValue)}
           </div>
         </div>
         {/* Chevron button */}
