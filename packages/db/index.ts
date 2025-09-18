@@ -1,12 +1,17 @@
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
-import { env } from '@/lib/env'
-import { isDev } from '@/lib/environment'
-import * as schema from '@/db/schema'
+import * as schema from './schema'
+
+// Re-export everything from schema for type consistency
+export * from './schema'
+export type { PostgresJsDatabase }
 
 // In production, use the Vercel-generated POSTGRES_URL
 // In development, use the direct DATABASE_URL
-const connectionString = env.POSTGRES_URL ?? env.DATABASE_URL
+const connectionString = process.env.POSTGRES_URL ?? process.env.DATABASE_URL ?? ''
+if (!connectionString) {
+  throw new Error('Missing POSTGRES_URL or DATABASE_URL environment variable')
+}
 
 /**
  * Connection Pool Allocation Strategy
@@ -33,8 +38,9 @@ const postgresClient = postgres(connectionString, {
 const drizzleClient = drizzle(postgresClient, { schema })
 
 declare global {
+  // eslint-disable-next-line no-var
   var database: PostgresJsDatabase<typeof schema> | undefined
 }
 
-export const db = global.database || drizzleClient
-if (isDev) global.database = db
+export const db = globalThis.database || drizzleClient
+if (process.env.NODE_ENV !== 'production') globalThis.database = db

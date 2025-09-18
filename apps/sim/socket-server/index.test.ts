@@ -18,7 +18,7 @@ vi.mock('@/lib/auth', () => ({
   },
 }))
 
-vi.mock('@/db', () => ({
+vi.mock('@sim/db', () => ({
   db: {
     select: vi.fn(),
     insert: vi.fn(),

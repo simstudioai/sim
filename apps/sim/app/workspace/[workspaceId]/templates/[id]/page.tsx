@@ -1,11 +1,11 @@
+import { db } from '@sim/db'
+import { templateStars, templates } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { notFound } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import TemplateDetails from '@/app/workspace/[workspaceId]/templates/[id]/template'
 import type { Template } from '@/app/workspace/[workspaceId]/templates/templates'
-import { db } from '@/db'
-import { templateStars, templates } from '@/db/schema'
 
 const logger = createLogger('TemplatePage')
 

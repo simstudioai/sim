@@ -1,10 +1,10 @@
+import { db } from '@sim/db'
+import { account } from '@sim/db/schema'
 import { and, eq, like, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
-import { db } from '@/db'
-import { account } from '@/db/schema'
 
 export const dynamic = 'force-dynamic'
 

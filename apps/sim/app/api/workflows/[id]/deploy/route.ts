@@ -1,3 +1,5 @@
+import { db } from '@sim/db'
+import { apiKey, workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db/schema'
 import { and, desc, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
@@ -6,8 +8,6 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-import { db } from '@/db'
-import { apiKey, workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@/db/schema'
 
 const logger = createLogger('WorkflowDeployAPI')
 

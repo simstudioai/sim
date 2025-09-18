@@ -52,7 +52,7 @@ describe('Schedule Configuration API Route', () => {
 
     // Create mock database with test schedules
     // Mock the database to return workflow data for authorization check
-    vi.doMock('@/db', () => {
+    vi.doMock('@sim/db', () => {
       let callCount = 0
       const mockDb = {
         select: vi.fn().mockImplementation(() => ({
@@ -201,7 +201,7 @@ describe('Schedule Configuration API Route', () => {
       where: vi.fn().mockResolvedValue([]),
     }))
 
-    vi.doMock('@/db', () => ({
+    vi.doMock('@sim/db', () => ({
       db: {
         select: vi.fn().mockImplementation(() => ({
           from: vi.fn().mockImplementation(() => ({
@@ -271,7 +271,7 @@ describe('Schedule Configuration API Route', () => {
    */
   it('should handle errors gracefully', async () => {
     // Mock the db to throw an error on insert
-    vi.doMock('@/db', () => ({
+    vi.doMock('@sim/db', () => ({
       db: {
         select: vi.fn().mockImplementation(() => ({
           from: vi.fn().mockImplementation(() => ({

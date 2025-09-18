@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
+import type { permissionTypeEnum } from '@sim/db/schema'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { permissionTypeEnum } from '@/db/schema'
 import { API_ENDPOINTS } from '@/stores/constants'
 
 const logger = createLogger('useWorkspacePermissions')

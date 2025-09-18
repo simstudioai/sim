@@ -1,5 +1,5 @@
+import { workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { and, desc, eq, gte, inArray, lte, type SQL, sql } from 'drizzle-orm'
-import { workflow, workflowExecutionLogs } from '@/db/schema'
 
 export interface LogFilters {
   workspaceId: string

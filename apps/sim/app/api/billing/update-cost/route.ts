@@ -1,3 +1,5 @@
+import { db } from '@sim/db'
+import { userStats } from '@sim/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -5,8 +7,6 @@ import { checkInternalApiKey } from '@/lib/copilot/utils'
 import { isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
-import { db } from '@/db'
-import { userStats } from '@/db/schema'
 import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('billing-update-cost')

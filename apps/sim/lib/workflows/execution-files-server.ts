@@ -3,10 +3,10 @@
  * This file contains database operations and should only be imported by server-side code
  */
 
+import { db } from '@sim/db'
+import { workflowExecutionLogs } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { workflowExecutionLogs } from '@/db/schema'
 import type { ExecutionFileMetadata } from './execution-files'
 
 const logger = createLogger('ExecutionFilesServer')

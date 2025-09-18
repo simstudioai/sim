@@ -1,11 +1,11 @@
+import { db } from '@sim/db'
+import { workflow, workflowSchedule } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { generateRequestId } from '@/lib/utils'
-import { db } from '@/db'
-import { workflow, workflowSchedule } from '@/db/schema'
 
 const logger = createLogger('ScheduleStatusAPI')
 

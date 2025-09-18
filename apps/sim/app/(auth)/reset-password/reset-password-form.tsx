@@ -30,12 +30,10 @@ export function RequestResetForm({
   const [buttonClass, setButtonClass] = useState('auth-button-gradient')
 
   useEffect(() => {
-    // Check if CSS variable has been customized
     const checkCustomBrand = () => {
       const computedStyle = getComputedStyle(document.documentElement)
       const brandAccent = computedStyle.getPropertyValue('--brand-accent-hex').trim()
 
-      // Check if the CSS variable exists and is different from the default
       if (brandAccent && brandAccent !== '#6f3dfa') {
         setButtonClass('auth-button-custom')
       } else {
@@ -45,7 +43,6 @@ export function RequestResetForm({
 
     checkCustomBrand()
 
-    // Also check on window resize or theme changes
     window.addEventListener('resize', checkCustomBrand)
     const observer = new MutationObserver(checkCustomBrand)
     observer.observe(document.documentElement, {
@@ -132,12 +129,10 @@ export function SetNewPasswordForm({
   const [buttonClass, setButtonClass] = useState('auth-button-gradient')
 
   useEffect(() => {
-    // Check if CSS variable has been customized
     const checkCustomBrand = () => {
       const computedStyle = getComputedStyle(document.documentElement)
       const brandAccent = computedStyle.getPropertyValue('--brand-accent-hex').trim()
 
-      // Check if the CSS variable exists and is different from the default
       if (brandAccent && brandAccent !== '#6f3dfa') {
         setButtonClass('auth-button-custom')
       } else {
@@ -147,7 +142,6 @@ export function SetNewPasswordForm({
 
     checkCustomBrand()
 
-    // Also check on window resize or theme changes
     window.addEventListener('resize', checkCustomBrand)
     const observer = new MutationObserver(checkCustomBrand)
     observer.observe(document.documentElement, {
@@ -164,7 +158,6 @@ export function SetNewPasswordForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Simple validation
     if (password.length < 8) {
       setValidationMessage('Password must be at least 8 characters long')
       return

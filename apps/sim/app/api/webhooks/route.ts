@@ -1,3 +1,5 @@
+import { db } from '@sim/db'
+import { webhook, workflow } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -7,8 +9,6 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { generateRequestId } from '@/lib/utils'
 import { getOAuthToken } from '@/app/api/auth/oauth/utils'
-import { db } from '@/db'
-import { webhook, workflow } from '@/db/schema'
 
 const logger = createLogger('WebhooksAPI')
 

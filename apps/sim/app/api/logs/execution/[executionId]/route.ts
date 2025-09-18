@@ -1,8 +1,8 @@
+import { db } from '@sim/db'
+import { workflowExecutionLogs, workflowExecutionSnapshots } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { workflowExecutionLogs, workflowExecutionSnapshots } from '@/db/schema'
 
 const logger = createLogger('LogsByExecutionIdAPI')
 

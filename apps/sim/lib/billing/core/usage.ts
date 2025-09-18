@@ -1,3 +1,5 @@
+import { db } from '@sim/db'
+import { member, organization, settings, user, userStats } from '@sim/db/schema'
 import { eq, inArray } from 'drizzle-orm'
 import { getEmailSubject, renderUsageThresholdEmail } from '@/components/emails/render-email'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
@@ -11,8 +13,6 @@ import { sendEmail } from '@/lib/email/mailer'
 import { getEmailPreferences } from '@/lib/email/unsubscribe'
 import { isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { member, organization, settings, user, userStats } from '@/db/schema'
 
 const logger = createLogger('UsageManagement')
 

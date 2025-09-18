@@ -32,11 +32,11 @@ describe('OAuth Disconnect API Route', () => {
       getSession: mockGetSession,
     }))
 
-    vi.doMock('@/db', () => ({
+    vi.doMock('@sim/db', () => ({
       db: mockDb,
     }))
 
-    vi.doMock('@/db/schema', () => ({
+    vi.doMock('@sim/db/schema', () => ({
       account: { userId: 'userId', providerId: 'providerId' },
     }))
 

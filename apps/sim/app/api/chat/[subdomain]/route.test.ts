@@ -84,7 +84,7 @@ describe('Chat Subdomain API Route', () => {
       }),
     }))
 
-    vi.doMock('@/db', () => {
+    vi.doMock('@sim/db', () => {
       const mockSelect = vi.fn().mockImplementation((fields) => {
         if (fields && fields.isDeployed !== undefined) {
           return {
@@ -153,7 +153,7 @@ describe('Chat Subdomain API Route', () => {
     })
 
     it('should return 404 for non-existent subdomain', async () => {
-      vi.doMock('@/db', () => {
+      vi.doMock('@sim/db', () => {
         const mockLimit = vi.fn().mockReturnValue([])
         const mockWhere = vi.fn().mockReturnValue({ limit: mockLimit })
         const mockFrom = vi.fn().mockReturnValue({ where: mockWhere })
@@ -181,7 +181,7 @@ describe('Chat Subdomain API Route', () => {
     })
 
     it('should return 403 for inactive chat', async () => {
-      vi.doMock('@/db', () => {
+      vi.doMock('@sim/db', () => {
         const mockLimit = vi.fn().mockReturnValue([
           {
             id: 'chat-id',
@@ -299,7 +299,7 @@ describe('Chat Subdomain API Route', () => {
 
     it('should return 503 when workflow is not available', async () => {
       // Override the default workflow result to return non-deployed
-      vi.doMock('@/db', () => {
+      vi.doMock('@sim/db', () => {
         // Track call count to return different results
         let callCount = 0
 

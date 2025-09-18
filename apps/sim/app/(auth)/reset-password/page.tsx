@@ -24,7 +24,6 @@ function ResetPasswordContent() {
     text: '',
   })
 
-  // Validate token presence
   useEffect(() => {
     if (!token) {
       setStatusMessage({
@@ -60,7 +59,6 @@ function ResetPasswordContent() {
         text: 'Password reset successful! Redirecting to login...',
       })
 
-      // Redirect to login page after 1.5 seconds
       setTimeout(() => {
         router.push('/login?resetSuccess=true')
       }, 1500)

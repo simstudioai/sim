@@ -1,10 +1,10 @@
+import { db } from '@sim/db'
+import { member, organization, userStats } from '@sim/db/schema'
 import { eq, inArray } from 'drizzle-orm'
 import { getOrganizationSubscription, getPlanPricing } from '@/lib/billing/core/billing'
 import { getUserUsageLimit } from '@/lib/billing/core/usage'
 import { isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { member, organization, userStats } from '@/db/schema'
 
 const logger = createLogger('UsageMonitor')
 

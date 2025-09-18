@@ -1,11 +1,11 @@
 import { randomUUID } from 'crypto'
+import { db } from '@sim/db'
+import { account } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-import { db } from '@/db'
-import { account } from '@/db/schema'
 import type { SharepointSite } from '@/tools/sharepoint/types'
 
 export const dynamic = 'force-dynamic'

@@ -1,11 +1,11 @@
 import crypto from 'crypto'
+import { db } from '@sim/db'
+import { permissions, type permissionTypeEnum } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUsersWithPermissions, hasWorkspaceAdminAccess } from '@/lib/permissions/utils'
-import { db } from '@/db'
-import { permissions, type permissionTypeEnum } from '@/db/schema'
 
 const logger = createLogger('WorkspacesPermissionsAPI')
 

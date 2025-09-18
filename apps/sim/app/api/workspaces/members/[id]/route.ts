@@ -1,9 +1,9 @@
+import { db } from '@sim/db'
+import { permissions } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { hasWorkspaceAdminAccess } from '@/lib/permissions/utils'
-import { db } from '@/db'
-import { permissions } from '@/db/schema'
 
 // DELETE /api/workspaces/members/[id] - Remove a member from a workspace
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

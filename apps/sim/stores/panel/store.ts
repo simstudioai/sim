@@ -23,6 +23,10 @@ export const usePanelStore = create<PanelStore>()(
           const clampedWidth = Math.max(308, Math.min(800, width))
           set({ panelWidth: clampedWidth })
         },
+
+        openCopilotPanel: () => {
+          set({ isOpen: true, activeTab: 'copilot' })
+        },
       }),
       {
         name: 'panel-store',

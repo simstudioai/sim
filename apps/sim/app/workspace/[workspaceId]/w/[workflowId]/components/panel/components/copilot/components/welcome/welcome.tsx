@@ -1,6 +1,6 @@
 'use client'
 
-import { Blocks, Bot, LibraryBig, Workflow } from 'lucide-react'
+import { Blocks, LibraryBig, Workflow } from 'lucide-react'
 
 interface CopilotWelcomeProps {
   onQuestionClick?: (question: string) => void
@@ -59,7 +59,6 @@ export function CopilotWelcome({ onQuestionClick, mode = 'ask' }: CopilotWelcome
       <div className='relative mx-auto w-full max-w-xl'>
         {/* Header */}
         <div className='flex flex-col items-center text-center'>
-          <Bot className='h-12 w-12 text-[var(--brand-primary-hover-hex)]' strokeWidth={1.5} />
           <h3 className='mt-2 font-medium text-foreground text-lg sm:text-xl'>{subtitle}</h3>
         </div>
 

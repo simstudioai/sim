@@ -1,11 +1,11 @@
+import { db } from '@sim/db'
+import { mcpServers } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
-import { db } from '@/db'
-import { mcpServers } from '@/db/schema'
 
 const logger = createLogger('McpServerRefreshAPI')
 

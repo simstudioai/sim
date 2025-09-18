@@ -7,4 +7,5 @@ export interface PanelStore {
   togglePanel: () => void
   setActiveTab: (tab: PanelTab) => void
   setPanelWidth: (width: number) => void
+  openCopilotPanel: () => void
 }

@@ -1,11 +1,11 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
+import { db } from '@sim/db'
+import { apiKey as apiKeyTable, workspace } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { authenticateApiKey } from '@/lib/api-key/auth'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import { db } from '@/db'
-import { apiKey as apiKeyTable, workspace } from '@/db/schema'
 
 const logger = createLogger('ApiKeyService')
 

@@ -1,11 +1,11 @@
+import { db } from '@sim/db'
+import { account, user } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { jwtDecode } from 'jwt-decode'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
 import { getUserId, refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-import { db } from '@/db'
-import { account, user } from '@/db/schema'
 
 interface GetOAuthCredentialsParams {
   userId?: string

@@ -127,7 +127,7 @@ describe('Individual Folder API Route', () => {
       mockAuthenticatedUser()
 
       const dbMock = createFolderDbMock()
-      vi.doMock('@/db', () => dbMock)
+      vi.doMock('@sim/db', () => dbMock)
 
       const req = createMockRequest('PUT', {
         name: 'Updated Folder Name',
@@ -152,7 +152,7 @@ describe('Individual Folder API Route', () => {
       mockAuthenticatedUser()
 
       const dbMock = createFolderDbMock()
-      vi.doMock('@/db', () => dbMock)
+      vi.doMock('@sim/db', () => dbMock)
 
       const req = createMockRequest('PUT', {
         name: 'Updated Folder',
@@ -171,7 +171,7 @@ describe('Individual Folder API Route', () => {
       mockUnauthenticated()
 
       const dbMock = createFolderDbMock()
-      vi.doMock('@/db', () => dbMock)
+      vi.doMock('@sim/db', () => dbMock)
 
       const req = createMockRequest('PUT', {
         name: 'Updated Folder',
@@ -193,7 +193,7 @@ describe('Individual Folder API Route', () => {
       mockGetUserEntityPermissions.mockResolvedValue('read') // Read-only permissions
 
       const dbMock = createFolderDbMock()
-      vi.doMock('@/db', () => dbMock)
+      vi.doMock('@sim/db', () => dbMock)
 
       const req = createMockRequest('PUT', {
         name: 'Updated Folder',
@@ -215,7 +215,7 @@ describe('Individual Folder API Route', () => {
       mockGetUserEntityPermissions.mockResolvedValue('write') // Write permissions
 
       const dbMock = createFolderDbMock()
-      vi.doMock('@/db', () => dbMock)
+      vi.doMock('@sim/db', () => dbMock)
 
       const req = createMockRequest('PUT', {
         name: 'Updated Folder',
@@ -237,7 +237,7 @@ describe('Individual Folder API Route', () => {
       mockGetUserEntityPermissions.mockResolvedValue('admin') // Admin permissions
 
       const dbMock = createFolderDbMock()
-      vi.doMock('@/db', () => dbMock)
+      vi.doMock('@sim/db', () => dbMock)
 
       const req = createMockRequest('PUT', {
         name: 'Updated Folder',
@@ -258,7 +258,7 @@ describe('Individual Folder API Route', () => {
       mockAuthenticatedUser()
 
       const dbMock = createFolderDbMock()
-      vi.doMock('@/db', () => dbMock)
+      vi.doMock('@sim/db', () => dbMock)
 
       const req = createMockRequest('PUT', {
         name: 'Updated Folder',
@@ -293,7 +293,7 @@ describe('Individual Folder API Route', () => {
         }),
       })
 
-      vi.doMock('@/db', () => dbMock)
+      vi.doMock('@sim/db', () => dbMock)
 
       const req = createMockRequest('PUT', {
         name: '  Folder With Spaces  ',
@@ -314,7 +314,7 @@ describe('Individual Folder API Route', () => {
       const dbMock = createFolderDbMock({
         throwError: true,
       })
-      vi.doMock('@/db', () => dbMock)
+      vi.doMock('@sim/db', () => dbMock)
 
       const req = createMockRequest('PUT', {
         name: 'Updated Folder',
@@ -340,7 +340,7 @@ describe('Individual Folder API Route', () => {
       mockAuthenticatedUser()
 
       const dbMock = createFolderDbMock()
-      vi.doMock('@/db', () => dbMock)
+      vi.doMock('@sim/db', () => dbMock)
 
       const req = createMockRequest('PUT', {
         name: '', // Empty name
@@ -359,7 +359,7 @@ describe('Individual Folder API Route', () => {
       mockAuthenticatedUser()
 
       const dbMock = createFolderDbMock()
-      vi.doMock('@/db', () => dbMock)
+      vi.doMock('@sim/db', () => dbMock)
 
       // Create a request with invalid JSON
       const req = new Request('http://localhost:3000/api/folders/folder-1', {
@@ -396,7 +396,7 @@ describe('Individual Folder API Route', () => {
         folderLookupResult: { id: 'folder-3', parentId: null, name: 'Folder 3' },
         circularCheckResults,
       })
-      vi.doMock('@/db', () => dbMock)
+      vi.doMock('@sim/db', () => dbMock)
 
       const req = createMockRequest('PUT', {
         name: 'Updated Folder 3',
@@ -425,7 +425,7 @@ describe('Individual Folder API Route', () => {
       })
 
       // Mock the recursive deletion function
-      vi.doMock('@/db', () => dbMock)
+      vi.doMock('@sim/db', () => dbMock)
 
       const req = createMockRequest('DELETE')
       const params = Promise.resolve({ id: 'folder-1' })
@@ -445,7 +445,7 @@ describe('Individual Folder API Route', () => {
       mockUnauthenticated()
 
       const dbMock = createFolderDbMock()
-      vi.doMock('@/db', () => dbMock)
+      vi.doMock('@sim/db', () => dbMock)
 
       const req = createMockRequest('DELETE')
       const params = Promise.resolve({ id: 'folder-1' })
@@ -465,7 +465,7 @@ describe('Individual Folder API Route', () => {
       mockGetUserEntityPermissions.mockResolvedValue('read') // Read-only permissions
 
       const dbMock = createFolderDbMock()
-      vi.doMock('@/db', () => dbMock)
+      vi.doMock('@sim/db', () => dbMock)
 
       const req = createMockRequest('DELETE')
       const params = Promise.resolve({ id: 'folder-1' })
@@ -485,7 +485,7 @@ describe('Individual Folder API Route', () => {
       mockGetUserEntityPermissions.mockResolvedValue('write') // Write permissions (not enough for delete)
 
       const dbMock = createFolderDbMock()
-      vi.doMock('@/db', () => dbMock)
+      vi.doMock('@sim/db', () => dbMock)
 
       const req = createMockRequest('DELETE')
       const params = Promise.resolve({ id: 'folder-1' })
@@ -507,7 +507,7 @@ describe('Individual Folder API Route', () => {
       const dbMock = createFolderDbMock({
         folderLookupResult: mockFolder,
       })
-      vi.doMock('@/db', () => dbMock)
+      vi.doMock('@sim/db', () => dbMock)
 
       const req = createMockRequest('DELETE')
       const params = Promise.resolve({ id: 'folder-1' })
@@ -528,7 +528,7 @@ describe('Individual Folder API Route', () => {
       const dbMock = createFolderDbMock({
         throwError: true,
       })
-      vi.doMock('@/db', () => dbMock)
+      vi.doMock('@sim/db', () => dbMock)
 
       const req = createMockRequest('DELETE')
       const params = Promise.resolve({ id: 'folder-1' })
