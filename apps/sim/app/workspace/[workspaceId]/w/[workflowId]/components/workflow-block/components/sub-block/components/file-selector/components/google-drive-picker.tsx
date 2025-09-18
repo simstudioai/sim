@@ -154,7 +154,6 @@ export function GoogleDrivePicker({
             onFileInfoChange?.(null)
           }
 
-          // Also handle unauthorized: clear selection and prompt re-auth to avoid retry loops
           if (response.status === 401) {
             logger.info('Credential unauthorized (401), clearing selection and prompting re-auth')
             setSelectedFileId('')
