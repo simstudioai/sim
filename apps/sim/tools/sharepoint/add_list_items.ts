@@ -69,7 +69,6 @@ export const addListItemTool: ToolConfig<SharepointToolParams, SharepointAddList
         throw new Error('listItemFields must not be empty')
       }
 
-      // Support both { fields: {...} } and raw { fieldName: value } inputs
       const providedFields =
         typeof params.listItemFields === 'object' &&
         params.listItemFields !== null &&
@@ -82,7 +81,6 @@ export const addListItemTool: ToolConfig<SharepointToolParams, SharepointAddList
         throw new Error('No fields provided to create the SharePoint list item')
       }
 
-      // Filter out system/read-only fields that cannot be set via Graph
       const readOnlyFields = new Set<string>([
         'Id',
         'id',
@@ -139,7 +137,6 @@ export const addListItemTool: ToolConfig<SharepointToolParams, SharepointAddList
     try {
       data = await response.json()
     } catch {
-      // Some Graph endpoints may not return a body consistently
       data = undefined
     }
 

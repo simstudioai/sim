@@ -183,6 +183,25 @@ Update the properties (fields) on a SharePoint list item
 | --------- | ---- | ----------- |
 | `item` | object | Updated SharePoint list item |
 
+### `sharepoint_add_list_items`
+
+Add a new item to a SharePoint list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteSelector` | string | No | Select the SharePoint site |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
+| `listId` | string | Yes | The ID of the list to add the item to |
+| `listItemFields` | object | Yes | Field values for the new list item |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Created SharePoint list item |
+
 
 
 ## Notes

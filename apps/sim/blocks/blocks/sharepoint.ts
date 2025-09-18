@@ -16,7 +16,6 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
   bgColor: '#E0E0E0',
   icon: MicrosoftSharepointIcon,
   subBlocks: [
-    // Operation selector
     {
       id: 'operation',
       title: 'Operation',
@@ -32,7 +31,6 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
         { label: 'Add List Items', id: 'add_list_items' },
       ],
     },
-    // Sharepoint Credentials
     {
       id: 'credential',
       title: 'Microsoft Account',
@@ -217,7 +215,6 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       params: (params) => {
         const { credential, siteSelector, manualSiteId, mimeType, ...rest } = params
 
-        // Use siteSelector if provided, otherwise use manualSiteId
         const effectiveSiteId = (siteSelector || manualSiteId || '').trim()
 
         const {
@@ -239,12 +236,10 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
             })
           }
         }
-        // Ensure listItemFields is an object for the tool schema
         if (typeof parsedItemFields !== 'object' || parsedItemFields === null) {
           parsedItemFields = undefined
         }
 
-        // Sanitize item ID (required by tool)
         const rawItemId = providedItemId ?? listItemId
         const sanitizedItemId =
           rawItemId === undefined || rawItemId === null
@@ -257,7 +252,6 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
           return undefined
         }
 
-        // Debug logging for update_list/add_list_items param mapping
         if (others.operation === 'update_list' || others.operation === 'add_list_items') {
           try {
             logger.info('SharepointBlock list item param check', {
@@ -280,7 +274,6 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
           pageSize: others.pageSize ? Number.parseInt(others.pageSize as string, 10) : undefined,
           mimeType: mimeType,
           ...others,
-          // Map to tool param names
           itemId: sanitizedItemId,
           listItemFields: parsedItemFields,
           includeColumns: coerceBoolean(includeColumns),
@@ -292,26 +285,20 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     credential: { type: 'string', description: 'Microsoft account credential' },
-    // Create Page operation inputs
     pageName: { type: 'string', description: 'Page name' },
     pageContent: { type: 'string', description: 'Page content' },
     pageTitle: { type: 'string', description: 'Page title' },
-    // Read Page operation inputs
     pageId: { type: 'string', description: 'Page ID' },
-    // List operation inputs
     siteSelector: { type: 'string', description: 'Site selector' },
     manualSiteId: { type: 'string', description: 'Manual site ID' },
     pageSize: { type: 'number', description: 'Results per page' },
-    // Create List operation inputs
     listDisplayName: { type: 'string', description: 'List display name' },
     listDescription: { type: 'string', description: 'List description' },
     listTemplate: { type: 'string', description: 'List template' },
-    // Read List operation inputs
     listId: { type: 'string', description: 'List ID' },
     listTitle: { type: 'string', description: 'List title' },
     includeColumns: { type: 'boolean', description: 'Include columns in response' },
     includeItems: { type: 'boolean', description: 'Include items in response' },
-    // Update List Item operation inputs
     listItemId: { type: 'string', description: 'List item ID' },
     listItemFields: { type: 'string', description: 'List item fields' },
   },
