@@ -43,10 +43,10 @@ describe('SearchSuggestions', () => {
       expect(result?.suggestions.some((s) => s.value === 'level:')).toBe(true)
     })
 
-    it.concurrent('should return filter key suggestions for partial matches', () => {
+    it.concurrent('should return value suggestions for uniquely identified partial keys', () => {
       const result = engine.getSuggestions('lev', 3)
-      expect(result?.type).toBe('filter-keys')
-      expect(result?.suggestions.some((s) => s.value === 'level:')).toBe(true)
+      expect(result?.type).toBe('filter-values')
+      expect(result?.suggestions.some((s) => s.value === 'error' || s.value === 'info')).toBe(true)
     })
 
     it.concurrent('should return filter value suggestions after colon', () => {
@@ -87,11 +87,16 @@ describe('SearchSuggestions', () => {
       expect(result?.suggestions.length).toBeGreaterThan(0)
     })
 
-    it.concurrent('should handle partial filter keys after existing filters', () => {
-      const result = engine.getSuggestions('level:error lev', 15)
-      expect(result?.type).toBe('filter-keys')
-      expect(result?.suggestions.some((s) => s.value === 'level:')).toBe(true)
-    })
+    it.concurrent(
+      'should surface value suggestions for uniquely matched partial keys after existing filters',
+      () => {
+        const result = engine.getSuggestions('level:error lev', 15)
+        expect(result?.type).toBe('filter-values')
+        expect(result?.suggestions.some((s) => s.value === 'error' || s.value === 'info')).toBe(
+          true
+        )
+      }
+    )
 
     it.concurrent('should handle filter values after existing filters', () => {
       const result = engine.getSuggestions('level:error level:', 18)

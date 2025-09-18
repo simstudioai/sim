@@ -259,6 +259,7 @@ export type SharepointResponse =
   | SharepointGetListResponse
   | SharepointCreateListResponse
   | SharepointUpdateListItemResponse
+  | SharepointAddListItemResponse
 
 export interface SharepointGetListResponse extends ToolResponse {
   output: {
@@ -275,6 +276,15 @@ export interface SharepointCreateListResponse extends ToolResponse {
 }
 
 export interface SharepointUpdateListItemResponse extends ToolResponse {
+  output: {
+    item: {
+      id: string
+      fields?: Record<string, unknown>
+    }
+  }
+}
+
+export interface SharepointAddListItemResponse extends ToolResponse {
   output: {
     item: {
       id: string

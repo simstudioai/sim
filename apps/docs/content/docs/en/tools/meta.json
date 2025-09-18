@@ -17,6 +17,7 @@
     "google_calendar",
     "google_docs",
     "google_drive",
+    "google_forms",
     "google_search",
     "google_sheets",
     "huggingface",

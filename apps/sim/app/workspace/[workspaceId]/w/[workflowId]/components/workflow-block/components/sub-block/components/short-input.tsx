@@ -417,7 +417,7 @@ export function ShortInput({
           >
             {password && !isFocused
               ? '•'.repeat(value?.toString().length ?? 0)
-              : formatDisplayText(value?.toString() ?? '', true)}
+              : formatDisplayText(value?.toString() ?? '')}
           </div>
         </div>
 
