@@ -145,6 +145,7 @@ import { redditGetCommentsTool, redditGetPostsTool, redditHotPostsTool } from '@
 import { s3GetObjectTool } from '@/tools/s3'
 import { searchTool as serperSearch } from '@/tools/serper'
 import {
+  sharepointAddListItemTool,
   sharepointCreateListTool,
   sharepointCreatePageTool,
   sharepointGetListTool,
@@ -370,6 +371,7 @@ export const tools: Record<string, ToolConfig> = {
   sharepoint_get_list: sharepointGetListTool,
   sharepoint_create_list: sharepointCreateListTool,
   sharepoint_update_list: sharepointUpdateListItemTool,
+  sharepoint_add_list_items: sharepointAddListItemTool,
   // Provider chat tools
   // Provider chat tools - handled separately in agent blocks
 }
