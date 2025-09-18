@@ -65,10 +65,10 @@ export const updateListItemTool: ToolConfig<
     url: (params) => {
       const siteId = params.siteId || params.siteSelector || 'root'
       if (!params.itemId) throw new Error('itemId is required')
-      if (!params.listId && !params.listTitle) {
-        throw new Error('Either listId or listTitle must be provided')
+      if (!params.listId) {
+        throw new Error('listId must be provided')
       }
-      const listSegment = params.listId || params.listTitle
+      const listSegment = params.listId
       return `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listSegment}/items/${params.itemId}/fields`
     },
     method: 'PATCH',
@@ -126,7 +126,6 @@ export const updateListItemTool: ToolConfig<
       logger.info('Updating SharePoint list item fields', {
         listItemId: params.itemId,
         listId: params.listId,
-        listTitle: params.listTitle,
         fieldsKeys: Object.keys(sanitizedFields),
       })
       return sanitizedFields

@@ -52,7 +52,7 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
       const siteId = params.siteId || params.siteSelector || 'root'
 
       // If neither listId nor listTitle provided, list all lists in the site
-      if (!params.listId && !params.listTitle) {
+      if (!params.listId) {
         const baseUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists`
         const url = new URL(baseUrl)
         const finalUrl = url.toString()
@@ -60,8 +60,7 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
         return finalUrl
       }
 
-      const listSegment = params.listId || params.listTitle
-
+      const listSegment = params.listId
       // Default to returning items when targeting a specific list unless explicitly disabled
       const wantsItems = typeof params.includeItems === 'boolean' ? params.includeItems : true
 
@@ -76,7 +75,6 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
           finalUrl: finalItemsUrl,
           siteId,
           listId: params.listId,
-          listTitle: params.listTitle,
         })
         return finalItemsUrl
       }
@@ -94,7 +92,6 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
         finalUrl,
         siteId,
         listId: params.listId,
-        listTitle: params.listTitle,
         includeColumns: !!params.includeColumns,
         includeItems: wantsItems,
       })
