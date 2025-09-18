@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import { Check, Copy, Info, RotateCcw, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -9,7 +9,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -75,6 +77,10 @@ export function TriggerModal({
     Record<string, Array<{ id: string; name: string }>>
   >({})
   const lastCredentialIdRef = useRef<string | null>(null)
+  const [testUrl, setTestUrl] = useState<string | null>(null)
+  const [testUrlExpiresAt, setTestUrlExpiresAt] = useState<string | null>(null)
+  const [isGeneratingTestUrl, setIsGeneratingTestUrl] = useState(false)
+  const [copiedTestUrl, setCopiedTestUrl] = useState(false)
 
   // Reset provider-dependent config fields when credentials change
   const resetFieldsForCredentialChange = () => {
@@ -275,6 +281,85 @@ export function TriggerModal({
     }))
   }
 
+  const handleCopyTestUrl = () => {
+    if (testUrl) {
+      navigator.clipboard.writeText(testUrl)
+      setCopiedTestUrl(true)
+      setTimeout(() => setCopiedTestUrl(false), 2000)
+    }
+  }
+
+  const generateTestUrl = async () => {
+    try {
+      // If we have a saved trigger, use its API endpoint (network → show spinner)
+      if (triggerId) {
+        setIsGeneratingTestUrl(true)
+        const res = await fetch(`/api/webhooks/${triggerId}/test-url`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        })
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}))
+          throw new Error(err?.error || 'Failed to generate test URL')
+        }
+        const json = await res.json()
+        setTestUrl(json.url)
+        setTestUrlExpiresAt(json.expiresAt)
+        setConfig((prev) => ({
+          ...prev,
+          testUrl: json.url,
+          testUrlExpiresAt: json.expiresAt,
+        }))
+      } else {
+        // For unsaved triggers, generate a temporary test URL
+        const testPath = crypto.randomUUID()
+        const baseUrl = window.location.origin
+        const tempTestUrl = `${baseUrl}/api/webhooks/test/${testPath}?token=${crypto.randomUUID()}`
+        setTestUrl(tempTestUrl)
+
+        // Set expiration to 24 hours from now
+        const expiresAt = new Date()
+        expiresAt.setHours(expiresAt.getHours() + 24)
+        const expiresIso = expiresAt.toISOString()
+        setTestUrlExpiresAt(expiresIso)
+        setConfig((prev) => ({
+          ...prev,
+          testUrl: tempTestUrl,
+          testUrlExpiresAt: expiresIso,
+        }))
+      }
+    } catch (e) {
+      logger.error('Failed to generate test webhook URL', { error: e })
+    } finally {
+      if (triggerId) setIsGeneratingTestUrl(false)
+    }
+  }
+
+  // Generate test URL only once when needed (skip if one is already provided in initialConfig)
+  useEffect(() => {
+    const initialTestUrl = (initialConfig as any)?.testUrl as string | undefined
+    if (isOpen && triggerDef.webhook && !testUrl && !isGeneratingTestUrl && !initialTestUrl) {
+      generateTestUrl()
+    }
+  }, [isOpen, triggerDef.webhook, testUrl, isGeneratingTestUrl, initialConfig])
+
+  // Clear test URL when triggerId changes (after save)
+  useEffect(() => {
+    if (triggerId !== initialConfigRef.current?.triggerId) {
+      setTestUrl(null)
+      setTestUrlExpiresAt(null)
+    }
+  }, [triggerId])
+
+  // Initialize saved test URL from initial config if present
+  useEffect(() => {
+    const url = (initialConfig as any)?.testUrl as string | undefined
+    const expires = (initialConfig as any)?.testUrlExpiresAt as string | undefined
+    if (url) setTestUrl(url)
+    if (expires) setTestUrlExpiresAt(expires)
+  }, [initialConfig])
+
   const handleSave = async () => {
     if (!onSave) return
 
@@ -291,7 +376,11 @@ export function TriggerModal({
         return
       }
 
-      const success = await onSave(path || '', config)
+      const success = await onSave(path || '', {
+        ...config,
+        ...(testUrl ? { testUrl } : {}),
+        ...(testUrlExpiresAt ? { testUrlExpiresAt } : {}),
+      })
       if (success) {
         onClose()
       }
@@ -399,6 +488,99 @@ export function TriggerModal({
               webhookUrl={webhookUrl}
               dynamicOptions={dynamicOptions}
             />
+
+            {triggerDef.webhook && (
+              <TooltipProvider>
+                <div className='mb-4 space-y-1'>
+                  <div className='flex items-center gap-2'>
+                    <Label className='font-medium text-sm'>Test Webhook URL</Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          className='h-6 w-6 p-1 text-gray-500'
+                          aria-label='Learn more about Test Webhook URL'
+                        >
+                          <Info className='h-4 w-4' />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side='right'
+                        align='center'
+                        className='z-[100] max-w-[300px] p-3'
+                        role='tooltip'
+                      >
+                        <p className='text-sm'>
+                          Temporary URL for testing webhooks. Expires after 24 hours.
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  {testUrl ? (
+                    <>
+                      <div className='relative'>
+                        <Input
+                          value={testUrl}
+                          readOnly
+                          className={cn(
+                            'h-9 cursor-text rounded-[8px] pr-20 font-mono text-xs',
+                            'focus-visible:ring-2 focus-visible:ring-primary/20'
+                          )}
+                          onClick={(e) => (e.target as HTMLInputElement).select()}
+                        />
+                        <div className='absolute top-0.5 right-0.5 flex h-8 items-center gap-1 pr-1'>
+                          <Button
+                            type='button'
+                            variant='ghost'
+                            size='sm'
+                            onClick={generateTestUrl}
+                            disabled={isGeneratingTestUrl}
+                            className={cn(
+                              'group h-7 w-7 rounded-md p-0',
+                              'text-muted-foreground/60 transition-all duration-200',
+                              'hover:scale-105 hover:bg-muted/50 hover:text-foreground',
+                              'active:scale-95',
+                              'focus-visible:ring-2 focus-visible:ring-muted-foreground/20 focus-visible:ring-offset-1'
+                            )}
+                          >
+                            <RotateCcw
+                              className={cn('h-3.5 w-3.5', isGeneratingTestUrl && 'animate-spin')}
+                            />
+                          </Button>
+                          <Button
+                            type='button'
+                            variant='ghost'
+                            size='sm'
+                            className={cn(
+                              'group h-7 w-7 rounded-md p-0',
+                              'text-muted-foreground/60 transition-all duration-200',
+                              'hover:scale-105 hover:bg-muted/50 hover:text-foreground',
+                              'active:scale-95',
+                              'focus-visible:ring-2 focus-visible:ring-muted-foreground/20 focus-visible:ring-offset-1'
+                            )}
+                            onClick={handleCopyTestUrl}
+                          >
+                            {copiedTestUrl ? (
+                              <Check className='h-3.5 w-3.5' />
+                            ) : (
+                              <Copy className='h-3.5 w-3.5' />
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                      {testUrlExpiresAt && (
+                        <p className='text-xs text-muted-foreground'>
+                          Expires: {new Date(testUrlExpiresAt).toLocaleString()}
+                        </p>
+                      )}
+                    </>
+                  ) : isGeneratingTestUrl ? (
+                    <div className='text-sm text-muted-foreground'>Generating test URL...</div>
+                  ) : null}
+                </div>
+              </TooltipProvider>
+            )}
 
             <TriggerInstructions
               instructions={triggerDef.instructions}
