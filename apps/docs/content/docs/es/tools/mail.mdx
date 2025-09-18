@@ -1,0 +1,66 @@
+---
+title: Correo
+description: Envía correos electrónicos utilizando el servicio de correo interno
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="mail"
+  color="#181C1E"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      
+      
+      viewBox='0 0 30 24'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <path
+        d='M2.35742 5.83288L11.7674 12.1071C13.0656 12.9712 13.7141 13.404 14.4151 13.5725C15.0352 13.7208 15.681 13.7208 16.2998 13.5725C17.0008 13.404 17.6492 12.9712 18.9475 12.1071L28.3574 5.83288M8.82844 21.7219H21.8864C24.1513 21.7219 25.2837 21.7219 26.1492 21.2811C26.9097 20.8931 27.5278 20.2744 27.9152 19.5137C28.3574 18.6482 28.3574 17.5158 28.3574 15.2509V7.97102C28.3574 5.70616 28.3574 4.57373 27.9166 3.70823C27.5288 2.94727 26.9102 2.32858 26.1492 1.94084C25.2837 1.5 24.1513 1.5 21.8864 1.5H8.82844C6.56358 1.5 5.43115 1.5 4.56566 1.94084C3.80519 2.32881 3.187 2.94747 2.79961 3.70823C2.35742 4.57373 2.35742 5.70616 2.35742 7.97102V15.2509C2.35742 17.5158 2.35742 18.6482 2.79826 19.5137C3.186 20.2747 3.80469 20.8933 4.56566 21.2811C5.43115 21.7219 6.56358 21.7219 8.82844 21.7219Z'
+        stroke='currentColor'
+        strokeWidth='2.5'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+El bloque de Correo te permite enviar correos electrónicos directamente desde tus flujos de trabajo utilizando la infraestructura de envío de correo de Sim, impulsada por [Resend](https://resend.com/). Esta integración te permite entregar programáticamente notificaciones, alertas y otra información importante a las direcciones de correo electrónico de los usuarios sin requerir ninguna configuración externa o OAuth.
+
+Nuestro servicio de correo interno está diseñado para ser confiable y fácil de usar, lo que lo hace ideal para automatizar comunicaciones y asegurar que tus mensajes lleguen a los destinatarios de manera eficiente.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Envía correos electrónicos directamente utilizando el servicio de correo interno. Utiliza MAIL_BLOCK_FROM_ADDRESS si está configurado, de lo contrario, usa FROM_EMAIL_ADDRESS como alternativa. No requiere configuración externa ni OAuth. Perfecto para enviar notificaciones, alertas o correos electrónicos de propósito general desde tus flujos de trabajo. Compatible con formato HTML.
+
+## Herramientas
+
+### `mail_send`
+
+Envía un correo electrónico utilizando el servicio de correo interno sin requerir OAuth o configuración externa
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `to` | string | Sí | Dirección de correo electrónico del destinatario |
+| `subject` | string | Sí | Asunto del correo electrónico |
+| `body` | string | Sí | Contenido del cuerpo del correo electrónico |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Si el correo electrónico se envió correctamente |
+| `to` | string | Dirección de correo electrónico del destinatario |
+| `subject` | string | Asunto del correo electrónico |
+| `body` | string | Contenido del cuerpo del correo electrónico |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `mail`
