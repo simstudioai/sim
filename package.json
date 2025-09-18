@@ -30,7 +30,7 @@
     "react-dom": "19.1.0",
     "next": "15.4.1",
     "@next/env": "15.4.1",
-    "drizzle-orm": "^0.41.0",
+    "drizzle-orm": "^0.44.5",
     "postgres": "^3.4.5"
   },
   "dependencies": {
@@ -38,7 +38,7 @@
     "@t3-oss/env-nextjs": "0.13.4",
     "@vercel/analytics": "1.5.0",
     "bcryptjs": "3.0.2",
-    "drizzle-orm": "^0.41.0",
+    "drizzle-orm": "^0.44.5",
     "geist": "^1.4.2",
     "mongodb": "6.19.0",
     "postgres": "^3.4.5",
@@ -51,7 +51,7 @@
     "@biomejs/biome": "2.0.0-beta.5",
     "@next/env": "15.4.1",
     "@types/bcryptjs": "3.0.0",
-    "drizzle-kit": "^0.31.1",
+    "drizzle-kit": "^0.31.4",
     "husky": "9.1.7",
     "lint-staged": "16.0.0",
     "turbo": "2.5.6"
