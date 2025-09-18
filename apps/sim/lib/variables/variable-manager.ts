@@ -225,24 +225,11 @@ export class VariableManager {
       return typeof value === 'string' ? value : String(value)
     }
     if (type === 'string') {
-      // For backwards compatibility, add quotes only for string type in code context
       return typeof value === 'string'
         ? JSON.stringify(value)
         : VariableManager.formatValue(value, type, 'code')
     }
 
     return VariableManager.formatValue(value, type, 'code')
-  }
-
-  /**
-   * Determines whether quotes should be stripped for display.
-   */
-  static shouldStripQuotesForDisplay(value: string): boolean {
-    if (!value || typeof value !== 'string') return false
-
-    return (
-      (value.startsWith('"') && value.endsWith('"') && value.length > 2) ||
-      (value.startsWith("'") && value.endsWith("'") && value.length > 2)
-    )
   }
 }
