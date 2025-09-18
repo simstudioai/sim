@@ -565,6 +565,7 @@ export const auth = betterAuth({
             'email',
             'Sites.Read.All',
             'Sites.ReadWrite.All',
+            'Sites.Manage.All',
             'offline_access',
           ],
           responseType: 'code',
