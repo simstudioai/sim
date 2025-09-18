@@ -416,10 +416,11 @@ export class IdempotencyService {
         return await this.waitForResult<T>(claimResult.normalizedKey, claimResult.storageMethod)
       }
 
-      if (existingResult?.success === false) {
-        throw new Error(existingResult.error || 'Previous operation failed')
+      if (existingResult) {
+        return existingResult.result as T
       }
-      return existingResult?.result as T
+
+      throw new Error(`Unexpected state: key claimed but no existing result found`)
     }
 
     try {
