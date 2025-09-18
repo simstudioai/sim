@@ -570,13 +570,13 @@ export function TriggerModal({
                         </div>
                       </div>
                       {testUrlExpiresAt && (
-                        <p className='text-xs text-muted-foreground'>
+                        <p className='text-muted-foreground text-xs'>
                           Expires: {new Date(testUrlExpiresAt).toLocaleString()}
                         </p>
                       )}
                     </>
                   ) : isGeneratingTestUrl ? (
-                    <div className='text-sm text-muted-foreground'>Generating test URL...</div>
+                    <div className='text-muted-foreground text-sm'>Generating test URL...</div>
                   ) : null}
                 </div>
               </TooltipProvider>
