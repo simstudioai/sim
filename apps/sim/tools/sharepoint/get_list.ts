@@ -61,12 +61,32 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
       }
 
       const listSegment = params.listId || params.listTitle
+
+      // Default to returning items when targeting a specific list unless explicitly disabled
+      const wantsItems = typeof params.includeItems === 'boolean' ? params.includeItems : true
+
+      // If caller wants items for a specific list, prefer the items endpoint (no columns)
+      if (wantsItems && !params.includeColumns) {
+        const itemsUrl = new URL(
+          `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listSegment}/items`
+        )
+        itemsUrl.searchParams.set('$expand', 'fields')
+        const finalItemsUrl = itemsUrl.toString()
+        logger.info('SharePoint Get List Items URL', {
+          finalUrl: finalItemsUrl,
+          siteId,
+          listId: params.listId,
+          listTitle: params.listTitle,
+        })
+        return finalItemsUrl
+      }
+
+      // Otherwise, fetch list metadata (optionally with columns/items via $expand)
       const baseUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listSegment}`
       const url = new URL(baseUrl)
-
       const expandParts: string[] = []
       if (params.includeColumns) expandParts.push('columns')
-      if (params.includeItems) expandParts.push('items($expand=fields)')
+      if (wantsItems) expandParts.push('items($expand=fields)')
       if (expandParts.length > 0) url.searchParams.append('$expand', expandParts.join(','))
 
       const finalUrl = url.toString()
@@ -76,9 +96,8 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
         listId: params.listId,
         listTitle: params.listTitle,
         includeColumns: !!params.includeColumns,
-        includeItems: !!params.includeItems,
+        includeItems: wantsItems,
       })
-
       return finalUrl
     },
     method: 'GET',
@@ -91,7 +110,37 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    // If this is a collection response
+    // If the response is a collection of items (from the items endpoint)
+    if (
+      Array.isArray((data as any).value) &&
+      (data as any).value.length > 0 &&
+      (data as any).value[0] &&
+      'fields' in (data as any).value[0]
+    ) {
+      const items = (data as any).value.map((i: any) => ({
+        id: i.id,
+        fields: i.fields as Record<string, unknown>,
+      }))
+
+      const nextLink: string | undefined = (data as any)['@odata.nextLink']
+      const nextPageToken = nextLink
+        ? (() => {
+            try {
+              const u = new URL(nextLink)
+              return u.searchParams.get('$skiptoken') || u.searchParams.get('$skip') || undefined
+            } catch {
+              return undefined
+            }
+          })()
+        : undefined
+
+      return {
+        success: true,
+        output: { list: { items } as SharepointList, nextPageToken },
+      }
+    }
+
+    // If this is a collection of lists (site-level)
     if (Array.isArray((data as any).value)) {
       const lists: SharepointList[] = (data as any).value.map((l: any) => ({
         id: l.id,
@@ -103,7 +152,6 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
         list: l.list,
       }))
 
-      // Microsoft Graph pagination uses @odata.nextLink; surface token via raw value
       const nextLink: string | undefined = (data as any)['@odata.nextLink']
       const nextPageToken = nextLink
         ? (() => {
@@ -122,7 +170,7 @@ export const getListTool: ToolConfig<SharepointToolParams, SharepointGetListResp
       }
     }
 
-    // Single list response
+    // Single list response (with optional expands)
     const list: SharepointList = {
       id: data.id,
       displayName: data.displayName ?? data.name,

@@ -57,6 +57,13 @@ export const createListTool: ToolConfig<SharepointToolParams, SharepointCreateLi
       visibility: 'user-only',
       description: "List template name (e.g., 'genericList')",
     },
+    pageContent: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Optional JSON of columns. Either a top-level array of column definitions or an object with { columns: [...] }.',
+    },
   },
 
   request: {
@@ -75,18 +82,24 @@ export const createListTool: ToolConfig<SharepointToolParams, SharepointCreateLi
         throw new Error('listDisplayName is required')
       }
 
-      // Derive columns from pageContent JSON wrapper
+      // Derive columns from pageContent JSON (object or string) or top-level array
       let columns: unknown[] | undefined
-      if (params.pageContent && typeof params.pageContent === 'string') {
-        try {
-          const parsed = JSON.parse(params.pageContent)
-          if (parsed && Array.isArray(parsed.columns)) {
-            columns = parsed.columns
+      if (params.pageContent) {
+        if (typeof params.pageContent === 'string') {
+          try {
+            const parsed = JSON.parse(params.pageContent)
+            if (Array.isArray(parsed)) columns = parsed
+            else if (parsed && Array.isArray((parsed as any).columns))
+              columns = (parsed as any).columns
+          } catch (error) {
+            logger.warn('Invalid JSON in pageContent for create list; ignoring', {
+              error: error instanceof Error ? error.message : String(error),
+            })
           }
-        } catch (error) {
-          logger.warn('Invalid JSON in pageContent for create list; ignoring', {
-            error: error instanceof Error ? error.message : String(error),
-          })
+        } else if (typeof params.pageContent === 'object') {
+          const pc: any = params.pageContent
+          if (Array.isArray(pc)) columns = pc
+          else if (pc && Array.isArray(pc.columns)) columns = pc.columns
         }
       }
 
@@ -101,7 +114,6 @@ export const createListTool: ToolConfig<SharepointToolParams, SharepointCreateLi
         displayName: payload.displayName,
         template: payload.list.template,
         hasDescription: !!payload.description,
-        columnsCount: Array.isArray(payload.columns) ? payload.columns.length : 0,
       })
 
       return payload

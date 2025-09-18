@@ -53,7 +53,7 @@ export const updateListItemTool: ToolConfig<
       visibility: 'user-only',
       description: 'The ID of the list item to update',
     },
-    itemFields: {
+    listItemFields: {
       type: 'object',
       required: true,
       visibility: 'user-only',
@@ -78,16 +78,58 @@ export const updateListItemTool: ToolConfig<
       Accept: 'application/json',
     }),
     body: (params) => {
-      if (!params.itemFields || Object.keys(params.itemFields).length === 0) {
-        throw new Error('itemFields must not be empty')
+      if (!params.listItemFields || Object.keys(params.listItemFields).length === 0) {
+        throw new Error('listItemFields must not be empty')
       }
+
+      // Filter out system/read-only fields that cannot be updated via Graph
+      const readOnlyFields = new Set<string>([
+        'Id',
+        'id',
+        'UniqueId',
+        'GUID',
+        'ContentTypeId',
+        'Created',
+        'Modified',
+        'Author',
+        'Editor',
+        'CreatedBy',
+        'ModifiedBy',
+        'AuthorId',
+        'EditorId',
+        '_UIVersionString',
+        'Attachments',
+        'FileRef',
+        'FileDirRef',
+        'FileLeafRef',
+      ])
+
+      const entries = Object.entries(params.listItemFields)
+      const updatableEntries = entries.filter(([key]) => !readOnlyFields.has(key))
+
+      if (updatableEntries.length !== entries.length) {
+        const removed = entries.filter(([key]) => readOnlyFields.has(key)).map(([key]) => key)
+        logger.warn('Removed read-only SharePoint fields from update', {
+          removed,
+        })
+      }
+
+      if (updatableEntries.length === 0) {
+        const requestedKeys = Object.keys(params.listItemFields)
+        throw new Error(
+          `All provided fields are read-only and cannot be updated: ${requestedKeys.join(', ')}`
+        )
+      }
+
+      const sanitizedFields = Object.fromEntries(updatableEntries)
+
       logger.info('Updating SharePoint list item fields', {
-        itemId: params.itemId,
+        listItemId: params.itemId,
         listId: params.listId,
         listTitle: params.listTitle,
-        fieldsKeys: Object.keys(params.itemFields),
+        fieldsKeys: Object.keys(sanitizedFields),
       })
-      return params.itemFields
+      return sanitizedFields
     },
   },
 
@@ -98,10 +140,10 @@ export const updateListItemTool: ToolConfig<
         fields = await response.json()
       } catch {
         // Fall back to submitted fields if no body is returned
-        fields = params?.itemFields
+        fields = params?.listItemFields
       }
     } else {
-      fields = params?.itemFields
+      fields = params?.listItemFields
     }
 
     return {

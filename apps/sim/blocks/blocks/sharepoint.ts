@@ -105,22 +105,23 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
     },
 
     {
+      id: 'listId',
+      title: 'List ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter list ID (GUID). Required for Update; optional for Read.',
+      canonicalParamId: 'listId',
+      condition: { field: 'operation', value: ['read_list', 'update_list'] },
+    },
+
+    {
       id: 'listItemId',
       title: 'Item ID',
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter item ID',
+      canonicalParamId: 'itemId',
       condition: { field: 'operation', value: ['update_list'] },
-    },
-
-    // Read List - target a specific list
-    {
-      id: 'listId',
-      title: 'List ID',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Enter list ID (GUID). Leave blank to list all.',
-      condition: { field: 'operation', value: 'read_list' },
     },
 
     {
@@ -146,9 +147,8 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       title: 'Page Content',
       type: 'long-input',
       layout: 'full',
-      placeholder:
-        'For Create Page: enter page content. For Create List: optionally provide JSON like { "columns": [ { "name": "Author", "text": {} }, { "name": "PageCount", "number": {} } ] } to create columns.',
-      condition: { field: 'operation', value: ['create_page', 'create_list', 'update_list'] },
+      placeholder: 'Provide page content',
+      condition: { field: 'operation', value: ['create_list'] },
     },
     {
       id: 'listDescription',
@@ -177,6 +177,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       type: 'long-input',
       layout: 'full',
       placeholder: 'Enter list item fields',
+      canonicalParamId: 'listItemFields',
       condition: { field: 'operation', value: 'update_list' },
     },
   ],
@@ -214,7 +215,14 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
         // Use siteSelector if provided, otherwise use manualSiteId
         const effectiveSiteId = (siteSelector || manualSiteId || '').trim()
 
-        const { listItemId, listItemFields, includeColumns, includeItems, ...others } = rest as any
+        const {
+          itemId: providedItemId,
+          listItemId,
+          listItemFields,
+          includeColumns,
+          includeItems,
+          ...others
+        } = rest as any
 
         let parsedItemFields: any = listItemFields
         if (typeof listItemFields === 'string' && listItemFields.trim()) {
@@ -226,11 +234,39 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
             })
           }
         }
+        // Ensure listItemFields is an object for the tool schema
+        if (typeof parsedItemFields !== 'object' || parsedItemFields === null) {
+          parsedItemFields = undefined
+        }
+
+        // Sanitize item ID (required by tool)
+        const rawItemId = providedItemId ?? listItemId
+        const sanitizedItemId =
+          rawItemId === undefined || rawItemId === null
+            ? undefined
+            : String(rawItemId).trim() || undefined
 
         const coerceBoolean = (value: any) => {
           if (typeof value === 'boolean') return value
           if (typeof value === 'string') return value.toLowerCase() === 'true'
           return undefined
+        }
+
+        // Debug logging for update_list param mapping
+        if (others.operation === 'update_list') {
+          try {
+            logger.info('SharepointBlock update_list param check', {
+              siteId: effectiveSiteId || undefined,
+              listId: (others as any)?.listId,
+              listTitle: (others as any)?.listTitle,
+              itemId: sanitizedItemId,
+              hasItemFields: !!parsedItemFields && typeof parsedItemFields === 'object',
+              itemFieldKeys:
+                parsedItemFields && typeof parsedItemFields === 'object'
+                  ? Object.keys(parsedItemFields)
+                  : [],
+            })
+          } catch {}
         }
 
         return {
@@ -240,8 +276,8 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
           mimeType: mimeType,
           ...others,
           // Map to tool param names
-          itemId: listItemId || undefined,
-          itemFields: parsedItemFields,
+          itemId: sanitizedItemId,
+          listItemFields: parsedItemFields,
           includeColumns: coerceBoolean(includeColumns),
           includeItems: coerceBoolean(includeItems),
         }

@@ -175,7 +175,7 @@ export interface SharepointToolParams {
   listTemplate?: string
   // Update List Item
   itemId?: string
-  itemFields?: Record<string, unknown>
+  listItemFields?: Record<string, unknown>
 }
 
 export interface GraphApiResponse {
