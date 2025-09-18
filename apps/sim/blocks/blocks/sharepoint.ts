@@ -29,6 +29,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
         { label: 'Create List', id: 'create_list' },
         { label: 'Read List', id: 'read_list' },
         { label: 'Update List', id: 'update_list' },
+        { label: 'Add List Items', id: 'add_list_items' },
       ],
     },
     // Sharepoint Credentials
@@ -81,6 +82,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
           'create_list',
           'read_list',
           'update_list',
+          'add_list_items',
         ],
       },
     },
@@ -111,7 +113,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       layout: 'full',
       placeholder: 'Enter list ID (GUID). Required for Update; optional for Read.',
       canonicalParamId: 'listId',
-      condition: { field: 'operation', value: ['read_list', 'update_list'] },
+      condition: { field: 'operation', value: ['read_list', 'update_list', 'add_list_items'] },
     },
 
     {
@@ -178,7 +180,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       layout: 'full',
       placeholder: 'Enter list item fields',
       canonicalParamId: 'listItemFields',
-      condition: { field: 'operation', value: 'update_list' },
+      condition: { field: 'operation', value: ['update_list', 'add_list_items'] },
     },
   ],
   tools: {
@@ -189,6 +191,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       'sharepoint_create_list',
       'sharepoint_get_list',
       'sharepoint_update_list',
+      'sharepoint_add_list_items',
     ],
     config: {
       tool: (params) => {
@@ -205,6 +208,8 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
             return 'sharepoint_get_list'
           case 'update_list':
             return 'sharepoint_update_list'
+          case 'add_list_items':
+            return 'sharepoint_add_list_items'
           default:
             throw new Error(`Invalid Sharepoint operation: ${params.operation}`)
         }
@@ -252,10 +257,10 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
           return undefined
         }
 
-        // Debug logging for update_list param mapping
-        if (others.operation === 'update_list') {
+        // Debug logging for update_list/add_list_items param mapping
+        if (others.operation === 'update_list' || others.operation === 'add_list_items') {
           try {
-            logger.info('SharepointBlock update_list param check', {
+            logger.info('SharepointBlock list item param check', {
               siteId: effectiveSiteId || undefined,
               listId: (others as any)?.listId,
               listTitle: (others as any)?.listTitle,

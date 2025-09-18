@@ -151,6 +151,7 @@ import {
   sharepointListSitesTool,
   sharepointReadPageTool,
   sharepointUpdateListItemTool,
+  sharepointAddListItemTool,
 } from '@/tools/sharepoint'
 import { slackCanvasTool, slackMessageReaderTool, slackMessageTool } from '@/tools/slack'
 import { smsSendTool } from '@/tools/sms'
@@ -370,6 +371,7 @@ export const tools: Record<string, ToolConfig> = {
   sharepoint_get_list: sharepointGetListTool,
   sharepoint_create_list: sharepointCreateListTool,
   sharepoint_update_list: sharepointUpdateListItemTool,
+  sharepoint_add_list_items: sharepointAddListItemTool,
   // Provider chat tools
   // Provider chat tools - handled separately in agent blocks
 }
