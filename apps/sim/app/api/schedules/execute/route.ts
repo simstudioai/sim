@@ -1,5 +1,4 @@
-import { db } from '@sim/db'
-import { userStats, workflow, workflowSchedule } from '@sim/db/schema'
+import { db, userStats, workflow, workflowSchedule } from '@sim/db'
 import { Cron } from 'croner'
 import { and, eq, lte, not, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'

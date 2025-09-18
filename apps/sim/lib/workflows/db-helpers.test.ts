@@ -52,16 +52,25 @@ const mockWorkflowSubflows = {
 
 vi.doMock('@sim/db', () => ({
   db: mockDb,
-}))
-
-vi.doMock('@sim/db/schema', () => ({
   workflowBlocks: mockWorkflowBlocks,
   workflowEdges: mockWorkflowEdges,
   workflowSubflows: mockWorkflowSubflows,
+  workflowDeploymentVersion: {
+    id: 'id',
+    workflowId: 'workflowId',
+    version: 'version',
+    state: 'state',
+    isActive: 'isActive',
+    createdAt: 'createdAt',
+    createdBy: 'createdBy',
+    deployedBy: 'deployedBy',
+  },
 }))
 
 vi.doMock('drizzle-orm', () => ({
   eq: vi.fn((field, value) => ({ field, value, type: 'eq' })),
+  and: vi.fn((...conditions) => ({ type: 'and', conditions })),
+  desc: vi.fn((field) => ({ field, type: 'desc' })),
 }))
 
 vi.doMock('@/lib/logs/console/logger', () => ({
