@@ -18,6 +18,8 @@ services:
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-sim_auth_secret_$(openssl rand -hex 16)}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-$(openssl rand -hex 32)}
+      - COPILOT_API_KEY=${COPILOT_API_KEY}
+      - SIM_AGENT_API_URL=${SIM_AGENT_API_URL}
       - OLLAMA_URL=http://ollama:11434
       - NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-http://localhost:3002}
     depends_on:

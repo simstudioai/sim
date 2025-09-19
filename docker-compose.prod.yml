@@ -14,6 +14,8 @@ services:
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-your_auth_secret_here}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-your_encryption_key_here}
+      - COPILOT_API_KEY=${COPILOT_API_KEY}
+      - SIM_AGENT_API_URL=${SIM_AGENT_API_URL}
       - OLLAMA_URL=${OLLAMA_URL:-http://localhost:11434}
       - SOCKET_SERVER_URL=${SOCKET_SERVER_URL:-http://localhost:3002}
       - NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-http://localhost:3002}
