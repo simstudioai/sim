@@ -67,17 +67,58 @@ export const EdgeOperationSchema = z.object({
   operationId: z.string().optional(),
 })
 
-export const SubflowOperationSchema = z.object({
-  operation: z.enum(['add', 'remove', 'update']),
-  target: z.literal('subflow'),
-  payload: z.object({
-    id: z.string(),
-    type: z.enum(['loop', 'parallel']).optional(),
-    config: z.record(z.any()).optional(),
-  }),
-  timestamp: z.number(),
-  operationId: z.string().optional(),
+// Shared schemas for subflow duplication
+const BlockInsertPayloadSchema = z.object({
+  id: z.string(),
+  sourceId: z.string().optional(),
+  type: z.string(),
+  name: z.string(),
+  position: PositionSchema,
+  data: z.record(z.any()).optional(),
+  subBlocks: z.record(z.any()).optional(),
+  outputs: z.record(z.any()).optional(),
+  parentId: z.string().nullable().optional(),
+  extent: z.enum(['parent']).nullable().optional(),
+  enabled: z.boolean().optional(),
+  horizontalHandles: z.boolean().optional(),
+  isWide: z.boolean().optional(),
+  advancedMode: z.boolean().optional(),
+  triggerMode: z.boolean().optional(),
+  height: z.number().optional(),
 })
+
+const EdgeInsertPayloadSchema = z.object({
+  id: z.string(),
+  source: z.string(),
+  target: z.string(),
+  sourceHandle: z.string().nullable().optional(),
+  targetHandle: z.string().nullable().optional(),
+})
+
+export const SubflowOperationSchema = z.union([
+  z.object({
+    operation: z.literal('update'),
+    target: z.literal('subflow'),
+    payload: z.object({
+      id: z.string(),
+      type: z.enum(['loop', 'parallel']).optional(),
+      config: z.record(z.any()).optional(),
+    }),
+    timestamp: z.number(),
+    operationId: z.string().optional(),
+  }),
+  z.object({
+    operation: z.literal('duplicate-with-children'),
+    target: z.literal('subflow'),
+    payload: z.object({
+      parent: BlockInsertPayloadSchema,
+      children: z.array(BlockInsertPayloadSchema),
+      edges: z.array(EdgeInsertPayloadSchema),
+    }),
+    timestamp: z.number(),
+    operationId: z.string().optional(),
+  }),
+])
 
 export const VariableOperationSchema = z.union([
   z.object({

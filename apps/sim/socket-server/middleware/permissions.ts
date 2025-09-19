@@ -105,6 +105,7 @@ export async function verifyOperationPermission(
         'update-trigger-mode',
         'toggle-handles',
         'duplicate',
+        'duplicate-with-children',
       ],
       write: [
         'add',
@@ -119,6 +120,7 @@ export async function verifyOperationPermission(
         'update-trigger-mode',
         'toggle-handles',
         'duplicate',
+        'duplicate-with-children',
       ],
       read: ['update-position'], // Read-only users can only move things around
     }

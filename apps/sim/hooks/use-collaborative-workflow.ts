@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import type { Edge } from 'reactflow'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
+import { updateBlockReferences } from '@/lib/workflows/reference-utils'
 import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
 import { useSocket } from '@/contexts/socket-context'
@@ -254,6 +255,75 @@ export function useCollaborativeWorkflow() {
                 }
               }
               break
+            case 'duplicate-with-children': {
+              // Apply a duplicated subflow subtree from a remote collaborator
+              const parent = payload.parent
+              const children = Array.isArray(payload.children) ? payload.children : []
+              const edges = Array.isArray(payload.edges) ? payload.edges : []
+
+              // Add parent block
+              workflowStore.addBlock(
+                parent.id,
+                parent.type,
+                parent.name,
+                parent.position,
+                parent.data,
+                parent.parentId,
+                parent.extent,
+                {
+                  enabled: parent.enabled,
+                  horizontalHandles: parent.horizontalHandles,
+                  isWide: parent.isWide,
+                  advancedMode: parent.advancedMode,
+                  triggerMode: parent.triggerMode ?? false,
+                  height: parent.height,
+                }
+              )
+
+              // Add children blocks
+              children.forEach((child: any) => {
+                workflowStore.addBlock(
+                  child.id,
+                  child.type,
+                  child.name,
+                  child.position,
+                  child.data,
+                  child.parentId,
+                  child.extent,
+                  {
+                    enabled: child.enabled,
+                    horizontalHandles: child.horizontalHandles,
+                    isWide: child.isWide,
+                    advancedMode: child.advancedMode,
+                    triggerMode: child.triggerMode ?? false,
+                    height: child.height,
+                  }
+                )
+
+                // Apply subblock values for collaborators to see immediately
+                if (child.subBlocks && typeof child.subBlocks === 'object') {
+                  Object.entries(child.subBlocks).forEach(([subblockId, subblock]) => {
+                    const value = (subblock as any)?.value
+                    if (value !== undefined) {
+                      subBlockStore.setValue(child.id, subblockId, value)
+                    }
+                  })
+                }
+              })
+
+              // Add internal edges
+              edges.forEach((edge: any) => {
+                workflowStore.addEdge({
+                  id: edge.id,
+                  source: edge.source,
+                  target: edge.target,
+                  sourceHandle: edge.sourceHandle,
+                  targetHandle: edge.targetHandle,
+                })
+              })
+
+              break
+            }
           }
         } else if (target === 'variable') {
           switch (operation) {
@@ -1061,6 +1131,222 @@ export function useCollaborativeWorkflow() {
     ]
   )
 
+  const collaborativeDuplicateSubflow = useCallback(
+    (subflowId: string) => {
+      if (isShowingDiff) {
+        logger.debug('Skipping subflow duplication in diff mode')
+        return
+      }
+      if (!isInActiveRoom()) {
+        logger.debug('Skipping subflow duplication - not in active workflow', {
+          currentWorkflowId,
+          activeWorkflowId,
+          subflowId,
+        })
+        return
+      }
+
+      const parent = workflowStore.blocks[subflowId]
+      if (!parent || (parent.type !== 'loop' && parent.type !== 'parallel')) return
+
+      const newParentId = crypto.randomUUID()
+      const parentOffsetPosition = {
+        x: parent.position.x + 250,
+        y: parent.position.y + 20,
+      }
+
+      // Name bump similar to duplicateBlock
+      // Build a set of existing names to ensure uniqueness across the workflow
+      const existingNames = new Set(Object.values(workflowStore.blocks).map((b) => b.name))
+
+      const match = parent.name.match(/(.*?)(\d+)?$/)
+      let newParentName = match?.[2]
+        ? `${match[1]}${Number.parseInt(match[2]) + 1}`
+        : `${parent.name} 1`
+      if (existingNames.has(newParentName)) {
+        const base = match ? match[1] : `${parent.name} `
+        let idx = match?.[2] ? Number.parseInt(match[2]) + 1 : 1
+        while (existingNames.has(`${base}${idx}`)) idx++
+        newParentName = `${base}${idx}`
+      }
+      existingNames.add(newParentName)
+
+      // Collect children and internal edges
+      const allBlocks = workflowStore.blocks
+      const children = Object.values(allBlocks).filter((b) => b.data?.parentId === subflowId)
+      const childIdSet = new Set(children.map((c) => c.id))
+      const allEdges = workflowStore.edges
+
+      const startHandle = parent.type === 'loop' ? 'loop-start-source' : 'parallel-start-source'
+      const internalEdges = allEdges.filter(
+        (e) =>
+          (e.source === subflowId && e.sourceHandle === startHandle && childIdSet.has(e.target)) ||
+          (childIdSet.has(e.source) && childIdSet.has(e.target))
+      )
+
+      // Build ID map
+      const idMap = new Map<string, string>()
+      idMap.set(subflowId, newParentId)
+      children.forEach((c) => idMap.set(c.id, crypto.randomUUID()))
+
+      // Construct parent payload
+      const parentPayload: any = {
+        id: newParentId,
+        sourceId: subflowId,
+        type: parent.type,
+        name: newParentName,
+        position: parentOffsetPosition,
+        data: parent.data ? JSON.parse(JSON.stringify(parent.data)) : {},
+        subBlocks: {},
+        outputs: parent.outputs ? JSON.parse(JSON.stringify(parent.outputs)) : {},
+        parentId: parent.data?.parentId || null,
+        extent: parent.data?.extent || null,
+        enabled: parent.enabled ?? true,
+        horizontalHandles: parent.horizontalHandles ?? true,
+        isWide: parent.isWide ?? false,
+        advancedMode: parent.advancedMode ?? false,
+        triggerMode: false,
+        height: parent.height || 0,
+      }
+
+      // Optimistic add of parent
+      workflowStore.addBlock(
+        newParentId,
+        parent.type,
+        newParentName,
+        parentOffsetPosition,
+        parentPayload.data,
+        parentPayload.parentId,
+        parentPayload.extent,
+        {
+          enabled: parentPayload.enabled,
+          horizontalHandles: parentPayload.horizontalHandles,
+          isWide: parentPayload.isWide,
+          advancedMode: parentPayload.advancedMode,
+          triggerMode: false,
+          height: parentPayload.height,
+        }
+      )
+
+      // Build children payloads, copy subblocks with values and update references
+      const activeId = activeWorkflowId || ''
+      const subblockValuesForWorkflow = subBlockStore.workflowValues[activeId] || {}
+
+      const childPayloads = children.map((child) => {
+        const newId = idMap.get(child.id) as string
+        // Name bump logic identical to duplicateBlock
+        const childNameMatch = child.name.match(/(.*?)(\d+)?$/)
+        let newChildName = childNameMatch?.[2]
+          ? `${childNameMatch[1]}${Number.parseInt(childNameMatch[2]) + 1}`
+          : `${child.name} 1`
+        if (existingNames.has(newChildName)) {
+          const base = childNameMatch ? childNameMatch[1] : `${child.name} `
+          let idx = childNameMatch?.[2] ? Number.parseInt(childNameMatch[2]) + 1 : 1
+          while (existingNames.has(`${base}${idx}`)) idx++
+          newChildName = `${base}${idx}`
+        }
+        existingNames.add(newChildName)
+        const clonedSubBlocks = child.subBlocks ? JSON.parse(JSON.stringify(child.subBlocks)) : {}
+        const values = subblockValuesForWorkflow[child.id] || {}
+        Object.entries(values).forEach(([subblockId, value]) => {
+          const processed = updateBlockReferences(value, idMap, 'duplicate-subflow')
+          if (!clonedSubBlocks[subblockId]) {
+            clonedSubBlocks[subblockId] = { id: subblockId, type: 'unknown', value: processed }
+          } else {
+            clonedSubBlocks[subblockId].value = processed
+          }
+        })
+
+        // Optimistic add child
+        workflowStore.addBlock(
+          newId,
+          child.type,
+          newChildName,
+          child.position,
+          {
+            ...(child.data ? JSON.parse(JSON.stringify(child.data)) : {}),
+            parentId: newParentId,
+            extent: 'parent',
+          },
+          newParentId,
+          'parent',
+          {
+            enabled: child.enabled,
+            horizontalHandles: child.horizontalHandles,
+            isWide: child.isWide,
+            advancedMode: child.advancedMode,
+            triggerMode: child.triggerMode ?? false,
+            height: child.height,
+          }
+        )
+
+        // Apply subblock values locally for immediate feedback
+        Object.entries(clonedSubBlocks).forEach(([subblockId, sub]) => {
+          const v = (sub as any)?.value
+          if (v !== undefined) {
+            subBlockStore.setValue(newId, subblockId, v)
+          }
+        })
+
+        return {
+          id: newId,
+          sourceId: child.id,
+          type: child.type,
+          name: newChildName,
+          position: child.position,
+          data: {
+            ...(child.data ? JSON.parse(JSON.stringify(child.data)) : {}),
+            parentId: newParentId,
+            extent: 'parent',
+          },
+          subBlocks: clonedSubBlocks,
+          outputs: child.outputs ? JSON.parse(JSON.stringify(child.outputs)) : {},
+          parentId: newParentId,
+          extent: 'parent',
+          enabled: child.enabled ?? true,
+          horizontalHandles: child.horizontalHandles ?? true,
+          isWide: child.isWide ?? false,
+          advancedMode: child.advancedMode ?? false,
+          triggerMode: child.triggerMode ?? false,
+          height: child.height || 0,
+        }
+      })
+
+      // Duplicate internal edges with remapped IDs
+      const edgePayloads = internalEdges.map((e) => ({
+        id: crypto.randomUUID(),
+        source: idMap.get(e.source) || e.source,
+        target: idMap.get(e.target) || e.target,
+        sourceHandle: e.sourceHandle,
+        targetHandle: e.targetHandle,
+      }))
+
+      // Optimistic add edges
+      edgePayloads.forEach((edge) => workflowStore.addEdge(edge))
+
+      // Queue server op
+      executeQueuedOperation(
+        'duplicate-with-children',
+        'subflow',
+        {
+          parent: parentPayload,
+          children: childPayloads,
+          edges: edgePayloads,
+        },
+        () => {}
+      )
+    },
+    [
+      isShowingDiff,
+      isInActiveRoom,
+      currentWorkflowId,
+      activeWorkflowId,
+      workflowStore,
+      subBlockStore,
+      executeQueuedOperation,
+    ]
+  )
+
   const collaborativeUpdateLoopType = useCallback(
     (loopId: string, loopType: 'for' | 'forEach') => {
       const currentBlock = workflowStore.blocks[loopId]
@@ -1311,6 +1597,7 @@ export function useCollaborativeWorkflow() {
     collaborativeRemoveEdge,
     collaborativeSetSubblockValue,
     collaborativeSetTagSelection,
+    collaborativeDuplicateSubflow,
 
     // Collaborative variable operations
     collaborativeUpdateVariable,

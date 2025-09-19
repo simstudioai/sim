@@ -12,6 +12,7 @@ import {
   loadWorkflowFromNormalizedTables,
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/db-helpers'
+import { updateBlockReferences } from '@/lib/workflows/reference-utils'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/validation'
 import { getUserId } from '@/app/api/auth/oauth/utils'
 import { getAllBlocks, getBlock } from '@/blocks'
@@ -30,36 +31,6 @@ const YamlWorkflowRequestSchema = z.object({
   applyAutoLayout: z.boolean().optional().default(false),
   createCheckpoint: z.boolean().optional().default(false),
 })
-
-function updateBlockReferences(
-  value: any,
-  blockIdMapping: Map<string, string>,
-  requestId: string
-): any {
-  if (typeof value === 'string') {
-    // Replace references in string values
-    for (const [oldId, newId] of blockIdMapping.entries()) {
-      if (value.includes(oldId)) {
-        value = value.replaceAll(`<${oldId}.`, `<${newId}.`).replaceAll(`%${oldId}.`, `%${newId}.`)
-      }
-    }
-    return value
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((item) => updateBlockReferences(item, blockIdMapping, requestId))
-  }
-
-  if (value && typeof value === 'object') {
-    const result: Record<string, any> = {}
-    for (const [key, val] of Object.entries(value)) {
-      result[key] = updateBlockReferences(val, blockIdMapping, requestId)
-    }
-    return result
-  }
-
-  return value
-}
 
 /**
  * Helper function to create a checkpoint before workflow changes

@@ -1,15 +1,18 @@
 import type React from 'react'
 import { memo, useMemo, useRef } from 'react'
-import { Trash2 } from 'lucide-react'
+import { Copy, Trash2 } from 'lucide-react'
 import { Handle, type NodeProps, Position, useReactFlow } from 'reactflow'
 import { StartIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { type DiffStatus, hasDiffStatus } from '@/lib/workflows/diff/types'
 import { IterationBadges } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/components/iteration-badges/iteration-badges'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+
+const logger = createLogger('SubflowNode')
 
 const SubflowNodeStyles: React.FC = () => {
   return (
@@ -74,7 +77,7 @@ export interface SubflowNodeData {
 
 export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeData>) => {
   const { getNodes } = useReactFlow()
-  const { collaborativeRemoveBlock } = useCollaborativeWorkflow()
+  const { collaborativeRemoveBlock, collaborativeDuplicateSubflow } = useCollaborativeWorkflow()
   const blockRef = useRef<HTMLDivElement>(null)
 
   const currentWorkflow = useCurrentWorkflow()
@@ -171,18 +174,37 @@ export const SubflowNodeComponent = memo(({ data, id }: NodeProps<SubflowNodeDat
             }}
           >
             {!isPreview && (
-              <Button
-                variant='ghost'
-                size='sm'
-                onClick={(e) => {
-                  e.stopPropagation()
-                  collaborativeRemoveBlock(id)
-                }}
-                className='absolute top-2 right-2 z-20 text-gray-500 opacity-0 transition-opacity duration-200 hover:text-red-600 group-hover:opacity-100'
+              <div
+                className='absolute top-2 right-2 z-20 flex gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100'
                 style={{ pointerEvents: 'auto' }}
               >
-                <Trash2 className='h-4 w-4' />
-              </Button>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    try {
+                      collaborativeDuplicateSubflow(id)
+                    } catch (err) {
+                      logger.error('Failed to duplicate subflow', { err })
+                    }
+                  }}
+                  className='text-gray-500 hover:text-slate-900'
+                >
+                  <Copy className='h-4 w-4' />
+                </Button>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    collaborativeRemoveBlock(id)
+                  }}
+                  className='text-gray-500 hover:text-red-600'
+                >
+                  <Trash2 className='h-4 w-4' />
+                </Button>
+              </div>
             )}
 
             {/* Subflow Start */}
