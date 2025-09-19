@@ -407,7 +407,7 @@ export class SearchSuggestions {
   }
 
   /**
-   * Generate preview text for a suggestion - SIMPLE APPROACH
+   * Generate preview text for a suggestion
    * Show suggestion at the end of input, with proper spacing logic
    */
   generatePreview(suggestion: Suggestion, currentValue: string, cursorPosition: number): string {
