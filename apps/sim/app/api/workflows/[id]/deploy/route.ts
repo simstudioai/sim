@@ -1,11 +1,11 @@
-import { db } from '@sim/db'
-import { apiKey, workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db/schema'
-import { and, desc, eq } from 'drizzle-orm'
+import { apiKey, db, workflow, workflowDeploymentVersion } from '@sim/db'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { generateApiKey } from '@/lib/api-key/service'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
@@ -33,7 +33,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         isDeployed: workflow.isDeployed,
         deployedAt: workflow.deployedAt,
         userId: workflow.userId,
-        deployedState: workflow.deployedState,
         pinnedApiKeyId: workflow.pinnedApiKeyId,
       })
       .from(workflow)
@@ -110,25 +109,30 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // Check if the workflow has meaningful changes that would require redeployment
     let needsRedeployment = false
-    if (workflowData.deployedState) {
-      // Load current state from normalized tables for comparison
+    const [active] = await db
+      .select({ state: workflowDeploymentVersion.state })
+      .from(workflowDeploymentVersion)
+      .where(
+        and(
+          eq(workflowDeploymentVersion.workflowId, id),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
+      .orderBy(desc(workflowDeploymentVersion.createdAt))
+      .limit(1)
+
+    if (active?.state) {
       const { loadWorkflowFromNormalizedTables } = await import('@/lib/workflows/db-helpers')
       const normalizedData = await loadWorkflowFromNormalizedTables(id)
-
       if (normalizedData) {
-        // Convert normalized data to WorkflowState format for comparison
         const currentState = {
           blocks: normalizedData.blocks,
           edges: normalizedData.edges,
           loops: normalizedData.loops,
           parallels: normalizedData.parallels,
         }
-
         const { hasWorkflowChanged } = await import('@/lib/workflows/utils')
-        needsRedeployment = hasWorkflowChanged(
-          currentState as any,
-          workflowData.deployedState as any
-        )
+        needsRedeployment = hasWorkflowChanged(currentState as any, active.state as any)
       }
     }
 
@@ -189,102 +193,29 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       // Body may be empty; ignore
     }
 
-    // Get the current live state from normalized tables instead of stale JSON
+    // Get the current live state from normalized tables using centralized helper
     logger.debug(`[${requestId}] Getting current workflow state for deployment`)
 
-    // Get blocks from normalized table
-    const blocks = await db.select().from(workflowBlocks).where(eq(workflowBlocks.workflowId, id))
+    const normalizedData = await loadWorkflowFromNormalizedTables(id)
 
-    // Get edges from normalized table
-    const edges = await db.select().from(workflowEdges).where(eq(workflowEdges.workflowId, id))
-
-    // Get subflows from normalized table
-    const subflows = await db
-      .select()
-      .from(workflowSubflows)
-      .where(eq(workflowSubflows.workflowId, id))
-
-    // Build current state from normalized data
-    const blocksMap: Record<string, any> = {}
-    const loops: Record<string, any> = {}
-    const parallels: Record<string, any> = {}
-
-    // Process blocks
-    blocks.forEach((block) => {
-      const parentId = block.parentId || null
-      const extent = block.extent || null
-      const blockData = {
-        ...(block.data || {}),
-        ...(parentId && { parentId }),
-        ...(extent && { extent }),
-      }
-
-      blocksMap[block.id] = {
-        id: block.id,
-        type: block.type,
-        name: block.name,
-        position: { x: Number(block.positionX), y: Number(block.positionY) },
-        data: blockData,
-        enabled: block.enabled,
-        subBlocks: block.subBlocks || {},
-        // Preserve execution-relevant flags so serializer behavior matches manual runs
-        isWide: block.isWide ?? false,
-        advancedMode: block.advancedMode ?? false,
-        triggerMode: block.triggerMode ?? false,
-        outputs: block.outputs || {},
-        horizontalHandles: block.horizontalHandles ?? true,
-        height: Number(block.height || 0),
-        parentId,
-        extent,
-      }
-    })
-
-    // Process subflows (loops and parallels)
-    subflows.forEach((subflow) => {
-      const config = (subflow.config as any) || {}
-      if (subflow.type === 'loop') {
-        loops[subflow.id] = {
-          id: subflow.id,
-          nodes: config.nodes || [],
-          iterations: config.iterations || 1,
-          loopType: config.loopType || 'for',
-          forEachItems: config.forEachItems || '',
-        }
-      } else if (subflow.type === 'parallel') {
-        parallels[subflow.id] = {
-          id: subflow.id,
-          nodes: config.nodes || [],
-          count: config.count || 2,
-          distribution: config.distribution || '',
-          parallelType: config.parallelType || 'count',
-        }
-      }
-    })
-
-    // Convert edges to the expected format
-    const edgesArray = edges.map((edge) => ({
-      id: edge.id,
-      source: edge.sourceBlockId,
-      target: edge.targetBlockId,
-      sourceHandle: edge.sourceHandle,
-      targetHandle: edge.targetHandle,
-      type: 'default',
-      data: {},
-    }))
+    if (!normalizedData) {
+      logger.error(`[${requestId}] Failed to load workflow from normalized tables`)
+      return createErrorResponse('Failed to load workflow state', 500)
+    }
 
     const currentState = {
-      blocks: blocksMap,
-      edges: edgesArray,
-      loops,
-      parallels,
+      blocks: normalizedData.blocks,
+      edges: normalizedData.edges,
+      loops: normalizedData.loops,
+      parallels: normalizedData.parallels,
       lastSaved: Date.now(),
     }
 
     logger.debug(`[${requestId}] Current state retrieved from normalized tables:`, {
-      blocksCount: Object.keys(blocksMap).length,
-      edgesCount: edgesArray.length,
-      loopsCount: Object.keys(loops).length,
-      parallelsCount: Object.keys(parallels).length,
+      blocksCount: Object.keys(currentState.blocks).length,
+      edgesCount: currentState.edges.length,
+      loopsCount: Object.keys(currentState.loops).length,
+      parallelsCount: Object.keys(currentState.parallels).length,
     })
 
     if (!currentState || !currentState.blocks) {
@@ -394,18 +325,46 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    // Update the workflow deployment status and save current state as deployed state
-    const updateData: any = {
-      isDeployed: true,
-      deployedAt,
-      deployedState: currentState,
-    }
-    // Only pin when the client explicitly provided a key in this request
-    if (providedApiKey && keyInfo && matchedKey) {
-      updateData.pinnedApiKeyId = matchedKey.id
-    }
+    // In a transaction: create deployment version, update workflow flags and deployed state
+    await db.transaction(async (tx) => {
+      const [{ maxVersion }] = await tx
+        .select({ maxVersion: sql`COALESCE(MAX("version"), 0)` })
+        .from(workflowDeploymentVersion)
+        .where(eq(workflowDeploymentVersion.workflowId, id))
 
-    await db.update(workflow).set(updateData).where(eq(workflow.id, id))
+      const nextVersion = Number(maxVersion) + 1
+
+      await tx
+        .update(workflowDeploymentVersion)
+        .set({ isActive: false })
+        .where(
+          and(
+            eq(workflowDeploymentVersion.workflowId, id),
+            eq(workflowDeploymentVersion.isActive, true)
+          )
+        )
+
+      await tx.insert(workflowDeploymentVersion).values({
+        id: uuidv4(),
+        workflowId: id,
+        version: nextVersion,
+        state: currentState,
+        isActive: true,
+        createdAt: deployedAt,
+        createdBy: userId,
+      })
+
+      const updateData: Record<string, unknown> = {
+        isDeployed: true,
+        deployedAt,
+        deployedState: currentState,
+      }
+      if (providedApiKey && matchedKey) {
+        updateData.pinnedApiKeyId = matchedKey.id
+      }
+
+      await tx.update(workflow).set(updateData).where(eq(workflow.id, id))
+    })
 
     // Update lastUsed for the key we returned
     if (matchedKey) {
@@ -456,16 +415,18 @@ export async function DELETE(
       return createErrorResponse(validation.error.message, validation.error.status)
     }
 
-    // Update the workflow to remove deployment status and deployed state
-    await db
-      .update(workflow)
-      .set({
-        isDeployed: false,
-        deployedAt: null,
-        deployedState: null,
-        pinnedApiKeyId: null,
-      })
-      .where(eq(workflow.id, id))
+    // Deactivate versions and clear deployment fields
+    await db.transaction(async (tx) => {
+      await tx
+        .update(workflowDeploymentVersion)
+        .set({ isActive: false })
+        .where(eq(workflowDeploymentVersion.workflowId, id))
+
+      await tx
+        .update(workflow)
+        .set({ isDeployed: false, deployedAt: null, deployedState: null, pinnedApiKeyId: null })
+        .where(eq(workflow.id, id))
+    })
 
     logger.info(`[${requestId}] Workflow undeployed successfully: ${id}`)
     return createSuccessResponse({

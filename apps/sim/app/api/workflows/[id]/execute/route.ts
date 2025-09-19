@@ -281,6 +281,7 @@ async function executeWorkflow(
       contextExtensions: {
         executionId,
         workspaceId: workflow.workspaceId,
+        isDeployedContext: true,
       },
     })
 

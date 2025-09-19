@@ -52,16 +52,25 @@ const mockWorkflowSubflows = {
 
 vi.doMock('@sim/db', () => ({
   db: mockDb,
-}))
-
-vi.doMock('@sim/db/schema', () => ({
   workflowBlocks: mockWorkflowBlocks,
   workflowEdges: mockWorkflowEdges,
   workflowSubflows: mockWorkflowSubflows,
+  workflowDeploymentVersion: {
+    id: 'id',
+    workflowId: 'workflowId',
+    version: 'version',
+    state: 'state',
+    isActive: 'isActive',
+    createdAt: 'createdAt',
+    createdBy: 'createdBy',
+    deployedBy: 'deployedBy',
+  },
 }))
 
 vi.doMock('drizzle-orm', () => ({
   eq: vi.fn((field, value) => ({ field, value, type: 'eq' })),
+  and: vi.fn((...conditions) => ({ type: 'and', conditions })),
+  desc: vi.fn((field) => ({ field, type: 'desc' })),
 }))
 
 vi.doMock('@/lib/logs/console/logger', () => ({
@@ -86,6 +95,8 @@ const mockBlocksFromDb = [
     enabled: true,
     horizontalHandles: true,
     isWide: false,
+    advancedMode: false,
+    triggerMode: false,
     height: 150,
     subBlocks: { input: { id: 'input', type: 'short-input' as const, value: 'test' } },
     outputs: { result: { type: 'string' } },
@@ -262,8 +273,8 @@ describe('Database Helpers', () => {
         subBlocks: { input: { id: 'input', type: 'short-input' as const, value: 'test' } },
         outputs: { result: { type: 'string' } },
         data: { parentId: null, extent: null, width: 350 },
-        parentId: null,
-        extent: null,
+        advancedMode: false,
+        triggerMode: false,
       })
 
       // Verify edges are transformed correctly
@@ -273,6 +284,8 @@ describe('Database Helpers', () => {
         target: 'block-2',
         sourceHandle: 'output',
         targetHandle: 'input',
+        type: 'default',
+        data: {},
       })
 
       // Verify loops are transformed correctly
@@ -281,13 +294,16 @@ describe('Database Helpers', () => {
         nodes: ['block-2'],
         iterations: 5,
         loopType: 'for',
+        forEachItems: '',
       })
 
       // Verify parallels are transformed correctly
       expect(result?.parallels['parallel-1']).toEqual({
         id: 'parallel-1',
         nodes: ['block-3'],
+        count: 2,
         distribution: ['item1', 'item2'],
+        parallelType: 'count',
       })
     })
 
@@ -863,37 +879,20 @@ describe('Database Helpers', () => {
       expect(advancedNarrowBlock?.advancedMode).toBe(true)
     })
 
-    it('should handle null/undefined advancedMode same way as isWide', async () => {
-      const blocksWithMissingProperties = [
+    it('should handle default values for boolean fields consistently', async () => {
+      const blocksWithDefaultValues = [
         {
-          id: 'block-null-props',
+          id: 'block-with-defaults',
           workflowId: mockWorkflowId,
           type: 'agent',
-          name: 'Block with null properties',
+          name: 'Block with default values',
           positionX: 100,
           positionY: 100,
           enabled: true,
           horizontalHandles: true,
-          isWide: null,
-          advancedMode: null,
-          height: 150,
-          subBlocks: {},
-          outputs: {},
-          data: {},
-          parentId: null,
-          extent: null,
-        },
-        {
-          id: 'block-undefined-props',
-          workflowId: mockWorkflowId,
-          type: 'agent',
-          name: 'Block with undefined properties',
-          positionX: 200,
-          positionY: 100,
-          enabled: true,
-          horizontalHandles: true,
-          isWide: undefined,
-          advancedMode: undefined,
+          isWide: false, // Database default
+          advancedMode: false, // Database default
+          triggerMode: false, // Database default
           height: 150,
           subBlocks: {},
           outputs: {},
@@ -910,7 +909,7 @@ describe('Database Helpers', () => {
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockImplementation(() => {
             callCount++
-            if (callCount === 1) return Promise.resolve(blocksWithMissingProperties)
+            if (callCount === 1) return Promise.resolve(blocksWithDefaultValues)
             return Promise.resolve([])
           }),
         }),
@@ -920,14 +919,11 @@ describe('Database Helpers', () => {
 
       expect(result).toBeDefined()
 
-      // Both isWide and advancedMode should handle null/undefined consistently
-      const nullPropsBlock = result?.blocks['block-null-props']
-      expect(nullPropsBlock?.isWide).toBeNull()
-      expect(nullPropsBlock?.advancedMode).toBeNull()
-
-      const undefinedPropsBlock = result?.blocks['block-undefined-props']
-      expect(undefinedPropsBlock?.isWide).toBeUndefined()
-      expect(undefinedPropsBlock?.advancedMode).toBeUndefined()
+      // All boolean fields should have their database default values
+      const defaultsBlock = result?.blocks['block-with-defaults']
+      expect(defaultsBlock?.isWide).toBe(false)
+      expect(defaultsBlock?.advancedMode).toBe(false)
+      expect(defaultsBlock?.triggerMode).toBe(false)
     })
   })
 

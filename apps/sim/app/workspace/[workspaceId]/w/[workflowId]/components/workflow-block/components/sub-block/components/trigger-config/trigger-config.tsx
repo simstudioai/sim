@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -41,7 +41,6 @@ export function TriggerConfig({
   const [isLoading, setIsLoading] = useState(false)
 
   // Get trigger configuration from the block state
-  const [storeTriggerProvider, setTriggerProvider] = useSubBlockValue(blockId, 'triggerProvider')
   const [storeTriggerPath, setTriggerPath] = useSubBlockValue(blockId, 'triggerPath')
   const [storeTriggerConfig, setTriggerConfig] = useSubBlockValue(blockId, 'triggerConfig')
   const [storeTriggerId, setStoredTriggerId] = useSubBlockValue(blockId, 'triggerId')
@@ -65,78 +64,62 @@ export function TriggerConfig({
   // Store the actual trigger from the database
   const [actualTriggerId, setActualTriggerId] = useState<string | null>(null)
 
-  // Check if webhook exists in the database (using existing webhook API)
-  const refreshWebhookState = useCallback(async () => {
-    // Skip API calls in preview mode
+  useEffect(() => {
+    if (isModalOpen || isSaving || isDeleting) return
     if (isPreview || !effectiveTriggerId) {
       setIsLoading(false)
       return
     }
 
-    setIsLoading(true)
-    try {
-      const response = await fetch(`/api/webhooks?workflowId=${workflowId}&blockId=${blockId}`)
-      if (response.ok) {
-        const data = await response.json()
-        if (data.webhooks && data.webhooks.length > 0) {
-          const webhook = data.webhooks[0].webhook
-          setTriggerId(webhook.id)
-          setActualTriggerId(webhook.provider)
+    ;(async () => {
+      setIsLoading(true)
+      try {
+        const response = await fetch(`/api/webhooks?workflowId=${workflowId}&blockId=${blockId}`)
+        if (response.ok) {
+          const data = await response.json()
+          if (data.webhooks && data.webhooks.length > 0) {
+            const webhook = data.webhooks[0].webhook
+            setTriggerId(webhook.id)
+            setActualTriggerId(webhook.provider)
 
-          if (webhook.path && webhook.path !== triggerPath) {
-            setTriggerPath(webhook.path)
-          }
+            if (webhook.path && webhook.path !== triggerPath) {
+              setTriggerPath(webhook.path)
+            }
 
-          if (webhook.providerConfig) {
-            setTriggerConfig(webhook.providerConfig)
-          }
-        } else {
-          setTriggerId(null)
-          setActualTriggerId(null)
+            if (webhook.providerConfig) {
+              setTriggerConfig(webhook.providerConfig)
+            }
+          } else {
+            setTriggerId(null)
+            setActualTriggerId(null)
 
-          if (triggerPath) {
-            setTriggerPath('')
-            logger.info('Cleared stale trigger path on page refresh - no webhook in database', {
-              blockId,
-              clearedPath: triggerPath,
-            })
+            if (triggerPath) {
+              setTriggerPath('')
+              logger.info('Cleared stale trigger path on page refresh - no webhook in database', {
+                blockId,
+                clearedPath: triggerPath,
+              })
+            }
           }
         }
+      } catch (error) {
+        logger.error('Error checking webhook:', { error })
+      } finally {
+        setIsLoading(false)
       }
-    } catch (error) {
-      logger.error('Error checking webhook:', { error })
-    } finally {
-      setIsLoading(false)
-    }
+    })()
   }, [
     isPreview,
     effectiveTriggerId,
     workflowId,
     blockId,
-    triggerPath,
-    setTriggerPath,
-    setTriggerConfig,
-  ])
-
-  // Initial load
-  useEffect(() => {
-    refreshWebhookState()
-  }, [refreshWebhookState])
-
-  // Re-check when collaborative store updates trigger fields (so other users' changes reflect)
-  // Avoid overriding local edits while the modal is open or when saving/deleting
-  useEffect(() => {
-    if (!isModalOpen && !isSaving && !isDeleting) {
-      refreshWebhookState()
-    }
-  }, [
     storeTriggerId,
     storeTriggerPath,
     storeTriggerConfig,
     isModalOpen,
     isSaving,
     isDeleting,
-    refreshWebhookState,
+    triggerPath,
   ])
 
   const handleOpenModal = () => {
