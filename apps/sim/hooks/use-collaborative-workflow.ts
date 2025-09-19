@@ -5,6 +5,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
 import { useSocket } from '@/contexts/socket-context'
+import { useUndoRedo } from '@/hooks/use-undo-redo'
 import { registerEmitFunctions, useOperationQueue } from '@/stores/operation-queue/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
@@ -16,6 +17,20 @@ import type { Position } from '@/stores/workflows/workflow/types'
 const logger = createLogger('CollaborativeWorkflow')
 
 export function useCollaborativeWorkflow() {
+  const undoRedo = useUndoRedo()
+  const isUndoRedoInProgress = useRef(false)
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      const { blockId, before, after } = e.detail || {}
+      if (!blockId || !before || !after) return
+      // Don't record moves during undo/redo operations
+      if (isUndoRedoInProgress.current) return
+      undoRedo.recordMove(blockId, before, after)
+    }
+    window.addEventListener('workflow-record-move', handler)
+    return () => window.removeEventListener('workflow-record-move', handler)
+  }, [undoRedo])
   const {
     isConnected,
     currentWorkflowId,
@@ -617,6 +632,9 @@ export function useCollaborativeWorkflow() {
           workflowStore.addEdge(autoConnectEdge)
         }
 
+        // Record for undo AFTER adding (pass the autoConnectEdge explicitly)
+        undoRedo.recordAddBlock(id, type, name, position, data, parentId, extent, autoConnectEdge)
+
         return
       }
 
@@ -685,6 +703,9 @@ export function useCollaborativeWorkflow() {
       if (autoConnectEdge) {
         workflowStore.addEdge(autoConnectEdge)
       }
+
+      // Record for undo AFTER adding (pass the autoConnectEdge explicitly)
+      undoRedo.recordAddBlock(id, type, name, position, data, parentId, extent, autoConnectEdge)
     },
     [
       workflowStore,
@@ -694,6 +715,7 @@ export function useCollaborativeWorkflow() {
       isShowingDiff,
       isInActiveRoom,
       currentWorkflowId,
+      undoRedo,
     ]
   )
 
@@ -701,13 +723,45 @@ export function useCollaborativeWorkflow() {
     (id: string) => {
       cancelOperationsForBlock(id)
 
+      // Get all blocks that will be removed (including nested blocks in subflows)
+      const blocksToRemove = new Set<string>([id])
+      const findAllDescendants = (parentId: string) => {
+        Object.entries(workflowStore.blocks).forEach(([blockId, block]) => {
+          if (block.data?.parentId === parentId) {
+            blocksToRemove.add(blockId)
+            findAllDescendants(blockId)
+          }
+        })
+      }
+      findAllDescendants(id)
+
+      // Capture state before removal, including all nested blocks with subblock values
+      const { mergeSubblockState } = require('@/stores/workflows/utils')
+      const allBlocks = mergeSubblockState(workflowStore.blocks, activeWorkflowId)
+      const capturedBlocks: Record<string, any> = {}
+      blocksToRemove.forEach((blockId) => {
+        if (allBlocks[blockId]) {
+          capturedBlocks[blockId] = allBlocks[blockId]
+        }
+      })
+
+      // Capture all edges connected to any of the blocks being removed
+      const edges = workflowStore.edges.filter(
+        (edge) => blocksToRemove.has(edge.source) || blocksToRemove.has(edge.target)
+      )
+
+      if (Object.keys(capturedBlocks).length > 0) {
+        undoRedo.recordRemoveBlock(id, capturedBlocks[id], edges, capturedBlocks)
+      }
+
       executeQueuedOperation('remove', 'block', { id }, () => workflowStore.removeBlock(id))
     },
-    [executeQueuedOperation, workflowStore, cancelOperationsForBlock]
+    [executeQueuedOperation, workflowStore, cancelOperationsForBlock, undoRedo, activeWorkflowId]
   )
 
   const collaborativeUpdateBlockPosition = useCallback(
     (id: string, position: Position) => {
+      // Only apply position updates here (no undo recording to avoid micro-moves)
       executeQueuedDebouncedOperation('update-position', 'block', { id, position }, () =>
         workflowStore.updateBlockPosition(id, position)
       )
@@ -812,17 +866,23 @@ export function useCollaborativeWorkflow() {
   const collaborativeAddEdge = useCallback(
     (edge: Edge) => {
       executeQueuedOperation('add', 'edge', edge, () => workflowStore.addEdge(edge))
+      undoRedo.recordAddEdge(edge.id)
     },
-    [executeQueuedOperation, workflowStore]
+    [executeQueuedOperation, workflowStore, undoRedo]
   )
 
   const collaborativeRemoveEdge = useCallback(
     (edgeId: string) => {
+      const edge = workflowStore.edges.find((e) => e.id === edgeId)
+      if (edge) {
+        undoRedo.recordRemoveEdge(edgeId, edge)
+      }
+
       executeQueuedOperation('remove', 'edge', { id: edgeId }, () =>
         workflowStore.removeEdge(edgeId)
       )
     },
-    [executeQueuedOperation, workflowStore]
+    [executeQueuedOperation, workflowStore, undoRedo]
   )
 
   const collaborativeSetSubblockValue = useCallback(
@@ -1329,5 +1389,29 @@ export function useCollaborativeWorkflow() {
     // Direct access to stores for non-collaborative operations
     workflowStore,
     subBlockStore,
+
+    // Undo/Redo operations (wrapped to prevent recording moves during undo/redo)
+    undo: useCallback(() => {
+      isUndoRedoInProgress.current = true
+      try {
+        undoRedo.undo()
+      } finally {
+        setTimeout(() => {
+          isUndoRedoInProgress.current = false
+        }, 100)
+      }
+    }, [undoRedo]),
+    redo: useCallback(() => {
+      isUndoRedoInProgress.current = true
+      try {
+        undoRedo.redo()
+      } finally {
+        setTimeout(() => {
+          isUndoRedoInProgress.current = false
+        }, 100)
+      }
+    }, [undoRedo]),
+    getUndoRedoSizes: undoRedo.getStackSizes,
+    clearUndoRedo: undoRedo.clearStacks,
   }
 }
