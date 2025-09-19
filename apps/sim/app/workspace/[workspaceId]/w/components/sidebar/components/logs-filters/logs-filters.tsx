@@ -10,11 +10,11 @@ import Workflow from '@/app/workspace/[workspaceId]/logs/components/filters/comp
 
 export function LogsFilters() {
   const sections = [
-    { key: 'timeline', title: 'Timeline', component: <Timeline /> },
     { key: 'level', title: 'Level', component: <Level /> },
-    { key: 'trigger', title: 'Trigger', component: <Trigger /> },
-    { key: 'folder', title: 'Folder', component: <FolderFilter /> },
     { key: 'workflow', title: 'Workflow', component: <Workflow /> },
+    { key: 'folder', title: 'Folder', component: <FolderFilter /> },
+    { key: 'trigger', title: 'Trigger', component: <Trigger /> },
+    { key: 'timeline', title: 'Timeline', component: <Timeline /> },
   ]
 
   return (
