@@ -1,4 +1,4 @@
-import * as crypto from 'crypto'
+import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import { idempotencyKey } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
@@ -451,110 +451,26 @@ export class IdempotencyService {
 
   /**
    * Create an idempotency key from a webhook payload following RFC best practices
-   * Priority order:
-   * 1. Standard webhook headers (webhook-id, x-webhook-id, etc.)
-   * 2. Event/message IDs from payload
-   * 3. Deterministic hash of stable payload fields (excluding timestamps)
+   * Standard webhook headers (webhook-id, x-webhook-id, etc.)
    */
-  static createWebhookIdempotencyKey(
-    webhookId: string,
-    payload: any,
-    headers?: Record<string, string>
-  ): string {
-    // 1. Check for standard webhook headers (RFC compliant)
+  static createWebhookIdempotencyKey(webhookId: string, headers?: Record<string, string>): string {
+    const normalizedHeaders = headers
+      ? Object.fromEntries(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]))
+      : undefined
+
     const webhookIdHeader =
-      headers?.['webhook-id'] || // Standard Webhooks spec
-      headers?.['x-webhook-id'] || // Legacy standard
-      headers?.['x-shopify-webhook-id'] ||
-      headers?.['x-github-delivery'] ||
-      headers?.['x-event-id'] // Generic event ID header
+      normalizedHeaders?.['webhook-id'] ||
+      normalizedHeaders?.['x-webhook-id'] ||
+      normalizedHeaders?.['x-shopify-webhook-id'] ||
+      normalizedHeaders?.['x-github-delivery'] ||
+      normalizedHeaders?.['x-event-id']
 
     if (webhookIdHeader) {
       return `${webhookId}:${webhookIdHeader}`
     }
 
-    // 2. Extract event/message IDs from payload (most reliable)
-    const payloadId =
-      payload?.id ||
-      payload?.event_id ||
-      payload?.eventId ||
-      payload?.message?.id ||
-      payload?.data?.id ||
-      payload?.object?.id ||
-      payload?.event?.id
-
-    if (payloadId) {
-      return `${webhookId}:${payloadId}`
-    }
-
-    // 3. Create deterministic hash from stable payload fields (excluding timestamps)
-    const stablePayload = IdempotencyService.createStablePayloadForHashing(payload)
-    const payloadHash = crypto
-      .createHash('sha256')
-      .update(JSON.stringify(stablePayload))
-      .digest('hex')
-      .substring(0, 16)
-
-    return `${webhookId}:${payloadHash}`
-  }
-
-  /**
-   * Create a stable representation of the payload for hashing by removing
-   * timestamp and other volatile fields that change between requests
-   */
-  private static createStablePayloadForHashing(payload: any): any {
-    if (!payload || typeof payload !== 'object') {
-      return payload
-    }
-
-    const volatileFields = [
-      'timestamp',
-      'created_at',
-      'updated_at',
-      'sent_at',
-      'received_at',
-      'processed_at',
-      'delivered_at',
-      'attempt',
-      'retry_count',
-      'request_id',
-      'trace_id',
-      'span_id',
-      'delivery_id',
-      'webhook_timestamp',
-    ]
-
-    const cleanPayload = { ...payload }
-
-    const removeVolatileFields = (obj: any): any => {
-      if (!obj || typeof obj !== 'object') return obj
-
-      if (Array.isArray(obj)) {
-        return obj.map(removeVolatileFields)
-      }
-
-      const cleaned: any = {}
-      for (const [key, value] of Object.entries(obj)) {
-        const lowerKey = key.toLowerCase()
-
-        if (volatileFields.some((field) => lowerKey.includes(field))) {
-          continue
-        }
-
-        if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
-          continue
-        }
-        if (typeof value === 'number' && value > 1000000000 && value < 9999999999) {
-          continue
-        }
-
-        cleaned[key] = removeVolatileFields(value)
-      }
-
-      return cleaned
-    }
-
-    return removeVolatileFields(cleanPayload)
+    const uniqueId = randomUUID()
+    return `${webhookId}:${uniqueId}`
   }
 }
 
@@ -566,9 +482,4 @@ export const webhookIdempotency = new IdempotencyService({
 export const pollingIdempotency = new IdempotencyService({
   namespace: 'polling',
   ttlSeconds: 60 * 60 * 24 * 3, // 3 days
-})
-
-export const triggerIdempotency = new IdempotencyService({
-  namespace: 'trigger',
-  ttlSeconds: 60 * 60 * 24 * 1, // 1 day
 })
