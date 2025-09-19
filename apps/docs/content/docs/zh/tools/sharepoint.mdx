@@ -1,6 +1,6 @@
 ---
 title: SharePoint
-description: 阅读和创建页面
+description: 处理页面和列表
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -60,7 +60,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## 使用说明
 
-集成 SharePoint 功能以管理页面。通过 OAuth 身份验证读取和创建页面，并列出站点。支持使用自定义 MIME 类型和文件夹组织的页面操作。
+将 SharePoint 集成到工作流程中。读取/创建页面、列出站点，并处理列表（读取、创建、更新项目）。需要 OAuth。
 
 ## 工具
 
@@ -120,6 +120,84 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
 | `site` | object | 有关当前 SharePoint 网站的信息 |
+
+### `sharepoint_create_list`
+
+在 SharePoint 站点中创建新列表
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | 否 | SharePoint 站点的 ID（内部使用） |
+| `siteSelector` | string | 否 | 选择 SharePoint 站点 |
+| `listDisplayName` | string | 是 | 要创建的列表的显示名称 |
+| `listDescription` | string | 否 | 列表的描述 |
+| `listTemplate` | string | 否 | 列表模板名称（例如，'genericList'） |
+| `pageContent` | string | 否 | 可选的列 JSON。可以是顶级的列定义数组，或者是包含 \{ columns: \[...\] \} 的对象。 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `list` | object | 创建的 SharePoint 列表信息 |
+
+### `sharepoint_get_list`
+
+获取 SharePoint 列表的元数据（以及可选的列/项目）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteSelector` | string | 否 | 选择 SharePoint 站点 |
+| `siteId` | string | 否 | SharePoint 站点的 ID（内部使用） |
+| `listId` | string | 否 | 要检索的列表 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `list` | object | SharePoint 列表的信息 |
+
+### `sharepoint_update_list`
+
+更新 SharePoint 列表项的属性（字段）
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteSelector` | string | 否 | 选择 SharePoint 站点 |
+| `siteId` | string | 否 | SharePoint 站点的 ID（内部使用） |
+| `listId` | string | 否 | 包含该项的列表的 ID |
+| `itemId` | string | 是 | 要更新的列表项的 ID |
+| `listItemFields` | object | 是 | 要更新到列表项的字段值 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `item` | object | 更新后的 SharePoint 列表项 |
+
+### `sharepoint_add_list_items`
+
+向 SharePoint 列表添加新项
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteSelector` | string | 否 | 选择 SharePoint 站点 |
+| `siteId` | string | 否 | SharePoint 站点的 ID（内部使用） |
+| `listId` | string | 是 | 要添加项的列表的 ID |
+| `listItemFields` | object | 是 | 新列表项的字段值 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `item` | object | 创建的 SharePoint 列表项 |
 
 ## 注意事项
 
