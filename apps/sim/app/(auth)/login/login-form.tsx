@@ -502,16 +502,22 @@ export default function LoginPage({
       )}
 
       {showBottomSection && (
-        <SocialLoginButtons
-          googleAvailable={googleAvailable}
-          githubAvailable={githubAvailable}
-          isProduction={isProduction}
-          callbackURL={callbackUrl}
-        >
-          {ssoEnabled && !hasOnlySSO && (
-            <SSOLoginButton callbackURL={callbackUrl} variant='outline' />
-          )}
-        </SocialLoginButtons>
+        <div className={cn(inter.className, !emailEnabled ? 'mt-8' : undefined)}>
+          <SocialLoginButtons
+            googleAvailable={googleAvailable}
+            githubAvailable={githubAvailable}
+            isProduction={isProduction}
+            callbackURL={callbackUrl}
+          >
+            {ssoEnabled && !hasOnlySSO && (
+              <SSOLoginButton
+                callbackURL={callbackUrl}
+                variant='outline'
+                primaryClassName={buttonClass}
+              />
+            )}
+          </SocialLoginButtons>
+        </div>
       )}
 
       {/* Only show signup link if email/password signup is enabled */}
