@@ -642,7 +642,7 @@ export function useCollaborativeWorkflow() {
         }
 
         // Record for undo AFTER adding (pass the autoConnectEdge explicitly)
-        undoRedo.recordAddBlock(id, type, name, position, data, parentId, extent, autoConnectEdge)
+        undoRedo.recordAddBlock(id, autoConnectEdge)
 
         return
       }
@@ -714,7 +714,7 @@ export function useCollaborativeWorkflow() {
       }
 
       // Record for undo AFTER adding (pass the autoConnectEdge explicitly)
-      undoRedo.recordAddBlock(id, type, name, position, data, parentId, extent, autoConnectEdge)
+      undoRedo.recordAddBlock(id, autoConnectEdge)
     },
     [
       workflowStore,
