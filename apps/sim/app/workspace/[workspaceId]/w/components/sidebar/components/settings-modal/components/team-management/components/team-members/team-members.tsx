@@ -7,7 +7,7 @@ import type { Invitation, Member, Organization } from '@/stores/organization'
 
 const logger = createLogger('TeamMembers')
 
-interface ConsolidatedTeamMembersProps {
+interface TeamMembersProps {
   organization: Organization
   currentUserEmail: string
   isAdminOrOwner: boolean
@@ -42,7 +42,7 @@ export function TeamMembers({
   isAdminOrOwner,
   onRemoveMember,
   onCancelInvitation,
-}: ConsolidatedTeamMembersProps) {
+}: TeamMembersProps) {
   const [memberUsageData, setMemberUsageData] = useState<Record<string, number>>({})
   const [isLoadingUsage, setIsLoadingUsage] = useState(false)
 
