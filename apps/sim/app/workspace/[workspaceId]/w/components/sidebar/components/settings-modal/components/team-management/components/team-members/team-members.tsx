@@ -1,5 +1,6 @@
-import { UserX, X } from 'lucide-react'
+import { LogOut, UserX, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { Invitation, Member, Organization } from '@/stores/organization'
 
 interface ConsolidatedTeamMembersProps {
@@ -133,33 +134,63 @@ export function TeamMembers({
             </div>
 
             {/* Actions */}
-            {isAdminOrOwner && (
-              <div className='ml-4'>
-                {item.type === 'member' &&
-                  item.member?.role !== 'owner' &&
-                  item.email !== currentUserEmail && (
+            <div className='ml-4 flex gap-1'>
+              {/* Allow non-owners to leave the organization themselves */}
+              {item.type === 'member' &&
+                item.member?.role !== 'owner' &&
+                item.email === currentUserEmail && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant='ghost'
+                        size='icon'
+                        onClick={() => onRemoveMember(item.member!)}
+                        className='h-8 w-8 rounded-[8px] text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground'
+                      >
+                        <LogOut className='h-4 w-4' />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side='left'>Leave Organization</TooltipContent>
+                  </Tooltip>
+                )}
+
+              {/* Admin/Owner can remove other members */}
+              {isAdminOrOwner &&
+                item.type === 'member' &&
+                item.member?.role !== 'owner' &&
+                item.email !== currentUserEmail && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant='outline'
+                        size='sm'
+                        onClick={() => onRemoveMember(item.member!)}
+                        className='h-8 w-8 rounded-[8px] p-0'
+                      >
+                        <UserX className='h-4 w-4' />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side='left'>Remove Member</TooltipContent>
+                  </Tooltip>
+                )}
+
+              {/* Admin/Owner can cancel invitations */}
+              {isAdminOrOwner && item.type === 'invitation' && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
                     <Button
                       variant='outline'
                       size='sm'
-                      onClick={() => onRemoveMember(item.member!)}
+                      onClick={() => onCancelInvitation(item.invitation!.id)}
                       className='h-8 w-8 rounded-[8px] p-0'
                     >
-                      <UserX className='h-4 w-4' />
+                      <X className='h-4 w-4' />
                     </Button>
-                  )}
-
-                {item.type === 'invitation' && (
-                  <Button
-                    variant='outline'
-                    size='sm'
-                    onClick={() => onCancelInvitation(item.invitation!.id)}
-                    className='h-8 w-8 rounded-[8px] p-0'
-                  >
-                    <X className='h-4 w-4' />
-                  </Button>
-                )}
-              </div>
-            )}
+                  </TooltipTrigger>
+                  <TooltipContent side='left'>Cancel Invitation</TooltipContent>
+                </Tooltip>
+              )}
+            </div>
           </div>
         ))}
       </div>

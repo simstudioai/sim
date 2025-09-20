@@ -62,6 +62,7 @@ export function TeamManagement() {
     memberId: string
     memberName: string
     shouldReduceSeats: boolean
+    isSelfRemoval?: boolean
   }>({ open: false, memberId: '', memberName: '', shouldReduceSeats: false })
   const [orgName, setOrgName] = useState('')
   const [orgSlug, setOrgSlug] = useState('')
@@ -163,14 +164,20 @@ export function TeamManagement() {
     async (member: any) => {
       if (!session?.user || !activeOrgId) return
 
+      const isLeavingSelf = member.user?.email === session.user.email
+      const displayName = isLeavingSelf
+        ? 'yourself'
+        : member.user?.name || member.user?.email || 'this member'
+
       setRemoveMemberDialog({
         open: true,
         memberId: member.id,
-        memberName: member.user?.name || member.user?.email || 'this member',
+        memberName: displayName,
         shouldReduceSeats: false,
+        isSelfRemoval: isLeavingSelf,
       })
     },
-    [session?.user?.id, activeOrgId]
+    [session?.user, activeOrgId]
   )
 
   const confirmRemoveMember = useCallback(
@@ -375,6 +382,7 @@ export function TeamManagement() {
         open={removeMemberDialog.open}
         memberName={removeMemberDialog.memberName}
         shouldReduceSeats={removeMemberDialog.shouldReduceSeats}
+        isSelfRemoval={removeMemberDialog.isSelfRemoval}
         onOpenChange={(open: boolean) => {
           if (!open) setRemoveMemberDialog({ ...removeMemberDialog, open: false })
         }}
@@ -391,6 +399,7 @@ export function TeamManagement() {
             memberId: '',
             memberName: '',
             shouldReduceSeats: false,
+            isSelfRemoval: false,
           })
         }
       />
