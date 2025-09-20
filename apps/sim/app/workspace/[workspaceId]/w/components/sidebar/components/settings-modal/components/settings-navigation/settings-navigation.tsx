@@ -11,9 +11,11 @@ import {
   Users,
   Waypoints,
 } from 'lucide-react'
+import { useSession } from '@/lib/auth-client'
 import { getEnv, isTruthy } from '@/lib/env'
 import { isHosted } from '@/lib/environment'
 import { cn } from '@/lib/utils'
+import { useOrganizationStore } from '@/stores/organization'
 
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
@@ -28,6 +30,7 @@ interface SettingsNavigationProps {
       | 'apikeys'
       | 'subscription'
       | 'team'
+      | 'sso'
       | 'privacy'
       | 'copilot'
       | 'mcp'
@@ -44,6 +47,7 @@ type NavigationItem = {
     | 'apikeys'
     | 'subscription'
     | 'team'
+    | 'sso'
     | 'copilot'
     | 'privacy'
     | 'mcp'
@@ -51,6 +55,8 @@ type NavigationItem = {
   icon: React.ComponentType<{ className?: string }>
   hideWhenBillingDisabled?: boolean
   requiresTeam?: boolean
+  requiresEnterprise?: boolean
+  requiresOwner?: boolean
 }
 
 const allNavigationItems: NavigationItem[] = [
@@ -107,6 +113,14 @@ const allNavigationItems: NavigationItem[] = [
     hideWhenBillingDisabled: true,
     requiresTeam: true,
   },
+  {
+    id: 'sso',
+    label: 'Single Sign-On',
+    icon: Shield,
+    requiresTeam: true,
+    requiresEnterprise: true,
+    requiresOwner: true,
+  },
 ]
 
 export function SettingsNavigation({
@@ -114,6 +128,12 @@ export function SettingsNavigation({
   onSectionChange,
   hasOrganization,
 }: SettingsNavigationProps) {
+  const { data: session } = useSession()
+  const { hasEnterprisePlan, getUserRole } = useOrganizationStore()
+  const userEmail = session?.user?.email
+  const userRole = getUserRole(userEmail)
+  const isOwner = userRole === 'owner'
+
   const navigationItems = allNavigationItems.filter((item) => {
     if (item.id === 'copilot' && !isHosted) {
       return false
@@ -122,8 +142,15 @@ export function SettingsNavigation({
       return false
     }
 
-    // Hide team tab if user doesn't have an active organization
     if (item.requiresTeam && !hasOrganization) {
+      return false
+    }
+
+    if (item.requiresEnterprise && !hasEnterprisePlan) {
+      return false
+    }
+
+    if (item.requiresOwner && !isOwner) {
       return false
     }
 
@@ -169,7 +196,7 @@ export function SettingsNavigation({
         ))}
       </div>
 
-      {/* Homepage link - Only show in hosted environments */}
+      {/* Homepage link */}
       {isHosted && (
         <div className='px-2 pb-4'>
           <button

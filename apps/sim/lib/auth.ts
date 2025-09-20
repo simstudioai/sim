@@ -1,3 +1,4 @@
+import { sso } from '@better-auth/sso'
 import { stripe } from '@better-auth/stripe'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
@@ -140,6 +141,7 @@ export const auth = betterAuth({
       enabled: true,
       allowDifferentEmails: true,
       trustedProviders: [
+        // Standard OAuth providers
         'google',
         'github',
         'email-password',
@@ -150,6 +152,54 @@ export const auth = betterAuth({
         'microsoft',
         'slack',
         'reddit',
+
+        // Common SSO provider patterns - covers most enterprise use cases
+        'okta',
+        'okta-prod',
+        'okta-dev',
+        'okta-staging',
+        'okta-test',
+        'azure-ad',
+        'azure-active-directory',
+        'azure-corp',
+        'azure-enterprise',
+        'adfs',
+        'adfs-company',
+        'adfs-corp',
+        'adfs-enterprise',
+        'auth0',
+        'auth0-prod',
+        'auth0-dev',
+        'auth0-staging',
+        'onelogin',
+        'onelogin-prod',
+        'onelogin-corp',
+        'jumpcloud',
+        'jumpcloud-prod',
+        'jumpcloud-corp',
+        'ping-identity',
+        'ping-federate',
+        'pingone',
+        'shibboleth',
+        'shibboleth-idp',
+        'google-workspace',
+        'google-sso',
+        'saml',
+        'saml2',
+        'saml-sso',
+        'oidc',
+        'oidc-sso',
+        'openid-connect',
+        'custom-sso',
+        'enterprise-sso',
+        'company-sso',
+
+        // Additional SSO providers from environment variable (for self-hosted)
+        ...(env.SSO_TRUSTED_PROVIDERS
+          ? env.SSO_TRUSTED_PROVIDERS.split(',')
+              .map((p) => p.trim())
+              .filter((p) => p)
+          : []),
       ],
     },
   },
@@ -1179,6 +1229,8 @@ export const auth = betterAuth({
         },
       ],
     }),
+    // SSO plugin - only include when SSO is enabled
+    ...(env.SSO_ENABLED ? [sso()] : []),
     // Only include the Stripe plugin when billing is enabled
     ...(isBillingEnabled && stripeClient
       ? [
