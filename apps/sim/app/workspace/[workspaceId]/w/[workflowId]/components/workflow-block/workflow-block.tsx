@@ -672,7 +672,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
             >
               <config.icon className='h-5 w-5 text-white' />
             </div>
-            <div className='min-w-0'>
+            <div className='w-full overflow-hidden'>
               {isEditing ? (
                 <input
                   ref={nameInputRef}
@@ -681,7 +681,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                   onChange={(e) => handleNodeNameChange(e.target.value)}
                   onBlur={handleNameSubmit}
                   onKeyDown={handleNameKeyDown}
-                  className='border-none bg-transparent p-0 font-medium text-md outline-none'
+                  className='w-full border-none bg-transparent p-0 font-medium text-md outline-none'
                   maxLength={18}
                 />
               ) : (
