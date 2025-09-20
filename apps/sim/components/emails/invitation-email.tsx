@@ -65,7 +65,7 @@ export const InvitationEmail = ({
             <Row>
               <Column style={{ textAlign: 'center' }}>
                 <Img
-                  src={brand.logoUrl || '/logo/reverse/text/medium.png'}
+                  src={brand.logoUrl || `${baseUrl}/logo/reverse/text/medium.png`}
                   width='114'
                   alt={brand.name}
                   style={{
