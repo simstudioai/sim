@@ -120,7 +120,7 @@ export function TeamSeatsOverview({
         {checkEnterprisePlan(subscriptionData) ? (
           <div className='text-center'>
             <p className='text-muted-foreground text-xs'>
-              Contact enterprise for support usage limit changes
+              Contact support for enterprise usage limit changes
             </p>
           </div>
         ) : (

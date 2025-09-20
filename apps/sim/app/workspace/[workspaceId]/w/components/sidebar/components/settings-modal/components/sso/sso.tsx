@@ -314,12 +314,31 @@ export function SSO() {
       }
 
       const next = { ...prev, [field]: processedValue }
-      validateAll(next)
+
+      if (field === 'providerType') {
+        setShowErrors(false)
+        setErrors({
+          providerType: [],
+          providerId: [],
+          issuerUrl: [],
+          domain: [],
+          clientId: [],
+          clientSecret: [],
+          entryPoint: [],
+          cert: [],
+          scopes: [],
+          callbackUrl: [],
+          audience: [],
+        })
+      } else {
+        validateAll(next)
+      }
+
       return next
     })
   }
 
-  const callbackUrl = `${env.NEXT_PUBLIC_APP_URL || 'https://your-domain.com'}/api/auth/sso/callback/${formData.providerId}`
+  const callbackUrl = `${env.NEXT_PUBLIC_APP_URL}/api/auth/sso/callback/${formData.providerId}`
 
   const copyCallback = async () => {
     try {
@@ -410,14 +429,14 @@ export function SSO() {
                       <div className='relative mt-2'>
                         <Input
                           readOnly
-                          value={`${env.NEXT_PUBLIC_APP_URL || 'https://your-domain.com'}/api/auth/sso/callback/${provider.providerId}`}
+                          value={`${env.NEXT_PUBLIC_APP_URL}/api/auth/sso/callback/${provider.providerId}`}
                           className='h-9 w-full cursor-text pr-10 font-mono text-xs focus-visible:ring-2 focus-visible:ring-primary/20'
                           onClick={(e) => (e.target as HTMLInputElement).select()}
                         />
                         <button
                           type='button'
                           onClick={() => {
-                            const url = `${env.NEXT_PUBLIC_APP_URL || 'https://your-domain.com'}/api/auth/sso/callback/${provider.providerId}`
+                            const url = `${env.NEXT_PUBLIC_APP_URL}/api/auth/sso/callback/${provider.providerId}`
                             navigator.clipboard.writeText(url)
                             setCopied(true)
                             setTimeout(() => setCopied(false), 1500)
@@ -451,7 +470,9 @@ export function SSO() {
                   </Button>
                 </div>
               )}
-              <form onSubmit={handleSubmit} className='space-y-3'>
+              <form onSubmit={handleSubmit} className='space-y-3' autoComplete='off'>
+                {/* Hidden dummy input to prevent autofill */}
+                <input type='text' name='hidden' style={{ display: 'none' }} autoComplete='false' />
                 {/* Provider Type Selection */}
                 <div className='space-y-1'>
                   <Label>Provider Type</Label>
@@ -495,6 +516,12 @@ export function SSO() {
                     type='text'
                     placeholder='e.g., your-provider-name'
                     value={formData.providerId}
+                    name='sso_provider_identifier'
+                    autoComplete='off'
+                    autoCapitalize='none'
+                    spellCheck={false}
+                    readOnly
+                    onFocus={(e) => e.target.removeAttribute('readOnly')}
                     onChange={(e) => handleInputChange('providerId', e.target.value)}
                     className={cn(
                       'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
@@ -508,9 +535,6 @@ export function SSO() {
                       <p>{errors.providerId.join(' ')}</p>
                     </div>
                   )}
-                  <p className='text-muted-foreground text-xs'>
-                    A unique identifier for your SSO provider
-                  </p>
                 </div>
 
                 <div className='space-y-1'>
@@ -520,6 +544,12 @@ export function SSO() {
                     type='url'
                     placeholder='https://your-domain.identityprovider.com/oauth2/default'
                     value={formData.issuerUrl}
+                    name='sso_issuer_endpoint'
+                    autoComplete='off'
+                    autoCapitalize='none'
+                    spellCheck={false}
+                    readOnly
+                    onFocus={(e) => e.target.removeAttribute('readOnly')}
                     onChange={(e) => handleInputChange('issuerUrl', e.target.value)}
                     className={cn(
                       'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
@@ -535,7 +565,7 @@ export function SSO() {
                   )}
                   <p className='text-muted-foreground text-xs'>
                     {formData.providerType === 'oidc'
-                      ? 'The OIDC issuer URL from your identity provider'
+                      ? ''
                       : 'The base URL or entity ID of your SAML identity provider'}
                   </p>
                 </div>
@@ -547,6 +577,12 @@ export function SSO() {
                     type='text'
                     placeholder='your-domain.identityprovider.com'
                     value={formData.domain}
+                    name='sso_identity_domain'
+                    autoComplete='off'
+                    autoCapitalize='none'
+                    spellCheck={false}
+                    readOnly
+                    onFocus={(e) => e.target.removeAttribute('readOnly')}
                     onChange={(e) => handleInputChange('domain', e.target.value)}
                     className={cn(
                       'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
@@ -560,7 +596,6 @@ export function SSO() {
                       <p>{errors.domain.join(' ')}</p>
                     </div>
                   )}
-                  <p className='text-muted-foreground text-xs'>Your identity provider domain</p>
                 </div>
 
                 {/* Provider-specific fields */}
@@ -573,6 +608,12 @@ export function SSO() {
                         type='text'
                         placeholder='0oabcdef123456789'
                         value={formData.clientId}
+                        name='sso_client_identifier'
+                        autoComplete='off'
+                        autoCapitalize='none'
+                        spellCheck={false}
+                        readOnly
+                        onFocus={(e) => e.target.removeAttribute('readOnly')}
                         onChange={(e) => handleInputChange('clientId', e.target.value)}
                         className={cn(
                           'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
@@ -586,9 +627,6 @@ export function SSO() {
                           <p>{errors.clientId.join(' ')}</p>
                         </div>
                       )}
-                      <p className='text-muted-foreground text-xs'>
-                        The application client ID from your identity provider
-                      </p>
                     </div>
 
                     <div className='space-y-1'>
@@ -599,9 +637,17 @@ export function SSO() {
                           type={showClientSecret ? 'text' : 'password'}
                           placeholder='••••••••••••••••••••••••••••••••'
                           value={formData.clientSecret}
-                          onChange={(e) => handleInputChange('clientSecret', e.target.value)}
-                          onFocus={() => setShowClientSecret(true)}
+                          name='sso_client_key'
+                          autoComplete='new-password'
+                          autoCapitalize='none'
+                          spellCheck={false}
+                          readOnly
+                          onFocus={(e) => {
+                            e.target.removeAttribute('readOnly')
+                            setShowClientSecret(true)
+                          }}
                           onBlurCapture={() => setShowClientSecret(false)}
+                          onChange={(e) => handleInputChange('clientSecret', e.target.value)}
                           className={cn(
                             'rounded-[10px] pr-10 shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
                             showErrors &&
@@ -625,9 +671,6 @@ export function SSO() {
                           <p>{errors.clientSecret.join(' ')}</p>
                         </div>
                       )}
-                      <p className='text-muted-foreground text-xs'>
-                        The application client secret from your identity provider
-                      </p>
                     </div>
 
                     <div className='space-y-1'>
@@ -637,6 +680,9 @@ export function SSO() {
                         type='text'
                         placeholder='openid,profile,email'
                         value={formData.scopes}
+                        autoComplete='off'
+                        autoCapitalize='none'
+                        spellCheck={false}
                         onChange={(e) => handleInputChange('scopes', e.target.value)}
                         className={cn(
                           'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
@@ -664,6 +710,9 @@ export function SSO() {
                         type='url'
                         placeholder='https://adfs.company.com/adfs/ls/'
                         value={formData.entryPoint}
+                        autoComplete='off'
+                        autoCapitalize='none'
+                        spellCheck={false}
                         onChange={(e) => handleInputChange('entryPoint', e.target.value)}
                         className={cn(
                           'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
@@ -688,6 +737,9 @@ export function SSO() {
                         id='cert'
                         placeholder='-----BEGIN CERTIFICATE-----&#10;MIIDBjCCAe4CAQAwDQYJKoZIhvcNAQEFBQAwEjEQMA...&#10;-----END CERTIFICATE-----'
                         value={formData.cert}
+                        autoComplete='off'
+                        autoCapitalize='none'
+                        spellCheck={false}
                         onChange={(e) => handleInputChange('cert', e.target.value)}
                         className={cn(
                           'min-h-[100px] w-full rounded-[10px] border border-input bg-background px-3 py-2 text-sm ring-offset-background transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
@@ -737,6 +789,9 @@ export function SSO() {
                               type='text'
                               placeholder='https://yourapp.com'
                               value={formData.audience}
+                              autoComplete='off'
+                              autoCapitalize='none'
+                              spellCheck={false}
                               onChange={(e) => handleInputChange('audience', e.target.value)}
                               className='rounded-[10px] shadow-sm'
                             />
@@ -752,6 +807,9 @@ export function SSO() {
                               type='url'
                               placeholder='https://yourapp.com/api/auth/sso/callback/provider-id'
                               value={formData.callbackUrl}
+                              autoComplete='off'
+                              autoCapitalize='none'
+                              spellCheck={false}
                               onChange={(e) => handleInputChange('callbackUrl', e.target.value)}
                               className='rounded-[10px] shadow-sm'
                             />
@@ -802,6 +860,9 @@ export function SSO() {
                     id='callback-url'
                     readOnly
                     value={callbackUrl}
+                    autoComplete='off'
+                    autoCapitalize='none'
+                    spellCheck={false}
                     className='h-9 w-full cursor-text pr-10 font-mono text-xs focus-visible:ring-2 focus-visible:ring-primary/20'
                     onClick={(e) => (e.target as HTMLInputElement).select()}
                   />
