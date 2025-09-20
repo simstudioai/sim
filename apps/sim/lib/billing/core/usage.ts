@@ -22,18 +22,6 @@ const logger = createLogger('UsageManagement')
  */
 export async function handleNewUser(userId: string): Promise<void> {
   try {
-    // Check if user stats already exists to make this function idempotent
-    const existingStats = await db
-      .select({ id: userStats.id })
-      .from(userStats)
-      .where(eq(userStats.userId, userId))
-      .limit(1)
-
-    if (existingStats.length > 0) {
-      logger.info('User stats record already exists for user', { userId })
-      return
-    }
-
     await db.insert(userStats).values({
       id: crypto.randomUUID(),
       userId: userId,
