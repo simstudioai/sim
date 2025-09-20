@@ -42,8 +42,8 @@ export function FloatingControls() {
   }
 
   return (
-    <div className='fixed bottom-6 left-1/2 -translate-x-1/2 z-10'>
-      <div className='flex items-center gap-1 rounded-[14px] border bg-card/95 backdrop-blur-sm p-1 shadow-lg'>
+    <div className='-translate-x-1/2 fixed bottom-6 left-1/2 z-10'>
+      <div className='flex items-center gap-1 rounded-[14px] border bg-card/95 p-1 shadow-lg backdrop-blur-sm'>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -54,7 +54,7 @@ export function FloatingControls() {
               className={cn(
                 'h-9 w-9 rounded-[10px]',
                 'hover:bg-muted/80',
-                'disabled:opacity-50 disabled:cursor-not-allowed'
+                'disabled:cursor-not-allowed disabled:opacity-50'
               )}
             >
               <Minus className='h-4 w-4' />
@@ -63,7 +63,7 @@ export function FloatingControls() {
           <TooltipContent>Zoom Out</TooltipContent>
         </Tooltip>
 
-        <div className='flex items-center justify-center w-12 text-sm font-medium text-muted-foreground'>
+        <div className='flex w-12 items-center justify-center font-medium text-muted-foreground text-sm'>
           {currentZoom}%
         </div>
 
@@ -77,7 +77,7 @@ export function FloatingControls() {
               className={cn(
                 'h-9 w-9 rounded-[10px]',
                 'hover:bg-muted/80',
-                'disabled:opacity-50 disabled:cursor-not-allowed'
+                'disabled:cursor-not-allowed disabled:opacity-50'
               )}
             >
               <Plus className='h-4 w-4' />
@@ -86,7 +86,7 @@ export function FloatingControls() {
           <TooltipContent>Zoom In</TooltipContent>
         </Tooltip>
 
-        <div className='w-px h-6 bg-border mx-1' />
+        <div className='mx-1 h-6 w-px bg-border' />
 
         <Tooltip>
           <TooltipTrigger asChild>
@@ -98,7 +98,7 @@ export function FloatingControls() {
               className={cn(
                 'h-9 w-9 rounded-[10px]',
                 'hover:bg-muted/80',
-                'disabled:opacity-50 disabled:cursor-not-allowed'
+                'disabled:cursor-not-allowed disabled:opacity-50'
               )}
             >
               <Undo2 className='h-4 w-4' />
@@ -107,7 +107,7 @@ export function FloatingControls() {
           <TooltipContent>
             <div className='text-center'>
               <p>Undo</p>
-              <p className='text-xs text-muted-foreground'>Cmd+Z</p>
+              <p className='text-muted-foreground text-xs'>Cmd+Z</p>
             </div>
           </TooltipContent>
         </Tooltip>
@@ -122,7 +122,7 @@ export function FloatingControls() {
               className={cn(
                 'h-9 w-9 rounded-[10px]',
                 'hover:bg-muted/80',
-                'disabled:opacity-50 disabled:cursor-not-allowed'
+                'disabled:cursor-not-allowed disabled:opacity-50'
               )}
             >
               <Redo2 className='h-4 w-4' />
@@ -131,7 +131,7 @@ export function FloatingControls() {
           <TooltipContent>
             <div className='text-center'>
               <p>Redo</p>
-              <p className='text-xs text-muted-foreground'>Cmd+Shift+Z</p>
+              <p className='text-muted-foreground text-xs'>Cmd+Shift+Z</p>
             </div>
           </TooltipContent>
         </Tooltip>

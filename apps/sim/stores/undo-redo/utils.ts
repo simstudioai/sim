@@ -88,6 +88,35 @@ export function createInverseOperation(operation: Operation): Operation {
           after: operation.data.before,
         },
       }
+
+    case 'duplicate-block':
+      return {
+        ...operation,
+        type: 'remove-block',
+        data: {
+          blockId: operation.data.duplicatedBlockId,
+          blockSnapshot: operation.data.duplicatedBlockSnapshot,
+          edgeSnapshots: [],
+        },
+      }
+
+    case 'update-parent':
+      return {
+        ...operation,
+        data: {
+          blockId: operation.data.blockId,
+          oldParentId: operation.data.newParentId,
+          newParentId: operation.data.oldParentId,
+          oldPosition: operation.data.newPosition,
+          newPosition: operation.data.oldPosition,
+          affectedEdges: operation.data.affectedEdges,
+        },
+      }
+
+    default: {
+      const exhaustiveCheck: never = operation
+      throw new Error(`Unhandled operation type: ${(exhaustiveCheck as any).type}`)
+    }
   }
 }
 
@@ -161,5 +190,32 @@ export function operationToCollaborativePayload(operation: Operation): {
           y: operation.data.after.y,
         },
       }
+
+    case 'duplicate-block':
+      return {
+        operation: 'duplicate',
+        target: 'block',
+        payload: {
+          sourceId: operation.data.sourceBlockId,
+          duplicatedId: operation.data.duplicatedBlockId,
+        },
+      }
+
+    case 'update-parent':
+      return {
+        operation: 'update-parent',
+        target: 'block',
+        payload: {
+          id: operation.data.blockId,
+          parentId: operation.data.newParentId,
+          x: operation.data.newPosition.x,
+          y: operation.data.newPosition.y,
+        },
+      }
+
+    default: {
+      const exhaustiveCheck: never = operation
+      throw new Error(`Unhandled operation type: ${(exhaustiveCheck as any).type}`)
+    }
   }
 }
