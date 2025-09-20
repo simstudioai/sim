@@ -5,6 +5,7 @@ import {
   member,
   organization,
   permissions,
+  subscription as subscriptionTable,
   user,
   type WorkspaceInvitationStatus,
   workspaceInvitation,
@@ -12,6 +13,7 @@ import {
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('OrganizationInvitation')
@@ -130,6 +132,38 @@ export async function PUT(
       }
     }
 
+    // Enforce: user can only be part of a single organization
+    if (status === 'accepted') {
+      // Check if user is already a member of ANY organization
+      const existingOrgMemberships = await db
+        .select({ organizationId: member.organizationId })
+        .from(member)
+        .where(eq(member.userId, session.user.id))
+
+      if (existingOrgMemberships.length > 0) {
+        // Check if already a member of THIS specific organization
+        const alreadyMemberOfThisOrg = existingOrgMemberships.some(
+          (m) => m.organizationId === organizationId
+        )
+
+        if (alreadyMemberOfThisOrg) {
+          return NextResponse.json(
+            { error: 'You are already a member of this organization' },
+            { status: 400 }
+          )
+        }
+
+        // Member of a different organization
+        return NextResponse.json(
+          {
+            error:
+              'You are already a member of an organization. Leave your current organization before accepting a new invitation.',
+          },
+          { status: 409 }
+        )
+      }
+    }
+
     await db.transaction(async (tx) => {
       await tx.update(invitation).set({ status }).where(eq(invitation.id, invitationId))
 
@@ -178,6 +212,86 @@ export async function PUT(
           .where(eq(workspaceInvitation.orgInvitationId, invitationId))
       }
     })
+
+    // After accepting an invitation to a paid team, auto-cancel personal Pro at period end
+    if (status === 'accepted') {
+      try {
+        // Check if organization has an active paid subscription
+        const orgSubs = await db
+          .select()
+          .from(subscriptionTable)
+          .where(
+            and(
+              eq(subscriptionTable.referenceId, organizationId),
+              eq(subscriptionTable.status, 'active')
+            )
+          )
+          .limit(1)
+
+        const orgSub = orgSubs[0]
+        const orgIsPaid = orgSub && (orgSub.plan === 'team' || orgSub.plan === 'enterprise')
+
+        if (orgIsPaid) {
+          const userId = session.user.id
+          // Find user's active personal Pro subscription
+          const personalSubs = await db
+            .select()
+            .from(subscriptionTable)
+            .where(
+              and(
+                eq(subscriptionTable.referenceId, userId),
+                eq(subscriptionTable.status, 'active'),
+                eq(subscriptionTable.plan, 'pro')
+              )
+            )
+            .limit(1)
+
+          const personalPro = personalSubs[0]
+          if (personalPro && personalPro.cancelAtPeriodEnd !== true) {
+            const stripe = requireStripeClient()
+            if (personalPro.stripeSubscriptionId) {
+              try {
+                await stripe.subscriptions.update(personalPro.stripeSubscriptionId, {
+                  cancel_at_period_end: true,
+                })
+              } catch (stripeError) {
+                logger.error('Failed to set cancel_at_period_end on Stripe for personal Pro', {
+                  userId,
+                  subscriptionId: personalPro.id,
+                  stripeSubscriptionId: personalPro.stripeSubscriptionId,
+                  error: stripeError,
+                })
+              }
+            }
+
+            try {
+              await db
+                .update(subscriptionTable)
+                .set({ cancelAtPeriodEnd: true })
+                .where(eq(subscriptionTable.id, personalPro.id))
+
+              logger.info('Auto-cancelled personal Pro at period end after joining paid team', {
+                userId,
+                personalSubscriptionId: personalPro.id,
+                organizationId,
+              })
+            } catch (dbError) {
+              logger.error('Failed to update DB cancelAtPeriodEnd for personal Pro', {
+                userId,
+                subscriptionId: personalPro?.id,
+                error: dbError,
+              })
+            }
+          }
+        }
+      } catch (error) {
+        logger.error('Post-accept auto-cancel personal Pro failed', {
+          organizationId,
+          userId: session.user.id,
+          error,
+        })
+      }
+    }
 
     logger.info(`Organization invitation ${status}`, {
       organizationId,

@@ -1,9 +1,10 @@
 import { db } from '@sim/db'
-import { member, user, userStats } from '@sim/db/schema'
+import { member, subscription as subscriptionTable, user, userStats } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getUserUsageData } from '@/lib/billing/core/usage'
+import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('OrganizationMemberAPI')
@@ -303,6 +304,83 @@ export async function DELETE(
       removedBy: session.user.id,
       wasSelfRemoval: session.user.id === memberId,
     })
+
+    // If the removed user left their last paid team and has a personal Pro set to cancel_at_period_end, restore it
+    try {
+      const remainingPaidTeams = await db
+        .select({ orgId: member.organizationId })
+        .from(member)
+        .where(eq(member.userId, memberId))
+
+      let hasAnyPaidTeam = false
+      if (remainingPaidTeams.length > 0) {
+        const orgIds = remainingPaidTeams.map((m) => m.orgId)
+        const orgPaidSubs = await db
+          .select()
+          .from(subscriptionTable)
+          .where(and(eq(subscriptionTable.status, 'active'), eq(subscriptionTable.plan, 'team')))
+
+        hasAnyPaidTeam = orgPaidSubs.some((s) => orgIds.includes(s.referenceId))
+      }
+
+      if (!hasAnyPaidTeam) {
+        const personalProRows = await db
+          .select()
+          .from(subscriptionTable)
+          .where(
+            and(
+              eq(subscriptionTable.referenceId, memberId),
+              eq(subscriptionTable.status, 'active'),
+              eq(subscriptionTable.plan, 'pro')
+            )
+          )
+          .limit(1)
+
+        const personalPro = personalProRows[0]
+        if (
+          personalPro &&
+          personalPro.cancelAtPeriodEnd === true &&
+          personalPro.stripeSubscriptionId
+        ) {
+          try {
+            const stripe = requireStripeClient()
+            await stripe.subscriptions.update(personalPro.stripeSubscriptionId, {
+              cancel_at_period_end: false,
+            })
+          } catch (stripeError) {
+            logger.error('Stripe restore cancel_at_period_end failed for personal Pro', {
+              userId: memberId,
+              stripeSubscriptionId: personalPro.stripeSubscriptionId,
+              error: stripeError,
+            })
+          }
+
+          try {
+            await db
+              .update(subscriptionTable)
+              .set({ cancelAtPeriodEnd: false })
+              .where(eq(subscriptionTable.id, personalPro.id))
+
+            logger.info('Restored personal Pro after leaving last paid team', {
+              userId: memberId,
+              personalSubscriptionId: personalPro.id,
+            })
+          } catch (dbError) {
+            logger.error('DB update failed when restoring personal Pro', {
+              userId: memberId,
+              subscriptionId: personalPro.id,
+              error: dbError,
+            })
+          }
+        }
+      }
+    } catch (postRemoveError) {
+      logger.error('Post-removal personal Pro restore check failed', {
+        organizationId,
+        memberId,
+        error: postRemoveError,
+      })
+    }
 
     return NextResponse.json({
       success: true,

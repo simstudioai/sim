@@ -22,6 +22,7 @@ import {
   renderPasswordResetEmail,
 } from '@/components/emails/render-email'
 import { getBaseURL } from '@/lib/auth-client'
+import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
 import { handleNewUser } from '@/lib/billing/core/usage'
 import { syncSubscriptionUsageLimits } from '@/lib/billing/organization'
@@ -32,6 +33,7 @@ import {
   handleInvoicePaymentFailed,
   handleInvoicePaymentSucceeded,
 } from '@/lib/billing/webhooks/invoices'
+import { handleSubscriptionCreated } from '@/lib/billing/webhooks/subscription'
 import { hasEmailService, sendEmail } from '@/lib/email/mailer'
 import { getFromEmailAddress } from '@/lib/email/utils'
 import { quickValidateEmail } from '@/lib/email/validation'
@@ -1208,38 +1210,11 @@ export const auth = betterAuth({
                   status: subscription.status,
                 })
 
-                try {
-                  const { handleSubscriptionCreated } = await import(
-                    '@/lib/billing/webhooks/subscription'
-                  )
-                  await handleSubscriptionCreated(subscription)
-                } catch (error) {
-                  logger.error('[onSubscriptionComplete] Failed to handle subscription creation', {
-                    subscriptionId: subscription.id,
-                    referenceId: subscription.referenceId,
-                    error,
-                  })
-                }
+                await handleSubscriptionCreated(subscription)
 
-                try {
-                  await syncSubscriptionUsageLimits(subscription)
-                } catch (error) {
-                  logger.error('[onSubscriptionComplete] Failed to sync usage limits', {
-                    subscriptionId: subscription.id,
-                    referenceId: subscription.referenceId,
-                    error,
-                  })
-                }
+                await syncSubscriptionUsageLimits(subscription)
 
-                try {
-                  const { sendPlanWelcomeEmail } = await import('@/lib/billing')
-                  await sendPlanWelcomeEmail(subscription)
-                } catch (error) {
-                  logger.error('[onSubscriptionComplete] Failed to send plan welcome email', {
-                    error,
-                    subscriptionId: subscription.id,
-                  })
-                }
+                await sendPlanWelcomeEmail(subscription)
               },
               onSubscriptionUpdate: async ({
                 subscription,

@@ -139,7 +139,13 @@ export default function Invite() {
         }, 2000)
       } catch (err: any) {
         logger.error('Error accepting invitation:', err)
-        setError(err.message || 'Failed to accept invitation')
+
+        // Check if it's a 409 conflict (already in an organization)
+        if (err.status === 409 || err.message?.includes('already a member of an organization')) {
+          setError('already-in-organization')
+        } else {
+          setError(err.message || 'Failed to accept invitation')
+        }
       } finally {
         setIsAccepting(false)
       }
@@ -213,19 +219,33 @@ export default function Invite() {
   if (error) {
     const errorReason = searchParams.get('error')
     const isExpiredError = errorReason === 'expired'
+    const isAlreadyInOrg = error === 'already-in-organization'
+
+    // Use getErrorMessage for consistent error messages
+    const errorMessage = error.startsWith('You are already') ? error : getErrorMessage(error)
 
     return (
       <InviteLayout>
         <InviteStatusCard
           type='error'
           title='Invitation Error'
-          description={error}
+          description={errorMessage}
           icon='error'
           isExpiredError={isExpiredError}
           actions={[
+            ...(isAlreadyInOrg
+              ? [
+                  {
+                    label: 'Go to Settings',
+                    onClick: () => router.push('/workspace'),
+                    variant: 'default' as const,
+                  },
+                ]
+              : []),
             {
               label: 'Return to Home',
               onClick: () => router.push('/'),
+              variant: isAlreadyInOrg ? ('ghost' as const) : ('default' as const),
             },
           ]}
         />

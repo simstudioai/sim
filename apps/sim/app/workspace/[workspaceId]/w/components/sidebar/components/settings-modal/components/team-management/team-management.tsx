@@ -342,6 +342,16 @@ export function TeamManagement() {
           onCancelInvitation={cancelInvitation}
         />
 
+        {/* Single Organization Notice */}
+        {adminOrOwner && (
+          <div className='mt-4 rounded-lg bg-muted/50 p-3'>
+            <p className='text-muted-foreground text-xs'>
+              <span className='font-medium'>Note:</span> Users can only be part of one organization
+              at a time. They must leave their current organization before joining another.
+            </p>
+          </div>
+        )}
+
         {/* Team Information Section - at bottom of modal */}
         <div className='mt-12 border-t pt-6'>
           <div className='space-y-3 text-xs'>
