@@ -73,6 +73,24 @@ export const auth = betterAuth({
     freshAge: 60 * 60, // 1 hour (or set to 0 to disable completely)
   },
   databaseHooks: {
+    user: {
+      create: {
+        after: async (user) => {
+          logger.info('[databaseHooks.user.create.after] User created, initializing stats', {
+            userId: user.id,
+          })
+
+          try {
+            await handleNewUser(user.id)
+          } catch (error) {
+            logger.error('[databaseHooks.user.create.after] Failed to initialize user stats', {
+              userId: user.id,
+              error,
+            })
+          }
+        },
+      },
+    },
     session: {
       create: {
         before: async (session) => {
@@ -1152,15 +1170,6 @@ export const auth = betterAuth({
                 stripeCustomerId: stripeCustomer.id,
                 userId: user.id,
               })
-
-              try {
-                await handleNewUser(user.id)
-              } catch (error) {
-                logger.error('[onCustomerCreate] Failed to handle new user setup', {
-                  userId: user.id,
-                  error,
-                })
-              }
             },
             subscription: {
               enabled: true,

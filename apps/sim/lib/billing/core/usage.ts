@@ -22,6 +22,18 @@ const logger = createLogger('UsageManagement')
  */
 export async function handleNewUser(userId: string): Promise<void> {
   try {
+    // Check if user stats already exists to make this function idempotent
+    const existingStats = await db
+      .select({ id: userStats.id })
+      .from(userStats)
+      .where(eq(userStats.userId, userId))
+      .limit(1)
+
+    if (existingStats.length > 0) {
+      logger.info('User stats record already exists for user', { userId })
+      return
+    }
+
     await db.insert(userStats).values({
       id: crypto.randomUUID(),
       userId: userId,
@@ -312,13 +324,15 @@ export async function getUserUsageLimit(userId: string): Promise<number> {
       .limit(1)
 
     if (userStatsQuery.length === 0) {
-      throw new Error(`User stats not found for userId: ${userId}`)
+      throw new Error(
+        `No user stats record found for userId: ${userId}. User must be properly initialized before execution.`
+      )
     }
 
     // Individual limits should never be null for free/pro users
     if (!userStatsQuery[0].currentUsageLimit) {
       throw new Error(
-        `Invalid null usage limit for ${subscription?.plan || 'free'} user: ${userId}`
+        `Invalid null usage limit for ${subscription?.plan || 'free'} user: ${userId}. User stats must be properly initialized.`
       )
     }
 
@@ -332,7 +346,7 @@ export async function getUserUsageLimit(userId: string): Promise<number> {
     .limit(1)
 
   if (orgData.length === 0) {
-    throw new Error(`Organization not found: ${subscription.referenceId}`)
+    throw new Error(`Organization not found: ${subscription.referenceId} for user: ${userId}`)
   }
 
   if (orgData[0].orgUsageLimit) {
