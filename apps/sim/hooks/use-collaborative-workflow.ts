@@ -1500,23 +1500,17 @@ export function useCollaborativeWorkflow() {
     // Undo/Redo operations (wrapped to prevent recording moves during undo/redo)
     undo: useCallback(() => {
       isUndoRedoInProgress.current = true
-      try {
-        undoRedo.undo()
-      } finally {
-        setTimeout(() => {
-          isUndoRedoInProgress.current = false
-        }, 100)
-      }
+      undoRedo.undo()
+      queueMicrotask(() => {
+        isUndoRedoInProgress.current = false
+      })
     }, [undoRedo]),
     redo: useCallback(() => {
       isUndoRedoInProgress.current = true
-      try {
-        undoRedo.redo()
-      } finally {
-        setTimeout(() => {
-          isUndoRedoInProgress.current = false
-        }, 100)
-      }
+      undoRedo.redo()
+      queueMicrotask(() => {
+        isUndoRedoInProgress.current = false
+      })
     }, [undoRedo]),
     getUndoRedoSizes: undoRedo.getStackSizes,
     clearUndoRedo: undoRedo.clearStacks,
