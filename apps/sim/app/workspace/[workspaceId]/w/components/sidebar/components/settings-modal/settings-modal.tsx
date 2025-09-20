@@ -15,6 +15,7 @@ import {
   MCP,
   Privacy,
   SettingsNavigation,
+  SSO,
   Subscription,
   TeamManagement,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components'
@@ -38,6 +39,7 @@ type SettingsSection =
   | 'apikeys'
   | 'subscription'
   | 'team'
+  | 'sso'
   | 'privacy'
   | 'copilot'
   | 'mcp'
@@ -172,6 +174,11 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             {isBillingEnabled && activeSection === 'team' && (
               <div className='h-full'>
                 <TeamManagement />
+              </div>
+            )}
+            {activeSection === 'sso' && (
+              <div className='h-full'>
+                <SSO />
               </div>
             )}
             {isHosted && activeSection === 'copilot' && (

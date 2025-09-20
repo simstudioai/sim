@@ -1,4 +1,5 @@
 import { useContext } from 'react'
+import { ssoClient } from '@better-auth/sso/client'
 import { stripeClient } from '@better-auth/stripe/client'
 import {
   customSessionClient,
@@ -43,6 +44,8 @@ export const client = createAuthClient({
         ]
       : []),
     organizationClient(),
+    // Include SSO client when enabled
+    ...(env.NEXT_PUBLIC_SSO_ENABLED ? [ssoClient()] : []),
   ],
 })
 

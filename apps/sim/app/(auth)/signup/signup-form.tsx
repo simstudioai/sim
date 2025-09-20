@@ -9,9 +9,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { client, useSession } from '@/lib/auth-client'
 import { quickValidateEmail } from '@/lib/email/validation'
+import { env, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
+import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
 import { inter } from '@/app/fonts/inter'
 import { soehne } from '@/app/fonts/soehne/soehne'
 
@@ -379,129 +381,144 @@ function SignupFormContent({
         </p>
       </div>
 
-      <form onSubmit={onSubmit} className={`${inter.className} mt-8 space-y-8`}>
-        <div className='space-y-6'>
-          <div className='space-y-2'>
-            <div className='flex items-center justify-between'>
-              <Label htmlFor='name'>Full name</Label>
-            </div>
-            <Input
-              id='name'
-              name='name'
-              placeholder='Enter your name'
-              type='text'
-              autoCapitalize='words'
-              autoComplete='name'
-              title='Name can only contain letters, spaces, hyphens, and apostrophes'
-              value={name}
-              onChange={handleNameChange}
-              className={cn(
-                'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
-                showNameValidationError &&
-                  nameErrors.length > 0 &&
-                  'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
-              )}
-            />
-            {showNameValidationError && nameErrors.length > 0 && (
-              <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                {nameErrors.map((error, index) => (
-                  <p key={index}>{error}</p>
-                ))}
+      {/* SSO Login Button */}
+      {isTruthy(env.NEXT_PUBLIC_SSO_ENABLED) && (
+        <div className={`${inter.className} mt-8`}>
+          <SSOLoginButton callbackURL={redirectUrl || '/workspace'} />
+        </div>
+      )}
+
+      {/* Email/Password Form - only show if enabled */}
+      {isTruthy(env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED) && (
+        <form onSubmit={onSubmit} className={`${inter.className} mt-8 space-y-8`}>
+          <div className='space-y-6'>
+            <div className='space-y-2'>
+              <div className='flex items-center justify-between'>
+                <Label htmlFor='name'>Full name</Label>
               </div>
-            )}
-          </div>
-          <div className='space-y-2'>
-            <div className='flex items-center justify-between'>
-              <Label htmlFor='email'>Email</Label>
-            </div>
-            <Input
-              id='email'
-              name='email'
-              placeholder='Enter your email'
-              autoCapitalize='none'
-              autoComplete='email'
-              autoCorrect='off'
-              value={email}
-              onChange={handleEmailChange}
-              className={cn(
-                'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
-                (emailError || (showEmailValidationError && emailErrors.length > 0)) &&
-                  'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
-              )}
-            />
-            {showEmailValidationError && emailErrors.length > 0 && (
-              <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                {emailErrors.map((error, index) => (
-                  <p key={index}>{error}</p>
-                ))}
-              </div>
-            )}
-            {emailError && !showEmailValidationError && (
-              <div className='mt-1 text-red-400 text-xs'>
-                <p>{emailError}</p>
-              </div>
-            )}
-          </div>
-          <div className='space-y-2'>
-            <div className='flex items-center justify-between'>
-              <Label htmlFor='password'>Password</Label>
-            </div>
-            <div className='relative'>
               <Input
-                id='password'
-                name='password'
-                type={showPassword ? 'text' : 'password'}
-                autoCapitalize='none'
-                autoComplete='new-password'
-                placeholder='Enter your password'
-                autoCorrect='off'
-                value={password}
-                onChange={handlePasswordChange}
+                id='name'
+                name='name'
+                placeholder='Enter your name'
+                type='text'
+                autoCapitalize='words'
+                autoComplete='name'
+                title='Name can only contain letters, spaces, hyphens, and apostrophes'
+                value={name}
+                onChange={handleNameChange}
                 className={cn(
-                  'rounded-[10px] pr-10 shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
-                  showValidationError &&
-                    passwordErrors.length > 0 &&
+                  'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
+                  showNameValidationError &&
+                    nameErrors.length > 0 &&
                     'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
                 )}
               />
-              <button
-                type='button'
-                onClick={() => setShowPassword(!showPassword)}
-                className='-translate-y-1/2 absolute top-1/2 right-3 text-gray-500 transition hover:text-gray-700'
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-              >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
+              {showNameValidationError && nameErrors.length > 0 && (
+                <div className='mt-1 space-y-1 text-red-400 text-xs'>
+                  {nameErrors.map((error, index) => (
+                    <p key={index}>{error}</p>
+                  ))}
+                </div>
+              )}
             </div>
-            {showValidationError && passwordErrors.length > 0 && (
-              <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                {passwordErrors.map((error, index) => (
-                  <p key={index}>{error}</p>
-                ))}
+            <div className='space-y-2'>
+              <div className='flex items-center justify-between'>
+                <Label htmlFor='email'>Email</Label>
               </div>
-            )}
+              <Input
+                id='email'
+                name='email'
+                placeholder='Enter your email'
+                autoCapitalize='none'
+                autoComplete='email'
+                autoCorrect='off'
+                value={email}
+                onChange={handleEmailChange}
+                className={cn(
+                  'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
+                  (emailError || (showEmailValidationError && emailErrors.length > 0)) &&
+                    'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+                )}
+              />
+              {showEmailValidationError && emailErrors.length > 0 && (
+                <div className='mt-1 space-y-1 text-red-400 text-xs'>
+                  {emailErrors.map((error, index) => (
+                    <p key={index}>{error}</p>
+                  ))}
+                </div>
+              )}
+              {emailError && !showEmailValidationError && (
+                <div className='mt-1 text-red-400 text-xs'>
+                  <p>{emailError}</p>
+                </div>
+              )}
+            </div>
+            <div className='space-y-2'>
+              <div className='flex items-center justify-between'>
+                <Label htmlFor='password'>Password</Label>
+              </div>
+              <div className='relative'>
+                <Input
+                  id='password'
+                  name='password'
+                  type={showPassword ? 'text' : 'password'}
+                  autoCapitalize='none'
+                  autoComplete='new-password'
+                  placeholder='Enter your password'
+                  autoCorrect='off'
+                  value={password}
+                  onChange={handlePasswordChange}
+                  className={cn(
+                    'rounded-[10px] pr-10 shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
+                    showValidationError &&
+                      passwordErrors.length > 0 &&
+                      'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+                  )}
+                />
+                <button
+                  type='button'
+                  onClick={() => setShowPassword(!showPassword)}
+                  className='-translate-y-1/2 absolute top-1/2 right-3 text-gray-500 transition hover:text-gray-700'
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              {showValidationError && passwordErrors.length > 0 && (
+                <div className='mt-1 space-y-1 text-red-400 text-xs'>
+                  {passwordErrors.map((error, index) => (
+                    <p key={index}>{error}</p>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
 
-        <Button
-          type='submit'
-          className={`${buttonClass} flex w-full items-center justify-center gap-2 rounded-[10px] border font-medium text-[15px] text-white transition-all duration-200`}
-          disabled={isLoading}
-        >
-          {isLoading ? 'Creating account...' : 'Create account'}
-        </Button>
-      </form>
-
-      {(githubAvailable || googleAvailable) && (
-        <div className={`${inter.className} relative my-6 font-light`}>
-          <div className='absolute inset-0 flex items-center'>
-            <div className='auth-divider w-full border-t' />
-          </div>
-          <div className='relative flex justify-center text-sm'>
-            <span className='bg-white px-4 font-[340] text-muted-foreground'>Or continue with</span>
-          </div>
-        </div>
+          <Button
+            type='submit'
+            className={`${buttonClass} flex w-full items-center justify-center gap-2 rounded-[10px] border font-medium text-[15px] text-white transition-all duration-200`}
+            disabled={isLoading}
+          >
+            {isLoading ? 'Creating account...' : 'Create account'}
+          </Button>
+        </form>
       )}
+
+      {/* Divider - show when we have multiple auth methods */}
+      {(githubAvailable || googleAvailable) &&
+        (isTruthy(env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED) ||
+          isTruthy(env.NEXT_PUBLIC_SSO_ENABLED)) && (
+          <div className={`${inter.className} relative my-6 font-light`}>
+            <div className='absolute inset-0 flex items-center'>
+              <div className='auth-divider w-full border-t' />
+            </div>
+            <div className='relative flex justify-center text-sm'>
+              <span className='bg-white px-4 font-[340] text-muted-foreground'>
+                Or continue with
+              </span>
+            </div>
+          </div>
+        )}
 
       <SocialLoginButtons
         githubAvailable={githubAvailable}
@@ -510,15 +527,18 @@ function SignupFormContent({
         isProduction={isProduction}
       />
 
-      <div className={`${inter.className} pt-6 text-center font-light text-[14px]`}>
-        <span className='font-normal'>Already have an account? </span>
-        <Link
-          href={isInviteFlow ? `/login?invite_flow=true&callbackUrl=${redirectUrl}` : '/login'}
-          className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
-        >
-          Sign in
-        </Link>
-      </div>
+      {/* Only show login link if email/password signup is enabled */}
+      {isTruthy(env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED) && (
+        <div className={`${inter.className} pt-6 text-center font-light text-[14px]`}>
+          <span className='font-normal'>Already have an account? </span>
+          <Link
+            href={isInviteFlow ? `/login?invite_flow=true&callbackUrl=${redirectUrl}` : '/login'}
+            className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
+          >
+            Sign in
+          </Link>
+        </div>
+      )}
 
       <div
         className={`${inter.className} auth-text-muted absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[13px] leading-relaxed sm:px-8 md:px-[44px]`}
