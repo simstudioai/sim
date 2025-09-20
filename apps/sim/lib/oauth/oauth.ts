@@ -897,11 +897,11 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         env.WEBEX_CLIENT_SECRET
       )
       return {
-        tokenEndpoint: 'https://webexapis.com/v1/authorize',
+        tokenEndpoint: 'https://webexapis.com/v1/access_token',
         clientId,
         clientSecret,
         useBasicAuth: false,
-        // supportsRefreshTokenRotation: true,
+        supportsRefreshTokenRotation: true,
       }
     }
     default:

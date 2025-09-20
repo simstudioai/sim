@@ -20,7 +20,7 @@ export const webexCreateMessageTool: ToolConfig<WebexCreateMessageParams, WebexC
       type: 'string',
       required: true,
       visibility: 'hidden',
-      description: 'Access token for Outlook API',
+      description: 'Access token for Webex API',
     },
     markdown: {
       type: 'string',
@@ -50,7 +50,7 @@ export const webexCreateMessageTool: ToolConfig<WebexCreateMessageParams, WebexC
       type: 'string',
       required: false,
       visibility: 'hidden',
-      description: 'The recipient email addres',
+      description: 'The recipient email address',
     },
     toPersonId: {
       type: 'string',
@@ -83,13 +83,14 @@ export const webexCreateMessageTool: ToolConfig<WebexCreateMessageParams, WebexC
       }
     },
     body: (params: WebexCreateMessageParams): Record<string, any> => {
-      // Helper function to parse comma-separated emails
+      // Helper function to parse comma-separated files
       const parseFile = (fileString?: string) => {
         if (!fileString) return undefined
         let files = fileString.split(',')
           .map((item) => item.trim())
           .filter((item) => item.length > 0)
         if (files.length > 0) {
+          // It only picks one as only one is supported
           return [ files[0] ]
         }
         return undefined
@@ -104,6 +105,7 @@ export const webexCreateMessageTool: ToolConfig<WebexCreateMessageParams, WebexC
         if (key === 'accessToken') return; // Skip if it is accessToken
         if (key === 'files') return; // Skip as files has been previously handled
         let value = Object(params)[key];
+        // Checks for truthiness, excluding parameters when they do not have value, all of them are treated as strings
         if (!!value) {
           replyBody[key] = value
         }
@@ -138,7 +140,7 @@ export const webexCreateMessageTool: ToolConfig<WebexCreateMessageParams, WebexC
   },
   outputs: {
     message: { type: 'string', description: 'Success or status message' },
-    results: { type: 'array', description: 'Array of message objects' },
+    results: { type: 'object', description: 'Message object created' },
     createdId: { type: 'string', description: 'Created Id'},
   },
 }

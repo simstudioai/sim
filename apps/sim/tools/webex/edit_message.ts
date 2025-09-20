@@ -2,7 +2,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
 import type { WebexEditMessageParams, WebexEditMessageResponse, WebexEditMessage } from '@/tools/webex/types'
 
-const logger = createLogger('WebexListRooms')
+const logger = createLogger('WebexEditMessage')
 
 export const webexEditMessageTool: ToolConfig<WebexEditMessageParams, WebexEditMessageResponse> = {
   id: 'webex_edit_message',
@@ -20,7 +20,7 @@ export const webexEditMessageTool: ToolConfig<WebexEditMessageParams, WebexEditM
       type: 'string',
       required: true,
       visibility: 'hidden',
-      description: 'Access token for Outlook API',
+      description: 'Access token for Webex API',
     },
     roomId: {
       type: 'string',
@@ -73,6 +73,7 @@ export const webexEditMessageTool: ToolConfig<WebexEditMessageParams, WebexEditM
         if (key === 'accessToken') return; // Skip if it is 'accessToken'
         if (key === 'messageId') return; // Skip path param 'messageId'
         let value = Object(params)[key];
+        // Checks for truthiness, excluding parameters when they do not have value, all of them are treated as strings
         if (!!value) {
           replyBody[key] = value
         }
@@ -105,6 +106,6 @@ export const webexEditMessageTool: ToolConfig<WebexEditMessageParams, WebexEditM
   },
   outputs: {
     message: { type: 'string', description: 'Success or status message' },
-    results: { type: 'array', description: 'Array of message objects' },
+    results: { type: 'object', description: 'Message object modified' },
   },
 }

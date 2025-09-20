@@ -20,7 +20,7 @@ export const webexListMessagesTool: ToolConfig<WebexListMessagesParams, WebexLis
       type: 'string',
       required: true,
       visibility: 'hidden',
-      description: 'Access token for Outlook API',
+      description: 'Access token for Webex API',
     },
     roomId: {
       type: 'string',
@@ -55,7 +55,7 @@ export const webexListMessagesTool: ToolConfig<WebexListMessagesParams, WebexLis
   },
   request: {
     url: (params: WebexListMessagesParams) => {
-      let baseUrl = `https://webexapis.com/v1/rooms`;
+      let baseUrl = `https://webexapis.com/v1/messages`;
       let searchParams = new URLSearchParams();
       if (!params.roomId) {
         throw new Error('RoomId is required')
@@ -63,6 +63,10 @@ export const webexListMessagesTool: ToolConfig<WebexListMessagesParams, WebexLis
       Object.keys(params).forEach(key => {
         if (key === 'accessToken') return; // Skip if it is accessToken
         let value = Object(params)[key];
+        /** Checks for truthiness, excluding parameters when they do not have value
+         * many of them are treated as strings
+         * 'max' is a number but it does not allow 0 as value
+        **/
         if (!!value) {
           searchParams.set(key, value)
         }

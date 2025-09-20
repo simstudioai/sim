@@ -59,7 +59,7 @@ export interface WebexListMessage {
   roomType?: string
   text?: string
   updated?: string
-  isVoiceClip?: string
+  isVoiceClip?: boolean
   files?: string[]
   mentionedGroups?: string[]
   mentionedPeople?: string[]
@@ -88,7 +88,7 @@ export interface WebexCreateMessage {
   roomType?: string
   text?: string
   updated?: string
-  isVoiceClip?: string
+  isVoiceClip?: boolean
   files?: string[]
   mentionedGroups?: string[]
   mentionedPeople?: string[]
@@ -133,7 +133,7 @@ export interface WebexEditMessage {
   roomType?: string
   text?: string
   updated?: string
-  isVoiceClip?: string
+  isVoiceClip?: boolean
   files?: string[]
   mentionedGroups?: string[]
   mentionedPeople?: string[]

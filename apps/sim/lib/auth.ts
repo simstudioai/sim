@@ -611,8 +611,8 @@ export const auth = betterAuth({
           clientId: env.WEBEX_CLIENT_ID as string,
           clientSecret: env.WEBEX_CLIENT_SECRET as string,
           authorizationUrl: 'https://webexapis.com/v1/authorize',
-          tokenUrl: 'https://dummy-not-used.webexapis.com',
-          userInfoUrl: 'https://webexapis.com/v1/people/me', // Dummy URL
+          tokenUrl: 'https://webexapis.com/v1/access_token',
+          userInfoUrl: 'https://webexapis.com/v1/people/me',
           scopes: [
             'spark:people_read',
             'spark-admin:people_write',

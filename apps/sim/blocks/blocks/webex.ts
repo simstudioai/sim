@@ -193,7 +193,7 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Parent message ID to reply to',
-      condition: { field: 'operation', value: 'create_message' },
+      condition: { field: 'operation', value: ['create_message'] },
       required: false,
     },
     // text string
@@ -326,7 +326,7 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
     parentId: { type: 'string', description: 'Parent Id message' },
     text: { type: 'string', description: 'Text message' },
     toPersonEmail: { type: 'string', description: 'The recipient email address' },
-    toPersonId: { type: 'string', description: 'The recipient email Id' },
+    toPersonId: { type: 'string', description: 'The recipient person Id' },
     files: { type: 'string', description: 'Public URLs to binary files (comma-separated), currently only one file may be included' },
     //
     messageId: { type: 'string', description: 'Message Id' },

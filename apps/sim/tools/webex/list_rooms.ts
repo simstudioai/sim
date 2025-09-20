@@ -20,7 +20,7 @@ export const webexListRoomsTool: ToolConfig<WebexListRoomsParams, WebexListRooms
       type: 'string',
       required: true,
       visibility: 'hidden',
-      description: 'Access token for Outlook API',
+      description: 'Access token for Webex API',
     },
     teamId: {
       type: 'string',
@@ -60,6 +60,10 @@ export const webexListRoomsTool: ToolConfig<WebexListRoomsParams, WebexListRooms
       Object.keys(params).forEach(key => {
         if (key === 'accessToken') return; // Skip if it is accessToken
         let value = Object(params)[key];
+        /** Checks for truthiness, excluding parameters when they do not have value
+         * many of them are treated as strings
+         * 'max' is a number but it does not allow 0 as value
+        **/
         if (!!value) {
           searchParams.set(key, value)
         }
@@ -107,6 +111,6 @@ export const webexListRoomsTool: ToolConfig<WebexListRoomsParams, WebexListRooms
   },
   outputs: {
     message: { type: 'string', description: 'Success or status message' },
-    results: { type: 'array', description: 'Array of message objects' },
+    results: { type: 'array', description: 'Array of room objects' },
   },
 }
