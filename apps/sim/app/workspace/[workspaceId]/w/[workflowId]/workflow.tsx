@@ -233,7 +233,7 @@ const WorkflowContent = React.memo(() => {
   }, [permissionsError, workspaceId])
 
   const updateNodeParent = useCallback(
-    (nodeId: string, newParentId: string | null, removedEdges: any[] = []) => {
+    (nodeId: string, newParentId: string | null, affectedEdges: any[] = []) => {
       const node = getNodes().find((n: any) => n.id === nodeId)
       if (!node) return
 
@@ -243,7 +243,8 @@ const WorkflowContent = React.memo(() => {
       const oldParentId = node.parentId || currentBlock.data?.parentId
       const oldPosition = { ...node.position }
 
-      let affectedEdges: any[] = removedEdges
+      // affectedEdges are edges that are either being removed (when leaving a subflow)
+      // or being added (when entering a subflow)
       if (!affectedEdges.length && !newParentId && oldParentId) {
         affectedEdges = edgesForDisplay.filter((e) => e.source === nodeId || e.target === nodeId)
       }
@@ -1532,8 +1533,8 @@ const WorkflowContent = React.memo(() => {
           y: nodeAbsPosBefore.y - containerAbsPosBefore.y,
         }
 
-        // Moving to a new parent container
-        updateNodeParent(node.id, potentialParentId)
+        // Prepare edges that will be added when moving into the container
+        const edgesToAdd: any[] = []
 
         // Auto-connect when moving an existing block into a container
         const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
@@ -1560,7 +1561,7 @@ const WorkflowContent = React.memo(() => {
                 id: closestBlock.id,
                 type: closestBlock.type,
               })
-              addEdge({
+              edgesToAdd.push({
                 id: crypto.randomUUID(),
                 source: closestBlock.id,
                 target: node.id,
@@ -1577,7 +1578,7 @@ const WorkflowContent = React.memo(() => {
                 ? 'loop-start-source'
                 : 'parallel-start-source'
 
-            addEdge({
+            edgesToAdd.push({
               id: crypto.randomUUID(),
               source: potentialParentId,
               target: node.id,
@@ -1587,6 +1588,17 @@ const WorkflowContent = React.memo(() => {
             })
           }
         }
+
+        // Skip recording these edges separately since they're part of the parent update
+        window.dispatchEvent(new CustomEvent('skip-edge-recording', { detail: { skip: true } }))
+
+        // Moving to a new parent container - pass the edges that will be added
+        updateNodeParent(node.id, potentialParentId, edgesToAdd)
+
+        // Now add the edges after parent update
+        edgesToAdd.forEach((edge) => addEdge(edge))
+
+        window.dispatchEvent(new CustomEvent('skip-edge-recording', { detail: { skip: false } }))
       }
 
       // Reset state

@@ -904,7 +904,10 @@ export function useCollaborativeWorkflow() {
   const collaborativeAddEdge = useCallback(
     (edge: Edge) => {
       executeQueuedOperation('add', 'edge', edge, () => workflowStore.addEdge(edge))
-      undoRedo.recordAddEdge(edge.id)
+      // Only record edge addition if it's not part of a parent update operation
+      if (!skipEdgeRecording.current) {
+        undoRedo.recordAddEdge(edge.id)
+      }
     },
     [executeQueuedOperation, workflowStore, undoRedo]
   )
