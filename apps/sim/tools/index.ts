@@ -516,13 +516,19 @@ async function handleInternalRequest(
       // Many APIs (e.g., Microsoft Graph) return 202 with empty body
       responseData = { status }
     } else {
-      try {
-        responseData = await response.json()
-      } catch (jsonError) {
-        logger.error(`[${requestId}] JSON parse error for ${toolId}:`, {
-          error: jsonError instanceof Error ? jsonError.message : String(jsonError),
-        })
-        throw new Error(`Failed to parse response from ${toolId}: ${jsonError}`)
+      // If the tool has a transformResponse function, don't parse JSON here
+      // as the transformResponse function will handle the response parsing
+      if (tool.transformResponse) {
+        responseData = null // Will be handled by transformResponse
+      } else {
+        try {
+          responseData = await response.json()
+        } catch (jsonError) {
+          logger.error(`[${requestId}] JSON parse error for ${toolId}:`, {
+            error: jsonError instanceof Error ? jsonError.message : String(jsonError),
+          })
+          throw new Error(`Failed to parse response from ${toolId}: ${jsonError}`)
+        }
       }
     }
 

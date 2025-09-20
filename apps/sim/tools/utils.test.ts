@@ -527,6 +527,43 @@ describe('executeRequest', () => {
       error: 'Server Error', // Should use statusText in the error message
     })
   })
+
+  it('should handle transformResponse with non-JSON response', async () => {
+    const toolWithTransform = {
+      ...mockTool,
+      transformResponse: async (response: Response) => {
+        const xmlText = await response.text()
+        return {
+          success: true,
+          output: {
+            parsedData: 'mocked xml parsing result',
+            originalXml: xmlText,
+          },
+        }
+      },
+    }
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      text: async () => '<xml><test>Mock XML response</test></xml>',
+    })
+
+    const result = await executeRequest('test-tool', toolWithTransform, {
+      url: 'https://api.example.com',
+      method: 'GET',
+      headers: {},
+    })
+
+    expect(result).toEqual({
+      success: true,
+      output: {
+        parsedData: 'mocked xml parsing result',
+        originalXml: '<xml><test>Mock XML response</test></xml>',
+      },
+    })
+  })
 })
 
 describe('createParamSchema', () => {
