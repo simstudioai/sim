@@ -12,6 +12,7 @@ import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { getUniqueBlockName } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { Position } from '@/stores/workflows/workflow/types'
 
@@ -1126,10 +1127,7 @@ export function useCollaborativeWorkflow() {
         y: sourceBlock.position.y + 20,
       }
 
-      const match = sourceBlock.name.match(/(.*?)(\d+)?$/)
-      const newName = match?.[2]
-        ? `${match[1]}${Number.parseInt(match[2]) + 1}`
-        : `${sourceBlock.name} 1`
+      const newName = getUniqueBlockName(sourceBlock.name, workflowStore.blocks)
 
       // Get subblock values from the store
       const subBlockValues = subBlockStore.workflowValues[activeWorkflowId || '']?.[sourceId] || {}
