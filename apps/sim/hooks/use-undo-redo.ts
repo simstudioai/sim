@@ -247,6 +247,14 @@ export function useUndoRedo() {
         const blockId = removeInverse.data.blockId
 
         if (workflowStore.blocks[blockId]) {
+          // Refresh inverse snapshot to capture the latest subblock values and edges at undo time
+          const mergedNow = mergeSubblockState(workflowStore.blocks, activeWorkflowId, blockId)
+          const latestBlockSnapshot = mergedNow[blockId] || workflowStore.blocks[blockId]
+          const latestEdgeSnapshots = workflowStore.edges.filter(
+            (e) => e.source === blockId || e.target === blockId
+          )
+          removeInverse.data.blockSnapshot = latestBlockSnapshot
+          removeInverse.data.edgeSnapshots = latestEdgeSnapshots
           // First remove the edges that were added with the block (autoConnect edge)
           const edgesToRemove = removeInverse.data.edgeSnapshots || []
           edgesToRemove.forEach((edge) => {
@@ -311,7 +319,7 @@ export function useUndoRedo() {
                 snap.data?.extent
               )
 
-              // Send to server
+              // Send to server with subBlocks included in payload
               addToQueue({
                 id: crypto.randomUUID(),
                 operation: {
@@ -319,6 +327,7 @@ export function useUndoRedo() {
                   target: 'block',
                   payload: {
                     ...snap,
+                    subBlocks: snap.subBlocks || {},
                     autoConnectEdge: undefined,
                     isUndo: true,
                     originalOpId: entry.id,
@@ -328,7 +337,7 @@ export function useUndoRedo() {
                 userId,
               })
 
-              // Restore subblock values for nested blocks
+              // Restore subblock values locally
               if (snap.subBlocks && activeWorkflowId) {
                 const subBlockStore = useSubBlockStore.getState()
                 Object.entries(snap.subBlocks).forEach(([subBlockId, subBlock]: [string, any]) => {
@@ -341,6 +350,7 @@ export function useUndoRedo() {
           })
         }
 
+        // Add the main block with subBlocks in payload
         addToQueue({
           id: opId,
           operation: {
@@ -348,6 +358,7 @@ export function useUndoRedo() {
             target: 'block',
             payload: {
               ...blockSnapshot,
+              subBlocks: blockSnapshot.subBlocks || {},
               autoConnectEdge: undefined,
               isUndo: true,
               originalOpId: entry.id,
@@ -367,27 +378,16 @@ export function useUndoRedo() {
           blockSnapshot.data?.extent
         )
 
+        // Set subblock values locally
         if (blockSnapshot.subBlocks && activeWorkflowId) {
-          const subblockValues: Record<string, any> = {}
+          const subBlockStore = useSubBlockStore.getState()
           Object.entries(blockSnapshot.subBlocks).forEach(
             ([subBlockId, subBlock]: [string, any]) => {
               if (subBlock.value !== null && subBlock.value !== undefined) {
-                subblockValues[subBlockId] = subBlock.value
+                subBlockStore.setValue(blockSnapshot.id, subBlockId, subBlock.value)
               }
             }
           )
-
-          if (Object.keys(subblockValues).length > 0) {
-            useSubBlockStore.setState((state) => ({
-              workflowValues: {
-                ...state.workflowValues,
-                [activeWorkflowId]: {
-                  ...state.workflowValues[activeWorkflowId],
-                  [blockSnapshot.id]: subblockValues,
-                },
-              },
-            }))
-          }
         }
 
         if (edgeSnapshots && edgeSnapshots.length > 0) {
@@ -539,7 +539,7 @@ export function useUndoRedo() {
                 snapNested.data?.extent
               )
 
-              // Send to server
+              // Send to server with subBlocks included
               addToQueue({
                 id: crypto.randomUUID(),
                 operation: {
@@ -547,6 +547,7 @@ export function useUndoRedo() {
                   target: 'block',
                   payload: {
                     ...snapNested,
+                    subBlocks: snapNested.subBlocks || {},
                     autoConnectEdge: undefined,
                     isRedo: true,
                     originalOpId: entry.id,
@@ -556,7 +557,7 @@ export function useUndoRedo() {
                 userId,
               })
 
-              // Restore subblock values for nested blocks
+              // Restore subblock values locally
               if (snapNested.subBlocks && activeWorkflowId) {
                 const subBlockStore = useSubBlockStore.getState()
                 Object.entries(snapNested.subBlocks).forEach(
@@ -571,16 +572,23 @@ export function useUndoRedo() {
           })
         }
 
+        // Add the main block with subBlocks included
         addToQueue({
           id: opId,
           operation: {
             operation: 'add',
             target: 'block',
-            payload: { ...snap, isRedo: true, originalOpId: entry.id },
+            payload: {
+              ...snap,
+              subBlocks: snap.subBlocks || {},
+              isRedo: true,
+              originalOpId: entry.id,
+            },
           },
           workflowId: activeWorkflowId,
           userId,
         })
+
         workflowStore.addBlock(
           snap.id,
           snap.type,
@@ -591,25 +599,14 @@ export function useUndoRedo() {
           snap.data?.extent
         )
 
+        // Set subblock values locally
         if (snap.subBlocks && activeWorkflowId) {
-          const subblockValues: Record<string, any> = {}
+          const subBlockStore = useSubBlockStore.getState()
           Object.entries(snap.subBlocks).forEach(([subBlockId, subBlock]: [string, any]) => {
             if (subBlock.value !== null && subBlock.value !== undefined) {
-              subblockValues[subBlockId] = subBlock.value
+              subBlockStore.setValue(snap.id, subBlockId, subBlock.value)
             }
           })
-
-          if (Object.keys(subblockValues).length > 0) {
-            useSubBlockStore.setState((state) => ({
-              workflowValues: {
-                ...state.workflowValues,
-                [activeWorkflowId]: {
-                  ...state.workflowValues[activeWorkflowId],
-                  [snap.id]: subblockValues,
-                },
-              },
-            }))
-          }
         }
 
         edgeSnapshots.forEach((edge) => {

@@ -140,6 +140,15 @@ export function useCollaborativeWorkflow() {
               if (payload.autoConnectEdge) {
                 workflowStore.addEdge(payload.autoConnectEdge)
               }
+              // Apply subblock values if present in payload
+              if (payload.subBlocks && typeof payload.subBlocks === 'object') {
+                Object.entries(payload.subBlocks).forEach(([subblockId, subblock]) => {
+                  const value = (subblock as any)?.value
+                  if (value !== undefined && value !== null) {
+                    subBlockStore.setValue(payload.id, subblockId, value)
+                  }
+                })
+              }
               break
             case 'update-position': {
               const blockId = payload.id
