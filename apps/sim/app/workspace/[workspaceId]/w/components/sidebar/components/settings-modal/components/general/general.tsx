@@ -19,6 +19,8 @@ const TOOLTIPS = {
   autoPan: 'Automatically pan to active blocks during workflow execution.',
   consoleExpandedByDefault:
     'Show console entries expanded by default. When disabled, entries will be collapsed by default.',
+  floatingControls:
+    'Show floating controls for zoom, undo, and redo at the bottom of the workflow canvas.',
 }
 
 export function General() {
@@ -28,6 +30,7 @@ export function General() {
 
   const isAutoPanEnabled = useGeneralStore((state) => state.isAutoPanEnabled)
   const isConsoleExpandedByDefault = useGeneralStore((state) => state.isConsoleExpandedByDefault)
+  const showFloatingControls = useGeneralStore((state) => state.showFloatingControls)
 
   // Loading states
   const isAutoConnectLoading = useGeneralStore((state) => state.isAutoConnectLoading)
@@ -37,6 +40,7 @@ export function General() {
     (state) => state.isConsoleExpandedByDefaultLoading
   )
   const isThemeLoading = useGeneralStore((state) => state.isThemeLoading)
+  const isFloatingControlsLoading = useGeneralStore((state) => state.isFloatingControlsLoading)
 
   const setTheme = useGeneralStore((state) => state.setTheme)
   const toggleAutoConnect = useGeneralStore((state) => state.toggleAutoConnect)
@@ -45,6 +49,7 @@ export function General() {
   const toggleConsoleExpandedByDefault = useGeneralStore(
     (state) => state.toggleConsoleExpandedByDefault
   )
+  const toggleFloatingControls = useGeneralStore((state) => state.toggleFloatingControls)
 
   // Sync theme from store to next-themes when theme changes
   useEffect(() => {
@@ -74,6 +79,12 @@ export function General() {
   const handleConsoleExpandedByDefaultChange = async (checked: boolean) => {
     if (checked !== isConsoleExpandedByDefault && !isConsoleExpandedByDefaultLoading) {
       await toggleConsoleExpandedByDefault()
+    }
+  }
+
+  const handleFloatingControlsChange = async (checked: boolean) => {
+    if (checked !== showFloatingControls && !isFloatingControlsLoading) {
+      await toggleFloatingControls()
     }
   }
 
@@ -239,6 +250,36 @@ export function General() {
                 checked={isConsoleExpandedByDefault}
                 onCheckedChange={handleConsoleExpandedByDefaultChange}
                 disabled={isLoading || isConsoleExpandedByDefaultLoading}
+              />
+            </div>
+
+            <div className='flex items-center justify-between'>
+              <div className='flex items-center gap-2'>
+                <Label htmlFor='floating-controls' className='font-normal'>
+                  Floating controls
+                </Label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      className='h-7 p-1 text-gray-500'
+                      aria-label='Learn more about floating controls'
+                      disabled={isLoading || isFloatingControlsLoading}
+                    >
+                      <Info className='h-5 w-5' />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side='top' className='max-w-[300px] p-3'>
+                    <p className='text-sm'>{TOOLTIPS.floatingControls}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <Switch
+                id='floating-controls'
+                checked={showFloatingControls}
+                onCheckedChange={handleFloatingControlsChange}
+                disabled={isLoading || isFloatingControlsLoading}
               />
             </div>
           </>

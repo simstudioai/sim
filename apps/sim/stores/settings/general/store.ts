@@ -22,6 +22,7 @@ export const useGeneralStore = create<GeneralStore>()(
           isAutoPanEnabled: true,
           isConsoleExpandedByDefault: true,
           isDebugModeEnabled: false,
+          showFloatingControls: true,
           theme: 'system' as const, // Keep for compatibility but not used
           telemetryEnabled: true,
           isLoading: false,
@@ -34,6 +35,7 @@ export const useGeneralStore = create<GeneralStore>()(
           isTelemetryLoading: false,
           isBillingUsageNotificationsLoading: false,
           isBillingUsageNotificationsEnabled: true,
+          isFloatingControlsLoading: false,
         }
 
         // Optimistic update helper
@@ -99,6 +101,17 @@ export const useGeneralStore = create<GeneralStore>()(
 
           toggleDebugMode: () => {
             set({ isDebugModeEnabled: !get().isDebugModeEnabled })
+          },
+
+          toggleFloatingControls: async () => {
+            if (get().isFloatingControlsLoading) return
+            const newValue = !get().showFloatingControls
+            await updateSettingOptimistic(
+              'showFloatingControls',
+              newValue,
+              'isFloatingControlsLoading',
+              'showFloatingControls'
+            )
           },
 
           setTheme: async (theme) => {
@@ -203,6 +216,7 @@ export const useGeneralStore = create<GeneralStore>()(
                 isAutoConnectEnabled: data.autoConnect,
                 isAutoPanEnabled: data.autoPan ?? true,
                 isConsoleExpandedByDefault: data.consoleExpandedByDefault ?? true,
+                showFloatingControls: data.showFloatingControls ?? true,
                 theme: data.theme || 'system',
                 telemetryEnabled: data.telemetryEnabled,
                 isBillingUsageNotificationsEnabled: data.billingUsageNotificationsEnabled ?? true,
