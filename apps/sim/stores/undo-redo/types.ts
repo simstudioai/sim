@@ -7,6 +7,8 @@ export type OperationType =
   | 'remove-subflow'
   | 'move-block'
   | 'move-subflow'
+  | 'duplicate-block'
+  | 'update-parent'
 
 export interface BaseOperation {
   id: string
@@ -95,6 +97,28 @@ export interface MoveSubflowOperation extends BaseOperation {
   }
 }
 
+export interface DuplicateBlockOperation extends BaseOperation {
+  type: 'duplicate-block'
+  data: {
+    sourceBlockId: string
+    duplicatedBlockId: string
+    duplicatedBlockSnapshot: any
+    autoConnectEdge?: any
+  }
+}
+
+export interface UpdateParentOperation extends BaseOperation {
+  type: 'update-parent'
+  data: {
+    blockId: string
+    oldParentId?: string
+    newParentId?: string
+    oldPosition: { x: number; y: number }
+    newPosition: { x: number; y: number }
+    affectedEdges?: any[] // Edges that are removed/added as part of parent change
+  }
+}
+
 export type Operation =
   | AddBlockOperation
   | RemoveBlockOperation
@@ -104,6 +128,8 @@ export type Operation =
   | RemoveSubflowOperation
   | MoveBlockOperation
   | MoveSubflowOperation
+  | DuplicateBlockOperation
+  | UpdateParentOperation
 
 export interface OperationEntry {
   id: string

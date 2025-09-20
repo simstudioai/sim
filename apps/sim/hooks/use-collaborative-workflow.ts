@@ -19,17 +19,46 @@ const logger = createLogger('CollaborativeWorkflow')
 export function useCollaborativeWorkflow() {
   const undoRedo = useUndoRedo()
   const isUndoRedoInProgress = useRef(false)
+  const skipEdgeRecording = useRef(false)
 
   useEffect(() => {
-    const handler = (e: any) => {
+    const moveHandler = (e: any) => {
       const { blockId, before, after } = e.detail || {}
       if (!blockId || !before || !after) return
       // Don't record moves during undo/redo operations
       if (isUndoRedoInProgress.current) return
       undoRedo.recordMove(blockId, before, after)
     }
-    window.addEventListener('workflow-record-move', handler)
-    return () => window.removeEventListener('workflow-record-move', handler)
+
+    const parentUpdateHandler = (e: any) => {
+      const { blockId, oldParentId, newParentId, oldPosition, newPosition, affectedEdges } =
+        e.detail || {}
+      if (!blockId) return
+      // Don't record during undo/redo operations
+      if (isUndoRedoInProgress.current) return
+      undoRedo.recordUpdateParent(
+        blockId,
+        oldParentId,
+        newParentId,
+        oldPosition,
+        newPosition,
+        affectedEdges
+      )
+    }
+
+    const skipEdgeHandler = (e: any) => {
+      const { skip } = e.detail || {}
+      skipEdgeRecording.current = skip
+    }
+
+    window.addEventListener('workflow-record-move', moveHandler)
+    window.addEventListener('workflow-record-parent-update', parentUpdateHandler)
+    window.addEventListener('skip-edge-recording', skipEdgeHandler)
+    return () => {
+      window.removeEventListener('workflow-record-move', moveHandler)
+      window.removeEventListener('workflow-record-parent-update', parentUpdateHandler)
+      window.removeEventListener('skip-edge-recording', skipEdgeHandler)
+    }
   }, [undoRedo])
   const {
     isConnected,
@@ -883,7 +912,8 @@ export function useCollaborativeWorkflow() {
   const collaborativeRemoveEdge = useCallback(
     (edgeId: string) => {
       const edge = workflowStore.edges.find((e) => e.id === edgeId)
-      if (edge) {
+      // Only record edge removal if it's not part of a parent update operation
+      if (edge && !skipEdgeRecording.current) {
         undoRedo.recordRemoveEdge(edgeId, edge)
       }
 
@@ -1118,6 +1148,9 @@ export function useCollaborativeWorkflow() {
             subBlockStore.setValue(newId, subblockId, value)
           })
         }
+
+        // Record for undo after the block is added
+        undoRedo.recordDuplicateBlock(sourceId, newId, duplicatedBlockData, undefined)
       })
     },
     [
@@ -1127,6 +1160,7 @@ export function useCollaborativeWorkflow() {
       activeWorkflowId,
       isInActiveRoom,
       currentWorkflowId,
+      undoRedo,
     ]
   )
 

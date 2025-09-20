@@ -232,10 +232,49 @@ const WorkflowContent = React.memo(() => {
     }
   }, [permissionsError, workspaceId])
 
-  // Helper function to update a node's parent with proper position calculation
   const updateNodeParent = useCallback(
-    (nodeId: string, newParentId: string | null) => {
-      return updateNodeParentUtil(
+    (nodeId: string, newParentId: string | null, removedEdges: any[] = []) => {
+      const node = getNodes().find((n: any) => n.id === nodeId)
+      if (!node) return
+
+      const currentBlock = blocks[nodeId]
+      if (!currentBlock) return
+
+      const oldParentId = node.parentId || currentBlock.data?.parentId
+      const oldPosition = { ...node.position }
+
+      let affectedEdges: any[] = removedEdges
+      if (!affectedEdges.length && !newParentId && oldParentId) {
+        affectedEdges = edgesForDisplay.filter((e) => e.source === nodeId || e.target === nodeId)
+      }
+
+      let newPosition = oldPosition
+      if (newParentId) {
+        const getNodeAbsolutePosition = (id: string): { x: number; y: number } => {
+          const n = getNodes().find((node: any) => node.id === id)
+          if (!n) return { x: 0, y: 0 }
+          if (!n.parentId) return n.position
+          const parentPos = getNodeAbsolutePosition(n.parentId)
+          return { x: parentPos.x + n.position.x, y: parentPos.y + n.position.y }
+        }
+        const nodeAbsPos = getNodeAbsolutePosition(nodeId)
+        const parentAbsPos = getNodeAbsolutePosition(newParentId)
+        newPosition = {
+          x: nodeAbsPos.x - parentAbsPos.x,
+          y: nodeAbsPos.y - parentAbsPos.y,
+        }
+      } else if (oldParentId) {
+        const getNodeAbsolutePosition = (id: string): { x: number; y: number } => {
+          const n = getNodes().find((node: any) => node.id === id)
+          if (!n) return { x: 0, y: 0 }
+          if (!n.parentId) return n.position
+          const parentPos = getNodeAbsolutePosition(n.parentId)
+          return { x: parentPos.x + n.position.x, y: parentPos.y + n.position.y }
+        }
+        newPosition = getNodeAbsolutePosition(nodeId)
+      }
+
+      const result = updateNodeParentUtil(
         nodeId,
         newParentId,
         getNodes,
@@ -243,8 +282,32 @@ const WorkflowContent = React.memo(() => {
         updateParentId,
         () => resizeLoopNodes(getNodes, updateNodeDimensions, blocks)
       )
+
+      if (oldParentId !== newParentId) {
+        window.dispatchEvent(
+          new CustomEvent('workflow-record-parent-update', {
+            detail: {
+              blockId: nodeId,
+              oldParentId: oldParentId || undefined,
+              newParentId: newParentId || undefined,
+              oldPosition,
+              newPosition,
+              affectedEdges: affectedEdges.map((e) => ({ ...e })),
+            },
+          })
+        )
+      }
+
+      return result
     },
-    [getNodes, collaborativeUpdateBlockPosition, updateParentId, updateNodeDimensions, blocks]
+    [
+      getNodes,
+      collaborativeUpdateBlockPosition,
+      updateParentId,
+      updateNodeDimensions,
+      blocks,
+      edgesForDisplay,
+    ]
   )
 
   // Function to resize all loop nodes with improved hierarchy handling
@@ -390,17 +453,28 @@ const WorkflowContent = React.memo(() => {
       if (!blockId) return
 
       try {
-        // Remove parent-child relationship while preserving absolute position
-        updateNodeParent(blockId, null)
+        const currentBlock = blocks[blockId]
+        const parentId = currentBlock?.data?.parentId
 
-        // Remove all edges connected to this block
-        const connectedEdges = edgesForDisplay.filter(
+        if (!parentId) return
+
+        // Find ALL edges connected to this block
+        const edgesToRemove = edgesForDisplay.filter(
           (e) => e.source === blockId || e.target === blockId
         )
 
-        connectedEdges.forEach((edge) => {
+        // Set flag to skip individual edge recording for undo/redo
+        window.dispatchEvent(new CustomEvent('skip-edge-recording', { detail: { skip: true } }))
+
+        // Remove edges first
+        edgesToRemove.forEach((edge) => {
           removeEdge(edge.id)
         })
+
+        // Then update parent relationship
+        updateNodeParent(blockId, null, edgesToRemove)
+
+        window.dispatchEvent(new CustomEvent('skip-edge-recording', { detail: { skip: false } }))
       } catch (err) {
         logger.error('Failed to remove from subflow', { err })
       }

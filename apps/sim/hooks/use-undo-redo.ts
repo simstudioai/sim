@@ -4,10 +4,12 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { useOperationQueue } from '@/stores/operation-queue/store'
 import {
   createOperationEntry,
+  type DuplicateBlockOperation,
   type MoveBlockOperation,
   type Operation,
   type RemoveBlockOperation,
   type RemoveEdgeOperation,
+  type UpdateParentOperation,
   useUndoRedoStore,
 } from '@/stores/undo-redo'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -217,6 +219,107 @@ export function useUndoRedo() {
       undoRedoStore.push(activeWorkflowId, userId, entry)
 
       logger.debug('Recorded move', { blockId, from: before, to: after })
+    },
+    [activeWorkflowId, userId, undoRedoStore]
+  )
+
+  const recordDuplicateBlock = useCallback(
+    (
+      sourceBlockId: string,
+      duplicatedBlockId: string,
+      duplicatedBlockSnapshot: any,
+      autoConnectEdge?: any
+    ) => {
+      if (!activeWorkflowId) return
+
+      const operation: DuplicateBlockOperation = {
+        id: crypto.randomUUID(),
+        type: 'duplicate-block',
+        timestamp: Date.now(),
+        workflowId: activeWorkflowId,
+        userId,
+        data: {
+          sourceBlockId,
+          duplicatedBlockId,
+          duplicatedBlockSnapshot,
+          autoConnectEdge,
+        },
+      }
+
+      // Inverse is to remove the duplicated block
+      const inverse: RemoveBlockOperation = {
+        id: crypto.randomUUID(),
+        type: 'remove-block',
+        timestamp: Date.now(),
+        workflowId: activeWorkflowId,
+        userId,
+        data: {
+          blockId: duplicatedBlockId,
+          blockSnapshot: duplicatedBlockSnapshot,
+          edgeSnapshots: autoConnectEdge ? [autoConnectEdge] : [],
+        },
+      }
+
+      const entry = createOperationEntry(operation, inverse)
+      undoRedoStore.push(activeWorkflowId, userId, entry)
+
+      logger.debug('Recorded duplicate block', { sourceBlockId, duplicatedBlockId })
+    },
+    [activeWorkflowId, userId, undoRedoStore]
+  )
+
+  const recordUpdateParent = useCallback(
+    (
+      blockId: string,
+      oldParentId: string | undefined,
+      newParentId: string | undefined,
+      oldPosition: { x: number; y: number },
+      newPosition: { x: number; y: number },
+      affectedEdges?: any[]
+    ) => {
+      if (!activeWorkflowId) return
+
+      const operation: UpdateParentOperation = {
+        id: crypto.randomUUID(),
+        type: 'update-parent',
+        timestamp: Date.now(),
+        workflowId: activeWorkflowId,
+        userId,
+        data: {
+          blockId,
+          oldParentId,
+          newParentId,
+          oldPosition,
+          newPosition,
+          affectedEdges,
+        },
+      }
+
+      const inverse: UpdateParentOperation = {
+        id: crypto.randomUUID(),
+        type: 'update-parent',
+        timestamp: Date.now(),
+        workflowId: activeWorkflowId,
+        userId,
+        data: {
+          blockId,
+          oldParentId: newParentId,
+          newParentId: oldParentId,
+          oldPosition: newPosition,
+          newPosition: oldPosition,
+          affectedEdges, // Same edges need to be restored
+        },
+      }
+
+      const entry = createOperationEntry(operation, inverse)
+      undoRedoStore.push(activeWorkflowId, userId, entry)
+
+      logger.debug('Recorded update parent', {
+        blockId,
+        oldParentId,
+        newParentId,
+        edgeCount: affectedEdges?.length || 0,
+      })
     },
     [activeWorkflowId, userId, undoRedoStore]
   )
@@ -500,6 +603,138 @@ export function useUndoRedo() {
         }
         break
       }
+      case 'duplicate-block': {
+        // Undo duplicate means removing the duplicated block
+        const dupOp = entry.operation as DuplicateBlockOperation
+        const duplicatedId = dupOp.data.duplicatedBlockId
+
+        if (workflowStore.blocks[duplicatedId]) {
+          // Remove any edges connected to the duplicated block
+          const edges = workflowStore.edges.filter(
+            (edge) => edge.source === duplicatedId || edge.target === duplicatedId
+          )
+          edges.forEach((edge) => {
+            workflowStore.removeEdge(edge.id)
+            addToQueue({
+              id: crypto.randomUUID(),
+              operation: {
+                operation: 'remove',
+                target: 'edge',
+                payload: { id: edge.id },
+              },
+              workflowId: activeWorkflowId,
+              userId,
+            })
+          })
+
+          // Remove the duplicated block
+          addToQueue({
+            id: opId,
+            operation: {
+              operation: 'remove',
+              target: 'block',
+              payload: { id: duplicatedId, isUndo: true, originalOpId: entry.id },
+            },
+            workflowId: activeWorkflowId,
+            userId,
+          })
+          workflowStore.removeBlock(duplicatedId)
+        } else {
+          logger.debug('Undo duplicate-block skipped; duplicated block missing', {
+            duplicatedId,
+          })
+        }
+        break
+      }
+      case 'update-parent': {
+        // Undo parent update means reverting to the old parent and position
+        const updateOp = entry.inverse as UpdateParentOperation
+        const { blockId, newParentId, newPosition, affectedEdges } = updateOp.data
+
+        if (workflowStore.blocks[blockId]) {
+          // If we're moving back INTO a subflow, restore edges first
+          if (newParentId && affectedEdges && affectedEdges.length > 0) {
+            affectedEdges.forEach((edge) => {
+              if (!workflowStore.edges.find((e) => e.id === edge.id)) {
+                workflowStore.addEdge(edge)
+                addToQueue({
+                  id: crypto.randomUUID(),
+                  operation: {
+                    operation: 'add',
+                    target: 'edge',
+                    payload: { ...edge, isUndo: true },
+                  },
+                  workflowId: activeWorkflowId,
+                  userId,
+                })
+              }
+            })
+          }
+
+          // Send position update to server
+          addToQueue({
+            id: crypto.randomUUID(),
+            operation: {
+              operation: 'update-position',
+              target: 'block',
+              payload: {
+                id: blockId,
+                position: newPosition,
+                isUndo: true,
+                originalOpId: entry.id,
+              },
+            },
+            workflowId: activeWorkflowId,
+            userId,
+          })
+
+          // Update position locally
+          workflowStore.updateBlockPosition(blockId, newPosition)
+
+          // Send parent update to server
+          addToQueue({
+            id: opId,
+            operation: {
+              operation: 'update-parent',
+              target: 'block',
+              payload: {
+                id: blockId,
+                parentId: newParentId || '',
+                extent: 'parent',
+                isUndo: true,
+                originalOpId: entry.id,
+              },
+            },
+            workflowId: activeWorkflowId,
+            userId,
+          })
+
+          // Update parent locally
+          workflowStore.updateParentId(blockId, newParentId || '', 'parent')
+
+          // If we're removing FROM a subflow (undo of add to subflow), remove edges after
+          if (!newParentId && affectedEdges && affectedEdges.length > 0) {
+            affectedEdges.forEach((edge) => {
+              if (workflowStore.edges.find((e) => e.id === edge.id)) {
+                workflowStore.removeEdge(edge.id)
+                addToQueue({
+                  id: crypto.randomUUID(),
+                  operation: {
+                    operation: 'remove',
+                    target: 'edge',
+                    payload: { id: edge.id, isUndo: true },
+                  },
+                  workflowId: activeWorkflowId,
+                  userId,
+                })
+              }
+            })
+          }
+        } else {
+          logger.debug('Undo update-parent skipped; block missing', { blockId })
+        }
+        break
+      }
     }
 
     logger.info('Undo operation', { type: entry.operation.type, workflowId: activeWorkflowId })
@@ -761,6 +996,178 @@ export function useUndoRedo() {
         }
         break
       }
+      case 'duplicate-block': {
+        // Redo duplicate means re-adding the duplicated block
+        const dupOp = entry.operation as DuplicateBlockOperation
+        const { duplicatedBlockSnapshot, autoConnectEdge } = dupOp.data
+
+        if (!duplicatedBlockSnapshot || workflowStore.blocks[duplicatedBlockSnapshot.id]) {
+          logger.debug('Redo duplicate-block skipped', {
+            hasSnapshot: Boolean(duplicatedBlockSnapshot),
+            exists: Boolean(
+              duplicatedBlockSnapshot && workflowStore.blocks[duplicatedBlockSnapshot.id]
+            ),
+          })
+          break
+        }
+
+        // Add the duplicated block
+        addToQueue({
+          id: opId,
+          operation: {
+            operation: 'duplicate',
+            target: 'block',
+            payload: {
+              ...duplicatedBlockSnapshot,
+              subBlocks: duplicatedBlockSnapshot.subBlocks || {},
+              autoConnectEdge,
+              isRedo: true,
+              originalOpId: entry.id,
+            },
+          },
+          workflowId: activeWorkflowId,
+          userId,
+        })
+
+        workflowStore.addBlock(
+          duplicatedBlockSnapshot.id,
+          duplicatedBlockSnapshot.type,
+          duplicatedBlockSnapshot.name,
+          duplicatedBlockSnapshot.position,
+          duplicatedBlockSnapshot.data,
+          duplicatedBlockSnapshot.data?.parentId,
+          duplicatedBlockSnapshot.data?.extent
+        )
+
+        // Restore subblock values
+        if (duplicatedBlockSnapshot.subBlocks && activeWorkflowId) {
+          const subblockValues: Record<string, any> = {}
+          Object.entries(duplicatedBlockSnapshot.subBlocks).forEach(
+            ([subBlockId, subBlock]: [string, any]) => {
+              if (subBlock.value !== null && subBlock.value !== undefined) {
+                subblockValues[subBlockId] = subBlock.value
+              }
+            }
+          )
+
+          if (Object.keys(subblockValues).length > 0) {
+            useSubBlockStore.setState((state) => ({
+              workflowValues: {
+                ...state.workflowValues,
+                [activeWorkflowId]: {
+                  ...state.workflowValues[activeWorkflowId],
+                  [duplicatedBlockSnapshot.id]: subblockValues,
+                },
+              },
+            }))
+          }
+        }
+
+        // Add auto-connect edge if present
+        if (autoConnectEdge && !workflowStore.edges.find((e) => e.id === autoConnectEdge.id)) {
+          workflowStore.addEdge(autoConnectEdge)
+          addToQueue({
+            id: crypto.randomUUID(),
+            operation: {
+              operation: 'add',
+              target: 'edge',
+              payload: { ...autoConnectEdge, isRedo: true, originalOpId: entry.id },
+            },
+            workflowId: activeWorkflowId,
+            userId,
+          })
+        }
+        break
+      }
+      case 'update-parent': {
+        // Redo parent update means applying the new parent and position
+        const updateOp = entry.operation as UpdateParentOperation
+        const { blockId, newParentId, newPosition, affectedEdges } = updateOp.data
+
+        if (workflowStore.blocks[blockId]) {
+          // If we're removing FROM a subflow, remove edges first
+          if (!newParentId && affectedEdges && affectedEdges.length > 0) {
+            affectedEdges.forEach((edge) => {
+              if (workflowStore.edges.find((e) => e.id === edge.id)) {
+                workflowStore.removeEdge(edge.id)
+                addToQueue({
+                  id: crypto.randomUUID(),
+                  operation: {
+                    operation: 'remove',
+                    target: 'edge',
+                    payload: { id: edge.id, isRedo: true },
+                  },
+                  workflowId: activeWorkflowId,
+                  userId,
+                })
+              }
+            })
+          }
+
+          // Send position update to server
+          addToQueue({
+            id: crypto.randomUUID(),
+            operation: {
+              operation: 'update-position',
+              target: 'block',
+              payload: {
+                id: blockId,
+                position: newPosition,
+                isRedo: true,
+                originalOpId: entry.id,
+              },
+            },
+            workflowId: activeWorkflowId,
+            userId,
+          })
+
+          // Update position locally
+          workflowStore.updateBlockPosition(blockId, newPosition)
+
+          // Send parent update to server
+          addToQueue({
+            id: opId,
+            operation: {
+              operation: 'update-parent',
+              target: 'block',
+              payload: {
+                id: blockId,
+                parentId: newParentId || '',
+                extent: 'parent',
+                isRedo: true,
+                originalOpId: entry.id,
+              },
+            },
+            workflowId: activeWorkflowId,
+            userId,
+          })
+
+          // Update parent locally
+          workflowStore.updateParentId(blockId, newParentId || '', 'parent')
+
+          // If we're adding TO a subflow, restore edges after
+          if (newParentId && affectedEdges && affectedEdges.length > 0) {
+            affectedEdges.forEach((edge) => {
+              if (!workflowStore.edges.find((e) => e.id === edge.id)) {
+                workflowStore.addEdge(edge)
+                addToQueue({
+                  id: crypto.randomUUID(),
+                  operation: {
+                    operation: 'add',
+                    target: 'edge',
+                    payload: { ...edge, isRedo: true },
+                  },
+                  workflowId: activeWorkflowId,
+                  userId,
+                })
+              }
+            })
+          }
+        } else {
+          logger.debug('Redo update-parent skipped; block missing', { blockId })
+        }
+        break
+      }
     }
 
     logger.info('Redo operation completed', {
@@ -786,6 +1193,8 @@ export function useUndoRedo() {
     recordAddEdge,
     recordRemoveEdge,
     recordMove,
+    recordDuplicateBlock,
+    recordUpdateParent,
     undo,
     redo,
     getStackSizes,
