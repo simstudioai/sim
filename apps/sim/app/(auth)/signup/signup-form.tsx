@@ -542,30 +542,38 @@ function SignupFormContent({
         const showBottomSection = hasSocial || (ssoEnabled && !hasOnlySSO)
         return showBottomSection
       })() && (
-        <SocialLoginButtons
-          githubAvailable={githubAvailable}
-          googleAvailable={googleAvailable}
-          callbackURL={redirectUrl || '/workspace'}
-          isProduction={isProduction}
-        >
-          {isTruthy(env.NEXT_PUBLIC_SSO_ENABLED) && (
-            <SSOLoginButton callbackURL={redirectUrl || '/workspace'} variant='outline' />
+        <div
+          className={cn(
+            inter.className,
+            isFalsy(env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED) ? 'mt-8' : undefined
           )}
-        </SocialLoginButtons>
-      )}
-
-      {/* Only show login link if email/password signup is enabled */}
-      {!isFalsy(env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED) && (
-        <div className={`${inter.className} pt-6 text-center font-light text-[14px]`}>
-          <span className='font-normal'>Already have an account? </span>
-          <Link
-            href={isInviteFlow ? `/login?invite_flow=true&callbackUrl=${redirectUrl}` : '/login'}
-            className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
+        >
+          <SocialLoginButtons
+            githubAvailable={githubAvailable}
+            googleAvailable={googleAvailable}
+            callbackURL={redirectUrl || '/workspace'}
+            isProduction={isProduction}
           >
-            Sign in
-          </Link>
+            {isTruthy(env.NEXT_PUBLIC_SSO_ENABLED) && (
+              <SSOLoginButton
+                callbackURL={redirectUrl || '/workspace'}
+                variant='outline'
+                primaryClassName={buttonClass}
+              />
+            )}
+          </SocialLoginButtons>
         </div>
       )}
+
+      <div className={`${inter.className} pt-6 text-center font-light text-[14px]`}>
+        <span className='font-normal'>Already have an account? </span>
+        <Link
+          href={isInviteFlow ? `/login?invite_flow=true&callbackUrl=${redirectUrl}` : '/login'}
+          className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
+        >
+          Sign in
+        </Link>
+      </div>
 
       <div
         className={`${inter.className} auth-text-muted absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[13px] leading-relaxed sm:px-8 md:px-[44px]`}

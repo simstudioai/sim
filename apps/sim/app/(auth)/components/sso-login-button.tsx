@@ -39,6 +39,7 @@ export function SSOLoginButton({
   }
 
   const handleSSOSignIn = async () => {
+    if (isLoading) return
     if (!email) {
       setError('Email is required for SSO sign-in')
       return
@@ -114,13 +115,7 @@ export function SSOLoginButton({
       </div>
 
       <div className='flex gap-2'>
-        <Button
-          type='button'
-          onClick={handleSSOSignIn}
-          disabled={isLoading || !email}
-          variant={variant === 'outline' ? 'outline' : undefined}
-          className={cn('flex-1', variant === 'outline' ? outlineBtnClasses : primaryBtnClasses)}
-        >
+        <Button type='button' onClick={handleSSOSignIn} className={cn('flex-1', primaryBtnClasses)}>
           {isLoading ? 'Signing in...' : 'Continue with SSO'}
         </Button>
         <Button
