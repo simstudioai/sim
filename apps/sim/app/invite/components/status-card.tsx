@@ -5,6 +5,7 @@ import { CheckCircle2, Mail, RotateCcw, ShieldX, UserPlus, Users2 } from 'lucide
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { LoadingAgent } from '@/components/ui/loading-agent'
+import { useBrandConfig } from '@/lib/branding/branding'
 import { inter } from '@/app/fonts/inter'
 import { soehne } from '@/app/fonts/soehne/soehne'
 
@@ -57,6 +58,7 @@ export function InviteStatusCard({
 }: InviteStatusCardProps) {
   const router = useRouter()
   const [buttonClass, setButtonClass] = useState('auth-button-gradient')
+  const brandConfig = useBrandConfig()
 
   useEffect(() => {
     const checkCustomBrand = () => {
@@ -167,7 +169,7 @@ export function InviteStatusCard({
       >
         Need help?{' '}
         <a
-          href='mailto:help@sim.ai'
+          href={`mailto:${brandConfig.supportEmail}`}
           className='auth-link underline-offset-4 transition hover:underline'
         >
           Contact support

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { useBrandConfig } from '@/lib/branding/branding'
 import AuthBackground from '@/app/(auth)/components/auth-background'
 import Nav from '@/app/(landing)/components/nav/nav'
 
@@ -17,6 +18,7 @@ function isColorDark(hexColor: string): boolean {
 
 export default function NotFound() {
   const [buttonClass, setButtonClass] = useState('auth-button-gradient')
+  const brandConfig = useBrandConfig()
 
   useEffect(() => {
     const rootStyle = getComputedStyle(document.documentElement)
@@ -74,7 +76,7 @@ export default function NotFound() {
             <div className='text-center text-muted-foreground text-sm'>
               Need help?{' '}
               <a
-                href='mailto:help@sim.ai'
+                href={`mailto:${brandConfig.supportEmail}`}
                 className='underline-offset-4 transition hover:underline'
               >
                 Contact support
