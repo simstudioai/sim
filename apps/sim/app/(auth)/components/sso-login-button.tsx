@@ -15,15 +15,25 @@ const logger = createLogger('SSOLoginButton')
 interface SSOLoginButtonProps {
   callbackURL?: string
   className?: string
+  // Visual variant for button styling and placement contexts
+  // - 'primary' matches the main auth action button style
+  // - 'outline' matches social provider buttons
+  variant?: 'primary' | 'outline'
+  // Optional class used when variant is primary to match brand/gradient
+  primaryClassName?: string
 }
 
-export function SSOLoginButton({ callbackURL, className }: SSOLoginButtonProps) {
+export function SSOLoginButton({
+  callbackURL,
+  className,
+  variant = 'outline',
+  primaryClassName,
+}: SSOLoginButtonProps) {
   const [email, setEmail] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showEmailInput, setShowEmailInput] = useState(false)
 
-  // Don't render if SSO is not enabled
   if (!isTruthy(env.NEXT_PUBLIC_SSO_ENABLED)) {
     return null
   }
@@ -38,8 +48,6 @@ export function SSOLoginButton({ callbackURL, className }: SSOLoginButtonProps) 
     setError(null)
 
     try {
-      // Better-auth SSO sign-in according to documentation
-      // Use email-based domain matching
       await client.signIn.sso({
         email: email,
         callbackURL: callbackURL || '/workspace',
@@ -47,7 +55,6 @@ export function SSOLoginButton({ callbackURL, className }: SSOLoginButtonProps) 
     } catch (err) {
       logger.error('SSO sign-in failed', { error: err, email })
 
-      // Parse the error to show a better message
       let errorMessage = 'SSO sign-in failed'
       if (err instanceof Error) {
         if (err.message.includes('NO_PROVIDER_FOUND')) {
@@ -64,15 +71,20 @@ export function SSOLoginButton({ callbackURL, className }: SSOLoginButtonProps) 
     }
   }
 
+  const primaryBtnClasses = cn(
+    primaryClassName || 'auth-button-gradient',
+    'flex w-full items-center justify-center gap-2 rounded-[10px] border font-medium text-[15px] text-white transition-all duration-200'
+  )
+
+  const outlineBtnClasses = cn('w-full rounded-[10px] shadow-sm hover:bg-gray-50')
+
   if (!showEmailInput) {
     return (
       <Button
         type='button'
         onClick={() => setShowEmailInput(true)}
-        className={cn(
-          'flex w-full items-center justify-center gap-2 rounded-[10px] border border-gray-300 bg-white font-medium text-[15px] text-gray-700 transition-colors hover:bg-gray-50',
-          className
-        )}
+        variant={variant === 'outline' ? 'outline' : undefined}
+        className={cn(variant === 'outline' ? outlineBtnClasses : primaryBtnClasses, className)}
       >
         Sign in with SSO
       </Button>
@@ -83,12 +95,12 @@ export function SSOLoginButton({ callbackURL, className }: SSOLoginButtonProps) 
     <div className={`${inter.className} space-y-3`}>
       <div className='space-y-2'>
         <Label htmlFor='sso-email' className='font-medium text-sm'>
-          Work Email
+          Email
         </Label>
         <Input
           id='sso-email'
           type='email'
-          placeholder='Enter your work email'
+          placeholder='Enter your email'
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className='rounded-[10px] shadow-sm'
@@ -106,7 +118,8 @@ export function SSOLoginButton({ callbackURL, className }: SSOLoginButtonProps) 
           type='button'
           onClick={handleSSOSignIn}
           disabled={isLoading || !email}
-          className='flex-1 rounded-[10px] bg-blue-600 font-medium text-white hover:bg-blue-700'
+          variant={variant === 'outline' ? 'outline' : undefined}
+          className={cn('flex-1', variant === 'outline' ? outlineBtnClasses : primaryBtnClasses)}
         >
           {isLoading ? 'Signing in...' : 'Continue with SSO'}
         </Button>

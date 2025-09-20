@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { client, useSession } from '@/lib/auth-client'
 import { quickValidateEmail } from '@/lib/email/validation'
-import { env, isTruthy } from '@/lib/env'
+import { env, isFalsy, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
@@ -381,15 +381,25 @@ function SignupFormContent({
         </p>
       </div>
 
-      {/* SSO Login Button */}
-      {isTruthy(env.NEXT_PUBLIC_SSO_ENABLED) && (
+      {/* SSO Login Button (primary top-only when it is the only method) */}
+      {(() => {
+        const ssoEnabled = isTruthy(env.NEXT_PUBLIC_SSO_ENABLED)
+        const emailEnabled = !isFalsy(env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED)
+        const hasSocial = githubAvailable || googleAvailable
+        const hasOnlySSO = ssoEnabled && !emailEnabled && !hasSocial
+        return hasOnlySSO
+      })() && (
         <div className={`${inter.className} mt-8`}>
-          <SSOLoginButton callbackURL={redirectUrl || '/workspace'} />
+          <SSOLoginButton
+            callbackURL={redirectUrl || '/workspace'}
+            variant='primary'
+            primaryClassName={buttonClass}
+          />
         </div>
       )}
 
-      {/* Email/Password Form - only show if enabled */}
-      {isTruthy(env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED) && (
+      {/* Email/Password Form - show unless explicitly disabled */}
+      {!isFalsy(env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED) && (
         <form onSubmit={onSubmit} className={`${inter.className} mt-8 space-y-8`}>
           <div className='space-y-6'>
             <div className='space-y-2'>
@@ -505,30 +515,47 @@ function SignupFormContent({
       )}
 
       {/* Divider - show when we have multiple auth methods */}
-      {(githubAvailable || googleAvailable) &&
-        (isTruthy(env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED) ||
-          isTruthy(env.NEXT_PUBLIC_SSO_ENABLED)) && (
-          <div className={`${inter.className} relative my-6 font-light`}>
-            <div className='absolute inset-0 flex items-center'>
-              <div className='auth-divider w-full border-t' />
-            </div>
-            <div className='relative flex justify-center text-sm'>
-              <span className='bg-white px-4 font-[340] text-muted-foreground'>
-                Or continue with
-              </span>
-            </div>
+      {(() => {
+        const ssoEnabled = isTruthy(env.NEXT_PUBLIC_SSO_ENABLED)
+        const emailEnabled = !isFalsy(env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED)
+        const hasSocial = githubAvailable || googleAvailable
+        const hasOnlySSO = ssoEnabled && !emailEnabled && !hasSocial
+        const showBottomSection = hasSocial || (ssoEnabled && !hasOnlySSO)
+        const showDivider = (emailEnabled || hasOnlySSO) && showBottomSection
+        return showDivider
+      })() && (
+        <div className={`${inter.className} relative my-6 font-light`}>
+          <div className='absolute inset-0 flex items-center'>
+            <div className='auth-divider w-full border-t' />
           </div>
-        )}
+          <div className='relative flex justify-center text-sm'>
+            <span className='bg-white px-4 font-[340] text-muted-foreground'>Or continue with</span>
+          </div>
+        </div>
+      )}
 
-      <SocialLoginButtons
-        githubAvailable={githubAvailable}
-        googleAvailable={googleAvailable}
-        callbackURL={redirectUrl || '/workspace'}
-        isProduction={isProduction}
-      />
+      {(() => {
+        const ssoEnabled = isTruthy(env.NEXT_PUBLIC_SSO_ENABLED)
+        const emailEnabled = !isFalsy(env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED)
+        const hasSocial = githubAvailable || googleAvailable
+        const hasOnlySSO = ssoEnabled && !emailEnabled && !hasSocial
+        const showBottomSection = hasSocial || (ssoEnabled && !hasOnlySSO)
+        return showBottomSection
+      })() && (
+        <SocialLoginButtons
+          githubAvailable={githubAvailable}
+          googleAvailable={googleAvailable}
+          callbackURL={redirectUrl || '/workspace'}
+          isProduction={isProduction}
+        >
+          {isTruthy(env.NEXT_PUBLIC_SSO_ENABLED) && (
+            <SSOLoginButton callbackURL={redirectUrl || '/workspace'} variant='outline' />
+          )}
+        </SocialLoginButtons>
+      )}
 
       {/* Only show login link if email/password signup is enabled */}
-      {isTruthy(env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED) && (
+      {!isFalsy(env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED) && (
         <div className={`${inter.className} pt-6 text-center font-light text-[14px]`}>
           <span className='font-normal'>Already have an account? </span>
           <Link
