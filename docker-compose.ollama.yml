@@ -29,8 +29,6 @@ services:
         condition: service_completed_successfully
       realtime:
         condition: service_healthy
-      ollama:
-        condition: service_healthy
     healthcheck:
       test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:3000']
       interval: 90s
@@ -99,6 +97,8 @@ services:
 
   # Ollama with GPU support (default)
   ollama:
+    profiles:
+      - gpu
     image: ollama/ollama:latest
     pull_policy: always
     volumes:
@@ -120,7 +120,7 @@ services:
               count: all
               capabilities: [gpu]
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:11434/']
+      test: ['CMD', 'ollama', 'list']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -144,12 +144,16 @@ services:
       - OLLAMA_HOST=0.0.0.0:11434
     command: 'serve'
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:11434/']
+      test: ['CMD', 'ollama', 'list']
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
     restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - ollama
 
   # Helper container to pull models automatically
   model-setup:
@@ -160,13 +164,11 @@ services:
       - ollama_data:/root/.ollama
     environment:
       - OLLAMA_HOST=ollama:11434
-    depends_on:
-      ollama:
-        condition: service_healthy
+    entrypoint: ["/bin/sh", "-lc"]
     command: >
       sh -c "
         echo 'Waiting for Ollama to be ready...' &&
-        sleep 10 &&
+        until ollama list >/dev/null 2>&1; do echo 'Waiting for Ollama...'; sleep 2; done &&
         echo 'Pulling gemma3:4b model (recommended starter model)...' &&
         ollama pull gemma3:4b &&
         echo 'Model setup complete! You can now use gemma3:4b in Sim.' &&
