@@ -116,11 +116,6 @@ export function InviteStatusCard({
   return (
     <div className={`${soehne.className} space-y-6`}>
       <div className='space-y-1 text-center'>
-        {IconComponent && (
-          <div className={`mx-auto mb-4 w-fit rounded-full p-3 ${iconBg}`}>
-            <IconComponent className={`h-8 w-8 ${iconColor}`} />
-          </div>
-        )}
         <h1 className='font-medium text-[32px] text-black tracking-tight'>{title}</h1>
         <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
           {description}
