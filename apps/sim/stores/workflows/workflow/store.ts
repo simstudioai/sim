@@ -1168,6 +1168,14 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       generateParallelBlocks: () => {
         return generateParallelBlocks(get().blocks)
       },
+
+      setDragStartPosition: (position) => {
+        set({ dragStartPosition: position })
+      },
+
+      getDragStartPosition: () => {
+        return get().dragStartPosition || null
+      },
     })),
     { name: 'workflow-store' }
   )

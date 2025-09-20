@@ -1,3 +1,6 @@
+import type { Edge } from 'reactflow'
+import type { BlockState } from '@/stores/workflows/workflow/types'
+
 export type OperationType =
   | 'add-block'
   | 'remove-block'
@@ -29,9 +32,9 @@ export interface RemoveBlockOperation extends BaseOperation {
   type: 'remove-block'
   data: {
     blockId: string
-    blockSnapshot: any
-    edgeSnapshots?: any[]
-    allBlockSnapshots?: Record<string, any>
+    blockSnapshot: BlockState | null
+    edgeSnapshots?: Edge[]
+    allBlockSnapshots?: Record<string, BlockState>
   }
 }
 
@@ -46,7 +49,7 @@ export interface RemoveEdgeOperation extends BaseOperation {
   type: 'remove-edge'
   data: {
     edgeId: string
-    edgeSnapshot: any
+    edgeSnapshot: Edge | null
   }
 }
 
@@ -61,7 +64,7 @@ export interface RemoveSubflowOperation extends BaseOperation {
   type: 'remove-subflow'
   data: {
     subflowId: string
-    subflowSnapshot: any
+    subflowSnapshot: BlockState | null
   }
 }
 
@@ -102,8 +105,8 @@ export interface DuplicateBlockOperation extends BaseOperation {
   data: {
     sourceBlockId: string
     duplicatedBlockId: string
-    duplicatedBlockSnapshot: any
-    autoConnectEdge?: any
+    duplicatedBlockSnapshot: BlockState
+    autoConnectEdge?: Edge
   }
 }
 
@@ -115,7 +118,7 @@ export interface UpdateParentOperation extends BaseOperation {
     newParentId?: string
     oldPosition: { x: number; y: number }
     newPosition: { x: number; y: number }
-    affectedEdges?: any[] // Edges that are removed/added as part of parent change
+    affectedEdges?: Edge[]
   }
 }
 
@@ -157,6 +160,6 @@ export interface UndoRedoState {
   pruneInvalidEntries: (
     workflowId: string,
     userId: string,
-    graph: { blocksById: Record<string, any>; edgesById: Record<string, any> }
+    graph: { blocksById: Record<string, BlockState>; edgesById: Record<string, Edge> }
   ) => void
 }

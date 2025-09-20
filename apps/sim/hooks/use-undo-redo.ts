@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import type { Edge } from 'reactflow'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useOperationQueue } from '@/stores/operation-queue/store'
@@ -16,6 +17,7 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { getUniqueBlockName, mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('UndoRedo')
 
@@ -29,7 +31,7 @@ export function useUndoRedo() {
   const userId = session?.user?.id || 'unknown'
 
   const recordAddBlock = useCallback(
-    (blockId: string, autoConnectEdge?: any) => {
+    (blockId: string, autoConnectEdge?: Edge) => {
       if (!activeWorkflowId) return
 
       const operation: Operation = {
@@ -78,9 +80,9 @@ export function useUndoRedo() {
   const recordRemoveBlock = useCallback(
     (
       blockId: string,
-      blockSnapshot: any,
-      edgeSnapshots: any[],
-      allBlockSnapshots?: Record<string, any>
+      blockSnapshot: BlockState,
+      edgeSnapshots: Edge[],
+      allBlockSnapshots?: Record<string, BlockState>
     ) => {
       if (!activeWorkflowId) return
 
@@ -136,7 +138,7 @@ export function useUndoRedo() {
         userId,
         data: {
           edgeId,
-          edgeSnapshot: workflowStore.edges.find((e) => e.id === edgeId),
+          edgeSnapshot: workflowStore.edges.find((e) => e.id === edgeId) || null,
         },
       }
 
@@ -149,7 +151,7 @@ export function useUndoRedo() {
   )
 
   const recordRemoveEdge = useCallback(
-    (edgeId: string, edgeSnapshot: any) => {
+    (edgeId: string, edgeSnapshot: Edge) => {
       if (!activeWorkflowId) return
 
       const operation: RemoveEdgeOperation = {
@@ -227,8 +229,8 @@ export function useUndoRedo() {
     (
       sourceBlockId: string,
       duplicatedBlockId: string,
-      duplicatedBlockSnapshot: any,
-      autoConnectEdge?: any
+      duplicatedBlockSnapshot: BlockState,
+      autoConnectEdge?: Edge
     ) => {
       if (!activeWorkflowId) return
 

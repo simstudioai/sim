@@ -12,9 +12,9 @@ import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { getUniqueBlockName } from '@/stores/workflows/utils'
+import { getUniqueBlockName, mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import type { Position } from '@/stores/workflows/workflow/types'
+import type { BlockState, Position } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('CollaborativeWorkflow')
 
@@ -839,9 +839,8 @@ export function useCollaborativeWorkflow() {
       findAllDescendants(id)
 
       // Capture state before removal, including all nested blocks with subblock values
-      const { mergeSubblockState } = require('@/stores/workflows/utils')
-      const allBlocks = mergeSubblockState(workflowStore.blocks, activeWorkflowId)
-      const capturedBlocks: Record<string, any> = {}
+      const allBlocks = mergeSubblockState(workflowStore.blocks, activeWorkflowId || undefined)
+      const capturedBlocks: Record<string, BlockState> = {}
       blocksToRemove.forEach((blockId) => {
         if (allBlocks[blockId]) {
           capturedBlocks[blockId] = allBlocks[blockId]

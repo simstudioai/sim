@@ -91,7 +91,12 @@ const WorkflowContent = React.memo(() => {
   // Use the clean abstraction for current workflow state
   const currentWorkflow = useCurrentWorkflow()
 
-  const { updateNodeDimensions, updateBlockPosition: storeUpdateBlockPosition } = useWorkflowStore()
+  const {
+    updateNodeDimensions,
+    updateBlockPosition: storeUpdateBlockPosition,
+    setDragStartPosition,
+    getDragStartPosition,
+  } = useWorkflowStore()
 
   // Get copilot cleanup function
   const copilotCleanup = useCopilotStore((state) => state.cleanup)
@@ -1438,14 +1443,14 @@ const WorkflowContent = React.memo(() => {
       const currentParentId = node.parentId || blocks[node.id]?.data?.parentId || null
       setDragStartParentId(currentParentId)
       // Store starting position for undo/redo move entry
-      ;(window as any).__dragStartPos = {
+      setDragStartPosition({
         id: node.id,
         x: node.position.x,
         y: node.position.y,
         parentId: currentParentId,
-      }
+      })
     },
-    [blocks]
+    [blocks, setDragStartPosition]
   )
 
   // Handle node drag stop to establish parent-child relationships
@@ -1463,7 +1468,7 @@ const WorkflowContent = React.memo(() => {
 
       // Record single move entry on drag end to avoid micro-moves
       try {
-        const start = (window as any).__dragStartPos
+        const start = getDragStartPosition()
         if (start && start.id === node.id) {
           const before = { x: start.x, y: start.y, parentId: start.parentId }
           const after = {
@@ -1480,7 +1485,7 @@ const WorkflowContent = React.memo(() => {
               })
             )
           }
-          ;(window as any).__dragStartPos = null
+          setDragStartPosition(null)
         }
       } catch {}
 
@@ -1610,6 +1615,8 @@ const WorkflowContent = React.memo(() => {
       determineSourceHandle,
       blocks,
       getNodeAbsolutePositionWrapper,
+      getDragStartPosition,
+      setDragStartPosition,
     ]
   )
 

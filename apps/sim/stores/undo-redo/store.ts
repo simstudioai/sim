@@ -1,6 +1,8 @@
+import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
+import type { BlockState } from '@/stores/workflows/workflow/types'
 import type {
   MoveBlockOperation,
   Operation,
@@ -19,7 +21,7 @@ function getStackKey(workflowId: string, userId: string): string {
 
 function isOperationApplicable(
   operation: Operation,
-  graph: { blocksById: Record<string, any>; edgesById: Record<string, any> }
+  graph: { blocksById: Record<string, BlockState>; edgesById: Record<string, Edge> }
 ): boolean {
   switch (operation.type) {
     case 'remove-block': {
@@ -304,7 +306,7 @@ export const useUndoRedoStore = create<UndoRedoState>()(
       pruneInvalidEntries: (
         workflowId: string,
         userId: string,
-        graph: { blocksById: Record<string, any>; edgesById: Record<string, any> }
+        graph: { blocksById: Record<string, BlockState>; edgesById: Record<string, Edge> }
       ) => {
         const key = getStackKey(workflowId, userId)
         const state = get()
