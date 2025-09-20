@@ -295,4 +295,8 @@ export const env = createEnv({
 export const isTruthy = (value: string | boolean | number | undefined) =>
   typeof value === 'string' ? value.toLowerCase() === 'true' || value === '1' : Boolean(value)
 
+// Utility to check if a value is explicitly false (defaults to false only if explicitly set)
+export const isFalsy = (value: string | boolean | number | undefined) =>
+  typeof value === 'string' ? value.toLowerCase() === 'false' || value === '0' : value === false
+
 export { getEnv }
