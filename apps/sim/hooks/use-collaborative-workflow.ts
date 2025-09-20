@@ -8,6 +8,7 @@ import { useSocket } from '@/contexts/socket-context'
 import { useUndoRedo } from '@/hooks/use-undo-redo'
 import { registerEmitFunctions, useOperationQueue } from '@/stores/operation-queue/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
+import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -210,11 +211,40 @@ export function useCollaborativeWorkflow() {
             case 'update-name':
               workflowStore.updateBlockName(payload.id, payload.name)
               break
-            case 'remove':
-              workflowStore.removeBlock(payload.id)
-              // Clean up position timestamp tracking for removed blocks
-              lastPositionTimestamps.current.delete(payload.id)
+            case 'remove': {
+              const blockId = payload.id
+              const blocksToRemove = new Set<string>([blockId])
+
+              const findAllDescendants = (parentId: string) => {
+                Object.entries(workflowStore.blocks).forEach(([id, block]) => {
+                  if (block.data?.parentId === parentId) {
+                    blocksToRemove.add(id)
+                    findAllDescendants(id)
+                  }
+                })
+              }
+              findAllDescendants(blockId)
+
+              workflowStore.removeBlock(blockId)
+              lastPositionTimestamps.current.delete(blockId)
+
+              const updatedBlocks = useWorkflowStore.getState().blocks
+              const updatedEdges = useWorkflowStore.getState().edges
+              const graph = {
+                blocksById: updatedBlocks,
+                edgesById: Object.fromEntries(updatedEdges.map((e) => [e.id, e])),
+              }
+
+              const undoRedoStore = useUndoRedoStore.getState()
+              const stackKeys = Object.keys(undoRedoStore.stacks)
+              stackKeys.forEach((key) => {
+                const [workflowId, userId] = key.split(':')
+                if (workflowId === activeWorkflowId) {
+                  undoRedoStore.pruneInvalidEntries(workflowId, userId, graph)
+                }
+              })
               break
+            }
             case 'toggle-enabled':
               workflowStore.toggleBlockEnabled(payload.id)
               break
@@ -275,9 +305,26 @@ export function useCollaborativeWorkflow() {
             case 'add':
               workflowStore.addEdge(payload as Edge)
               break
-            case 'remove':
+            case 'remove': {
               workflowStore.removeEdge(payload.id)
+
+              const updatedBlocks = useWorkflowStore.getState().blocks
+              const updatedEdges = useWorkflowStore.getState().edges
+              const graph = {
+                blocksById: updatedBlocks,
+                edgesById: Object.fromEntries(updatedEdges.map((e) => [e.id, e])),
+              }
+
+              const undoRedoStore = useUndoRedoStore.getState()
+              const stackKeys = Object.keys(undoRedoStore.stacks)
+              stackKeys.forEach((key) => {
+                const [workflowId, userId] = key.split(':')
+                if (workflowId === activeWorkflowId) {
+                  undoRedoStore.pruneInvalidEntries(workflowId, userId, graph)
+                }
+              })
               break
+            }
           }
         } else if (target === 'subflow') {
           switch (operation) {
@@ -391,13 +438,14 @@ export function useCollaborativeWorkflow() {
       const { workflowId } = data
       logger.warn(`Workflow ${workflowId} has been deleted`)
 
-      // If the deleted workflow is the currently active one, we need to handle this gracefully
       if (activeWorkflowId === workflowId) {
         logger.info(
           `Currently active workflow ${workflowId} was deleted, stopping collaborative operations`
         )
-        // The workflow registry should handle switching to another workflow
-        // We just need to stop any pending collaborative operations
+
+        const currentUserId = session?.user?.id || 'unknown'
+        useUndoRedoStore.getState().clear(workflowId, currentUserId)
+
         isApplyingRemoteChange.current = false
       }
     }
@@ -453,6 +501,22 @@ export function useCollaborativeWorkflow() {
                 }))
 
                 logger.info(`Successfully loaded reverted workflow state for ${workflowId}`)
+
+                const graph = {
+                  blocksById: workflowData.state.blocks || {},
+                  edgesById: Object.fromEntries(
+                    (workflowData.state.edges || []).map((e: any) => [e.id, e])
+                  ),
+                }
+
+                const undoRedoStore = useUndoRedoStore.getState()
+                const stackKeys = Object.keys(undoRedoStore.stacks)
+                stackKeys.forEach((key) => {
+                  const [wfId, userId] = key.split(':')
+                  if (wfId === workflowId) {
+                    undoRedoStore.pruneInvalidEntries(wfId, userId, graph)
+                  }
+                })
               } finally {
                 isApplyingRemoteChange.current = false
               }

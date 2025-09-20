@@ -1,13 +1,65 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { MoveBlockOperation, OperationEntry, UndoRedoState } from './types'
+import type {
+  MoveBlockOperation,
+  Operation,
+  OperationEntry,
+  RemoveBlockOperation,
+  RemoveEdgeOperation,
+  UndoRedoState,
+} from './types'
 
 const logger = createLogger('UndoRedoStore')
 const DEFAULT_CAPACITY = 15
 
 function getStackKey(workflowId: string, userId: string): string {
   return `${workflowId}:${userId}`
+}
+
+function isOperationApplicable(
+  operation: Operation,
+  graph: { blocksById: Record<string, any>; edgesById: Record<string, any> }
+): boolean {
+  switch (operation.type) {
+    case 'remove-block': {
+      const op = operation as RemoveBlockOperation
+      return Boolean(graph.blocksById[op.data.blockId])
+    }
+    case 'add-block': {
+      const blockId = operation.data.blockId
+      return !graph.blocksById[blockId]
+    }
+    case 'move-block': {
+      const op = operation as MoveBlockOperation
+      return Boolean(graph.blocksById[op.data.blockId])
+    }
+    case 'update-parent': {
+      const blockId = operation.data.blockId
+      return Boolean(graph.blocksById[blockId])
+    }
+    case 'duplicate-block': {
+      const duplicatedId = operation.data.duplicatedBlockId
+      return Boolean(graph.blocksById[duplicatedId])
+    }
+    case 'remove-edge': {
+      const op = operation as RemoveEdgeOperation
+      return Boolean(graph.edgesById[op.data.edgeId])
+    }
+    case 'add-edge': {
+      const edgeId = operation.data.edgeId
+      return !graph.edgesById[edgeId]
+    }
+    case 'add-subflow':
+    case 'remove-subflow': {
+      const subflowId = operation.data.subflowId
+      return operation.type === 'remove-subflow'
+        ? Boolean(graph.blocksById[subflowId])
+        : !graph.blocksById[subflowId]
+    }
+    default:
+      return true
+  }
 }
 
 export const useUndoRedoStore = create<UndoRedoState>()(
@@ -247,6 +299,48 @@ export const useUndoRedoStore = create<UndoRedoState>()(
         set({ capacity, stacks: newStacks })
 
         logger.debug('Set capacity', { capacity })
+      },
+
+      pruneInvalidEntries: (
+        workflowId: string,
+        userId: string,
+        graph: { blocksById: Record<string, any>; edgesById: Record<string, any> }
+      ) => {
+        const key = getStackKey(workflowId, userId)
+        const state = get()
+        const stack = state.stacks[key]
+
+        if (!stack) return
+
+        const originalUndoCount = stack.undo.length
+        const originalRedoCount = stack.redo.length
+
+        const validUndo = stack.undo.filter((entry) => isOperationApplicable(entry.inverse, graph))
+
+        const validRedo = stack.redo.filter((entry) =>
+          isOperationApplicable(entry.operation, graph)
+        )
+
+        const prunedUndoCount = originalUndoCount - validUndo.length
+        const prunedRedoCount = originalRedoCount - validRedo.length
+
+        if (prunedUndoCount > 0 || prunedRedoCount > 0) {
+          set({
+            stacks: {
+              ...state.stacks,
+              [key]: { undo: validUndo, redo: validRedo },
+            },
+          })
+
+          logger.debug('Pruned invalid entries', {
+            workflowId,
+            userId,
+            prunedUndo: prunedUndoCount,
+            prunedRedo: prunedRedoCount,
+            remainingUndo: validUndo.length,
+            remainingRedo: validRedo.length,
+          })
+        }
       },
     }),
     {

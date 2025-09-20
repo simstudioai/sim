@@ -154,4 +154,9 @@ export interface UndoRedoState {
   clearRedo: (workflowId: string, userId: string) => void
   getStackSizes: (workflowId: string, userId: string) => { undoSize: number; redoSize: number }
   setCapacity: (capacity: number) => void
+  pruneInvalidEntries: (
+    workflowId: string,
+    userId: string,
+    graph: { blocksById: Record<string, any>; edgesById: Record<string, any> }
+  ) => void
 }
