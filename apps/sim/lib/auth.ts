@@ -1209,6 +1209,19 @@ export const auth = betterAuth({
                 })
 
                 try {
+                  const { handleSubscriptionCreated } = await import(
+                    '@/lib/billing/webhooks/subscription'
+                  )
+                  await handleSubscriptionCreated(subscription)
+                } catch (error) {
+                  logger.error('[onSubscriptionComplete] Failed to handle subscription creation', {
+                    subscriptionId: subscription.id,
+                    referenceId: subscription.referenceId,
+                    error,
+                  })
+                }
+
+                try {
                   await syncSubscriptionUsageLimits(subscription)
                 } catch (error) {
                   logger.error('[onSubscriptionComplete] Failed to sync usage limits', {

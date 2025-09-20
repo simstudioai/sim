@@ -8,7 +8,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('StripeInvoiceWebhooks')
 
-async function resetUsageForSubscription(sub: { plan: string | null; referenceId: string }) {
+export async function resetUsageForSubscription(sub: { plan: string | null; referenceId: string }) {
   if (sub.plan === 'team' || sub.plan === 'enterprise') {
     const membersRows = await db
       .select({ userId: member.userId })
