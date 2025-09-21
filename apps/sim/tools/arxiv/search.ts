@@ -44,7 +44,7 @@ export const searchTool: ToolConfig<ArxivSearchParams, ArxivSearchResponse> = {
 
   request: {
     url: (params: ArxivSearchParams) => {
-      const baseUrl = 'http://export.arxiv.org/api/query'
+      const baseUrl = 'https://export.arxiv.org/api/query'
       const searchParams = new URLSearchParams()
 
       // Build search query

@@ -554,11 +554,9 @@ async function handleInternalRequest(
           status: response.status,
           statusText: response.statusText,
           headers: response.headers,
-          // Provide the resolved URL so tool transforms can safely read response.url
           url: fullUrl,
-          json: async () => responseData,
-          text: async () =>
-            typeof responseData === 'string' ? responseData : JSON.stringify(responseData),
+          json: () => response.json(),
+          text: () => response.text(),
         } as Response
 
         const data = await tool.transformResponse(mockResponse, params)
