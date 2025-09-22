@@ -31,15 +31,26 @@ export async function resetUsageForSubscription(sub: { plan: string | null; refe
     }
   } else {
     const currentStats = await db
-      .select({ current: userStats.currentPeriodCost })
+      .select({
+        current: userStats.currentPeriodCost,
+        snapshot: userStats.proPeriodCostSnapshot,
+      })
       .from(userStats)
       .where(eq(userStats.userId, sub.referenceId))
       .limit(1)
     if (currentStats.length > 0) {
-      const current = currentStats[0].current || '0'
+      // For Pro plans, combine current + snapshot for lastPeriodCost, then clear both
+      const current = Number.parseFloat(currentStats[0].current?.toString() || '0')
+      const snapshot = Number.parseFloat(currentStats[0].snapshot?.toString() || '0')
+      const totalLastPeriod = (current + snapshot).toString()
+
       await db
         .update(userStats)
-        .set({ lastPeriodCost: current, currentPeriodCost: '0' })
+        .set({
+          lastPeriodCost: totalLastPeriod,
+          currentPeriodCost: '0',
+          proPeriodCostSnapshot: '0', // Clear snapshot at period end
+        })
         .where(eq(userStats.userId, sub.referenceId))
     }
   }
@@ -260,10 +271,33 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
       const baseSubscriptionAmount = (sub.seats || 1) * basePrice
       totalOverage = Math.max(0, totalTeamUsage - baseSubscriptionAmount)
     } else {
+      // For Pro subscriptions, include snapshotted usage if user joined a team
       const usage = await getUserUsageData(sub.referenceId)
+      let totalProUsage = usage.currentUsage
+
+      // Add any snapshotted Pro usage (from when they joined a team)
+      if (sub.plan === 'pro') {
+        const userStatsRows = await db
+          .select({ proPeriodCostSnapshot: userStats.proPeriodCostSnapshot })
+          .from(userStats)
+          .where(eq(userStats.userId, sub.referenceId))
+          .limit(1)
+
+        if (userStatsRows.length > 0 && userStatsRows[0].proPeriodCostSnapshot) {
+          const snapshotUsage = Number.parseFloat(userStatsRows[0].proPeriodCostSnapshot.toString())
+          totalProUsage += snapshotUsage
+          logger.info('Including snapshotted Pro usage in overage calculation', {
+            userId: sub.referenceId,
+            currentUsage: usage.currentUsage,
+            snapshotUsage,
+            totalProUsage,
+          })
+        }
+      }
+
       const { getPlanPricing } = await import('@/lib/billing/core/billing')
       const { basePrice } = getPlanPricing(sub.plan)
-      totalOverage = Math.max(0, usage.currentUsage - basePrice)
+      totalOverage = Math.max(0, totalProUsage - basePrice)
     }
 
     if (totalOverage > 0) {

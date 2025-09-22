@@ -372,6 +372,47 @@ export async function DELETE(
               error: dbError,
             })
           }
+
+          // Also restore the snapshotted Pro usage back to currentPeriodCost
+          try {
+            const userStatsRows = await db
+              .select({
+                currentPeriodCost: userStats.currentPeriodCost,
+                proPeriodCostSnapshot: userStats.proPeriodCostSnapshot,
+              })
+              .from(userStats)
+              .where(eq(userStats.userId, memberId))
+              .limit(1)
+
+            if (userStatsRows.length > 0) {
+              const currentUsage = userStatsRows[0].currentPeriodCost || '0'
+              const snapshotUsage = userStatsRows[0].proPeriodCostSnapshot || '0'
+
+              const currentNum = Number.parseFloat(currentUsage)
+              const snapshotNum = Number.parseFloat(snapshotUsage)
+              const restoredUsage = (currentNum + snapshotNum).toString()
+
+              await db
+                .update(userStats)
+                .set({
+                  currentPeriodCost: restoredUsage,
+                  proPeriodCostSnapshot: '0', // Clear the snapshot
+                })
+                .where(eq(userStats.userId, memberId))
+
+              logger.info('Restored Pro usage after leaving team', {
+                userId: memberId,
+                previousUsage: currentUsage,
+                snapshotUsage: snapshotUsage,
+                restoredUsage: restoredUsage,
+              })
+            }
+          } catch (usageRestoreError) {
+            logger.error('Failed to restore Pro usage after leaving team', {
+              userId: memberId,
+              error: usageRestoreError,
+            })
+          }
         }
       }
     } catch (postRemoveError) {

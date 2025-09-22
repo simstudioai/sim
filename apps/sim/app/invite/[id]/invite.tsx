@@ -134,18 +134,32 @@ export default function Invite() {
       window.location.href = `/api/workspaces/invitations/${encodeURIComponent(inviteId)}?token=${encodeURIComponent(token || '')}`
     } else {
       try {
-        const response = await client.organization.acceptInvitation({
-          invitationId: inviteId,
+        // Get the organizationId from invitation details
+        const orgId = invitationDetails?.data?.organizationId
+
+        if (!orgId) {
+          throw new Error('Organization ID not found')
+        }
+
+        // Use our custom API endpoint that handles Pro usage snapshot
+        const response = await fetch(`/api/organizations/${orgId}/invitations/${inviteId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({ status: 'accepted' }),
         })
 
-        const orgId =
-          response.data?.invitation.organizationId || invitationDetails?.data?.organizationId
-
-        if (orgId) {
-          await client.organization.setActive({
-            organizationId: orgId,
-          })
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({ error: 'Failed to accept invitation' }))
+          throw new Error(data.error || 'Failed to accept invitation')
         }
+
+        // Set the organization as active
+        await client.organization.setActive({
+          organizationId: orgId,
+        })
 
         setAccepted(true)
 

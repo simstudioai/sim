@@ -55,7 +55,22 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
     }
 
     const stats = userStatsData[0]
-    const currentUsage = Number.parseFloat(stats.currentPeriodCost?.toString() ?? '0')
+    let currentUsage = Number.parseFloat(stats.currentPeriodCost?.toString() ?? '0')
+
+    // For Pro users, include any snapshotted usage (from when they joined a team)
+    // This ensures they see their total Pro usage in the UI
+    if (subscription && subscription.plan === 'pro' && subscription.referenceId === userId) {
+      const snapshotUsage = Number.parseFloat(stats.proPeriodCostSnapshot?.toString() ?? '0')
+      if (snapshotUsage > 0) {
+        currentUsage += snapshotUsage
+        logger.info('Including Pro snapshot in usage display', {
+          userId,
+          currentPeriodCost: stats.currentPeriodCost,
+          proPeriodCostSnapshot: snapshotUsage,
+          totalUsage: currentUsage,
+        })
+      }
+    }
 
     // Determine usage limit based on plan type
     let limit: number
