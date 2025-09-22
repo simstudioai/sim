@@ -43,6 +43,36 @@ const nextConfig: NextConfig = {
             },
           ]
         : []),
+      // Brand logo domain if configured
+      ...(env.NEXT_PUBLIC_BRAND_LOGO_URL
+        ? (() => {
+            try {
+              return [
+                {
+                  protocol: 'https' as const,
+                  hostname: new URL(env.NEXT_PUBLIC_BRAND_LOGO_URL).hostname,
+                },
+              ]
+            } catch {
+              return []
+            }
+          })()
+        : []),
+      // Brand favicon domain if configured
+      ...(env.NEXT_PUBLIC_BRAND_FAVICON_URL
+        ? (() => {
+            try {
+              return [
+                {
+                  protocol: 'https' as const,
+                  hostname: new URL(env.NEXT_PUBLIC_BRAND_FAVICON_URL).hostname,
+                },
+              ]
+            } catch {
+              return []
+            }
+          })()
+        : []),
     ],
   },
   typescript: {
