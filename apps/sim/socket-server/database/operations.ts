@@ -868,6 +868,108 @@ async function handleSubflowOperationTx(
       break
     }
 
+    case 'duplicate-with-children': {
+      // Validate required structure
+      const parent = payload?.parent
+      const children = Array.isArray(payload?.children) ? payload.children : []
+      const edges = Array.isArray(payload?.edges) ? payload.edges : []
+
+      if (!parent || !parent.id || !parent.type || !parent.name || !parent.position) {
+        throw new Error('Invalid payload for subflow duplication: missing parent fields')
+      }
+
+      if (!isSubflowBlockType(parent.type)) {
+        throw new Error('Invalid subflow type for duplication')
+      }
+
+      // Insert parent block
+      await tx.insert(workflowBlocks).values({
+        id: parent.id,
+        workflowId,
+        type: parent.type,
+        name: parent.name,
+        positionX: parent.position.x,
+        positionY: parent.position.y,
+        data: parent.data || {},
+        subBlocks: parent.subBlocks || {},
+        outputs: parent.outputs || {},
+        parentId: parent.parentId || null,
+        extent: parent.extent || null,
+        enabled: parent.enabled ?? true,
+        horizontalHandles: parent.horizontalHandles ?? true,
+        isWide: parent.isWide ?? false,
+        advancedMode: parent.advancedMode ?? false,
+        height: parent.height || 0,
+      })
+
+      // Create subflow entry for parent
+      const subflowConfig =
+        parent.type === SubflowType.LOOP
+          ? {
+              id: parent.id,
+              nodes: [],
+              iterations: parent.data?.count || DEFAULT_LOOP_ITERATIONS,
+              loopType: parent.data?.loopType || 'for',
+              forEachItems: parent.data?.collection || '',
+            }
+          : {
+              id: parent.id,
+              nodes: [],
+              distribution: parent.data?.collection || '',
+              ...(parent.data?.parallelType ? { parallelType: parent.data.parallelType } : {}),
+              ...(parent.data?.count ? { count: parent.data.count } : {}),
+            }
+
+      await tx.insert(workflowSubflows).values({
+        id: parent.id,
+        workflowId,
+        type: parent.type,
+        config: subflowConfig,
+      })
+
+      // Insert child blocks
+      for (const child of children) {
+        await tx.insert(workflowBlocks).values({
+          id: child.id,
+          workflowId,
+          type: child.type,
+          name: child.name,
+          positionX: child.position.x,
+          positionY: child.position.y,
+          data: child.data || {},
+          subBlocks: child.subBlocks || {},
+          outputs: child.outputs || {},
+          parentId: parent.id,
+          extent: 'parent',
+          enabled: child.enabled ?? true,
+          horizontalHandles: child.horizontalHandles ?? true,
+          isWide: child.isWide ?? false,
+          advancedMode: child.advancedMode ?? false,
+          height: child.height || 0,
+        })
+      }
+
+      // Insert internal edges
+      for (const edge of edges) {
+        await tx.insert(workflowEdges).values({
+          id: edge.id,
+          workflowId,
+          sourceBlockId: edge.source,
+          targetBlockId: edge.target,
+          sourceHandle: edge.sourceHandle || null,
+          targetHandle: edge.targetHandle || null,
+        })
+      }
+
+      // Update subflow node list with newly inserted children
+      await updateSubflowNodeList(tx, workflowId, parent.id)
+
+      logger.debug(
+        `[SERVER] Duplicated subflow subtree ${parent.id} with ${children.length} children and ${edges.length} edges`
+      )
+      break
+    }
+
     // Add other subflow operations as needed
     default:
       logger.warn(`Unknown subflow operation: ${operation}`)
