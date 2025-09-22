@@ -639,6 +639,7 @@ export const auth = betterAuth({
             'spark-admin:messages_write',
             'spark:rooms_write',
             'spark:messages_read',
+            'spark:messages_write',
             'spark-compliance:rooms_read',
             'spark:memberships_read',
             'spark:rooms_read',
