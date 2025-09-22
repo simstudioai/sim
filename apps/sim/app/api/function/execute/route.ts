@@ -445,10 +445,25 @@ function resolveTagVariables(
 ): string {
   let resolvedCode = code
 
+  const htmlTags = new Set([
+    'a', 'abbr', 'address', 'area', 'article', 'aside', 'audio', 'b', 'base', 'bdi', 'bdo', 'blockquote', 'body', 'br', 'button', 'canvas', 'caption', 'cite', 'code', 'col', 'colgroup', 'data', 'datalist', 'dd', 'del', 'details', 'dfn', 'dialog', 'div', 'dl', 'dt', 'em', 'embed', 'fieldset', 'figcaption', 'figure', 'footer', 'form', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'head', 'header', 'hr', 'html', 'i', 'iframe', 'img', 'input', 'ins', 'kbd', 'label', 'legend', 'li', 'link', 'main', 'map', 'mark', 'meta', 'meter', 'nav', 'noscript', 'object', 'ol', 'optgroup', 'option', 'output', 'p', 'param', 'picture', 'pre', 'progress', 'q', 'rp', 'rt', 'ruby', 's', 'samp', 'script', 'section', 'select', 'small', 'source', 'span', 'strong', 'style', 'sub', 'summary', 'sup', 'svg', 'table', 'tbody', 'td', 'template', 'textarea', 'tfoot', 'th', 'thead', 'time', 'title', 'tr', 'track', 'u', 'ul', 'var', 'video', 'wbr'
+  ])
+
   const tagMatches = resolvedCode.match(/<([a-zA-Z_][a-zA-Z0-9_.]*[a-zA-Z0-9_])>/g) || []
 
   for (const match of tagMatches) {
     const tagName = match.slice(1, -1).trim()
+    
+    // Skip if this looks like an HTML tag
+    // Check for HTML attributes pattern like <div class="..." or <img src="...
+    // Check for closing tags like </div>
+    const isHtmlTag = htmlTags.has(tagName.toLowerCase()) || 
+                      /^[a-zA-Z][a-zA-Z0-9]*(\s|$)/.test(tagName) ||
+                      tagName.startsWith('/')
+    
+    if (isHtmlTag) {
+      continue
+    }
 
     // Handle nested paths like "getrecord.response.data" or "function1.response.result"
     // First try params, then blockData directly, then try with block name mapping
