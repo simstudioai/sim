@@ -12,7 +12,7 @@ export interface WebexListRoomsParams {
 export interface WebexListRoomsResponse extends ToolResponse {
   output: {
     message: string
-    results: any
+    results: WebexListRoom[]
   }
 }
 
@@ -54,7 +54,7 @@ export interface WebexListMessages {
 export interface WebexListMessagesResponse extends ToolResponse {
   output: {
     message: string
-    results: any
+    results: WebexSingleMessage[]
   }
 }
 
@@ -90,7 +90,7 @@ export interface WebexCreateMessageParams {
 export interface WebexCreateMessageResponse extends ToolResponse {
   output: {
     message: string
-    results: any
+    results: WebexSingleMessage,
     createdId?: string
   }
 }
@@ -106,7 +106,7 @@ export interface WebexEditMessageParams {
 export interface WebexEditMessageResponse extends ToolResponse {
   output: {
     message: string
-    results: any
+    results: WebexSingleMessage,
   }
 }
 
