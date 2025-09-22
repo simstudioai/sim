@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
-import type { WebexEditMessageParams, WebexEditMessageResponse, WebexEditMessage } from '@/tools/webex/types'
+import type { WebexEditMessageParams, WebexEditMessageResponse, WebexSingleMessage } from '@/tools/webex/types'
 
 const logger = createLogger('WebexEditMessage')
 
@@ -82,7 +82,7 @@ export const webexEditMessageTool: ToolConfig<WebexEditMessageParams, WebexEditM
     },
   },
   transformResponse: async (response: Response) => {
-    const data : WebexEditMessage = await response.json()
+    const data : WebexSingleMessage = await response.json()
     // API returns messages in 'items' array
     const item = data || {}
 
