@@ -1,6 +1,6 @@
 ---
 title: Sharepoint
-description: Lire et créer des pages
+description: Travailler avec des pages et des listes
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -60,7 +60,7 @@ Dans Sim, l'intégration SharePoint permet à vos agents de créer et d'accéder
 
 ## Instructions d'utilisation
 
-Intégrez les fonctionnalités de Sharepoint pour gérer les pages. Lisez et créez des pages, et listez les sites en utilisant l'authentification OAuth. Prend en charge les opérations de page avec des types MIME personnalisés et l'organisation des dossiers.
+Intégrez SharePoint dans le flux de travail. Lisez/créez des pages, répertoriez des sites et travaillez avec des listes (lecture, création, mise à jour d'éléments). Nécessite OAuth.
 
 ## Outils
 
@@ -120,6 +120,84 @@ Lister les détails de tous les sites SharePoint
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `site` | objet | Informations sur le site SharePoint actuel |
+
+### `sharepoint_create_list`
+
+Créer une nouvelle liste dans un site SharePoint
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | chaîne | Non | L'ID du site SharePoint \(usage interne\) |
+| `siteSelector` | chaîne | Non | Sélectionnez le site SharePoint |
+| `listDisplayName` | chaîne | Oui | Nom d'affichage de la liste à créer |
+| `listDescription` | chaîne | Non | Description de la liste |
+| `listTemplate` | chaîne | Non | Nom du modèle de liste \(par exemple, 'genericList'\) |
+| `pageContent` | chaîne | Non | JSON optionnel des colonnes. Soit un tableau de premier niveau de définitions de colonnes, soit un objet avec \{ columns: \[...\] \}. |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `list` | objet | Informations sur la liste SharePoint créée |
+
+### `sharepoint_get_list`
+
+Obtenir les métadonnées (et éventuellement les colonnes/éléments) d'une liste SharePoint
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteSelector` | chaîne | Non | Sélectionnez le site SharePoint |
+| `siteId` | chaîne | Non | L'ID du site SharePoint \(usage interne\) |
+| `listId` | chaîne | Non | L'ID de la liste à récupérer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `list` | objet | Informations sur la liste SharePoint |
+
+### `sharepoint_update_list`
+
+Mettre à jour les propriétés (champs) d'un élément de liste SharePoint
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `siteSelector` | chaîne | Non | Sélectionner le site SharePoint |
+| `siteId` | chaîne | Non | L'ID du site SharePoint \(usage interne\) |
+| `listId` | chaîne | Non | L'ID de la liste contenant l'élément |
+| `itemId` | chaîne | Oui | L'ID de l'élément de liste à mettre à jour |
+| `listItemFields` | objet | Oui | Valeurs des champs à mettre à jour sur l'élément de liste |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | objet | Élément de liste SharePoint mis à jour |
+
+### `sharepoint_add_list_items`
+
+Ajouter un nouvel élément à une liste SharePoint
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `siteSelector` | chaîne | Non | Sélectionner le site SharePoint |
+| `siteId` | chaîne | Non | L'ID du site SharePoint \(usage interne\) |
+| `listId` | chaîne | Oui | L'ID de la liste à laquelle ajouter l'élément |
+| `listItemFields` | objet | Oui | Valeurs des champs pour le nouvel élément de liste |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Élément de liste SharePoint créé |
 
 ## Remarques
 

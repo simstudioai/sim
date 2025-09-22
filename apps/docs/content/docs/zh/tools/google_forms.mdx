@@ -1,0 +1,82 @@
+---
+title: Google Forms
+description: 查看 Google 表单的回复
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_forms"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"  xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 65' fill='none'>
+      <path
+        d='M29.583 0H4.438C1.997 0 0 1.997 0 4.438v56.208C0 63.086 1.997 65.083 4.438 65.083h38.458c2.44 0 4.437-1.997 4.437-4.437V17.75L36.979 10.354 29.583 0Z'
+        fill='#673AB7'
+      />
+      <path
+        d='M29.583 0v10.354c0 2.45 1.986 4.438 4.438 4.438h13.312L36.979 10.354 29.583 0Z'
+        fill='#B39DDB'
+      />
+      <path
+        d='M19.229 50.292h16.271v-2.959H19.229v2.959Zm0-17.75v2.958h16.271v-2.958H19.229Zm-3.698 1.479c0 1.224-0.995 2.219-2.219 2.219s-2.219-0.995-2.219-2.219c0-1.224 0.995-2.219 2.219-2.219s2.219 0.995 2.219 2.219Zm0 7.396c0 1.224-0.995 2.219-2.219 2.219s-2.219-0.995-2.219-2.219c0-1.224 0.995-2.219 2.219-2.219s2.219 0.995 2.219 2.219Zm0 7.396c0 1.224-0.995 2.219-2.219 2.219s-2.219-0.995-2.219-2.219c0-1.224 0.995-2.219 2.219-2.219s2.219 0.995 2.219 2.219Zm3.698-5.917h16.271v-2.959H19.229v2.959Z'
+        fill='#F1F1F1'
+      />
+      <defs>
+        <linearGradient
+          id='gf-gradient'
+          x1='30.881'
+          y1='16.452'
+          x2='47.333'
+          y2='32.9'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop stopColor='#9575CD' />
+          <stop offset='1' stopColor='#7E57C2' />
+        </linearGradient>
+      </defs>
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Forms](https://forms.google.com) 是 Google 的在线调查和表单工具，允许用户创建表单、收集回复并分析结果。作为 Google 办公套件的一部分，Google Forms 使用户能够轻松收集信息、反馈和数据。
+
+了解如何在 Sim 中集成 Google Forms 工具，以自动读取和处理表单回复。本教程将指导您连接 Google Forms、检索回复，并使用收集到的数据来驱动自动化。非常适合实时同步调查结果、注册信息或反馈给您的代理。
+
+使用 Google Forms，您可以：
+
+- **创建调查和表单**：设计用于反馈、注册、测验等的自定义表单
+- **自动收集回复**：实时收集用户数据
+- **分析结果**：在 Google Forms 中查看回复或导出到 Google Sheets 进行进一步分析
+- **轻松协作**：共享表单，与他人一起构建和审查问题
+- **与其他 Google 服务集成**：连接 Google Sheets、Drive 等
+
+在 Sim 中，Google Forms 集成使您的代理可以以编程方式访问表单响应。这为强大的自动化场景提供了可能，例如处理调查数据、根据新提交触发工作流以及将表单结果与其他工具同步。您的代理可以获取表单的所有响应、检索特定响应，并使用这些数据推动智能自动化。通过将 Sim 与 Google Forms 连接，您可以实现数据收集自动化、简化反馈处理，并将表单响应整合到代理的功能中。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+将 Google Forms 集成到您的工作流中。提供表单 ID 以列出响应，或指定响应 ID 以获取单个响应。需要 OAuth。
+
+## 工具
+
+### `google_forms_get_responses`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| formId | string | 是 | Google 表单的 ID |
+| responseId | string | 否 | 如果提供，将返回此特定响应 |
+| pageSize | number | 否 | 要返回的最大响应数（服务可能返回更少）。默认为 5000 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `data` | json | 响应或响应列表 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`google_forms`

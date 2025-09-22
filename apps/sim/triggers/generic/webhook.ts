@@ -34,45 +34,7 @@ export const genericWebhookTrigger: TriggerConfig = {
     },
   },
 
-  outputs: {
-    payload: {
-      type: 'json',
-      description: 'Complete webhook payload received',
-    },
-    headers: {
-      type: 'json',
-      description: 'HTTP request headers',
-    },
-    method: {
-      type: 'string',
-      description: 'HTTP method (GET, POST, PUT, etc.)',
-    },
-    url: {
-      type: 'string',
-      description: 'Request URL path',
-    },
-    query: {
-      type: 'json',
-      description: 'URL query parameters',
-    },
-    timestamp: {
-      type: 'string',
-      description: 'Webhook received timestamp',
-    },
-    // Common fields that many services use
-    event: {
-      type: 'string',
-      description: 'Event type (extracted from payload.event, payload.type, or payload.event_type)',
-    },
-    id: {
-      type: 'string',
-      description: 'Event ID (extracted from payload.id, payload.event_id, or payload.uuid)',
-    },
-    data: {
-      type: 'json',
-      description: 'Event data (extracted from payload.data or the full payload)',
-    },
-  },
+  outputs: {},
 
   instructions: [
     'Copy the webhook URL provided above and use it in your external service or API.',

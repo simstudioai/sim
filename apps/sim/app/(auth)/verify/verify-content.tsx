@@ -10,16 +10,19 @@ import { inter } from '@/app/fonts/inter'
 import { soehne } from '@/app/fonts/soehne/soehne'
 
 interface VerifyContentProps {
-  hasResendKey: boolean
+  hasEmailService: boolean
   isProduction: boolean
+  isEmailVerificationEnabled: boolean
 }
 
 function VerificationForm({
-  hasResendKey,
+  hasEmailService,
   isProduction,
+  isEmailVerificationEnabled,
 }: {
-  hasResendKey: boolean
+  hasEmailService: boolean
   isProduction: boolean
+  isEmailVerificationEnabled: boolean
 }) {
   const {
     otp,
@@ -32,7 +35,7 @@ function VerificationForm({
     verifyCode,
     resendCode,
     handleOtpChange,
-  } = useVerification({ hasResendKey, isProduction })
+  } = useVerification({ hasEmailService, isProduction, isEmailVerificationEnabled })
 
   const [countdown, setCountdown] = useState(0)
   const [isResendDisabled, setIsResendDisabled] = useState(false)
@@ -93,20 +96,22 @@ function VerificationForm({
         <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
           {isVerified
             ? 'Your email has been verified. Redirecting to dashboard...'
-            : hasResendKey
-              ? `A verification code has been sent to ${email || 'your email'}`
-              : !isProduction
-                ? 'Development mode: Check your console logs for the verification code'
-                : 'Error: Invalid API key configuration'}
+            : !isEmailVerificationEnabled
+              ? 'Email verification is disabled. Redirecting to dashboard...'
+              : hasEmailService
+                ? `A verification code has been sent to ${email || 'your email'}`
+                : !isProduction
+                  ? 'Development mode: Check your console logs for the verification code'
+                  : 'Error: Email verification is enabled but no email service is configured'}
         </p>
       </div>
 
-      {!isVerified && (
+      {!isVerified && isEmailVerificationEnabled && (
         <div className={`${inter.className} mt-8 space-y-8`}>
           <div className='space-y-6'>
             <p className='text-center text-muted-foreground text-sm'>
               Enter the 6-digit code to verify your account.
-              {hasResendKey ? " If you don't see it in your inbox, check your spam folder." : ''}
+              {hasEmailService ? " If you don't see it in your inbox, check your spam folder." : ''}
             </p>
 
             <div className='flex justify-center'>
@@ -192,7 +197,7 @@ function VerificationForm({
             {isLoading ? 'Verifying...' : 'Verify Email'}
           </Button>
 
-          {hasResendKey && (
+          {hasEmailService && (
             <div className='text-center'>
               <p className='text-muted-foreground text-sm'>
                 Didn't receive a code?{' '}
@@ -245,10 +250,18 @@ function VerificationFormFallback() {
   )
 }
 
-export function VerifyContent({ hasResendKey, isProduction }: VerifyContentProps) {
+export function VerifyContent({
+  hasEmailService,
+  isProduction,
+  isEmailVerificationEnabled,
+}: VerifyContentProps) {
   return (
     <Suspense fallback={<VerificationFormFallback />}>
-      <VerificationForm hasResendKey={hasResendKey} isProduction={isProduction} />
+      <VerificationForm
+        hasEmailService={hasEmailService}
+        isProduction={isProduction}
+        isEmailVerificationEnabled={isEmailVerificationEnabled}
+      />
     </Suspense>
   )
 }

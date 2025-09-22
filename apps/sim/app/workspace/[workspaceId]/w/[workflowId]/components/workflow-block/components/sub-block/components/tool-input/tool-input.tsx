@@ -1189,7 +1189,13 @@ export function ToolInput({
               </div>
             </div>
           </PopoverTrigger>
-          <PopoverContent className='w-[200px] p-0' align='start'>
+          <PopoverContent
+            className='h-[360px] w-[200px] p-0'
+            align='start'
+            side='bottom'
+            sideOffset={6}
+            avoidCollisions={false}
+          >
             <ToolCommand.Root filter={customFilter}>
               <ToolCommand.Input placeholder='Search tools...' onValueChange={setSearchQuery} />
               <ToolCommand.List>
@@ -1749,7 +1755,13 @@ export function ToolInput({
                 Add Tool
               </Button>
             </PopoverTrigger>
-            <PopoverContent className='w-[200px] p-0' align='start'>
+            <PopoverContent
+              className='h-[360px] w-[280px] p-0'
+              align='start'
+              side='bottom'
+              sideOffset={6}
+              avoidCollisions={false}
+            >
               <ToolCommand.Root filter={customFilter}>
                 <ToolCommand.Input placeholder='Search tools...' onValueChange={setSearchQuery} />
                 <ToolCommand.List>

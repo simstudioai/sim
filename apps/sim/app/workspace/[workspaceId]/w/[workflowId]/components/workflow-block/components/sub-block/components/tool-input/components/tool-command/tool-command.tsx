@@ -12,7 +12,6 @@ import {
 import { Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-// Context for the command component
 type CommandContextType = {
   searchQuery: string
   setSearchQuery: (value: string) => void
@@ -26,7 +25,6 @@ type CommandContextType = {
 
 const CommandContext = createContext<CommandContextType | undefined>(undefined)
 
-// Hook to use the command context
 const useCommandContext = () => {
   const context = useContext(CommandContext)
   if (!context) {
@@ -35,7 +33,6 @@ const useCommandContext = () => {
   return context
 }
 
-// Types for the components
 interface CommandProps {
   children: ReactNode
   className?: string
@@ -76,17 +73,14 @@ interface CommandSeparatorProps {
   className?: string
 }
 
-// Main Command component
 export function Command({ children, className, filter }: CommandProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(-1)
   const [items, setItems] = useState<string[]>([])
   const [filteredItems, setFilteredItems] = useState<string[]>([])
 
-  // Register and unregister items - memoize to prevent infinite loops
   const registerItem = useCallback((id: string) => {
     setItems((prev) => {
-      // Only add if not already in the array
       if (prev.includes(id)) return prev
       return [...prev, id]
     })
@@ -96,7 +90,6 @@ export function Command({ children, className, filter }: CommandProps) {
     setItems((prev) => prev.filter((item) => item !== id))
   }, [])
 
-  // Handle item selection
   const selectItem = useCallback(
     (id: string) => {
       const index = filteredItems.indexOf(id)
@@ -107,7 +100,6 @@ export function Command({ children, className, filter }: CommandProps) {
     [filteredItems]
   )
 
-  // Filter items based on search query
   useEffect(() => {
     if (!searchQuery) {
       setFilteredItems(items)
@@ -127,7 +119,6 @@ export function Command({ children, className, filter }: CommandProps) {
     setActiveIndex(filtered.length > 0 ? 0 : -1)
   }, [searchQuery, items, filter])
 
-  // Default filter function
   const defaultFilter = useCallback((value: string, search: string): number => {
     const normalizedValue = value.toLowerCase()
     const normalizedSearch = search.toLowerCase()
@@ -138,7 +129,6 @@ export function Command({ children, className, filter }: CommandProps) {
     return 0
   }, [])
 
-  // Handle keyboard navigation
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (filteredItems.length === 0) return
@@ -163,7 +153,6 @@ export function Command({ children, className, filter }: CommandProps) {
     [filteredItems, activeIndex]
   )
 
-  // Memoize context value to prevent unnecessary re-renders
   const contextValue = useMemo(
     () => ({
       searchQuery,
@@ -193,7 +182,6 @@ export function Command({ children, className, filter }: CommandProps) {
   )
 }
 
-// Command Input component
 export function CommandInput({
   placeholder = 'Search...',
   className,
@@ -208,7 +196,6 @@ export function CommandInput({
     onValueChange?.(value)
   }
 
-  // Focus input on mount
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
@@ -230,7 +217,6 @@ export function CommandInput({
   )
 }
 
-// Command List component
 export function CommandList({ children, className }: CommandListProps) {
   return (
     <div className={cn('max-h-[300px] overflow-y-auto overflow-x-hidden', className)}>
@@ -239,7 +225,6 @@ export function CommandList({ children, className }: CommandListProps) {
   )
 }
 
-// Command Empty component
 export function CommandEmpty({ children, className }: CommandEmptyProps) {
   const { filteredItems } = useCommandContext()
 
@@ -252,7 +237,6 @@ export function CommandEmpty({ children, className }: CommandEmptyProps) {
   )
 }
 
-// Command Group component
 export function CommandGroup({ children, className, heading }: CommandGroupProps) {
   return (
     <div
@@ -269,7 +253,6 @@ export function CommandGroup({ children, className, heading }: CommandGroupProps
   )
 }
 
-// Command Item component
 export function CommandItem({
   children,
   className,
@@ -281,16 +264,13 @@ export function CommandItem({
   const isActive = filteredItems.indexOf(value) === activeIndex
   const [isHovered, setIsHovered] = useState(false)
 
-  // Register and unregister item
   useEffect(() => {
-    // Only register if value is defined
     if (value) {
       registerItem(value)
       return () => unregisterItem(value)
     }
   }, [value, registerItem, unregisterItem])
 
-  // Check if item should be displayed based on search
   const shouldDisplay = filteredItems.includes(value)
 
   if (!shouldDisplay) return null
@@ -315,12 +295,10 @@ export function CommandItem({
   )
 }
 
-// Command Separator component
 export function CommandSeparator({ className }: CommandSeparatorProps) {
   return <div className={cn('-mx-1 h-px bg-border', className)} />
 }
 
-// Export all components
 export const ToolCommand = {
   Root: Command,
   Input: CommandInput,

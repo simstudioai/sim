@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Loader2, Search, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -89,6 +89,16 @@ export function AutocompleteSearch({
     }
   }, [state.isOpen, state.highlightedIndex])
 
+  const [showSpinner, setShowSpinner] = useState(false)
+  useEffect(() => {
+    if (!state.pendingQuery) {
+      setShowSpinner(false)
+      return
+    }
+    const t = setTimeout(() => setShowSpinner(true), 200)
+    return () => clearTimeout(t)
+  }, [state.pendingQuery])
+
   const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value
     const cursorPos = e.target.selectionStart || 0
@@ -126,7 +136,7 @@ export function AutocompleteSearch({
           state.isOpen && 'ring-1 ring-ring'
         )}
       >
-        {state.pendingQuery ? (
+        {showSpinner ? (
           <Loader2 className='h-4 w-4 flex-shrink-0 animate-spin text-muted-foreground' />
         ) : (
           <Search className='h-4 w-4 flex-shrink-0 text-muted-foreground' strokeWidth={2} />

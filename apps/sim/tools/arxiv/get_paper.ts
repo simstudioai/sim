@@ -25,7 +25,7 @@ export const getPaperTool: ToolConfig<ArxivGetPaperParams, ArxivGetPaperResponse
         paperId = paperId.split('arxiv.org/abs/')[1]
       }
 
-      const baseUrl = 'http://export.arxiv.org/api/query'
+      const baseUrl = 'https://export.arxiv.org/api/query'
       const searchParams = new URLSearchParams()
       searchParams.append('id_list', paperId)
 

@@ -512,6 +512,10 @@ export function formatWebhookInput(
     }
   }
 
+  if (foundWebhook.provider === 'generic') {
+    return body
+  }
+
   if (foundWebhook.provider === 'google_forms') {
     const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
 

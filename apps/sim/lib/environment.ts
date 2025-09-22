@@ -31,6 +31,11 @@ export const isHosted =
 export const isBillingEnabled = isTruthy(env.BILLING_ENABLED)
 
 /**
+ * Is email verification enabled
+ */
+export const isEmailVerificationEnabled = isTruthy(env.EMAIL_VERIFICATION_ENABLED)
+
+/**
  * Get cost multiplier based on environment
  */
 export function getCostMultiplier(): number {

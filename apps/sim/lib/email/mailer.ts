@@ -69,6 +69,13 @@ const azureEmailClient =
     ? new EmailClient(azureConnectionString)
     : null
 
+/**
+ * Check if any email service is configured and available
+ */
+export function hasEmailService(): boolean {
+  return !!(resend || azureEmailClient)
+}
+
 export async function sendEmail(options: EmailOptions): Promise<SendEmailResult> {
   try {
     // Check if user has unsubscribed (skip for critical transactional emails)

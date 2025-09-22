@@ -8,7 +8,6 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('UsageMonitor')
 
-// Percentage threshold for showing warning
 const WARNING_THRESHOLD = 80
 
 interface UsageData {
@@ -157,13 +156,18 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
       userId,
     })
 
-    // Return default values in case of error
+    // Block execution if we can't determine usage status
+    logger.error('Cannot determine usage status - blocking execution', {
+      userId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+
     return {
-      percentUsed: 0,
+      percentUsed: 100,
       isWarning: false,
-      isExceeded: false,
+      isExceeded: true, // Block execution when we can't determine status
       currentUsage: 0,
-      limit: 0,
+      limit: 0, // Zero limit forces blocking
     }
   }
 }
@@ -241,7 +245,6 @@ export async function checkServerSideUsageLimits(userId: string): Promise<{
   message?: string
 }> {
   try {
-    // If billing is disabled, always allow execution
     if (!isBillingEnabled) {
       return {
         isExceeded: false,
@@ -252,7 +255,6 @@ export async function checkServerSideUsageLimits(userId: string): Promise<{
 
     logger.info('Server-side checking usage limits for user', { userId })
 
-    // Hard block if billing is flagged as blocked
     const stats = await db
       .select({
         blocked: userStats.billingBlocked,
@@ -274,7 +276,6 @@ export async function checkServerSideUsageLimits(userId: string): Promise<{
       }
     }
 
-    // Get usage data using the same function we use for client-side
     const usageData = await checkUsageStatus(userId)
 
     return {
@@ -291,12 +292,19 @@ export async function checkServerSideUsageLimits(userId: string): Promise<{
       userId,
     })
 
-    // Be conservative in case of error - allow execution but log the issue
+    logger.error('Cannot determine usage limits - blocking execution', {
+      userId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+
     return {
-      isExceeded: false,
+      isExceeded: true, // Block execution when we can't determine limits
       currentUsage: 0,
-      limit: 0,
-      message: `Error checking usage limits: ${error instanceof Error ? error.message : String(error)}`,
+      limit: 0, // Zero limit forces blocking
+      message:
+        error instanceof Error && error.message.includes('No user stats record found')
+          ? 'User account not properly initialized. Please contact support.'
+          : 'Unable to determine usage limits. Execution blocked for security. Please contact support.',
     }
   }
 }
