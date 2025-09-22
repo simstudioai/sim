@@ -34,11 +34,11 @@ import {
   handleInvoicePaymentSucceeded,
 } from '@/lib/billing/webhooks/invoices'
 import { handleSubscriptionCreated } from '@/lib/billing/webhooks/subscription'
-import { hasEmailService, sendEmail } from '@/lib/email/mailer'
+import { sendEmail } from '@/lib/email/mailer'
 import { getFromEmailAddress } from '@/lib/email/utils'
 import { quickValidateEmail } from '@/lib/email/validation'
 import { env, isTruthy } from '@/lib/env'
-import { isBillingEnabled, isProd } from '@/lib/environment'
+import { isBillingEnabled, isEmailVerificationEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('Auth')
@@ -75,6 +75,24 @@ export const auth = betterAuth({
     freshAge: 60 * 60, // 1 hour (or set to 0 to disable completely)
   },
   databaseHooks: {
+    user: {
+      create: {
+        after: async (user) => {
+          logger.info('[databaseHooks.user.create.after] User created, initializing stats', {
+            userId: user.id,
+          })
+
+          try {
+            await handleNewUser(user.id)
+          } catch (error) {
+            logger.error('[databaseHooks.user.create.after] Failed to initialize user stats', {
+              userId: user.id,
+              error,
+            })
+          }
+        },
+      },
+    },
     session: {
       create: {
         before: async (session) => {
@@ -149,7 +167,7 @@ export const auth = betterAuth({
   },
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: isProd && hasEmailService(),
+    requireEmailVerification: isEmailVerificationEnabled,
     sendVerificationOnSignUp: false,
     throwOnMissingCredentials: true,
     throwOnInvalidCredentials: true,
@@ -224,8 +242,8 @@ export const auth = betterAuth({
         otp: string
         type: 'sign-in' | 'email-verification' | 'forget-password'
       }) => {
-        if (!isProd) {
-          logger.info('Skipping email verification in dev/docker')
+        if (!isEmailVerificationEnabled) {
+          logger.info('Skipping email verification')
           return
         }
         try {
@@ -1154,15 +1172,6 @@ export const auth = betterAuth({
                 stripeCustomerId: stripeCustomer.id,
                 userId: user.id,
               })
-
-              try {
-                await handleNewUser(user.id)
-              } catch (error) {
-                logger.error('[onCustomerCreate] Failed to handle new user setup', {
-                  userId: user.id,
-                  error,
-                })
-              }
             },
             subscription: {
               enabled: true,
