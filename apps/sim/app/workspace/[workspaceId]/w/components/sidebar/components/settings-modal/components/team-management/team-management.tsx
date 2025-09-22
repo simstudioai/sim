@@ -164,6 +164,12 @@ export function TeamManagement() {
     async (member: any) => {
       if (!session?.user || !activeOrgId) return
 
+      // The member object should have user.id - that's the actual user ID
+      if (!member.user?.id) {
+        logger.error('Member object missing user ID', { member })
+        return
+      }
+
       const isLeavingSelf = member.user?.email === session.user.email
       const displayName = isLeavingSelf
         ? 'yourself'
@@ -171,7 +177,7 @@ export function TeamManagement() {
 
       setRemoveMemberDialog({
         open: true,
-        memberId: member.id,
+        memberId: member.user.id,
         memberName: displayName,
         shouldReduceSeats: false,
         isSelfRemoval: isLeavingSelf,

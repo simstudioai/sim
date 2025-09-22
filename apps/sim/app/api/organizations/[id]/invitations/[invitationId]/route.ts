@@ -154,6 +154,14 @@ export async function PUT(
         }
 
         // Member of a different organization
+        // Mark the invitation as rejected since they can't accept it
+        await db
+          .update(invitation)
+          .set({
+            status: 'rejected',
+          })
+          .where(eq(invitation.id, invitationId))
+
         return NextResponse.json(
           {
             error:

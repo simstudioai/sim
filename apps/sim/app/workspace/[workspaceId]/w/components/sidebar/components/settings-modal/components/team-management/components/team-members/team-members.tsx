@@ -45,6 +45,7 @@ export function TeamMembers({
 }: TeamMembersProps) {
   const [memberUsageData, setMemberUsageData] = useState<Record<string, number>>({})
   const [isLoadingUsage, setIsLoadingUsage] = useState(false)
+  const [cancellingInvitations, setCancellingInvitations] = useState<Set<string>>(new Set())
 
   // Fetch member usage data when organization changes and user is admin
   useEffect(() => {
@@ -129,6 +130,25 @@ export function TeamMembers({
     return <div className='text-center text-muted-foreground text-sm'>No team members yet.</div>
   }
 
+  // Check if current user can leave (is a member but not owner)
+  const currentUserMember = organization.members?.find((m) => m.user?.email === currentUserEmail)
+  const canLeaveOrganization =
+    currentUserMember && currentUserMember.role !== 'owner' && currentUserMember.user?.id
+
+  // Wrap onCancelInvitation to manage loading state
+  const handleCancelInvitation = async (invitationId: string) => {
+    setCancellingInvitations((prev) => new Set([...prev, invitationId]))
+    try {
+      await onCancelInvitation(invitationId)
+    } finally {
+      setCancellingInvitations((prev) => {
+        const next = new Set(prev)
+        next.delete(invitationId)
+        return next
+      })
+    }
+  }
+
   return (
     <div className='flex flex-col gap-4'>
       {/* Header - simple like account page */}
@@ -196,25 +216,6 @@ export function TeamMembers({
 
             {/* Actions */}
             <div className='ml-4 flex gap-1'>
-              {/* Allow non-owners to leave the organization themselves */}
-              {item.type === 'member' &&
-                item.role !== 'owner' &&
-                item.email === currentUserEmail && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant='ghost'
-                        size='icon'
-                        onClick={() => onRemoveMember(item.member)}
-                        className='h-8 w-8 rounded-[8px] text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground'
-                      >
-                        <LogOut className='h-4 w-4' />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side='left'>Leave Organization</TooltipContent>
-                  </Tooltip>
-                )}
-
               {/* Admin/Owner can remove other members */}
               {isAdminOrOwner &&
                 item.type === 'member' &&
@@ -242,19 +243,49 @@ export function TeamMembers({
                     <Button
                       variant='outline'
                       size='sm'
-                      onClick={() => onCancelInvitation(item.invitation.id)}
+                      onClick={() => handleCancelInvitation(item.invitation.id)}
+                      disabled={cancellingInvitations.has(item.invitation.id)}
                       className='h-8 w-8 rounded-[8px] p-0'
                     >
-                      <X className='h-4 w-4' />
+                      {cancellingInvitations.has(item.invitation.id) ? (
+                        <span className='h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent' />
+                      ) : (
+                        <X className='h-4 w-4' />
+                      )}
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent side='left'>Cancel Invitation</TooltipContent>
+                  <TooltipContent side='left'>
+                    {cancellingInvitations.has(item.invitation.id)
+                      ? 'Cancelling...'
+                      : 'Cancel Invitation'}
+                  </TooltipContent>
                 </Tooltip>
               )}
             </div>
           </div>
         ))}
       </div>
+
+      {/* Leave Organization button */}
+      {canLeaveOrganization && (
+        <div className='border-t pt-4'>
+          <Button
+            variant='outline'
+            size='default'
+            onClick={() => {
+              if (!currentUserMember?.user?.id) {
+                logger.error('Cannot leave organization: missing user ID', { currentUserMember })
+                return
+              }
+              onRemoveMember(currentUserMember)
+            }}
+            className='w-full text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/20'
+          >
+            <LogOut className='mr-2 h-4 w-4' />
+            Leave Organization
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

@@ -23,6 +23,7 @@ export default function Invite() {
   const [isNewUser, setIsNewUser] = useState(false)
   const [token, setToken] = useState<string | null>(null)
   const [invitationType, setInvitationType] = useState<'organization' | 'workspace'>('workspace')
+  const [currentOrgName, setCurrentOrgName] = useState<string | null>(null)
 
   useEffect(() => {
     const errorReason = searchParams.get('error')
@@ -75,6 +76,20 @@ export default function Invite() {
 
           if (data) {
             setInvitationType('organization')
+
+            // Check if user is already in an organization BEFORE showing the invitation
+            const activeOrgResponse = await client.organization
+              .getFullOrganization()
+              .catch(() => ({ data: null }))
+
+            if (activeOrgResponse?.data) {
+              // User is already in an organization
+              setCurrentOrgName(activeOrgResponse.data.name)
+              setError('already-in-organization')
+              setIsLoading(false)
+              return
+            }
+
             setInvitationDetails({
               type: 'organization',
               data,
@@ -140,13 +155,16 @@ export default function Invite() {
       } catch (err: any) {
         logger.error('Error accepting invitation:', err)
 
+        // Reset accepted state on error
+        setAccepted(false)
+
         // Check if it's a 409 conflict (already in an organization)
         if (err.status === 409 || err.message?.includes('already a member of an organization')) {
           setError('already-in-organization')
         } else {
           setError(err.message || 'Failed to accept invitation')
         }
-      } finally {
+
         setIsAccepting(false)
       }
     }
@@ -221,6 +239,36 @@ export default function Invite() {
     const isExpiredError = errorReason === 'expired'
     const isAlreadyInOrg = error === 'already-in-organization'
 
+    // Special handling for already in organization
+    if (isAlreadyInOrg) {
+      return (
+        <InviteLayout>
+          <InviteStatusCard
+            type='warning'
+            title='Already Part of a Team'
+            description={
+              currentOrgName
+                ? `You are currently a member of "${currentOrgName}". You must leave your current organization before accepting a new invitation.`
+                : 'You are already a member of an organization. Leave your current organization before accepting a new invitation.'
+            }
+            icon='users'
+            actions={[
+              {
+                label: 'Manage Team Settings',
+                onClick: () => router.push('/workspace'),
+                variant: 'default' as const,
+              },
+              {
+                label: 'Return to Home',
+                onClick: () => router.push('/'),
+                variant: 'ghost' as const,
+              },
+            ]}
+          />
+        </InviteLayout>
+      )
+    }
+
     // Use getErrorMessage for consistent error messages
     const errorMessage = error.startsWith('You are already') ? error : getErrorMessage(error)
 
@@ -233,19 +281,10 @@ export default function Invite() {
           icon='error'
           isExpiredError={isExpiredError}
           actions={[
-            ...(isAlreadyInOrg
-              ? [
-                  {
-                    label: 'Go to Settings',
-                    onClick: () => router.push('/workspace'),
-                    variant: 'default' as const,
-                  },
-                ]
-              : []),
             {
               label: 'Return to Home',
               onClick: () => router.push('/'),
-              variant: isAlreadyInOrg ? ('ghost' as const) : ('default' as const),
+              variant: 'default' as const,
             },
           ]}
         />
@@ -253,7 +292,8 @@ export default function Invite() {
     )
   }
 
-  if (accepted) {
+  // Show success only if accepted AND no error
+  if (accepted && !error) {
     return (
       <InviteLayout>
         <InviteStatusCard
