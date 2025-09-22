@@ -8,8 +8,9 @@ import { createLogger } from '@/lib/logs/console/logger'
 const logger = createLogger('useVerification')
 
 interface UseVerificationParams {
-  hasResendKey: boolean
+  hasEmailService: boolean
   isProduction: boolean
+  isEmailVerificationEnabled: boolean
 }
 
 interface UseVerificationReturn {
@@ -20,16 +21,18 @@ interface UseVerificationReturn {
   isInvalidOtp: boolean
   errorMessage: string
   isOtpComplete: boolean
-  hasResendKey: boolean
+  hasEmailService: boolean
   isProduction: boolean
+  isEmailVerificationEnabled: boolean
   verifyCode: () => Promise<void>
   resendCode: () => void
   handleOtpChange: (value: string) => void
 }
 
 export function useVerification({
-  hasResendKey,
+  hasEmailService,
   isProduction,
+  isEmailVerificationEnabled,
 }: UseVerificationParams): UseVerificationReturn {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -74,10 +77,10 @@ export function useVerification({
   }, [searchParams])
 
   useEffect(() => {
-    if (email && !isSendingInitialOtp && hasResendKey) {
+    if (email && !isSendingInitialOtp && hasEmailService) {
       setIsSendingInitialOtp(true)
     }
-  }, [email, isSendingInitialOtp, hasResendKey])
+  }, [email, isSendingInitialOtp, hasEmailService])
 
   const isOtpComplete = otp.length === 6
 
@@ -157,7 +160,7 @@ export function useVerification({
   }
 
   function resendCode() {
-    if (!email || !hasResendKey) return
+    if (!email || !hasEmailService || !isEmailVerificationEnabled) return
 
     setIsLoading(true)
     setErrorMessage('')
@@ -197,17 +200,27 @@ export function useVerification({
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      if (!isProduction || !hasResendKey) {
+      if (!isEmailVerificationEnabled) {
         setIsVerified(true)
 
-        const timeoutId = setTimeout(() => {
-          window.location.href = '/workspace'
-        }, 1000)
+        const handleRedirect = async () => {
+          try {
+            await refetchSession()
+          } catch (error) {
+            logger.warn('Failed to refetch session during verification skip:', error)
+          }
 
-        return () => clearTimeout(timeoutId)
+          if (isInviteFlow && redirectUrl) {
+            window.location.href = redirectUrl
+          } else {
+            router.push('/workspace')
+          }
+        }
+
+        handleRedirect()
       }
     }
-  }, [isProduction, hasResendKey, router])
+  }, [isEmailVerificationEnabled, router, isInviteFlow, redirectUrl])
 
   return {
     otp,
@@ -217,8 +230,9 @@ export function useVerification({
     isInvalidOtp,
     errorMessage,
     isOtpComplete,
-    hasResendKey,
+    hasEmailService,
     isProduction,
+    isEmailVerificationEnabled,
     verifyCode,
     resendCode,
     handleOtpChange,

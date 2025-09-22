@@ -28,7 +28,7 @@ export const getAuthorPapersTool: ToolConfig<
 
   request: {
     url: (params: ArxivGetAuthorPapersParams) => {
-      const baseUrl = 'http://export.arxiv.org/api/query'
+      const baseUrl = 'https://export.arxiv.org/api/query'
       const searchParams = new URLSearchParams()
 
       searchParams.append('search_query', `au:"${params.authorName}"`)

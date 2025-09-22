@@ -125,10 +125,21 @@ Update your `.env` file with the database URL:
 DATABASE_URL="postgresql://postgres:your_password@localhost:5432/simstudio"
 ```
 
-4. Set up the database (from packages/db):
+4. Set up the database:
 
+First, configure the database package environment:
 ```bash
 cd packages/db
+cp .env.example .env 
+```
+
+Update your `packages/db/.env` file with the database URL:
+```bash
+DATABASE_URL="postgresql://postgres:your_password@localhost:5432/simstudio"
+```
+
+Then run the migrations:
+```bash
 bunx drizzle-kit migrate --config=./drizzle.config.ts
 ```
 
