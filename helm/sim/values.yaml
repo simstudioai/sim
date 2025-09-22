@@ -65,6 +65,7 @@ app:
     ENCRYPTION_KEY: ""      # REQUIRED - set via --set flag or external secret manager
     
     # Email & Communication
+    EMAIL_VERIFICATION_ENABLED: "false"                   # Enable email verification for user registration and login (defaults to false)
     RESEND_API_KEY: ""                                    # Resend API key for transactional emails
     FROM_EMAIL_ADDRESS: ""                                # Complete from address (e.g., "Sim <noreply@domain.com>" or "DoNotReply@domain.com")
     EMAIL_DOMAIN: ""                                      # Domain for sending emails (fallback when FROM_EMAIL_ADDRESS not set)

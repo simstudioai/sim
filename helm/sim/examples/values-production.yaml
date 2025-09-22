@@ -30,6 +30,9 @@ app:
     BETTER_AUTH_SECRET: "your-production-auth-secret-here"
     ENCRYPTION_KEY: "your-production-encryption-key-here"
     
+    # Email verification (set to true if you want to require email verification)
+    EMAIL_VERIFICATION_ENABLED: "false"
+    
     # Optional third-party service integrations (configure as needed)
     RESEND_API_KEY: "your-resend-api-key"
     GOOGLE_CLIENT_ID: "your-google-client-id"

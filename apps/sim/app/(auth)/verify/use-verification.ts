@@ -10,6 +10,7 @@ const logger = createLogger('useVerification')
 interface UseVerificationParams {
   hasEmailService: boolean
   isProduction: boolean
+  isEmailVerificationEnabled: boolean
 }
 
 interface UseVerificationReturn {
@@ -22,6 +23,7 @@ interface UseVerificationReturn {
   isOtpComplete: boolean
   hasEmailService: boolean
   isProduction: boolean
+  isEmailVerificationEnabled: boolean
   verifyCode: () => Promise<void>
   resendCode: () => void
   handleOtpChange: (value: string) => void
@@ -30,6 +32,7 @@ interface UseVerificationReturn {
 export function useVerification({
   hasEmailService,
   isProduction,
+  isEmailVerificationEnabled,
 }: UseVerificationParams): UseVerificationReturn {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -157,7 +160,7 @@ export function useVerification({
   }
 
   function resendCode() {
-    if (!email || !hasEmailService) return
+    if (!email || !hasEmailService || !isEmailVerificationEnabled) return
 
     setIsLoading(true)
     setErrorMessage('')
@@ -197,14 +200,14 @@ export function useVerification({
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      if (!isProduction && !hasEmailService) {
+      if (!isEmailVerificationEnabled) {
         setIsVerified(true)
 
         const handleRedirect = async () => {
           try {
             await refetchSession()
           } catch (error) {
-            logger.warn('Failed to refetch session during dev verification skip:', error)
+            logger.warn('Failed to refetch session during verification skip:', error)
           }
 
           if (isInviteFlow && redirectUrl) {
@@ -217,7 +220,7 @@ export function useVerification({
         handleRedirect()
       }
     }
-  }, [isProduction, hasEmailService, router, isInviteFlow, redirectUrl])
+  }, [isEmailVerificationEnabled, router, isInviteFlow, redirectUrl])
 
   return {
     otp,
@@ -229,6 +232,7 @@ export function useVerification({
     isOtpComplete,
     hasEmailService,
     isProduction,
+    isEmailVerificationEnabled,
     verifyCode,
     resendCode,
     handleOtpChange,
