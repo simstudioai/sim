@@ -43,7 +43,6 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
         'spark:messages_read',
         'spark-compliance:rooms_read',
         'spark:memberships_read',
-        'spark:kms',
         'spark:rooms_read',
         'spark-compliance:rooms_write',
         'spark-admin:people_read',
@@ -291,7 +290,10 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
             parsedParams[key] = Number.parseInt(value as string, 10)
           }
           // Handle mediaIds conversion from comma-separated string to array
-          else if ((key === 'files' || key === 'mentionedPeople' || key === 'mentionedGroups') && typeof value === 'string') {
+          else if (
+            (key === 'files' || key === 'mentionedPeople' || key === 'mentionedGroups') &&
+            typeof value === 'string'
+          ) {
             parsedParams[key] = value
               .split(',')
               .map((id) => id.trim())
@@ -317,8 +319,14 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
     max: { type: 'number', description: 'Maximum number of items to retrieve' },
     //
     roomId: { type: 'string', description: 'Room Id' },
-    mentionedGroups: { type: 'string', description: 'Group names for the groups mentioned in the message.' },
-    mentionedPeople: { type: 'string', description: 'People IDs for anyone mentioned in the message' },
+    mentionedGroups: {
+      type: 'string',
+      description: 'Group names for the groups mentioned in the message.',
+    },
+    mentionedPeople: {
+      type: 'string',
+      description: 'People IDs for anyone mentioned in the message',
+    },
     before: { type: 'string', description: 'List messages sent before a date and time' },
     beforeMessage: { type: 'string', description: 'List messages sent before a message, by ID' },
     //
@@ -327,7 +335,11 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
     text: { type: 'string', description: 'Text message' },
     toPersonEmail: { type: 'string', description: 'The recipient email address' },
     toPersonId: { type: 'string', description: 'The recipient person Id' },
-    files: { type: 'string', description: 'Public URLs to binary files (comma-separated), currently only one file may be included' },
+    files: {
+      type: 'string',
+      description:
+        'Public URLs to binary files (comma-separated), currently only one file may be included',
+    },
     //
     messageId: { type: 'string', description: 'Message Id' },
   },
@@ -336,6 +348,6 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
     message: { type: 'string', description: 'Response message' },
     results: { type: 'json', description: 'Operation results' },
     //
-    createdId: { type: 'string', description: 'Created Id'},
+    createdId: { type: 'string', description: 'Created Id' },
   },
 }
