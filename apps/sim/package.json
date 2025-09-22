@@ -65,7 +65,7 @@
     "@radix-ui/react-toggle": "^1.1.2",
     "@react-email/components": "^0.0.34",
     "@sentry/nextjs": "^9.15.0",
-    "@trigger.dev/sdk": "4.0.1",
+    "@trigger.dev/sdk": "4.0.4",
     "@types/pdf-parse": "1.1.5",
     "@types/three": "0.177.0",
     "@vercel/og": "^0.6.5",
