@@ -32,11 +32,11 @@ import {
   handleInvoicePaymentFailed,
   handleInvoicePaymentSucceeded,
 } from '@/lib/billing/webhooks/invoices'
-import { hasEmailService, sendEmail } from '@/lib/email/mailer'
+import { sendEmail } from '@/lib/email/mailer'
 import { getFromEmailAddress } from '@/lib/email/utils'
 import { quickValidateEmail } from '@/lib/email/validation'
 import { env, isTruthy } from '@/lib/env'
-import { isBillingEnabled, isProd } from '@/lib/environment'
+import { isBillingEnabled, isEmailVerificationEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('Auth')
@@ -165,7 +165,7 @@ export const auth = betterAuth({
   },
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: isProd && hasEmailService(),
+    requireEmailVerification: isEmailVerificationEnabled,
     sendVerificationOnSignUp: false,
     throwOnMissingCredentials: true,
     throwOnInvalidCredentials: true,
@@ -240,8 +240,8 @@ export const auth = betterAuth({
         otp: string
         type: 'sign-in' | 'email-verification' | 'forget-password'
       }) => {
-        if (!isProd) {
-          logger.info('Skipping email verification in dev/docker')
+        if (!isEmailVerificationEnabled) {
+          logger.info('Skipping email verification')
           return
         }
         try {

@@ -51,6 +51,7 @@ export const env = createEnv({
     BILLING_ENABLED:                       z.boolean().optional(),                 // Enable billing enforcement and usage tracking
 
     // Email & Communication
+    EMAIL_VERIFICATION_ENABLED:            z.boolean().optional(),                 // Enable email verification for user registration and login (defaults to false)
     RESEND_API_KEY:                        z.string().min(1).optional(),           // Resend API key for transactional emails
     FROM_EMAIL_ADDRESS:                    z.string().min(1).optional(),           // Complete from address (e.g., "Sim <noreply@domain.com>" or "noreply@domain.com")
     EMAIL_DOMAIN:                          z.string().min(1).optional(),           // Domain for sending emails (fallback when FROM_EMAIL_ADDRESS not set)

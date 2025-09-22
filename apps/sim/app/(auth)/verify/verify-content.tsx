@@ -12,14 +12,17 @@ import { soehne } from '@/app/fonts/soehne/soehne'
 interface VerifyContentProps {
   hasEmailService: boolean
   isProduction: boolean
+  isEmailVerificationEnabled: boolean
 }
 
 function VerificationForm({
   hasEmailService,
   isProduction,
+  isEmailVerificationEnabled,
 }: {
   hasEmailService: boolean
   isProduction: boolean
+  isEmailVerificationEnabled: boolean
 }) {
   const {
     otp,
@@ -32,7 +35,7 @@ function VerificationForm({
     verifyCode,
     resendCode,
     handleOtpChange,
-  } = useVerification({ hasEmailService, isProduction })
+  } = useVerification({ hasEmailService, isProduction, isEmailVerificationEnabled })
 
   const [countdown, setCountdown] = useState(0)
   const [isResendDisabled, setIsResendDisabled] = useState(false)
@@ -93,15 +96,17 @@ function VerificationForm({
         <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
           {isVerified
             ? 'Your email has been verified. Redirecting to dashboard...'
-            : hasEmailService
-              ? `A verification code has been sent to ${email || 'your email'}`
-              : !isProduction
-                ? 'Development mode: Check your console logs for the verification code'
-                : 'Error: Invalid API key configuration'}
+            : !isEmailVerificationEnabled
+              ? 'Email verification is disabled. Redirecting to dashboard...'
+              : hasEmailService
+                ? `A verification code has been sent to ${email || 'your email'}`
+                : !isProduction
+                  ? 'Development mode: Check your console logs for the verification code'
+                  : 'Error: Email verification is enabled but no email service is configured'}
         </p>
       </div>
 
-      {!isVerified && (
+      {!isVerified && isEmailVerificationEnabled && (
         <div className={`${inter.className} mt-8 space-y-8`}>
           <div className='space-y-6'>
             <p className='text-center text-muted-foreground text-sm'>
@@ -245,10 +250,18 @@ function VerificationFormFallback() {
   )
 }
 
-export function VerifyContent({ hasEmailService, isProduction }: VerifyContentProps) {
+export function VerifyContent({
+  hasEmailService,
+  isProduction,
+  isEmailVerificationEnabled,
+}: VerifyContentProps) {
   return (
     <Suspense fallback={<VerificationFormFallback />}>
-      <VerificationForm hasEmailService={hasEmailService} isProduction={isProduction} />
+      <VerificationForm
+        hasEmailService={hasEmailService}
+        isProduction={isProduction}
+        isEmailVerificationEnabled={isEmailVerificationEnabled}
+      />
     </Suspense>
   )
 }
