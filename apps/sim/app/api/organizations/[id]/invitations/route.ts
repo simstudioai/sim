@@ -9,7 +9,7 @@ import {
   workspace,
   workspaceInvitation,
 } from '@sim/db/schema'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   getEmailSubject,
@@ -463,7 +463,10 @@ export async function DELETE(
         and(
           eq(invitation.id, invitationId),
           eq(invitation.organizationId, organizationId),
-          eq(invitation.status, 'pending')
+          or(
+            eq(invitation.status, 'pending'),
+            eq(invitation.status, 'rejected') // Allow cancelling rejected invitations too
+          )
         )
       )
       .returning()
