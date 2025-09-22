@@ -90,26 +90,35 @@ export const webexListMessagesTool: ToolConfig<WebexListMessagesParams, WebexLis
     },
   },
   transformResponse: async (response: Response) => {
-    const data : WebexListMessages = await response.json()
-    // API returns messages in 'items' array
-    const items = data.items || []
+    logger.info('Received response status: ', response.status)
 
-    if (items.length === 0) {
+    try {
+      const data : WebexListMessages = await response.json()
+      // API returns messages in 'items' array
+      const items = data.items || []
+
+      if (items.length === 0) {
+        return {
+          success: true,
+          output: {
+            message: 'No messages found.',
+            results: [],
+          },
+        }
+      }
+
       return {
-        success: true,
+        success: true, 
         output: {
-          message: 'No messages found.',
-          results: [],
+          message: `Successfully read ${items.length} message(s)`,
+          results: items
         },
       }
-    }
-
-    return {
-      success: true, 
-      output: {
-        message: `Successfully read ${items.length} message(s)`,
-        results: items
-      },
+    } catch (error) {
+      logger.error('Error processing response:', {
+        error,
+      })
+      throw error
     }
   },
   outputs: {

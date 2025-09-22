@@ -115,27 +115,36 @@ export const webexCreateMessageTool: ToolConfig<WebexCreateMessageParams, WebexC
     },
   },
   transformResponse: async (response: Response) => {
-    const data : WebexSingleMessage = await response.json()
-    // API returns messages in 'items' array
-    const item = data || {}
+    logger.info('Received response status: ', response.status)
 
-    if (Object.keys(item).length === 0) {
+    try {
+      const data : WebexSingleMessage = await response.json()
+      // API returns messages in 'items' array
+      const item = data || {}
+
+      if (Object.keys(item).length === 0) {
+        return {
+          success: true,
+          output: {
+            message: 'No new message created.',
+            results: {},
+          },
+        }
+      }
+
       return {
-        success: true,
+        success: true, 
         output: {
-          message: 'No new message created.',
-          results: {},
+          message: `Successfully created ${item.id} message`,
+          createdId: item.id,
+          results: item
         },
       }
-    }
-
-    return {
-      success: true, 
-      output: {
-        message: `Successfully created ${item.id} message`,
-        createdId: item.id,
-        results: item
-      },
+    } catch (error) {
+      logger.error('Error processing response:', {
+        error,
+      })
+      throw error
     }
   },
   outputs: {

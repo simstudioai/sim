@@ -87,26 +87,37 @@ export const webexListRoomsTool: ToolConfig<WebexListRoomsParams, WebexListRooms
     },
   },
   transformResponse: async (response: Response) => {
-    const data : WebexListRooms = await response.json()
-    // API returns rooms in 'items' array
-    const items = data.items || []
+    logger.info('Received response status: ', response.status)
 
-    if (items.length === 0) {
+    try {
+      const data : WebexListRooms = await response.json()
+      logger.info('Response parsed successfully')
+
+      // API returns rooms in 'items' array
+      const items = data.items || []
+
+      if (items.length === 0) {
+        return {
+          success: true,
+          output: {
+            message: 'No rooms found.',
+            results: [],
+          },
+        }
+      }
+
       return {
-        success: true,
+        success: true, 
         output: {
-          message: 'No rooms found.',
-          results: [],
+          message: `Successfully read ${items.length} room(s)`,
+          results: items
         },
       }
-    }
-
-    return {
-      success: true, 
-      output: {
-        message: `Successfully read ${items.length} room(s)`,
-        results: items
-      },
+    } catch (error) {
+      logger.error('Error processing response:', {
+        error,
+      })
+      throw error
     }
   },
   outputs: {
