@@ -128,6 +128,13 @@ export interface Parallel {
   parallelType?: 'count' | 'collection' // Explicit parallel type to avoid inference bugs
 }
 
+export interface DragStartPosition {
+  id: string
+  x: number
+  y: number
+  parentId?: string | null
+}
+
 export interface WorkflowState {
   blocks: Record<string, BlockState>
   edges: Edge[]
@@ -142,6 +149,8 @@ export interface WorkflowState {
   deploymentStatuses?: Record<string, DeploymentStatus>
   needsRedeployment?: boolean
   hasActiveWebhook?: boolean
+  // Drag state for undo/redo
+  dragStartPosition?: DragStartPosition | null
 }
 
 // New interface for sync control
@@ -203,6 +212,8 @@ export interface WorkflowActions {
   revertToDeployedState: (deployedState: WorkflowState) => void
   toggleBlockAdvancedMode: (id: string) => void
   toggleBlockTriggerMode: (id: string) => void
+  setDragStartPosition: (position: DragStartPosition | null) => void
+  getDragStartPosition: () => DragStartPosition | null
 
   // Add the sync control methods to the WorkflowActions interface
   sync: SyncControl

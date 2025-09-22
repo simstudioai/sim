@@ -17,6 +17,7 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import { ControlBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/control-bar'
 import { DiffControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/diff-controls'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
+import { FloatingControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/floating-controls/floating-controls'
 import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/panel'
 import { SubflowNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
@@ -39,6 +40,7 @@ import { useExecutionStore } from '@/stores/execution/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { hasWorkflowsInitiallyLoaded, useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { getUniqueBlockName } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('Workflow')
@@ -89,7 +91,12 @@ const WorkflowContent = React.memo(() => {
   // Use the clean abstraction for current workflow state
   const currentWorkflow = useCurrentWorkflow()
 
-  const { updateNodeDimensions, updateBlockPosition: storeUpdateBlockPosition } = useWorkflowStore()
+  const {
+    updateNodeDimensions,
+    updateBlockPosition: storeUpdateBlockPosition,
+    setDragStartPosition,
+    getDragStartPosition,
+  } = useWorkflowStore()
 
   // Get copilot cleanup function
   const copilotCleanup = useCopilotStore((state) => state.cleanup)
@@ -175,6 +182,8 @@ const WorkflowContent = React.memo(() => {
     collaborativeUpdateBlockPosition,
     collaborativeUpdateParentId: updateParentId,
     collaborativeSetSubblockValue,
+    undo,
+    redo,
   } = useCollaborativeWorkflow()
 
   // Execution and debug mode state
@@ -229,10 +238,50 @@ const WorkflowContent = React.memo(() => {
     }
   }, [permissionsError, workspaceId])
 
-  // Helper function to update a node's parent with proper position calculation
   const updateNodeParent = useCallback(
-    (nodeId: string, newParentId: string | null) => {
-      return updateNodeParentUtil(
+    (nodeId: string, newParentId: string | null, affectedEdges: any[] = []) => {
+      const node = getNodes().find((n: any) => n.id === nodeId)
+      if (!node) return
+
+      const currentBlock = blocks[nodeId]
+      if (!currentBlock) return
+
+      const oldParentId = node.parentId || currentBlock.data?.parentId
+      const oldPosition = { ...node.position }
+
+      // affectedEdges are edges that are either being removed (when leaving a subflow)
+      // or being added (when entering a subflow)
+      if (!affectedEdges.length && !newParentId && oldParentId) {
+        affectedEdges = edgesForDisplay.filter((e) => e.source === nodeId || e.target === nodeId)
+      }
+
+      let newPosition = oldPosition
+      if (newParentId) {
+        const getNodeAbsolutePosition = (id: string): { x: number; y: number } => {
+          const n = getNodes().find((node: any) => node.id === id)
+          if (!n) return { x: 0, y: 0 }
+          if (!n.parentId) return n.position
+          const parentPos = getNodeAbsolutePosition(n.parentId)
+          return { x: parentPos.x + n.position.x, y: parentPos.y + n.position.y }
+        }
+        const nodeAbsPos = getNodeAbsolutePosition(nodeId)
+        const parentAbsPos = getNodeAbsolutePosition(newParentId)
+        newPosition = {
+          x: nodeAbsPos.x - parentAbsPos.x,
+          y: nodeAbsPos.y - parentAbsPos.y,
+        }
+      } else if (oldParentId) {
+        const getNodeAbsolutePosition = (id: string): { x: number; y: number } => {
+          const n = getNodes().find((node: any) => node.id === id)
+          if (!n) return { x: 0, y: 0 }
+          if (!n.parentId) return n.position
+          const parentPos = getNodeAbsolutePosition(n.parentId)
+          return { x: parentPos.x + n.position.x, y: parentPos.y + n.position.y }
+        }
+        newPosition = getNodeAbsolutePosition(nodeId)
+      }
+
+      const result = updateNodeParentUtil(
         nodeId,
         newParentId,
         getNodes,
@@ -240,8 +289,32 @@ const WorkflowContent = React.memo(() => {
         updateParentId,
         () => resizeLoopNodes(getNodes, updateNodeDimensions, blocks)
       )
+
+      if (oldParentId !== newParentId) {
+        window.dispatchEvent(
+          new CustomEvent('workflow-record-parent-update', {
+            detail: {
+              blockId: nodeId,
+              oldParentId: oldParentId || undefined,
+              newParentId: newParentId || undefined,
+              oldPosition,
+              newPosition,
+              affectedEdges: affectedEdges.map((e) => ({ ...e })),
+            },
+          })
+        )
+      }
+
+      return result
     },
-    [getNodes, collaborativeUpdateBlockPosition, updateParentId, updateNodeDimensions, blocks]
+    [
+      getNodes,
+      collaborativeUpdateBlockPosition,
+      updateParentId,
+      updateNodeDimensions,
+      blocks,
+      edgesForDisplay,
+    ]
   )
 
   // Function to resize all loop nodes with improved hierarchy handling
@@ -345,23 +418,29 @@ const WorkflowContent = React.memo(() => {
     let cleanup: (() => void) | null = null
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      const activeElement = document.activeElement
+      const isEditableElement =
+        activeElement instanceof HTMLInputElement ||
+        activeElement instanceof HTMLTextAreaElement ||
+        activeElement?.hasAttribute('contenteditable')
+
+      if (isEditableElement) {
+        return
+      }
+
       if (event.shiftKey && event.key === 'L' && !event.ctrlKey && !event.metaKey) {
-        // Don't trigger if user is typing in an input, textarea, or contenteditable element
-        const activeElement = document.activeElement
-        const isEditableElement =
-          activeElement instanceof HTMLInputElement ||
-          activeElement instanceof HTMLTextAreaElement ||
-          activeElement?.hasAttribute('contenteditable')
-
-        if (isEditableElement) {
-          return // Allow normal typing behavior
-        }
-
         event.preventDefault()
-
         if (cleanup) cleanup()
-
         cleanup = debouncedAutoLayout()
+      } else if ((event.ctrlKey || event.metaKey) && event.key === 'z' && !event.shiftKey) {
+        event.preventDefault()
+        undo()
+      } else if (
+        (event.ctrlKey || event.metaKey) &&
+        (event.key === 'Z' || (event.key === 'z' && event.shiftKey))
+      ) {
+        event.preventDefault()
+        redo()
       }
     }
 
@@ -371,7 +450,7 @@ const WorkflowContent = React.memo(() => {
       window.removeEventListener('keydown', handleKeyDown)
       if (cleanup) cleanup()
     }
-  }, [debouncedAutoLayout])
+  }, [debouncedAutoLayout, undo, redo])
 
   // Listen for explicit remove-from-subflow actions from ActionBar
   useEffect(() => {
@@ -381,17 +460,28 @@ const WorkflowContent = React.memo(() => {
       if (!blockId) return
 
       try {
-        // Remove parent-child relationship while preserving absolute position
-        updateNodeParent(blockId, null)
+        const currentBlock = blocks[blockId]
+        const parentId = currentBlock?.data?.parentId
 
-        // Remove all edges connected to this block
-        const connectedEdges = edgesForDisplay.filter(
+        if (!parentId) return
+
+        // Find ALL edges connected to this block
+        const edgesToRemove = edgesForDisplay.filter(
           (e) => e.source === blockId || e.target === blockId
         )
 
-        connectedEdges.forEach((edge) => {
+        // Set flag to skip individual edge recording for undo/redo
+        window.dispatchEvent(new CustomEvent('skip-edge-recording', { detail: { skip: true } }))
+
+        // Remove edges first
+        edgesToRemove.forEach((edge) => {
           removeEdge(edge.id)
         })
+
+        // Then update parent relationship
+        updateNodeParent(blockId, null, edgesToRemove)
+
+        window.dispatchEvent(new CustomEvent('skip-edge-recording', { detail: { skip: false } }))
       } catch (err) {
         logger.error('Failed to remove from subflow', { err })
       }
@@ -485,10 +575,8 @@ const WorkflowContent = React.memo(() => {
         // Create a unique ID and name for the container
         const id = crypto.randomUUID()
 
-        // Auto-number the blocks based on existing blocks of the same type
-        const existingBlocksOfType = Object.values(blocks).filter((b) => b.type === type)
-        const blockNumber = existingBlocksOfType.length + 1
-        const name = type === 'loop' ? `Loop ${blockNumber}` : `Parallel ${blockNumber}`
+        const baseName = type === 'loop' ? 'Loop' : 'Parallel'
+        const name = getUniqueBlockName(baseName, blocks)
 
         // Calculate the center position of the viewport
         const centerPosition = project({
@@ -549,7 +637,7 @@ const WorkflowContent = React.memo(() => {
 
       // Create a new block with a unique ID
       const id = crypto.randomUUID()
-      const name = `${blockConfig.name} ${Object.values(blocks).filter((b) => b.type === type).length + 1}`
+      const name = getUniqueBlockName(blockConfig.name, blocks)
 
       // Auto-connect logic
       const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
@@ -626,10 +714,8 @@ const WorkflowContent = React.memo(() => {
           // Create a unique ID and name for the container
           const id = crypto.randomUUID()
 
-          // Auto-number the blocks based on existing blocks of the same type
-          const existingBlocksOfType = Object.values(blocks).filter((b) => b.type === data.type)
-          const blockNumber = existingBlocksOfType.length + 1
-          const name = data.type === 'loop' ? `Loop ${blockNumber}` : `Parallel ${blockNumber}`
+          const baseName = data.type === 'loop' ? 'Loop' : 'Parallel'
+          const name = getUniqueBlockName(baseName, blocks)
 
           // Check if we're dropping inside another container
           if (containerInfo) {
@@ -698,12 +784,9 @@ const WorkflowContent = React.memo(() => {
 
         // Generate id and name here so they're available in all code paths
         const id = crypto.randomUUID()
-        const name =
-          data.type === 'loop'
-            ? `Loop ${Object.values(blocks).filter((b) => b.type === 'loop').length + 1}`
-            : data.type === 'parallel'
-              ? `Parallel ${Object.values(blocks).filter((b) => b.type === 'parallel').length + 1}`
-              : `${blockConfig!.name} ${Object.values(blocks).filter((b) => b.type === data.type).length + 1}`
+        const baseName =
+          data.type === 'loop' ? 'Loop' : data.type === 'parallel' ? 'Parallel' : blockConfig!.name
+        const name = getUniqueBlockName(baseName, blocks)
 
         if (containerInfo) {
           // Calculate position relative to the container node
@@ -717,18 +800,9 @@ const WorkflowContent = React.memo(() => {
             (b) => b.data?.parentId === containerInfo.loopId
           )
 
-          // Add block with parent info
-          addBlock(id, data.type, name, relativePosition, {
-            parentId: containerInfo.loopId,
-            extent: 'parent',
-          })
-
-          // Resize the container node to fit the new block
-          // Immediate resize without delay
-          resizeLoopNodesWrapper()
-
           // Auto-connect logic for blocks inside containers
           const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
+          let autoConnectEdge
           if (isAutoConnectEnabled && data.type !== 'starter') {
             if (existingChildBlocks.length > 0) {
               // Connect to the nearest existing child block within the container
@@ -747,14 +821,14 @@ const WorkflowContent = React.memo(() => {
                   id: closestBlock.id,
                   type: closestBlock.type,
                 })
-                addEdge({
+                autoConnectEdge = {
                   id: crypto.randomUUID(),
                   source: closestBlock.id,
                   target: id,
                   sourceHandle,
                   targetHandle: 'target',
                   type: 'workflowEdge',
-                })
+                }
               }
             } else {
               // No existing children: connect from the container's start handle
@@ -764,16 +838,35 @@ const WorkflowContent = React.memo(() => {
                   ? 'loop-start-source'
                   : 'parallel-start-source'
 
-              addEdge({
+              autoConnectEdge = {
                 id: crypto.randomUUID(),
                 source: containerInfo.loopId,
                 target: id,
                 sourceHandle: startSourceHandle,
                 targetHandle: 'target',
                 type: 'workflowEdge',
-              })
+              }
             }
           }
+
+          // Add block with parent info AND autoConnectEdge (atomic operation)
+          addBlock(
+            id,
+            data.type,
+            name,
+            relativePosition,
+            {
+              parentId: containerInfo.loopId,
+              extent: 'parent',
+            },
+            containerInfo.loopId,
+            'parent',
+            autoConnectEdge
+          )
+
+          // Resize the container node to fit the new block
+          // Immediate resize without delay
+          resizeLoopNodesWrapper()
         } else {
           // Regular auto-connect logic
           const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
@@ -1349,8 +1442,15 @@ const WorkflowContent = React.memo(() => {
       // Store the original parent ID when starting to drag
       const currentParentId = node.parentId || blocks[node.id]?.data?.parentId || null
       setDragStartParentId(currentParentId)
+      // Store starting position for undo/redo move entry
+      setDragStartPosition({
+        id: node.id,
+        x: node.position.x,
+        y: node.position.y,
+        parentId: currentParentId,
+      })
     },
-    [blocks]
+    [blocks, setDragStartPosition]
   )
 
   // Handle node drag stop to establish parent-child relationships
@@ -1365,6 +1465,29 @@ const WorkflowContent = React.memo(() => {
       // Emit collaborative position update for the final position
       // This ensures other users see the smooth final position
       collaborativeUpdateBlockPosition(node.id, node.position)
+
+      // Record single move entry on drag end to avoid micro-moves
+      try {
+        const start = getDragStartPosition()
+        if (start && start.id === node.id) {
+          const before = { x: start.x, y: start.y, parentId: start.parentId }
+          const after = {
+            x: node.position.x,
+            y: node.position.y,
+            parentId: node.parentId || blocks[node.id]?.data?.parentId,
+          }
+          const moved =
+            before.x !== after.x || before.y !== after.y || before.parentId !== after.parentId
+          if (moved) {
+            window.dispatchEvent(
+              new CustomEvent('workflow-record-move', {
+                detail: { blockId: node.id, before, after },
+              })
+            )
+          }
+          setDragStartPosition(null)
+        }
+      } catch {}
 
       // Don't process parent changes if the node hasn't actually changed parent or is being moved within same parent
       if (potentialParentId === dragStartParentId) return
@@ -1409,8 +1532,8 @@ const WorkflowContent = React.memo(() => {
           y: nodeAbsPosBefore.y - containerAbsPosBefore.y,
         }
 
-        // Moving to a new parent container
-        updateNodeParent(node.id, potentialParentId)
+        // Prepare edges that will be added when moving into the container
+        const edgesToAdd: any[] = []
 
         // Auto-connect when moving an existing block into a container
         const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
@@ -1437,7 +1560,7 @@ const WorkflowContent = React.memo(() => {
                 id: closestBlock.id,
                 type: closestBlock.type,
               })
-              addEdge({
+              edgesToAdd.push({
                 id: crypto.randomUUID(),
                 source: closestBlock.id,
                 target: node.id,
@@ -1454,7 +1577,7 @@ const WorkflowContent = React.memo(() => {
                 ? 'loop-start-source'
                 : 'parallel-start-source'
 
-            addEdge({
+            edgesToAdd.push({
               id: crypto.randomUUID(),
               source: potentialParentId,
               target: node.id,
@@ -1464,6 +1587,17 @@ const WorkflowContent = React.memo(() => {
             })
           }
         }
+
+        // Skip recording these edges separately since they're part of the parent update
+        window.dispatchEvent(new CustomEvent('skip-edge-recording', { detail: { skip: true } }))
+
+        // Moving to a new parent container - pass the edges that will be added
+        updateNodeParent(node.id, potentialParentId, edgesToAdd)
+
+        // Now add the edges after parent update
+        edgesToAdd.forEach((edge) => addEdge(edge))
+
+        window.dispatchEvent(new CustomEvent('skip-edge-recording', { detail: { skip: false } }))
       }
 
       // Reset state
@@ -1481,6 +1615,8 @@ const WorkflowContent = React.memo(() => {
       determineSourceHandle,
       blocks,
       getNodeAbsolutePositionWrapper,
+      getDragStartPosition,
+      setDragStartPosition,
     ]
   )
 
@@ -1619,6 +1755,9 @@ const WorkflowContent = React.memo(() => {
 
         {/* Floating Control Bar */}
         <ControlBar hasValidationErrors={nestedSubflowErrors.size > 0} />
+
+        {/* Floating Controls (Zoom, Undo, Redo) */}
+        <FloatingControls />
 
         <ReactFlow
           nodes={nodes}
