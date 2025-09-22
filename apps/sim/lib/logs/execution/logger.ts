@@ -403,54 +403,43 @@ export class ExecutionLogger implements IExecutionLoggerService {
       // Apply cost multiplier only to model costs, not base execution charge
       const costToStore = costSummary.baseExecutionCharge + costSummary.modelCost * costMultiplier
 
-      // Upsert user stats record - insert if doesn't exist, update if it does
-      const { getFreeTierLimit } = await import('@/lib/billing/subscriptions/utils')
-      const defaultLimit = getFreeTierLimit()
+      const existing = await db.select().from(userStats).where(eq(userStats.userId, userId))
+      if (existing.length === 0) {
+        logger.error('User stats record not found - should be created during onboarding', {
+          userId,
+          trigger,
+        })
+        return
+      }
 
-      const triggerIncrements: any = {}
+      const updateFields: any = {
+        totalTokensUsed: sql`total_tokens_used + ${costSummary.totalTokens}`,
+        totalCost: sql`total_cost + ${costToStore}`,
+        currentPeriodCost: sql`current_period_cost + ${costToStore}`,
+        lastActive: new Date(),
+      }
+
       switch (trigger) {
         case 'manual':
-          triggerIncrements.totalManualExecutions = sql`total_manual_executions + 1`
+          updateFields.totalManualExecutions = sql`total_manual_executions + 1`
           break
         case 'api':
-          triggerIncrements.totalApiCalls = sql`total_api_calls + 1`
+          updateFields.totalApiCalls = sql`total_api_calls + 1`
           break
         case 'webhook':
-          triggerIncrements.totalWebhookTriggers = sql`total_webhook_triggers + 1`
+          updateFields.totalWebhookTriggers = sql`total_webhook_triggers + 1`
           break
         case 'schedule':
-          triggerIncrements.totalScheduledExecutions = sql`total_scheduled_executions + 1`
+          updateFields.totalScheduledExecutions = sql`total_scheduled_executions + 1`
           break
         case 'chat':
-          triggerIncrements.totalChatExecutions = sql`total_chat_executions + 1`
+          updateFields.totalChatExecutions = sql`total_chat_executions + 1`
           break
       }
 
-      await db
-        .insert(userStats)
-        .values({
-          id: uuidv4(),
-          userId: userId,
-          currentUsageLimit: defaultLimit.toString(),
-          usageLimitUpdatedAt: new Date(),
-          totalTokensUsed: costSummary.totalTokens,
-          totalCost: costToStore,
-          currentPeriodCost: costToStore,
-          lastActive: new Date(),
-          ...triggerIncrements,
-        })
-        .onConflictDoUpdate({
-          target: userStats.userId,
-          set: {
-            totalTokensUsed: sql`total_tokens_used + ${costSummary.totalTokens}`,
-            totalCost: sql`total_cost + ${costToStore}`,
-            currentPeriodCost: sql`current_period_cost + ${costToStore}`,
-            lastActive: new Date(),
-            ...triggerIncrements,
-          },
-        })
+      await db.update(userStats).set(updateFields).where(eq(userStats.userId, userId))
 
-      logger.debug('Upserted user stats record with cost data', {
+      logger.debug('Updated user stats record with cost data', {
         userId,
         trigger,
         addedCost: costToStore,
