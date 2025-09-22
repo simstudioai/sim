@@ -641,7 +641,6 @@ export const auth = betterAuth({
             'spark:messages_read',
             'spark-compliance:rooms_read',
             'spark:memberships_read',
-            'spark:kms',
             'spark:rooms_read',
             'spark-compliance:rooms_write',
             'spark-admin:people_read',
@@ -651,14 +650,11 @@ export const auth = betterAuth({
           pkce: true,
           getUserInfo: async (tokens) => {
             try {
-              const response = await fetch(
-                'https://webexapis.com/v1/people/me',
-                {
-                  headers: {
-                    Authorization: `Bearer ${tokens.accessToken}`,
-                  },
-                }
-              )
+              const response = await fetch('https://webexapis.com/v1/people/me', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
 
               if (!response.ok) {
                 logger.error('Error fetching Webex user info:', {
@@ -670,22 +666,22 @@ export const auth = betterAuth({
 
               const profile = await response.json()
 
-              if (!profile.data) {
+              if (!profile) {
                 logger.error('Invalid Webex profile response:', profile)
                 return null
               }
 
               const now = new Date()
 
-              const emails = profile.data.emails;
-              const email = emails && emails.length > 0 && emails[0];
+              const emails = profile.emails
+              const email = emails && emails.length > 0 && emails[0]
 
               return {
-                id: profile.data.id,
-                name: profile.data.displayName,
+                id: profile.id,
+                name: profile.displayName,
                 email: email,
                 image: null,
-                emailVerified: false,
+                emailVerified: profile.type === 'person' || false,
                 createdAt: now,
                 updatedAt: now,
               }
