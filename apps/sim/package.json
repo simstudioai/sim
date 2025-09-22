@@ -71,7 +71,7 @@
     "@vercel/og": "^0.6.5",
     "@vercel/speed-insights": "^1.2.0",
     "ai": "^4.3.2",
-    "better-auth": "1.2.9",
+    "better-auth": "1.2.10",
     "browser-image-compression": "^2.0.2",
     "cheerio": "1.1.2",
     "class-variance-authority": "^0.7.1",
