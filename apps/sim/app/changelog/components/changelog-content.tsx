@@ -42,7 +42,6 @@ export default async function ChangelogContent() {
         contributors: extractMentions(String(r.body || '')),
       }))
   } catch (err) {
-    // Fail silently; show empty state
     entries = []
   }
 
