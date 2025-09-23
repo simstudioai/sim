@@ -1,13 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Check, Clipboard, Download, Eye, Trash2, X } from 'lucide-react'
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion'
+import { Check, ChevronDown, Clipboard, Download, Eye, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -21,6 +15,7 @@ import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { cn } from '@/lib/utils'
 import { formatEditSequence } from '@/lib/workflows/training/compute-edit-sequence'
 import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
 
@@ -45,6 +40,7 @@ export function TrainingModal() {
   const [localPrompt, setLocalPrompt] = useState(currentPrompt)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [viewingDataset, setViewingDataset] = useState<string | null>(null)
+  const [expandedDataset, setExpandedDataset] = useState<string | null>(null)
 
   const handleStart = () => {
     if (localPrompt.trim()) {
@@ -211,113 +207,128 @@ export function TrainingModal() {
                 </div>
 
                 <ScrollArea className='h-[400px]'>
-                  <Accordion type='single' collapsible className='w-full'>
+                  <div className='space-y-3'>
                     {datasets.map((dataset, index) => (
-                      <AccordionItem key={dataset.id} value={dataset.id}>
-                        <AccordionTrigger className='hover:no-underline'>
-                          <div className='flex w-full items-center justify-between pr-4'>
-                            <div className='text-left'>
-                              <p className='font-medium text-sm'>Dataset {index + 1}</p>
-                              <p className='text-muted-foreground text-xs'>
-                                {dataset.prompt.substring(0, 50)}
-                                {dataset.prompt.length > 50 ? '...' : ''}
-                              </p>
-                            </div>
-                            <div className='flex items-center gap-2'>
-                              <span className='text-muted-foreground text-xs'>
-                                {dataset.editSequence.length} ops
-                              </span>
-                            </div>
+                      <div
+                        key={dataset.id}
+                        className='rounded-lg border bg-card transition-colors hover:bg-muted/50'
+                      >
+                        <button
+                          className='flex w-full items-center justify-between p-4 text-left'
+                          onClick={() =>
+                            setExpandedDataset(expandedDataset === dataset.id ? null : dataset.id)
+                          }
+                        >
+                          <div className='flex-1'>
+                            <p className='font-medium text-sm'>Dataset {index + 1}</p>
+                            <p className='text-muted-foreground text-xs'>
+                              {dataset.prompt.substring(0, 50)}
+                              {dataset.prompt.length > 50 ? '...' : ''}
+                            </p>
                           </div>
-                        </AccordionTrigger>
-                        <AccordionContent className='space-y-3'>
-                          <div>
-                            <p className='mb-1 font-medium text-sm'>Prompt</p>
-                            <p className='text-muted-foreground text-sm'>{dataset.prompt}</p>
-                          </div>
-
-                          <div>
-                            <p className='mb-1 font-medium text-sm'>Statistics</p>
-                            <div className='grid grid-cols-2 gap-2 text-sm'>
-                              <div>
-                                <span className='text-muted-foreground'>Duration:</span>{' '}
-                                {dataset.metadata?.duration
-                                  ? `${(dataset.metadata.duration / 1000).toFixed(1)}s`
-                                  : 'N/A'}
-                              </div>
-                              <div>
-                                <span className='text-muted-foreground'>Operations:</span>{' '}
-                                {dataset.editSequence.length}
-                              </div>
-                              <div>
-                                <span className='text-muted-foreground'>Final blocks:</span>{' '}
-                                {dataset.metadata?.blockCount || 0}
-                              </div>
-                              <div>
-                                <span className='text-muted-foreground'>Final edges:</span>{' '}
-                                {dataset.metadata?.edgeCount || 0}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div>
-                            <p className='mb-1 font-medium text-sm'>Edit Sequence</p>
-                            <div className='max-h-32 overflow-y-auto rounded border bg-muted/50 p-2'>
-                              <ul className='space-y-1 font-mono text-xs'>
-                                {formatEditSequence(dataset.editSequence).map((desc, i) => (
-                                  <li key={i}>{desc}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          </div>
-
-                          <div className='flex gap-2'>
-                            <Button
-                              variant='outline'
-                              size='sm'
-                              onClick={() => setViewingDataset(dataset.id)}
-                            >
-                              <Eye className='mr-2 h-4 w-4' />
-                              View JSON
-                            </Button>
-                            <Button
-                              variant='outline'
-                              size='sm'
-                              onClick={() => handleCopyDataset(dataset)}
-                            >
-                              {copiedId === dataset.id ? (
-                                <>
-                                  <Check className='mr-2 h-4 w-4' />
-                                  Copied!
-                                </>
-                              ) : (
-                                <>
-                                  <Clipboard className='mr-2 h-4 w-4' />
-                                  Copy
-                                </>
+                          <div className='flex items-center gap-3'>
+                            <span className='text-muted-foreground text-xs'>
+                              {dataset.editSequence.length} ops
+                            </span>
+                            <ChevronDown
+                              className={cn(
+                                'h-4 w-4 text-muted-foreground transition-transform',
+                                expandedDataset === dataset.id && 'rotate-180'
                               )}
-                            </Button>
+                            />
                           </div>
+                        </button>
 
-                          {viewingDataset === dataset.id && (
-                            <div className='rounded border bg-muted/50 p-3'>
-                              <pre className='max-h-64 overflow-auto text-xs'>
-                                {JSON.stringify(
-                                  {
-                                    prompt: dataset.prompt,
-                                    editSequence: dataset.editSequence,
-                                    metadata: dataset.metadata,
-                                  },
-                                  null,
-                                  2
-                                )}
-                              </pre>
+                        {expandedDataset === dataset.id && (
+                          <div className='border-t px-4 pb-4 pt-3 space-y-3'>
+                            <div>
+                              <p className='mb-1 font-medium text-sm'>Prompt</p>
+                              <p className='text-muted-foreground text-sm'>{dataset.prompt}</p>
                             </div>
-                          )}
-                        </AccordionContent>
-                      </AccordionItem>
+
+                            <div>
+                              <p className='mb-1 font-medium text-sm'>Statistics</p>
+                              <div className='grid grid-cols-2 gap-2 text-sm'>
+                                <div>
+                                  <span className='text-muted-foreground'>Duration:</span>{' '}
+                                  {dataset.metadata?.duration
+                                    ? `${(dataset.metadata.duration / 1000).toFixed(1)}s`
+                                    : 'N/A'}
+                                </div>
+                                <div>
+                                  <span className='text-muted-foreground'>Operations:</span>{' '}
+                                  {dataset.editSequence.length}
+                                </div>
+                                <div>
+                                  <span className='text-muted-foreground'>Final blocks:</span>{' '}
+                                  {dataset.metadata?.blockCount || 0}
+                                </div>
+                                <div>
+                                  <span className='text-muted-foreground'>Final edges:</span>{' '}
+                                  {dataset.metadata?.edgeCount || 0}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div>
+                              <p className='mb-1 font-medium text-sm'>Edit Sequence</p>
+                              <div className='max-h-32 overflow-y-auto rounded border bg-muted/50 p-2'>
+                                <ul className='space-y-1 font-mono text-xs'>
+                                  {formatEditSequence(dataset.editSequence).map((desc, i) => (
+                                    <li key={i}>{desc}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            </div>
+
+                            <div className='flex gap-2'>
+                              <Button
+                                variant='outline'
+                                size='sm'
+                                onClick={() => setViewingDataset(dataset.id)}
+                              >
+                                <Eye className='mr-2 h-4 w-4' />
+                                View JSON
+                              </Button>
+                              <Button
+                                variant='outline'
+                                size='sm'
+                                onClick={() => handleCopyDataset(dataset)}
+                              >
+                                {copiedId === dataset.id ? (
+                                  <>
+                                    <Check className='mr-2 h-4 w-4' />
+                                    Copied!
+                                  </>
+                                ) : (
+                                  <>
+                                    <Clipboard className='mr-2 h-4 w-4' />
+                                    Copy
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+
+                            {viewingDataset === dataset.id && (
+                              <div className='rounded border bg-muted/50 p-3'>
+                                <pre className='max-h-64 overflow-auto text-xs'>
+                                  {JSON.stringify(
+                                    {
+                                      prompt: dataset.prompt,
+                                      editSequence: dataset.editSequence,
+                                      metadata: dataset.metadata,
+                                    },
+                                    null,
+                                    2
+                                  )}
+                                </pre>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     ))}
-                  </Accordion>
+                  </div>
                 </ScrollArea>
               </>
             )}
