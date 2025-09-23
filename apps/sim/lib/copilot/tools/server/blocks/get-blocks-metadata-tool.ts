@@ -230,7 +230,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
       } catch {}
 
       if (metadata) {
-        result[blockId] = pruneNullishDeep(metadata) as CopilotBlockMetadata
+        result[blockId] = removeNullish(metadata) as CopilotBlockMetadata
       }
     }
 
@@ -370,23 +370,18 @@ function resolveSubblockOptions(
   }
 }
 
-function pruneNullishDeep<T>(value: T): T {
-  if (value === null || value === undefined) return value
-  if (Array.isArray(value)) {
-    const prunedArray = (value as unknown[])
-      .map((v) => pruneNullishDeep(v))
-      .filter((v) => v !== undefined && v !== null)
-    return prunedArray as unknown as T
-  }
-  if (typeof value === 'object') {
-    const output: Record<string, any> = {}
-    for (const [k, v] of Object.entries(value as Record<string, any>)) {
-      const pruned = pruneNullishDeep(v)
-      if (pruned !== undefined && pruned !== null) output[k] = pruned
+function removeNullish(obj: any): any {
+  if (!obj || typeof obj !== 'object') return obj
+
+  const cleaned: any = Array.isArray(obj) ? [] : {}
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== null && value !== undefined) {
+      cleaned[key] = value
     }
-    return output as unknown as T
   }
-  return value
+
+  return cleaned
 }
 
 function normalizeCondition(condition: any): any | undefined {
