@@ -8,9 +8,9 @@ const languages = {
   en: { name: 'English', flag: '🇺🇸' },
   es: { name: 'Español', flag: '🇪🇸' },
   fr: { name: 'Français', flag: '🇫🇷' },
-  zh: { name: '简体中文', flag: '🇨🇳' },
-  ja: { name: '日本語', flag: '🇯🇵' },
   de: { name: 'Deutsch', flag: '🇩🇪' },
+  ja: { name: '日本語', flag: '🇯🇵' },
+  zh: { name: '简体中文', flag: '🇨🇳' },
 }
 
 export function LanguageDropdown() {
