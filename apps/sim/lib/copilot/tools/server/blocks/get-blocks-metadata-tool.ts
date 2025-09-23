@@ -18,6 +18,44 @@ export interface CopilotSubblockMetadata {
   title?: string
   required?: boolean
   description?: string
+  placeholder?: string
+  layout?: string
+  mode?: string
+  hidden?: boolean
+  condition?: any
+  // Dropdown/combobox options
+  options?: { id: string; label?: string; hasIcon?: boolean }[]
+  // Numeric constraints
+  min?: number
+  max?: number
+  step?: number
+  integer?: boolean
+  // Text input properties
+  rows?: number
+  password?: boolean
+  multiSelect?: boolean
+  // Code/generation properties
+  language?: string
+  generationType?: string
+  // OAuth/credential properties
+  provider?: string
+  serviceId?: string
+  requiredScopes?: string[]
+  // File properties
+  mimeType?: string
+  acceptedTypes?: string
+  multiple?: boolean
+  maxSize?: number
+  // Other properties
+  connectionDroppable?: boolean
+  columns?: string[]
+  wandConfig?: any
+  availableTriggers?: string[]
+  triggerProvider?: string
+  dependsOn?: string[]
+  canonicalParamId?: string
+  defaultValue?: any
+  value?: string // 'function' if it's a function, undefined otherwise
 }
 
 export interface CopilotToolMetadata {
@@ -38,7 +76,8 @@ export interface CopilotBlockMetadata {
   name: string
   description: string
   bestPractices?: string
-  commonParameters: Record<string, any>
+  commonParameters: CopilotSubblockMetadata[]
+  inputs?: Record<string, any>
   triggerAllowed?: boolean
   authType?: 'OAuth' | 'API Key' | 'Bot Token'
   tools: CopilotToolMetadata[]
@@ -77,7 +116,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
 
       if (SPECIAL_BLOCKS_METADATA[blockId]) {
         const specialBlock = SPECIAL_BLOCKS_METADATA[blockId]
-        const { operationParameters } = splitParametersByOperation(
+        const { commonParameters, operationParameters } = splitParametersByOperation(
           specialBlock.subBlocks || [],
           specialBlock.inputs || {}
         )
@@ -85,7 +124,8 @@ export const getBlocksMetadataServerTool: BaseServerTool<
           id: specialBlock.id,
           name: specialBlock.name,
           description: specialBlock.description || '',
-          commonParameters: specialBlock.inputs || {},
+          commonParameters: commonParameters,
+          inputs: specialBlock.inputs || {},
           tools: [],
           triggers: [],
           operationParameters,
@@ -127,7 +167,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
         }
 
         const blockInputs = computeBlockLevelInputs(blockConfig)
-        const { operationParameters } = splitParametersByOperation(
+        const { commonParameters, operationParameters } = splitParametersByOperation(
           Array.isArray(blockConfig.subBlocks) ? blockConfig.subBlocks : [],
           blockInputs
         )
@@ -159,7 +199,8 @@ export const getBlocksMetadataServerTool: BaseServerTool<
           name: blockConfig.name || blockId,
           description: blockConfig.longDescription || blockConfig.description || '',
           bestPractices: blockConfig.bestPractices,
-          commonParameters: blockInputs,
+          commonParameters: commonParameters,
+          inputs: blockInputs,
           triggerAllowed: !!blockConfig.triggerAllowed,
           authType: resolveAuthType(blockConfig.authMode),
           tools,
@@ -189,7 +230,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
       } catch {}
 
       if (metadata) {
-        result[blockId] = metadata as CopilotBlockMetadata
+        result[blockId] = pruneNullishDeep(metadata) as CopilotBlockMetadata
       }
     }
 
@@ -197,15 +238,86 @@ export const getBlocksMetadataServerTool: BaseServerTool<
   },
 }
 
-function simplifySubBlock(sb: any): CopilotSubblockMetadata {
-  const simplified: CopilotSubblockMetadata = {
+function processSubBlock(sb: any): CopilotSubblockMetadata {
+  // Start with required fields
+  const processed: CopilotSubblockMetadata = {
     id: sb.id,
     type: sb.type,
   }
-  if (sb.title) simplified.title = sb.title
-  if (sb.required) simplified.required = sb.required
-  if (sb.description) simplified.description = sb.description
-  return simplified
+
+  // Process all optional fields - only add if they exist and are not null/undefined
+  const optionalFields = {
+    // Basic properties
+    title: sb.title,
+    required: sb.required,
+    description: sb.description,
+    placeholder: sb.placeholder,
+    layout: sb.layout,
+    mode: sb.mode,
+    hidden: sb.hidden,
+    canonicalParamId: sb.canonicalParamId,
+    defaultValue: sb.defaultValue,
+
+    // Numeric constraints
+    min: sb.min,
+    max: sb.max,
+    step: sb.step,
+    integer: sb.integer,
+
+    // Text input properties
+    rows: sb.rows,
+    password: sb.password,
+    multiSelect: sb.multiSelect,
+
+    // Code/generation properties
+    language: sb.language,
+    generationType: sb.generationType,
+
+    // OAuth/credential properties
+    provider: sb.provider,
+    serviceId: sb.serviceId,
+    requiredScopes: sb.requiredScopes,
+
+    // File properties
+    mimeType: sb.mimeType,
+    acceptedTypes: sb.acceptedTypes,
+    multiple: sb.multiple,
+    maxSize: sb.maxSize,
+
+    // Other properties
+    connectionDroppable: sb.connectionDroppable,
+    columns: sb.columns,
+    wandConfig: sb.wandConfig,
+    availableTriggers: sb.availableTriggers,
+    triggerProvider: sb.triggerProvider,
+    dependsOn: sb.dependsOn,
+  }
+
+  // Add non-null optional fields
+  for (const [key, value] of Object.entries(optionalFields)) {
+    if (value !== undefined && value !== null) {
+      ;(processed as any)[key] = value
+    }
+  }
+
+  // Handle condition normalization
+  const condition = normalizeCondition(sb.condition)
+  if (condition !== undefined) {
+    processed.condition = condition
+  }
+
+  // Handle value field (check if it's a function)
+  if (typeof sb.value === 'function') {
+    processed.value = 'function'
+  }
+
+  // Process options with icon detection
+  const options = resolveSubblockOptions(sb)
+  if (options) {
+    processed.options = options
+  }
+
+  return processed
 }
 
 function resolveAuthType(
@@ -216,6 +328,65 @@ function resolveAuthType(
   if (authMode === AuthMode.ApiKey) return 'API Key'
   if (authMode === AuthMode.BotToken) return 'Bot Token'
   return undefined
+}
+
+function resolveSubblockOptions(
+  sb: any
+): { id: string; label?: string; hasIcon?: boolean }[] | undefined {
+  try {
+    // Resolve options if it's a function
+    const rawOptions = typeof sb.options === 'function' ? sb.options() : sb.options
+    if (!Array.isArray(rawOptions)) return undefined
+
+    const normalized = rawOptions
+      .map((opt: any) => {
+        if (!opt) return undefined
+
+        // Handle both string and object options
+        const id = typeof opt === 'object' ? opt.id : opt
+        if (id === undefined || id === null) return undefined
+
+        const result: { id: string; label?: string; hasIcon?: boolean } = {
+          id: String(id),
+        }
+
+        // Add label if present
+        if (typeof opt === 'object' && typeof opt.label === 'string') {
+          result.label = opt.label
+        }
+
+        // Check for icon presence
+        if (typeof opt === 'object' && opt.icon) {
+          result.hasIcon = true
+        }
+
+        return result
+      })
+      .filter((o): o is { id: string; label?: string; hasIcon?: boolean } => o !== undefined)
+
+    return normalized.length > 0 ? normalized : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function pruneNullishDeep<T>(value: T): T {
+  if (value === null || value === undefined) return value
+  if (Array.isArray(value)) {
+    const prunedArray = (value as unknown[])
+      .map((v) => pruneNullishDeep(v))
+      .filter((v) => v !== undefined && v !== null)
+    return prunedArray as unknown as T
+  }
+  if (typeof value === 'object') {
+    const output: Record<string, any> = {}
+    for (const [k, v] of Object.entries(value as Record<string, any>)) {
+      const pruned = pruneNullishDeep(v)
+      if (pruned !== undefined && pruned !== null) output[k] = pruned
+    }
+    return output as unknown as T
+  }
+  return value
 }
 
 function normalizeCondition(condition: any): any | undefined {
@@ -242,14 +413,14 @@ function splitParametersByOperation(
 
   for (const sb of subBlocks || []) {
     const cond = normalizeCondition(sb.condition)
-    const simplified = simplifySubBlock(sb)
+    const processed = processSubBlock(sb)
 
     if (cond && cond.field === 'operation' && !cond.not && cond.value !== undefined) {
       const values: any[] = Array.isArray(cond.value) ? cond.value : [cond.value]
       for (const v of values) {
         const key = String(v)
         if (!operationParameters[key]) operationParameters[key] = []
-        operationParameters[key].push(simplified)
+        operationParameters[key].push(processed)
       }
     } else {
       // Override description from blockInputs if available (by id or canonicalParamId)
@@ -258,12 +429,12 @@ function splitParametersByOperation(
         for (const key of candidates) {
           const bi = (blockInputsForDescriptions as any)[key as string]
           if (bi && typeof bi.description === 'string') {
-            simplified.description = bi.description
+            processed.description = bi.description
             break
           }
         }
       }
-      commonParameters.push(simplified)
+      commonParameters.push(processed)
     }
   }
 
