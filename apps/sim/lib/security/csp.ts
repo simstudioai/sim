@@ -62,6 +62,7 @@ export const buildTimeCSPDirectives: CSPDirectives = {
     'https://*.public.blob.vercel-storage.com',
     'https://*.s3.amazonaws.com',
     'https://s3.amazonaws.com',
+    'https://github.com/*',
     ...(env.S3_BUCKET_NAME && env.AWS_REGION
       ? [`https://${env.S3_BUCKET_NAME}.s3.${env.AWS_REGION}.amazonaws.com`]
       : []),
@@ -73,6 +74,7 @@ export const buildTimeCSPDirectives: CSPDirectives = {
       : []),
     'https://*.amazonaws.com',
     'https://*.blob.core.windows.net',
+    'https://github.com/*',
     ...getHostnameFromUrl(env.NEXT_PUBLIC_BRAND_LOGO_URL),
     ...getHostnameFromUrl(env.NEXT_PUBLIC_BRAND_FAVICON_URL),
   ],
@@ -107,6 +109,8 @@ export const buildTimeCSPDirectives: CSPDirectives = {
     'https://*.vercel.app',
     'wss://*.vercel.app',
     'https://pro.ip-api.com',
+    'https://api.github.com',
+    'https://github.com/*',
     ...getHostnameFromUrl(env.NEXT_PUBLIC_BRAND_LOGO_URL),
     ...getHostnameFromUrl(env.NEXT_PUBLIC_PRIVACY_URL),
     ...getHostnameFromUrl(env.NEXT_PUBLIC_TERMS_URL),
@@ -169,7 +173,7 @@ export function generateRuntimeCSP(): string {
     img-src 'self' data: blob: https://*.googleusercontent.com https://*.google.com https://*.atlassian.com https://cdn.discordapp.com https://*.githubusercontent.com https://*.public.blob.vercel-storage.com ${brandLogoDomain} ${brandFaviconDomain};
     media-src 'self' blob:;
     font-src 'self' https://fonts.gstatic.com;
-    connect-src 'self' ${appUrl} ${ollamaUrl} ${socketUrl} ${socketWsUrl} https://*.up.railway.app wss://*.up.railway.app https://api.browser-use.com https://api.exa.ai https://api.firecrawl.dev https://*.googleapis.com https://*.amazonaws.com https://*.s3.amazonaws.com https://*.blob.core.windows.net https://*.vercel-insights.com https://vitals.vercel-insights.com https://*.atlassian.com https://*.supabase.co https://vercel.live https://*.vercel.live https://vercel.com https://*.vercel.app wss://*.vercel.app https://pro.ip-api.com ${dynamicDomainsStr};
+    connect-src 'self' ${appUrl} ${ollamaUrl} ${socketUrl} ${socketWsUrl} https://*.up.railway.app wss://*.up.railway.app https://api.browser-use.com https://api.exa.ai https://api.firecrawl.dev https://*.googleapis.com https://*.amazonaws.com https://*.s3.amazonaws.com https://*.blob.core.windows.net https://api.github.com https://github.com/* https://*.vercel-insights.com https://vitals.vercel-insights.com https://*.atlassian.com https://*.supabase.co https://vercel.live https://*.vercel.live https://vercel.com https://*.vercel.app wss://*.vercel.app https://pro.ip-api.com ${dynamicDomainsStr};
     frame-src https://drive.google.com https://docs.google.com https://*.google.com;
     frame-ancestors 'self';
     form-action 'self';

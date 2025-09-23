@@ -23,7 +23,8 @@
     "check": "bunx biome check --files-ignore-unknown=true",
     "prepare": "bun husky",
     "prebuild": "bun run lint:check",
-    "type-check": "turbo run type-check"
+    "type-check": "turbo run type-check",
+    "release": "bun run scripts/create-single-release.ts"
   },
   "overrides": {
     "react": "19.1.0",
@@ -49,6 +50,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.0.0-beta.5",
+    "@octokit/rest": "^21.0.0",
     "@next/env": "15.4.1",
     "@types/bcryptjs": "3.0.0",
     "drizzle-kit": "^0.31.4",
