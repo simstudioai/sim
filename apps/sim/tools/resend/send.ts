@@ -1,14 +1,19 @@
-import type { MailSendParams, MailSendResult } from '@/tools/mail/types'
+import type { MailSendParams, MailSendResult } from '@/tools/resend/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const mailSendTool: ToolConfig<MailSendParams, MailSendResult> = {
-  id: 'mail_send',
+  id: 'resend_send',
   name: 'Send Email',
-  description:
-    'Send an email using the internal mail service without requiring OAuth or external configuration',
+  description: 'Send an email using your own Resend API key and from address',
   version: '1.0.0',
 
   params: {
+    fromAddress: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Email address to send from',
+    },
     to: {
       type: 'string',
       required: true,
@@ -27,6 +32,12 @@ export const mailSendTool: ToolConfig<MailSendParams, MailSendResult> = {
       visibility: 'user-or-llm',
       description: 'Email body content',
     },
+    resendApiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Resend API key for sending emails',
+    },
   },
 
   request: {
@@ -36,6 +47,8 @@ export const mailSendTool: ToolConfig<MailSendParams, MailSendResult> = {
       'Content-Type': 'application/json',
     }),
     body: (params: MailSendParams) => ({
+      resendApiKey: params.resendApiKey,
+      fromAddress: params.fromAddress,
       to: params.to,
       subject: params.subject,
       body: params.body,

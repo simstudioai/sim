@@ -1,6 +1,8 @@
 import type { ToolResponse } from '@/tools/types'
 
 export interface MailSendParams {
+  resendApiKey: string
+  fromAddress: string
   to: string
   subject: string
   body: string

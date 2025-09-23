@@ -55,7 +55,6 @@ export const env = createEnv({
     RESEND_API_KEY:                        z.string().min(1).optional(),           // Resend API key for transactional emails
     FROM_EMAIL_ADDRESS:                    z.string().min(1).optional(),           // Complete from address (e.g., "Sim <noreply@domain.com>" or "noreply@domain.com")
     EMAIL_DOMAIN:                          z.string().min(1).optional(),           // Domain for sending emails (fallback when FROM_EMAIL_ADDRESS not set)
-    MAIL_BLOCK_FROM_ADDRESS:               z.string().min(1).optional(),           // Custom from address for mail block tool (e.g., "Bot <bot@domain.com>")
     AZURE_ACS_CONNECTION_STRING:           z.string().optional(),                  // Azure Communication Services connection string
 
     // SMS & Messaging
