@@ -168,7 +168,7 @@
   "overrides": {
     "next": "15.4.1",
     "@next/env": "15.4.1",
-    "drizzle-orm": "^0.41.0",
+    "drizzle-orm": "^0.44.5",
     "postgres": "^3.4.5"
   }
 }

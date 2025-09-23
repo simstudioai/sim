@@ -155,14 +155,13 @@ export class LoopBlockHandler implements BlockHandler {
   }
 
   /**
-   * Activate child nodes for loop execution.
+   * Activate child nodes for loop execution
    */
   private activateChildNodes(
     block: SerializedBlock,
     context: ExecutionContext,
     currentIteration: number
   ): void {
-    // Loop is still active, activate the loop-start-source connection.
     const loopStartConnections =
       context.workflow?.connections.filter(
         (conn) => conn.source === block.id && conn.sourceHandle === 'loop-start-source'
