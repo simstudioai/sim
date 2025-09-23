@@ -3028,4 +3028,319 @@ describe('InputResolver', () => {
       expect(result.content3).toBe('result = 10 + 5')
     })
   })
+
+  describe('Virtual Block Reference Resolution (Parallel Execution)', () => {
+    let parallelWorkflow: SerializedWorkflow
+    let parallelContext: ExecutionContext
+    let resolver: InputResolver
+
+    beforeEach(() => {
+      parallelWorkflow = {
+        version: '2.0',
+        blocks: [
+          {
+            id: 'start-block',
+            metadata: { id: BlockType.STARTER, name: 'Start', category: 'triggers' },
+            position: { x: 0, y: 0 },
+            config: { tool: BlockType.STARTER, params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'parallel-block',
+            metadata: { id: BlockType.PARALLEL, name: 'Parallel' },
+            position: { x: 200, y: 0 },
+            config: { tool: BlockType.PARALLEL, params: { count: 3 } },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'function1-block',
+            metadata: { id: BlockType.FUNCTION, name: 'Function 1' },
+            position: { x: 100, y: 100 },
+            config: {
+              tool: BlockType.FUNCTION,
+              params: { code: 'return <parallel.index>' },
+            },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'function2-block',
+            metadata: { id: BlockType.FUNCTION, name: 'Function 2' },
+            position: { x: 300, y: 100 },
+            config: {
+              tool: BlockType.FUNCTION,
+              params: { code: 'return <function1.result> * 2' },
+            },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+        ],
+        connections: [
+          { source: 'start-block', target: 'parallel-block', sourceHandle: 'source' },
+          {
+            source: 'parallel-block',
+            target: 'function1-block',
+            sourceHandle: 'parallel-start-source',
+          },
+          { source: 'function1-block', target: 'function2-block', sourceHandle: 'source' },
+        ],
+        loops: {},
+        parallels: {
+          'parallel-block': {
+            id: 'parallel-block',
+            nodes: ['function1-block', 'function2-block'],
+            count: 3,
+          },
+        },
+      }
+
+      parallelContext = {
+        workflowId: 'test-parallel-workflow',
+        workflow: parallelWorkflow,
+        blockStates: new Map([
+          // Regular block states (should not be used in parallel resolution)
+          ['function1-block', { output: { result: 'should-not-use-this' } }],
+
+          // Virtual block states for iteration 0
+          ['function1-block_parallel_parallel-block_iteration_0', { output: { result: 0 } }],
+          ['function2-block_parallel_parallel-block_iteration_0', { output: { result: 0 } }],
+
+          // Virtual block states for iteration 1
+          ['function1-block_parallel_parallel-block_iteration_1', { output: { result: 1 } }],
+          ['function2-block_parallel_parallel-block_iteration_1', { output: { result: 2 } }],
+
+          // Virtual block states for iteration 2
+          ['function1-block_parallel_parallel-block_iteration_2', { output: { result: 2 } }],
+          ['function2-block_parallel_parallel-block_iteration_2', { output: { result: 4 } }],
+        ]),
+        activeExecutionPath: new Set([
+          'start-block',
+          'parallel-block',
+          'function1-block',
+          'function2-block',
+        ]),
+        blockLogs: [],
+        metadata: { startTime: new Date().toISOString(), duration: 0 },
+        environmentVariables: {},
+        decisions: { router: new Map(), condition: new Map() },
+        loopIterations: new Map(),
+        loopItems: new Map(),
+        completedLoops: new Set(),
+        executedBlocks: new Set(['start-block']),
+        parallelExecutions: new Map([
+          [
+            'parallel-block',
+            {
+              parallelCount: 3,
+              currentIteration: 3,
+              distributionItems: null,
+              completedExecutions: 3,
+              executionResults: new Map(),
+              activeIterations: new Set(),
+            },
+          ],
+        ]),
+        parallelBlockMapping: new Map([
+          [
+            'function2-block_parallel_parallel-block_iteration_0',
+            {
+              originalBlockId: 'function2-block',
+              parallelId: 'parallel-block',
+              iterationIndex: 0,
+            },
+          ],
+          [
+            'function2-block_parallel_parallel-block_iteration_1',
+            {
+              originalBlockId: 'function2-block',
+              parallelId: 'parallel-block',
+              iterationIndex: 1,
+            },
+          ],
+          [
+            'function2-block_parallel_parallel-block_iteration_2',
+            {
+              originalBlockId: 'function2-block',
+              parallelId: 'parallel-block',
+              iterationIndex: 2,
+            },
+          ],
+        ]),
+      }
+
+      resolver = new InputResolver(parallelWorkflow)
+    })
+
+    it('should resolve references to blocks within same parallel iteration', () => {
+      const function2Block = parallelWorkflow.blocks[3] // function2-block
+
+      // Mock currentVirtualBlockId for iteration 0
+      parallelContext.currentVirtualBlockId = 'function2-block_parallel_parallel-block_iteration_0'
+
+      const result = resolver.resolveInputs(function2Block, parallelContext)
+
+      // Should resolve function1.result to the virtual block result for iteration 0
+      expect(result.code).toBe('return 0 * 2')
+    })
+
+    it('should resolve references correctly for different iterations', () => {
+      const function2Block = parallelWorkflow.blocks[3] // function2-block
+
+      // Test iteration 1
+      parallelContext.currentVirtualBlockId = 'function2-block_parallel_parallel-block_iteration_1'
+      let result = resolver.resolveInputs(function2Block, parallelContext)
+      expect(result.code).toBe('return 1 * 2')
+
+      // Test iteration 2
+      parallelContext.currentVirtualBlockId = 'function2-block_parallel_parallel-block_iteration_2'
+      result = resolver.resolveInputs(function2Block, parallelContext)
+      expect(result.code).toBe('return 2 * 2')
+    })
+
+    it('should fall back to regular resolution for blocks outside parallel', () => {
+      const function2Block: SerializedBlock = {
+        ...parallelWorkflow.blocks[3],
+        config: {
+          tool: BlockType.FUNCTION,
+          params: { code: 'return <start.input>' }, // Reference to external block
+        },
+      }
+
+      // Add start block output
+      parallelContext.blockStates.set('start-block', { output: { input: 'external-value' } })
+      parallelContext.currentVirtualBlockId = 'function2-block_parallel_parallel-block_iteration_0'
+
+      const result = resolver.resolveInputs(function2Block, parallelContext)
+
+      // Should resolve to external block (not virtual)
+      expect(result.code).toBe('return "external-value"')
+    })
+
+    it('should handle missing virtual block mapping gracefully', () => {
+      const function2Block = parallelWorkflow.blocks[3] // function2-block
+
+      // Remove the virtual block mapping
+      parallelContext.parallelBlockMapping = new Map()
+      parallelContext.currentVirtualBlockId = 'function2-block_parallel_parallel-block_iteration_0'
+
+      // Should resolve using regular block state when no virtual mapping exists
+      const result = resolver.resolveInputs(function2Block, parallelContext)
+      expect(result.code).toBe('return "should-not-use-this" * 2') // Uses regular block state
+    })
+
+    it('should handle missing virtual block state gracefully', () => {
+      const function2Block = parallelWorkflow.blocks[3] // function2-block
+
+      // Remove the virtual block state for function1 iteration 0
+      parallelContext.blockStates.delete('function1-block_parallel_parallel-block_iteration_0')
+      parallelContext.currentVirtualBlockId = 'function2-block_parallel_parallel-block_iteration_0'
+
+      expect(() => {
+        resolver.resolveInputs(function2Block, parallelContext)
+      }).toThrow(/No state found for block/)
+    })
+
+    it('should not use virtual resolution when not in parallel execution', () => {
+      const function2Block = parallelWorkflow.blocks[3] // function2-block
+
+      // Remove parallel execution context
+      parallelContext.currentVirtualBlockId = undefined
+      parallelContext.parallelBlockMapping = undefined
+
+      // Add regular block state for function1
+      parallelContext.blockStates.set('function1-block', { output: { result: 'regular-result' } })
+
+      const result = resolver.resolveInputs(function2Block, parallelContext)
+
+      // Should use regular block state resolution
+      expect(result.code).toBe('return "regular-result" * 2')
+    })
+
+    it('should handle complex references within parallel iterations', () => {
+      // Add a third function that references both function1 and function2
+      const function3Block: SerializedBlock = {
+        id: 'function3-block',
+        metadata: { id: BlockType.FUNCTION, name: 'Function 3' },
+        position: { x: 500, y: 100 },
+        config: {
+          tool: BlockType.FUNCTION,
+          params: { code: 'return <function1.result> + <function2.result>' },
+        },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      }
+
+      // Update workflow to include function3 and connections
+      const updatedWorkflow = {
+        ...parallelWorkflow,
+        blocks: [...parallelWorkflow.blocks, function3Block],
+        connections: [
+          ...parallelWorkflow.connections,
+          { source: 'function1-block', target: 'function3-block', sourceHandle: 'source' },
+          { source: 'function2-block', target: 'function3-block', sourceHandle: 'source' },
+        ],
+        parallels: {
+          'parallel-block': {
+            id: 'parallel-block',
+            nodes: ['function1-block', 'function2-block', 'function3-block'],
+            count: 3,
+          },
+        },
+      }
+
+      // Update context workflow
+      parallelContext.workflow = updatedWorkflow
+
+      // Add virtual block mapping for function3
+      parallelContext.parallelBlockMapping?.set(
+        'function3-block_parallel_parallel-block_iteration_1',
+        {
+          originalBlockId: 'function3-block',
+          parallelId: 'parallel-block',
+          iterationIndex: 1,
+        }
+      )
+
+      parallelContext.currentVirtualBlockId = 'function3-block_parallel_parallel-block_iteration_1'
+
+      // Create new resolver with updated workflow
+      const updatedResolver = new InputResolver(updatedWorkflow)
+      const result = updatedResolver.resolveInputs(function3Block, parallelContext)
+
+      // Should resolve both references to iteration 1 values
+      expect(result.code).toBe('return 1 + 2')
+    })
+
+    it('should validate that source block is in same parallel before using virtual resolution', () => {
+      const function2Block = parallelWorkflow.blocks[3] // function2-block
+
+      // Create a workflow where function1 is NOT in the same parallel
+      const modifiedWorkflow = {
+        ...parallelWorkflow,
+        parallels: {
+          'parallel-block': {
+            id: 'parallel-block',
+            nodes: ['function2-block'], // Remove function1 from parallel
+            count: 3,
+          },
+        },
+      }
+
+      // Create new resolver with modified workflow
+      const modifiedResolver = new InputResolver(modifiedWorkflow)
+      parallelContext.workflow = modifiedWorkflow
+      parallelContext.currentVirtualBlockId = 'function2-block_parallel_parallel-block_iteration_0'
+
+      // Should fall back to regular resolution and use the regular block state
+      const result = modifiedResolver.resolveInputs(function2Block, parallelContext)
+      expect(result.code).toBe('return "should-not-use-this" * 2')
+    })
+  })
 })

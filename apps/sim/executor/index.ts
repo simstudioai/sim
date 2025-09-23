@@ -1217,6 +1217,10 @@ export class Executor {
     parallel: any,
     context: ExecutionContext
   ): boolean {
+    if (!parallel || !parallel.nodes) {
+      return true
+    }
+
     for (const nodeId of parallel.nodes) {
       const virtualBlockId = `${nodeId}_parallel_${parallelId}_iteration_${iteration}`
       if (!context.executedBlocks.has(virtualBlockId)) {

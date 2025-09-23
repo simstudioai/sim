@@ -32,7 +32,6 @@ export class LoopBlockHandler implements BlockHandler {
   ): Promise<BlockOutput> {
     logger.info(`Executing loop block: ${block.id}`)
 
-    // Get the loop configuration from the workflow
     const loop = context.workflow?.loops?.[block.id]
     if (!loop) {
       logger.error(`Loop configuration not found for block ${block.id}`, {
@@ -43,7 +42,6 @@ export class LoopBlockHandler implements BlockHandler {
       throw new Error(`Loop configuration not found for block ${block.id}`)
     }
 
-    // Initialize loop iteration if not already done
     if (!context.loopIterations.has(block.id)) {
       context.loopIterations.set(block.id, 1)
       logger.info(`Initialized loop ${block.id} starting at iteration 1`)
@@ -75,7 +73,6 @@ export class LoopBlockHandler implements BlockHandler {
         )
       }
 
-      // For forEach, max iterations = items length
       const itemsLength = Array.isArray(forEachItems)
         ? forEachItems.length
         : Object.keys(forEachItems).length
@@ -94,12 +91,9 @@ export class LoopBlockHandler implements BlockHandler {
       `Loop ${block.id} - Current iteration: ${currentIteration}, Max iterations: ${maxIterations}`
     )
 
-    // Check if we've reached the maximum iterations
     if (currentIteration > maxIterations) {
       logger.info(`Loop ${block.id} has reached maximum iterations (${maxIterations})`)
 
-      // Don't mark as completed here - let the loop manager handle it after all blocks execute
-      // Just return that this is the final iteration
       return {
         loopId: block.id,
         currentIteration: currentIteration - 1, // Report the actual last iteration number
@@ -110,12 +104,9 @@ export class LoopBlockHandler implements BlockHandler {
       } as Record<string, any>
     }
 
-    // For forEach loops, set the current item
     if (loop.loopType === 'forEach' && forEachItems) {
-      // Store the full items array for access via <loop.items>
       context.loopItems.set(`${block.id}_items`, forEachItems)
 
-      // Convert 1-based iteration to 0-based index for array access
       const arrayIndex = currentIteration - 1
       const currentItem = Array.isArray(forEachItems)
         ? forEachItems[arrayIndex]
@@ -127,10 +118,6 @@ export class LoopBlockHandler implements BlockHandler {
       )
     }
 
-    // NOTE: We don't increment the counter here anymore to keep it 0-based like parallels
-    // The increment will happen when the loop iterates to the next cycle
-    // This keeps loop iteration indexing consistent with parallel blocks
-
     // Use routing strategy to determine if this block requires active path checking
     const blockType = block.metadata?.id
     if (Routing.requiresActivePathCheck(blockType || '')) {
@@ -140,12 +127,10 @@ export class LoopBlockHandler implements BlockHandler {
           isInActivePath = this.pathTracker.isInActivePath(block.id, context)
         } catch (error) {
           logger.warn(`PathTracker check failed for ${blockType} block ${block.id}:`, error)
-          // Default to true to maintain existing behavior if PathTracker fails
           isInActivePath = true
         }
       }
 
-      // Only activate child nodes if this block is in the active execution path
       if (isInActivePath) {
         this.activateChildNodes(block, context, currentIteration)
       } else {
@@ -154,11 +139,9 @@ export class LoopBlockHandler implements BlockHandler {
         )
       }
     } else {
-      // Regular blocks always activate their children
       this.activateChildNodes(block, context, currentIteration)
     }
 
-    // Store the current iteration in context so child blocks can access it immediately
     context.loopIterations.set(block.id, currentIteration)
 
     return {
@@ -172,14 +155,14 @@ export class LoopBlockHandler implements BlockHandler {
   }
 
   /**
-   * Activate child nodes for loop execution
+   * Activate child nodes for loop execution.
    */
   private activateChildNodes(
     block: SerializedBlock,
     context: ExecutionContext,
     currentIteration: number
   ): void {
-    // Loop is still active, activate the loop-start-source connection
+    // Loop is still active, activate the loop-start-source connection.
     const loopStartConnections =
       context.workflow?.connections.filter(
         (conn) => conn.source === block.id && conn.sourceHandle === 'loop-start-source'
