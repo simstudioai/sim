@@ -10,6 +10,9 @@ export const ChatTriggerBlock: BlockConfig = {
   name: 'Chat',
   description: 'Start workflow from a chat deployment',
   longDescription: 'Chat trigger to run the workflow via deployed chat interfaces.',
+  bestPractices: `
+  - Can run the workflow manually to test implementation when this is the trigger point by passing in a message.
+  `,
   category: 'triggers',
   bgColor: '#6F3DFA',
   icon: ChatTriggerIcon,

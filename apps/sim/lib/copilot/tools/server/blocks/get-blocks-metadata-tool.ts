@@ -37,6 +37,7 @@ export interface CopilotBlockMetadata {
   id: string
   name: string
   description: string
+  bestPractices?: string
   commonParameters: Record<string, any>
   triggerAllowed?: boolean
   authType?: 'OAuth' | 'API Key' | 'Bot Token'
@@ -157,6 +158,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
           id: blockId,
           name: blockConfig.name || blockId,
           description: blockConfig.longDescription || blockConfig.description || '',
+          bestPractices: blockConfig.bestPractices,
           commonParameters: blockInputs,
           triggerAllowed: !!blockConfig.triggerAllowed,
           authType: resolveAuthType(blockConfig.authMode),
@@ -362,6 +364,14 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
     id: 'loop',
     name: 'Loop',
     description: 'Control flow block for iterating over collections or repeating actions',
+    longDescription:
+      'Control flow block for iterating over collections or repeating actions serially',
+    bestPractices: `
+    - Set reasonable limits for iterations.
+    - Use forEach for collection processing, for loops for fixed iterations.
+    - Cannot have loops/parallels inside a loop block.
+    - For yaml it needs to connect blocks inside to the start field of the block.
+    `,
     inputs: {
       loopType: { type: 'string', required: true, enum: ['for', 'forEach'] },
       iterations: { type: 'number', required: false, minimum: 1, maximum: 1000 },
@@ -416,6 +426,13 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
     id: 'parallel',
     name: 'Parallel',
     description: 'Control flow block for executing multiple branches simultaneously',
+    longDescription: 'Control flow block for executing multiple branches simultaneously',
+    bestPractices: `
+    - Keep structures inside simple. Cannot have multiple blocks within a parallel block.
+    - Cannot have loops/parallels inside a parallel block.
+    - Agent block combobox can be <parallel.currentItem> if the user wants to query multiple models in parallel. The collection has to be an array of correct model strings available for the agent block.
+    - For yaml it needs to connect blocks inside to the start field of the block.
+    `,
     inputs: {
       parallelType: { type: 'string', required: true, enum: ['count', 'collection'] },
       count: { type: 'number', required: false, minimum: 1, maximum: 100 },

@@ -11,6 +11,11 @@ export const ScheduleBlock: BlockConfig = {
   description: 'Trigger workflow execution on a schedule',
   longDescription:
     'Integrate Schedule into the workflow. Can trigger a workflow on a schedule configuration.',
+  bestPractices: `
+  - Search up examples with schedule blocks to understand YAML syntax. 
+  - Prefer the custom cron expression input method over the other schedule configuration methods. 
+  - Clarify the timezone if the user doesn't specify it.
+  `,
   category: 'triggers',
   bgColor: '#6366F1',
   icon: ScheduleIcon,

@@ -13,7 +13,11 @@ export const GenericWebhookBlock: BlockConfig = {
   icon: WebhookIcon,
   bgColor: '#10B981', // Green color for triggers
   triggerAllowed: true,
-
+  bestPractices: `
+  - You can test the webhook by sending a request to the webhook URL. E.g. depending on authorization:  curl -X POST http://localhost:3000/api/webhooks/trigger/d8abcf0d-1ee5-4b77-bb07-b1e8142ea4e9 -H "Content-Type: application/json" -H "X-Sim-Secret: 1234" -d '{"message": "Test webhook trigger", "data": {"key": "v"}}'
+  - Continuing example above, the body can be accessed in downstream block using dot notation. E.g. <webhook1.message> and <webhook1.data.key>
+  - Only use when there's no existing integration for the service with triggerAllowed flag set to true.
+  `,
   subBlocks: [
     // Generic webhook configuration - always visible
     {

@@ -20,6 +20,11 @@ export const WorkflowInputBlock: BlockConfig = {
   type: 'workflow_input',
   name: 'Workflow',
   description: 'Execute another workflow and map variables to its Input Trigger schema.',
+  longDescription: `Execute another child workflow and map variables to its Input Trigger schema. Helps with modularizing workflows.`,
+  bestPractices: `
+  - Usually clarify/check if the user has tagged a workflow to use as the child workflow. Understand the child workflow to determine the logical position of this block in the workflow.
+  - Remember, that the start point of the child workflow is the Input Form Trigger block.
+  `,
   category: 'blocks',
   bgColor: '#6366F1', // Indigo - modern and professional
   icon: WorkflowIcon,

@@ -190,6 +190,7 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
   description: string
   category: BlockCategory
   longDescription?: string
+  bestPractices?: string
   docsLink?: string
   bgColor: string
   icon: BlockIcon
