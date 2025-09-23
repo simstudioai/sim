@@ -1,12 +1,5 @@
 #!/usr/bin/env bun
 
-/**
- * Single Release Creation Script
- *
- * Creates a single GitHub release for a specific version tag.
- * Used by the GitHub Action for automatic releases.
- */
-
 import { execSync } from 'node:child_process'
 import { Octokit } from '@octokit/rest'
 
@@ -389,5 +382,4 @@ async function main() {
   }
 }
 
-// Run the script
 main()
