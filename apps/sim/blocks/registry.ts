@@ -35,7 +35,6 @@ import { JiraBlock } from '@/blocks/blocks/jira'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
 import { LinearBlock } from '@/blocks/blocks/linear'
 import { LinkupBlock } from '@/blocks/blocks/linkup'
-import { MailBlock } from '@/blocks/blocks/mail'
 import { McpBlock } from '@/blocks/blocks/mcp'
 import { Mem0Block } from '@/blocks/blocks/mem0'
 import { MemoryBlock } from '@/blocks/blocks/memory'
@@ -55,6 +54,7 @@ import { PineconeBlock } from '@/blocks/blocks/pinecone'
 import { PostgreSQLBlock } from '@/blocks/blocks/postgresql'
 import { QdrantBlock } from '@/blocks/blocks/qdrant'
 import { RedditBlock } from '@/blocks/blocks/reddit'
+import { ResendBlock } from '@/blocks/blocks/resend'
 import { ResponseBlock } from '@/blocks/blocks/response'
 import { RouterBlock } from '@/blocks/blocks/router'
 import { S3Block } from '@/blocks/blocks/s3'
@@ -116,7 +116,6 @@ export const registry: Record<string, BlockConfig> = {
   knowledge: KnowledgeBlock,
   linear: LinearBlock,
   linkup: LinkupBlock,
-  mail: MailBlock,
   mcp: McpBlock,
   mem0: Mem0Block,
   microsoft_excel: MicrosoftExcelBlock,
@@ -134,6 +133,7 @@ export const registry: Record<string, BlockConfig> = {
   pinecone: PineconeBlock,
   postgresql: PostgreSQLBlock,
   qdrant: QdrantBlock,
+  resend: ResendBlock,
   memory: MemoryBlock,
   reddit: RedditBlock,
   response: ResponseBlock,

@@ -1,18 +1,26 @@
-import { MailIcon } from '@/components/icons'
+import { ResendIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import type { MailSendResult } from '@/tools/mail/types'
+import type { MailSendResult } from '@/tools/resend/types'
 
-export const MailBlock: BlockConfig<MailSendResult> = {
-  type: 'mail',
-  name: 'Mail',
-  description: 'Send emails using the internal mail service',
-  longDescription:
-    'Send emails directly using the internal mail service. Uses MAIL_BLOCK_FROM_ADDRESS if configured, otherwise falls back to FROM_EMAIL_ADDRESS. No external configuration or OAuth required. Perfect for sending notifications, alerts, or general purpose emails from your workflows. Supports HTML formatting.',
+export const ResendBlock: BlockConfig<MailSendResult> = {
+  type: 'resend',
+  name: 'Resend',
+  description: 'Send emails with Resend.',
+  longDescription: 'Integrate Resend into the workflow. Can send emails. Requires API Key.',
+  docsLink: 'https://docs.sim.ai/tools/resend',
   category: 'tools',
-  bgColor: '#E0E0E0',
-  icon: MailIcon,
+  bgColor: '#181C1E',
+  icon: ResendIcon,
 
   subBlocks: [
+    {
+      id: 'fromAddress',
+      title: 'From Address',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'sender@yourdomain.com',
+      required: true,
+    },
     {
       id: 'to',
       title: 'To',
@@ -34,16 +42,27 @@ export const MailBlock: BlockConfig<MailSendResult> = {
       title: 'Body',
       type: 'long-input',
       layout: 'full',
-      placeholder: 'Email body content (HTML supported)',
+      placeholder: 'Email body content',
       required: true,
+    },
+    {
+      id: 'resendApiKey',
+      title: 'Resend API Key',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Your Resend API key',
+      required: true,
+      password: true,
     },
   ],
 
   tools: {
-    access: ['mail_send'],
+    access: ['resend_send'],
     config: {
-      tool: () => 'mail_send',
+      tool: () => 'resend_send',
       params: (params) => ({
+        resendApiKey: params.resendApiKey,
+        fromAddress: params.fromAddress,
         to: params.to,
         subject: params.subject,
         body: params.body,
@@ -52,9 +71,11 @@ export const MailBlock: BlockConfig<MailSendResult> = {
   },
 
   inputs: {
+    fromAddress: { type: 'string', description: 'Email address to send from' },
     to: { type: 'string', description: 'Recipient email address' },
     subject: { type: 'string', description: 'Email subject' },
     body: { type: 'string', description: 'Email body content' },
+    resendApiKey: { type: 'string', description: 'Resend API key for sending emails' },
   },
 
   outputs: {
