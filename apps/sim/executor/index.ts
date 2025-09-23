@@ -250,7 +250,6 @@ export class Executor {
         } else {
           // Normal execution without debug mode
           if (nextLayer.length === 0) {
-            // Check if there are more parallel iterations to process
             hasMoreLayers = this.hasMoreParallelWork(context)
           } else {
             const outputs = await this.executeLayer(nextLayer, context)
@@ -1164,7 +1163,6 @@ export class Executor {
       }
     }
 
-    // Process all active parallels with proper dependency ordering within iterations
     this.processParallelBlocks(activeParallels, context, pendingBlocks)
 
     return Array.from(pendingBlocks)
@@ -1652,12 +1650,10 @@ export class Executor {
       blockLog.blockId = blockId
       blockLog.blockName = `${block.metadata?.name || ''} (iteration ${parallelInfo.iterationIndex + 1})`
     } else {
-      // Check if this block is inside a loop and add iteration info to the name
       const containingLoopId = this.resolver.getContainingLoopId(block.id)
       if (containingLoopId) {
         const currentIteration = context.loopIterations.get(containingLoopId)
         if (currentIteration !== undefined) {
-          // Loop iterations are now 1-based like parallels, so no need to add +1
           blockLog.blockName = `${block.metadata?.name || ''} (iteration ${currentIteration})`
         }
       }

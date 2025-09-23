@@ -75,8 +75,11 @@ describe('InputResolver', () => {
       workflowId: 'test-workflow',
       workflow: sampleWorkflow,
       blockStates: new Map([
-        ['starter-block', { output: { input: 'Hello World', type: 'text' } }],
-        ['function-block', { output: { result: '42' } }], // String value as it would be in real app
+        [
+          'starter-block',
+          { output: { input: 'Hello World', type: 'text' }, executed: true, executionTime: 0 },
+        ],
+        ['function-block', { output: { result: '42' }, executed: true, executionTime: 0 }], // String value as it would be in real app
       ]),
       activeExecutionPath: new Set(['starter-block', 'function-block']),
       blockLogs: [],
@@ -2885,7 +2888,7 @@ describe('InputResolver', () => {
         workflow: extendedWorkflow,
         blockStates: new Map([
           ...mockContext.blockStates,
-          ['testblock', { output: { result: 'test result' } }],
+          ['testblock', { output: { result: 'test result' }, executed: true, executionTime: 0 }],
         ]),
         activeExecutionPath: new Set([...mockContext.activeExecutionPath, 'testblock']),
       }
@@ -3104,20 +3107,37 @@ describe('InputResolver', () => {
         workflowId: 'test-parallel-workflow',
         workflow: parallelWorkflow,
         blockStates: new Map([
-          // Regular block states (should not be used in parallel resolution)
-          ['function1-block', { output: { result: 'should-not-use-this' } }],
+          [
+            'function1-block',
+            { output: { result: 'should-not-use-this' }, executed: true, executionTime: 0 },
+          ],
 
-          // Virtual block states for iteration 0
-          ['function1-block_parallel_parallel-block_iteration_0', { output: { result: 0 } }],
-          ['function2-block_parallel_parallel-block_iteration_0', { output: { result: 0 } }],
+          [
+            'function1-block_parallel_parallel-block_iteration_0',
+            { output: { result: 0 }, executed: true, executionTime: 0 },
+          ],
+          [
+            'function2-block_parallel_parallel-block_iteration_0',
+            { output: { result: 0 }, executed: true, executionTime: 0 },
+          ],
 
-          // Virtual block states for iteration 1
-          ['function1-block_parallel_parallel-block_iteration_1', { output: { result: 1 } }],
-          ['function2-block_parallel_parallel-block_iteration_1', { output: { result: 2 } }],
+          [
+            'function1-block_parallel_parallel-block_iteration_1',
+            { output: { result: 1 }, executed: true, executionTime: 0 },
+          ],
+          [
+            'function2-block_parallel_parallel-block_iteration_1',
+            { output: { result: 2 }, executed: true, executionTime: 0 },
+          ],
 
-          // Virtual block states for iteration 2
-          ['function1-block_parallel_parallel-block_iteration_2', { output: { result: 2 } }],
-          ['function2-block_parallel_parallel-block_iteration_2', { output: { result: 4 } }],
+          [
+            'function1-block_parallel_parallel-block_iteration_2',
+            { output: { result: 2 }, executed: true, executionTime: 0 },
+          ],
+          [
+            'function2-block_parallel_parallel-block_iteration_2',
+            { output: { result: 4 }, executed: true, executionTime: 0 },
+          ],
         ]),
         activeExecutionPath: new Set([
           'start-block',
@@ -3174,30 +3194,26 @@ describe('InputResolver', () => {
         ]),
       }
 
-      resolver = new InputResolver(parallelWorkflow)
+      resolver = new InputResolver(parallelWorkflow, {})
     })
 
     it('should resolve references to blocks within same parallel iteration', () => {
       const function2Block = parallelWorkflow.blocks[3] // function2-block
 
-      // Mock currentVirtualBlockId for iteration 0
       parallelContext.currentVirtualBlockId = 'function2-block_parallel_parallel-block_iteration_0'
 
       const result = resolver.resolveInputs(function2Block, parallelContext)
 
-      // Should resolve function1.result to the virtual block result for iteration 0
       expect(result.code).toBe('return 0 * 2')
     })
 
     it('should resolve references correctly for different iterations', () => {
       const function2Block = parallelWorkflow.blocks[3] // function2-block
 
-      // Test iteration 1
       parallelContext.currentVirtualBlockId = 'function2-block_parallel_parallel-block_iteration_1'
       let result = resolver.resolveInputs(function2Block, parallelContext)
       expect(result.code).toBe('return 1 * 2')
 
-      // Test iteration 2
       parallelContext.currentVirtualBlockId = 'function2-block_parallel_parallel-block_iteration_2'
       result = resolver.resolveInputs(function2Block, parallelContext)
       expect(result.code).toBe('return 2 * 2')
@@ -3208,28 +3224,28 @@ describe('InputResolver', () => {
         ...parallelWorkflow.blocks[3],
         config: {
           tool: BlockType.FUNCTION,
-          params: { code: 'return <start.input>' }, // Reference to external block
+          params: { code: 'return <start.input>' },
         },
       }
 
-      // Add start block output
-      parallelContext.blockStates.set('start-block', { output: { input: 'external-value' } })
+      parallelContext.blockStates.set('start-block', {
+        output: { input: 'external-value' },
+        executed: true,
+        executionTime: 0,
+      })
       parallelContext.currentVirtualBlockId = 'function2-block_parallel_parallel-block_iteration_0'
 
       const result = resolver.resolveInputs(function2Block, parallelContext)
 
-      // Should resolve to external block (not virtual)
       expect(result.code).toBe('return "external-value"')
     })
 
     it('should handle missing virtual block mapping gracefully', () => {
       const function2Block = parallelWorkflow.blocks[3] // function2-block
 
-      // Remove the virtual block mapping
       parallelContext.parallelBlockMapping = new Map()
       parallelContext.currentVirtualBlockId = 'function2-block_parallel_parallel-block_iteration_0'
 
-      // Should resolve using regular block state when no virtual mapping exists
       const result = resolver.resolveInputs(function2Block, parallelContext)
       expect(result.code).toBe('return "should-not-use-this" * 2') // Uses regular block state
     })
@@ -3237,7 +3253,6 @@ describe('InputResolver', () => {
     it('should handle missing virtual block state gracefully', () => {
       const function2Block = parallelWorkflow.blocks[3] // function2-block
 
-      // Remove the virtual block state for function1 iteration 0
       parallelContext.blockStates.delete('function1-block_parallel_parallel-block_iteration_0')
       parallelContext.currentVirtualBlockId = 'function2-block_parallel_parallel-block_iteration_0'
 
@@ -3249,21 +3264,21 @@ describe('InputResolver', () => {
     it('should not use virtual resolution when not in parallel execution', () => {
       const function2Block = parallelWorkflow.blocks[3] // function2-block
 
-      // Remove parallel execution context
       parallelContext.currentVirtualBlockId = undefined
       parallelContext.parallelBlockMapping = undefined
 
-      // Add regular block state for function1
-      parallelContext.blockStates.set('function1-block', { output: { result: 'regular-result' } })
+      parallelContext.blockStates.set('function1-block', {
+        output: { result: 'regular-result' },
+        executed: true,
+        executionTime: 0,
+      })
 
       const result = resolver.resolveInputs(function2Block, parallelContext)
 
-      // Should use regular block state resolution
       expect(result.code).toBe('return "regular-result" * 2')
     })
 
     it('should handle complex references within parallel iterations', () => {
-      // Add a third function that references both function1 and function2
       const function3Block: SerializedBlock = {
         id: 'function3-block',
         metadata: { id: BlockType.FUNCTION, name: 'Function 3' },
@@ -3277,7 +3292,6 @@ describe('InputResolver', () => {
         enabled: true,
       }
 
-      // Update workflow to include function3 and connections
       const updatedWorkflow = {
         ...parallelWorkflow,
         blocks: [...parallelWorkflow.blocks, function3Block],
@@ -3295,10 +3309,8 @@ describe('InputResolver', () => {
         },
       }
 
-      // Update context workflow
       parallelContext.workflow = updatedWorkflow
 
-      // Add virtual block mapping for function3
       parallelContext.parallelBlockMapping?.set(
         'function3-block_parallel_parallel-block_iteration_1',
         {
@@ -3310,35 +3322,30 @@ describe('InputResolver', () => {
 
       parallelContext.currentVirtualBlockId = 'function3-block_parallel_parallel-block_iteration_1'
 
-      // Create new resolver with updated workflow
-      const updatedResolver = new InputResolver(updatedWorkflow)
+      const updatedResolver = new InputResolver(updatedWorkflow, {})
       const result = updatedResolver.resolveInputs(function3Block, parallelContext)
 
-      // Should resolve both references to iteration 1 values
       expect(result.code).toBe('return 1 + 2')
     })
 
     it('should validate that source block is in same parallel before using virtual resolution', () => {
       const function2Block = parallelWorkflow.blocks[3] // function2-block
 
-      // Create a workflow where function1 is NOT in the same parallel
       const modifiedWorkflow = {
         ...parallelWorkflow,
         parallels: {
           'parallel-block': {
             id: 'parallel-block',
-            nodes: ['function2-block'], // Remove function1 from parallel
+            nodes: ['function2-block'],
             count: 3,
           },
         },
       }
 
-      // Create new resolver with modified workflow
-      const modifiedResolver = new InputResolver(modifiedWorkflow)
+      const modifiedResolver = new InputResolver(modifiedWorkflow, {})
       parallelContext.workflow = modifiedWorkflow
       parallelContext.currentVirtualBlockId = 'function2-block_parallel_parallel-block_iteration_0'
 
-      // Should fall back to regular resolution and use the regular block state
       const result = modifiedResolver.resolveInputs(function2Block, parallelContext)
       expect(result.code).toBe('return "should-not-use-this" * 2')
     })

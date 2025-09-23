@@ -45,12 +45,6 @@ export class LoopManager {
       // Check if all blocks in the loop have been executed
       const allBlocksInLoopExecuted = this.allBlocksExecuted(loop.nodes, context)
 
-      logger.info(`Loop ${loopId} - Processing iteration check`)
-      logger.info(`  Loop block executed: ${loopBlockExecuted}`)
-      logger.info(`  All blocks executed: ${allBlocksInLoopExecuted}`)
-      logger.info(`  Blocks in loop: ${loop.nodes.join(', ')}`)
-      logger.info(`  Current iteration: ${context.loopIterations.get(loopId) || 1}`)
-
       if (allBlocksInLoopExecuted) {
         // All blocks in the loop have been executed
         const currentIteration = context.loopIterations.get(loopId) || 1
@@ -109,21 +103,16 @@ export class LoopManager {
         logger.info(`Loop ${loopId} - Current: ${currentIteration}, Max: ${maxIterations}`)
 
         // Check if we've completed all iterations
-        // With 1-based indexing, currentIteration goes from 1 to maxIterations
-        // So we've completed all iterations when currentIteration equals maxIterations
         if (currentIteration >= maxIterations) {
-          // This was the last iteration
           hasLoopReachedMaxIterations = true
           logger.info(`Loop ${loopId} has completed all ${maxIterations} iterations`)
 
-          // Aggregate results from all iterations using stored results
           const results = []
           const loopState = context.loopExecutions?.get(loopId)
           if (loopState) {
             for (let i = 0; i < maxIterations; i++) {
               const result = loopState.executionResults.get(`iteration_${i}`)
               if (result) {
-                // If result is an array (from multiple blocks in the loop), flatten it
                 if (Array.isArray(result)) {
                   results.push(...result)
                 } else {
@@ -133,7 +122,6 @@ export class LoopManager {
             }
           }
 
-          // Store the aggregated results in the loop block's state so subsequent blocks can reference them
           const aggregatedOutput = {
             loopId,
             currentIteration: maxIterations - 1, // Last iteration index
@@ -144,17 +132,14 @@ export class LoopManager {
             message: `Completed all ${maxIterations} iterations`,
           }
 
-          // Store the aggregated results in context so blocks connected to loop-end-source can access them
           context.blockStates.set(loopId, {
             output: aggregatedOutput,
             executed: true,
-            executionTime: 0, // Loop coordination doesn't have meaningful execution time
+            executionTime: 0,
           })
 
-          // Mark this loop as completed
           context.completedLoops.add(loopId)
 
-          // Activate the loop-end-source connections to continue workflow after loop
           const loopEndConnections =
             context.workflow?.connections.filter(
               (conn) => conn.source === loopId && conn.sourceHandle === 'loop-end-source'
@@ -167,14 +152,11 @@ export class LoopManager {
 
           logger.info(`Loop ${loopId} - Completed and activated end connections`)
         } else {
-          // More iterations to go - increment the iteration counter for the next iteration
           context.loopIterations.set(loopId, currentIteration + 1)
           logger.info(`Loop ${loopId} - Incremented counter to ${currentIteration + 1}`)
 
-          // Reset the blocks inside the loop
           this.resetLoopBlocks(loopId, loop, context)
 
-          // Reset the loop block itself so it can execute again
           context.executedBlocks.delete(loopId)
           context.blockStates.delete(loopId)
 
@@ -197,7 +179,6 @@ export class LoopManager {
       return Object.keys(forEachItems).length
     }
     if (typeof forEachItems === 'string') {
-      // Try to parse if it's a JSON string
       try {
         const parsed = JSON.parse(forEachItems)
         if (Array.isArray(parsed)) {
@@ -206,9 +187,7 @@ export class LoopManager {
         if (typeof parsed === 'object' && parsed !== null) {
           return Object.keys(parsed).length
         }
-      } catch {
-        // Not valid JSON
-      }
+      } catch {}
     }
     return 0
   }
@@ -223,16 +202,12 @@ export class LoopManager {
   private resetLoopBlocks(loopId: string, loop: SerializedLoop, context: ExecutionContext): void {
     // Reset all blocks in the loop
     for (const nodeId of loop.nodes) {
-      // Remove from executed blocks
       context.executedBlocks.delete(nodeId)
 
-      // Clear the block state
       context.blockStates.delete(nodeId)
 
-      // Remove from active execution path
       context.activeExecutionPath.delete(nodeId)
 
-      // Clear any routing decisions for this block
       context.decisions.router.delete(nodeId)
       context.decisions.condition.delete(nodeId)
     }
