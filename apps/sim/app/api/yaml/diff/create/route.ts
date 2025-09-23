@@ -4,6 +4,7 @@ import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 import { generateRequestId } from '@/lib/utils'
+import { validateWorkflowState } from '@/lib/workflows/validation'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { resolveOutputType } from '@/blocks/utils'
@@ -60,6 +61,59 @@ const CreateDiffRequestSchema = z.object({
     })
     .optional(),
 })
+
+/**
+ * Convert blocks with 'inputs' field to standard 'subBlocks' structure
+ * This handles trigger blocks that may come from YAML/copilot with legacy format
+ */
+function normalizeBlockStructure(blocks: Record<string, any>): Record<string, any> {
+  const normalizedBlocks: Record<string, any> = {}
+
+  for (const [blockId, block] of Object.entries(blocks)) {
+    const normalizedBlock = { ...block }
+
+    // Check if this is a trigger block with 'inputs' field
+    if (
+      block.inputs &&
+      (block.type === 'api_trigger' ||
+        block.type === 'input_trigger' ||
+        block.type === 'starter' ||
+        block.type === 'chat_trigger' ||
+        block.type === 'generic_webhook')
+    ) {
+      // Convert inputs.inputFormat to subBlocks.inputFormat
+      if (block.inputs.inputFormat) {
+        if (!normalizedBlock.subBlocks) {
+          normalizedBlock.subBlocks = {}
+        }
+
+        normalizedBlock.subBlocks.inputFormat = {
+          id: 'inputFormat',
+          type: 'input-format',
+          value: block.inputs.inputFormat,
+        }
+      }
+
+      // Copy any other inputs fields to subBlocks
+      for (const [inputKey, inputValue] of Object.entries(block.inputs)) {
+        if (inputKey !== 'inputFormat' && !normalizedBlock.subBlocks[inputKey]) {
+          normalizedBlock.subBlocks[inputKey] = {
+            id: inputKey,
+            type: 'short-input', // Default type, may need adjustment based on actual field
+            value: inputValue,
+          }
+        }
+      }
+
+      // Remove the inputs field after conversion
+      normalizedBlock.inputs = undefined
+    }
+
+    normalizedBlocks[blockId] = normalizedBlock
+  }
+
+  return normalizedBlocks
+}
 
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
@@ -202,6 +256,46 @@ export async function POST(request: NextRequest) {
     const finalResult = result
 
     if (result.success && result.diff?.proposedState) {
+      // Normalize blocks that use 'inputs' field to standard 'subBlocks' structure
+      if (result.diff.proposedState.blocks) {
+        result.diff.proposedState.blocks = normalizeBlockStructure(result.diff.proposedState.blocks)
+      }
+
+      // Validate the proposed workflow state
+      const validation = validateWorkflowState(result.diff.proposedState, { sanitize: true })
+
+      if (!validation.valid) {
+        logger.error(`[${requestId}] Proposed workflow state validation failed`, {
+          errors: validation.errors,
+          warnings: validation.warnings,
+        })
+        return NextResponse.json(
+          {
+            success: false,
+            errors: validation.errors,
+          },
+          { status: 400 }
+        )
+      }
+
+      // Use sanitized state if available
+      if (validation.sanitizedState) {
+        result.diff.proposedState = validation.sanitizedState
+      }
+
+      if (validation.warnings.length > 0) {
+        logger.warn(`[${requestId}] Proposed workflow validation warnings`, {
+          warnings: validation.warnings,
+        })
+        // Include warnings in the response
+        if (!result.warnings) {
+          result.warnings = []
+        }
+        result.warnings.push(...validation.warnings)
+      }
+
+      logger.info(`[${requestId}] Successfully created diff with normalized and validated blocks`)
+
       // First, fix parent-child relationships based on edges
       const blocks = result.diff.proposedState.blocks
       const edges = result.diff.proposedState.edges || []
@@ -270,6 +364,9 @@ export async function POST(request: NextRequest) {
     // transform it to the expected diff format
     if (result.success && result.blocks && !result.diff) {
       logger.info(`[${requestId}] Transforming sim agent blocks response to diff format`)
+
+      // Normalize blocks that use 'inputs' field to standard 'subBlocks' structure
+      result.blocks = normalizeBlockStructure(result.blocks)
 
       // First, fix parent-child relationships based on edges
       const blocks = result.blocks

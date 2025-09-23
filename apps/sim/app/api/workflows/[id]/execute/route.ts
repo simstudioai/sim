@@ -14,6 +14,7 @@ import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { decryptSecret, generateRequestId } from '@/lib/utils'
 import { loadDeployedWorkflowState } from '@/lib/workflows/db-helpers'
+import { TriggerUtils } from '@/lib/workflows/triggers'
 import {
   createHttpResponseFromBlock,
   updateWorkflowRunCounts,
@@ -272,6 +273,32 @@ async function executeWorkflow(
       true // Enable validation during execution
     )
 
+    // Determine API trigger start block
+    // Direct API execution ONLY works with API trigger blocks (or legacy starter in api/run mode)
+    const startBlock = TriggerUtils.findStartBlock(mergedStates, 'api', false) // isChildWorkflow = false
+
+    if (!startBlock) {
+      logger.error(`[${requestId}] No API trigger configured for this workflow`)
+      throw new Error(
+        'No API trigger configured for this workflow. Add an API Trigger block or use a Start block in API mode.'
+      )
+    }
+
+    const startBlockId = startBlock.blockId
+    const triggerBlock = startBlock.block
+
+    // Check if the API trigger has any outgoing connections (except for legacy starter blocks)
+    // Legacy starter blocks have their own validation in the executor
+    if (triggerBlock.type !== 'starter') {
+      const outgoingConnections = serializedWorkflow.connections.filter(
+        (conn) => conn.source === startBlockId
+      )
+      if (outgoingConnections.length === 0) {
+        logger.error(`[${requestId}] API trigger has no outgoing connections`)
+        throw new Error('API Trigger block must be connected to other blocks to execute')
+      }
+    }
+
     const executor = new Executor({
       workflow: serializedWorkflow,
       currentBlockStates: processedBlockStates,
@@ -287,7 +314,7 @@ async function executeWorkflow(
     // Set up logging on the executor
     loggingSession.setupExecutor(executor)
 
-    const result = await executor.execute(workflowId)
+    const result = await executor.execute(workflowId, startBlockId)
 
     // Check if we got a StreamingExecution result (with stream + execution properties)
     // For API routes, we only care about the ExecutionResult part, not the stream

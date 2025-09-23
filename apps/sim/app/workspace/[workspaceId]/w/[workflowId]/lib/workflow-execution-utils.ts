@@ -6,7 +6,6 @@
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
-import { getBlock } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
 import { Executor } from '@/executor'
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
@@ -131,26 +130,9 @@ export async function executeWorkflowWithLogging(
   // Merge subblock states from the appropriate store
   const mergedStates = mergeSubblockState(validBlocks)
 
-  // Filter out trigger blocks for manual execution
-  const filteredStates = Object.entries(mergedStates).reduce(
-    (acc, [id, block]) => {
-      // Skip blocks with undefined type
-      if (!block || !block.type) {
-        logger.warn(`Skipping block with undefined type: ${id}`, block)
-        return acc
-      }
-
-      const blockConfig = getBlock(block.type)
-      const isTriggerBlock = blockConfig?.category === 'triggers'
-
-      // Skip trigger blocks during manual execution
-      if (!isTriggerBlock) {
-        acc[id] = block
-      }
-      return acc
-    },
-    {} as typeof mergedStates
-  )
+  // Don't filter out trigger blocks - let the executor handle them properly
+  // The standard executor has TriggerBlockHandler that knows how to handle triggers
+  const filteredStates = mergedStates
 
   const currentBlockStates = Object.entries(filteredStates).reduce(
     (acc, [id, block]) => {
@@ -186,15 +168,9 @@ export async function executeWorkflowWithLogging(
     {} as Record<string, any>
   )
 
-  // Filter edges to exclude connections to/from trigger blocks
-  const triggerBlockIds = Object.keys(mergedStates).filter((id) => {
-    const blockConfig = getBlock(mergedStates[id].type)
-    return blockConfig?.category === 'triggers'
-  })
-
-  const filteredEdges = workflowEdges.filter(
-    (edge: any) => !triggerBlockIds.includes(edge.source) && !triggerBlockIds.includes(edge.target)
-  )
+  // Don't filter edges - let all connections remain intact
+  // The executor's routing system will handle execution paths properly
+  const filteredEdges = workflowEdges
 
   // Create serialized workflow with filtered blocks and edges
   const workflow = new Serializer().serializeWorkflow(

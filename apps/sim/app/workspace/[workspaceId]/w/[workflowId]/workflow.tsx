@@ -13,6 +13,7 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { createLogger } from '@/lib/logs/console/logger'
+import { TriggerUtils } from '@/lib/workflows/triggers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ControlBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/control-bar'
 import { DiffControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/diff-controls'
@@ -20,6 +21,11 @@ import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/comp
 import { FloatingControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/floating-controls/floating-controls'
 import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/panel'
 import { SubflowNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
+import { TriggerList } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/trigger-list/trigger-list'
+import {
+  TriggerWarningDialog,
+  TriggerWarningType,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/trigger-warning-dialog'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
@@ -77,6 +83,17 @@ const WorkflowContent = React.memo(() => {
   // Enhanced edge selection with parent context and unique identifier
   const [selectedEdgeInfo, setSelectedEdgeInfo] = useState<SelectedEdgeInfo | null>(null)
 
+  // State for trigger warning dialog
+  const [triggerWarning, setTriggerWarning] = useState<{
+    open: boolean
+    triggerName: string
+    type: TriggerWarningType
+  }>({
+    open: false,
+    triggerName: '',
+    type: TriggerWarningType.DUPLICATE_TRIGGER,
+  })
+
   // Hooks
   const params = useParams()
   const router = useRouter()
@@ -106,6 +123,11 @@ const WorkflowContent = React.memo(() => {
 
   // Extract workflow data from the abstraction
   const { blocks, edges, loops, parallels, isDiffMode } = currentWorkflow
+
+  // Check if workflow is empty (no blocks)
+  const isWorkflowEmpty = useMemo(() => {
+    return Object.keys(blocks).length === 0
+  }, [blocks])
 
   // Get diff analysis for edge reconstruction
   const { diffAnalysis, isShowingDiff, isDiffReady } = useWorkflowDiffStore()
@@ -565,7 +587,7 @@ const WorkflowContent = React.memo(() => {
         return
       }
 
-      const { type } = event.detail
+      const { type, enableTriggerMode } = event.detail
 
       if (!type) return
       if (type === 'connectionBlock') return
@@ -637,7 +659,10 @@ const WorkflowContent = React.memo(() => {
 
       // Create a new block with a unique ID
       const id = crypto.randomUUID()
-      const name = getUniqueBlockName(blockConfig.name, blocks)
+      // Prefer semantic default names for triggers; then ensure unique numbering centrally
+      const defaultTriggerName = TriggerUtils.getDefaultTriggerName(type)
+      const baseName = defaultTriggerName || blockConfig.name
+      const name = getUniqueBlockName(baseName, blocks)
 
       // Auto-connect logic
       const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
@@ -661,8 +686,38 @@ const WorkflowContent = React.memo(() => {
         }
       }
 
+      // Centralized trigger constraints
+      const additionIssue = TriggerUtils.getTriggerAdditionIssue(blocks, type)
+      if (additionIssue) {
+        if (additionIssue.issue === 'legacy') {
+          setTriggerWarning({
+            open: true,
+            triggerName: additionIssue.triggerName,
+            type: TriggerWarningType.LEGACY_INCOMPATIBILITY,
+          })
+        } else {
+          setTriggerWarning({
+            open: true,
+            triggerName: additionIssue.triggerName,
+            type: TriggerWarningType.DUPLICATE_TRIGGER,
+          })
+        }
+        return
+      }
+
       // Add the block to the workflow with auto-connect edge
-      addBlock(id, type, name, centerPosition, undefined, undefined, undefined, autoConnectEdge)
+      // Enable trigger mode if this is a trigger-capable block from the triggers tab
+      addBlock(
+        id,
+        type,
+        name,
+        centerPosition,
+        undefined,
+        undefined,
+        undefined,
+        autoConnectEdge,
+        enableTriggerMode
+      )
     }
 
     window.addEventListener('add-block-from-toolbar', handleAddBlockFromToolbar as EventListener)
@@ -681,7 +736,34 @@ const WorkflowContent = React.memo(() => {
     findClosestOutput,
     determineSourceHandle,
     effectivePermissions.canEdit,
+    setTriggerWarning,
   ])
+
+  // Handler for trigger selection from list
+  const handleTriggerSelect = useCallback(
+    (triggerId: string, enableTriggerMode?: boolean) => {
+      // Get the trigger name
+      const triggerName = TriggerUtils.getDefaultTriggerName(triggerId) || triggerId
+
+      // Create the trigger block at the center of the viewport
+      const centerPosition = project({ x: window.innerWidth / 2, y: window.innerHeight / 2 })
+      const id = `${triggerId}_${Date.now()}`
+
+      // Add the trigger block with trigger mode if specified
+      addBlock(
+        id,
+        triggerId,
+        triggerName,
+        centerPosition,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        enableTriggerMode || false
+      )
+    },
+    [project, addBlock]
+  )
 
   // Update the onDrop handler
   const onDrop = useCallback(
@@ -784,8 +866,14 @@ const WorkflowContent = React.memo(() => {
 
         // Generate id and name here so they're available in all code paths
         const id = crypto.randomUUID()
+        // Prefer semantic default names for triggers; then ensure unique numbering centrally
+        const defaultTriggerNameDrop = TriggerUtils.getDefaultTriggerName(data.type)
         const baseName =
-          data.type === 'loop' ? 'Loop' : data.type === 'parallel' ? 'Parallel' : blockConfig!.name
+          data.type === 'loop'
+            ? 'Loop'
+            : data.type === 'parallel'
+              ? 'Parallel'
+              : defaultTriggerNameDrop || blockConfig!.name
         const name = getUniqueBlockName(baseName, blocks)
 
         if (containerInfo) {
@@ -868,6 +956,20 @@ const WorkflowContent = React.memo(() => {
           // Immediate resize without delay
           resizeLoopNodesWrapper()
         } else {
+          // Centralized trigger constraints
+          const dropIssue = TriggerUtils.getTriggerAdditionIssue(blocks, data.type)
+          if (dropIssue) {
+            setTriggerWarning({
+              open: true,
+              triggerName: dropIssue.triggerName,
+              type:
+                dropIssue.issue === 'legacy'
+                  ? TriggerWarningType.LEGACY_INCOMPATIBILITY
+                  : TriggerWarningType.DUPLICATE_TRIGGER,
+            })
+            return
+          }
+
           // Regular auto-connect logic
           const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
           let autoConnectEdge
@@ -888,7 +990,19 @@ const WorkflowContent = React.memo(() => {
           }
 
           // Regular canvas drop with auto-connect edge
-          addBlock(id, data.type, name, position, undefined, undefined, undefined, autoConnectEdge)
+          // Use enableTriggerMode from drag data if present (when dragging from Triggers tab)
+          const enableTriggerMode = data.enableTriggerMode || false
+          addBlock(
+            id,
+            data.type,
+            name,
+            position,
+            undefined,
+            undefined,
+            undefined,
+            autoConnectEdge,
+            enableTriggerMode
+          )
         }
       } catch (err) {
         logger.error('Error dropping block:', { err })
@@ -903,6 +1017,7 @@ const WorkflowContent = React.memo(() => {
       determineSourceHandle,
       isPointInLoopNodeWrapper,
       getNodes,
+      setTriggerWarning,
     ]
   )
 
@@ -1815,6 +1930,19 @@ const WorkflowContent = React.memo(() => {
 
         {/* Show DiffControls if diff is available (regardless of current view mode) */}
         <DiffControls />
+
+        {/* Trigger warning dialog */}
+        <TriggerWarningDialog
+          open={triggerWarning.open}
+          onOpenChange={(open) => setTriggerWarning({ ...triggerWarning, open })}
+          triggerName={triggerWarning.triggerName}
+          type={triggerWarning.type}
+        />
+
+        {/* Trigger list for empty workflows - only show after workflow has loaded */}
+        {isWorkflowReady && isWorkflowEmpty && effectivePermissions.canEdit && (
+          <TriggerList onSelect={handleTriggerSelect} />
+        )}
       </div>
     </div>
   )

@@ -12,7 +12,7 @@ import {
   loadWorkflowFromNormalizedTables,
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/db-helpers'
-import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/validation'
+import { sanitizeAgentToolsInBlocks, validateWorkflowState } from '@/lib/workflows/validation'
 import { getUserId } from '@/app/api/auth/oauth/utils'
 import { getAllBlocks, getBlock } from '@/blocks'
 import type { BlockConfig } from '@/blocks/types'
@@ -241,6 +241,65 @@ async function upsertCustomToolsFromBlocks(
 }
 
 /**
+ * Convert blocks with 'inputs' field to standard 'subBlocks' structure
+ * This handles trigger blocks that may come from YAML/copilot with legacy format
+ */
+function normalizeBlockStructure(blocks: Record<string, any>): Record<string, any> {
+  const normalizedBlocks: Record<string, any> = {}
+
+  for (const [blockId, block] of Object.entries(blocks)) {
+    const normalizedBlock = { ...block }
+
+    // Normalize position coordinates (handle both uppercase and lowercase)
+    if (block.position) {
+      normalizedBlock.position = {
+        x: block.position.x ?? block.position.X ?? 0,
+        y: block.position.y ?? block.position.Y ?? 0,
+      }
+    }
+
+    // Convert any inputs map into subBlocks for consistency (applies to all blocks)
+    if (block.inputs) {
+      // Convert inputs.inputFormat to subBlocks.inputFormat
+      if (block.inputs.inputFormat) {
+        if (!normalizedBlock.subBlocks) {
+          normalizedBlock.subBlocks = {}
+        }
+
+        normalizedBlock.subBlocks.inputFormat = {
+          id: 'inputFormat',
+          type: 'input-format',
+          value: block.inputs.inputFormat,
+        }
+      }
+
+      // Copy all inputs fields to subBlocks (creating entries as needed)
+      for (const [inputKey, inputValue] of Object.entries(block.inputs)) {
+        if (!normalizedBlock.subBlocks) {
+          normalizedBlock.subBlocks = {}
+        }
+        if (!normalizedBlock.subBlocks[inputKey]) {
+          normalizedBlock.subBlocks[inputKey] = {
+            id: inputKey,
+            type: 'short-input', // Default type, may need adjustment based on actual field
+            value: inputValue,
+          }
+        } else {
+          normalizedBlock.subBlocks[inputKey].value = inputValue
+        }
+      }
+
+      // Remove the inputs field after conversion
+      normalizedBlock.inputs = undefined
+    }
+
+    normalizedBlocks[blockId] = normalizedBlock
+  }
+
+  return normalizedBlocks
+}
+
+/**
  * PUT /api/workflows/[id]/yaml
  * Consolidated YAML workflow saving endpoint
  * Handles copilot edits, imports, and text editor saves
@@ -344,39 +403,76 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       })
     }
 
+    // Normalize blocks that use 'inputs' field to standard 'subBlocks' structure
+    if (workflowState.blocks) {
+      workflowState.blocks = normalizeBlockStructure(workflowState.blocks)
+    }
+
+    // Validate the workflow state before persisting
+    const validation = validateWorkflowState(workflowState, { sanitize: true })
+
+    if (!validation.valid) {
+      logger.error(`[${requestId}] Workflow validation failed`, {
+        errors: validation.errors,
+        warnings: validation.warnings,
+      })
+      return NextResponse.json({
+        success: false,
+        message: 'Invalid workflow structure',
+        errors: validation.errors,
+        warnings: validation.warnings || [],
+      })
+    }
+
+    // Use sanitized state if available
+    const finalWorkflowState = validation.sanitizedState || workflowState
+
+    if (validation.warnings.length > 0) {
+      logger.warn(`[${requestId}] Workflow validation warnings`, {
+        warnings: validation.warnings,
+      })
+    }
+
     // Ensure all blocks have required fields
-    Object.values(workflowState.blocks).forEach((block: any) => {
-      if (block.enabled === undefined) {
-        block.enabled = true
+    Object.entries(finalWorkflowState.blocks).forEach(([blockId, block]) => {
+      const blockData = block as any
+      if (!blockData.id) blockData.id = blockId
+      if (!blockData.position) {
+        blockData.position = { x: 0, y: 0 }
       }
-      if (block.horizontalHandles === undefined) {
-        block.horizontalHandles = true
+      if (blockData.enabled === undefined) {
+        blockData.enabled = true
       }
-      if (block.isWide === undefined) {
-        block.isWide = false
+      if (blockData.horizontalHandles === undefined) {
+        blockData.horizontalHandles = true
       }
-      if (block.height === undefined) {
-        block.height = 0
+      if (blockData.isWide === undefined) {
+        blockData.isWide = false
       }
-      if (!block.subBlocks) {
-        block.subBlocks = {}
+      if (blockData.height === undefined) {
+        blockData.height = 0
       }
-      if (!block.outputs) {
-        block.outputs = {}
+      if (!blockData.subBlocks) {
+        blockData.subBlocks = {}
+      }
+      if (!blockData.outputs) {
+        blockData.outputs = {}
       }
     })
 
-    const blocks = Object.values(workflowState.blocks) as Array<{
+    const blocks = Object.values(finalWorkflowState.blocks) as Array<{
       id: string
       type: string
       name: string
       position: { x: number; y: number }
       subBlocks?: Record<string, any>
+      inputs?: Record<string, any>
+      triggerMode?: boolean
       data?: Record<string, any>
       parentId?: string
       extent?: string
     }>
-    const edges = workflowState.edges
+    const edges = finalWorkflowState.edges
     const warnings = conversionResult.warnings || []
 
     // Create workflow state
@@ -454,6 +550,25 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           })
         }
 
+        // Handle blocks that have inputs instead of subBlocks (from YAML/copilot format)
+        // This is especially important for trigger configuration
+        if (block.inputs) {
+          Object.entries(block.inputs).forEach(([inputKey, inputValue]) => {
+            const matchingSubBlock = blockConfig.subBlocks.find((sb) => sb.id === inputKey)
+            if (!subBlocks[inputKey]) {
+              subBlocks[inputKey] = {
+                id: inputKey,
+                type:
+                  matchingSubBlock?.type ||
+                  (inputKey === 'triggerConfig' ? 'trigger-config' : 'short-input'),
+                value: inputValue,
+              }
+            } else if (inputValue !== undefined) {
+              subBlocks[inputKey].value = inputValue
+            }
+          })
+        }
+
         // Set up outputs from block configuration
         const outputs = resolveOutputType(blockConfig.outputs)
 
@@ -476,10 +591,17 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           isWide: false,
           advancedMode: false,
           height: 0,
+          triggerMode: block.triggerMode || false, // Preserve triggerMode from imported block
           data: blockData,
         }
 
-        logger.debug(`[${requestId}] Processed regular block: ${block.id} -> ${newId}`)
+        logger.debug(`[${requestId}] Processed regular block: ${block.id} -> ${newId}`, {
+          blockType: block.type,
+          hasTriggerMode: block.triggerMode,
+          hasInputs: !!block.inputs,
+          inputKeys: block.inputs ? Object.keys(block.inputs) : [],
+          subBlockKeys: Object.keys(subBlocks),
+        })
       } else {
         logger.warn(`[${requestId}] Unknown block type: ${block.type}`)
       }

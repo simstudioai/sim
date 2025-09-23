@@ -1,8 +1,9 @@
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
-import { type BuildWorkflowInput, BuildWorkflowResult } from '@/lib/copilot/tools/shared/schemas'
+import type { BuildWorkflowInput, BuildWorkflowResult } from '@/lib/copilot/tools/shared/schemas'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
+import { validateWorkflowState } from '@/lib/workflows/validation'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { resolveOutputType } from '@/blocks/utils'
@@ -70,70 +71,79 @@ export const buildWorkflowServerTool: BaseServerTool<
           errors: conversionResult.errors,
           warnings: conversionResult.warnings,
         })
-        return BuildWorkflowResult.parse({
-          success: false,
-          message: `Failed to convert YAML workflow: ${Array.isArray(conversionResult.errors) ? conversionResult.errors.join(', ') : 'Unknown errors'}`,
-          yamlContent,
-          description,
+        throw new Error(conversionResult.errors?.join(', ') || 'Failed to convert YAML to workflow')
+      }
+
+      const workflowState = conversionResult.workflowState
+
+      // Validate the workflow state before returning
+      const validation = validateWorkflowState(workflowState, { sanitize: true })
+
+      if (!validation.valid) {
+        logger.error('Generated workflow state is invalid', {
+          errors: validation.errors,
+          warnings: validation.warnings,
+        })
+        throw new Error(`Invalid workflow: ${validation.errors.join('; ')}`)
+      }
+
+      if (validation.warnings.length > 0) {
+        logger.warn('Workflow validation warnings', {
+          warnings: validation.warnings,
         })
       }
 
-      const { workflowState } = conversionResult
+      // Use sanitized state if available
+      const finalWorkflowState = validation.sanitizedState || workflowState
 
-      const previewWorkflowState = {
-        blocks: {} as Record<string, any>,
-        edges: [] as any[],
-        loops: {} as Record<string, any>,
-        parallels: {} as Record<string, any>,
-        lastSaved: Date.now(),
-        isDeployed: false,
-      }
-
-      const blockIdMapping = new Map<string, string>()
-      Object.keys(workflowState.blocks).forEach((blockId: string) => {
-        const previewId = `preview-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
-        blockIdMapping.set(blockId, previewId)
+      // Apply positions using smart layout
+      const positionResponse = await fetch(`${SIM_AGENT_API_URL}/api/yaml/apply-layout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workflowState: finalWorkflowState,
+          options: {
+            strategy: 'smart',
+            direction: 'auto',
+            spacing: {
+              horizontal: 500,
+              vertical: 400,
+              layer: 700,
+            },
+            alignment: 'center',
+            padding: {
+              x: 250,
+              y: 250,
+            },
+          },
+        }),
       })
 
-      for (const [originalId, block] of Object.entries(workflowState.blocks)) {
-        const previewBlockId = blockIdMapping.get(originalId as string)!
-        const typedBlock = block as any
-        ;(previewWorkflowState.blocks as any)[previewBlockId] = {
-          ...typedBlock,
-          id: previewBlockId,
-          position: typedBlock.position || { x: 0, y: 0 },
-          enabled: true,
+      if (!positionResponse.ok) {
+        const errorText = await positionResponse.text().catch(() => '')
+        logger.warn('Failed to apply layout to workflow', {
+          status: positionResponse.status,
+          error: errorText,
+        })
+        // Non-critical error - continue with unpositioned workflow
+      } else {
+        const layoutResult = await positionResponse.json()
+        if (layoutResult.success && layoutResult.workflowState) {
+          // Update the workflow state with positioned blocks
+          Object.assign(finalWorkflowState, layoutResult.workflowState)
         }
       }
 
-      ;(previewWorkflowState as any).edges = (workflowState.edges as any[]).map((edge: any) => ({
-        ...edge,
-        id: `edge-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-        source: blockIdMapping.get(edge.source) || edge.source,
-        target: blockIdMapping.get(edge.target) || edge.target,
-      }))
-
-      const blocksCount = Object.keys((previewWorkflowState as any).blocks).length
-      const edgesCount = (previewWorkflowState as any).edges.length
-
-      logger.info('Workflow built successfully', { blocksCount, edgesCount })
-
-      return BuildWorkflowResult.parse({
+      return {
         success: true,
-        message: `Successfully built workflow with ${blocksCount} blocks and ${edgesCount} connections`,
+        workflowState: finalWorkflowState,
         yamlContent,
+        message: `Successfully built workflow with ${Object.keys(finalWorkflowState.blocks).length} blocks`,
         description: description || 'Built workflow',
-        workflowState: previewWorkflowState,
-        data: { blocksCount, edgesCount },
-      })
+      }
     } catch (error: any) {
-      logger.error('Failed to build workflow:', error)
-      return BuildWorkflowResult.parse({
-        success: false,
-        message: `Workflow build failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        yamlContent,
-        description,
-      })
+      logger.error('Error building workflow', error)
+      throw error
     }
   },
 }

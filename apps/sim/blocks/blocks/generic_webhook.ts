@@ -1,5 +1,9 @@
-import { WebhookIcon } from '@/components/icons'
+import type { SVGProps } from 'react'
+import { createElement } from 'react'
+import { Webhook } from 'lucide-react'
 import type { BlockConfig } from '@/blocks/types'
+
+const WebhookIcon = (props: SVGProps<SVGSVGElement>) => createElement(Webhook, props)
 
 export const GenericWebhookBlock: BlockConfig = {
   type: 'generic_webhook',
@@ -8,6 +12,7 @@ export const GenericWebhookBlock: BlockConfig = {
   category: 'triggers',
   icon: WebhookIcon,
   bgColor: '#10B981', // Green color for triggers
+  triggerAllowed: true,
 
   subBlocks: [
     // Generic webhook configuration - always visible

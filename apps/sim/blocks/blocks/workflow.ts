@@ -80,4 +80,5 @@ export const WorkflowBlock: BlockConfig = {
     result: { type: 'json', description: 'Workflow execution result' },
     error: { type: 'string', description: 'Error message' },
   },
+  hideFromToolbar: true,
 }

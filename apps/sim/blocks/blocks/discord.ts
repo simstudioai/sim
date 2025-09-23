@@ -1,13 +1,15 @@
 import { DiscordIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { DiscordResponse } from '@/tools/discord/types'
 
 export const DiscordBlock: BlockConfig<DiscordResponse> = {
   type: 'discord',
   name: 'Discord',
   description: 'Interact with Discord',
+  authMode: AuthMode.BotToken,
   longDescription:
-    'Integrate Discord into the workflow. Can send and get messages, get server information, and get a user’s information. Requires bot API key.',
+    'Integrate Discord into the workflow. Can send and get messages, get server information, and get a user’s information.',
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: DiscordIcon,

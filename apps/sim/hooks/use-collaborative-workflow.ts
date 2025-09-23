@@ -662,7 +662,8 @@ export function useCollaborativeWorkflow() {
       data?: Record<string, any>,
       parentId?: string,
       extent?: 'parent',
-      autoConnectEdge?: Edge
+      autoConnectEdge?: Edge,
+      triggerMode?: boolean
     ) => {
       // Skip socket operations when in diff mode
       if (isShowingDiff) {
@@ -695,6 +696,7 @@ export function useCollaborativeWorkflow() {
           horizontalHandles: true,
           isWide: false,
           advancedMode: false,
+          triggerMode: triggerMode || false,
           height: 0,
           parentId,
           extent,
@@ -704,7 +706,7 @@ export function useCollaborativeWorkflow() {
         // Skip if applying remote changes
         if (isApplyingRemoteChange.current) {
           workflowStore.addBlock(id, type, name, position, data, parentId, extent, {
-            triggerMode: false,
+            triggerMode: triggerMode || false,
           })
           if (autoConnectEdge) {
             workflowStore.addEdge(autoConnectEdge)
@@ -729,7 +731,7 @@ export function useCollaborativeWorkflow() {
 
         // Apply locally first (immediate UI feedback)
         workflowStore.addBlock(id, type, name, position, data, parentId, extent, {
-          triggerMode: false,
+          triggerMode: triggerMode || false,
         })
         if (autoConnectEdge) {
           workflowStore.addEdge(autoConnectEdge)
@@ -774,7 +776,7 @@ export function useCollaborativeWorkflow() {
         horizontalHandles: true,
         isWide: false,
         advancedMode: false,
-        triggerMode: false,
+        triggerMode: triggerMode || false,
         height: 0, // Default height, will be set by the UI
         parentId,
         extent,
@@ -801,7 +803,7 @@ export function useCollaborativeWorkflow() {
 
       // Apply locally
       workflowStore.addBlock(id, type, name, position, data, parentId, extent, {
-        triggerMode: false,
+        triggerMode: triggerMode || false,
       })
       if (autoConnectEdge) {
         workflowStore.addEdge(autoConnectEdge)

@@ -234,6 +234,8 @@ async function handleBlockOperationTx(
         throw new Error('Missing required fields for add block operation')
       }
 
+      // Note: single-API-trigger enforcement is handled client-side to avoid disconnects
+
       logger.debug(`[SERVER] Adding block: ${payload.type} (${payload.id})`, {
         isSubflowType: isSubflowBlockType(payload.type),
       })
@@ -268,6 +270,7 @@ async function handleBlockOperationTx(
           horizontalHandles: payload.horizontalHandles ?? true,
           isWide: payload.isWide ?? false,
           advancedMode: payload.advancedMode ?? false,
+          triggerMode: payload.triggerMode ?? false,
           height: payload.height || 0,
         }
 
@@ -660,6 +663,7 @@ async function handleBlockOperationTx(
           horizontalHandles: payload.horizontalHandles ?? true,
           isWide: payload.isWide ?? false,
           advancedMode: payload.advancedMode ?? false,
+          triggerMode: payload.triggerMode ?? false,
           height: payload.height || 0,
         }
 

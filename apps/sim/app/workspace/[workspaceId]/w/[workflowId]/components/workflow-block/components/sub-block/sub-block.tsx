@@ -18,6 +18,7 @@ import {
   FileUpload,
   FolderSelectorInput,
   InputFormat,
+  InputMapping,
   KnowledgeBaseSelector,
   LongInput,
   McpDynamicArgs,
@@ -447,6 +448,17 @@ export function SubBlock({
             isConnecting={isConnecting}
             config={config}
             showValue={true}
+          />
+        )
+      }
+      case 'input-mapping': {
+        return (
+          <InputMapping
+            blockId={blockId}
+            subBlockId={config.id}
+            isPreview={isPreview}
+            previewValue={previewValue}
+            disabled={isDisabled}
           />
         )
       }

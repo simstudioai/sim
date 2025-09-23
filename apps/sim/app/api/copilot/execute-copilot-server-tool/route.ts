@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
       return createBadRequestResponse('Invalid request body for execute-copilot-server-tool')
     }
     logger.error(`[${tracker.requestId}] Failed to execute server tool:`, error)
-    return createInternalServerErrorResponse('Failed to execute server tool')
+    const errorMessage = error instanceof Error ? error.message : 'Failed to execute server tool'
+    return createInternalServerErrorResponse(errorMessage)
   }
 }

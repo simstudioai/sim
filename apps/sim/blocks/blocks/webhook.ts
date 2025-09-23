@@ -13,6 +13,7 @@ import {
   WhatsAppIcon,
 } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 
 const getWebhookProviderIcon = (provider: string) => {
   const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -36,9 +37,11 @@ export const WebhookBlock: BlockConfig = {
   type: 'webhook',
   name: 'Webhook',
   description: 'Trigger workflow execution from external webhooks',
+  authMode: AuthMode.OAuth,
   category: 'triggers',
   icon: WebhookIcon,
   bgColor: '#10B981', // Green color for triggers
+  triggerAllowed: true,
   hideFromToolbar: true, // Hidden for backwards compatibility - use generic webhook trigger instead
 
   subBlocks: [

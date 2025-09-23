@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { permissions, workflow, workflowBlocks, workspace } from '@sim/db/schema'
+import { permissions, workflow, workspace } from '@sim/db/schema'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
@@ -110,9 +110,7 @@ async function createWorkspace(userId: string, name: string) {
         updatedAt: now,
       })
 
-      // Create initial workflow for the workspace with start block
-      const starterId = crypto.randomUUID()
-
+      // Create initial workflow for the workspace (empty canvas)
       // Create the workflow
       await tx.insert(workflow).values({
         id: workflowId,
@@ -133,61 +131,7 @@ async function createWorkspace(userId: string, name: string) {
         marketplaceData: null,
       })
 
-      // Insert the start block into workflow_blocks table
-      await tx.insert(workflowBlocks).values({
-        id: starterId,
-        workflowId: workflowId,
-        type: 'starter',
-        name: 'Start',
-        positionX: '100',
-        positionY: '100',
-        enabled: true,
-        horizontalHandles: true,
-        isWide: false,
-        advancedMode: false,
-        height: '95',
-        subBlocks: {
-          startWorkflow: {
-            id: 'startWorkflow',
-            type: 'dropdown',
-            value: 'manual',
-          },
-          webhookPath: {
-            id: 'webhookPath',
-            type: 'short-input',
-            value: '',
-          },
-          webhookSecret: {
-            id: 'webhookSecret',
-            type: 'short-input',
-            value: '',
-          },
-          scheduleType: {
-            id: 'scheduleType',
-            type: 'dropdown',
-            value: 'daily',
-          },
-          minutesInterval: {
-            id: 'minutesInterval',
-            type: 'short-input',
-            value: '',
-          },
-          minutesStartingAt: {
-            id: 'minutesStartingAt',
-            type: 'short-input',
-            value: '',
-          },
-        },
-        outputs: {
-          response: {
-            type: {
-              input: 'any',
-            },
-          },
-        },
-        createdAt: now,
-        updatedAt: now,
-      })
+      // No blocks are inserted - empty canvas
 
       logger.info(
         `Created workspace ${workspaceId} with initial workflow ${workflowId} for user ${userId}`
