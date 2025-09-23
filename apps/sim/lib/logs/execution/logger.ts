@@ -11,7 +11,7 @@ import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { checkUsageStatus, maybeSendUsageThresholdEmail } from '@/lib/billing/core/usage'
-import { getCostMultiplier, isBillingEnabled } from '@/lib/environment'
+import { isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { emitWorkflowExecutionCompleted } from '@/lib/logs/events'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
@@ -195,9 +195,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
         if (usr?.email) {
           const sub = await getHighestPrioritySubscription(usr.id)
 
-          const costMultiplier = getCostMultiplier()
-          const costDelta =
-            (costSummary.baseExecutionCharge || 0) + (costSummary.modelCost || 0) * costMultiplier
+          const costDelta = costSummary.totalCost
 
           const planName = sub?.plan || 'Free'
           const scope: 'user' | 'organization' =
@@ -399,9 +397,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       }
 
       const userId = workflowRecord.userId
-      const costMultiplier = getCostMultiplier()
-      // Apply cost multiplier only to model costs, not base execution charge
-      const costToStore = costSummary.baseExecutionCharge + costSummary.modelCost * costMultiplier
+      const costToStore = costSummary.totalCost
 
       const existing = await db.select().from(userStats).where(eq(userStats.userId, userId))
       if (existing.length === 0) {
