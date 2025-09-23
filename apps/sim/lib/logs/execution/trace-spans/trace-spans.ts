@@ -333,12 +333,15 @@ export function buildTraceSpans(result: ExecutionResult): {
     })
   }
 
+  // Group iteration-based blocks (parallel and loop) before calculating totals
+  const groupedRootSpans = groupIterationBlocks(rootSpans)
+
   // Calculate total duration as the sum of root spans
-  const totalDuration = rootSpans.reduce((sum, span) => sum + span.duration, 0)
+  const totalDuration = groupedRootSpans.reduce((sum, span) => sum + span.duration, 0)
 
   // Create a synthetic workflow span that represents the entire execution
   // This ensures we have a consistent top-level representation
-  if (rootSpans.length > 0 && result.metadata) {
+  if (groupedRootSpans.length > 0 && result.metadata) {
     // Get all spans to calculate accurate timings
     const allSpansList = Array.from(spanMap.values())
 
@@ -358,7 +361,7 @@ export function buildTraceSpans(result: ExecutionResult): {
     const actualWorkflowDuration = latestEnd - earliestStart
 
     // Check if any spans have errors to determine overall workflow status
-    const hasErrors = rootSpans.some((span) => {
+    const hasErrors = groupedRootSpans.some((span) => {
       if (span.status === 'error') return true
       // Recursively check children for errors
       const checkChildren = (children: TraceSpan[] = []): boolean => {
@@ -378,14 +381,259 @@ export function buildTraceSpans(result: ExecutionResult): {
       startTime: new Date(earliestStart).toISOString(),
       endTime: new Date(latestEnd).toISOString(),
       status: hasErrors ? 'error' : 'success',
-      children: rootSpans,
+      children: groupedRootSpans,
     }
 
     // Return this as the only root span, using the actual duration for total
     return { traceSpans: [workflowSpan], totalDuration: actualWorkflowDuration }
   }
 
-  return { traceSpans: rootSpans, totalDuration }
+  return { traceSpans: groupedRootSpans, totalDuration }
+}
+
+/**
+ * Groups iteration-based blocks (parallel and loop) by organizing their iteration spans
+ * into a hierarchical structure with proper parent-child relationships.
+ *
+ * @param spans - Array of root spans to process
+ * @returns Array of spans with iteration blocks properly grouped
+ */
+function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
+  const result: TraceSpan[] = []
+  const iterationSpans: TraceSpan[] = []
+  const normalSpans: TraceSpan[] = []
+
+  // First pass: separate iteration spans from normal spans
+  spans.forEach((span) => {
+    const iterationMatch = span.name.match(/^(.+) \(iteration (\d+)\)$/)
+    if (iterationMatch) {
+      iterationSpans.push(span)
+    } else {
+      normalSpans.push(span)
+    }
+  })
+
+  // Filter out actual parallel and loop block spans - we'll replace them with our synthetic containers
+  const nonIterationContainerSpans = normalSpans.filter(
+    (span) => span.type !== 'parallel' && span.type !== 'loop'
+  )
+
+  // If we have iteration spans, we need to create iteration containers (parallel or loop)
+  if (iterationSpans.length > 0) {
+    // Group iteration spans by their container (parallel or loop)
+    // Use the block ID to extract the parallel/loop information
+    const containerGroups = new Map<
+      string,
+      {
+        type: 'parallel' | 'loop'
+        containerId: string
+        containerName: string
+        spans: TraceSpan[]
+      }
+    >()
+
+    iterationSpans.forEach((span) => {
+      const iterationMatch = span.name.match(/^(.+) \(iteration (\d+)\)$/)
+      if (iterationMatch) {
+        let containerType: 'parallel' | 'loop' = 'loop'
+        let containerId = 'unknown'
+        let containerName = 'Unknown'
+
+        // Check if this is a parallel block by looking at the blockId
+        if (span.blockId?.includes('_parallel_')) {
+          // Extract parallel ID from virtual block ID: originalId_parallel_parallelId_iteration_X
+          const parallelMatch = span.blockId.match(/_parallel_([^_]+)_iteration_/)
+          if (parallelMatch) {
+            containerType = 'parallel'
+            containerId = parallelMatch[1]
+
+            // Try to find the actual parallel block to get its name
+            const parallelBlock = normalSpans.find(
+              (s) => s.blockId === containerId && s.type === 'parallel'
+            )
+            containerName = parallelBlock?.name || `Parallel ${containerId}`
+          }
+        } else {
+          // This is a loop block - try to extract loop information
+          containerType = 'loop'
+
+          // Try to find the actual loop block to get its ID and name
+          const loopBlock = normalSpans.find((s) => s.type === 'loop')
+          if (loopBlock) {
+            containerId = loopBlock.blockId || 'loop-1'
+            containerName = loopBlock.name || `Loop ${loopBlock.blockId || '1'}`
+          } else {
+            // Fallback to generic naming
+            containerId = 'loop-1'
+            containerName = 'Loop 1'
+          }
+        }
+
+        const groupKey = `${containerType}_${containerId}`
+
+        if (!containerGroups.has(groupKey)) {
+          containerGroups.set(groupKey, {
+            type: containerType,
+            containerId,
+            containerName,
+            spans: [],
+          })
+        }
+
+        containerGroups.get(groupKey)!.spans.push(span)
+      }
+    })
+
+    // Process each container group
+    containerGroups.forEach((group, groupKey) => {
+      const { type, containerId, containerName, spans } = group
+
+      // Group spans by iteration number within this container
+      const iterationGroups = new Map<number, TraceSpan[]>()
+
+      spans.forEach((span) => {
+        const iterationMatch = span.name.match(/^(.+) \(iteration (\d+)\)$/)
+        if (iterationMatch) {
+          const iterationIndex = Number.parseInt(iterationMatch[2])
+
+          if (!iterationGroups.has(iterationIndex)) {
+            iterationGroups.set(iterationIndex, [])
+          }
+          iterationGroups.get(iterationIndex)!.push(span)
+        }
+      })
+
+      if (type === 'parallel') {
+        // Create parallel container
+        const allIterationSpans = spans
+
+        // Calculate timing for the entire parallel execution
+        const startTimes = allIterationSpans.map((span) => new Date(span.startTime).getTime())
+        const endTimes = allIterationSpans.map((span) => new Date(span.endTime).getTime())
+        const earliestStart = Math.min(...startTimes)
+        const latestEnd = Math.max(...endTimes)
+        const totalDuration = latestEnd - earliestStart
+
+        // Create individual iterations as children
+        const iterationChildren: TraceSpan[] = []
+
+        // Sort iterations by iteration number
+        const sortedIterations = Array.from(iterationGroups.entries()).sort(([a], [b]) => a - b)
+
+        sortedIterations.forEach(([iterationIndex, spans]) => {
+          // Calculate timing for this iteration
+          const iterStartTimes = spans.map((span) => new Date(span.startTime).getTime())
+          const iterEndTimes = spans.map((span) => new Date(span.endTime).getTime())
+          const iterEarliestStart = Math.min(...iterStartTimes)
+          const iterLatestEnd = Math.max(...iterEndTimes)
+          const iterDuration = iterLatestEnd - iterEarliestStart
+
+          // Check for errors in this iteration
+          const hasErrors = spans.some((span) => span.status === 'error')
+
+          // Create the iteration container
+          const iterationSpan: TraceSpan = {
+            id: `${containerId}-iteration-${iterationIndex}`,
+            name: `Iteration ${iterationIndex}`,
+            type: 'parallel-iteration',
+            duration: iterDuration,
+            startTime: new Date(iterEarliestStart).toISOString(),
+            endTime: new Date(iterLatestEnd).toISOString(),
+            status: hasErrors ? 'error' : 'success',
+            children: spans.map((span) => ({
+              ...span,
+              name: span.name.replace(/ \(iteration \d+\)$/, ''), // Remove iteration suffix
+            })),
+          }
+
+          iterationChildren.push(iterationSpan)
+        })
+
+        // Create the main parallel container
+        const hasErrors = allIterationSpans.some((span) => span.status === 'error')
+        const parallelContainer: TraceSpan = {
+          id: `parallel-execution-${containerId}`,
+          name: containerName,
+          type: 'parallel',
+          duration: totalDuration,
+          startTime: new Date(earliestStart).toISOString(),
+          endTime: new Date(latestEnd).toISOString(),
+          status: hasErrors ? 'error' : 'success',
+          children: iterationChildren,
+        }
+
+        result.push(parallelContainer)
+      } else {
+        // Create loop container
+        const allIterationSpans = spans
+
+        // Calculate timing for the entire loop execution
+        const startTimes = allIterationSpans.map((span) => new Date(span.startTime).getTime())
+        const endTimes = allIterationSpans.map((span) => new Date(span.endTime).getTime())
+        const earliestStart = Math.min(...startTimes)
+        const latestEnd = Math.max(...endTimes)
+        const totalDuration = latestEnd - earliestStart
+
+        // Create individual iterations as children (sequential execution)
+        const iterationChildren: TraceSpan[] = []
+
+        // Sort iterations by iteration number
+        const sortedIterations = Array.from(iterationGroups.entries()).sort(([a], [b]) => a - b)
+
+        sortedIterations.forEach(([iterationIndex, spans]) => {
+          // For loop iterations, we might have multiple spans per iteration or single spans
+          const iterStartTimes = spans.map((span) => new Date(span.startTime).getTime())
+          const iterEndTimes = spans.map((span) => new Date(span.endTime).getTime())
+          const iterEarliestStart = Math.min(...iterStartTimes)
+          const iterLatestEnd = Math.max(...iterEndTimes)
+          const iterDuration = iterLatestEnd - iterEarliestStart
+
+          // Check for errors in this iteration
+          const hasErrors = spans.some((span) => span.status === 'error')
+
+          // Create the iteration container
+          const iterationSpan: TraceSpan = {
+            id: `${containerId}-iteration-${iterationIndex}`,
+            name: `Iteration ${iterationIndex}`,
+            type: 'loop-iteration',
+            duration: iterDuration,
+            startTime: new Date(iterEarliestStart).toISOString(),
+            endTime: new Date(iterLatestEnd).toISOString(),
+            status: hasErrors ? 'error' : 'success',
+            children: spans.map((span) => ({
+              ...span,
+              name: span.name.replace(/ \(iteration \d+\)$/, ''), // Remove iteration suffix
+            })),
+          }
+
+          iterationChildren.push(iterationSpan)
+        })
+
+        // Create the main loop container
+        const hasErrors = allIterationSpans.some((span) => span.status === 'error')
+        const loopContainer: TraceSpan = {
+          id: `loop-execution-${containerId}`,
+          name: containerName,
+          type: 'loop',
+          duration: totalDuration,
+          startTime: new Date(earliestStart).toISOString(),
+          endTime: new Date(latestEnd).toISOString(),
+          status: hasErrors ? 'error' : 'success',
+          children: iterationChildren,
+        }
+
+        result.push(loopContainer)
+      }
+    })
+  }
+
+  // Add all normal spans (non-iteration spans), but exclude actual parallel and loop blocks
+  result.push(...nonIterationContainerSpans)
+
+  // Sort result spans by start time for consistent ordering
+  result.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+
+  return result
 }
 
 // Helper function to recursively process nested workflow blocks in trace spans

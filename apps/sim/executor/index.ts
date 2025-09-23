@@ -250,7 +250,8 @@ export class Executor {
         } else {
           // Normal execution without debug mode
           if (nextLayer.length === 0) {
-            hasMoreLayers = false
+            // Check if there are more parallel iterations to process
+            hasMoreLayers = this.hasMoreParallelWork(context)
           } else {
             const outputs = await this.executeLayer(nextLayer, context)
 
@@ -1100,46 +1101,6 @@ export class Executor {
 
       // If block is inside a parallel, handle multiple instances
       if (insideParallel && activeParallels.has(insideParallel)) {
-        const parallelState = activeParallels.get(insideParallel)
-
-        // Create virtual instances for each unprocessed iteration
-        const virtualBlockIds = this.parallelManager.createVirtualBlockInstances(
-          block,
-          insideParallel,
-          parallelState,
-          executedBlocks,
-          context.activeExecutionPath
-        )
-
-        for (const virtualBlockId of virtualBlockIds) {
-          // Check dependencies for this virtual instance
-          const incomingConnections = this.actualWorkflow.connections.filter(
-            (conn) => conn.target === block.id
-          )
-
-          const iterationIndex = Number.parseInt(virtualBlockId.split('_iteration_')[1])
-          const allDependenciesMet = this.checkDependencies(
-            incomingConnections,
-            executedBlocks,
-            context,
-            insideParallel,
-            iterationIndex
-          )
-
-          if (allDependenciesMet) {
-            pendingBlocks.add(virtualBlockId)
-
-            // Store mapping for virtual block
-            if (!context.parallelBlockMapping) {
-              context.parallelBlockMapping = new Map()
-            }
-            context.parallelBlockMapping.set(virtualBlockId, {
-              originalBlockId: block.id,
-              parallelId: insideParallel,
-              iterationIndex: iterationIndex,
-            })
-          }
-        }
       } else if (insideParallel) {
         // Block is inside a parallel but the parallel is not active
         // Check if all virtual instances have been executed
@@ -1203,7 +1164,192 @@ export class Executor {
       }
     }
 
+    // Process all active parallels with proper dependency ordering within iterations
+    this.processParallelBlocks(activeParallels, context, pendingBlocks)
+
     return Array.from(pendingBlocks)
+  }
+
+  /**
+   * Process all active parallel blocks with proper dependency ordering within iterations.
+   * This ensures that blocks with dependencies within the same iteration are executed
+   * in the correct order, preventing race conditions. Only processes one iteration at a time
+   * to maintain proper execution order.
+   *
+   * @param activeParallels - Map of active parallel executions
+   * @param context - Execution context
+   * @param pendingBlocks - Set to add ready blocks to
+   */
+  private processParallelBlocks(
+    activeParallels: Map<string, any>,
+    context: ExecutionContext,
+    pendingBlocks: Set<string>
+  ): void {
+    for (const [parallelId, parallelState] of activeParallels) {
+      const parallel = this.actualWorkflow.parallels?.[parallelId]
+      if (!parallel) continue
+
+      // Process all incomplete iterations concurrently
+      // Each iteration maintains proper dependency order internally
+      for (let iteration = 0; iteration < parallelState.parallelCount; iteration++) {
+        if (this.isIterationComplete(parallelId, iteration, parallel, context)) {
+          continue // This iteration is already complete
+        }
+
+        // Process this iteration - all iterations run concurrently
+        this.processParallelIteration(parallelId, iteration, parallel, context, pendingBlocks)
+      }
+    }
+  }
+
+  /**
+   * Check if a specific parallel iteration is complete (all blocks executed).
+   *
+   * @param parallelId - ID of the parallel block
+   * @param iteration - Iteration index to check
+   * @param parallel - Parallel configuration
+   * @param context - Execution context
+   * @returns Whether the iteration is complete
+   */
+  private isIterationComplete(
+    parallelId: string,
+    iteration: number,
+    parallel: any,
+    context: ExecutionContext
+  ): boolean {
+    for (const nodeId of parallel.nodes) {
+      const virtualBlockId = `${nodeId}_parallel_${parallelId}_iteration_${iteration}`
+      if (!context.executedBlocks.has(virtualBlockId)) {
+        return false
+      }
+    }
+    return true
+  }
+
+  /**
+   * Check if there are more parallel iterations to process.
+   * This ensures the execution loop continues when iterations are being processed sequentially.
+   */
+  private hasMoreParallelWork(context: ExecutionContext): boolean {
+    if (!context.parallelExecutions) {
+      return false
+    }
+
+    for (const [parallelId, parallelState] of context.parallelExecutions) {
+      // Skip completed parallels
+      if (context.completedLoops.has(parallelId)) {
+        continue
+      }
+
+      // Check if this parallel is active
+      if (
+        parallelState.currentIteration > 0 &&
+        parallelState.currentIteration <= parallelState.parallelCount
+      ) {
+        const parallel = this.actualWorkflow.parallels?.[parallelId]
+        if (!parallel) continue
+
+        // Check if there are incomplete iterations
+        for (let iteration = 0; iteration < parallelState.parallelCount; iteration++) {
+          if (!this.isIterationComplete(parallelId, iteration, parallel, context)) {
+            return true
+          }
+        }
+      }
+    }
+
+    return false
+  }
+
+  /**
+   * Process a single parallel iteration with topological ordering of dependencies.
+   *
+   * @param parallelId - ID of the parallel block
+   * @param iteration - Current iteration index
+   * @param parallel - Parallel configuration
+   * @param context - Execution context
+   * @param pendingBlocks - Set to add ready blocks to
+   */
+  private processParallelIteration(
+    parallelId: string,
+    iteration: number,
+    parallel: any,
+    context: ExecutionContext,
+    pendingBlocks: Set<string>
+  ): void {
+    const iterationBlocks = new Map<
+      string,
+      {
+        virtualBlockId: string
+        originalBlockId: string
+        dependencies: string[]
+        isExecuted: boolean
+      }
+    >()
+
+    // Build dependency graph for this iteration
+    for (const nodeId of parallel.nodes) {
+      const virtualBlockId = `${nodeId}_parallel_${parallelId}_iteration_${iteration}`
+      const isExecuted = context.executedBlocks.has(virtualBlockId)
+
+      if (isExecuted) {
+        continue // Skip already executed blocks
+      }
+
+      const block = this.actualWorkflow.blocks.find((b) => b.id === nodeId)
+      if (!block || !block.enabled) continue
+
+      // Find dependencies within this iteration
+      const incomingConnections = this.actualWorkflow.connections.filter(
+        (conn) => conn.target === nodeId
+      )
+
+      const dependencies: string[] = []
+      for (const conn of incomingConnections) {
+        // Check if the source is within the same parallel
+        if (parallel.nodes.includes(conn.source)) {
+          const sourceDependencyId = `${conn.source}_parallel_${parallelId}_iteration_${iteration}`
+          dependencies.push(sourceDependencyId)
+        } else {
+          // External dependency - check if it's met
+          const isExternalDepMet = this.checkDependencies([conn], context.executedBlocks, context)
+          if (!isExternalDepMet) {
+            // External dependency not met, skip this block for now
+            return
+          }
+        }
+      }
+
+      iterationBlocks.set(virtualBlockId, {
+        virtualBlockId,
+        originalBlockId: nodeId,
+        dependencies,
+        isExecuted,
+      })
+    }
+
+    // Find blocks with no unmet dependencies within this iteration
+    for (const [virtualBlockId, blockInfo] of iterationBlocks) {
+      const unmetDependencies = blockInfo.dependencies.filter((depId) => {
+        // Check if dependency is executed OR not in this iteration (external)
+        return !context.executedBlocks.has(depId) && iterationBlocks.has(depId)
+      })
+
+      if (unmetDependencies.length === 0) {
+        // All dependencies within this iteration are met
+        pendingBlocks.add(virtualBlockId)
+
+        // Store mapping for virtual block
+        if (!context.parallelBlockMapping) {
+          context.parallelBlockMapping = new Map()
+        }
+        context.parallelBlockMapping.set(virtualBlockId, {
+          originalBlockId: blockInfo.originalBlockId,
+          parallelId: parallelId,
+          iterationIndex: iteration,
+        })
+      }
+    }
   }
 
   /**
@@ -1501,6 +1647,16 @@ export class Executor {
     if (parallelInfo) {
       blockLog.blockId = blockId
       blockLog.blockName = `${block.metadata?.name || ''} (iteration ${parallelInfo.iterationIndex + 1})`
+    } else {
+      // Check if this block is inside a loop and add iteration info to the name
+      const containingLoopId = this.resolver.getContainingLoopId(block.id)
+      if (containingLoopId) {
+        const currentIteration = context.loopIterations.get(containingLoopId)
+        if (currentIteration !== undefined) {
+          // Loop iterations are now 1-based like parallels, so no need to add +1
+          blockLog.blockName = `${block.metadata?.name || ''} (iteration ${currentIteration})`
+        }
+      }
     }
 
     const addConsole = useConsoleStore.getState().addConsole

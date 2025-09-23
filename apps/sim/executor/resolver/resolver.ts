@@ -727,7 +727,26 @@ export class InputResolver {
         continue
       }
 
-      const blockState = context.blockStates.get(sourceBlock.id)
+      // For parallel execution, check if we need to use the virtual block ID
+      let blockState = context.blockStates.get(sourceBlock.id)
+
+      // If we're in parallel execution and the source block is also in the same parallel,
+      // try to get the virtual block state for the same iteration
+      if (
+        context.currentVirtualBlockId &&
+        context.parallelBlockMapping?.has(context.currentVirtualBlockId)
+      ) {
+        const currentParallelInfo = context.parallelBlockMapping.get(context.currentVirtualBlockId)
+        if (currentParallelInfo) {
+          // Check if the source block is in the same parallel
+          const parallel = context.workflow?.parallels?.[currentParallelInfo.parallelId]
+          if (parallel?.nodes.includes(sourceBlock.id)) {
+            // Try to get the virtual block state for the same iteration
+            const virtualSourceBlockId = `${sourceBlock.id}_parallel_${currentParallelInfo.parallelId}_iteration_${currentParallelInfo.iterationIndex}`
+            blockState = context.blockStates.get(virtualSourceBlockId)
+          }
+        }
+      }
 
       if (!blockState) {
         // If the block is in a loop, return empty string

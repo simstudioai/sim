@@ -45,11 +45,11 @@ export class LoopBlockHandler implements BlockHandler {
 
     // Initialize loop iteration if not already done
     if (!context.loopIterations.has(block.id)) {
-      context.loopIterations.set(block.id, 0)
-      logger.info(`Initialized loop ${block.id} with 0 iterations`)
+      context.loopIterations.set(block.id, 1)
+      logger.info(`Initialized loop ${block.id} starting at iteration 1`)
     }
 
-    const currentIteration = context.loopIterations.get(block.id) || 0
+    const currentIteration = context.loopIterations.get(block.id) || 1
     let maxIterations: number
     let forEachItems: any[] | Record<string, any> | null = null
     if (loop.loopType === 'forEach') {
@@ -95,7 +95,7 @@ export class LoopBlockHandler implements BlockHandler {
     )
 
     // Check if we've reached the maximum iterations
-    if (currentIteration >= maxIterations) {
+    if (currentIteration > maxIterations) {
       logger.info(`Loop ${block.id} has reached maximum iterations (${maxIterations})`)
 
       // Don't mark as completed here - let the loop manager handle it after all blocks execute
@@ -110,27 +110,26 @@ export class LoopBlockHandler implements BlockHandler {
       } as Record<string, any>
     }
 
-    // For forEach loops, set the current item BEFORE incrementing
+    // For forEach loops, set the current item
     if (loop.loopType === 'forEach' && forEachItems) {
       // Store the full items array for access via <loop.items>
       context.loopItems.set(`${block.id}_items`, forEachItems)
 
+      // Convert 1-based iteration to 0-based index for array access
+      const arrayIndex = currentIteration - 1
       const currentItem = Array.isArray(forEachItems)
-        ? forEachItems[currentIteration]
-        : Object.entries(forEachItems)[currentIteration]
+        ? forEachItems[arrayIndex]
+        : Object.entries(forEachItems)[arrayIndex]
       context.loopItems.set(block.id, currentItem)
       logger.info(
-        `Loop ${block.id} - Set current item for iteration ${currentIteration}:`,
+        `Loop ${block.id} - Set current item for iteration ${currentIteration} (index ${arrayIndex}):`,
         currentItem
       )
     }
 
-    // Increment the iteration counter for the NEXT iteration
-    // This happens AFTER we've set up the current iteration's data
-    context.loopIterations.set(block.id, currentIteration + 1)
-    logger.info(
-      `Loop ${block.id} - Incremented counter for next iteration: ${currentIteration + 1}`
-    )
+    // NOTE: We don't increment the counter here anymore to keep it 0-based like parallels
+    // The increment will happen when the loop iterates to the next cycle
+    // This keeps loop iteration indexing consistent with parallel blocks
 
     // Use routing strategy to determine if this block requires active path checking
     const blockType = block.metadata?.id
@@ -159,13 +158,16 @@ export class LoopBlockHandler implements BlockHandler {
       this.activateChildNodes(block, context, currentIteration)
     }
 
+    // Store the current iteration in context so child blocks can access it immediately
+    context.loopIterations.set(block.id, currentIteration)
+
     return {
       loopId: block.id,
       currentIteration,
       maxIterations,
       loopType: loop.loopType || 'for',
       completed: false,
-      message: `Starting iteration ${currentIteration + 1} of ${maxIterations}`,
+      message: `Starting iteration ${currentIteration} of ${maxIterations}`,
     } as Record<string, any>
   }
 

@@ -49,11 +49,11 @@ export class LoopManager {
       logger.info(`  Loop block executed: ${loopBlockExecuted}`)
       logger.info(`  All blocks executed: ${allBlocksInLoopExecuted}`)
       logger.info(`  Blocks in loop: ${loop.nodes.join(', ')}`)
-      logger.info(`  Current iteration: ${context.loopIterations.get(loopId) || 0}`)
+      logger.info(`  Current iteration: ${context.loopIterations.get(loopId) || 1}`)
 
       if (allBlocksInLoopExecuted) {
         // All blocks in the loop have been executed
-        const currentIteration = context.loopIterations.get(loopId) || 0
+        const currentIteration = context.loopIterations.get(loopId) || 1
 
         // Store the results from this iteration before potentially resetting blocks
         const iterationResults: any[] = []
@@ -70,7 +70,7 @@ export class LoopManager {
           this.storeIterationResult(
             context,
             loopId,
-            currentIteration - 1,
+            currentIteration - 1, // Convert back to 0-based for storage
             'iteration',
             iterationResults
           )
@@ -109,8 +109,8 @@ export class LoopManager {
         logger.info(`Loop ${loopId} - Current: ${currentIteration}, Max: ${maxIterations}`)
 
         // Check if we've completed all iterations
-        // The loop handler increments the counter after setting up each iteration
-        // So if currentIteration equals maxIterations, we've completed all iterations
+        // With 1-based indexing, currentIteration goes from 1 to maxIterations
+        // So we've completed all iterations when currentIteration equals maxIterations
         if (currentIteration >= maxIterations) {
           // This was the last iteration
           hasLoopReachedMaxIterations = true
@@ -167,14 +167,18 @@ export class LoopManager {
 
           logger.info(`Loop ${loopId} - Completed and activated end connections`)
         } else {
-          // More iterations to go - reset the blocks inside the loop
+          // More iterations to go - increment the iteration counter for the next iteration
+          context.loopIterations.set(loopId, currentIteration + 1)
+          logger.info(`Loop ${loopId} - Incremented counter to ${currentIteration + 1}`)
+
+          // Reset the blocks inside the loop
           this.resetLoopBlocks(loopId, loop, context)
 
           // Reset the loop block itself so it can execute again
           context.executedBlocks.delete(loopId)
           context.blockStates.delete(loopId)
 
-          logger.info(`Loop ${loopId} - Reset for iteration ${currentIteration}`)
+          logger.info(`Loop ${loopId} - Reset for iteration ${currentIteration + 1}`)
         }
       }
     }
@@ -217,8 +221,6 @@ export class LoopManager {
    * @param context - Current execution context
    */
   private resetLoopBlocks(loopId: string, loop: SerializedLoop, context: ExecutionContext): void {
-    logger.info(`Resetting blocks for loop ${loopId}`)
-
     // Reset all blocks in the loop
     for (const nodeId of loop.nodes) {
       // Remove from executed blocks
@@ -233,12 +235,7 @@ export class LoopManager {
       // Clear any routing decisions for this block
       context.decisions.router.delete(nodeId)
       context.decisions.condition.delete(nodeId)
-
-      logger.info(`Reset block ${nodeId} in loop ${loopId} for next iteration`)
     }
-
-    logger.info(`After reset - executed blocks: ${Array.from(context.executedBlocks).join(', ')}`)
-    logger.info(`After reset - active paths: ${Array.from(context.activeExecutionPath).join(', ')}`)
   }
 
   /**
