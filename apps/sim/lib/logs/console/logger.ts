@@ -3,34 +3,9 @@
  *
  * This module provides standardized console logging utilities for internal application logging.
  * It is separate from the user-facing logging system in logging.ts.
- *
- * For Node.js runtime, uses TraceRoot logger for enhanced logging with trace correlation.
- * For Edge runtime, falls back to console logging to avoid import errors.
  */
 import chalk from 'chalk'
 import { env } from '@/lib/env'
-
-// Runtime detection - check if we're in Edge runtime
-const isEdgeRuntime = () => {
-  return (
-    typeof window !== 'undefined' ||
-    (typeof globalThis !== 'undefined' && 'EdgeRuntime' in globalThis) ||
-    typeof process === 'undefined' ||
-    (typeof process !== 'undefined' && process.env.NEXT_RUNTIME === 'edge')
-  )
-}
-
-// Conditional TraceRoot import - only in Node runtime
-let traceRootLogger: any = null
-
-if (!isEdgeRuntime()) {
-  try {
-    const traceRoot = require('traceroot-sdk-ts')
-    traceRootLogger = traceRoot.getLogger
-  } catch (importError) {
-    console.warn('TraceRoot SDK not available, falling back to console logging')
-  }
-}
 
 /**
  * LogLevel enum defines the severity levels for logging
@@ -133,11 +108,9 @@ const formatObject = (obj: any): string => {
  *
  * This class provides methods for logging at different severity levels
  * and handles formatting, colorization, and environment-specific behavior.
- * Uses TraceRoot logger in Node runtime and falls back to console logging in Edge runtime.
  */
 export class Logger {
   private module: string
-  private traceRootLoggerInstance: any = null
 
   /**
    * Create a new logger for a specific module
@@ -145,17 +118,6 @@ export class Logger {
    */
   constructor(module: string) {
     this.module = module
-
-    // Initialize TraceRoot logger instance if available
-    if (traceRootLogger) {
-      try {
-        this.traceRootLoggerInstance = traceRootLogger(module)
-      } catch (error) {
-        console.warn(
-          `Failed to create TraceRoot logger for module ${module}, falling back to console logging`
-        )
-      }
-    }
   }
 
   /**
@@ -262,11 +224,7 @@ export class Logger {
    * @param args Additional arguments to log
    */
   debug(message: string, ...args: any[]) {
-    if (this.traceRootLoggerInstance) {
-      this.traceRootLoggerInstance.debug(message, ...args)
-    } else {
-      this.log(LogLevel.DEBUG, message, ...args)
-    }
+    this.log(LogLevel.DEBUG, message, ...args)
   }
 
   /**
@@ -284,11 +242,7 @@ export class Logger {
    * @param args Additional arguments to log
    */
   info(message: string, ...args: any[]) {
-    if (this.traceRootLoggerInstance) {
-      this.traceRootLoggerInstance.info(message, ...args)
-    } else {
-      this.log(LogLevel.INFO, message, ...args)
-    }
+    this.log(LogLevel.INFO, message, ...args)
   }
 
   /**
@@ -305,11 +259,7 @@ export class Logger {
    * @param args Additional arguments to log
    */
   warn(message: string, ...args: any[]) {
-    if (this.traceRootLoggerInstance) {
-      this.traceRootLoggerInstance.warn(message, ...args)
-    } else {
-      this.log(LogLevel.WARN, message, ...args)
-    }
+    this.log(LogLevel.WARN, message, ...args)
   }
 
   /**
@@ -326,11 +276,7 @@ export class Logger {
    * @param args Additional arguments to log
    */
   error(message: string, ...args: any[]) {
-    if (this.traceRootLoggerInstance) {
-      this.traceRootLoggerInstance.error(message, ...args)
-    } else {
-      this.log(LogLevel.ERROR, message, ...args)
-    }
+    this.log(LogLevel.ERROR, message, ...args)
   }
 }
 

@@ -46,7 +46,6 @@
     "react-colorful": "5.6.1",
     "remark-gfm": "4.0.1",
     "socket.io-client": "4.8.1",
-    "traceroot-sdk-ts": "0.0.1-alpha.35",
     "twilio": "5.9.0"
   },
   "devDependencies": {

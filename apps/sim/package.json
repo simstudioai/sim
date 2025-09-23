@@ -125,7 +125,6 @@
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "three": "0.177.0",
-    "traceroot-sdk-ts": "0.0.1-alpha.33",
     "uuid": "^11.1.0",
     "xlsx": "0.18.5",
     "zod": "^3.24.2"
