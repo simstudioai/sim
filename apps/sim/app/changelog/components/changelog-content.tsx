@@ -77,7 +77,7 @@ export default async function ChangelogContent() {
                 View on GitHub
               </Link>
               <Link
-                href='/docs'
+                href='https://docs.sim.ai'
                 className='inline-flex items-center gap-2 rounded-md border border-border px-3 py-1.5 hover:bg-muted'
               >
                 <BookOpen className='h-4 w-4' />
