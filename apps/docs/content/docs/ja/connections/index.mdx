@@ -1,0 +1,42 @@
+---
+title: 接続
+description: ブロック同士を接続します。
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { ConnectIcon } from '@/components/icons'
+import { Video } from '@/components/ui/video'
+
+接続は、ワークフロー内のブロック間でデータが流れるための経路です。情報があるブロックから別のブロックへどのように渡されるかを定義し、複雑な多段階プロセスを作成することができます。
+
+<Callout type="info">
+  適切に設定された接続は、効果的なワークフローを作成するために不可欠です。接続によって、
+  データがシステム内をどのように移動し、ブロック同士がどのように相互作用するかが決まります。
+</Callout>
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="connections.mp4" />
+</div>
+
+## 接続タイプ
+
+Simは様々なワークフローパターンを可能にする異なるタイプの接続をサポートしています：
+
+<Cards>
+  <Card title="接続の基本" href="/connections/basics">
+    接続の仕組みとワークフローでの作成方法を学ぶ
+  </Card>
+  <Card title="接続タグ" href="/connections/tags">
+    ブロック間でデータを参照するための接続タグの使い方を理解する
+  </Card>
+  <Card title="データ構造" href="/connections/data-structure">
+    異なるブロックタイプの出力データ構造を探る
+  </Card>
+  <Card title="データへのアクセス" href="/connections/accessing-data">
+    接続されたデータへのアクセスと操作のテクニックを学ぶ
+  </Card>
+  <Card title="ベストプラクティス" href="/connections/best-practices">
+    効果的な接続管理のための推奨パターンに従う
+  </Card>
+</Cards>

@@ -1,0 +1,130 @@
+---
+title: GitHub
+description: Interagiere mit GitHub oder löse Workflows durch GitHub-Events aus
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="github"
+  color="#181C1E"
+  icon={true}
+  iconSvg={`<svg className="block-icon"    viewBox='0 0 26 26' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        d='M13 0C11.2928 0 9.60235 0.336255 8.02511 0.989566C6.44788 1.64288 5.01477 2.60045 3.80761 3.80761C1.36964 6.24558 0 9.55219 0 13C0 18.746 3.731 23.621 8.892 25.35C9.542 25.454 9.75 25.051 9.75 24.7V22.503C6.149 23.283 5.382 20.761 5.382 20.761C4.784 19.253 3.939 18.85 3.939 18.85C2.756 18.044 4.03 18.07 4.03 18.07C5.33 18.161 6.019 19.409 6.019 19.409C7.15 21.385 9.061 20.8 9.802 20.488C9.919 19.643 10.257 19.071 10.621 18.746C7.735 18.421 4.706 17.303 4.706 12.35C4.706 10.907 5.2 9.75 6.045 8.827C5.915 8.502 5.46 7.15 6.175 5.395C6.175 5.395 7.267 5.044 9.75 6.721C10.777 6.435 11.895 6.292 13 6.292C14.105 6.292 15.223 6.435 16.25 6.721C18.733 5.044 19.825 5.395 19.825 5.395C20.54 7.15 20.085 8.502 19.955 8.827C20.8 9.75 21.294 10.907 21.294 12.35C21.294 17.316 18.252 18.408 15.353 18.733C15.821 19.136 16.25 19.929 16.25 21.138V24.7C16.25 25.051 16.458 25.467 17.121 25.35C22.282 23.608 26 18.746 26 13C26 11.2928 25.6637 9.60235 25.0104 8.02511C24.3571 6.44788 23.3995 5.01477 22.1924 3.80761C20.9852 2.60045 19.5521 1.64288 17.9749 0.989566C16.3977 0.336255 14.7072 0 13 0Z'
+        fill='currentColor'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[GitHub](https://github.com/) ist die weltweit führende Plattform für Softwareentwicklung und Versionskontrolle mit Git. Sie bietet eine kollaborative Umgebung, in der Entwickler Code hosten und überprüfen, Projekte verwalten und gemeinsam Software erstellen können.
+
+Mit GitHub kannst du:
+
+- **Repositories hosten**: Speichere deinen Code in öffentlichen oder privaten Repositories mit Versionskontrolle
+- **An Code zusammenarbeiten**: Nutze Pull Requests, um Änderungen vorzuschlagen, Code zu überprüfen und Beiträge zusammenzuführen
+- **Issues verfolgen**: Erstelle, weise zu und verwalte Issues, um Arbeit zu organisieren und Fehler zu verfolgen
+- **Workflows automatisieren**: Nutze GitHub Actions, um Code automatisch zu erstellen, zu testen und bereitzustellen
+- **Projekte verwalten**: Organisiere Arbeit mit Projektboards, Meilensteinen und Aufgabenverfolgung
+- **Code dokumentieren**: Erstelle und pflege Dokumentation mit GitHub Pages und Wikis
+
+In Sim ermöglicht die GitHub-Integration Ihren Agenten die direkte Interaktion mit GitHub-Repositories und -Workflows. Dies erlaubt leistungsstarke Automatisierungsszenarien wie Unterstützung bei Code-Reviews, Pull-Request-Management, Issue-Tracking und Repository-Exploration. Ihre Agenten können Repository-Daten abrufen, Code-Änderungen analysieren, Kommentare zu Pull Requests posten und andere GitHub-Operationen programmatisch durchführen. Diese Integration überbrückt die Lücke zwischen Ihren KI-Workflows und Ihren Entwicklungsprozessen und ermöglicht eine nahtlose Zusammenarbeit zwischen Ihren Agenten und Ihrem Entwicklungsteam.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanweisungen
+
+Integrieren Sie Github in den Workflow. Kann PR-Details abrufen, PR-Kommentare erstellen, Repository-Informationen abrufen und den neuesten Commit anzeigen. Erfordert einen GitHub-Token-API-Schlüssel. Kann im Trigger-Modus verwendet werden, um einen Workflow auszulösen, wenn ein PR erstellt wird, kommentiert wird oder ein Commit gepusht wird.
+
+## Tools
+
+### `github_pr`
+
+PR-Details einschließlich Diff und geänderte Dateien abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `pullNumber` | number | Ja | Pull-Request-Nummer |
+| `apiKey` | string | Ja | GitHub-API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare PR-Zusammenfassung |
+| `metadata` | object | Detaillierte PR-Metadaten einschließlich Dateiänderungen |
+
+### `github_comment`
+
+Kommentare zu GitHub PRs erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer |
+| `repo` | string | Ja | Repository-Name |
+| `body` | string | Ja | Kommentarinhalt |
+| `pullNumber` | number | Ja | Pull-Request-Nummer |
+| `path` | string | Nein | Dateipfad für Review-Kommentar |
+| `position` | number | Nein | Zeilennummer für Review-Kommentar |
+| `commentType` | string | Nein | Kommentartyp \(pr_comment oder file_comment\) |
+| `line` | number | Nein | Zeilennummer für Review-Kommentar |
+| `side` | string | Nein | Seite des Diffs \(LEFT oder RIGHT\) |
+| `commitId` | string | Nein | Der SHA des Commits, der kommentiert werden soll |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Kommentarbestätigung |
+| `metadata` | object | Kommentar-Metadaten |
+
+### `github_repo_info`
+
+Ruft umfassende GitHub-Repository-Metadaten ab, einschließlich Sterne, Forks, Issues und Hauptsprache. Unterstützt sowohl öffentliche als auch private Repositories mit optionaler Authentifizierung.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer \(Benutzer oder Organisation\) |
+| `repo` | string | Ja | Repository-Name |
+| `apiKey` | string | Ja | GitHub Personal Access Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Repository-Zusammenfassung |
+| `metadata` | object | Repository-Metadaten |
+
+### `github_latest_commit`
+
+Ruft den neuesten Commit aus einem GitHub-Repository ab
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Ja | Repository-Besitzer (Benutzer oder Organisation) |
+| `repo` | string | Ja | Repository-Name |
+| `branch` | string | Nein | Branch-Name (standardmäßig der Standard-Branch des Repositories) |
+| `apiKey` | string | Ja | GitHub API-Token |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Menschenlesbare Commit-Zusammenfassung |
+| `metadata` | object | Commit-Metadaten |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `github`

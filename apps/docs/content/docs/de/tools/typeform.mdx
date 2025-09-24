@@ -1,0 +1,119 @@
+---
+title: Typeform
+description: Mit Typeform interagieren
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="typeform"
+  color="#262627"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      version='1.1'
+      id='Layer_1'
+      xmlns='http://www.w3.org/2000/svg'
+      xmlnsXlink='http://www.w3.org/1999/xlink'
+      x='0px'
+      y='0px'
+      viewBox='0 0 122.3 80.3'
+      xmlSpace='preserve'
+    >
+      <g>
+        <path
+          fill='currentColor'
+          d='M94.3,0H65.4c-26,0-28,11.2-28,26.2l0,27.9c0,15.6,2,26.2,28.1,26.2h28.8c26,0,28-11.2,28-26.1V26.2
+		C122.3,11.2,120.3,0,94.3,0z M0,20.1C0,6.9,5.2,0,14,0c8.8,0,14,6.9,14,20.1v40.1c0,13.2-5.2,20.1-14,20.1c-8.8,0-14-6.9-14-20.1
+		V20.1z'
+        />
+      </g>
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Typeform](https://www.typeform.com/) ist eine benutzerfreundliche Plattform zur Erstellung von konversationellen Formularen, Umfragen und Quiz mit Fokus auf ein ansprechendes Nutzererlebnis.
+
+Mit Typeform können Sie:
+
+- **Interaktive Formulare erstellen**: Gestalten Sie schöne, konversationelle Formulare, die Befragte mit einer einzigartigen Frage-für-Frage-Oberfläche einbinden
+- **Ihr Erlebnis anpassen**: Verwenden Sie bedingte Logik, versteckte Felder und benutzerdefinierte Designs, um personalisierte Benutzerreisen zu erstellen
+- **Mit anderen Tools integrieren**: Verbinden Sie sich mit über 1000 Apps durch native Integrationen und APIs
+- **Antwortdaten analysieren**: Erhalten Sie umsetzbare Erkenntnisse durch umfassende Analyse- und Berichtswerkzeuge
+
+In Sim ermöglicht die Typeform-Integration Ihren Agenten, programmatisch mit Ihren Typeform-Daten als Teil ihrer Workflows zu interagieren. Agenten können Formularantworten abrufen, Übermittlungsdaten verarbeiten und Benutzerfeedback direkt in Entscheidungsprozesse einbeziehen. Diese Integration ist besonders wertvoll für Szenarien wie Lead-Qualifizierung, Kundenfeedback-Analyse und datengesteuerte Personalisierung. Durch die Verbindung von Sim mit Typeform können Sie intelligente Automatisierungs-Workflows erstellen, die Formularantworten in umsetzbare Erkenntnisse umwandeln - Stimmungen analysieren, Feedback kategorisieren, Zusammenfassungen generieren und sogar Folgemaßnahmen basierend auf spezifischen Antwortmustern auslösen.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Integrieren Sie Typeform in den Workflow. Kann Antworten abrufen, Dateien herunterladen und Formulareinblicke gewinnen. API-Schlüssel erforderlich.
+
+## Tools
+
+### `typeform_responses`
+
+Formularantworten von Typeform abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Ja | Typeform Formular-ID |
+| `apiKey` | string | Ja | Typeform persönliches Zugriffstoken |
+| `pageSize` | number | Nein | Anzahl der abzurufenden Antworten \(Standard: 25\) |
+| `since` | string | Nein | Antworten abrufen, die nach diesem Datum übermittelt wurden \(ISO 8601-Format\) |
+| `until` | string | Nein | Antworten abrufen, die vor diesem Datum übermittelt wurden \(ISO 8601-Format\) |
+| `completed` | string | Nein | Nach Abschlussstatus filtern \(true/false\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `total_items` | number | Gesamtanzahl der Antworten |
+| `page_count` | number | Gesamtanzahl der Seiten |
+| `items` | json | Antwortelemente |
+
+### `typeform_files`
+
+Dateien herunterladen, die in Typeform-Antworten hochgeladen wurden
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Ja | Typeform Formular-ID |
+| `responseId` | string | Ja | Antwort-ID, die die Dateien enthält |
+| `fieldId` | string | Ja | Eindeutige ID des Datei-Upload-Feldes |
+| `filename` | string | Ja | Dateiname der hochgeladenen Datei |
+| `inline` | boolean | Nein | Ob die Datei mit Inline Content-Disposition angefordert werden soll |
+| `apiKey` | string | Ja | Typeform persönliches Zugriffstoken |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `fileUrl` | string | Direkter Download-Link für die hochgeladene Datei |
+| `contentType` | string | MIME-Typ der hochgeladenen Datei |
+| `filename` | string | Ursprünglicher Dateiname der hochgeladenen Datei |
+
+### `typeform_insights`
+
+Einblicke und Analysen für Typeform-Formulare abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Ja | Typeform Formular-ID |
+| `apiKey` | string | Ja | Typeform persönliches Zugriffstoken |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `fields` | array | Anzahl der Benutzer, die bei diesem Feld abgebrochen haben |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `typeform`

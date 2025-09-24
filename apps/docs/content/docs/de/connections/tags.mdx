@@ -1,0 +1,109 @@
+---
+title: Verbindungs-Tags
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Video } from '@/components/ui/video'
+
+Verbindungs-Tags sind visuelle Darstellungen der verfügbaren Daten aus verbundenen Blöcken und bieten eine einfache Möglichkeit, auf Daten zwischen Blöcken und Ausgaben aus vorherigen Blöcken in Ihrem Workflow zu verweisen.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="connections.mp4" />
+</div>
+
+### Was sind Verbindungs-Tags?
+
+Verbindungs-Tags sind interaktive Elemente, die erscheinen, wenn Blöcke verbunden werden. Sie repräsentieren die Daten, die von einem Block zum anderen fließen können und ermöglichen es Ihnen:
+
+- Verfügbare Daten aus Quellblöcken zu visualisieren
+- Auf bestimmte Datenfelder in Zielblöcken zu verweisen
+- Dynamische Datenflüsse zwischen Blöcken zu erstellen
+
+<Callout type="info">
+  Verbindungs-Tags machen es einfach zu sehen, welche Daten aus vorherigen Blöcken verfügbar sind und diese in Ihrem
+  aktuellen Block zu verwenden, ohne sich komplexe Datenstrukturen merken zu müssen.
+</Callout>
+
+## Verwendung von Verbindungs-Tags
+
+Es gibt zwei Hauptmethoden, um Verbindungs-Tags in Ihren Workflows zu verwenden:
+
+<div className="my-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+  <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+    <h3 className="mb-2 text-lg font-medium">Drag and Drop</h3>
+    <div className="text-sm text-gray-600 dark:text-gray-400">
+      Klicken Sie auf einen Verbindungs-Tag und ziehen Sie ihn in Eingabefelder von Zielblöcken. Ein Dropdown-Menü wird
+      angezeigt, das verfügbare Werte zeigt.
+    </div>
+    <ol className="mt-2 list-decimal pl-5 text-sm text-gray-600 dark:text-gray-400">
+      <li>Fahren Sie mit dem Mauszeiger über einen Verbindungs-Tag, um verfügbare Daten zu sehen</li>
+      <li>Klicken und ziehen Sie den Tag in ein Eingabefeld</li>
+      <li>Wählen Sie das spezifische Datenfeld aus dem Dropdown-Menü</li>
+      <li>Die Referenz wird automatisch eingefügt</li>
+    </ol>
+  </div>
+
+  <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+    <h3 className="mb-2 text-lg font-medium">Spitze-Klammer-Syntax</h3>
+    <div className="text-sm text-gray-600 dark:text-gray-400">
+      Geben Sie <code>&lt;&gt;</code> in Eingabefeldern ein, um ein Dropdown-Menü mit verfügbaren Verbindungswerten
+      aus vorherigen Blöcken zu sehen.
+    </div>
+    <ol className="mt-2 list-decimal pl-5 text-sm text-gray-600 dark:text-gray-400">
+      <li>Klicken Sie in ein beliebiges Eingabefeld, in dem Sie verbundene Daten verwenden möchten</li>
+      <li>
+        Geben Sie <code>&lt;&gt;</code> ein, um das Verbindungs-Dropdown-Menü aufzurufen
+      </li>
+      <li>Durchsuchen und wählen Sie die Daten aus, auf die Sie verweisen möchten</li>
+      <li>Tippen Sie weiter oder wählen Sie aus dem Dropdown-Menü, um die Referenz zu vervollständigen</li>
+    </ol>
+  </div>
+</div>
+
+## Tag-Syntax
+
+Verbindungs-Tags verwenden eine einfache Syntax, um auf Daten zu verweisen:
+
+```
+<blockName.path.to.data>
+```
+
+Wobei:
+
+- `blockName` ist der Name des Quellblocks
+- `path.to.data` ist der Pfad zum spezifischen Datenfeld
+
+Zum Beispiel:
+
+- `<agent1.content>` - Verweist auf das Inhaltsfeld eines Blocks mit der ID "agent1"
+- `<api2.data.users[0].name>` - Verweist auf den Namen des ersten Benutzers im Benutzer-Array aus dem Datenfeld eines Blocks mit der ID "api2"
+
+## Dynamische Tag-Referenzen
+
+Verbindungs-Tags werden zur Laufzeit ausgewertet, was bedeutet:
+
+1. Sie verweisen immer auf die aktuellsten Daten
+2. Sie können in Ausdrücken verwendet und mit statischem Text kombiniert werden
+3. Sie können in andere Datenstrukturen eingebettet werden
+
+### Beispiele
+
+```javascript
+// Reference in text
+"The user's name is <userBlock.name>"
+
+// Reference in JSON
+{
+  "userName": "<userBlock.name>",
+  "orderTotal": <apiBlock.data.total>
+}
+
+// Reference in code
+const greeting = "Hello, <userBlock.name>!";
+const total = <apiBlock.data.total> * 1.1; // Add 10% tax
+```
+
+<Callout type="warning">
+  Wenn Sie Verbindungs-Tags in numerischen Kontexten verwenden, stellen Sie sicher, dass die referenzierten Daten tatsächlich eine Zahl sind,
+  um Typkonvertierungsprobleme zu vermeiden.
+</Callout>

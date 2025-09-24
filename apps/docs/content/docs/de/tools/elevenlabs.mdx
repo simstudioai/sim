@@ -1,0 +1,67 @@
+---
+title: ElevenLabs
+description: TTS mit ElevenLabs konvertieren
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="elevenlabs"
+  color="#181C1E"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='0 0 876 876'
+      fill='none'
+    >
+      <path d='M498 138H618V738H498V138Z' fill='currentColor' />
+      <path d='M258 138H378V738H258V138Z' fill='currentColor' />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[ElevenLabs](https://elevenlabs.io/) ist eine hochmoderne Text-to-Speech-Plattform, die unglaublich natürliche und ausdrucksstarke KI-Stimmen erzeugt. Sie bietet einige der realistischsten und emotional nuanciertesten synthetischen Stimmen, die heute verfügbar sind, was sie ideal für die Erstellung lebensechter Audioinhalte macht.
+
+Mit ElevenLabs können Sie:
+
+- **Natürlich klingende Sprache generieren**: Audio erstellen, das kaum von menschlicher Sprache zu unterscheiden ist
+- **Aus vielfältigen Stimmoptionen wählen**: Zugriff auf eine Bibliothek vorgefertigter Stimmen mit verschiedenen Akzenten, Tonlagen und Eigenschaften
+- **Stimmen klonen**: Benutzerdefinierte Stimmen basierend auf Audiobeispielen erstellen (mit entsprechenden Genehmigungen)
+- **Sprachparameter steuern**: Stabilität, Klarheit und emotionalen Ton anpassen, um die Ausgabe zu optimieren
+- **Realistische Emotionen hinzufügen**: Natürlich klingende Emotionen wie Freude, Traurigkeit oder Aufregung einbauen
+
+In Sim ermöglicht die ElevenLabs-Integration Ihren Agenten, Text in lebensechte Sprache umzuwandeln, was die Interaktivität und das Engagement Ihrer Anwendungen verbessert. Dies ist besonders wertvoll für die Erstellung von Sprachassistenten, die Generierung von Audioinhalten, die Entwicklung barrierefreier Anwendungen oder den Aufbau von Konversationsschnittstellen, die menschlicher wirken. Die Integration ermöglicht es Ihnen, die fortschrittlichen Sprachsynthesefähigkeiten von ElevenLabs nahtlos in Ihre Agenten-Workflows zu integrieren und so die Lücke zwischen textbasierter KI und natürlicher menschlicher Kommunikation zu schließen.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+ElevenLabs in den Workflow integrieren. Kann Text in Sprache umwandeln. Erfordert API-Schlüssel.
+
+## Tools
+
+### `elevenlabs_tts`
+
+TTS mit ElevenLabs-Stimmen konvertieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | Ja | Der Text, der in Sprache umgewandelt werden soll |
+| `voiceId` | string | Ja | Die ID der zu verwendenden Stimme |
+| `modelId` | string | Nein | Die ID des zu verwendenden Modells \(standardmäßig eleven_monolingual_v1\) |
+| `apiKey` | string | Ja | Ihr ElevenLabs API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | Die URL der generierten Audiodatei |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `elevenlabs`

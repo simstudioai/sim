@@ -1,0 +1,551 @@
+---
+title: 外部API
+---
+
+import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { CodeBlock } from 'fumadocs-ui/components/codeblock'
+import { Video } from '@/components/ui/video'
+
+Simは、ワークフローの実行ログを照会したり、ワークフローが完了したときにリアルタイム通知を設定するためのWebhookを設定したりするための包括的な外部APIを提供しています。
+
+## 認証
+
+すべてのAPIリクエストには、`x-api-key`ヘッダーで渡されるAPIキーが必要です：
+
+```bash
+curl -H "x-api-key: YOUR_API_KEY" \
+  https://sim.ai/api/v1/logs?workspaceId=YOUR_WORKSPACE_ID
+```
+
+SimダッシュボードのユーザーセッティングからAPIキーを生成できます。
+
+## ログAPI
+
+すべてのAPIレスポンスには、ワークフロー実行の制限と使用状況に関する情報が含まれています：
+
+```json
+"limits": {
+  "workflowExecutionRateLimit": {
+    "sync": {
+      "limit": 60,        // Max sync workflow executions per minute
+      "remaining": 58,    // Remaining sync workflow executions
+      "resetAt": "..."    // When the window resets
+    },
+    "async": {
+      "limit": 60,        // Max async workflow executions per minute
+      "remaining": 59,    // Remaining async workflow executions
+      "resetAt": "..."    // When the window resets
+    }
+  },
+  "usage": {
+    "currentPeriodCost": 1.234,  // Current billing period usage in USD
+    "limit": 10,                  // Usage limit in USD
+    "plan": "pro",                // Current subscription plan
+    "isExceeded": false           // Whether limit is exceeded
+  }
+}
+```
+
+**注意：** レスポンス本文のレート制限はワークフロー実行に関するものです。このAPIエンドポイントを呼び出すためのレート制限はレスポンスヘッダー（`X-RateLimit-*`）にあります。
+
+### ログの照会
+
+広範なフィルタリングオプションでワークフロー実行ログを照会します。
+
+<Tabs items={['Request', 'Response']}>
+  <Tab value="Request">
+
+    ```http
+    GET /api/v1/logs
+    ```
+
+    **必須パラメータ：**
+    - `workspaceId` - ワークスペースID
+
+    **オプションフィルター：**
+    - `workflowIds` - カンマ区切りのワークフローID
+    - `folderIds` - カンマ区切りのフォルダID
+    - `triggers` - カンマ区切りのトリガータイプ: `api`, `webhook`, `schedule`, `manual`, `chat`
+    - `level` - レベルでフィルタリング: `info`, `error`
+    - `startDate` - 日付範囲開始のISOタイムスタンプ
+    - `endDate` - 日付範囲終了のISOタイムスタンプ
+    - `executionId` - 正確な実行ID一致
+    - `minDurationMs` - 最小実行時間（ミリ秒）
+    - `maxDurationMs` - 最大実行時間（ミリ秒）
+    - `minCost` - 最小実行コスト
+    - `maxCost` - 最大実行コスト
+    - `model` - 使用されたAIモデルでフィルタリング
+
+    **ページネーション：**
+    - `limit` - ページあたりの結果数（デフォルト：100）
+    - `cursor` - 次ページのカーソル
+    - `order` - ソート順：`desc`, `asc` （デフォルト：desc）
+
+    **詳細レベル:**
+    - `details` - レスポンス詳細レベル: `basic`, `full` (デフォルト: basic)
+    - `includeTraceSpans` - トレーススパンを含める (デフォルト: false)
+    - `includeFinalOutput` - 最終出力を含める (デフォルト: false)
+  </Tab>
+  <Tab value="Response">
+
+    ```json
+    {
+      "data": [
+        {
+          "id": "log_abc123",
+          "workflowId": "wf_xyz789",
+          "executionId": "exec_def456",
+          "level": "info",
+          "trigger": "api",
+          "startedAt": "2025-01-01T12:34:56.789Z",
+          "endedAt": "2025-01-01T12:34:57.123Z",
+          "totalDurationMs": 334,
+          "cost": {
+            "total": 0.00234
+          },
+          "files": null
+        }
+      ],
+      "nextCursor": "eyJzIjoiMjAyNS0wMS0wMVQxMjozNDo1Ni43ODlaIiwiaWQiOiJsb2dfYWJjMTIzIn0",
+      "limits": {
+        "workflowExecutionRateLimit": {
+          "sync": {
+            "limit": 60,
+            "remaining": 58,
+            "resetAt": "2025-01-01T12:35:56.789Z"
+          },
+          "async": {
+            "limit": 60,
+            "remaining": 59,
+            "resetAt": "2025-01-01T12:35:56.789Z"
+          }
+        },
+        "usage": {
+          "currentPeriodCost": 1.234,
+          "limit": 10,
+          "plan": "pro",
+          "isExceeded": false
+        }
+      }
+    }
+    ```
+
+  </Tab>
+</Tabs>
+
+### ログ詳細の取得
+
+特定のログエントリに関する詳細情報を取得します。
+
+<Tabs items={['Request', 'Response']}>
+  <Tab value="Request">
+
+    ```http
+    GET /api/v1/logs/{id}
+    ```
+
+  </Tab>
+  <Tab value="Response">
+
+    ```json
+    {
+      "data": {
+        "id": "log_abc123",
+        "workflowId": "wf_xyz789",
+        "executionId": "exec_def456",
+        "level": "info",
+        "trigger": "api",
+        "startedAt": "2025-01-01T12:34:56.789Z",
+        "endedAt": "2025-01-01T12:34:57.123Z",
+        "totalDurationMs": 334,
+        "workflow": {
+          "id": "wf_xyz789",
+          "name": "My Workflow",
+          "description": "Process customer data"
+        },
+        "executionData": {
+          "traceSpans": [...],
+          "finalOutput": {...}
+        },
+        "cost": {
+          "total": 0.00234,
+          "tokens": {
+            "prompt": 123,
+            "completion": 456,
+            "total": 579
+          },
+          "models": {
+            "gpt-4o": {
+              "input": 0.001,
+              "output": 0.00134,
+              "total": 0.00234,
+              "tokens": {
+                "prompt": 123,
+                "completion": 456,
+                "total": 579
+              }
+            }
+          }
+        },
+        "limits": {
+          "workflowExecutionRateLimit": {
+            "sync": {
+              "limit": 60,
+              "remaining": 58,
+              "resetAt": "2025-01-01T12:35:56.789Z"
+            },
+            "async": {
+              "limit": 60,
+              "remaining": 59,
+              "resetAt": "2025-01-01T12:35:56.789Z"
+            }
+          },
+          "usage": {
+            "currentPeriodCost": 1.234,
+            "limit": 10,
+            "plan": "pro",
+            "isExceeded": false
+          }
+        }
+      }
+    }
+    ```
+
+  </Tab>
+</Tabs>
+
+### 実行詳細の取得
+
+ワークフロー状態のスナップショットを含む実行詳細を取得します。
+
+<Tabs items={['Request', 'Response']}>
+  <Tab value="Request">
+
+    ```http
+    GET /api/v1/logs/executions/{executionId}
+    ```
+
+  </Tab>
+  <Tab value="Response">
+
+    ```json
+    {
+      "executionId": "exec_def456",
+      "workflowId": "wf_xyz789",
+      "workflowState": {
+        "blocks": {...},
+        "edges": [...],
+        "loops": {...},
+        "parallels": {...}
+      },
+      "executionMetadata": {
+        "trigger": "api",
+        "startedAt": "2025-01-01T12:34:56.789Z",
+        "endedAt": "2025-01-01T12:34:57.123Z",
+        "totalDurationMs": 334,
+        "cost": {...}
+      }
+    }
+    ```
+
+  </Tab>
+</Tabs>
+
+## Webhookサブスクリプション
+
+ワークフロー実行が完了したときにリアルタイム通知を受け取ります。WebhookはSim UIのワークフローエディタで設定されます。
+
+### 設定
+
+Webhookは、ワークフローエディタUIを通じて各ワークフローに設定できます。コントロールバーのWebhookアイコンをクリックして、Webhookサブスクリプションを設定します。
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="configure-webhook.mp4" width={700} height={450} />
+</div>
+
+**利用可能な設定オプション:**
+- `url`: WebhookエンドポイントURL
+- `secret`: HMAC署名検証用のオプションシークレット
+- `includeFinalOutput`: ペイロードにワークフローの最終出力を含める
+- `includeTraceSpans`: 詳細な実行トレーススパンを含める
+- `includeRateLimits`: ワークフロー所有者のレート制限情報を含める
+- `includeUsageData`: ワークフロー所有者の使用状況と請求データを含める
+- `levelFilter`: 受信するログレベルの配列 (`info`, `error`)
+- `triggerFilter`: 受信するトリガータイプの配列 (`api`, `webhook`, `schedule`, `manual`, `chat`)
+- `active`: Webhookサブスクリプションの有効化/無効化
+
+### Webhookペイロード
+
+ワークフロー実行が完了すると、SimはWebhook URLにPOSTリクエストを送信します:
+
+```json
+{
+  "id": "evt_123",
+  "type": "workflow.execution.completed",
+  "timestamp": 1735925767890,
+  "data": {
+    "workflowId": "wf_xyz789",
+    "executionId": "exec_def456",
+    "status": "success",
+    "level": "info",
+    "trigger": "api",
+    "startedAt": "2025-01-01T12:34:56.789Z",
+    "endedAt": "2025-01-01T12:34:57.123Z",
+    "totalDurationMs": 334,
+    "cost": {
+      "total": 0.00234,
+      "tokens": {
+        "prompt": 123,
+        "completion": 456,
+        "total": 579
+      },
+      "models": {
+        "gpt-4o": {
+          "input": 0.001,
+          "output": 0.00134,
+          "total": 0.00234,
+          "tokens": {
+            "prompt": 123,
+            "completion": 456,
+            "total": 579
+          }
+        }
+      }
+    },
+    "files": null,
+    "finalOutput": {...},  // Only if includeFinalOutput=true
+    "traceSpans": [...],   // Only if includeTraceSpans=true
+    "rateLimits": {...},   // Only if includeRateLimits=true
+    "usage": {...}         // Only if includeUsageData=true
+  },
+  "links": {
+    "log": "/v1/logs/log_abc123",
+    "execution": "/v1/logs/executions/exec_def456"
+  }
+}
+```
+
+### Webhookヘッダー
+
+各Webhookリクエストには以下のヘッダーが含まれます：
+
+- `sim-event`: イベントタイプ（常に `workflow.execution.completed`）
+- `sim-timestamp`: ミリ秒単位のUnixタイムスタンプ
+- `sim-delivery-id`: べき等性のための一意の配信ID
+- `sim-signature`: 検証用のHMAC-SHA256署名（シークレットが設定されている場合）
+- `Idempotency-Key`: 重複検出のための配信IDと同じ値
+
+### 署名検証
+
+Webhookシークレットを設定した場合、署名を検証してWebhookがSimからのものであることを確認してください：
+
+<Tabs items={['Node.js', 'Python']}>
+  <Tab value="Node.js">
+
+    ```javascript
+    import crypto from 'crypto';
+
+    function verifyWebhookSignature(body, signature, secret) {
+      const [timestampPart, signaturePart] = signature.split(',');
+      const timestamp = timestampPart.replace('t=', '');
+      const expectedSignature = signaturePart.replace('v1=', '');
+      
+      const signatureBase = `${timestamp}.${body}`;
+      const hmac = crypto.createHmac('sha256', secret);
+      hmac.update(signatureBase);
+      const computedSignature = hmac.digest('hex');
+      
+      return computedSignature === expectedSignature;
+    }
+
+    // In your webhook handler
+    app.post('/webhook', (req, res) => {
+      const signature = req.headers['sim-signature'];
+      const body = JSON.stringify(req.body);
+      
+      if (!verifyWebhookSignature(body, signature, process.env.WEBHOOK_SECRET)) {
+        return res.status(401).send('Invalid signature');
+      }
+      
+      // Process the webhook...
+    });
+    ```
+
+  </Tab>
+  <Tab value="Python">
+
+    ```python
+    import hmac
+    import hashlib
+    import json
+
+    def verify_webhook_signature(body: str, signature: str, secret: str) -> bool:
+        timestamp_part, signature_part = signature.split(',')
+        timestamp = timestamp_part.replace('t=', '')
+        expected_signature = signature_part.replace('v1=', '')
+        
+        signature_base = f"{timestamp}.{body}"
+        computed_signature = hmac.new(
+            secret.encode(),
+            signature_base.encode(),
+            hashlib.sha256
+        ).hexdigest()
+        
+        return hmac.compare_digest(computed_signature, expected_signature)
+
+    # In your webhook handler
+    @app.route('/webhook', methods=['POST'])
+    def webhook():
+        signature = request.headers.get('sim-signature')
+        body = json.dumps(request.json)
+        
+        if not verify_webhook_signature(body, signature, os.environ['WEBHOOK_SECRET']):
+            return 'Invalid signature', 401
+        
+        # Process the webhook...
+    ```
+
+  </Tab>
+</Tabs>
+
+### リトライポリシー
+
+失敗したWebhook配信は指数バックオフとジッターを使用して再試行されます：
+
+- 最大試行回数: 5回
+- リトライ間隔: 5秒、15秒、1分、3分、10分
+- ジッター: 最大10%の追加遅延（サンダリングハード問題を防ぐため）
+- HTTP 5xxと429レスポンスのみがリトライをトリガー
+- 配信は30秒後にタイムアウト
+
+<Callout type="info">
+  Webhook配信は非同期で処理され、ワークフロー実行のパフォーマンスには影響しません。
+</Callout>
+
+## ベストプラクティス
+
+1. **ポーリング戦略**: ログをポーリングする場合、`order=asc`と`startDate`を使用したカーソルベースのページネーションを使用して、新しいログを効率的に取得してください。
+
+2. **Webhookセキュリティ**: 常にWebhookシークレットを設定し、署名を検証してリクエストがSimからのものであることを確認してください。
+
+3. **べき等性**: `Idempotency-Key`ヘッダーを使用して、重複するWebhook配信を検出し処理してください。
+
+4. **プライバシー**: デフォルトでは、`finalOutput`と`traceSpans`はレスポンスから除外されます。データが必要で、プライバシーへの影響を理解している場合にのみ有効にしてください。
+
+5. **レート制限**: 429レスポンスを受け取った場合は指数バックオフを実装してください。推奨待機時間については`Retry-After`ヘッダーを確認してください。
+
+## レート制限
+
+APIは公平な使用を確保するためにレート制限を実装しています：
+
+- **無料プラン**: 1分あたり10リクエスト
+- **プロプラン**: 1分あたり30リクエスト
+- **チームプラン**: 1分あたり60リクエスト
+- **エンタープライズプラン**: カスタム制限
+
+レート制限情報はレスポンスヘッダーに含まれています：
+- `X-RateLimit-Limit`: ウィンドウあたりの最大リクエスト数
+- `X-RateLimit-Remaining`: 現在のウィンドウで残りのリクエスト数
+- `X-RateLimit-Reset`: ウィンドウがリセットされるISOタイムスタンプ
+
+## 例：新しいログのポーリング
+
+```javascript
+let cursor = null;
+const workspaceId = 'YOUR_WORKSPACE_ID';
+const startDate = new Date().toISOString();
+
+async function pollLogs() {
+  const params = new URLSearchParams({
+    workspaceId,
+    startDate,
+    order: 'asc',
+    limit: '100'
+  });
+  
+  if (cursor) {
+    params.append('cursor', cursor);
+  }
+  
+  const response = await fetch(
+    `https://sim.ai/api/v1/logs?${params}`,
+    {
+      headers: {
+        'x-api-key': 'YOUR_API_KEY'
+      }
+    }
+  );
+  
+  if (response.ok) {
+    const data = await response.json();
+    
+    // Process new logs
+    for (const log of data.data) {
+      console.log(`New execution: ${log.executionId}`);
+    }
+    
+    // Update cursor for next poll
+    if (data.nextCursor) {
+      cursor = data.nextCursor;
+    }
+  }
+}
+
+// Poll every 30 seconds
+setInterval(pollLogs, 30000);
+```
+
+## 例：ウェブフックの処理
+
+```javascript
+import express from 'express';
+import crypto from 'crypto';
+
+const app = express();
+app.use(express.json());
+
+app.post('/sim-webhook', (req, res) => {
+  // Verify signature
+  const signature = req.headers['sim-signature'];
+  const body = JSON.stringify(req.body);
+  
+  if (!verifyWebhookSignature(body, signature, process.env.WEBHOOK_SECRET)) {
+    return res.status(401).send('Invalid signature');
+  }
+  
+  // Check timestamp to prevent replay attacks
+  const timestamp = parseInt(req.headers['sim-timestamp']);
+  const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+  
+  if (timestamp < fiveMinutesAgo) {
+    return res.status(401).send('Timestamp too old');
+  }
+  
+  // Process the webhook
+  const event = req.body;
+  
+  switch (event.type) {
+    case 'workflow.execution.completed':
+      const { workflowId, executionId, status, cost } = event.data;
+      
+      if (status === 'error') {
+        console.error(`Workflow ${workflowId} failed: ${executionId}`);
+        // Handle error...
+      } else {
+        console.log(`Workflow ${workflowId} completed: ${executionId}`);
+        console.log(`Cost: ${cost.total}`);
+        // Process successful execution...
+      }
+      break;
+  }
+  
+  // Return 200 to acknowledge receipt
+  res.status(200).send('OK');
+});
+
+app.listen(3000, () => {
+  console.log('Webhook server listening on port 3000');
+});
+```
