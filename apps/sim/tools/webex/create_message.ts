@@ -32,43 +32,43 @@ export const webexCreateMessageTool: ToolConfig<
     markdown: {
       type: 'string',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Markdown message',
     },
     parentId: {
       type: 'string',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Parent message ID to reply to',
     },
     roomId: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
-      description: 'Room Id',
+      visibility: 'user-only',
+      description: 'Room ID',
     },
     text: {
       type: 'string',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Text message',
     },
     toPersonEmail: {
       type: 'string',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'The recipient email address',
     },
     toPersonId: {
       type: 'string',
       required: false,
-      visibility: 'hidden',
-      description: 'The recipient person Id',
+      visibility: 'user-only',
+      description: 'The recipient person ID',
     },
     files: {
       type: 'string',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description:
         'Public URLs to binary files (comma-separated), currently only one file may be included',
     },
@@ -107,14 +107,15 @@ export const webexCreateMessageTool: ToolConfig<
 
       const replyBody: Record<string, any> = {}
       // If replying to a message, use the reply format
-      if (params.files) {
-        replyBody.files = parseFile(params.files)
+      const { accessToken, files, ...bodyParams } = params
+
+      if (files) {
+        replyBody.files = parseFile(files)
       }
-      Object.keys(params).forEach((key) => {
-        if (key === 'accessToken') return // Skip if it is accessToken
-        if (key === 'files') return // Skip as files has been previously handled
-        const value = params[key as keyof typeof params]
-        // Checks for truthiness, excluding parameters when they do not have value, all of them are treated as strings
+
+      Object.entries(bodyParams).forEach(([key, value]) => {
+        /** Checks for truthiness, excluding parameters when they do not have value
+         **/
         if (value) {
           replyBody[key] = value
         }
@@ -159,6 +160,6 @@ export const webexCreateMessageTool: ToolConfig<
   outputs: {
     message: { type: 'string', description: 'Success or status message' },
     results: { type: 'object', description: 'Message object created' },
-    createdId: { type: 'string', description: 'Created Id' },
+    createdId: { type: 'string', description: 'Created ID' },
   },
 }

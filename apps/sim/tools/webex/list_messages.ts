@@ -31,7 +31,7 @@ export const webexListMessagesTool: ToolConfig<WebexListMessagesParams, WebexLis
         type: 'string',
         required: true,
         visibility: 'user-only',
-        description: 'Room Id',
+        description: 'Room ID',
       },
       mentionedPeople: {
         type: 'string',
@@ -55,25 +55,24 @@ export const webexListMessagesTool: ToolConfig<WebexListMessagesParams, WebexLis
         type: 'number',
         required: false,
         visibility: 'user-only',
-        description: 'List messages sent before a message, by ID',
+        description: 'Maximum number of items to retrieve',
       },
     },
     request: {
       url: (params: WebexListMessagesParams) => {
         let baseUrl = `https://webexapis.com/v1/messages`
         const searchParams = new URLSearchParams()
-        if (!params.roomId) {
+        const { accessToken, roomId, ...queryParams } = params
+        if (!roomId) {
           throw new Error('RoomId is required')
         }
-        Object.keys(params).forEach((key) => {
-          if (key === 'accessToken') return // Skip if it is accessToken
-          const value = params[key as keyof typeof params]
+        Object.entries(queryParams).forEach(([key, value]) => {
           /** Checks for truthiness, excluding parameters when they do not have value
            * many of them are treated as strings
            * 'max' is a number but it does not allow 0 as value
            **/
           if (value) {
-            searchParams.set(key, value)
+            searchParams.set(key, `${value}`)
           }
         })
         const paramsString = searchParams.toString()

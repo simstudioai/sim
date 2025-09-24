@@ -30,7 +30,7 @@ export const webexListRoomsTool: ToolConfig<WebexListRoomsParams, WebexListRooms
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Team Id',
+      description: 'Team ID',
     },
     type: {
       type: 'string',
@@ -61,15 +61,15 @@ export const webexListRoomsTool: ToolConfig<WebexListRoomsParams, WebexListRooms
     url: (params: WebexListRoomsParams) => {
       let baseUrl = `https://webexapis.com/v1/rooms`
       const searchParams = new URLSearchParams()
-      Object.keys(params).forEach((key) => {
-        if (key === 'accessToken') return // Skip if it is accessToken
-        const value = params[key as keyof typeof params]
+
+      const { accessToken, ...queryParams } = params
+      Object.entries(queryParams).forEach(([key, value]) => {
         /** Checks for truthiness, excluding parameters when they do not have value
          * many of them are treated as strings
          * 'max' is a number but it does not allow 0 as value
          **/
         if (value) {
-          searchParams.set(key, value)
+          searchParams.set(key, `${value}`)
         }
       })
       const paramsString = searchParams.toString()

@@ -29,26 +29,26 @@ export const webexEditMessageTool: ToolConfig<WebexEditMessageParams, WebexEditM
     roomId: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
-      description: 'Room Id',
+      visibility: 'user-only',
+      description: 'Room ID',
+    },
+    messageId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Message ID',
     },
     markdown: {
       type: 'string',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Markdown message',
     },
     text: {
       type: 'string',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Text message',
-    },
-    messageId: {
-      type: 'string',
-      required: true,
-      visibility: 'hidden',
-      description: 'Message Id',
     },
   },
   request: {
@@ -73,11 +73,10 @@ export const webexEditMessageTool: ToolConfig<WebexEditMessageParams, WebexEditM
     },
     body: (params: WebexEditMessageParams): Record<string, any> => {
       const replyBody: Record<string, any> = {}
-      Object.keys(params).forEach((key) => {
-        if (key === 'accessToken') return // Skip if it is 'accessToken'
-        if (key === 'messageId') return // Skip path param 'messageId'
-        const value = params[key as keyof typeof params]
-        // Checks for truthiness, excluding parameters when they do not have value, all of them are treated as strings
+      const { accessToken, messageId, ...bodyParams } = params
+      Object.entries(bodyParams).forEach(([key, value]) => {
+        /** Checks for truthiness, excluding parameters when they do not have value
+         **/
         if (value) {
           replyBody[key] = value
         }

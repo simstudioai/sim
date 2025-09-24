@@ -502,7 +502,7 @@ List rooms
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `teamId` | string | No | Team Id |
+| `teamId` | string | No | Team ID |
 | `type` | string | No | Room type |
 | `from` | string | No | Made public after this timestamp |
 | `to` | string | No | Made public before this timestamp |
@@ -523,11 +523,11 @@ List messages
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `roomId` | string | Yes | Room Id |
+| `roomId` | string | Yes | Room ID |
 | `mentionedPeople` | string | No | Mentioned People |
 | `before` | string | No | List messages sent before a date and time |
 | `beforeMessage` | string | No | Made public before this timestamp |
-| `max` | number | No | List messages sent before a message, by ID |
+| `max` | number | No | Maximum number of items to retrieve |
 
 #### Output
 
@@ -546,10 +546,10 @@ Create message
 | --------- | ---- | -------- | ----------- |
 | `markdown` | string | No | Markdown message |
 | `parentId` | string | No | Parent message ID to reply to |
-| `roomId` | string | Yes | Room Id |
+| `roomId` | string | Yes | Room ID |
 | `text` | string | No | Text message |
 | `toPersonEmail` | string | No | The recipient email address |
-| `toPersonId` | string | No | The recipient person Id |
+| `toPersonId` | string | No | The recipient person ID |
 | `files` | string | No | Public URLs to binary files \(comma-separated\), currently only one file may be included |
 
 #### Output
@@ -558,7 +558,7 @@ Create message
 | --------- | ---- | ----------- |
 | `message` | string | Success or status message |
 | `results` | object | Message object created |
-| `createdId` | string | createdId output from the tool |
+| `createdId` | string | Created ID |
 
 ### `webex_edit_message`
 
@@ -568,10 +568,10 @@ Edit message
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `roomId` | string | Yes | Room Id |
+| `roomId` | string | Yes | Room ID |
+| `messageId` | string | Yes | Message ID |
 | `markdown` | string | No | Markdown message |
 | `text` | string | No | Text message |
-| `messageId` | string | Yes | Message Id |
 
 #### Output
 

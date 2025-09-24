@@ -53,6 +53,7 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
         field: 'operation',
         value: ['list_rooms'],
       },
+      mode: 'advanced',
       required: false,
     },
     {
@@ -65,6 +66,7 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
         field: 'operation',
         value: ['list_rooms'],
       },
+      mode: 'advanced',
       required: false,
     },
     {
@@ -77,6 +79,7 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
         field: 'operation',
         value: ['list_rooms'],
       },
+      mode: 'advanced',
       required: false,
     },
     {
@@ -89,6 +92,7 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
         field: 'operation',
         value: ['list_rooms'],
       },
+      mode: 'advanced',
       required: false,
     },
     {
@@ -107,10 +111,10 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
     // Operation: For list messages
     {
       id: 'roomId',
-      title: 'Room Id',
+      title: 'Room ID',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Room Id',
+      placeholder: 'Room ID',
       condition: {
         field: 'operation',
         // list_messages and edit_message do required it.
@@ -186,6 +190,7 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
       layout: 'full',
       placeholder: 'Parent message ID to reply to',
       condition: { field: 'operation', value: ['create_message'] },
+      mode: 'advanced',
       required: false,
     },
     // text string
@@ -212,10 +217,10 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
     // toPersonId string
     {
       id: 'toPersonId',
-      title: 'To Person Id',
+      title: 'To Person ID',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'The recipient person Id',
+      placeholder: 'The recipient person ID',
       condition: { field: 'operation', value: ['create_message'] },
       mode: 'advanced',
       required: false,
@@ -311,7 +316,7 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
     to: { type: 'string', description: 'Made public before this timestamp' },
     max: { type: 'number', description: 'Maximum number of items to retrieve' },
     //
-    roomId: { type: 'string', description: 'Room Id' },
+    roomId: { type: 'string', description: 'Room ID' },
     mentionedGroups: {
       type: 'string',
       description: 'Group names for the groups mentioned in the message.',
@@ -324,23 +329,23 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
     beforeMessage: { type: 'string', description: 'List messages sent before a message, by ID' },
     //
     markdown: { type: 'string', description: 'Markdown message' },
-    parentId: { type: 'string', description: 'Parent Id message' },
+    parentId: { type: 'string', description: 'Parent ID message' },
     text: { type: 'string', description: 'Text message' },
     toPersonEmail: { type: 'string', description: 'The recipient email address' },
-    toPersonId: { type: 'string', description: 'The recipient person Id' },
+    toPersonId: { type: 'string', description: 'The recipient person ID' },
     files: {
       type: 'string',
       description:
         'Public URLs to binary files (comma-separated), currently only one file may be included',
     },
     //
-    messageId: { type: 'string', description: 'Message Id' },
+    messageId: { type: 'string', description: 'Message ID' },
   },
   outputs: {
     // Common outputs
     message: { type: 'string', description: 'Response message' },
     results: { type: 'json', description: 'Operation results' },
     //
-    createdId: { type: 'string', description: 'Created Id' },
+    createdId: { type: 'string', description: 'Created ID' },
   },
 }
