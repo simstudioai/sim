@@ -1,6 +1,10 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
-import type { WebexListRoomsParams, WebexListRoomsResponse, WebexListRooms } from '@/tools/webex/types'
+import type {
+  WebexListRooms,
+  WebexListRoomsParams,
+  WebexListRoomsResponse,
+} from '@/tools/webex/types'
 
 const logger = createLogger('WebexListRooms')
 
@@ -55,24 +59,24 @@ export const webexListRoomsTool: ToolConfig<WebexListRoomsParams, WebexListRooms
   },
   request: {
     url: (params: WebexListRoomsParams) => {
-      let baseUrl = `https://webexapis.com/v1/rooms`;
-      let searchParams = new URLSearchParams();
-      Object.keys(params).forEach(key => {
-        if (key === 'accessToken') return; // Skip if it is accessToken
-        let value = Object(params)[key];
+      let baseUrl = `https://webexapis.com/v1/rooms`
+      const searchParams = new URLSearchParams()
+      Object.keys(params).forEach((key) => {
+        if (key === 'accessToken') return // Skip if it is accessToken
+        const value = params[key as keyof typeof params]
         /** Checks for truthiness, excluding parameters when they do not have value
          * many of them are treated as strings
          * 'max' is a number but it does not allow 0 as value
-        **/
-        if (!!value) {
+         **/
+        if (value) {
           searchParams.set(key, value)
         }
-      });
-      let paramsString = searchParams.toString()
-      if (!!paramsString) {
+      })
+      const paramsString = searchParams.toString()
+      if (paramsString) {
         baseUrl += `?${paramsString}`
       }
-      return baseUrl;
+      return baseUrl
     },
     method: 'GET',
     headers: (params) => {
@@ -90,7 +94,7 @@ export const webexListRoomsTool: ToolConfig<WebexListRoomsParams, WebexListRooms
     logger.info('Received response status: ', response.status)
 
     try {
-      const data : WebexListRooms = await response.json()
+      const data: WebexListRooms = await response.json()
       logger.info('Response parsed successfully')
 
       // API returns rooms in 'items' array
@@ -107,10 +111,10 @@ export const webexListRoomsTool: ToolConfig<WebexListRoomsParams, WebexListRooms
       }
 
       return {
-        success: true, 
+        success: true,
         output: {
           message: `Successfully read ${items.length} room(s)`,
-          results: items
+          results: items,
         },
       }
     } catch (error) {

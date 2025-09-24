@@ -1,10 +1,17 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
-import type { WebexCreateMessageParams, WebexCreateMessageResponse, WebexSingleMessage } from '@/tools/webex/types'
+import type {
+  WebexCreateMessageParams,
+  WebexCreateMessageResponse,
+  WebexSingleMessage,
+} from '@/tools/webex/types'
 
 const logger = createLogger('WebexCreateMessage')
 
-export const webexCreateMessageTool: ToolConfig<WebexCreateMessageParams, WebexCreateMessageResponse> = {
+export const webexCreateMessageTool: ToolConfig<
+  WebexCreateMessageParams,
+  WebexCreateMessageResponse
+> = {
   id: 'webex_create_message',
   name: 'Webex Create Message',
   description: 'Create message',
@@ -62,13 +69,14 @@ export const webexCreateMessageTool: ToolConfig<WebexCreateMessageParams, WebexC
       type: 'string',
       required: false,
       visibility: 'hidden',
-      description: 'Public URLs to binary files (comma-separated), currently only one file may be included',
+      description:
+        'Public URLs to binary files (comma-separated), currently only one file may be included',
     },
   },
   request: {
     url: (params) => {
-      let baseUrl = `https://webexapis.com/v1/messages`;
-      return baseUrl;
+      const baseUrl = `https://webexapis.com/v1/messages`
+      return baseUrl
     },
     method: 'POST',
     headers: (params) => {
@@ -86,31 +94,32 @@ export const webexCreateMessageTool: ToolConfig<WebexCreateMessageParams, WebexC
       // Helper function to parse comma-separated files
       const parseFile = (fileString?: string) => {
         if (!fileString) return undefined
-        let files = fileString.split(',')
+        const files = fileString
+          .split(',')
           .map((item) => item.trim())
           .filter((item) => item.length > 0)
         if (files.length > 0) {
           // It only picks one as only one is supported
-          return [ files[0] ]
+          return [files[0]]
         }
         return undefined
       }
 
       const replyBody: Record<string, any> = {}
       // If replying to a message, use the reply format
-      if (!!params.files) {
+      if (params.files) {
         replyBody.files = parseFile(params.files)
       }
-      Object.keys(params).forEach(key => {
-        if (key === 'accessToken') return; // Skip if it is accessToken
-        if (key === 'files') return; // Skip as files has been previously handled
-        let value = Object(params)[key];
+      Object.keys(params).forEach((key) => {
+        if (key === 'accessToken') return // Skip if it is accessToken
+        if (key === 'files') return // Skip as files has been previously handled
+        const value = params[key as keyof typeof params]
         // Checks for truthiness, excluding parameters when they do not have value, all of them are treated as strings
-        if (!!value) {
+        if (value) {
           replyBody[key] = value
         }
-      });
-      
+      })
+
       return replyBody
     },
   },
@@ -118,7 +127,7 @@ export const webexCreateMessageTool: ToolConfig<WebexCreateMessageParams, WebexC
     logger.info('Received response status: ', response.status)
 
     try {
-      const data : WebexSingleMessage = await response.json()
+      const data: WebexSingleMessage = await response.json()
       // API returns messages in 'items' array
       const item = data || {}
 
@@ -133,11 +142,11 @@ export const webexCreateMessageTool: ToolConfig<WebexCreateMessageParams, WebexC
       }
 
       return {
-        success: true, 
+        success: true,
         output: {
           message: `Successfully created ${item.id} message`,
           createdId: item.id,
-          results: item
+          results: item,
         },
       }
     } catch (error) {
@@ -150,6 +159,6 @@ export const webexCreateMessageTool: ToolConfig<WebexCreateMessageParams, WebexC
   outputs: {
     message: { type: 'string', description: 'Success or status message' },
     results: { type: 'object', description: 'Message object created' },
-    createdId: { type: 'string', description: 'Created Id'},
+    createdId: { type: 'string', description: 'Created Id' },
   },
 }

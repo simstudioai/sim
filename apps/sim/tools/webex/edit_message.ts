@@ -1,6 +1,10 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ToolConfig } from '@/tools/types'
-import type { WebexEditMessageParams, WebexEditMessageResponse, WebexSingleMessage } from '@/tools/webex/types'
+import type {
+  WebexEditMessageParams,
+  WebexEditMessageResponse,
+  WebexSingleMessage,
+} from '@/tools/webex/types'
 
 const logger = createLogger('WebexEditMessage')
 
@@ -52,8 +56,8 @@ export const webexEditMessageTool: ToolConfig<WebexEditMessageParams, WebexEditM
       if (!params.messageId) {
         throw new Error('Path parameter "messageId" is required')
       }
-      let baseUrl = `https://webexapis.com/v1/messages/${params.messageId}`;
-      return baseUrl;
+      const baseUrl = `https://webexapis.com/v1/messages/${params.messageId}`
+      return baseUrl
     },
     method: 'PUT',
     headers: (params) => {
@@ -69,15 +73,15 @@ export const webexEditMessageTool: ToolConfig<WebexEditMessageParams, WebexEditM
     },
     body: (params: WebexEditMessageParams): Record<string, any> => {
       const replyBody: Record<string, any> = {}
-      Object.keys(params).forEach(key => {
-        if (key === 'accessToken') return; // Skip if it is 'accessToken'
-        if (key === 'messageId') return; // Skip path param 'messageId'
-        let value = Object(params)[key];
+      Object.keys(params).forEach((key) => {
+        if (key === 'accessToken') return // Skip if it is 'accessToken'
+        if (key === 'messageId') return // Skip path param 'messageId'
+        const value = params[key as keyof typeof params]
         // Checks for truthiness, excluding parameters when they do not have value, all of them are treated as strings
-        if (!!value) {
+        if (value) {
           replyBody[key] = value
         }
-      });
+      })
       return replyBody
     },
   },
@@ -85,7 +89,7 @@ export const webexEditMessageTool: ToolConfig<WebexEditMessageParams, WebexEditM
     logger.info('Received response status: ', response.status)
 
     try {
-      const data : WebexSingleMessage = await response.json()
+      const data: WebexSingleMessage = await response.json()
       // API returns messages in 'items' array
       const item = data || {}
 
@@ -100,10 +104,10 @@ export const webexEditMessageTool: ToolConfig<WebexEditMessageParams, WebexEditM
       }
 
       return {
-        success: true, 
+        success: true,
         output: {
           message: `Successfully modified ${item.id} message`,
-          results: item
+          results: item,
         },
       }
     } catch (error) {
