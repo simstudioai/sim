@@ -312,7 +312,7 @@ export function FieldFormat({
                       onChange={(e) => updateField(field.id, 'name', e.target.value)}
                       placeholder={placeholder}
                       disabled={isPreview || disabled}
-                      className='h-9 placeholder:text-muted-foreground/50'
+                      className='h-9 border border-input bg-white placeholder:text-muted-foreground/50 dark:bg-background dark:border-input/60'
                     />
                   </div>
 
@@ -413,7 +413,7 @@ export function FieldFormat({
                             }
                             disabled={isPreview || disabled}
                             className={cn(
-                              'min-h-[120px] font-mono text-sm placeholder:text-muted-foreground/50',
+                              'min-h-[120px] font-mono text-sm placeholder:text-muted-foreground/50 border border-input bg-white dark:bg-background dark:border-input/60',
                               dragHighlight[field.id] && 'ring-2 ring-blue-500 ring-offset-2',
                               isConnecting &&
                                 config?.connectionDroppable !== false &&
@@ -451,7 +451,7 @@ export function FieldFormat({
                               placeholder={valuePlaceholder}
                               disabled={isPreview || disabled}
                               className={cn(
-                                'allow-scroll h-9 w-full overflow-auto text-transparent caret-foreground placeholder:text-muted-foreground/50',
+                                'allow-scroll h-9 w-full overflow-auto text-transparent caret-foreground placeholder:text-muted-foreground/50 border border-input bg-white dark:bg-background dark:border-input/60',
                                 dragHighlight[field.id] && 'ring-2 ring-blue-500 ring-offset-2',
                                 isConnecting &&
                                   config?.connectionDroppable !== false &&

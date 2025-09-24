@@ -100,7 +100,7 @@ export function DeployModal({
   const [previewing, setPreviewing] = useState(false)
   const [previewDeployedState, setPreviewDeployedState] = useState<WorkflowState | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 10
+  const itemsPerPage = 5
 
   const getInputFormatExample = () => {
     let inputFormatExample = ''

@@ -632,7 +632,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const [workflowIdFromStore] = useSubBlockValue<string>(id, 'workflowId')
 
   // Determine if this is a workflow block (child workflow selector) and fetch child status
-  const isWorkflowSelector = type === 'workflow'
+  const isWorkflowSelector = type === 'workflow' || type === 'workflow_input'
   let childWorkflowId: string | undefined
   if (!data.isPreview) {
     // Use store value for real-time updates

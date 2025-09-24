@@ -350,7 +350,7 @@ export function TrainingModal() {
 
         {isTraining && (
           <>
-            <div className='rounded-lg border bg-orange-50 p-4 dark:bg-orange-950/30 mt-4'>
+            <div className='mt-4 rounded-lg border bg-orange-50 p-4 dark:bg-orange-950/30'>
               <p className='mb-2 font-medium text-orange-700 dark:text-orange-300'>
                 Recording: {currentTitle}
               </p>
@@ -376,7 +376,7 @@ export function TrainingModal() {
             </div>
 
             {startSnapshot && (
-              <div className='rounded-lg border p-3 mt-3'>
+              <div className='mt-3 rounded-lg border p-3'>
                 <p className='mb-2 font-medium text-sm'>Starting State</p>
                 <p className='text-muted-foreground text-xs'>
                   {Object.keys(startSnapshot.blocks).length} blocks, {startSnapshot.edges.length}{' '}
@@ -531,7 +531,7 @@ export function TrainingModal() {
                             </div>
                             <div className='flex items-center gap-3'>
                               {dataset.sentAt && (
-                                <span className='inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-green-700 text-xs ring-1 ring-inset ring-green-600/20 dark:bg-green-900/20 dark:text-green-300'>
+                                <span className='inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-green-700 text-xs ring-1 ring-green-600/20 ring-inset dark:bg-green-900/20 dark:text-green-300'>
                                   <CheckCircle2 className='mr-1 h-3 w-3' /> Sent
                                 </span>
                               )}
