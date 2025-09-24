@@ -59,15 +59,18 @@ export function computeEditSequence(
   for (const blockId in endBlocks) {
     if (!(blockId in startBlocks)) {
       const block = endBlocks[blockId]
+      const addParams: Record<string, any> = {
+        type: block.type,
+        name: block.name,
+        inputs: extractInputValues(block),
+        connections: extractConnections(blockId, endEdges),
+        triggerMode: Boolean(block?.triggerMode),
+      }
+
       operations.push({
         operation_type: 'add',
         block_id: blockId,
-        params: {
-          type: block.type,
-          name: block.name,
-          inputs: extractInputValues(block),
-          connections: extractConnections(blockId, endEdges),
-        },
+        params: addParams,
       })
       blocksAdded++
     }
