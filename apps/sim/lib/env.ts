@@ -31,6 +31,8 @@ export const env = createEnv({
     COPILOT_MODEL:                         z.string().optional(),                  // Model for copilot API calls
     COPILOT_API_KEY:                       z.string().min(1).optional(),           // Secret for internal sim agent API authentication
     SIM_AGENT_API_URL:                     z.string().url().optional(),            // URL for internal sim agent API
+    AGENT_INDEXER_URL:                     z.string().url().optional(),            // URL for agent training data indexer
+    AGENT_INDEXER_API_KEY:                 z.string().min(1).optional(),           // API key for agent indexer authentication
 
 
     // Database & Storage
@@ -228,7 +230,8 @@ export const env = createEnv({
     NEXT_PUBLIC_CUSTOM_CSS_URL:            z.string().url().optional(),            // Custom CSS stylesheet URL
     NEXT_PUBLIC_SUPPORT_EMAIL:             z.string().email().optional(),          // Custom support email
 
-    NEXT_PUBLIC_E2B_ENABLED:               z.string().optional(),                  // Enable E2B remote code execution (client-side)
+    NEXT_PUBLIC_E2B_ENABLED:               z.string().optional(),
+    NEXT_PUBLIC_COPILOT_TRAINING_ENABLED:  z.string().optional(),                  
     NEXT_PUBLIC_DOCUMENTATION_URL:         z.string().url().optional(),            // Custom documentation URL
     NEXT_PUBLIC_TERMS_URL:                 z.string().url().optional(),            // Custom terms of service URL
     NEXT_PUBLIC_PRIVACY_URL:               z.string().url().optional(),            // Custom privacy policy URL
@@ -274,6 +277,7 @@ export const env = createEnv({
     NEXT_PUBLIC_BRAND_BACKGROUND_COLOR: process.env.NEXT_PUBLIC_BRAND_BACKGROUND_COLOR,
     NEXT_PUBLIC_TRIGGER_DEV_ENABLED: process.env.NEXT_PUBLIC_TRIGGER_DEV_ENABLED,
     NEXT_PUBLIC_E2B_ENABLED: process.env.NEXT_PUBLIC_E2B_ENABLED,
+    NEXT_PUBLIC_COPILOT_TRAINING_ENABLED: process.env.NEXT_PUBLIC_COPILOT_TRAINING_ENABLED,
     NODE_ENV: process.env.NODE_ENV,
     NEXT_TELEMETRY_DISABLED: process.env.NEXT_TELEMETRY_DISABLED,
   },

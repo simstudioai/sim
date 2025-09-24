@@ -379,6 +379,10 @@ export const settings = pgTable('settings', {
     .notNull()
     .default(true),
 
+  // UI preferences
+  showFloatingControls: boolean('show_floating_controls').notNull().default(true),
+  showTrainingControls: boolean('show_training_controls').notNull().default(false),
+
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 

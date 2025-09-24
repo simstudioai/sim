@@ -119,6 +119,31 @@ async function applyOperationsToYaml(
           }
           if (params?.type) block.type = params.type
           if (params?.name) block.name = params.name
+          // Handle trigger mode toggle and clean incoming edges when enabling
+          if (typeof params?.triggerMode === 'boolean') {
+            // Set triggerMode as a top-level block property
+            block.triggerMode = params.triggerMode
+
+            if (params.triggerMode === true) {
+              // Remove all incoming connections where this block is referenced as a target
+              Object.values(workflowData.blocks).forEach((other: any) => {
+                if (!other?.connections) return
+                Object.keys(other.connections).forEach((handle) => {
+                  const value = other.connections[handle]
+                  if (typeof value === 'string') {
+                    if (value === block_id) delete other.connections[handle]
+                  } else if (Array.isArray(value)) {
+                    other.connections[handle] = value.filter((item: any) =>
+                      typeof item === 'string' ? item !== block_id : item?.block !== block_id
+                    )
+                    if (other.connections[handle].length === 0) delete other.connections[handle]
+                  } else if (typeof value === 'object' && value?.block) {
+                    if (value.block === block_id) delete other.connections[handle]
+                  }
+                })
+              })
+            }
+          }
           if (params?.removeEdges && Array.isArray(params.removeEdges)) {
             params.removeEdges.forEach(({ targetBlockId, sourceHandle = 'default' }) => {
               const value = block.connections?.[sourceHandle]
@@ -233,6 +258,14 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
         workflowState = fromDb.workflowState
         subBlockValues = fromDb.subBlockValues
       }
+
+      // Log the workflow state to see if triggerMode is present
+      logger.info('Workflow state being sent to sim-agent for YAML conversion:', {
+        blockCount: Object.keys(workflowState.blocks || {}).length,
+        blocksWithTriggerMode: Object.entries(workflowState.blocks || {})
+          .filter(([_, block]: [string, any]) => block.triggerMode === true)
+          .map(([id]) => id),
+      })
 
       const resp = await fetch(`${SIM_AGENT_API_URL}/api/workflow/to-yaml`, {
         method: 'POST',

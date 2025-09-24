@@ -21,6 +21,7 @@ import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/comp
 import { FloatingControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/floating-controls/floating-controls'
 import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/panel'
 import { SubflowNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
+import { TrainingControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/training-controls/training-controls'
 import { TriggerList } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/trigger-list/trigger-list'
 import {
   TriggerWarningDialog,
@@ -1873,6 +1874,9 @@ const WorkflowContent = React.memo(() => {
 
         {/* Floating Controls (Zoom, Undo, Redo) */}
         <FloatingControls />
+
+        {/* Training Controls - for recording workflow edits */}
+        <TrainingControls />
 
         <ReactFlow
           nodes={nodes}
