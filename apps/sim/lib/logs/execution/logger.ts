@@ -11,7 +11,7 @@ import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { checkUsageStatus, maybeSendUsageThresholdEmail } from '@/lib/billing/core/usage'
-import { getCostMultiplier, isBillingEnabled } from '@/lib/environment'
+import { isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { emitWorkflowExecutionCompleted } from '@/lib/logs/events'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
@@ -195,9 +195,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
         if (usr?.email) {
           const sub = await getHighestPrioritySubscription(usr.id)
 
-          const costMultiplier = getCostMultiplier()
-          const costDelta =
-            (costSummary.baseExecutionCharge || 0) + (costSummary.modelCost || 0) * costMultiplier
+          const costDelta = costSummary.totalCost
 
           const planName = sub?.plan || 'Free'
           const scope: 'user' | 'organization' =
@@ -399,56 +397,50 @@ export class ExecutionLogger implements IExecutionLoggerService {
       }
 
       const userId = workflowRecord.userId
-      const costMultiplier = getCostMultiplier()
-      // Apply cost multiplier only to model costs, not base execution charge
-      const costToStore = costSummary.baseExecutionCharge + costSummary.modelCost * costMultiplier
+      const costToStore = costSummary.totalCost
 
-      // Check if user stats record exists
-      const userStatsRecords = await db.select().from(userStats).where(eq(userStats.userId, userId))
-
-      if (userStatsRecords.length > 0) {
-        // Update user stats record with trigger-specific increments
-        const updateFields: any = {
-          totalTokensUsed: sql`total_tokens_used + ${costSummary.totalTokens}`,
-          totalCost: sql`total_cost + ${costToStore}`,
-          currentPeriodCost: sql`current_period_cost + ${costToStore}`, // Track current billing period usage
-          lastActive: new Date(),
-        }
-
-        // Add trigger-specific increment
-        switch (trigger) {
-          case 'manual':
-            updateFields.totalManualExecutions = sql`total_manual_executions + 1`
-            break
-          case 'api':
-            updateFields.totalApiCalls = sql`total_api_calls + 1`
-            break
-          case 'webhook':
-            updateFields.totalWebhookTriggers = sql`total_webhook_triggers + 1`
-            break
-          case 'schedule':
-            updateFields.totalScheduledExecutions = sql`total_scheduled_executions + 1`
-            break
-          case 'chat':
-            updateFields.totalChatExecutions = sql`total_chat_executions + 1`
-            break
-        }
-
-        await db.update(userStats).set(updateFields).where(eq(userStats.userId, userId))
-
-        logger.debug('Updated user stats record with cost data', {
-          userId,
-          trigger,
-          addedCost: costToStore,
-          addedTokens: costSummary.totalTokens,
-        })
-      } else {
+      const existing = await db.select().from(userStats).where(eq(userStats.userId, userId))
+      if (existing.length === 0) {
         logger.error('User stats record not found - should be created during onboarding', {
           userId,
           trigger,
         })
-        return // Skip cost tracking if user stats doesn't exist
+        return
       }
+
+      const updateFields: any = {
+        totalTokensUsed: sql`total_tokens_used + ${costSummary.totalTokens}`,
+        totalCost: sql`total_cost + ${costToStore}`,
+        currentPeriodCost: sql`current_period_cost + ${costToStore}`,
+        lastActive: new Date(),
+      }
+
+      switch (trigger) {
+        case 'manual':
+          updateFields.totalManualExecutions = sql`total_manual_executions + 1`
+          break
+        case 'api':
+          updateFields.totalApiCalls = sql`total_api_calls + 1`
+          break
+        case 'webhook':
+          updateFields.totalWebhookTriggers = sql`total_webhook_triggers + 1`
+          break
+        case 'schedule':
+          updateFields.totalScheduledExecutions = sql`total_scheduled_executions + 1`
+          break
+        case 'chat':
+          updateFields.totalChatExecutions = sql`total_chat_executions + 1`
+          break
+      }
+
+      await db.update(userStats).set(updateFields).where(eq(userStats.userId, userId))
+
+      logger.debug('Updated user stats record with cost data', {
+        userId,
+        trigger,
+        addedCost: costToStore,
+        addedTokens: costSummary.totalTokens,
+      })
     } catch (error) {
       logger.error('Error updating user stats with cost information', {
         workflowId,

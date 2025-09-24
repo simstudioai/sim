@@ -1,0 +1,211 @@
+---
+title: ループ
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+ループブロックはSimの中のコンテナブロックで、ブロックのグループを繰り返し実行することで反復的なワークフローを作成できます。ループを使用することで、ワークフロー内で反復処理が可能になります。
+
+ループブロックは2種類の反復をサポートしています：
+
+<Callout type="info">
+  ループブロックは他のブロックを内部に保持できるコンテナノードです。ループ内のブロックは設定に基づいて複数回実行されます。
+</Callout>
+
+## 概要
+
+ループブロックでは以下のことが可能です：
+
+<Steps>
+  <Step>
+    <strong>コレクションの反復処理</strong>：配列やオブジェクトを一項目ずつ処理する
+  </Step>
+  <Step>
+    <strong>操作の繰り返し</strong>：ブロックを固定回数実行する
+  </Step>
+  <Step>
+    <strong>順次処理</strong>：順序付けられた反復でデータ変換を処理する
+  </Step>
+  <Step>
+    <strong>結果の集約</strong>：すべてのループ反復からの出力を収集する
+  </Step>
+</Steps>
+
+## 動作の仕組み
+
+ループブロックは順次反復を通じて含まれるブロックを実行します：
+
+1. **ループの初期化** - 反復パラメータ（回数またはコレクション）を設定
+2. **反復の実行** - 現在の反復に対して含まれるブロックを実行
+3. **結果の収集** - 各反復からの出力を保存
+4. **継続または完了** - 次の反復に進むか、ループを終了する
+
+## 設定オプション
+
+### ループタイプ
+
+2種類のループから選択できます：
+
+<Tabs items={['For Loop', 'ForEach Loop']}>
+  <Tab>
+    **Forループ（反復回数）** - 固定回数実行する数値ループ：
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-1.png"
+        alt="反復回数を指定するForループ"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    特定の回数だけ操作を繰り返す必要がある場合に使用します。
+    
+
+    ```
+    Example: Run 5 times
+    - Iteration 1
+    - Iteration 2
+    - Iteration 3
+    - Iteration 4
+    - Iteration 5
+    ```
+
+  </Tab>
+  <Tab>
+    **ForEach ループ（コレクション）** - 配列やオブジェクト内の各アイテムを反復処理するコレクションベースのループです：
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-2.png"
+        alt="コレクションを使用したForEachループ"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    アイテムのコレクションを処理する必要がある場合に使用します。
+    
+
+    ```
+    Example: Process ["apple", "banana", "orange"]
+    - Iteration 1: Process "apple"
+    - Iteration 2: Process "banana"
+    - Iteration 3: Process "orange"
+    ```
+
+  </Tab>
+</Tabs>
+
+## ループの使い方
+
+### ループの作成
+
+1. ツールバーからループブロックをキャンバスにドラッグします
+2. ループタイプとパラメータを設定します
+3. ループコンテナ内に他のブロックをドラッグします
+4. 必要に応じてブロックを接続します
+
+### 結果へのアクセス
+
+ループが完了すると、集計された結果にアクセスできます：
+
+- **`<loop.results>`**: すべてのループ反復からの結果の配列
+
+## 使用例
+
+### API結果の処理
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">シナリオ：複数の顧客レコードを処理する</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>APIブロックが顧客リストを取得</li>
+    <li>ForEachループが各顧客に対して反復処理</li>
+    <li>ループ内：エージェントが顧客データを分析</li>
+    <li>ループ内：関数が分析結果を保存</li>
+  </ol>
+</div>
+
+### 反復的なコンテンツ生成
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">シナリオ：複数のバリエーションを生成する</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Forループを5回の反復に設定</li>
+    <li>ループ内：エージェントがコンテンツのバリエーションを生成</li>
+    <li>ループ内：評価者がコンテンツを採点</li>
+    <li>ループ後：関数が最適なバリエーションを選択</li>
+  </ol>
+</div>
+
+## 高度な機能
+
+### 制限事項
+
+<Callout type="warning">
+  コンテナブロック（ループと並列処理）は互いに入れ子にすることができません。つまり：
+  - ループブロック内に別のループブロックを配置できません
+  - ループブロック内に並列ブロックを配置できません
+  - どのコンテナブロック内にも別のコンテナブロックを配置できません
+  
+  多次元の反復処理が必要な場合は、連続したループを使用するか、データを段階的に処理するようにワークフローを再構成することを検討してください。
+</Callout>
+
+<Callout type="info">
+  ループは並列ではなく、順次実行されます。並行実行が必要な場合は、代わりにParallelブロックを使用してください。
+</Callout>
+
+## 入力と出力
+
+<Tabs items={['設定', '変数', '結果']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>ループタイプ</strong>: 'for'または'forEach'から選択
+      </li>
+      <li>
+        <strong>繰り返し回数</strong>: 実行する回数（forループ）
+      </li>
+      <li>
+        <strong>コレクション</strong>: 反復処理する配列またはオブジェクト（forEachループ）
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>loop.currentItem</strong>: 現在処理中のアイテム
+      </li>
+      <li>
+        <strong>loop.index</strong>: 現在の繰り返し番号（0から始まる）
+      </li>
+      <li>
+        <strong>loop.items</strong>: 完全なコレクション（forEachループ）
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>loop.results</strong>: すべての繰り返し結果の配列
+      </li>
+      <li>
+        <strong>構造</strong>: 結果は繰り返し順序を維持
+      </li>
+      <li>
+        <strong>アクセス</strong>: ループ後のブロックで利用可能
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## ベストプラクティス
+
+- **適切な制限を設定する**: 実行時間が長くならないよう、繰り返し回数を適切に保つ
+- **コレクションにはForEachを使用する**: 配列やオブジェクトを処理する場合は、Forループの代わりにForEachを使用する
+- **エラーを適切に処理する**: 堅牢なワークフローのために、ループ内にエラー処理を追加することを検討する

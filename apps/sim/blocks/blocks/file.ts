@@ -10,6 +10,9 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
   name: 'File',
   description: 'Read and parse multiple files',
   longDescription: `Integrate File into the workflow. Can upload a file manually or insert a file url.`,
+  bestPractices: `
+  - You should always use the File URL input method and enter the file URL if the user gives it to you or clarify if they have one.
+  `,
   docsLink: 'https://docs.sim.ai/tools/file',
   category: 'tools',
   bgColor: '#40916C',
@@ -42,7 +45,7 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
       title: 'Upload Files',
       type: 'file-upload' as SubBlockType,
       layout: 'full' as SubBlockLayout,
-      acceptedTypes: '.pdf,.csv,.docx',
+      acceptedTypes: '.pdf,.csv,.doc,.docx,.txt,.md,.xlsx,.xls,.html,.htm,.pptx,.ppt',
       multiple: true,
       condition: {
         field: 'inputMethod',

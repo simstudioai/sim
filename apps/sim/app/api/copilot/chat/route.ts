@@ -15,7 +15,7 @@ import { getCopilotModel } from '@/lib/copilot/config'
 import type { CopilotProviderConfig } from '@/lib/copilot/types'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
+import { SIM_AGENT_API_URL_DEFAULT, SIM_AGENT_VERSION } from '@/lib/sim-agent'
 import { generateChatTitle } from '@/lib/sim-agent/utils'
 import { createFileContent, isSupportedFileType } from '@/lib/uploads/file-utils'
 import { S3_COPILOT_CONFIG } from '@/lib/uploads/setup'
@@ -38,8 +38,21 @@ const ChatMessageSchema = z.object({
   userMessageId: z.string().optional(), // ID from frontend for the user message
   chatId: z.string().optional(),
   workflowId: z.string().min(1, 'Workflow ID is required'),
+  model: z
+    .enum([
+      'gpt-5-fast',
+      'gpt-5',
+      'gpt-5-medium',
+      'gpt-5-high',
+      'gpt-4o',
+      'gpt-4.1',
+      'o3',
+      'claude-4-sonnet',
+      'claude-4.1-opus',
+    ])
+    .optional()
+    .default('gpt-5'),
   mode: z.enum(['ask', 'agent']).optional().default('agent'),
-  depth: z.number().int().min(0).max(3).optional().default(0),
   prefetch: z.boolean().optional(),
   createNewChat: z.boolean().optional().default(false),
   stream: z.boolean().optional().default(true),
@@ -97,8 +110,8 @@ export async function POST(req: NextRequest) {
       userMessageId,
       chatId,
       workflowId,
+      model,
       mode,
-      depth,
       prefetch,
       createNewChat,
       stream,
@@ -144,19 +157,6 @@ export async function POST(req: NextRequest) {
         }
       } catch (e) {
         logger.error(`[${tracker.requestId}] Failed to process contexts`, e)
-      }
-    }
-
-    // Consolidation mapping: map negative depths to base depth with prefetch=true
-    let effectiveDepth: number | undefined = typeof depth === 'number' ? depth : undefined
-    let effectivePrefetch: boolean | undefined = prefetch
-    if (typeof effectiveDepth === 'number') {
-      if (effectiveDepth === -2) {
-        effectiveDepth = 1
-        effectivePrefetch = true
-      } else if (effectiveDepth === -1) {
-        effectiveDepth = 0
-        effectivePrefetch = true
       }
     }
 
@@ -366,16 +366,18 @@ export async function POST(req: NextRequest) {
 
     const requestPayload = {
       messages: messagesForAgent,
+      chatMessages: messages, // Full unfiltered messages array
       workflowId,
       userId: authenticatedUserId,
       stream: stream,
       streamToolCalls: true,
+      model: model,
       mode: mode,
       messageId: userMessageIdToUse,
+      version: SIM_AGENT_VERSION,
       ...(providerConfig ? { provider: providerConfig } : {}),
       ...(effectiveConversationId ? { conversationId: effectiveConversationId } : {}),
-      ...(typeof effectiveDepth === 'number' ? { depth: effectiveDepth } : {}),
-      ...(typeof effectivePrefetch === 'boolean' ? { prefetch: effectivePrefetch } : {}),
+      ...(typeof prefetch === 'boolean' ? { prefetch: prefetch } : {}),
       ...(session?.user?.name && { userName: session.user.name }),
       ...(agentContexts.length > 0 && { context: agentContexts }),
       ...(actualChatId ? { chatId: actualChatId } : {}),
@@ -384,6 +386,9 @@ export async function POST(req: NextRequest) {
     try {
       logger.info(`[${tracker.requestId}] About to call Sim Agent with context`, {
         context: (requestPayload as any).context,
+        messagesCount: messagesForAgent.length,
+        chatMessagesCount: messages.length,
+        hasConversationId: !!effectiveConversationId,
       })
     } catch {}
 

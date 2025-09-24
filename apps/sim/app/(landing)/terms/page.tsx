@@ -1,9 +1,17 @@
 'use client'
 
+import { useEffect } from 'react'
 import Link from 'next/link'
+import { getEnv } from '@/lib/env'
 import { LegalLayout } from '@/app/(landing)/components'
 
 export default function TermsOfService() {
+  useEffect(() => {
+    const termsUrl = getEnv('NEXT_PUBLIC_TERMS_URL')
+    if (termsUrl?.startsWith('http')) {
+      window.location.href = termsUrl
+    }
+  }, [])
   return (
     <LegalLayout title='Terms of Service'>
       <section>

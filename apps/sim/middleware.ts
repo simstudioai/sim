@@ -93,37 +93,6 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Handle whitelabel redirects for terms and privacy pages
-  if (url.pathname === '/terms') {
-    const termsUrl = process.env.NEXT_PUBLIC_TERMS_URL
-    if (termsUrl?.startsWith('http')) {
-      return NextResponse.redirect(termsUrl)
-    }
-  }
-
-  if (url.pathname === '/privacy') {
-    const privacyUrl = process.env.NEXT_PUBLIC_PRIVACY_URL
-    if (privacyUrl?.startsWith('http')) {
-      return NextResponse.redirect(privacyUrl)
-    }
-  }
-
-  // Legacy redirect: /w -> /workspace (will be handled by workspace layout)
-  if (url.pathname === '/w' || url.pathname.startsWith('/w/')) {
-    // Extract workflow ID if present
-    const pathParts = url.pathname.split('/')
-    if (pathParts.length >= 3 && pathParts[1] === 'w') {
-      const workflowId = pathParts[2]
-      // Redirect old workflow URLs to new format
-      // We'll need to resolve the workspace ID for this workflow
-      return NextResponse.redirect(
-        new URL(`/workspace?redirect_workflow=${workflowId}`, request.url)
-      )
-    }
-    // Simple /w redirect to workspace root
-    return NextResponse.redirect(new URL('/workspace', request.url))
-  }
-
   // Handle login page - redirect authenticated users to workspace
   if (url.pathname === '/login' || url.pathname === '/signup') {
     if (hasActiveSession) {
@@ -138,12 +107,7 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
 
-    // Check if user needs email verification
-    const requiresVerification = request.cookies.get('requiresEmailVerification')
-    if (requiresVerification?.value === 'true') {
-      return NextResponse.redirect(new URL('/verify', request.url))
-    }
-
+    // Email verification is enforced by Better Auth (server-side). No cookie gating here.
     return NextResponse.next()
   }
 

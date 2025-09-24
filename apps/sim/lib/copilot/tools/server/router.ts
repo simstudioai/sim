@@ -1,6 +1,7 @@
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { getBlocksAndToolsServerTool } from '@/lib/copilot/tools/server/blocks/get-blocks-and-tools'
 import { getBlocksMetadataServerTool } from '@/lib/copilot/tools/server/blocks/get-blocks-metadata-tool'
+import { getTriggerBlocksServerTool } from '@/lib/copilot/tools/server/blocks/get-trigger-blocks'
 import { searchDocumentationServerTool } from '@/lib/copilot/tools/server/docs/search-documentation'
 import { listGDriveFilesServerTool } from '@/lib/copilot/tools/server/gdrive/list-files'
 import { readGDriveFileServerTool } from '@/lib/copilot/tools/server/gdrive/read-file'
@@ -20,6 +21,8 @@ import {
   GetBlocksAndToolsResult,
   GetBlocksMetadataInput,
   GetBlocksMetadataResult,
+  GetTriggerBlocksInput,
+  GetTriggerBlocksResult,
 } from '@/lib/copilot/tools/shared/schemas'
 import { createLogger } from '@/lib/logs/console/logger'
 
@@ -34,6 +37,7 @@ const logger = createLogger('ServerToolRouter')
 // Register tools
 serverToolRegistry[getBlocksAndToolsServerTool.name] = getBlocksAndToolsServerTool
 serverToolRegistry[getBlocksMetadataServerTool.name] = getBlocksMetadataServerTool
+serverToolRegistry[getTriggerBlocksServerTool.name] = getTriggerBlocksServerTool
 serverToolRegistry[buildWorkflowServerTool.name] = buildWorkflowServerTool
 serverToolRegistry[editWorkflowServerTool.name] = editWorkflowServerTool
 serverToolRegistry[getWorkflowConsoleServerTool.name] = getWorkflowConsoleServerTool
@@ -70,6 +74,9 @@ export async function routeExecution(toolName: string, payload: unknown): Promis
   if (toolName === 'get_blocks_metadata') {
     args = GetBlocksMetadataInput.parse(args)
   }
+  if (toolName === 'get_trigger_blocks') {
+    args = GetTriggerBlocksInput.parse(args)
+  }
   if (toolName === 'build_workflow') {
     args = BuildWorkflowInput.parse(args)
   }
@@ -81,6 +88,9 @@ export async function routeExecution(toolName: string, payload: unknown): Promis
   }
   if (toolName === 'get_blocks_metadata') {
     return GetBlocksMetadataResult.parse(result)
+  }
+  if (toolName === 'get_trigger_blocks') {
+    return GetTriggerBlocksResult.parse(result)
   }
   if (toolName === 'build_workflow') {
     return BuildWorkflowResult.parse(result)

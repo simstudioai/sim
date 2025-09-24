@@ -1,9 +1,17 @@
 'use client'
 
+import { useEffect } from 'react'
 import Link from 'next/link'
+import { getEnv } from '@/lib/env'
 import { LegalLayout } from '@/app/(landing)/components'
 
 export default function PrivacyPolicy() {
+  useEffect(() => {
+    const privacyUrl = getEnv('NEXT_PUBLIC_PRIVACY_URL')
+    if (privacyUrl?.startsWith('http')) {
+      window.location.href = privacyUrl
+    }
+  }, [])
   return (
     <LegalLayout title='Privacy Policy'>
       <section>

@@ -106,10 +106,16 @@ export function DeployModal({
     let inputFormatExample = ''
     try {
       const blocks = Object.values(useWorkflowStore.getState().blocks)
+
+      // Check for API trigger block first (takes precedence)
+      const apiTriggerBlock = blocks.find((block) => block.type === 'api_trigger')
+      // Fall back to legacy starter block
       const starterBlock = blocks.find((block) => block.type === 'starter')
 
-      if (starterBlock) {
-        const inputFormat = useSubBlockStore.getState().getValue(starterBlock.id, 'inputFormat')
+      const targetBlock = apiTriggerBlock || starterBlock
+
+      if (targetBlock) {
+        const inputFormat = useSubBlockStore.getState().getValue(targetBlock.id, 'inputFormat')
 
         if (inputFormat && Array.isArray(inputFormat) && inputFormat.length > 0) {
           const exampleData: Record<string, any> = {}

@@ -1,0 +1,232 @@
+---
+title: API
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Der API-Block ermöglicht es Ihnen, Ihren Workflow über API-Endpunkte mit externen Diensten zu verbinden, indem HTTP-Anfragen verwendet werden. Er unterstützt verschiedene Methoden wie GET, POST, PUT, DELETE und PATCH, wodurch Sie mit praktisch jedem API-Endpunkt interagieren können.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/api.png"
+    alt="API-Block"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Überblick
+
+Der API-Block ermöglicht Ihnen:
+
+<Steps>
+  <Step>
+    <strong>Verbindung zu externen Diensten</strong>: HTTP-Anfragen an REST-APIs und Webdienste stellen
+  </Step>
+  <Step>
+    <strong>Daten senden und empfangen</strong>: Antworten verarbeiten und Daten aus externen Quellen transformieren
+  </Step>
+  <Step>
+    <strong>Integration von Drittanbieter-Plattformen</strong>: Verbindung mit Diensten wie Stripe, Slack oder benutzerdefinierten APIs
+  </Step>
+  <Step>
+    <strong>Authentifizierung verwalten</strong>: Unterstützung verschiedener Authentifizierungsmethoden einschließlich Bearer-Tokens und API-Schlüssel
+  </Step>
+</Steps>
+
+## Funktionsweise
+
+Der API-Block verarbeitet HTTP-Anfragen durch einen strukturierten Ansatz:
+
+1. **Anfrage konfigurieren** - URL, Methode, Header und Body-Parameter festlegen
+2. **Anfrage ausführen** - HTTP-Anfrage an den angegebenen Endpunkt senden
+3. **Antwort verarbeiten** - Antwortdaten, Statuscodes und Header verarbeiten
+4. **Fehlerbehandlung** - Timeouts, Wiederholungsversuche und Fehlerbedingungen verwalten
+
+## Konfigurationsoptionen
+
+### URL
+
+Die Endpunkt-URL für die API-Anfrage. Dies kann sein:
+
+- Eine statische URL, die direkt im Block eingegeben wird
+- Eine dynamische URL, die mit der Ausgabe eines anderen Blocks verbunden ist
+- Eine URL mit Pfadparametern
+
+### Methode
+
+Wählen Sie die HTTP-Methode für Ihre Anfrage:
+
+- **GET**: Daten vom Server abrufen
+- **POST**: Daten an den Server senden, um eine Ressource zu erstellen
+- **PUT**: Eine bestehende Ressource auf dem Server aktualisieren
+- **DELETE**: Eine Ressource vom Server entfernen
+- **PATCH**: Eine bestehende Ressource teilweise aktualisieren
+
+### Abfrageparameter
+
+Definieren Sie Schlüssel-Wert-Paare, die als Abfrageparameter an die URL angehängt werden. Zum Beispiel:
+
+```
+Key: apiKey
+Value: your_api_key_here
+
+Key: limit
+Value: 10
+```
+
+Diese würden der URL als `?apiKey=your_api_key_here&limit=10` hinzugefügt werden.
+
+### Header
+
+Konfigurieren Sie HTTP-Header für Ihre Anfrage. Häufige Header sind:
+
+```
+Key: Content-Type
+Value: application/json
+
+Key: Authorization
+Value: Bearer your_token_here
+```
+
+### Anfrage-Body
+
+Für Methoden, die einen Anfrage-Body unterstützen (POST, PUT, PATCH), können Sie die zu sendenden Daten definieren. Der Body kann sein:
+
+- JSON-Daten, die direkt im Block eingegeben werden
+- Daten, die mit der Ausgabe eines anderen Blocks verbunden sind
+- Dynamisch während der Workflow-Ausführung generierte Daten
+
+### Zugriff auf Ergebnisse
+
+Nach Abschluss einer API-Anfrage können Sie auf folgende Ausgaben zugreifen:
+
+- **`<api.data>`**: Die Antwortdaten vom API
+- **`<api.status>`**: HTTP-Statuscode (200, 404, 500, usw.)
+- **`<api.headers>`**: Antwort-Header vom Server
+- **`<api.error>`**: Fehlerdetails, falls die Anfrage fehlgeschlagen ist
+
+## Erweiterte Funktionen
+
+### Dynamische URL-Konstruktion
+
+Bauen Sie URLs dynamisch mit Variablen aus vorherigen Blöcken:
+
+```javascript
+// In a Function block before the API
+const userId = <start.userId>;
+const apiUrl = `https://api.example.com/users/${userId}/profile`;
+```
+
+### Anfrage-Wiederholungen
+
+Der API-Block behandelt automatisch:
+- Netzwerk-Timeouts mit exponentiellem Backoff
+- Rate-Limit-Antworten (429-Statuscodes)
+- Serverfehler (5xx-Statuscodes) mit Wiederholungslogik
+- Verbindungsfehler mit Wiederverbindungsversuchen
+
+### Antwortvalidierung
+
+Validieren Sie API-Antworten vor der Verarbeitung:
+
+```javascript
+// In a Function block after the API
+if (<api.status> === 200) {
+  const data = <api.data>;
+  // Process successful response
+} else {
+  // Handle error response
+  console.error(`API Error: ${<api.status>}`);
+}
+```
+
+## Eingaben und Ausgaben
+
+<Tabs items={['Configuration', 'Variables', 'Results']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>URL</strong>: Der Endpunkt, an den die Anfrage gesendet werden soll
+      </li>
+      <li>
+        <strong>Method</strong>: HTTP-Methode (GET, POST, PUT, DELETE, PATCH)
+      </li>
+      <li>
+        <strong>Query Parameters</strong>: Schlüssel-Wert-Paare für URL-Parameter
+      </li>
+      <li>
+        <strong>Headers</strong>: HTTP-Header für Authentifizierung und Inhaltstyp
+      </li>
+      <li>
+        <strong>Body</strong>: Anfrage-Payload für POST/PUT/PATCH-Methoden
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>api.data</strong>: Antwortdaten vom API-Aufruf
+      </li>
+      <li>
+        <strong>api.status</strong>: Vom Server zurückgegebener HTTP-Statuscode
+      </li>
+      <li>
+        <strong>api.headers</strong>: Antwort-Header vom Server
+      </li>
+      <li>
+        <strong>api.error</strong>: Fehlerdetails, falls die Anfrage fehlgeschlagen ist
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Response Data</strong>: Primärer API-Antwortinhalt
+      </li>
+      <li>
+        <strong>Status Information</strong>: HTTP-Status und Fehlerdetails
+      </li>
+      <li>
+        <strong>Access</strong>: Verfügbar in Blöcken nach dem API-Aufruf
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Beispielanwendungsfälle
+
+### Benutzerprofildaten abrufen
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Szenario: Benutzerinformationen von externem Dienst abrufen</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Funktionsblock erstellt Benutzer-ID aus Eingabe</li>
+    <li>API-Block ruft GET /users/&#123;id&#125; Endpunkt auf</li>
+    <li>Funktionsblock verarbeitet und formatiert Benutzerdaten</li>
+    <li>Antwortblock gibt formatiertes Profil zurück</li>
+  </ol>
+</div>
+
+### Zahlungsabwicklung
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Szenario: Zahlung über Stripe API verarbeiten</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Funktionsblock validiert Zahlungsdaten</li>
+    <li>API-Block erstellt Zahlungsabsicht über Stripe</li>
+    <li>Bedingungsblock behandelt Zahlungserfolg/-fehler</li>
+    <li>Supabase-Block aktualisiert Bestellstatus in der Datenbank</li>
+  </ol>
+</div>
+
+## Best Practices
+
+- **Umgebungsvariablen für sensible Daten verwenden**: Keine API-Schlüssel oder Anmeldedaten im Code hinterlegen
+- **Fehler elegant behandeln**: Fehlerbehandlungslogik für fehlgeschlagene Anfragen einbinden
+- **Antworten validieren**: Statuscodes und Antwortformate vor der Datenverarbeitung prüfen
+- **Ratenbegrenzungen beachten**: Auf API-Ratenbegrenzungen achten und angemessene Drosselung implementieren

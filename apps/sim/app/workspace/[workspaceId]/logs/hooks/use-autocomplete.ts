@@ -1,11 +1,21 @@
-import { useCallback, useMemo, useReducer, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 
 export interface Suggestion {
   id: string
   value: string
   label: string
   description?: string
-  category?: string
+  category?:
+    | 'filters'
+    | 'level'
+    | 'trigger'
+    | 'cost'
+    | 'date'
+    | 'duration'
+    | 'workflow'
+    | 'folder'
+    | 'workflowId'
+    | 'executionId'
 }
 
 export interface SuggestionGroup {
@@ -43,6 +53,7 @@ type AutocompleteAction =
   | { type: 'SET_PREVIEW'; payload: { value: string; show: boolean } }
   | { type: 'CLEAR_PREVIEW' }
   | { type: 'SET_QUERY_VALIDITY'; payload: boolean }
+  | { type: 'SET_PENDING'; payload: string | null }
   | { type: 'RESET' }
 
 const initialState: AutocompleteState = {
@@ -126,6 +137,12 @@ function autocompleteReducer(
         isValidQuery: action.payload,
       }
 
+    case 'SET_PENDING':
+      return {
+        ...state,
+        pendingQuery: action.payload,
+      }
+
     case 'RESET':
       return initialState
 
@@ -153,6 +170,16 @@ export function useAutocomplete({
   const inputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
+  const pointerDownInDropdownRef = useRef<boolean>(false)
+  const latestRef = useRef<{ inputValue: string; cursorPosition: number }>({
+    inputValue: '',
+    cursorPosition: 0,
+  })
+
+  useEffect(() => {
+    latestRef.current.inputValue = state.inputValue
+    latestRef.current.cursorPosition = state.cursorPosition
+  }, [state.inputValue, state.cursorPosition])
 
   const currentSuggestion = useMemo(() => {
     if (state.highlightedIndex >= 0 && state.suggestions[state.highlightedIndex]) {
@@ -162,13 +189,14 @@ export function useAutocomplete({
   }, [state.highlightedIndex, state.suggestions])
 
   const updateSuggestions = useCallback(() => {
-    const suggestionGroup = getSuggestions(state.inputValue, state.cursorPosition)
+    const { inputValue, cursorPosition } = latestRef.current
+    const suggestionGroup = getSuggestions(inputValue, cursorPosition)
 
     if (suggestionGroup && suggestionGroup.suggestions.length > 0) {
       dispatch({ type: 'OPEN_DROPDOWN', payload: suggestionGroup })
 
       const firstSuggestion = suggestionGroup.suggestions[0]
-      const preview = generatePreview(firstSuggestion, state.inputValue, state.cursorPosition)
+      const preview = generatePreview(firstSuggestion, inputValue, cursorPosition)
       dispatch({
         type: 'HIGHLIGHT_SUGGESTION',
         payload: { index: 0, preview },
@@ -176,7 +204,7 @@ export function useAutocomplete({
     } else {
       dispatch({ type: 'CLOSE_DROPDOWN' })
     }
-  }, [state.inputValue, state.cursorPosition, getSuggestions, generatePreview])
+  }, [getSuggestions, generatePreview])
 
   const handleInputChange = useCallback(
     (value: string, cursorPosition: number) => {
@@ -193,7 +221,11 @@ export function useAutocomplete({
         clearTimeout(debounceRef.current)
       }
 
-      debounceRef.current = setTimeout(updateSuggestions, debounceMs)
+      dispatch({ type: 'SET_PENDING', payload: value })
+      debounceRef.current = setTimeout(() => {
+        dispatch({ type: 'SET_PENDING', payload: null })
+        updateSuggestions()
+      }, debounceMs)
     },
     [updateSuggestions, onQueryChange, validateQuery, debounceMs]
   )
@@ -257,6 +289,11 @@ export function useAutocomplete({
         })
       }
 
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current)
+        debounceRef.current = null
+      }
+      dispatch({ type: 'SET_PENDING', payload: null })
       setTimeout(updateSuggestions, 0)
     },
     [
@@ -273,6 +310,16 @@ export function useAutocomplete({
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        if (state.isOpen) {
+          handleSuggestionSelect()
+        } else if (state.isValidQuery) {
+          updateSuggestions()
+        }
+        return
+      }
+
       if (!state.isOpen) return
 
       switch (event.key) {
@@ -289,11 +336,6 @@ export function useAutocomplete({
           handleSuggestionHover(prevIndex)
           break
         }
-
-        case 'Enter':
-          event.preventDefault()
-          handleSuggestionSelect()
-          break
 
         case 'Escape':
           event.preventDefault()
@@ -324,10 +366,35 @@ export function useAutocomplete({
     updateSuggestions()
   }, [updateSuggestions])
 
-  const handleBlur = useCallback(() => {
+  const handleBlur = useCallback((e?: React.FocusEvent) => {
+    const related = (e?.relatedTarget as Node) || document.activeElement
+    const isInsideDropdown = related && dropdownRef.current?.contains(related)
+    const isInsideInput = related && inputRef.current === related
+    if (pointerDownInDropdownRef.current || isInsideDropdown || isInsideInput) {
+      return
+    }
     setTimeout(() => {
       dispatch({ type: 'CLOSE_DROPDOWN' })
     }, 150)
+  }, [])
+
+  useEffect(() => {
+    const dropdownEl = dropdownRef.current
+    if (!dropdownEl) return
+    const onPointerDown = () => {
+      pointerDownInDropdownRef.current = true
+    }
+    const onPointerUp = () => {
+      setTimeout(() => {
+        pointerDownInDropdownRef.current = false
+      }, 0)
+    }
+    dropdownEl.addEventListener('pointerdown', onPointerDown)
+    window.addEventListener('pointerup', onPointerUp)
+    return () => {
+      dropdownEl.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('pointerup', onPointerUp)
+    }
   }, [])
 
   return {

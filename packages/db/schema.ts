@@ -371,6 +371,10 @@ export const settings = pgTable('settings', {
     .notNull()
     .default(true),
 
+  // UI preferences
+  showFloatingControls: boolean('show_floating_controls').notNull().default(true),
+  showTrainingControls: boolean('show_training_controls').notNull().default(false),
+
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
@@ -557,6 +561,8 @@ export const userStats = pgTable('user_stats', {
   // Billing period tracking
   currentPeriodCost: decimal('current_period_cost').notNull().default('0'), // Usage in current billing period
   lastPeriodCost: decimal('last_period_cost').default('0'), // Usage from previous billing period
+  // Pro usage snapshot when joining a team (to prevent double-billing)
+  proPeriodCostSnapshot: decimal('pro_period_cost_snapshot').default('0'), // Snapshot of Pro usage when joining team
   // Copilot usage tracking
   totalCopilotCost: decimal('total_copilot_cost').notNull().default('0'),
   totalCopilotTokens: integer('total_copilot_tokens').notNull().default(0),

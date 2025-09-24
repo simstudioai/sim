@@ -49,16 +49,17 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
 
   const idempotencyKey = IdempotencyService.createWebhookIdempotencyKey(
     payload.webhookId,
-    payload.body,
     payload.headers
   )
+
+  const runOperation = async () => {
+    return await executeWebhookJobInternal(payload, executionId, requestId)
+  }
 
   return await webhookIdempotency.executeWithIdempotency(
     payload.provider,
     idempotencyKey,
-    async () => {
-      return await executeWebhookJobInternal(payload, executionId, requestId)
-    }
+    runOperation
   )
 }
 

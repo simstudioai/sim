@@ -1,0 +1,42 @@
+---
+title: Verbindungsgrundlagen
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+
+## Wie Verbindungen funktionieren
+
+Verbindungen sind die Pfade, die den Datenfluss zwischen Blöcken in Ihrem Workflow ermöglichen. In Sim definieren Verbindungen, wie Informationen von einem Block zum anderen übertragen werden und ermöglichen so den Datenfluss durch Ihren gesamten Workflow.
+
+<Callout type="info">
+  Jede Verbindung stellt eine gerichtete Beziehung dar, bei der Daten vom Ausgang eines Quellblocks
+  zum Eingang eines Zielblocks fließen.
+</Callout>
+
+### Verbindungen erstellen
+
+<Steps>
+  <Step>
+    <strong>Quellblock auswählen</strong>: Klicken Sie auf den Ausgangsport des Blocks, von dem aus Sie verbinden möchten
+  </Step>
+  <Step>
+    <strong>Verbindung ziehen</strong>: Ziehen Sie zum Eingangsport des Zielblocks
+  </Step>
+  <Step>
+    <strong>Verbindung bestätigen</strong>: Loslassen, um die Verbindung zu erstellen
+  </Step>
+</Steps>
+
+### Verbindungsfluss
+
+Der Datenfluss durch Verbindungen folgt diesen Prinzipien:
+
+1. **Gerichteter Fluss**: Daten fließen immer von Ausgängen zu Eingängen
+2. **Ausführungsreihenfolge**: Blöcke werden basierend auf ihren Verbindungen der Reihe nach ausgeführt
+3. **Datentransformation**: Daten können beim Übergang zwischen Blöcken transformiert werden
+4. **Bedingte Pfade**: Einige Blöcke (wie Router und Bedingung) können den Fluss auf verschiedene Pfade leiten
+
+<Callout type="warning">
+  Das Löschen einer Verbindung stoppt sofort den Datenfluss zwischen den Blöcken. Stellen Sie sicher, dass dies beabsichtigt ist, bevor Sie Verbindungen entfernen.
+</Callout>

@@ -1,0 +1,58 @@
+---
+title: SMS
+description: 使用内部 SMS 服务发送短信
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sms"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+    
+    fill='#000000'
+    
+    
+    viewBox='0 0 32 32'
+    xmlns='http://www.w3.org/2000/svg'
+  >
+    <path d='M 2 5 L 2 25 L 7 25 L 7 30.09375 L 8.625 28.78125 L 13.34375 25 L 30 25 L 30 5 Z M 4 7 L 28 7 L 28 23 L 12.65625 23 L 12.375 23.21875 L 9 25.90625 L 9 23 L 4 23 Z M 8 12 L 8 14 L 24 14 L 24 12 Z M 8 16 L 8 18 L 20 18 L 20 16 Z' />
+  </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+SMS 模块允许您通过 Sim 自有的 SMS 发送基础设施（由 Twilio 提供支持）直接从工作流中发送短信。此集成使您能够以编程方式将通知、警报和其他重要信息发送到用户的移动设备，而无需任何外部配置或 OAuth。
+
+我们的内部 SMS 服务专为可靠性和易用性而设计，非常适合自动化通信并确保您的消息高效地到达收件人。
+{/* MANUAL-CONTENT-END */}
+
+## 使用说明
+
+使用由 Twilio 提供支持的内部 SMS 服务直接发送短信。无需外部配置或 OAuth。非常适合从您的工作流中发送通知、警报或通用短信。需要包含国家代码的有效电话号码。
+
+## 工具
+
+### `sms_send`
+
+使用由 Twilio 提供支持的内部 SMS 服务发送短信
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `to` | string | 是 | 收件人电话号码（包括国家代码，例如 +1234567890） |
+| `body` | string | 是 | SMS 消息内容 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `success` | boolean | SMS 是否成功发送 |
+| `to` | string | 收件人电话号码 |
+| `body` | string | SMS 消息内容 |
+
+## 注意事项
+
+- 类别：`tools`
+- 类型：`sms`

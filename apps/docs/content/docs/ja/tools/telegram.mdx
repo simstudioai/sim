@@ -1,0 +1,99 @@
+---
+title: Telegram
+description: Telegramを通じてメッセージを送信したり、Telegramイベントからワークフローをトリガーしたりする
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="telegram"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      viewBox='0 0 24 24'
+      
+      
+      fill='none'
+    >
+      <circle cx='12' cy='12' r='10' fill='#0088CC' />
+      <path
+        d='M16.7 8.4c.1-.6-.4-1.1-1-.8l-9.8 4.3c-.4.2-.4.8.1.9l2.1.7c.4.1.8.1 1.1-.2l4.5-3.1c.1-.1.3.1.2.2l-3.2 3.5c-.3.3-.2.8.2 1l3.6 2.3c.4.2.9-.1 1-.5l1.2-7.8Z'
+        fill='white'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Telegram](https://telegram.org)は、デバイスやプラットフォーム間で迅速かつ信頼性の高いコミュニケーションを可能にする、安全なクラウドベースのメッセージングプラットフォームです。月間アクティブユーザー数が7億人を超えるTelegramは、セキュリティ、スピード、強力なAPI機能で知られる世界有数のメッセージングサービスとして確立されています。
+
+TelegramのBot APIは、自動化されたメッセージングソリューションを作成し、アプリケーションにコミュニケーション機能を統合するための堅牢なフレームワークを提供します。リッチメディア、インラインキーボード、カスタムコマンドのサポートにより、Telegramボットは高度なインタラクションパターンと自動化されたワークフローを実現できます。
+
+Simでウェブフックトリガーを作成し、Telegramメッセージからシームレスにワークフローを開始する方法を学びましょう。このチュートリアルでは、ウェブフックの設定、TelegramのボットAPIとの連携、リアルタイムでの自動アクションのトリガー方法について説明します。チャットから直接タスクを効率化するのに最適です！
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/9oKcJtQ0_IM"
+  title="SimでTelegramを使用する"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+SimのTelegramツールを使用して、任意のTelegramグループへのメッセージ配信をシームレスに自動化する方法を学びましょう。このチュートリアルでは、ツールをワークフローに統合する方法、グループメッセージングの設定方法、リアルタイムでの自動更新のトリガー方法について説明します。ワークスペースから直接コミュニケーションを強化するのに最適です！
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/AG55LpUreGI"
+  title="SimでTelegramを使用する"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Telegramの主な機能：
+
+- 安全な通信：メッセージやメディアのためのエンドツーエンドの暗号化と安全なクラウドストレージ
+- ボットプラットフォーム：自動メッセージングソリューションやインタラクティブな体験を作成するための強力なボットAPI
+- リッチメディアサポート：テキスト書式、画像、ファイル、インタラクティブ要素を含むメッセージの送受信
+- グローバルリーチ：複数の言語とプラットフォームをサポートし、世界中のユーザーとつながる
+
+Simでは、Telegramの統合により、エージェントがワークフローの一部としてこれらの強力なメッセージング機能を活用できるようになります。これにより、Telegramの安全なメッセージングプラットフォームを通じて、自動通知、アラート、インタラクティブな会話の機会が生まれます。この統合により、エージェントはプログラムによって個人やチャンネルにメッセージを送信でき、タイムリーなコミュニケーションと更新を可能にします。SimとTelegramを接続することで、安全で広く採用されているメッセージングプラットフォームを通じてユーザーと関わるインテリジェントなエージェントを構築でき、通知、更新、インタラクティブなコミュニケーションの配信に最適です。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+Telegramをワークフローに統合します。メッセージを送信できます。チャットにメッセージが送信されたときにワークフローをトリガーするトリガーモードでも使用できます。
+
+## ツール
+
+### `telegram_message`
+
+Telegram Bot APIを通じてTelegramチャンネルまたはユーザーにメッセージを送信します。メッセージの追跡とチャット確認機能を備えた直接的なコミュニケーションと通知を可能にします。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | あなたのTelegram Bot APIトークン |
+| `chatId` | string | はい | 対象のTelegramチャットID |
+| `text` | string | はい | 送信するメッセージテキスト |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | Telegramメッセージ送信成功ステータス |
+| `messageId` | number | 一意のTelegramメッセージ識別子 |
+| `chatId` | string | メッセージが送信された対象チャットID |
+| `text` | string | 送信されたメッセージのテキスト内容 |
+| `timestamp` | number | メッセージが送信されたUnixタイムスタンプ |
+| `from` | object | メッセージを送信したボットに関する情報 |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `telegram`

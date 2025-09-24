@@ -65,6 +65,7 @@ app:
     ENCRYPTION_KEY: ""      # REQUIRED - set via --set flag or external secret manager
     
     # Email & Communication
+    EMAIL_VERIFICATION_ENABLED: "false"                   # Enable email verification for user registration and login (defaults to false)
     RESEND_API_KEY: ""                                    # Resend API key for transactional emails
     FROM_EMAIL_ADDRESS: ""                                # Complete from address (e.g., "Sim <noreply@domain.com>" or "DoNotReply@domain.com")
     EMAIL_DOMAIN: ""                                      # Domain for sending emails (fallback when FROM_EMAIL_ADDRESS not set)
@@ -108,9 +109,6 @@ app:
     NEXT_PUBLIC_DOCUMENTATION_URL: ""                    # Documentation URL (leave empty for none)
     NEXT_PUBLIC_TERMS_URL: ""                            # Terms of service URL (leave empty for none)
     NEXT_PUBLIC_PRIVACY_URL: ""                          # Privacy policy URL (leave empty for none)
-    
-    # Monitoring & Analytics (leave empty if not using)
-    NEXT_PUBLIC_SENTRY_DSN: ""                           # Sentry DSN for error tracking
     
     # Access Control (leave empty if not restricting login)
     ALLOWED_LOGIN_EMAILS: ""                             # Comma-separated list of allowed email addresses for login

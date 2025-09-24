@@ -1,0 +1,208 @@
+---
+title: Supabase
+description: Supabase-Datenbank verwenden
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="supabase"
+  color="#1C1C1C"
+  icon={true}
+  iconSvg={`<svg className="block-icon"    viewBox='0 0 27 27' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        d='M15.4057 26.2606C14.7241 27.1195 13.3394 26.649 13.3242 25.5519L13.083 9.50684H23.8724C25.8262 9.50684 26.9157 11.7636 25.7006 13.2933L15.4057 26.2606Z'
+        fill='url(#paint0_linear)'
+      />
+      <path
+        d='M15.4057 26.2606C14.7241 27.1195 13.3394 26.649 13.3242 25.5519L13.083 9.50684H23.8724C25.8262 9.50684 26.9157 11.7636 25.7006 13.2933L15.4057 26.2606Z'
+        fill='url(#paint1_linear)'
+        fillOpacity='0.2'
+      />
+      <path
+        d='M11.0167 0.443853C11.6983 -0.415083 13.0832 0.0553814 13.0982 1.15237L13.2042 17.1976H2.55005C0.596215 17.1976 -0.493259 14.9408 0.721603 13.4111L11.0167 0.443853Z'
+        fill='#3ECF8E'
+      />
+      <defs>
+        <linearGradient
+          id='paint0_linear'
+          x1='13.084'
+          y1='13.0655'
+          x2='22.6727'
+          y2='17.087'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop stopColor='#249361' />
+          <stop offset='1' stopColor='#3ECF8E' />
+        </linearGradient>
+        <linearGradient
+          id='paint1_linear'
+          x1='8.83277'
+          y1='7.24485'
+          x2='13.2057'
+          y2='15.477'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop />
+          <stop offset='1' stopOpacity='0' />
+        </linearGradient>
+      </defs>
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Supabase](https://www.supabase.com/) ist eine leistungsstarke Open-Source-Backend-as-a-Service-Plattform, die Entwicklern eine Reihe von Tools zum Erstellen, Skalieren und Verwalten moderner Anwendungen bietet. Supabase bietet eine vollständig verwaltete [PostgreSQL](https://www.postgresql.org/)-Datenbank, robuste Authentifizierung, sofortige RESTful- und GraphQL-APIs, Echtzeit-Abonnements, Dateispeicherung und Edge-Funktionen – alles über eine einheitliche und entwicklerfreundliche Oberfläche zugänglich. Die Open-Source-Natur und Kompatibilität mit gängigen Frameworks machen es zu einer überzeugenden Alternative zu Firebase, mit dem zusätzlichen Vorteil der SQL-Flexibilität und Transparenz.
+
+**Warum Supabase?**
+- **Sofortige APIs:** Jede Tabelle und Ansicht in Ihrer Datenbank ist sofort über REST- und GraphQL-Endpunkte verfügbar, was die Erstellung datengesteuerter Anwendungen ohne benutzerdefinierten Backend-Code erleichtert.
+- **Echtzeit-Daten:** Supabase ermöglicht Echtzeit-Abonnements, sodass Ihre Apps sofort auf Änderungen in Ihrer Datenbank reagieren können.
+- **Authentifizierung & Autorisierung:** Integrierte Benutzerverwaltung mit Unterstützung für E-Mail, OAuth, SSO und mehr, plus zeilenbasierte Sicherheit für granulare Zugriffskontrolle.
+- **Speicher:** Sicheres Hochladen, Bereitstellen und Verwalten von Dateien mit integriertem Speicher, der sich nahtlos in Ihre Datenbank integriert.
+- **Edge-Funktionen:** Bereitstellen von serverlosen Funktionen in der Nähe Ihrer Benutzer für benutzerdefinierte Logik mit geringer Latenz.
+
+**Verwendung von Supabase in Sim**
+
+Die Supabase-Integration von Sim macht es mühelos, Ihre agentischen Workflows mit Ihren Supabase-Projekten zu verbinden. Mit nur wenigen Konfigurationsfeldern – Ihrer Projekt-ID, Tabellennamen und Service-Rolle-Secret – können Sie sicher direkt aus Ihren Sim-Blöcken mit Ihrer Datenbank interagieren. Die Integration abstrahiert die Komplexität von API-Aufrufen und ermöglicht es Ihnen, sich auf den Aufbau von Logik und Automatisierungen zu konzentrieren.
+
+**Hauptvorteile der Verwendung von Supabase in Sim:**
+- **No-code/Low-code Datenbankoperationen:** Abfragen, Einfügen, Aktualisieren und Löschen von Zeilen in Ihren Supabase-Tabellen ohne SQL oder Backend-Code zu schreiben.
+- **Flexible Abfragen:** Verwenden Sie die [PostgREST-Filtersyntax](https://postgrest.org/en/stable/api.html#operators) für erweiterte Abfragen, einschließlich Filtern, Sortieren und Begrenzen von Ergebnissen.
+- **Nahtlose Integration:** Verbinden Sie Supabase einfach mit anderen Tools und Diensten in Ihrem Workflow und ermöglichen Sie leistungsstarke Automatisierungen wie Datensynchronisierung, Auslösen von Benachrichtigungen oder Anreicherung von Datensätzen.
+- **Sicher und skalierbar:** Alle Operationen verwenden Ihr Supabase Service-Rolle-Secret und gewährleisten sicheren Zugriff auf Ihre Daten mit der Skalierbarkeit einer verwalteten Cloud-Plattform.
+
+Ob Sie interne Tools erstellen, Geschäftsprozesse automatisieren oder Produktionsanwendungen betreiben – Supabase in Sim bietet eine schnelle, zuverlässige und entwicklerfreundliche Möglichkeit, Ihre Daten und Backend-Logik zu verwalten – ohne Infrastrukturverwaltung. Konfigurieren Sie einfach Ihren Block, wählen Sie die benötigte Operation und lassen Sie Sim den Rest erledigen.
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Integrieren Sie Supabase in den Workflow. Kann viele Zeilen abrufen, eine Zeile abrufen, erstellen, aktualisieren, löschen und upserten.
+
+## Tools
+
+### `supabase_query`
+
+Daten aus einer Supabase-Tabelle abfragen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
+| `table` | string | Ja | Der Name der abzufragenden Supabase-Tabelle |
+| `filter` | string | Nein | PostgREST-Filter \(z.B. "id=eq.123"\) |
+| `orderBy` | string | Nein | Spalte zum Sortieren \(fügen Sie DESC für absteigend hinzu\) |
+| `limit` | number | Nein | Maximale Anzahl der zurückzugebenden Zeilen |
+| `apiKey` | string | Ja | Ihr Supabase Service-Rolle-Secret-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `results` | array | Array der von der Abfrage zurückgegebenen Datensätze |
+
+### `supabase_insert`
+
+Daten in eine Supabase-Tabelle einfügen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID (z.B. jdrkgepadsdopsntdlom) |
+| `table` | string | Ja | Der Name der Supabase-Tabelle, in die Daten eingefügt werden sollen |
+| `data` | any | Ja | Die einzufügenden Daten |
+| `apiKey` | string | Ja | Ihr Supabase Service-Role-Secret-Key |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `results` | array | Array der eingefügten Datensätze |
+
+### `supabase_get_row`
+
+Eine einzelne Zeile aus einer Supabase-Tabelle basierend auf Filterkriterien abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID (z.B. jdrkgepadsdopsntdlom) |
+| `table` | string | Ja | Der Name der Supabase-Tabelle für die Abfrage |
+| `filter` | string | Ja | PostgREST-Filter zum Finden der spezifischen Zeile (z.B. "id=eq.123") |
+| `apiKey` | string | Ja | Ihr Supabase Service-Role-Secret-Key |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `results` | array | Array mit den Zeilendaten, falls gefunden, leeres Array, falls nicht gefunden |
+
+### `supabase_update`
+
+Zeilen in einer Supabase-Tabelle basierend auf Filterkriterien aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID (z.B. jdrkgepadsdopsntdlom) |
+| `table` | string | Ja | Der Name der zu aktualisierenden Supabase-Tabelle |
+| `filter` | string | Ja | PostgREST-Filter zur Identifizierung der zu aktualisierenden Zeilen (z.B. "id=eq.123") |
+| `data` | object | Ja | Daten, die in den übereinstimmenden Zeilen aktualisiert werden sollen |
+| `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `results` | array | Array der aktualisierten Datensätze |
+
+### `supabase_delete`
+
+Zeilen aus einer Supabase-Tabelle basierend auf Filterkriterien löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID (z.B. jdrkgepadsdopsntdlom) |
+| `table` | string | Ja | Der Name der Supabase-Tabelle, aus der gelöscht werden soll |
+| `filter` | string | Ja | PostgREST-Filter zur Identifizierung der zu löschenden Zeilen (z.B. "id=eq.123") |
+| `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `results` | array | Array der gelöschten Datensätze |
+
+### `supabase_upsert`
+
+Daten in eine Supabase-Tabelle einfügen oder aktualisieren (Upsert-Operation)
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
+| `table` | string | Ja | Der Name der Supabase-Tabelle, in die Daten eingefügt werden sollen |
+| `data` | any | Ja | Die Daten, die eingefügt oder aktualisiert werden sollen \(Upsert\) |
+| `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `results` | array | Array der eingefügten/aktualisierten Datensätze |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `supabase`

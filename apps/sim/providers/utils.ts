@@ -496,13 +496,11 @@ export function calculateCost(
  * Get pricing information for a specific model (including embedding models)
  */
 export function getModelPricing(modelId: string): any {
-  // First check if it's an embedding model
   const embeddingPricing = getEmbeddingModelPricing(modelId)
   if (embeddingPricing) {
     return embeddingPricing
   }
 
-  // Then check chat models
   return getModelPricingFromDefinitions(modelId)
 }
 
@@ -516,20 +514,15 @@ export function formatCost(cost: number): string {
   if (cost === undefined || cost === null) return '—'
 
   if (cost >= 1) {
-    // For costs >= $1, show two decimal places
     return `$${cost.toFixed(2)}`
   }
   if (cost >= 0.01) {
-    // For costs between 1¢ and $1, show three decimal places
     return `$${cost.toFixed(3)}`
   }
   if (cost >= 0.001) {
-    // For costs between 0.1¢ and 1¢, show four decimal places
     return `$${cost.toFixed(4)}`
   }
   if (cost > 0) {
-    // For very small costs, still show as fixed decimal instead of scientific notation
-    // Find the first non-zero digit and show a few more places
     const places = Math.max(4, Math.abs(Math.floor(Math.log10(cost))) + 3)
     return `$${cost.toFixed(places)}`
   }

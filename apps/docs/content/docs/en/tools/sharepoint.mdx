@@ -1,6 +1,6 @@
 ---
 title: Sharepoint
-description: Read and create pages
+description: Work with pages and lists
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -61,7 +61,7 @@ In Sim, the SharePoint integration empowers your agents to create and access Sha
 
 ## Usage Instructions
 
-Integrate Sharepoint into the workflow. Can read and create pages, and list sites. Requires OAuth.
+Integrate SharePoint into the workflow. Read/create pages, list sites, and work with lists (read, create, update items). Requires OAuth.
 
 
 
@@ -123,6 +123,84 @@ List details of all SharePoint sites
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `site` | object | Information about the current SharePoint site |
+
+### `sharepoint_create_list`
+
+Create a new list in a SharePoint site
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
+| `siteSelector` | string | No | Select the SharePoint site |
+| `listDisplayName` | string | Yes | Display name of the list to create |
+| `listDescription` | string | No | Description of the list |
+| `listTemplate` | string | No | List template name \(e.g., 'genericList'\) |
+| `pageContent` | string | No | Optional JSON of columns. Either a top-level array of column definitions or an object with \{ columns: \[...\] \}. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `list` | object | Created SharePoint list information |
+
+### `sharepoint_get_list`
+
+Get metadata (and optionally columns/items) for a SharePoint list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteSelector` | string | No | Select the SharePoint site |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
+| `listId` | string | No | The ID of the list to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `list` | object | Information about the SharePoint list |
+
+### `sharepoint_update_list`
+
+Update the properties (fields) on a SharePoint list item
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteSelector` | string | No | Select the SharePoint site |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
+| `listId` | string | No | The ID of the list containing the item |
+| `itemId` | string | Yes | The ID of the list item to update |
+| `listItemFields` | object | Yes | Field values to update on the list item |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Updated SharePoint list item |
+
+### `sharepoint_add_list_items`
+
+Add a new item to a SharePoint list
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteSelector` | string | No | Select the SharePoint site |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
+| `listId` | string | Yes | The ID of the list to add the item to |
+| `listItemFields` | object | Yes | Field values for the new list item |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Created SharePoint list item |
 
 
 

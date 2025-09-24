@@ -1,7 +1,6 @@
-import { withSentryConfig } from '@sentry/nextjs'
 import type { NextConfig } from 'next'
 import { env, isTruthy } from './lib/env'
-import { isDev, isHosted, isProd } from './lib/environment'
+import { isDev, isHosted } from './lib/environment'
 import { getMainCSPPolicy, getWorkflowExecutionCSPPolicy } from './lib/security/csp'
 
 const nextConfig: NextConfig = {
@@ -42,6 +41,36 @@ const nextConfig: NextConfig = {
               hostname: new URL(env.NEXT_PUBLIC_BLOB_BASE_URL).hostname,
             },
           ]
+        : []),
+      // Brand logo domain if configured
+      ...(env.NEXT_PUBLIC_BRAND_LOGO_URL
+        ? (() => {
+            try {
+              return [
+                {
+                  protocol: 'https' as const,
+                  hostname: new URL(env.NEXT_PUBLIC_BRAND_LOGO_URL).hostname,
+                },
+              ]
+            } catch {
+              return []
+            }
+          })()
+        : []),
+      // Brand favicon domain if configured
+      ...(env.NEXT_PUBLIC_BRAND_FAVICON_URL
+        ? (() => {
+            try {
+              return [
+                {
+                  protocol: 'https' as const,
+                  hostname: new URL(env.NEXT_PUBLIC_BRAND_FAVICON_URL).hostname,
+                },
+              ]
+            } catch {
+              return []
+            }
+          })()
         : []),
     ],
   },
@@ -211,20 +240,4 @@ const nextConfig: NextConfig = {
   },
 }
 
-const sentryConfig = {
-  silent: true,
-  org: env.SENTRY_ORG || '',
-  project: env.SENTRY_PROJECT || '',
-  authToken: env.SENTRY_AUTH_TOKEN || undefined,
-  disableSourceMapUpload: !isProd,
-  autoInstrumentServerFunctions: isProd,
-  bundleSizeOptimizations: {
-    excludeDebugStatements: true,
-    excludePerformanceMonitoring: true,
-    excludeReplayIframe: true,
-    excludeReplayShadowDom: true,
-    excludeReplayWorker: true,
-  },
-}
-
-export default isDev ? nextConfig : withSentryConfig(nextConfig, sentryConfig)
+export default nextConfig

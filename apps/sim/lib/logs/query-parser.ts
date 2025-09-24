@@ -169,11 +169,29 @@ export function queryToApiParams(parsedQuery: ParsedQuery): Record<string, strin
         }
         break
 
+      case 'folder':
+        if (filter.operator === '=') {
+          params.folderName = filter.value as string
+        }
+        break
+
       case 'execution':
         if (filter.operator === '=' && parsedQuery.textSearch) {
           params.search = `${parsedQuery.textSearch} ${filter.value}`.trim()
         } else if (filter.operator === '=') {
           params.search = filter.value as string
+        }
+        break
+
+      case 'workflowId':
+        if (filter.operator === '=') {
+          params.workflowIds = String(filter.value)
+        }
+        break
+
+      case 'executionId':
+        if (filter.operator === '=') {
+          params.executionId = String(filter.value)
         }
         break
 

@@ -7,7 +7,7 @@ import { ThemeProvider as NextThemesProvider } from 'next-themes'
 export function ConditionalThemeProvider({ children, ...props }: ThemeProviderProps) {
   const pathname = usePathname()
 
-  // Force light mode for landing page (root path and /homepage), auth verify, invite, and legal pages
+  // Force light mode for certain pages
   const forcedTheme =
     pathname === '/' ||
     pathname === '/homepage' ||
@@ -16,7 +16,8 @@ export function ConditionalThemeProvider({ children, ...props }: ThemeProviderPr
     pathname.startsWith('/terms') ||
     pathname.startsWith('/privacy') ||
     pathname.startsWith('/invite') ||
-    pathname.startsWith('/verify')
+    pathname.startsWith('/verify') ||
+    pathname.startsWith('/changelog')
       ? 'light'
       : undefined
 

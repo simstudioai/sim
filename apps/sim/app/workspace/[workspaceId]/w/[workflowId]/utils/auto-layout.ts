@@ -206,6 +206,18 @@ export async function applyAutoLayoutAndUpdateStore(
         loops: newWorkflowState.loops || {},
         parallels: newWorkflowState.parallels || {},
         deploymentStatuses: newWorkflowState.deploymentStatuses || {},
+        // Sanitize edges: remove null/empty handle fields to satisfy schema (optional strings)
+        edges: (newWorkflowState.edges || []).map((edge: any) => {
+          const { sourceHandle, targetHandle, ...rest } = edge || {}
+          const sanitized: any = { ...rest }
+          if (typeof sourceHandle === 'string' && sourceHandle.length > 0) {
+            sanitized.sourceHandle = sourceHandle
+          }
+          if (typeof targetHandle === 'string' && targetHandle.length > 0) {
+            sanitized.targetHandle = targetHandle
+          }
+          return sanitized
+        }),
       }
 
       // Save the updated workflow state to the database

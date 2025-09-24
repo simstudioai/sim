@@ -55,7 +55,22 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
     }
 
     const stats = userStatsData[0]
-    const currentUsage = Number.parseFloat(stats.currentPeriodCost?.toString() ?? '0')
+    let currentUsage = Number.parseFloat(stats.currentPeriodCost?.toString() ?? '0')
+
+    // For Pro users, include any snapshotted usage (from when they joined a team)
+    // This ensures they see their total Pro usage in the UI
+    if (subscription && subscription.plan === 'pro' && subscription.referenceId === userId) {
+      const snapshotUsage = Number.parseFloat(stats.proPeriodCostSnapshot?.toString() ?? '0')
+      if (snapshotUsage > 0) {
+        currentUsage += snapshotUsage
+        logger.info('Including Pro snapshot in usage display', {
+          userId,
+          currentPeriodCost: stats.currentPeriodCost,
+          proPeriodCostSnapshot: snapshotUsage,
+          totalUsage: currentUsage,
+        })
+      }
+    }
 
     // Determine usage limit based on plan type
     let limit: number
@@ -312,13 +327,15 @@ export async function getUserUsageLimit(userId: string): Promise<number> {
       .limit(1)
 
     if (userStatsQuery.length === 0) {
-      throw new Error(`User stats not found for userId: ${userId}`)
+      throw new Error(
+        `No user stats record found for userId: ${userId}. User must be properly initialized before execution.`
+      )
     }
 
     // Individual limits should never be null for free/pro users
     if (!userStatsQuery[0].currentUsageLimit) {
       throw new Error(
-        `Invalid null usage limit for ${subscription?.plan || 'free'} user: ${userId}`
+        `Invalid null usage limit for ${subscription?.plan || 'free'} user: ${userId}. User stats must be properly initialized.`
       )
     }
 
@@ -332,7 +349,7 @@ export async function getUserUsageLimit(userId: string): Promise<number> {
     .limit(1)
 
   if (orgData.length === 0) {
-    throw new Error(`Organization not found: ${subscription.referenceId}`)
+    throw new Error(`Organization not found: ${subscription.referenceId} for user: ${userId}`)
   }
 
   if (orgData[0].orgUsageLimit) {

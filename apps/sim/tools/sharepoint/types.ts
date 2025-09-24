@@ -58,6 +58,39 @@ export interface SharepointPageContent {
   } | null
 }
 
+export interface SharepointColumn {
+  id?: string
+  name?: string
+  displayName?: string
+  description?: string
+  indexed?: boolean
+  enforcedUniqueValues?: boolean
+  hidden?: boolean
+  readOnly?: boolean
+  required?: boolean
+  columnGroup?: string
+  [key: string]: unknown
+}
+
+export interface SharepointListItem {
+  id: string
+  fields?: Record<string, unknown>
+}
+
+export interface SharepointList {
+  id: string
+  displayName?: string
+  name?: string
+  webUrl?: string
+  createdDateTime?: string
+  lastModifiedDateTime?: string
+  list?: {
+    template?: string
+  }
+  columns?: SharepointColumn[]
+  items?: SharepointListItem[]
+}
+
 export interface SharepointListSitesResponse extends ToolResponse {
   output: {
     sites: SharepointSite[]
@@ -131,6 +164,18 @@ export interface SharepointToolParams {
   serverRelativePath?: string
   groupId?: string
   maxPages?: number
+  // Lists
+  listId?: string
+  listTitle?: string
+  includeColumns?: boolean
+  includeItems?: boolean
+  // Create List
+  listDisplayName?: string
+  listDescription?: string
+  listTemplate?: string
+  // Update List Item
+  itemId?: string
+  listItemFields?: Record<string, unknown>
 }
 
 export interface GraphApiResponse {
@@ -211,3 +256,39 @@ export type SharepointResponse =
   | SharepointCreatePageResponse
   | SharepointReadPageResponse
   | SharepointReadSiteResponse
+  | SharepointGetListResponse
+  | SharepointCreateListResponse
+  | SharepointUpdateListItemResponse
+  | SharepointAddListItemResponse
+
+export interface SharepointGetListResponse extends ToolResponse {
+  output: {
+    list?: SharepointList
+    lists?: SharepointList[]
+    nextPageToken?: string
+  }
+}
+
+export interface SharepointCreateListResponse extends ToolResponse {
+  output: {
+    list: SharepointList
+  }
+}
+
+export interface SharepointUpdateListItemResponse extends ToolResponse {
+  output: {
+    item: {
+      id: string
+      fields?: Record<string, unknown>
+    }
+  }
+}
+
+export interface SharepointAddListItemResponse extends ToolResponse {
+  output: {
+    item: {
+      id: string
+      fields?: Record<string, unknown>
+    }
+  }
+}

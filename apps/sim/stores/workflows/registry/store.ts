@@ -12,7 +12,6 @@ import type {
 import { getNextWorkflowColor } from '@/stores/workflows/registry/utils'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowRegistry')
 
@@ -641,104 +640,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
             logger.info(`Created workflow from marketplace: ${options.marketplaceId}`)
           } else {
-            // Create starter block for new workflow
-            const starterId = crypto.randomUUID()
-            const starterBlock = {
-              id: starterId,
-              type: 'starter' as const,
-              name: 'Start',
-              position: { x: 100, y: 100 },
-              subBlocks: {
-                startWorkflow: {
-                  id: 'startWorkflow',
-                  type: 'dropdown' as const,
-                  value: 'manual',
-                },
-                webhookPath: {
-                  id: 'webhookPath',
-                  type: 'short-input' as const,
-                  value: '',
-                },
-                webhookSecret: {
-                  id: 'webhookSecret',
-                  type: 'short-input' as const,
-                  value: '',
-                },
-                scheduleType: {
-                  id: 'scheduleType',
-                  type: 'dropdown' as const,
-                  value: 'daily',
-                },
-                minutesInterval: {
-                  id: 'minutesInterval',
-                  type: 'short-input' as const,
-                  value: '',
-                },
-                minutesStartingAt: {
-                  id: 'minutesStartingAt',
-                  type: 'short-input' as const,
-                  value: '',
-                },
-                hourlyMinute: {
-                  id: 'hourlyMinute',
-                  type: 'short-input' as const,
-                  value: '',
-                },
-                dailyTime: {
-                  id: 'dailyTime',
-                  type: 'short-input' as const,
-                  value: '',
-                },
-                weeklyDay: {
-                  id: 'weeklyDay',
-                  type: 'dropdown' as const,
-                  value: 'MON',
-                },
-                weeklyDayTime: {
-                  id: 'weeklyDayTime',
-                  type: 'short-input' as const,
-                  value: '',
-                },
-                monthlyDay: {
-                  id: 'monthlyDay',
-                  type: 'short-input' as const,
-                  value: '',
-                },
-                monthlyTime: {
-                  id: 'monthlyTime',
-                  type: 'short-input' as const,
-                  value: '',
-                },
-                cronExpression: {
-                  id: 'cronExpression',
-                  type: 'short-input' as const,
-                  value: '',
-                },
-                timezone: {
-                  id: 'timezone',
-                  type: 'dropdown' as const,
-                  value: 'UTC',
-                },
-              },
-              outputs: {
-                response: {
-                  type: {
-                    input: 'any',
-                  },
-                },
-              },
-              enabled: true,
-              horizontalHandles: true,
-              isWide: false,
-              advancedMode: false,
-              triggerMode: false,
-              height: 0,
-            }
-
+            // Create empty workflow (no default blocks)
             initialState = {
-              blocks: {
-                [starterId]: starterBlock,
-              },
+              blocks: {},
               edges: [],
               loops: {},
               parallels: {},
@@ -750,9 +654,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 past: [],
                 present: {
                   state: {
-                    blocks: {
-                      [starterId]: starterBlock,
-                    },
+                    blocks: {},
                     edges: [],
                     loops: {},
                     parallels: {},
@@ -788,15 +690,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
           // Initialize subblock values to ensure they're available for sync
           if (!options.marketplaceId) {
-            // For non-marketplace workflows, initialize subblock values from the starter block
+            // For non-marketplace workflows, initialize empty subblock values
             const subblockValues: Record<string, Record<string, any>> = {}
-            const blocks = initialState.blocks as Record<string, BlockState>
-            for (const [blockId, block] of Object.entries(blocks)) {
-              subblockValues[blockId] = {}
-              for (const [subblockId, subblock] of Object.entries(block.subBlocks)) {
-                subblockValues[blockId][subblockId] = (subblock as any).value
-              }
-            }
 
             // Update the subblock store with the initial values
             useSubBlockStore.setState((state) => ({

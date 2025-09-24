@@ -1,0 +1,161 @@
+---
+title: Copilot
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
+import { MessageCircle, Package, Zap, Infinity as InfinityIcon, Brain, BrainCircuit } from 'lucide-react'
+
+Copilot ist dein Assistent im Editor, der dir hilft, Workflows mit Sim Copilot zu erstellen und zu bearbeiten sowie diese zu verstehen und zu verbessern. Er kann:
+
+- **Erklären**: Beantwortet Fragen zu Sim und deinem aktuellen Workflow
+- **Anleiten**: Schlägt Bearbeitungen und Best Practices vor
+- **Bearbeiten**: Nimmt Änderungen an Blöcken, Verbindungen und Einstellungen vor, wenn du zustimmst
+
+<Callout type="info">
+  Copilot ist ein von Sim verwalteter Dienst. Für selbst gehostete Installationen generiere einen Copilot API-Schlüssel in der gehosteten App (sim.ai → Einstellungen → Copilot)
+  1. Gehe zu [sim.ai](https://sim.ai) → Einstellungen → Copilot und generiere einen Copilot API-Schlüssel
+  2. Setze `COPILOT_API_KEY` in deiner selbst gehosteten Umgebung auf diesen Wert
+</Callout>
+
+## Kontextmenü (@)
+
+Verwende das `@` Symbol, um auf verschiedene Ressourcen zu verweisen und Copilot mehr Kontext über deinen Arbeitsbereich zu geben:
+
+<Image
+  src="/static/copilot/copilot-menu.png"
+  alt="Copilot-Kontextmenü mit verfügbaren Referenzoptionen"
+  width={600}
+  height={400}
+/>
+
+Das `@` Menü bietet Zugriff auf:
+- **Chats**: Verweise auf vorherige Copilot-Gespräche
+- **Alle Workflows**: Verweise auf beliebige Workflows in deinem Arbeitsbereich
+- **Workflow-Blöcke**: Verweise auf bestimmte Blöcke aus Workflows
+- **Blöcke**: Verweise auf Blocktypen und Vorlagen
+- **Wissen**: Verweise auf deine hochgeladenen Dokumente und Wissensdatenbank
+- **Dokumentation**: Verweise auf Sim-Dokumentation
+- **Vorlagen**: Verweise auf Workflow-Vorlagen
+- **Logs**: Verweise auf Ausführungsprotokolle und Ergebnisse
+
+Diese kontextbezogenen Informationen helfen Copilot, genauere und relevantere Unterstützung für deinen spezifischen Anwendungsfall zu bieten.
+
+## Modi
+
+<Cards>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <MessageCircle className="h-4 w-4 text-muted-foreground" />
+        Fragen
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">
+      Frage-Antwort-Modus für Erklärungen, Anleitungen und Vorschläge ohne Änderungen an deinem Workflow vorzunehmen.
+    </div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <Package className="h-4 w-4 text-muted-foreground" />
+        Agent
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">
+      Erstellen-und-Bearbeiten-Modus. Copilot schlägt spezifische Änderungen vor (Blöcke hinzufügen, Variablen verbinden, Einstellungen anpassen) und wendet sie an, wenn du zustimmst.
+    </div>
+  </Card>
+</Cards>
+
+## Tiefenebenen
+
+<Cards>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <Zap className="h-4 w-4 text-muted-foreground" />
+        Schnell
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">Am schnellsten und günstigsten. Ideal für kleine Änderungen, einfache Workflows und geringfügige Anpassungen.</div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <InfinityIcon className="h-4 w-4 text-muted-foreground" />
+        Auto
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">Ausgewogene Geschwindigkeit und Denkleistung. Empfohlene Standardeinstellung für die meisten Aufgaben.</div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <Brain className="h-4 w-4 text-muted-foreground" />
+        Erweitert
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">Mehr Denkleistung für umfangreichere Workflows und komplexe Änderungen bei gleichzeitiger Leistungsfähigkeit.</div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <BrainCircuit className="h-4 w-4 text-muted-foreground" />
+        Behemoth
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">Maximale Denkleistung für tiefgreifende Planung, Fehlerbehebung und komplexe architektonische Änderungen.</div>
+  </Card>
+</Cards>
+
+### Modusauswahl-Oberfläche
+
+Du kannst einfach zwischen verschiedenen Denkmodi über den Modusauswähler in der Copilot-Oberfläche wechseln:
+
+<Image
+  src="/static/copilot/copilot-models.png"
+  alt="Copilot-Modusauswahl zeigt den erweiterten Modus mit MAX-Umschalter"
+  width={600}
+  height={300}
+/>
+
+Die Oberfläche ermöglicht dir:
+- **Denkebene auswählen**: Wähle zwischen Schnell, Auto, Erweitert oder Behemoth
+- **MAX-Modus aktivieren**: Umschalten für maximale Denkfähigkeiten, wenn du die gründlichste Analyse benötigst
+- **Modusbeschreibungen anzeigen**: Verstehe, wofür jeder Modus optimiert ist
+
+Wähle deinen Modus basierend auf der Komplexität deiner Aufgabe - verwende Schnell für einfache Fragen und Behemoth für komplexe architektonische Änderungen.
+
+## Abrechnung und Kostenberechnung
+
+### Wie Kosten berechnet werden
+
+Die Copilot-Nutzung wird pro Token vom zugrundeliegenden LLM abgerechnet:
+
+- **Eingabe-Tokens**: werden zum Basistarif des Anbieters berechnet (**zum Selbstkostenpreis**)
+- **Ausgabe-Tokens**: werden mit dem **1,5-fachen** des Basisausgabepreises des Anbieters berechnet
+
+```javascript
+copilotCost = (inputTokens × inputPrice + outputTokens × (outputPrice × 1.5)) / 1,000,000
+```
+
+| Komponente | Angewendeter Tarif    |
+|------------|------------------------|
+| Input      | inputPrice             |
+| Output     | outputPrice × 1,5      |
+
+<Callout type="warning">
+  Die angezeigten Preise spiegeln die Tarife vom 4. September 2025 wider. Überprüfen Sie die Anbieterdokumentation für aktuelle Preise.
+</Callout>
+
+<Callout type="info">
+  Modellpreise werden pro Million Token berechnet. Die Berechnung teilt durch 1.000.000, um die tatsächlichen Kosten zu ermitteln. Siehe <a href="/execution/costs">die Seite zur Kostenberechnung</a> für Hintergründe und Beispiele.
+</Callout>

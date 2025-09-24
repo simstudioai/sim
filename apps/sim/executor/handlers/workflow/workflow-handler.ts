@@ -22,8 +22,20 @@ const MAX_WORKFLOW_DEPTH = 10
 export class WorkflowBlockHandler implements BlockHandler {
   private serializer = new Serializer()
 
+  // Tolerant JSON parser for mapping values
+  // Keeps handler self-contained without introducing utilities
+  private safeParse(input: unknown): unknown {
+    if (typeof input !== 'string') return input
+    try {
+      return JSON.parse(input)
+    } catch {
+      return input
+    }
+  }
+
   canHandle(block: SerializedBlock): boolean {
-    return block.metadata?.id === BlockType.WORKFLOW
+    const id = block.metadata?.id
+    return id === BlockType.WORKFLOW || id === 'workflow_input'
   }
 
   async execute(
@@ -75,13 +87,22 @@ export class WorkflowBlockHandler implements BlockHandler {
       )
 
       // Prepare the input for the child workflow
-      // The input from this block should be passed as start.input to the child workflow
-      let childWorkflowInput = {}
+      // Prefer structured mapping if provided; otherwise fall back to legacy 'input' passthrough
+      let childWorkflowInput: Record<string, any> = {}
 
-      if (inputs.input !== undefined) {
-        // If input is provided, use it directly
+      if (inputs.inputMapping !== undefined && inputs.inputMapping !== null) {
+        // Handle inputMapping - could be object or stringified JSON
+        const raw = inputs.inputMapping
+        const normalized = this.safeParse(raw)
+
+        if (normalized && typeof normalized === 'object' && !Array.isArray(normalized)) {
+          childWorkflowInput = normalized as Record<string, any>
+        } else {
+          childWorkflowInput = {}
+        }
+      } else if (inputs.input !== undefined) {
+        // Legacy behavior: pass under start.input
         childWorkflowInput = inputs.input
-        logger.info(`Passing input to child workflow: ${JSON.stringify(childWorkflowInput)}`)
       }
 
       // Remove the workflowId from the input to avoid confusion
@@ -407,10 +428,11 @@ export class WorkflowBlockHandler implements BlockHandler {
       }
       return failure as Record<string, any>
     }
-    let result = childResult
-    if (childResult?.output) {
-      result = childResult.output
-    }
+
+    // childResult is an ExecutionResult with structure { success, output, metadata, logs }
+    // We want the actual output from the execution
+    const result = childResult.output || {}
+
     return {
       success: true,
       childWorkflowName,

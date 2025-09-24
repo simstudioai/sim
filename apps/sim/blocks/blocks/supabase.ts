@@ -1,6 +1,6 @@
 import { SupabaseIcon } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { SupabaseResponse } from '@/tools/supabase/types'
 
 const logger = createLogger('SupabaseBlock')
@@ -9,6 +9,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
   type: 'supabase',
   name: 'Supabase',
   description: 'Use Supabase database',
+  authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Supabase into the workflow. Can get many rows, get, create, update, delete, and upsert a row.',
   docsLink: 'https://docs.sim.ai/tools/supabase',

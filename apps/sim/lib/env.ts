@@ -31,6 +31,8 @@ export const env = createEnv({
     COPILOT_MODEL:                         z.string().optional(),                  // Model for copilot API calls
     COPILOT_API_KEY:                       z.string().min(1).optional(),           // Secret for internal sim agent API authentication
     SIM_AGENT_API_URL:                     z.string().url().optional(),            // URL for internal sim agent API
+    AGENT_INDEXER_URL:                     z.string().url().optional(),            // URL for agent training data indexer
+    AGENT_INDEXER_API_KEY:                 z.string().min(1).optional(),           // API key for agent indexer authentication
 
 
     // Database & Storage
@@ -51,10 +53,10 @@ export const env = createEnv({
     BILLING_ENABLED:                       z.boolean().optional(),                 // Enable billing enforcement and usage tracking
 
     // Email & Communication
+    EMAIL_VERIFICATION_ENABLED:            z.boolean().optional(),                 // Enable email verification for user registration and login (defaults to false)
     RESEND_API_KEY:                        z.string().min(1).optional(),           // Resend API key for transactional emails
     FROM_EMAIL_ADDRESS:                    z.string().min(1).optional(),           // Complete from address (e.g., "Sim <noreply@domain.com>" or "noreply@domain.com")
     EMAIL_DOMAIN:                          z.string().min(1).optional(),           // Domain for sending emails (fallback when FROM_EMAIL_ADDRESS not set)
-    MAIL_BLOCK_FROM_ADDRESS:               z.string().min(1).optional(),           // Custom from address for mail block tool (e.g., "Bot <bot@domain.com>")
     AZURE_ACS_CONNECTION_STRING:           z.string().optional(),                  // Azure Communication Services connection string
 
     // SMS & Messaging
@@ -88,9 +90,6 @@ export const env = createEnv({
     // Monitoring & Analytics
     TELEMETRY_ENDPOINT:                    z.string().url().optional(),            // Custom telemetry/analytics endpoint
     COST_MULTIPLIER:                       z.number().optional(),                  // Multiplier for cost calculations
-    SENTRY_ORG:                            z.string().optional(),                  // Sentry organization for error tracking
-    SENTRY_PROJECT:                        z.string().optional(),                  // Sentry project for error tracking
-    SENTRY_AUTH_TOKEN:                     z.string().optional(),                  // Sentry authentication token
     LOG_LEVEL:                             z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR']).optional(), // Minimum log level to display (defaults to ERROR in production, DEBUG in development)
 
     // External Services
@@ -209,7 +208,6 @@ export const env = createEnv({
     NEXT_PUBLIC_VERCEL_URL:                z.string().optional(),                  // Vercel deployment URL for preview/production
 
     // Client-side Services
-    NEXT_PUBLIC_SENTRY_DSN:                z.string().url().optional(),            // Sentry DSN for client-side error tracking
     NEXT_PUBLIC_SOCKET_URL:                z.string().url().optional(),            // WebSocket server URL for real-time features
 
     // Asset Storage
@@ -232,7 +230,8 @@ export const env = createEnv({
     NEXT_PUBLIC_CUSTOM_CSS_URL:            z.string().url().optional(),            // Custom CSS stylesheet URL
     NEXT_PUBLIC_SUPPORT_EMAIL:             z.string().email().optional(),          // Custom support email
 
-    NEXT_PUBLIC_E2B_ENABLED:               z.string().optional(),                  // Enable E2B remote code execution (client-side)
+    NEXT_PUBLIC_E2B_ENABLED:               z.string().optional(),
+    NEXT_PUBLIC_COPILOT_TRAINING_ENABLED:  z.string().optional(),                  
     NEXT_PUBLIC_DOCUMENTATION_URL:         z.string().url().optional(),            // Custom documentation URL
     NEXT_PUBLIC_TERMS_URL:                 z.string().url().optional(),            // Custom terms of service URL
     NEXT_PUBLIC_PRIVACY_URL:               z.string().url().optional(),            // Custom privacy policy URL
@@ -257,7 +256,6 @@ export const env = createEnv({
   experimental__runtimeEnv: {
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_VERCEL_URL: process.env.NEXT_PUBLIC_VERCEL_URL,
-    NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
     NEXT_PUBLIC_BLOB_BASE_URL: process.env.NEXT_PUBLIC_BLOB_BASE_URL,
     NEXT_PUBLIC_BILLING_ENABLED: process.env.NEXT_PUBLIC_BILLING_ENABLED,
     NEXT_PUBLIC_GOOGLE_CLIENT_ID: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
@@ -279,6 +277,7 @@ export const env = createEnv({
     NEXT_PUBLIC_BRAND_BACKGROUND_COLOR: process.env.NEXT_PUBLIC_BRAND_BACKGROUND_COLOR,
     NEXT_PUBLIC_TRIGGER_DEV_ENABLED: process.env.NEXT_PUBLIC_TRIGGER_DEV_ENABLED,
     NEXT_PUBLIC_E2B_ENABLED: process.env.NEXT_PUBLIC_E2B_ENABLED,
+    NEXT_PUBLIC_COPILOT_TRAINING_ENABLED: process.env.NEXT_PUBLIC_COPILOT_TRAINING_ENABLED,
     NODE_ENV: process.env.NODE_ENV,
     NEXT_TELEMETRY_DISABLED: process.env.NEXT_TELEMETRY_DISABLED,
   },

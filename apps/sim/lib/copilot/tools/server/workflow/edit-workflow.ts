@@ -6,6 +6,7 @@ import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
+import { validateWorkflowState } from '@/lib/workflows/validation'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { resolveOutputType } from '@/blocks/utils'
@@ -118,6 +119,31 @@ async function applyOperationsToYaml(
           }
           if (params?.type) block.type = params.type
           if (params?.name) block.name = params.name
+          // Handle trigger mode toggle and clean incoming edges when enabling
+          if (typeof params?.triggerMode === 'boolean') {
+            // Set triggerMode as a top-level block property
+            block.triggerMode = params.triggerMode
+
+            if (params.triggerMode === true) {
+              // Remove all incoming connections where this block is referenced as a target
+              Object.values(workflowData.blocks).forEach((other: any) => {
+                if (!other?.connections) return
+                Object.keys(other.connections).forEach((handle) => {
+                  const value = other.connections[handle]
+                  if (typeof value === 'string') {
+                    if (value === block_id) delete other.connections[handle]
+                  } else if (Array.isArray(value)) {
+                    other.connections[handle] = value.filter((item: any) =>
+                      typeof item === 'string' ? item !== block_id : item?.block !== block_id
+                    )
+                    if (other.connections[handle].length === 0) delete other.connections[handle]
+                  } else if (typeof value === 'object' && value?.block) {
+                    if (value.block === block_id) delete other.connections[handle]
+                  }
+                })
+              })
+            }
+          }
           if (params?.removeEdges && Array.isArray(params.removeEdges)) {
             params.removeEdges.forEach(({ targetBlockId, sourceHandle = 'default' }) => {
               const value = block.connections?.[sourceHandle]
@@ -233,6 +259,14 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
         subBlockValues = fromDb.subBlockValues
       }
 
+      // Log the workflow state to see if triggerMode is present
+      logger.info('Workflow state being sent to sim-agent for YAML conversion:', {
+        blockCount: Object.keys(workflowState.blocks || {}).length,
+        blocksWithTriggerMode: Object.entries(workflowState.blocks || {})
+          .filter(([_, block]: [string, any]) => block.triggerMode === true)
+          .map(([id]) => id),
+      })
+
       const resp = await fetch(`${SIM_AGENT_API_URL}/api/workflow/to-yaml`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -255,9 +289,55 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
 
     const modifiedYaml = await applyOperationsToYaml(currentYaml, operations)
 
+    // Convert the modified YAML back to workflow state for validation
+    const validationResponse = await fetch(`${SIM_AGENT_API_URL}/api/yaml/to-workflow`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        yamlContent: modifiedYaml,
+        blockRegistry,
+        utilities: {
+          generateLoopBlocks: generateLoopBlocks.toString(),
+          generateParallelBlocks: generateParallelBlocks.toString(),
+          resolveOutputType: resolveOutputType.toString(),
+        },
+        options: { generateNewIds: false, preservePositions: true },
+      }),
+    })
+
+    if (!validationResponse.ok) {
+      throw new Error(`Failed to validate edited workflow: ${validationResponse.statusText}`)
+    }
+
+    const validationResult = await validationResponse.json()
+    if (!validationResult.success || !validationResult.workflowState) {
+      throw new Error(
+        validationResult.errors?.join(', ') || 'Failed to convert edited YAML to workflow'
+      )
+    }
+
+    // Validate the workflow state
+    const validation = validateWorkflowState(validationResult.workflowState, { sanitize: true })
+
+    if (!validation.valid) {
+      logger.error('Edited workflow state is invalid', {
+        errors: validation.errors,
+        warnings: validation.warnings,
+      })
+      throw new Error(`Invalid edited workflow: ${validation.errors.join('; ')}`)
+    }
+
+    if (validation.warnings.length > 0) {
+      logger.warn('Edited workflow validation warnings', {
+        warnings: validation.warnings,
+      })
+    }
+
     logger.info('edit_workflow generated modified YAML', {
       operationCount: operations.length,
       modifiedYamlLength: modifiedYaml.length,
+      validationErrors: validation.errors.length,
+      validationWarnings: validation.warnings.length,
     })
 
     return { success: true, yamlContent: modifiedYaml }

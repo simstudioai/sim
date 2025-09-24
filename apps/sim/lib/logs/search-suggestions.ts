@@ -62,6 +62,10 @@ export const FILTER_DEFINITIONS: FilterDefinition[] = [
       { value: 'this-week', label: 'This week', description: "This week's logs" },
       { value: 'last-week', label: 'Last week', description: "Last week's logs" },
       { value: 'this-month', label: 'This month', description: "This month's logs" },
+      // Friendly relative range shortcuts like Stripe
+      { value: '"> 2 days ago"', label: '> 2 days ago', description: 'Newer than 2 days' },
+      { value: '"> last week"', label: '> last week', description: 'Newer than last week' },
+      { value: '">=2025/08/31"', label: '>= YYYY/MM/DD', description: 'Start date (YYYY/MM/DD)' },
     ],
   },
   {
@@ -228,6 +232,27 @@ export class SearchSuggestions {
       }
     }
 
+    // Always include id-based keys (workflowId, executionId)
+    const idKeys: Array<{ key: string; label: string; description: string }> = [
+      { key: 'workflowId', label: 'Workflow ID', description: 'Filter by workflowId' },
+      { key: 'executionId', label: 'Execution ID', description: 'Filter by executionId' },
+    ]
+    for (const idDef of idKeys) {
+      const matchesIdKey =
+        !partialInput ||
+        idDef.key.toLowerCase().startsWith(partialInput.toLowerCase()) ||
+        idDef.label.toLowerCase().startsWith(partialInput.toLowerCase())
+      if (matchesIdKey) {
+        suggestions.push({
+          id: `filter-key-${idDef.key}`,
+          value: `${idDef.key}:`,
+          label: idDef.label,
+          description: idDef.description,
+          category: 'filters',
+        })
+      }
+    }
+
     return suggestions
   }
 
@@ -251,7 +276,7 @@ export class SearchSuggestions {
             value: option.value,
             label: option.label,
             description: option.description,
-            category: filterKey,
+            category: filterKey as any,
           })
         }
       }
@@ -294,6 +319,18 @@ export class SearchSuggestions {
       return suggestions.slice(0, 8)
     }
 
+    if (filterKey === 'workflowId' || filterKey === 'executionId') {
+      const example = partialInput || '"1234..."'
+      suggestions.push({
+        id: `filter-value-${filterKey}-example`,
+        value: example,
+        label: 'Enter exact ID',
+        description: 'Use quotes for the full ID',
+        category: filterKey,
+      })
+      return suggestions
+    }
+
     return suggestions
   }
 
@@ -321,6 +358,26 @@ export class SearchSuggestions {
     switch (context.type) {
       case 'initial':
       case 'filter-key-partial': {
+        if (context.type === 'filter-key-partial' && context.partialInput) {
+          const matches = FILTER_DEFINITIONS.filter(
+            (f) =>
+              f.key.toLowerCase().startsWith(context.partialInput!.toLowerCase()) ||
+              f.label.toLowerCase().startsWith(context.partialInput!.toLowerCase())
+          )
+
+          if (matches.length === 1) {
+            const key = matches[0].key
+            const filterValueSuggestions = this.getFilterValueSuggestions(key, '')
+            if (filterValueSuggestions.length > 0) {
+              return {
+                type: 'filter-values',
+                filterKey: key,
+                suggestions: filterValueSuggestions,
+              }
+            }
+          }
+        }
+
         const filterKeySuggestions = this.getFilterKeySuggestions(context.partialInput)
         return filterKeySuggestions.length > 0
           ? {
@@ -350,7 +407,7 @@ export class SearchSuggestions {
   }
 
   /**
-   * Generate preview text for a suggestion - SIMPLE APPROACH
+   * Generate preview text for a suggestion
    * Show suggestion at the end of input, with proper spacing logic
    */
   generatePreview(suggestion: Suggestion, currentValue: string, cursorPosition: number): string {
@@ -367,9 +424,13 @@ export class SearchSuggestions {
       context.startPosition !== undefined &&
       context.endPosition !== undefined
     ) {
-      // Replace partial text: "lev" -> "level:"
       const before = currentValue.slice(0, context.startPosition)
       const after = currentValue.slice(context.endPosition)
+      const isFilterValue =
+        !!suggestion.category && FILTER_DEFINITIONS.some((f) => f.key === suggestion.category)
+      if (isFilterValue) {
+        return `${before}${suggestion.category}:${suggestion.value}${after}`
+      }
       return `${before}${suggestion.value}${after}`
     }
 
@@ -378,23 +439,18 @@ export class SearchSuggestions {
       context.startPosition !== undefined &&
       context.endPosition !== undefined
     ) {
-      // Replace partial filter value: "level:err" -> "level:error"
       const before = currentValue.slice(0, context.startPosition)
       const after = currentValue.slice(context.endPosition)
       return `${before}${suggestion.value}${after}`
     }
 
-    // For all other cases, append at the end with smart spacing:
     let result = currentValue
 
     if (currentValue.endsWith(':')) {
-      // Direct append for filter values: "level:" + "error" = "level:error"
       result += suggestion.value
     } else if (currentValue.endsWith(' ')) {
-      // Already has space, direct append: "level:error " + "trigger:" = "level:error trigger:"
       result += suggestion.value
     } else {
-      // Need space: "level:error" + " " + "trigger:" = "level:error trigger:"
       result += ` ${suggestion.value}`
     }
 

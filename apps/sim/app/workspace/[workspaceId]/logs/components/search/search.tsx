@@ -1,7 +1,7 @@
 'use client'
 
-import { useMemo } from 'react'
-import { Search, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Loader2, Search, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,6 +17,7 @@ interface AutocompleteSearchProps {
   availableWorkflows?: string[]
   availableFolders?: string[]
   className?: string
+  onOpenChange?: (open: boolean) => void
 }
 
 export function AutocompleteSearch({
@@ -26,6 +27,7 @@ export function AutocompleteSearch({
   availableWorkflows = [],
   availableFolders = [],
   className,
+  onOpenChange,
 }: AutocompleteSearchProps) {
   const suggestionEngine = useMemo(() => {
     return new SearchSuggestions(availableWorkflows, availableFolders)
@@ -42,6 +44,8 @@ export function AutocompleteSearch({
     handleKeyDown,
     handleFocus,
     handleBlur,
+    reset: resetAutocomplete,
+    closeDropdown,
   } = useAutocomplete({
     getSuggestions: (inputValue, cursorPos) =>
       suggestionEngine.getSuggestions(inputValue, cursorPos),
@@ -52,9 +56,48 @@ export function AutocompleteSearch({
     debounceMs: 100,
   })
 
+  const clearAll = () => {
+    resetAutocomplete()
+    closeDropdown()
+    onChange('')
+    if (inputRef.current) {
+      inputRef.current.focus()
+    }
+  }
+
   const parsedQuery = parseQuery(value)
   const hasFilters = parsedQuery.filters.length > 0
   const hasTextSearch = parsedQuery.textSearch.length > 0
+
+  const listboxId = 'logs-search-listbox'
+  const inputId = 'logs-search-input'
+
+  useEffect(() => {
+    onOpenChange?.(state.isOpen)
+  }, [state.isOpen, onOpenChange])
+
+  useEffect(() => {
+    if (!state.isOpen || state.highlightedIndex < 0) return
+    const container = dropdownRef.current
+    const optionEl = document.getElementById(`${listboxId}-option-${state.highlightedIndex}`)
+    if (container && optionEl) {
+      try {
+        optionEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      } catch {
+        optionEl.scrollIntoView({ block: 'nearest' })
+      }
+    }
+  }, [state.isOpen, state.highlightedIndex])
+
+  const [showSpinner, setShowSpinner] = useState(false)
+  useEffect(() => {
+    if (!state.pendingQuery) {
+      setShowSpinner(false)
+      return
+    }
+    const t = setTimeout(() => setShowSpinner(true), 200)
+    return () => clearTimeout(t)
+  }, [state.pendingQuery])
 
   const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value
@@ -77,8 +120,10 @@ export function AutocompleteSearch({
     )
 
     const newQuery = [...filterStrings, parsedQuery.textSearch].filter(Boolean).join(' ')
-
-    onChange(newQuery)
+    handleInputChange(newQuery, newQuery.length)
+    if (inputRef.current) {
+      inputRef.current.focus()
+    }
   }
 
   return (
@@ -91,24 +136,37 @@ export function AutocompleteSearch({
           state.isOpen && 'ring-1 ring-ring'
         )}
       >
-        <Search className='h-4 w-4 flex-shrink-0 text-muted-foreground' strokeWidth={2} />
+        {showSpinner ? (
+          <Loader2 className='h-4 w-4 flex-shrink-0 animate-spin text-muted-foreground' />
+        ) : (
+          <Search className='h-4 w-4 flex-shrink-0 text-muted-foreground' strokeWidth={2} />
+        )}
 
         {/* Text display with ghost text */}
         <div className='relative flex-1 font-[380] font-sans text-base leading-none'>
           {/* Invisible input for cursor and interactions */}
           <Input
             ref={inputRef}
+            id={inputId}
             placeholder={state.inputValue ? '' : placeholder}
             value={state.inputValue}
             onChange={onInputChange}
             onFocus={handleFocus}
             onBlur={handleBlur}
             onClick={(e) => updateCursorPosition(e.currentTarget)}
-            onKeyUp={(e) => updateCursorPosition(e.currentTarget)}
             onKeyDown={handleKeyDown}
             onSelect={(e) => updateCursorPosition(e.currentTarget)}
             className='relative z-10 w-full border-0 bg-transparent p-0 font-[380] font-sans text-base text-transparent leading-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
             style={{ background: 'transparent' }}
+            role='combobox'
+            aria-expanded={state.isOpen}
+            aria-controls={state.isOpen ? listboxId : undefined}
+            aria-autocomplete='list'
+            aria-activedescendant={
+              state.isOpen && state.highlightedIndex >= 0
+                ? `${listboxId}-option-${state.highlightedIndex}`
+                : undefined
+            }
           />
 
           {/* Always-visible text overlay */}
@@ -134,7 +192,10 @@ export function AutocompleteSearch({
             variant='ghost'
             size='sm'
             className='h-6 w-6 p-0 hover:bg-muted/50'
-            onClick={() => onChange('')}
+            onMouseDown={(e) => {
+              e.preventDefault()
+              clearAll()
+            }}
           >
             <X className='h-3 w-3' />
           </Button>
@@ -145,7 +206,10 @@ export function AutocompleteSearch({
       {state.isOpen && state.suggestions.length > 0 && (
         <div
           ref={dropdownRef}
-          className='absolute z-[9999] mt-1 w-full min-w-[500px] overflow-hidden rounded-md border bg-popover shadow-md'
+          className='min-w[500px] absolute z-[9999] mt-1 w-full overflow-hidden rounded-md border bg-popover shadow-md'
+          id={listboxId}
+          role='listbox'
+          aria-labelledby={inputId}
         >
           <div className='max-h-96 overflow-y-auto py-1'>
             {state.suggestionType === 'filter-keys' && (
@@ -168,12 +232,20 @@ export function AutocompleteSearch({
                   'transition-colors hover:bg-accent hover:text-accent-foreground',
                   index === state.highlightedIndex && 'bg-accent text-accent-foreground'
                 )}
-                onMouseEnter={() => handleSuggestionHover(index)}
+                onMouseEnter={() => {
+                  if (typeof window !== 'undefined' && (window as any).__logsKeyboardNavActive) {
+                    return
+                  }
+                  handleSuggestionHover(index)
+                }}
                 onMouseDown={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
                   handleSuggestionSelect(suggestion)
                 }}
+                id={`${listboxId}-option-${index}`}
+                role='option'
+                aria-selected={index === state.highlightedIndex}
               >
                 <div className='flex items-center justify-between'>
                   <div className='flex-1'>
@@ -226,7 +298,14 @@ export function AutocompleteSearch({
               variant='ghost'
               size='sm'
               className='h-6 text-muted-foreground text-xs hover:text-foreground'
-              onClick={() => onChange(parsedQuery.textSearch)}
+              onMouseDown={(e) => {
+                e.preventDefault()
+                const newQuery = parsedQuery.textSearch
+                handleInputChange(newQuery, newQuery.length)
+                if (inputRef.current) {
+                  inputRef.current.focus()
+                }
+              }}
             >
               Clear all
             </Button>

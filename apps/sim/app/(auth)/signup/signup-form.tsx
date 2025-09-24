@@ -95,7 +95,6 @@ function SignupFormContent({
   const [isInviteFlow, setIsInviteFlow] = useState(false)
   const [buttonClass, setButtonClass] = useState('auth-button-gradient')
 
-  // Name validation state
   const [name, setName] = useState('')
   const [nameErrors, setNameErrors] = useState<string[]>([])
   const [showNameValidationError, setShowNameValidationError] = useState(false)
@@ -107,29 +106,24 @@ function SignupFormContent({
       setEmail(emailParam)
     }
 
-    // Handle redirection for invitation flow
     const redirectParam = searchParams.get('redirect')
     if (redirectParam) {
       setRedirectUrl(redirectParam)
 
-      // Check if this is part of an invitation flow
       if (redirectParam.startsWith('/invite/')) {
         setIsInviteFlow(true)
       }
     }
 
-    // Explicitly check for invite_flow parameter
     const inviteFlowParam = searchParams.get('invite_flow')
     if (inviteFlowParam === 'true') {
       setIsInviteFlow(true)
     }
 
-    // Check if CSS variable has been customized
     const checkCustomBrand = () => {
       const computedStyle = getComputedStyle(document.documentElement)
       const brandAccent = computedStyle.getPropertyValue('--brand-accent-hex').trim()
 
-      // Check if the CSS variable exists and is different from the default
       if (brandAccent && brandAccent !== '#6f3dfa') {
         setButtonClass('auth-button-custom')
       } else {
@@ -139,7 +133,6 @@ function SignupFormContent({
 
     checkCustomBrand()
 
-    // Also check on window resize or theme changes
     window.addEventListener('resize', checkCustomBrand)
     const observer = new MutationObserver(checkCustomBrand)
     observer.observe(document.documentElement, {
@@ -153,7 +146,6 @@ function SignupFormContent({
     }
   }, [searchParams])
 
-  // Validate password and return array of error messages
   const validatePassword = (passwordValue: string): string[] => {
     const errors: string[] = []
 
@@ -180,18 +172,17 @@ function SignupFormContent({
     return errors
   }
 
-  // Validate name and return array of error messages
   const validateName = (nameValue: string): string[] => {
     const errors: string[] = []
 
     if (!NAME_VALIDATIONS.required.test(nameValue)) {
       errors.push(NAME_VALIDATIONS.required.message)
-      return errors // Return early for required field
+      return errors
     }
 
     if (!NAME_VALIDATIONS.notEmpty.test(nameValue)) {
       errors.push(NAME_VALIDATIONS.notEmpty.message)
-      return errors // Return early for empty field
+      return errors
     }
 
     if (!NAME_VALIDATIONS.validCharacters.regex.test(nameValue.trim())) {
@@ -209,7 +200,6 @@ function SignupFormContent({
     const newPassword = e.target.value
     setPassword(newPassword)
 
-    // Silently validate but don't show errors
     const errors = validatePassword(newPassword)
     setPasswordErrors(errors)
     setShowValidationError(false)
@@ -228,12 +218,10 @@ function SignupFormContent({
     const newEmail = e.target.value
     setEmail(newEmail)
 
-    // Silently validate but don't show errors until submit
     const errors = validateEmailField(newEmail)
     setEmailErrors(errors)
     setShowEmailValidationError(false)
 
-    // Clear any previous server-side email errors when the user starts typing
     if (emailError) {
       setEmailError('')
     }
@@ -244,7 +232,8 @@ function SignupFormContent({
     setIsLoading(true)
 
     const formData = new FormData(e.currentTarget)
-    const emailValue = formData.get('email') as string
+    const emailValueRaw = formData.get('email') as string
+    const emailValue = emailValueRaw.trim().toLowerCase()
     const passwordValue = formData.get('password') as string
     const nameValue = formData.get('name') as string
 
@@ -348,7 +337,6 @@ function SignupFormContent({
         return
       }
 
-      // Refresh session to get the new user data immediately after signup
       try {
         await refetchSession()
         logger.info('Session refreshed after successful signup')
@@ -356,34 +344,23 @@ function SignupFormContent({
         logger.error('Failed to refresh session after signup:', sessionError)
       }
 
-      // For new signups, always require verification
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('verificationEmail', emailValue)
-        localStorage.setItem('has_logged_in_before', 'true')
-
-        // Set cookie flag for middleware check
-        document.cookie = 'requiresEmailVerification=true; path=/; max-age=900; SameSite=Lax' // 15 min expiry
-        document.cookie = 'has_logged_in_before=true; path=/; max-age=31536000; SameSite=Lax'
-
-        // Store invitation flow state if applicable
         if (isInviteFlow && redirectUrl) {
           sessionStorage.setItem('inviteRedirectUrl', redirectUrl)
           sessionStorage.setItem('isInviteFlow', 'true')
         }
       }
 
-      // Send verification OTP manually
       try {
         await client.emailOtp.sendVerificationOtp({
           email: emailValue,
-          type: 'email-verification',
+          type: 'sign-in',
         })
-      } catch (otpError) {
-        logger.error('Failed to send OTP:', otpError)
-        // Continue anyway - user can use resend button
+      } catch (otpErr) {
+        logger.warn('Failed to send sign-in OTP after signup; user can press Resend', otpErr)
       }
 
-      // Always redirect to verification for new signups
       router.push('/verify?fromSignup=true')
     } catch (error) {
       logger.error('Signup error:', error)

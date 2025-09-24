@@ -1,18 +1,19 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CheckCircle2, Mail, RotateCcw, ShieldX, UserPlus, Users2 } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Mail, RotateCcw, ShieldX, UserPlus, Users2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { LoadingAgent } from '@/components/ui/loading-agent'
+import { useBrandConfig } from '@/lib/branding/branding'
 import { inter } from '@/app/fonts/inter'
 import { soehne } from '@/app/fonts/soehne/soehne'
 
 interface InviteStatusCardProps {
-  type: 'login' | 'loading' | 'error' | 'success' | 'invitation'
+  type: 'login' | 'loading' | 'error' | 'success' | 'invitation' | 'warning'
   title: string
   description: string | React.ReactNode
-  icon?: 'userPlus' | 'mail' | 'users' | 'error' | 'success'
+  icon?: 'userPlus' | 'mail' | 'users' | 'error' | 'success' | 'warning'
   actions?: Array<{
     label: string
     onClick: () => void
@@ -29,6 +30,7 @@ const iconMap = {
   users: Users2,
   error: ShieldX,
   success: CheckCircle2,
+  warning: AlertCircle,
 }
 
 const iconColorMap = {
@@ -37,6 +39,7 @@ const iconColorMap = {
   users: 'text-[var(--brand-primary-hex)]',
   error: 'text-red-500 dark:text-red-400',
   success: 'text-green-500 dark:text-green-400',
+  warning: 'text-yellow-600 dark:text-yellow-500',
 }
 
 const iconBgMap = {
@@ -45,6 +48,7 @@ const iconBgMap = {
   users: 'bg-[var(--brand-primary-hex)]/10',
   error: 'bg-red-50 dark:bg-red-950/20',
   success: 'bg-green-50 dark:bg-green-950/20',
+  warning: 'bg-yellow-50 dark:bg-yellow-950/20',
 }
 
 export function InviteStatusCard({
@@ -57,6 +61,7 @@ export function InviteStatusCard({
 }: InviteStatusCardProps) {
   const router = useRouter()
   const [buttonClass, setButtonClass] = useState('auth-button-gradient')
+  const brandConfig = useBrandConfig()
 
   useEffect(() => {
     const checkCustomBrand = () => {
@@ -116,11 +121,6 @@ export function InviteStatusCard({
   return (
     <div className={`${soehne.className} space-y-6`}>
       <div className='space-y-1 text-center'>
-        {IconComponent && (
-          <div className={`mx-auto mb-4 w-fit rounded-full p-3 ${iconBg}`}>
-            <IconComponent className={`h-8 w-8 ${iconColor}`} />
-          </div>
-        )}
         <h1 className='font-medium text-[32px] text-black tracking-tight'>{title}</h1>
         <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
           {description}
@@ -172,7 +172,7 @@ export function InviteStatusCard({
       >
         Need help?{' '}
         <a
-          href='mailto:help@sim.ai'
+          href={`mailto:${brandConfig.supportEmail}`}
           className='auth-link underline-offset-4 transition hover:underline'
         >
           Contact support

@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
-import { cleanupExpiredIdempotencyKeys, getIdempotencyKeyStats } from '@/lib/idempotency/cleanup'
+import { cleanupExpiredIdempotencyKeys, getIdempotencyKeyStats } from '@/lib/idempotency'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
 

@@ -13,6 +13,7 @@ import { hasAdminPermission } from '@/lib/permissions/utils'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import { getEmailDomain } from '@/lib/urls/utils'
 import { decryptSecret, generateRequestId } from '@/lib/utils'
+import { TriggerUtils } from '@/lib/workflows/triggers'
 import { getBlock } from '@/blocks'
 import { Executor } from '@/executor'
 import type { BlockLog, ExecutionResult } from '@/executor/types'
@@ -433,9 +434,10 @@ export async function executeWorkflowForChat(
     (acc, [id, block]) => {
       const blockConfig = getBlock(block.type)
       const isTriggerBlock = blockConfig?.category === 'triggers'
+      const isChatTrigger = block.type === 'chat_trigger'
 
-      // Skip trigger blocks during chat execution
-      if (!isTriggerBlock) {
+      // Keep all non-trigger blocks and also keep the chat_trigger block
+      if (!isTriggerBlock || isChatTrigger) {
         acc[id] = block
       }
       return acc
@@ -490,8 +492,10 @@ export async function executeWorkflowForChat(
 
   // Filter edges to exclude connections to/from trigger blocks (same as manual execution)
   const triggerBlockIds = Object.keys(mergedStates).filter((id) => {
-    const blockConfig = getBlock(mergedStates[id].type)
-    return blockConfig?.category === 'triggers'
+    const type = mergedStates[id].type
+    const blockConfig = getBlock(type)
+    // Exclude chat_trigger from the list so its edges are preserved
+    return blockConfig?.category === 'triggers' && type !== 'chat_trigger'
   })
 
   const filteredEdges = edges.filter(
@@ -617,9 +621,29 @@ export async function executeWorkflowForChat(
       // Set up logging on the executor
       loggingSession.setupExecutor(executor)
 
+      // Determine the start block for chat execution
+      const startBlock = TriggerUtils.findStartBlock(mergedStates, 'chat')
+
+      if (!startBlock) {
+        const errorMessage =
+          'No Chat trigger configured for this workflow. Add a Chat Trigger block to enable chat execution.'
+        logger.error(`[${requestId}] ${errorMessage}`)
+        await loggingSession.safeCompleteWithError({
+          endedAt: new Date().toISOString(),
+          totalDurationMs: 0,
+          error: {
+            message: errorMessage,
+            stackTrace: undefined,
+          },
+        })
+        throw new Error(errorMessage)
+      }
+
+      const startBlockId = startBlock.blockId
+
       let result
       try {
-        result = await executor.execute(workflowId)
+        result = await executor.execute(workflowId, startBlockId)
       } catch (error: any) {
         logger.error(`[${requestId}] Chat workflow execution failed:`, error)
         await loggingSession.safeCompleteWithError({

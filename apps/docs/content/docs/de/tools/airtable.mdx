@@ -1,0 +1,161 @@
+---
+title: Airtable
+description: Airtable lesen, erstellen und aktualisieren
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="airtable"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      
+      
+      viewBox='0 -20.5 256 256'
+      version='1.1'
+      xmlns='http://www.w3.org/2000/svg'
+      xmlnsXlink='http://www.w3.org/1999/xlink'
+      preserveAspectRatio='xMidYMid'
+    >
+      <g>
+        <path
+          d='M114.25873,2.70101695 L18.8604023,42.1756384 C13.5552723,44.3711638 13.6102328,51.9065311 18.9486282,54.0225085 L114.746142,92.0117514 C123.163769,95.3498757 132.537419,95.3498757 140.9536,92.0117514 L236.75256,54.0225085 C242.08951,51.9065311 242.145916,44.3711638 236.83934,42.1756384 L141.442459,2.70101695 C132.738459,-0.900338983 122.961284,-0.900338983 114.25873,2.70101695'
+          fill='#FFBF00'
+        />
+        <path
+          d='M136.349071,112.756863 L136.349071,207.659101 C136.349071,212.173089 140.900664,215.263892 145.096461,213.600615 L251.844122,172.166219 C254.281184,171.200072 255.879376,168.845451 255.879376,166.224705 L255.879376,71.3224678 C255.879376,66.8084791 251.327783,63.7176768 247.131986,65.3809537 L140.384325,106.815349 C137.94871,107.781496 136.349071,110.136118 136.349071,112.756863'
+          fill='#26B5F8'
+        />
+        <path
+          d='M111.422771,117.65355 L79.742409,132.949912 L76.5257763,134.504714 L9.65047684,166.548104 C5.4112904,168.593211 0.000578531073,165.503855 0.000578531073,160.794612 L0.000578531073,71.7210757 C0.000578531073,70.0173017 0.874160452,68.5463864 2.04568588,67.4384994 C2.53454463,66.9481944 3.08848814,66.5446689 3.66412655,66.2250305 C5.26231864,65.2661153 7.54173107,65.0101153 9.47981017,65.7766689 L110.890522,105.957098 C116.045234,108.002206 116.450206,115.225166 111.422771,117.65355'
+          fill='#ED3049'
+        />
+        <path
+          d='M111.422771,117.65355 L79.742409,132.949912 L2.04568588,67.4384994 C2.53454463,66.9481944 3.08848814,66.5446689 3.66412655,66.2250305 C5.26231864,65.2661153 7.54173107,65.0101153 9.47981017,65.7766689 L110.890522,105.957098 C116.045234,108.002206 116.450206,115.225166 111.422771,117.65355'
+          fillOpacity='0.25'
+          fill='#000000'
+        />
+      </g>
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Airtable](https://airtable.com/) ist eine leistungsstarke cloudbasierte Plattform, die die Funktionalität einer Datenbank mit der Einfachheit einer Tabellenkalkulation verbindet. Sie ermöglicht Benutzern, flexible Datenbanken zur Organisation, Speicherung und Zusammenarbeit an Informationen zu erstellen.
+
+Mit Airtable können Sie:
+
+- **Benutzerdefinierte Datenbanken erstellen**: Maßgeschneiderte Lösungen für Projektmanagement, Content-Kalender, Bestandsverfolgung und mehr entwickeln
+- **Daten visualisieren**: Ihre Informationen als Raster, Kanban-Board, Kalender oder Galerie anzeigen
+- **Arbeitsabläufe automatisieren**: Auslöser und Aktionen einrichten, um wiederkehrende Aufgaben zu automatisieren
+- **Mit anderen Tools integrieren**: Verbindung zu Hunderten anderer Anwendungen durch native Integrationen und APIs herstellen
+
+In Sim ermöglicht die Airtable-Integration Ihren Agenten, programmatisch mit Ihren Airtable-Basen zu interagieren. Dies erlaubt nahtlose Datenoperationen wie das Abrufen von Informationen, Erstellen neuer Datensätze und Aktualisieren vorhandener Daten - alles innerhalb Ihrer Agenten-Workflows. Nutzen Sie Airtable als dynamische Datenquelle oder -ziel für Ihre Agenten, sodass sie im Rahmen ihrer Entscheidungsfindung und Aufgabenausführung auf strukturierte Informationen zugreifen und diese bearbeiten können.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanweisungen
+
+Integriert Airtable in den Workflow. Kann Airtable-Datensätze erstellen, abrufen, auflisten oder aktualisieren. Erfordert OAuth. Kann im Trigger-Modus verwendet werden, um einen Workflow auszulösen, wenn eine Aktualisierung an einer Airtable-Tabelle vorgenommen wird.
+
+## Tools
+
+### `airtable_list_records`
+
+Datensätze aus einer Airtable-Tabelle lesen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `baseId` | string | Ja | ID der Airtable-Basis |
+| `tableId` | string | Ja | ID der Tabelle |
+| `maxRecords` | number | Nein | Maximale Anzahl der zurückzugebenden Datensätze |
+| `filterFormula` | string | Nein | Formel zum Filtern von Datensätzen \(z.B. "\(\{Feldname\} = \'Wert\'\)"\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `records` | json | Array der abgerufenen Airtable-Datensätze |
+
+### `airtable_get_record`
+
+Einen einzelnen Datensatz aus einer Airtable-Tabelle anhand seiner ID abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `baseId` | string | Ja | ID der Airtable-Basis |
+| `tableId` | string | Ja | ID oder Name der Tabelle |
+| `recordId` | string | Ja | ID des abzurufenden Datensatzes |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `record` | json | Abgerufener Airtable-Datensatz mit id, createdTime und fields |
+| `metadata` | json | Operationsmetadaten einschließlich Datensatzanzahl |
+
+### `airtable_create_records`
+
+Neue Datensätze in eine Airtable-Tabelle schreiben
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `baseId` | string | Ja | ID der Airtable-Basis |
+| `tableId` | string | Ja | ID oder Name der Tabelle |
+| `records` | json | Ja | Array von zu erstellenden Datensätzen, jeder mit einem `fields` Objekt |
+| `fields` | string | Nein | Keine Beschreibung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `records` | json | Array der erstellten Airtable-Datensätze |
+
+### `airtable_update_record`
+
+Einen vorhandenen Datensatz in einer Airtable-Tabelle nach ID aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `baseId` | string | Ja | ID der Airtable-Basis |
+| `tableId` | string | Ja | ID oder Name der Tabelle |
+| `recordId` | string | Ja | ID des zu aktualisierenden Datensatzes |
+| `fields` | json | Ja | Ein Objekt, das die Feldnamen und ihre neuen Werte enthält |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `record` | json | Aktualisierter Airtable-Datensatz mit ID, Erstellungszeit und Feldern |
+| `metadata` | json | Operationsmetadaten einschließlich Datensatzanzahl und aktualisierter Feldnamen |
+
+### `airtable_update_multiple_records`
+
+Mehrere vorhandene Datensätze in einer Airtable-Tabelle aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `baseId` | string | Ja | ID der Airtable-Basis |
+| `tableId` | string | Ja | ID oder Name der Tabelle |
+| `records` | json | Ja | Array von zu aktualisierenden Datensätzen, jeder mit einer `id` und einem `fields`-Objekt |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `records` | json | Array der aktualisierten Airtable-Datensätze |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `airtable`

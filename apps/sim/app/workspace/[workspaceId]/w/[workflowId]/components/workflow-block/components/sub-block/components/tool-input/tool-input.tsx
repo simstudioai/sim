@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { PlusIcon, Server, WrenchIcon, XIcon } from 'lucide-react'
+import React, { useCallback, useEffect, useState } from 'react'
+import { AlertCircle, PlusIcon, Server, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -374,6 +374,44 @@ function FileUploadSyncWrapper({
   )
 }
 
+// Error boundary component for tool input
+class ToolInputErrorBoundary extends React.Component<
+  { children: React.ReactNode; blockName?: string },
+  { hasError: boolean; error?: Error }
+> {
+  constructor(props: any) {
+    super(props)
+    this.state = { hasError: false }
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error }
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('ToolInput error:', error, info)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className='rounded-md bg-red-50 p-4 text-red-800 text-sm dark:bg-red-900/20 dark:text-red-200'>
+          <div className='flex items-center gap-2'>
+            <AlertCircle className='h-4 w-4' />
+            <span className='font-medium'>Tool Configuration Error</span>
+          </div>
+          <p className='mt-1 text-xs opacity-80'>
+            {this.props.blockName ? `Block "${this.props.blockName}": ` : ''}
+            Invalid tool reference. Please check the workflow configuration.
+          </p>
+        </div>
+      )
+    }
+
+    return this.props.children
+  }
+}
+
 export function ToolInput({
   blockId,
   subBlockId,
@@ -475,10 +513,18 @@ export function ToolInput({
 
     // Fallback: create options from tools.access
     return block.tools.access.map((toolId) => {
-      const toolParams = getToolParametersConfig(toolId)
-      return {
-        id: toolId,
-        label: toolParams?.toolConfig?.name || toolId,
+      try {
+        const toolParams = getToolParametersConfig(toolId)
+        return {
+          id: toolId,
+          label: toolParams?.toolConfig?.name || toolId,
+        }
+      } catch (error) {
+        console.error(`Error getting tool config for ${toolId}:`, error)
+        return {
+          id: toolId,
+          label: toolId,
+        }
       }
     })
   }
@@ -1189,7 +1235,13 @@ export function ToolInput({
               </div>
             </div>
           </PopoverTrigger>
-          <PopoverContent className='w-[200px] p-0' align='start'>
+          <PopoverContent
+            className='h-[360px] w-[200px] p-0'
+            align='start'
+            side='bottom'
+            sideOffset={6}
+            avoidCollisions={false}
+          >
             <ToolCommand.Root filter={customFilter}>
               <ToolCommand.Input placeholder='Search tools...' onValueChange={setSearchQuery} />
               <ToolCommand.List>
@@ -1749,7 +1801,13 @@ export function ToolInput({
                 Add Tool
               </Button>
             </PopoverTrigger>
-            <PopoverContent className='w-[200px] p-0' align='start'>
+            <PopoverContent
+              className='h-[360px] w-[280px] p-0'
+              align='start'
+              side='bottom'
+              sideOffset={6}
+              avoidCollisions={false}
+            >
               <ToolCommand.Root filter={customFilter}>
                 <ToolCommand.Input placeholder='Search tools...' onValueChange={setSearchQuery} />
                 <ToolCommand.List>

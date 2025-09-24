@@ -1,13 +1,13 @@
 import { ElevenLabsIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { ElevenLabsBlockResponse } from '@/tools/elevenlabs/types'
 
 export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
   type: 'elevenlabs',
   name: 'ElevenLabs',
   description: 'Convert TTS using ElevenLabs',
-  longDescription:
-    'Integrate ElevenLabs into the workflow. Can convert text to speech. Requires API key.',
+  authMode: AuthMode.ApiKey,
+  longDescription: 'Integrate ElevenLabs into the workflow. Can convert text to speech.',
   docsLink: 'https://docs.sim.ai/tools/elevenlabs',
   category: 'tools',
   bgColor: '#181C1E',

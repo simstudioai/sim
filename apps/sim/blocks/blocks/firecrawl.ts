@@ -1,13 +1,14 @@
 import { FirecrawlIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { FirecrawlResponse } from '@/tools/firecrawl/types'
 
 export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
   type: 'firecrawl',
   name: 'Firecrawl',
   description: 'Scrape or search the web',
-  longDescription:
-    'Integrate Firecrawl into the workflow. Can search, scrape, or crawl websites. Requires API Key.',
+  authMode: AuthMode.ApiKey,
+  longDescription: 'Integrate Firecrawl into the workflow. Can search, scrape, or crawl websites.',
   docsLink: 'https://docs.sim.ai/tools/firecrawl',
   category: 'tools',
   bgColor: '#181C1E',

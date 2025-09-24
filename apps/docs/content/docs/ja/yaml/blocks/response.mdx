@@ -1,0 +1,239 @@
+---
+title: レスポンスブロックYAMLスキーマ
+description: レスポンスブロックのYAML設定リファレンス
+---
+
+## スキーマ定義
+
+```yaml
+type: object
+required:
+  - type
+  - name
+properties:
+  type:
+    type: string
+    enum: [response]
+    description: Block type identifier
+  name:
+    type: string
+    description: Display name for this response block
+  inputs:
+    type: object
+    properties:
+      dataMode:
+        type: string
+        enum: [structured, json]
+        description: Mode for defining response data structure
+        default: structured
+      builderData:
+        type: object
+        description: Structured response data (when dataMode is 'structured')
+      data:
+        type: object
+        description: JSON response data (when dataMode is 'json')
+      status:
+        type: number
+        description: HTTP status code
+        default: 200
+        minimum: 100
+        maximum: 599
+      headers:
+        type: array
+        description: Response headers as table entries
+        items:
+          type: object
+          properties:
+            id:
+              type: string
+              description: Unique identifier for the header entry
+            key:
+              type: string
+              description: Header name
+            value:
+              type: string
+              description: Header value
+            cells:
+              type: object
+              description: Cell display values for the table interface
+              properties:
+                Key:
+                  type: string
+                  description: Display value for the key column
+                Value:
+                  type: string
+                  description: Display value for the value column
+```
+
+## 接続設定
+
+レスポンスブロックは終端ブロック（送信接続なし）であり、最終出力を定義します：
+
+```yaml
+# No connections object needed - Response blocks are always terminal
+```
+
+## 例
+
+### シンプルなレスポンス
+
+```yaml
+simple-response:
+  type: response
+  name: "Simple Response"
+  inputs:
+    data:
+      message: "Hello World"
+      timestamp: <function.timestamp>
+    status: 200
+```
+
+### 成功レスポンス
+
+```yaml
+success-response:
+  type: response
+  name: "Success Response"
+  inputs:
+    data:
+      success: true
+      user:
+        id: <agent.user_id>
+        name: <agent.user_name>
+        email: <agent.user_email>
+      created_at: <function.timestamp>
+    status: 201
+    headers:
+      - key: "Location"
+        value: "/api/users/<agent.user_id>"
+      - key: "X-Created-By"
+        value: "workflow-engine"
+```
+
+### 完全なテーブルヘッダー形式を持つレスポンス
+
+ヘッダーがUIテーブルインターフェースを通じて作成される場合、YAMLには追加のメタデータが含まれます：
+
+```yaml
+api-response:
+  type: response
+  name: "API Response"
+  inputs:
+    data:
+      message: "Request processed successfully"
+      id: <agent.request_id>
+    status: 200
+    headers:
+      - id: header-1-uuid-here
+        key: "Content-Type"
+        value: "application/json"
+        cells:
+          Key: "Content-Type"
+          Value: "application/json"
+      - id: header-2-uuid-here
+        key: "Cache-Control"
+        value: "no-cache"
+        cells:
+          Key: "Cache-Control"
+          Value: "no-cache"
+      - id: header-3-uuid-here
+        key: "X-API-Version"
+        value: "2.1"
+        cells:
+          Key: "X-API-Version"
+          Value: "2.1"
+```
+
+### エラーレスポンス
+
+```yaml
+error-response:
+  type: response
+  name: "Error Response"
+  inputs:
+    data:
+      error: true
+      message: <agent.error_message>
+      code: "VALIDATION_FAILED"
+      details: <function.validation_errors>
+    status: 400
+    headers:
+      - key: "X-Error-Code"
+        value: "VALIDATION_FAILED"
+```
+
+### ページネーションレスポンス
+
+```yaml
+paginated-response:
+  type: response
+  name: "Paginated Response"
+  inputs:
+    data:
+      data: <agent.results>
+      pagination:
+        page: <start.page>
+        per_page: <start.per_page>
+        total: <function.total_count>
+        total_pages: <function.total_pages>
+    status: 200
+    headers:
+      - key: "X-Total-Count"
+        value: <function.total_count>
+      - key: "Cache-Control"
+        value: "public, max-age=300"
+      - key: "Content-Type"
+        value: "application/json"
+```
+
+## テーブルパラメータ形式
+
+レスポンスブロックは、ヘッダーに対して2つの形式をサポートしています：
+
+### 簡略化された形式（手動YAML）
+
+YAMLを手動で記述する場合、簡略化された形式を使用できます：
+
+```yaml
+headers:
+  - key: "Content-Type"
+    value: "application/json"
+  - key: "Cache-Control"
+    value: "no-cache"
+```
+
+### 完全なテーブル形式（UI生成）
+
+UIテーブルインターフェースを通じてヘッダーが作成される場合、YAMLには追加のメタデータが含まれます：
+
+```yaml
+headers:
+  - id: unique-identifier-here
+    key: "Content-Type"
+    value: "application/json"
+    cells:
+      Key: "Content-Type"
+      Value: "application/json"
+```
+
+**主な違い：**
+- `id`：テーブル行を追跡するための一意の識別子
+- `cells`：UIテーブルインターフェースで使用される表示値
+- どちらの形式もワークフロー実行において機能的に同等です
+- 完全な形式はワークフローのインポート/エクスポート時にUI状態を保持します
+
+**重要：** 特殊文字を含むヘッダー名と値は常に引用符で囲んでください：
+
+```yaml
+headers:
+  - id: content-type-uuid
+    cells:
+      Key: "Content-Type"
+      Value: "application/json"
+  - id: cache-control-uuid
+    cells:
+      Key: "Cache-Control" 
+      Value: "no-cache"
+```
+
+```
