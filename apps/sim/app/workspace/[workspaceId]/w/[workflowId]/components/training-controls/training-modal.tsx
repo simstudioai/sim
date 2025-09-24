@@ -348,13 +348,49 @@ export function TrainingModal() {
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue={isTraining ? 'current' : 'new'} className='mt-4'>
-          <TabsList className='grid w-full grid-cols-3'>
+        {isTraining && (
+          <>
+            <div className='rounded-lg border bg-orange-50 p-4 dark:bg-orange-950/30 mt-4'>
+              <p className='mb-2 font-medium text-orange-700 dark:text-orange-300'>
+                Recording: {currentTitle}
+              </p>
+              <p className='mb-3 text-sm'>{currentPrompt}</p>
+              <div className='flex gap-2'>
+                <Button variant='outline' size='sm' onClick={cancelTraining} className='flex-1'>
+                  <X className='mr-2 h-4 w-4' />
+                  Cancel
+                </Button>
+                <Button
+                  variant='default'
+                  size='sm'
+                  onClick={() => {
+                    useCopilotTrainingStore.getState().stopTraining()
+                    setLocalPrompt('')
+                  }}
+                  className='flex-1'
+                >
+                  <Check className='mr-2 h-4 w-4' />
+                  Save Dataset
+                </Button>
+              </div>
+            </div>
+
+            {startSnapshot && (
+              <div className='rounded-lg border p-3 mt-3'>
+                <p className='mb-2 font-medium text-sm'>Starting State</p>
+                <p className='text-muted-foreground text-xs'>
+                  {Object.keys(startSnapshot.blocks).length} blocks, {startSnapshot.edges.length}{' '}
+                  edges
+                </p>
+              </div>
+            )}
+          </>
+        )}
+
+        <Tabs defaultValue={isTraining ? 'datasets' : 'new'} className='mt-4'>
+          <TabsList className='grid w-full grid-cols-2'>
             <TabsTrigger value='new' disabled={isTraining}>
               New Session
-            </TabsTrigger>
-            <TabsTrigger value='current' disabled={!isTraining}>
-              Current
             </TabsTrigger>
             <TabsTrigger value='datasets'>Datasets ({datasets.length})</TabsTrigger>
           </TabsList>
@@ -402,48 +438,6 @@ export function TrainingModal() {
             >
               Start Training Session
             </Button>
-          </TabsContent>
-
-          {/* Current Training Session Tab */}
-          <TabsContent value='current' className='space-y-4'>
-            {isTraining && (
-              <>
-                <div className='rounded-lg border bg-orange-50 p-4 dark:bg-orange-950/30'>
-                  <p className='mb-2 font-medium text-orange-700 dark:text-orange-300'>
-                    Recording: {currentTitle}
-                  </p>
-                  <p className='mb-3 text-sm'>{currentPrompt}</p>
-                  <div className='flex gap-2'>
-                    <Button variant='outline' size='sm' onClick={cancelTraining} className='flex-1'>
-                      <X className='mr-2 h-4 w-4' />
-                      Cancel
-                    </Button>
-                    <Button
-                      variant='default'
-                      size='sm'
-                      onClick={() => {
-                        useCopilotTrainingStore.getState().stopTraining()
-                        setLocalPrompt('')
-                      }}
-                      className='flex-1'
-                    >
-                      <Check className='mr-2 h-4 w-4' />
-                      Save Dataset
-                    </Button>
-                  </div>
-                </div>
-
-                {startSnapshot && (
-                  <div className='rounded-lg border p-3'>
-                    <p className='mb-2 font-medium text-sm'>Starting State</p>
-                    <p className='text-muted-foreground text-xs'>
-                      {Object.keys(startSnapshot.blocks).length} blocks,{' '}
-                      {startSnapshot.edges.length} edges
-                    </p>
-                  </div>
-                )}
-              </>
-            )}
           </TabsContent>
 
           {/* Datasets Tab */}
