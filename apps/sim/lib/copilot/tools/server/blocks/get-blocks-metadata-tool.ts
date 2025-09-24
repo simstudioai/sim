@@ -69,6 +69,7 @@ export interface CopilotToolMetadata {
 export interface CopilotTriggerMetadata {
   id: string
   outputs?: any
+  configFields?: any
 }
 
 export interface CopilotBlockMetadata {
@@ -163,6 +164,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
           triggers.push({
             id: tid,
             outputs: trig?.outputs || {},
+            configFields: trig?.configFields || {},
           })
         }
 
