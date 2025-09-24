@@ -31,6 +31,8 @@ export const env = createEnv({
     COPILOT_MODEL:                         z.string().optional(),                  // Model for copilot API calls
     COPILOT_API_KEY:                       z.string().min(1).optional(),           // Secret for internal sim agent API authentication
     SIM_AGENT_API_URL:                     z.string().url().optional(),            // URL for internal sim agent API
+    AGENT_INDEXER_URL:                     z.string().url().optional(),            // URL for agent training data indexer
+    AGENT_INDEXER_API_KEY:                 z.string().min(1).optional(),           // API key for agent indexer authentication
 
 
     // Database & Storage

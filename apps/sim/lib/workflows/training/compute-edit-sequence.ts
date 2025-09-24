@@ -6,6 +6,7 @@ export interface EditOperation {
   params?: {
     type?: string
     name?: string
+    triggerMode?: boolean
     inputs?: Record<string, any>
     connections?: Record<string, any>
     removeEdges?: Array<{ targetBlockId: string; sourceHandle?: string }>
@@ -199,6 +200,14 @@ function computeBlockChanges(
   // Check name change
   if (startBlock.name !== endBlock.name) {
     changes.name = endBlock.name
+    hasChanges = true
+  }
+
+  // Check trigger mode change (covers entering/exiting trigger mode)
+  const startTrigger = Boolean(startBlock?.triggerMode)
+  const endTrigger = Boolean(endBlock?.triggerMode)
+  if (startTrigger !== endTrigger) {
+    changes.triggerMode = endTrigger
     hasChanges = true
   }
 

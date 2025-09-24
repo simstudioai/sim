@@ -14,11 +14,13 @@ const logger = createLogger('CopilotTrainingStore')
 export interface TrainingDataset {
   id: string
   workflowId: string
+  title: string
   prompt: string
   startState: WorkflowState
   endState: WorkflowState
   editSequence: EditOperation[]
   createdAt: Date
+  sentAt?: Date
   metadata?: {
     duration?: number // Time taken to complete edits in ms
     blockCount?: number
@@ -29,6 +31,7 @@ export interface TrainingDataset {
 interface CopilotTrainingState {
   // Current training session
   isTraining: boolean
+  currentTitle: string
   currentPrompt: string
   startSnapshot: WorkflowState | null
   startTime: number | null
@@ -40,13 +43,14 @@ interface CopilotTrainingState {
   showModal: boolean
 
   // Actions
-  startTraining: (prompt: string) => void
+  startTraining: (title: string, prompt: string) => void
   stopTraining: () => TrainingDataset | null
   cancelTraining: () => void
   setPrompt: (prompt: string) => void
   toggleModal: () => void
   clearDatasets: () => void
   exportDatasets: () => string
+  markDatasetSent: (id: string, sentAt?: Date) => void
 }
 
 /**
@@ -73,6 +77,7 @@ export const useCopilotTrainingStore = create<CopilotTrainingState>()(
     (set, get) => ({
       // Initial state
       isTraining: false,
+      currentTitle: '',
       currentPrompt: '',
       startSnapshot: null,
       startTime: null,
@@ -80,15 +85,20 @@ export const useCopilotTrainingStore = create<CopilotTrainingState>()(
       showModal: false,
 
       // Start a new training session
-      startTraining: (prompt: string) => {
+      startTraining: (title: string, prompt: string) => {
         if (!prompt.trim()) {
           logger.warn('Cannot start training without a prompt')
+          return
+        }
+        if (!title.trim()) {
+          logger.warn('Cannot start training without a title')
           return
         }
 
         const snapshot = captureWorkflowSnapshot()
 
         logger.info('Starting training session', {
+          title,
           prompt,
           blockCount: Object.keys(snapshot.blocks).length,
           edgeCount: snapshot.edges.length,
@@ -96,6 +106,7 @@ export const useCopilotTrainingStore = create<CopilotTrainingState>()(
 
         set({
           isTraining: true,
+          currentTitle: title,
           currentPrompt: prompt,
           startSnapshot: snapshot,
           startTime: Date.now(),
@@ -124,6 +135,7 @@ export const useCopilotTrainingStore = create<CopilotTrainingState>()(
         const dataset: TrainingDataset = {
           id: crypto.randomUUID(),
           workflowId: activeWorkflowId || 'unknown',
+          title: state.currentTitle,
           prompt: state.currentPrompt,
           startState: state.startSnapshot,
           endState: endSnapshot,
@@ -137,6 +149,7 @@ export const useCopilotTrainingStore = create<CopilotTrainingState>()(
         }
 
         logger.info('Training session completed', {
+          title: state.currentTitle,
           prompt: state.currentPrompt,
           duration,
           operations: operations.length,
@@ -145,6 +158,7 @@ export const useCopilotTrainingStore = create<CopilotTrainingState>()(
 
         set((prev) => ({
           isTraining: false,
+          currentTitle: '',
           currentPrompt: '',
           startSnapshot: null,
           startTime: null,
@@ -160,6 +174,7 @@ export const useCopilotTrainingStore = create<CopilotTrainingState>()(
 
         set({
           isTraining: false,
+          currentTitle: '',
           currentPrompt: '',
           startSnapshot: null,
           startTime: null,
@@ -197,11 +212,20 @@ export const useCopilotTrainingStore = create<CopilotTrainingState>()(
             endState: d.endState,
             editSequence: d.editSequence,
             createdAt: d.createdAt.toISOString(),
+            sentAt: d.sentAt ? d.sentAt.toISOString() : undefined,
             metadata: d.metadata,
           })),
         }
 
         return JSON.stringify(exportData, null, 2)
+      },
+
+      // Mark a dataset as sent (persist a timestamp)
+      markDatasetSent: (id: string, sentAt?: Date) => {
+        const when = sentAt ?? new Date()
+        set((state) => ({
+          datasets: state.datasets.map((d) => (d.id === id ? { ...d, sentAt: when } : d)),
+        }))
       },
     }),
     {
