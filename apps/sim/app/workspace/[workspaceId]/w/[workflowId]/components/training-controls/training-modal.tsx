@@ -13,7 +13,6 @@ import {
   X,
   XCircle,
 } from 'lucide-react'
-import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -206,7 +205,6 @@ export function TrainingModal() {
     // Fire and forget - handle async without blocking
     sendToIndexer(dataset)
       .then(() => {
-        toast.success(`"${dataset.title}" has been sent to the indexer`)
         // Remove from sending and mark as sent
         setSendingDatasets((prev) => {
           const newSet = new Set(prev)
@@ -226,9 +224,6 @@ export function TrainingModal() {
         }, 5000)
       })
       .catch((error) => {
-        toast.error(
-          `Failed to send dataset: ${error instanceof Error ? error.message : 'Unknown error'}`
-        )
         // Remove from sending and mark as failed
         setSendingDatasets((prev) => {
           const newSet = new Set(prev)
@@ -255,34 +250,28 @@ export function TrainingModal() {
       const successes = results.filter((r) => r.status === 'fulfilled')
       const failures = results.filter((r) => r.status === 'rejected')
 
-      if (failures.length > 0 && successes.length > 0) {
-        // Partial success
-        toast.warning(
-          `${successes.length} of ${datasets.length} datasets sent successfully. ${failures.length} failed.`
-        )
-        failures.forEach((f) => {
-          if (f.status === 'rejected') {
-            console.error('Failed to send dataset:', f.reason)
-          }
-        })
-      } else if (failures.length > 0) {
-        // All failed
-        toast.error(`All ${failures.length} datasets failed to send. Check console for details.`)
-        failures.forEach((f) => {
-          if (f.status === 'rejected') {
-            console.error('Failed to send dataset:', f.reason)
-          }
-        })
-      } else {
-        // All succeeded
-        toast.success(
-          `Successfully sent ${datasets.length} dataset${datasets.length !== 1 ? 's' : ''} to the indexer`
-        )
+      // Mark successes and failures visually
+      const successfulIds = datasets
+        .filter((_, i) => results[i].status === 'fulfilled')
+        .map((d) => d.id)
+      const failedIds = datasets.filter((_, i) => results[i].status === 'rejected').map((d) => d.id)
+
+      setSentDatasets((prev) => new Set([...prev, ...successfulIds]))
+      setFailedDatasets((prev) => new Set([...prev, ...failedIds]))
+
+      // Persist sent markers for successes
+      successfulIds.forEach((id) => markDatasetSent(id))
+
+      // Auto-clear failure badges after 5s
+      if (failedIds.length > 0) {
+        setTimeout(() => {
+          setFailedDatasets((prev) => {
+            const newSet = new Set(prev)
+            failedIds.forEach((id) => newSet.delete(id))
+            return newSet
+          })
+        }, 5000)
       }
-    } catch (error) {
-      toast.error(
-        `Failed to send datasets: ${error instanceof Error ? error.message : 'Unknown error'}`
-      )
     } finally {
       setSendingAll(false)
     }
@@ -298,50 +287,34 @@ export function TrainingModal() {
         datasetsToSend.map((dataset) => sendToIndexer(dataset))
       )
 
-      const successes = results.filter((r) => r.status === 'fulfilled')
-      const failures = results.filter((r) => r.status === 'rejected')
+      const successfulIds = datasetsToSend
+        .filter((_, i) => results[i].status === 'fulfilled')
+        .map((d) => d.id)
+      const failedIds = datasetsToSend
+        .filter((_, i) => results[i].status === 'rejected')
+        .map((d) => d.id)
 
-      if (failures.length > 0 && successes.length > 0) {
-        // Partial success
-        toast.warning(
-          `${successes.length} of ${datasetsToSend.length} selected datasets sent successfully. ${failures.length} failed.`
-        )
-        failures.forEach((f) => {
-          if (f.status === 'rejected') {
-            console.error('Failed to send dataset:', f.reason)
-          }
-        })
-        // Clear only successful ones from selection
-        const successfulIds = datasetsToSend
-          .filter((_, i) => results[i].status === 'fulfilled')
-          .map((d) => d.id)
-        setSelectedDatasets((prev) => {
-          const newSet = new Set(prev)
-          successfulIds.forEach((id) => newSet.delete(id))
-          return newSet
-        })
-      } else if (failures.length > 0) {
-        // All failed
-        toast.error(
-          `All ${failures.length} selected datasets failed to send. Check console for details.`
-        )
-        failures.forEach((f) => {
-          if (f.status === 'rejected') {
-            console.error('Failed to send dataset:', f.reason)
-          }
-        })
-      } else {
-        // All succeeded
-        toast.success(
-          `Successfully sent ${datasetsToSend.length} dataset${datasetsToSend.length !== 1 ? 's' : ''} to the indexer`
-        )
-        // Clear selection after successful send
-        setSelectedDatasets(new Set())
+      setSentDatasets((prev) => new Set([...prev, ...successfulIds]))
+      setFailedDatasets((prev) => new Set([...prev, ...failedIds]))
+      successfulIds.forEach((id) => markDatasetSent(id))
+
+      // Remove successes from selection
+      setSelectedDatasets((prev) => {
+        const newSet = new Set(prev)
+        successfulIds.forEach((id) => newSet.delete(id))
+        return newSet
+      })
+
+      // Auto-clear failure badges after 5s
+      if (failedIds.length > 0) {
+        setTimeout(() => {
+          setFailedDatasets((prev) => {
+            const newSet = new Set(prev)
+            failedIds.forEach((id) => newSet.delete(id))
+            return newSet
+          })
+        }, 5000)
       }
-    } catch (error) {
-      toast.error(
-        `Failed to send selected datasets: ${error instanceof Error ? error.message : 'Unknown error'}`
-      )
     } finally {
       setSendingSelected(false)
     }
