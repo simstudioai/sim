@@ -11,28 +11,7 @@ const TrainingDataSchema = z.object({
   prompt: z.string().min(1),
   input: z.any(), // Workflow state (start)
   output: z.any(), // Workflow state (end)
-  operations: z.array(
-    z.object({
-      operation_type: z.enum(['add', 'edit', 'delete']),
-      block_id: z.string(),
-      params: z
-        .object({
-          type: z.string().optional(),
-          name: z.string().optional(),
-          inputs: z.record(z.any()).optional(),
-          connections: z.record(z.any()).optional(),
-          removeEdges: z
-            .array(
-              z.object({
-                targetBlockId: z.string(),
-                sourceHandle: z.string().optional(),
-              })
-            )
-            .optional(),
-        })
-        .optional(),
-    })
-  ),
+  operations: z.any(),
 })
 
 export async function POST(request: NextRequest) {
@@ -75,6 +54,10 @@ export async function POST(request: NextRequest) {
       operationsCount: operations.length,
     })
 
+    const wrappedOperations = {
+      operations: operations,
+    }
+
     // Forward to agent indexer
     const upstreamUrl = `${baseUrl}/operations/add`
     const upstreamResponse = await fetch(upstreamUrl, {
@@ -88,7 +71,7 @@ export async function POST(request: NextRequest) {
         prompt,
         input,
         output,
-        operations,
+        operations: wrappedOperations,
       }),
     })
 
