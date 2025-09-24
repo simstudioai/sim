@@ -32,12 +32,6 @@ export const webexEditMessageTool: ToolConfig<WebexEditMessageParams, WebexEditM
       visibility: 'user-only',
       description: 'Room ID',
     },
-    messageId: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Message ID',
-    },
     markdown: {
       type: 'string',
       required: false,
@@ -49,6 +43,12 @@ export const webexEditMessageTool: ToolConfig<WebexEditMessageParams, WebexEditM
       required: false,
       visibility: 'user-only',
       description: 'Text message',
+    },
+    messageId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Message ID',
     },
   },
   request: {
@@ -72,11 +72,10 @@ export const webexEditMessageTool: ToolConfig<WebexEditMessageParams, WebexEditM
       }
     },
     body: (params: WebexEditMessageParams): Record<string, any> => {
+      const { accessToken, messageId, ...rest } = params
       const replyBody: Record<string, any> = {}
-      const { accessToken, messageId, ...bodyParams } = params
-      Object.entries(bodyParams).forEach(([key, value]) => {
-        /** Checks for truthiness, excluding parameters when they do not have value
-         **/
+      Object.entries(rest).forEach(([key, value]) => {
+        // Checks for truthiness, excluding parameters when they do not have value, all of them are treated as strings
         if (value) {
           replyBody[key] = value
         }

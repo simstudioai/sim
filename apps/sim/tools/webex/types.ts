@@ -90,7 +90,7 @@ export interface WebexCreateMessageParams {
 export interface WebexCreateMessageResponse extends ToolResponse {
   output: {
     message: string
-    results: WebexSingleMessage,
+    results: WebexSingleMessage
     createdId?: string
   }
 }
@@ -106,8 +106,12 @@ export interface WebexEditMessageParams {
 export interface WebexEditMessageResponse extends ToolResponse {
   output: {
     message: string
-    results: WebexSingleMessage,
+    results: WebexSingleMessage
   }
 }
 
-export type WebexResponse = WebexListMessagesResponse | WebexListRoomsResponse | WebexCreateMessageResponse | WebexEditMessageResponse
+export type WebexResponse =
+  | WebexListMessagesResponse
+  | WebexListRoomsResponse
+  | WebexCreateMessageResponse
+  | WebexEditMessageResponse

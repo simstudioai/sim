@@ -106,16 +106,19 @@ export const webexCreateMessageTool: ToolConfig<
       }
 
       const replyBody: Record<string, any> = {}
-      // If replying to a message, use the reply format
-      const { accessToken, files, ...bodyParams } = params
+      // Only include allowed params, handle 'files' separately
+      const {
+        accessToken, // omit
+        files,
+        ...rest
+      } = params
 
       if (files) {
         replyBody.files = parseFile(files)
       }
 
-      Object.entries(bodyParams).forEach(([key, value]) => {
-        /** Checks for truthiness, excluding parameters when they do not have value
-         **/
+      Object.entries(rest).forEach(([key, value]) => {
+        // Checks for truthiness, excluding parameters when they do not have value, all of them are treated as strings
         if (value) {
           replyBody[key] = value
         }

@@ -61,15 +61,14 @@ export const webexListRoomsTool: ToolConfig<WebexListRoomsParams, WebexListRooms
     url: (params: WebexListRoomsParams) => {
       let baseUrl = `https://webexapis.com/v1/rooms`
       const searchParams = new URLSearchParams()
-
-      const { accessToken, ...queryParams } = params
-      Object.entries(queryParams).forEach(([key, value]) => {
+      const { accessToken, ...rest } = params
+      Object.entries(rest).forEach(([key, value]) => {
         /** Checks for truthiness, excluding parameters when they do not have value
          * many of them are treated as strings
          * 'max' is a number but it does not allow 0 as value
          **/
         if (value) {
-          searchParams.set(key, `${value}`)
+          searchParams.set(key, String(value))
         }
       })
       const paramsString = searchParams.toString()

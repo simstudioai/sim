@@ -53,8 +53,8 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
         field: 'operation',
         value: ['list_rooms'],
       },
-      mode: 'advanced',
       required: false,
+      mode: 'advanced',
     },
     {
       id: 'type',
@@ -66,8 +66,8 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
         field: 'operation',
         value: ['list_rooms'],
       },
-      mode: 'advanced',
       required: false,
+      mode: 'advanced',
     },
     {
       id: 'from',
@@ -79,8 +79,8 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
         field: 'operation',
         value: ['list_rooms'],
       },
-      mode: 'advanced',
       required: false,
+      mode: 'advanced',
     },
     {
       id: 'to',
@@ -92,8 +92,8 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
         field: 'operation',
         value: ['list_rooms'],
       },
-      mode: 'advanced',
       required: false,
+      mode: 'advanced',
     },
     {
       id: 'max',
@@ -130,8 +130,8 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
       layout: 'full',
       placeholder: 'Group names, comma-separated',
       condition: { field: 'operation', value: ['list_messages'] },
-      mode: 'advanced',
       required: false,
+      mode: 'advanced',
     },
     // mentionedPeople array of string
     {
@@ -141,8 +141,8 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
       layout: 'full',
       placeholder: 'Only me or the person ID of the current user may be specified, comma-separated',
       condition: { field: 'operation', value: ['list_messages'] },
-      mode: 'advanced',
       required: false,
+      mode: 'advanced',
     },
     // before string
     {
@@ -156,6 +156,7 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
         value: ['list_messages'],
       },
       required: false,
+      mode: 'advanced',
     },
     // beforeMessage string
     {
@@ -169,6 +170,7 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
         value: ['list_messages'],
       },
       required: false,
+      mode: 'advanced',
     },
     //
     // Operation: for create messages
@@ -190,8 +192,8 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
       layout: 'full',
       placeholder: 'Parent message ID to reply to',
       condition: { field: 'operation', value: ['create_message'] },
-      mode: 'advanced',
       required: false,
+      mode: 'advanced',
     },
     // text string
     {
@@ -211,8 +213,8 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
       layout: 'full',
       placeholder: 'The recipient email address',
       condition: { field: 'operation', value: ['create_message'] },
-      mode: 'advanced',
       required: false,
+      mode: 'advanced',
     },
     // toPersonId string
     {
@@ -222,8 +224,8 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
       layout: 'full',
       placeholder: 'The recipient person ID',
       condition: { field: 'operation', value: ['create_message'] },
-      mode: 'advanced',
       required: false,
+      mode: 'advanced',
     },
     // files string[]
     {
@@ -233,8 +235,8 @@ export const WebexBlock: BlockConfig<WebexResponse> = {
       layout: 'full',
       placeholder: 'Public URL to a binary file',
       condition: { field: 'operation', value: ['create_message'] },
-      mode: 'advanced',
       required: false,
+      mode: 'advanced',
     },
     // attachments Attachment[]
     //
