@@ -300,7 +300,7 @@ export const workflowExecutionLogs = pgTable(
       .references(() => workflowExecutionSnapshots.id),
 
     level: text('level').notNull(), // 'info', 'error'
-    trigger: text('trigger').notNull(), // 'api', 'webhook', 'schedule', 'manual', 'chat'
+    trigger: text('trigger').notNull(), // 'api', 'webhook', 'schedule', 'manual', 'chat', 'form'
 
     startedAt: timestamp('started_at').notNull(),
     endedAt: timestamp('ended_at'),
@@ -454,7 +454,7 @@ export const workflowLogWebhook = pgTable(
     triggerFilter: text('trigger_filter')
       .array()
       .notNull()
-      .default(sql`ARRAY['api', 'webhook', 'schedule', 'manual', 'chat']::text[]`),
+      .default(sql`ARRAY['api', 'webhook', 'schedule', 'manual', 'chat', 'form']::text[]`),
     active: boolean('active').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -1336,6 +1336,35 @@ export const workflowDeploymentVersion = pgTable(
 )
 
 // Idempotency keys for preventing duplicate processing across all webhooks and triggers
+export const workflowForm = pgTable(
+  'workflow_form',
+  {
+    id: text('id').primaryKey(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    blockId: text('block_id').references(() => workflowBlocks.id, { onDelete: 'cascade' }),
+    path: text('path').notNull(),
+    title: text('title').notNull(),
+    description: text('description'),
+    formConfig: json('form_config').notNull(), // Form fields & validation
+    styling: json('styling').default('{}'), // Custom CSS/theming
+    settings: json('settings').default('{}'), // Submit behavior, redirects, etc.
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Ensure form paths are unique (like webhook paths)
+    pathIdx: uniqueIndex('workflow_form_path_idx').on(table.path),
+    workflowIdIdx: index('workflow_form_workflow_id_idx').on(table.workflowId),
+    workflowBlockUnique: uniqueIndex('workflow_form_workflow_block_unique').on(
+      table.workflowId,
+      table.blockId
+    ),
+  })
+)
+
 export const idempotencyKey = pgTable(
   'idempotency_key',
   {

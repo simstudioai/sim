@@ -19,6 +19,7 @@ import { EvaluatorBlock } from '@/blocks/blocks/evaluator'
 import { ExaBlock } from '@/blocks/blocks/exa'
 import { FileBlock } from '@/blocks/blocks/file'
 import { FirecrawlBlock } from '@/blocks/blocks/firecrawl'
+import { FormTriggerBlock } from '@/blocks/blocks/form_trigger'
 import { FunctionBlock } from '@/blocks/blocks/function'
 import { GenericWebhookBlock } from '@/blocks/blocks/generic_webhook'
 import { GitHubBlock } from '@/blocks/blocks/github'
@@ -154,6 +155,7 @@ export const registry: Record<string, BlockConfig> = {
   input_trigger: InputTriggerBlock,
   chat_trigger: ChatTriggerBlock,
   api_trigger: ApiTriggerBlock,
+  form_trigger: FormTriggerBlock,
   supabase: SupabaseBlock,
   tavily: TavilyBlock,
   telegram: TelegramBlock,

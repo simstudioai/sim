@@ -6,7 +6,14 @@ import { env } from '@/lib/env'
 export type UserRateLimit = InferSelectModel<typeof userRateLimits>
 
 // Trigger types for rate limiting
-export type TriggerType = 'api' | 'webhook' | 'schedule' | 'manual' | 'chat' | 'api-endpoint'
+export type TriggerType =
+  | 'api'
+  | 'webhook'
+  | 'schedule'
+  | 'manual'
+  | 'chat'
+  | 'api-endpoint'
+  | 'form'
 
 // Rate limit counter types - which counter to increment in the database
 export type RateLimitCounterType = 'sync' | 'async' | 'api-endpoint'
@@ -14,7 +21,7 @@ export type RateLimitCounterType = 'sync' | 'async' | 'api-endpoint'
 // Subscription plan types
 export type SubscriptionPlan = 'free' | 'pro' | 'team' | 'enterprise'
 
-// Rate limit configuration (applies to all non-manual trigger types: api, webhook, schedule, chat, api-endpoint)
+// Rate limit configuration (applies to all non-manual trigger types: api, webhook, schedule, chat, api-endpoint, form)
 export interface RateLimitConfig {
   syncApiExecutionsPerMinute: number
   asyncApiExecutionsPerMinute: number

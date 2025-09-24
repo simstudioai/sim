@@ -9,6 +9,7 @@ export const TRIGGER_TYPES = {
   API: 'api_trigger',
   WEBHOOK: 'webhook',
   SCHEDULE: 'schedule',
+  FORM: 'form',
   STARTER: 'starter', // Legacy
 } as const
 
@@ -145,6 +146,8 @@ export class TriggerUtils {
         return 'Webhook'
       case TRIGGER_TYPES.SCHEDULE:
         return 'Schedule'
+      case TRIGGER_TYPES.FORM:
+        return 'Form'
       default:
         return null
     }

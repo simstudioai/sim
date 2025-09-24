@@ -46,6 +46,7 @@ export type SubBlockType =
   | 'oauth-input' // OAuth credential selector
   | 'webhook-config' // Webhook configuration
   | 'trigger-config' // Trigger configuration
+  | 'form-config' // Form configuration
   | 'schedule-config' // Schedule status and information
   | 'file-selector' // File selector for Google Drive, etc.
   | 'project-selector' // Project selector for Jira, Discord, etc.

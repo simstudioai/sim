@@ -50,16 +50,45 @@ export function getBlockOutputs(
     }
   }
 
-  // For blocks with inputFormat, add dynamic outputs
+  if (blockType === 'form_trigger') {
+    outputs = {}
+    const formConfigValue = subBlocks?.formConfig?.value || subBlocks?.formConfig
+    const fields = formConfigValue?.fields
+    if (Array.isArray(fields)) {
+      const sanitizeKey = (val: string | undefined): string => {
+        const s = (val || '').toString().trim()
+        if (!s) return ''
+        return s
+          .replace(/[^a-zA-Z0-9]+/g, '_')
+          .replace(/^_+|_+$/g, '')
+          .toLowerCase()
+      }
+
+      for (const field of fields) {
+        const keyFromLabel = sanitizeKey(field?.label)
+        const keyFromName = sanitizeKey(field?.name)
+        const key = keyFromName || keyFromLabel
+        if (!key) continue
+
+        const type = (() => {
+          const t = (field?.type || '').toString()
+          if (t === 'number') return 'number'
+          if (t === 'checkbox') return 'boolean'
+          return 'string'
+        })()
+
+        outputs[key] = { type: type as any, description: 'Field from form configuration' }
+      }
+    }
+  }
+
   if (hasInputFormat(blockConfig) && subBlocks?.inputFormat?.value) {
     const inputFormatValue = subBlocks.inputFormat.value
 
     if (Array.isArray(inputFormatValue)) {
-      // For API and Input triggers, only use inputFormat fields
       if (blockType === 'api_trigger' || blockType === 'input_trigger') {
-        outputs = {} // Clear all default outputs
+        outputs = {}
 
-        // Add each field from inputFormat as an output at root level
         inputFormatValue.forEach((field: { name?: string; type?: string }) => {
           if (field.name && field.name.trim() !== '') {
             outputs[field.name] = {
@@ -70,7 +99,6 @@ export function getBlockOutputs(
         })
       }
     } else if (blockType === 'api_trigger' || blockType === 'input_trigger') {
-      // If no inputFormat defined, API/Input trigger has no outputs
       outputs = {}
     }
   }
