@@ -1,0 +1,456 @@
+name: CI2 - Staging Deployment
+
+on:
+  push:
+    branches:
+      - staging
+      - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment (e.g., staging, prod)
+        required: true
+        type: choice
+        options:
+          - staging
+          - prod
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  # Job 1: Always build and push Docker images to ECR
+  build-and-push:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.meta.outputs.version }}
+      ecr-registry: ${{ steps.login-ecr.outputs.registry }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine environment
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/staging" ]; then
+            echo "environment=staging" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+          else
+            echo "Unsupported branch: ${{ github.ref }}" >&2
+            exit 1
+          fi
+
+      - name: Set environment variables from secrets
+        run: |
+          if [ "${{ steps.env.outputs.environment }}" = "staging" ]; then
+            echo "AWS_REGION=${{ secrets.STAGING_AWS_REGION }}" >> $GITHUB_ENV
+            echo "AWS_ROLE_TO_ASSUME=${{ secrets.STAGING_AWS_ROLE_TO_ASSUME }}" >> $GITHUB_ENV
+          elif [ "${{ steps.env.outputs.environment }}" = "prod" ]; then
+            echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> $GITHUB_ENV
+            echo "AWS_ROLE_TO_ASSUME=${{ secrets.AWS_ROLE_TO_ASSUME }}" >> $GITHUB_ENV
+          fi
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.login-ecr.outputs.registry }}/sim-${{ steps.env.outputs.environment }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push app Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/app.Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64
+          cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/sim-${{ steps.env.outputs.environment }}-app:buildcache
+          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/sim-${{ steps.env.outputs.environment }}-app:buildcache,mode=max
+
+      - name: Build and push realtime Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/realtime.Dockerfile
+          push: true
+          tags: ${{ steps.login-ecr.outputs.registry }}/sim-${{ steps.env.outputs.environment }}-realtime:${{ steps.meta.outputs.version }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64
+          cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/sim-${{ steps.env.outputs.environment }}-realtime:buildcache
+          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/sim-${{ steps.env.outputs.environment }}-realtime:buildcache,mode=max
+
+      - name: Build and push db Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/db.Dockerfile
+          push: true
+          tags: ${{ steps.login-ecr.outputs.registry }}/sim-${{ steps.env.outputs.environment }}-db:${{ steps.meta.outputs.version }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64
+          cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/sim-${{ steps.env.outputs.environment }}-db:buildcache
+          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/sim-${{ steps.env.outputs.environment }}-db:buildcache,mode=max
+
+  # Job 2: Validate configuration before deployment
+  validate-config:
+    name: Validate Configuration
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine environment
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/staging" ]; then
+            echo "environment=staging" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set environment variables from secrets
+        run: |
+          if [ "${{ steps.env.outputs.environment }}" = "staging" ]; then
+            echo "AWS_REGION=${{ secrets.STAGING_AWS_REGION }}" >> $GITHUB_ENV
+            echo "AWS_ROLE_TO_ASSUME=${{ secrets.STAGING_AWS_ROLE_TO_ASSUME }}" >> $GITHUB_ENV
+            echo "SECRET_NAME=staging/sim/env-vars" >> $GITHUB_ENV
+            echo "KUBECONFIG_SECRET=staging/sim/kubeconfig" >> $GITHUB_ENV
+          elif [ "${{ steps.env.outputs.environment }}" = "prod" ]; then
+            echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> $GITHUB_ENV
+            echo "AWS_ROLE_TO_ASSUME=${{ secrets.AWS_ROLE_TO_ASSUME }}" >> $GITHUB_ENV
+            echo "SECRET_NAME=prod/sim/env-vars" >> $GITHUB_ENV
+            echo "KUBECONFIG_SECRET=prod/sim/kubeconfig" >> $GITHUB_ENV
+          fi
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
+
+      - name: Validate Helm values
+        run: |
+          # Check if helm values file exists for the environment
+          if [ "${{ steps.env.outputs.environment }}" = "staging" ]; then
+            VALUES_FILE="helm/sim/examples/staging-values.yaml"
+          else
+            VALUES_FILE="helm/sim/examples/prod-values.yaml"
+          fi
+          
+          if [ ! -f "$VALUES_FILE" ]; then
+            echo "❌ ERROR: Helm values file not found: $VALUES_FILE"
+            exit 1
+          fi
+          
+          echo "✅ Helm values file found: $VALUES_FILE"
+          
+          # Validate Helm chart
+          helm lint helm/sim -f "$VALUES_FILE"
+
+      - name: Validate secrets exist
+        run: |
+          # Validate application secrets exist
+          echo "Validating secrets in AWS Secrets Manager..."
+          SECRET_EXISTS=$(aws secretsmanager describe-secret --secret-id "$SECRET_NAME" 2>/dev/null || echo "NOT_FOUND")
+          
+          if [[ "$SECRET_EXISTS" == "NOT_FOUND" ]]; then
+            echo "❌ ERROR: Secret '$SECRET_NAME' not found in Secrets Manager!"
+            exit 1
+          fi
+          
+          # Validate kubeconfig secret exists
+          KUBECONFIG_EXISTS=$(aws secretsmanager describe-secret --secret-id "$KUBECONFIG_SECRET" 2>/dev/null || echo "NOT_FOUND")
+          
+          if [[ "$KUBECONFIG_EXISTS" == "NOT_FOUND" ]]; then
+            echo "❌ ERROR: Kubeconfig secret '$KUBECONFIG_SECRET' not found in Secrets Manager!"
+            exit 1
+          fi
+          
+          echo "✅ All required secrets validated successfully!"
+
+  # Job 3: Deploy using Helm (only when helm files change or manual trigger)
+  deploy-helm:
+    name: Deploy with Helm
+    needs: [build-and-push, validate-config]
+    runs-on: ubuntu-latest
+    outputs:
+      deployed: ${{ steps.check-helm.outputs.deploy }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Need previous commit for comparison
+
+      - name: Check for Helm/infrastructure changes
+        id: check-helm
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [[ "${{ github.event.head_commit.message }}" == *"[deploy-helm]"* ]]; then
+            echo "deploy=true" >> $GITHUB_OUTPUT
+          else
+            # Check if any helm files changed in this push
+            if git diff --name-only HEAD^ HEAD | grep -E "^helm/|^docker/"; then
+              echo "Helm/Docker files changed, deploying..."
+              echo "deploy=true" >> $GITHUB_OUTPUT
+            else
+              echo "No Helm/infrastructure changes detected"
+              echo "deploy=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Skip if no infrastructure changes
+        if: steps.check-helm.outputs.deploy != 'true'
+        run: |
+          echo "Skipping Helm deployment - no changes detected"
+          exit 0
+
+      - name: Determine environment
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/staging" ]; then
+            echo "environment=staging" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set environment variables from secrets
+        run: |
+          if [ "${{ steps.env.outputs.environment }}" = "staging" ]; then
+            echo "AWS_REGION=${{ secrets.STAGING_AWS_REGION }}" >> $GITHUB_ENV
+            echo "AWS_ROLE_TO_ASSUME=${{ secrets.STAGING_AWS_ROLE_TO_ASSUME }}" >> $GITHUB_ENV
+            echo "KUBECONFIG_SECRET=staging/sim/kubeconfig" >> $GITHUB_ENV
+            echo "HELM_RELEASE_NAME=sim-staging" >> $GITHUB_ENV
+            echo "HELM_NAMESPACE=sim-staging" >> $GITHUB_ENV
+            echo "VALUES_FILE=helm/sim/examples/staging-values.yaml" >> $GITHUB_ENV
+          elif [ "${{ steps.env.outputs.environment }}" = "prod" ]; then
+            echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> $GITHUB_ENV
+            echo "AWS_ROLE_TO_ASSUME=${{ secrets.AWS_ROLE_TO_ASSUME }}" >> $GITHUB_ENV
+            echo "KUBECONFIG_SECRET=prod/sim/kubeconfig" >> $GITHUB_ENV
+            echo "HELM_RELEASE_NAME=sim-prod" >> $GITHUB_ENV
+            echo "HELM_NAMESPACE=sim-prod" >> $GITHUB_ENV
+            echo "VALUES_FILE=helm/sim/examples/prod-values.yaml" >> $GITHUB_ENV
+          fi
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
+
+      - name: Setup kubectl and Helm
+        run: |
+          # Install kubectl
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+          
+          # Install Helm
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      - name: Configure kubectl
+        run: |
+          # Get kubeconfig from secrets manager
+          aws secretsmanager get-secret-value --secret-id "$KUBECONFIG_SECRET" --query 'SecretString' --output text > /tmp/kubeconfig
+          export KUBECONFIG=/tmp/kubeconfig
+          
+          # Test connection
+          kubectl cluster-info
+
+      - name: Deploy with Helm
+        run: |
+          export KUBECONFIG=/tmp/kubeconfig
+          
+          # Create namespace if it doesn't exist
+          kubectl create namespace $HELM_NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
+          
+          # Deploy or upgrade Helm release
+          helm upgrade --install $HELM_RELEASE_NAME ./helm/sim \
+            -f $VALUES_FILE \
+            --namespace $HELM_NAMESPACE \
+            --set app.image.tag=${{ needs.build-and-push.outputs.image-tag }} \
+            --set realtime.image.tag=${{ needs.build-and-push.outputs.image-tag }} \
+            --set migrations.image.tag=${{ needs.build-and-push.outputs.image-tag }} \
+            --set app.image.repository=${{ needs.build-and-push.outputs.ecr-registry }}/sim-${{ steps.env.outputs.environment }}-app \
+            --set realtime.image.repository=${{ needs.build-and-push.outputs.ecr-registry }}/sim-${{ steps.env.outputs.environment }}-realtime \
+            --set migrations.image.repository=${{ needs.build-and-push.outputs.ecr-registry }}/sim-${{ steps.env.outputs.environment }}-db \
+            --wait \
+            --timeout 10m
+
+  # Job 4: Fast deployment update (when only code changes)
+  update-deployment:
+    name: Update Kubernetes Deployment
+    needs: [build-and-push, validate-config, deploy-helm]
+    runs-on: ubuntu-latest
+    if: |
+      needs.deploy-helm.outputs.deployed != 'true' &&
+      github.event_name != 'workflow_dispatch' &&
+      !contains(github.event.head_commit.message, '[deploy-helm]')
+    steps:
+      - name: Determine environment
+        id: env
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/staging" ]; then
+            echo "environment=staging" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set environment variables from secrets
+        run: |
+          if [ "${{ steps.env.outputs.environment }}" = "staging" ]; then
+            echo "AWS_REGION=${{ secrets.STAGING_AWS_REGION }}" >> $GITHUB_ENV
+            echo "AWS_ROLE_TO_ASSUME=${{ secrets.STAGING_AWS_ROLE_TO_ASSUME }}" >> $GITHUB_ENV
+            echo "KUBECONFIG_SECRET=staging/sim/kubeconfig" >> $GITHUB_ENV
+            echo "HELM_NAMESPACE=sim-staging" >> $GITHUB_ENV
+          elif [ "${{ steps.env.outputs.environment }}" = "prod" ]; then
+            echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> $GITHUB_ENV
+            echo "AWS_ROLE_TO_ASSUME=${{ secrets.AWS_ROLE_TO_ASSUME }}" >> $GITHUB_ENV
+            echo "KUBECONFIG_SECRET=prod/sim/kubeconfig" >> $GITHUB_ENV
+            echo "HELM_NAMESPACE=sim-prod" >> $GITHUB_ENV
+          fi
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
+
+      - name: Setup kubectl
+        run: |
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
+      - name: Configure kubectl
+        run: |
+          aws secretsmanager get-secret-value --secret-id "$KUBECONFIG_SECRET" --query 'SecretString' --output text > /tmp/kubeconfig
+          export KUBECONFIG=/tmp/kubeconfig
+
+      - name: Update deployments with new images
+        run: |
+          export KUBECONFIG=/tmp/kubeconfig
+          
+          # Update app deployment
+          kubectl set image deployment/sim-app \
+            sim-app=${{ needs.build-and-push.outputs.ecr-registry }}/sim-${{ steps.env.outputs.environment }}-app:${{ needs.build-and-push.outputs.image-tag }} \
+            -n $HELM_NAMESPACE
+          
+          # Update realtime deployment
+          kubectl set image deployment/sim-realtime \
+            sim-realtime=${{ needs.build-and-push.outputs.ecr-registry }}/sim-${{ steps.env.outputs.environment }}-realtime:${{ needs.build-and-push.outputs.image-tag }} \
+            -n $HELM_NAMESPACE
+          
+          # Wait for rollout to complete
+          echo "Waiting for app deployment to complete..."
+          kubectl rollout status deployment/sim-app -n $HELM_NAMESPACE --timeout=10m
+          
+          echo "Waiting for realtime deployment to complete..."
+          kubectl rollout status deployment/sim-realtime -n $HELM_NAMESPACE --timeout=10m
+          
+          echo "✅ Deployments updated successfully!"
+
+  # Job 5: Run migrations after deployment
+  migrate:
+    name: Run Database Migrations
+    needs: [build-and-push, deploy-helm, update-deployment]
+    if: |
+      always() && 
+      needs.build-and-push.result == 'success' &&
+      (needs.deploy-helm.result == 'success' || needs.deploy-helm.result == 'skipped') &&
+      (needs.update-deployment.result == 'success' || needs.update-deployment.result == 'skipped') &&
+      (needs.deploy-helm.result == 'success' || needs.update-deployment.result == 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine environment
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/staging" ]; then
+            echo "environment=staging" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set environment variables from secrets
+        run: |
+          if [ "${{ steps.env.outputs.environment }}" = "staging" ]; then
+            echo "AWS_REGION=${{ secrets.STAGING_AWS_REGION }}" >> $GITHUB_ENV
+            echo "AWS_ROLE_TO_ASSUME=${{ secrets.STAGING_AWS_ROLE_TO_ASSUME }}" >> $GITHUB_ENV
+            echo "KUBECONFIG_SECRET=staging/sim/kubeconfig" >> $GITHUB_ENV
+            echo "HELM_NAMESPACE=sim-staging" >> $GITHUB_ENV
+          elif [ "${{ steps.env.outputs.environment }}" = "prod" ]; then
+            echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> $GITHUB_ENV
+            echo "AWS_ROLE_TO_ASSUME=${{ secrets.AWS_ROLE_TO_ASSUME }}" >> $GITHUB_ENV
+            echo "KUBECONFIG_SECRET=prod/sim/kubeconfig" >> $GITHUB_ENV
+            echo "HELM_NAMESPACE=sim-prod" >> $GITHUB_ENV
+          fi
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
+
+      - name: Setup kubectl
+        run: |
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
+      - name: Configure kubectl
+        run: |
+          aws secretsmanager get-secret-value --secret-id "$KUBECONFIG_SECRET" --query 'SecretString' --output text > /tmp/kubeconfig
+          export KUBECONFIG=/tmp/kubeconfig
+
+      - name: Run database migrations
+        run: |
+          export KUBECONFIG=/tmp/kubeconfig
+          
+          # Create migration job name with timestamp
+          MIGRATION_JOB_NAME="sim-migration-$(date +%Y%m%d%H%M%S)"
+          
+          # Run migration as a Kubernetes Job
+          kubectl run $MIGRATION_JOB_NAME \
+            --image=${{ needs.build-and-push.outputs.ecr-registry }}/sim-${{ steps.env.outputs.environment }}-db:${{ needs.build-and-push.outputs.image-tag }} \
+            --namespace=$HELM_NAMESPACE \
+            --restart=Never \
+            --rm=true \
+            --attach=true \
+            --timeout=5m \
+            -- npm run db:migrate
+          
+          echo "✅ Database migrations completed successfully!" 
