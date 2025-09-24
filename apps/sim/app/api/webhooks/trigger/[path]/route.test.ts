@@ -94,6 +94,8 @@ vi.mock('postgres', () => vi.fn().mockReturnValue({}))
 
 describe('Webhook Trigger API Route', () => {
   beforeEach(() => {
+    // Ensure a fresh module graph so per-test vi.doMock() takes effect before imports
+    vi.resetModules()
     vi.clearAllMocks()
 
     // Clear global mock data
