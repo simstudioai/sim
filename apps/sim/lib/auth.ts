@@ -633,22 +633,15 @@ export const auth = betterAuth({
           userInfoUrl: 'https://webexapis.com/v1/people/me',
           scopes: [
             'spark:people_read',
-            'spark-admin:people_write',
-            'spark:memberships_write',
-            'spark:people_write',
-            'spark-admin:messages_write',
-            'spark:rooms_write',
             'spark:messages_read',
             'spark:messages_write',
             'spark-compliance:rooms_read',
-            'spark:memberships_read',
             'spark:rooms_read',
-            'spark-compliance:rooms_write',
-            'spark-admin:people_read',
           ],
           responseType: 'code',
           redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/webex`,
           pkce: true,
+          prompt: 'consent',
           getUserInfo: async (tokens) => {
             try {
               const response = await fetch('https://webexapis.com/v1/people/me', {
