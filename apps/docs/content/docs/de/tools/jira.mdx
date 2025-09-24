@@ -1,0 +1,140 @@
+---
+title: Jira
+description: Mit Jira interagieren
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="jira"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      viewBox='0 0 30 30'
+      
+      
+      focusable='false'
+      aria-hidden='true'
+    >
+      <path
+        fill='#1868DB'
+        d='M11.034 21.99h-2.22c-3.346 0-5.747-2.05-5.747-5.052h11.932c.619 0 1.019.44 1.019 1.062v12.007c-2.983 0-4.984-2.416-4.984-5.784zm5.893-5.967h-2.219c-3.347 0-5.748-2.013-5.748-5.015h11.933c.618 0 1.055.402 1.055 1.025V24.04c-2.983 0-5.02-2.416-5.02-5.784zm5.93-5.93h-2.219c-3.347 0-5.748-2.05-5.748-5.052h11.933c.618 0 1.018.439 1.018 1.025v12.007c-2.983 0-4.984-2.416-4.984-5.784z'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Jira](https://www.atlassian.com/jira) ist eine führende Projektmanagement- und Issue-Tracking-Plattform, die Teams dabei hilft, agile Softwareentwicklungsprojekte effektiv zu planen, zu verfolgen und zu verwalten. Als Teil der Atlassian-Suite hat sich Jira zum Industriestandard für Softwareentwicklungsteams und Projektmanagement-Fachleute weltweit entwickelt.
+
+Jira bietet ein umfassendes Set an Werkzeugen für die Verwaltung komplexer Projekte durch sein flexibles und anpassbares Workflow-System. Mit seinen robusten API- und Integrationsfähigkeiten ermöglicht Jira Teams, ihre Entwicklungsprozesse zu optimieren und eine klare Übersicht über den Projektfortschritt zu behalten.
+
+Zu den Hauptfunktionen von Jira gehören:
+
+- Agiles Projektmanagement: Unterstützung für Scrum- und Kanban-Methoden mit anpassbaren Boards und Workflows
+- Issue-Tracking: Ausgeklügeltes Tracking-System für Bugs, Stories, Epics und Tasks mit detaillierter Berichterstattung
+- Workflow-Automatisierung: Leistungsstarke Automatisierungsregeln zur Optimierung wiederkehrender Aufgaben und Prozesse
+- Erweiterte Suche: JQL (Jira Query Language) für komplexe Issue-Filterung und Berichterstattung
+
+In Sim ermöglicht die Jira-Integration Ihren Agenten eine nahtlose Interaktion mit Ihrem Projektmanagement-Workflow. Dies schafft Möglichkeiten für automatisierte Issue-Erstellung, -Aktualisierung und -Verfolgung als Teil Ihrer KI-Workflows. Die Integration ermöglicht es Agenten, Jira-Issues programmatisch zu erstellen, abzurufen und zu aktualisieren, was automatisierte Projektmanagement-Aufgaben erleichtert und sicherstellt, dass wichtige Informationen ordnungsgemäß verfolgt und dokumentiert werden. Durch die Verbindung von Sim mit Jira können Sie intelligente Agenten erstellen, die die Projektübersicht aufrechterhalten und gleichzeitig Routine-Projektmanagementaufgaben automatisieren, die Teamproduktivität steigern und eine konsistente Projektverfolgung gewährleisten.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanweisungen
+
+Integriert Jira in den Workflow. Kann Issues lesen, schreiben und aktualisieren. Erfordert OAuth.
+
+## Tools
+
+### `jira_retrieve`
+
+Ruft detaillierte Informationen zu einem bestimmten Jira-Issue ab
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain \(z.B. ihrfirma.atlassian.net\) |
+| `projectId` | string | Nein | Jira-Projekt-ID \(optional; nicht erforderlich, um ein einzelnes Issue abzurufen\). |
+| `issueKey` | string | Ja | Jira-Issue-Key zum Abrufen \(z.B. PROJ-123\) |
+| `cloudId` | string | Nein | Jira Cloud ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des Operationserfolgs |
+| `output` | object | Jira-Issue-Details mit Issue-Key, Zusammenfassung, Beschreibung, Erstellungs- und Aktualisierungszeitstempeln |
+
+### `jira_update`
+
+Ein Jira-Issue aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain \(z.B. ihrfirma.atlassian.net\) |
+| `projectId` | string | Nein | Jira-Projekt-ID, in der Issues aktualisiert werden sollen. Wenn nicht angegeben, werden alle Issues abgerufen. |
+| `issueKey` | string | Ja | Jira-Issue-Key zum Aktualisieren |
+| `summary` | string | Nein | Neue Zusammenfassung für das Issue |
+| `description` | string | Nein | Neue Beschreibung für das Issue |
+| `status` | string | Nein | Neuer Status für das Issue |
+| `priority` | string | Nein | Neue Priorität für das Issue |
+| `assignee` | string | Nein | Neuer Bearbeiter für das Issue |
+| `cloudId` | string | Nein | Jira Cloud ID für die Instanz. Wenn nicht angegeben, wird sie über die Domain abgerufen. |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `output` | object | Aktualisierte Jira-Issue-Details mit Zeitstempel, Issue-Key, Zusammenfassung und Erfolgsstatus |
+
+### `jira_write`
+
+Ein Jira-Issue erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain (z.B. ihrfirma.atlassian.net) |
+| `projectId` | string | Ja | Projekt-ID für das Issue |
+| `summary` | string | Ja | Zusammenfassung für das Issue |
+| `description` | string | Nein | Beschreibung für das Issue |
+| `priority` | string | Nein | Priorität für das Issue |
+| `assignee` | string | Nein | Bearbeiter für das Issue |
+| `cloudId` | string | Nein | Jira Cloud-ID für die Instanz. Wenn nicht angegeben, wird sie anhand der Domain abgerufen. |
+| `issueType` | string | Ja | Art des zu erstellenden Issues (z.B. Task, Story) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `output` | object | Erstellte Jira-Issue-Details mit Zeitstempel, Issue-Key, Zusammenfassung, Erfolgsstatus und URL |
+
+### `jira_bulk_read`
+
+Mehrere Jira-Issues in Masse abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Ja | Ihre Jira-Domain (z.B. ihrfirma.atlassian.net) |
+| `projectId` | string | Ja | Jira-Projekt-ID |
+| `cloudId` | string | Nein | Jira-Cloud-ID |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `output` | array | Array von Jira-Issues mit Zusammenfassung, Beschreibung, Erstellungs- und Aktualisierungszeitstempeln |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `jira`

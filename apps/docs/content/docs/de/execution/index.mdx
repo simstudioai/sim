@@ -1,0 +1,136 @@
+---
+title: Ausführung
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+
+Die Ausführungs-Engine von Sim bringt Ihre Workflows zum Leben, indem sie Blöcke in der richtigen Reihenfolge verarbeitet, den Datenfluss verwaltet und Fehler elegant behandelt, sodass Sie genau verstehen können, wie Workflows in Sim ausgeführt werden.
+
+<Callout type="info">
+  Jede Workflow-Ausführung folgt einem deterministischen Pfad, der auf Ihren Blockverbindungen und Ihrer Logik basiert, um vorhersehbare und zuverlässige Ergebnisse zu gewährleisten.
+</Callout>
+
+## Dokumentationsübersicht
+
+<Cards>
+  <Card title="Grundlagen der Ausführung" href="/execution/basics">
+    Erfahren Sie mehr über den grundlegenden Ausführungsablauf, Blocktypen und wie Daten durch Ihren
+    Workflow fließen
+  </Card>
+
+  <Card title="Protokollierung" href="/execution/logging">
+    Überwachen Sie Workflow-Ausführungen mit umfassender Protokollierung und Echtzeit-Sichtbarkeit
+  </Card>
+  
+  <Card title="Kostenberechnung" href="/execution/costs">
+    Verstehen Sie, wie die Kosten für Workflow-Ausführungen berechnet und optimiert werden
+  </Card>
+  
+  <Card title="Externe API" href="/execution/api">
+    Greifen Sie programmgesteuert über REST-API auf Ausführungsprotokolle zu und richten Sie Webhooks ein
+  </Card>
+</Cards>
+
+## Schlüsselkonzepte
+
+### Topologische Ausführung
+Blöcke werden in Abhängigkeitsreihenfolge ausgeführt, ähnlich wie eine Tabellenkalkulation Zellen neu berechnet. Die Ausführungs-Engine bestimmt automatisch, welche Blöcke basierend auf abgeschlossenen Abhängigkeiten ausgeführt werden können.
+
+### Pfadverfolgung
+Die Engine verfolgt aktiv Ausführungspfade durch Ihren Workflow. Router- und Bedingungsblöcke aktualisieren diese Pfade dynamisch und stellen sicher, dass nur relevante Blöcke ausgeführt werden.
+
+### Schichtbasierte Verarbeitung
+Anstatt Blöcke einzeln auszuführen, identifiziert die Engine Schichten von Blöcken, die parallel ausgeführt werden können, und optimiert so die Leistung für komplexe Workflows.
+
+### Ausführungskontext
+Jeder Workflow behält während der Ausführung einen umfangreichen Kontext bei, der Folgendes enthält:
+- Block-Ausgaben und -Zustände
+- Aktive Ausführungspfade
+- Verfolgung von Schleifen- und Paralleliterationen
+- Umgebungsvariablen
+- Routing-Entscheidungen
+
+## Ausführungsauslöser
+
+Workflows können über mehrere Kanäle ausgeführt werden:
+
+- **Manuell**: Testen und debuggen direkt im Editor
+- **Als API bereitstellen**: Einen HTTP-Endpunkt erstellen, der mit API-Schlüsseln gesichert ist
+- **Als Chat bereitstellen**: Eine Konversationsschnittstelle auf einer benutzerdefinierten Subdomain erstellen
+- **Webhooks**: Auf externe Ereignisse von Drittanbieterdiensten reagieren
+- **Geplant**: Nach einem wiederkehrenden Zeitplan mit Cron-Ausdrücken ausführen
+
+### Als API bereitstellen
+
+Wenn Sie einen Workflow als API bereitstellen, macht Sim Folgendes:
+- Erstellt einen eindeutigen HTTP-Endpunkt: `https://sim.ai/api/workflows/{workflowId}/execute`
+- Generiert einen API-Schlüssel zur Authentifizierung
+- Akzeptiert POST-Anfragen mit JSON-Payloads
+- Gibt Workflow-Ausführungsergebnisse als JSON zurück
+
+Beispiel für einen API-Aufruf:
+
+```bash
+curl -X POST https://sim.ai/api/workflows/your-workflow-id/execute \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"input": "your data here"}'
+```
+
+### Als Chat bereitstellen
+
+Die Chat-Bereitstellung erstellt eine Konversationsschnittstelle für Ihren Workflow:
+- Gehostet auf einer benutzerdefinierten Subdomain: `https://your-name.sim.ai`
+- Optionale Authentifizierung (öffentlich, passwortgeschützt oder E-Mail-basiert)
+- Anpassbare Benutzeroberfläche mit Ihrem Branding
+- Streaming-Antworten für Echtzeit-Interaktion
+- Perfekt für KI-Assistenten, Support-Bots oder interaktive Tools
+
+Jede Bereitstellungsmethode übergibt Daten an den Starter-Block Ihres Workflows und beginnt so den Ausführungsfluss.
+
+## Programmatische Ausführung
+
+Führen Sie Workflows aus Ihren Anwendungen mit unseren offiziellen SDKs aus:
+
+```bash
+# TypeScript/JavaScript
+npm install simstudio-ts-sdk
+
+# Python
+pip install simstudio-sdk
+```
+
+```typescript
+// TypeScript Example
+import { SimStudioClient } from 'simstudio-ts-sdk';
+
+const client = new SimStudioClient({ 
+  apiKey: 'your-api-key' 
+});
+
+const result = await client.executeWorkflow('workflow-id', {
+  input: { message: 'Hello' }
+});
+```
+
+## Best Practices
+
+### Für Zuverlässigkeit entwickeln
+- Fehler elegant mit geeigneten Fallback-Pfaden behandeln
+- Umgebungsvariablen für sensible Daten verwenden
+- Logging zu Funktionsblöcken für Debugging hinzufügen
+
+### Leistung optimieren
+- Externe API-Aufrufe wenn möglich minimieren
+- Parallele Ausführung für unabhängige Operationen nutzen
+- Ergebnisse mit Memory-Blöcken bei Bedarf zwischenspeichern
+
+### Ausführungen überwachen
+- Logs regelmäßig überprüfen, um Leistungsmuster zu verstehen
+- Kosten für KI-Modellnutzung verfolgen
+- Workflow-Snapshots zur Fehlerbehebung verwenden
+
+## Was kommt als nächstes?
+
+Beginnen Sie mit [Ausführungsgrundlagen](/execution/basics), um zu verstehen, wie Workflows ausgeführt werden, und erkunden Sie dann [Protokollierung](/execution/logging), um Ihre Ausführungen zu überwachen, sowie [Kostenberechnung](/execution/costs), um Ihre Ausgaben zu optimieren.

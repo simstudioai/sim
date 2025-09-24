@@ -1,0 +1,199 @@
+---
+title: 評価者
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+
+評価者ブロックはAIを使用して、カスタマイズ可能な評価指標に基づいてコンテンツの品質を採点・評価します。品質管理、A/Bテスト、AIの出力が特定の基準を満たしているかの確認に最適です。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/evaluator.png"
+    alt="評価者ブロックの設定画面"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## 概要
+
+評価者ブロックでは以下のことが可能です：
+
+<Steps>
+  <Step>
+    <strong>コンテンツ品質の採点</strong>：AIを使用してカスタム指標に対してコンテンツを数値スコアで評価
+  </Step>
+  <Step>
+    <strong>カスタム指標の定義</strong>：ユースケースに合わせた特定の評価基準を作成  
+  </Step>
+  <Step>
+    <strong>品質管理の自動化</strong>：コンテンツを自動的に評価・フィルタリングするワークフローの構築
+  </Step>
+  <Step>
+    <strong>パフォーマンスの追跡</strong>：客観的な採点による改善と一貫性を経時的に監視
+  </Step>
+</Steps>
+
+## 仕組み
+
+評価者ブロックはAI駆動の評価を通じてコンテンツを処理します：
+
+1. **コンテンツの受信** - ワークフロー内の前のブロックからの入力コンテンツを取得
+2. **指標の適用** - 定義されたカスタム指標に対してコンテンツを評価  
+3. **スコアの生成** - AIモデルが各指標に数値スコアを割り当て
+4. **要約の提供** - スコアと説明を含む詳細な評価を返す
+
+## 設定オプション
+
+### 評価指標
+
+コンテンツを評価するためのカスタム指標を定義します。各指標には以下が含まれます：
+
+- **名前**：指標の短い識別子
+- **説明**：指標が測定する内容の詳細な説明
+- **範囲**：採点の数値範囲（例：1-5、0-10）
+
+指標の例：
+
+```
+Accuracy (1-5): How factually accurate is the content?
+Clarity (1-5): How clear and understandable is the content?
+Relevance (1-5): How relevant is the content to the original query?
+```
+
+### コンテンツ
+
+評価対象のコンテンツ。以下のいずれかになります：
+
+- ブロック設定で直接提供される
+- 別のブロックの出力（通常はエージェントブロック）から接続される
+- ワークフロー実行中に動的に生成される
+
+### モデル選択
+
+評価を実行するAIモデルを選択してください：
+
+**OpenAI**: GPT-4o、o1、o3、o4-mini、gpt-4.1
+**Anthropic**: Claude 3.7 Sonnet
+**Google**: Gemini 2.5 Pro、Gemini 2.0 Flash
+**その他のプロバイダー**: Groq、Cerebras、xAI、DeepSeek
+**ローカルモデル**: Ollamaで実行されているすべてのモデル
+
+<div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg">
+  <Video src="models.mp4" width={500} height={350} />
+</div>
+
+**推奨**: より正確な評価を行うには、GPT-4oやClaude 3.7 Sonnetなど、強力な推論能力を持つモデルを使用してください。
+
+### APIキー
+
+選択したLLMプロバイダーのAPIキー。これは安全に保存され、認証に使用されます。
+
+## 仕組み
+
+1. 評価ブロックは提供されたコンテンツとカスタムメトリクスを取得します
+2. LLMにコンテンツを評価するよう指示する特殊なプロンプトを生成します
+3. プロンプトには各メトリクスのスコア付け方法に関する明確なガイドラインが含まれています
+4. LLMがコンテンツを評価し、各メトリクスの数値スコアを返します
+5. 評価ブロックはこれらのスコアをワークフローで使用できる構造化された出力としてフォーマットします
+
+## 使用例
+
+### コンテンツ品質評価
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">シナリオ：公開前のブログ投稿の品質を評価する</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>エージェントブロックがブログ投稿コンテンツを生成</li>
+    <li>評価ブロックが正確さ、読みやすさ、魅力度を評価</li>
+    <li>条件ブロックがスコアが最低閾値を満たしているかチェック</li>
+    <li>高スコア → 公開、低スコア → 修正して再試行</li>
+  </ol>
+</div>
+
+### A/Bテストコンテンツ
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">シナリオ：複数のAI生成レスポンスを比較する</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>パラレルブロックが複数のレスポンスバリエーションを生成</li>
+    <li>評価ブロックが各バリエーションの明確さと関連性をスコアリング</li>
+    <li>ファンクションブロックが最高スコアのレスポンスを選択</li>
+    <li>レスポンスブロックが最良の結果を返す</li>
+  </ol>
+</div>
+
+### カスタマーサポート品質管理
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">シナリオ：サポートレスポンスが品質基準を満たしていることを確認する</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>サポートエージェントがお客様の問い合わせに対するレスポンスを生成</li>
+    <li>評価ブロックが有用性、共感性、正確性をスコアリング</li>
+    <li>トレーニングとパフォーマンスモニタリングのためにスコアを記録</li>
+    <li>低スコアが人間によるレビュープロセスをトリガー</li>
+  </ol>
+</div>
+
+## 入力と出力
+
+<Tabs items={['設定', '変数', '結果']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>コンテンツ</strong>：評価するテキストまたは構造化データ
+      </li>
+      <li>
+        <strong>評価指標</strong>：スコアリング範囲を持つカスタム基準
+      </li>
+      <li>
+        <strong>モデル</strong>：評価分析用のAIモデル
+      </li>
+      <li>
+        <strong>APIキー</strong>：選択したLLMプロバイダーの認証
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>evaluator.content</strong>：評価の要約
+      </li>
+      <li>
+        <strong>evaluator.model</strong>：評価に使用されたモデル
+      </li>
+      <li>
+        <strong>evaluator.tokens</strong>：トークン使用統計
+      </li>
+      <li>
+        <strong>evaluator.cost</strong>：評価呼び出しのコスト概要
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>指標スコア</strong>：定義された各指標の数値スコア
+      </li>
+      <li>
+        <strong>評価サマリー</strong>：説明付きの詳細な評価
+      </li>
+      <li>
+        <strong>アクセス</strong>：評価ブロック後のブロックで利用可能
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## ベストプラクティス
+
+- **具体的な指標説明を使用する**：より正確な評価を得るために、各指標が何を測定するかを明確に定義する
+- **適切な範囲を選択する**：過度に複雑にならない程度の粒度を提供するスコアリング範囲を選択する
+- **エージェントブロックと接続する**：評価ブロックを使用してエージェントブロックの出力を評価し、フィードバックループを作成する
+- **一貫した指標を使用する**：比較分析のために、類似の評価間で一貫した指標を維持する
+- **複数の指標を組み合わせる**：包括的な評価を得るために複数の指標を使用する

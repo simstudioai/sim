@@ -1,0 +1,42 @@
+---
+title: Verbindungen
+description: Verbinde deine Blöcke miteinander.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { ConnectIcon } from '@/components/icons'
+import { Video } from '@/components/ui/video'
+
+Verbindungen sind die Pfade, die den Datenfluss zwischen Blöcken in deinem Workflow ermöglichen. Sie definieren, wie Informationen von einem Block zum anderen weitergegeben werden und ermöglichen dir, komplexe, mehrstufige Prozesse zu erstellen.
+
+<Callout type="info">
+  Richtig konfigurierte Verbindungen sind entscheidend für die Erstellung effektiver Workflows. Sie bestimmen, wie
+  Daten durch dein System fließen und wie Blöcke miteinander interagieren.
+</Callout>
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="connections.mp4" />
+</div>
+
+## Verbindungstypen
+
+Sim unterstützt verschiedene Arten von Verbindungen, die verschiedene Workflow-Muster ermöglichen:
+
+<Cards>
+  <Card title="Grundlagen der Verbindungen" href="/connections/basics">
+    Lerne, wie Verbindungen funktionieren und wie du sie in deinen Workflows erstellst
+  </Card>
+  <Card title="Verbindungs-Tags" href="/connections/tags">
+    Verstehe, wie du Verbindungs-Tags verwendest, um auf Daten zwischen Blöcken zu verweisen
+  </Card>
+  <Card title="Datenstruktur" href="/connections/data-structure">
+    Erkunde die Ausgabedatenstrukturen verschiedener Blocktypen
+  </Card>
+  <Card title="Datenzugriff" href="/connections/accessing-data">
+    Lerne Techniken für den Zugriff und die Manipulation verbundener Daten
+  </Card>
+  <Card title="Best Practices" href="/connections/best-practices">
+    Folge empfohlenen Mustern für effektives Verbindungsmanagement
+  </Card>
+</Cards>

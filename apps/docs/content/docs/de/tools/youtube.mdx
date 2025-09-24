@@ -1,0 +1,67 @@
+---
+title: YouTube
+description: Suche nach Videos auf YouTube
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="youtube"
+  color="#FF0000"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      
+      viewBox='0 0 28 20'
+      fill='currentColor'
+      xmlns='http://www.w3.org/2000/svg'
+      
+    >
+      <path
+        d='M11.2 14L18.466 9.8L11.2 5.6V14ZM27.384 3.038C27.566 3.696 27.692 4.578 27.776 5.698C27.874 6.818 27.916 7.784 27.916 8.624L28 9.8C28 12.866 27.776 15.12 27.384 16.562C27.034 17.822 26.222 18.634 24.962 18.984C24.304 19.166 23.1 19.292 21.252 19.376C19.432 19.474 17.766 19.516 16.226 19.516L14 19.6C8.134 19.6 4.48 19.376 3.038 18.984C1.778 18.634 0.966 17.822 0.616 16.562C0.434 15.904 0.308 15.022 0.224 13.902C0.126 12.782 0.0839999 11.816 0.0839999 10.976L0 9.8C0 6.734 0.224 4.48 0.616 3.038C0.966 1.778 1.778 0.966 3.038 0.616C3.696 0.434 4.9 0.308 6.748 0.224C8.568 0.126 10.234 0.0839999 11.774 0.0839999L14 0C19.866 0 23.52 0.224 24.962 0.616C26.222 0.966 27.034 1.778 27.384 3.038Z'
+        fill='currentColor'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[YouTube](https://www.youtube.com/) ist die weltweit größte Videoplattform, die Milliarden von Videos hostet und über 2 Milliarden eingeloggte monatliche Nutzer bedient.
+
+Mit YouTubes umfangreichen API-Funktionen können Sie:
+
+- **Inhalte suchen**: Finden Sie relevante Videos in YouTubes riesiger Bibliothek mit spezifischen Schlüsselwörtern, Filtern und Parametern
+- **Auf Metadaten zugreifen**: Rufen Sie detaillierte Informationen über Videos ab, einschließlich Titel, Beschreibungen, Aufrufe und Engagement-Metriken
+- **Trends analysieren**: Identifizieren Sie beliebte Inhalte und Trendthemen innerhalb bestimmter Kategorien oder Regionen
+- **Erkenntnisse gewinnen**: Sammeln Sie Daten über Zuschauerpräferenzen, Content-Performance und Engagement-Muster
+
+In Sim ermöglicht die YouTube-Integration Ihren Agenten, YouTube-Inhalte programmatisch zu suchen und zu analysieren als Teil ihrer Workflows. Dies ermöglicht leistungsstarke Automatisierungsszenarien, die aktuelle Videoinformationen erfordern. Ihre Agenten können nach Anleitungsvideos suchen, Content-Trends recherchieren, Informationen von Bildungskanälen sammeln oder bestimmte Ersteller auf neue Uploads überwachen. Diese Integration überbrückt die Lücke zwischen Ihren KI-Workflows und dem weltweit größten Video-Repository und ermöglicht anspruchsvollere und inhaltsbewusstere Automatisierungen. Durch die Verbindung von Sim mit YouTube können Sie Agenten erstellen, die mit den neuesten Informationen auf dem Laufenden bleiben, genauere Antworten liefern und Nutzern mehr Mehrwert bieten - alles ohne manuelle Eingriffe oder benutzerdefinierten Code.
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Integriert YouTube in den Workflow. Kann nach Videos suchen. Benötigt API-Schlüssel.
+
+## Tools
+
+### `youtube_search`
+
+Suche nach Videos auf YouTube mit der YouTube Data API.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Ja | Suchanfrage für YouTube-Videos |
+| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Videos |
+| `apiKey` | string | Ja | YouTube API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `items` | array | Array von YouTube-Videos, die der Suchanfrage entsprechen |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `youtube`

@@ -1,0 +1,73 @@
+---
+title: Resend
+description: E-Mails mit Resend versenden.
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="resend"
+  color="#181C1E"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+    
+    
+    
+    viewBox='0 0 1800 1800'
+    fill='none'
+    xmlns='http://www.w3.org/2000/svg'
+  >
+    <path
+      d='M1000.46 450C1174.77 450 1278.43 553.669 1278.43 691.282C1278.43 828.896 1174.77 932.563 1000.46 932.563H912.382L1350 1350H1040.82L707.794 1033.48C683.944 1011.47 672.936 985.781 672.935 963.765C672.935 932.572 694.959 905.049 737.161 893.122L908.712 847.244C973.85 829.812 1018.81 779.353 1018.81 713.298C1018.8 632.567 952.745 585.78 871.095 585.78H450V450H1000.46Z'
+      fill='#FDFDFD'
+    />
+  </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Resend](https://resend.com/) ist ein moderner E-Mail-Service, der für Entwickler konzipiert wurde, um Transaktions- und Marketing-E-Mails einfach zu versenden. Er bietet eine einfache, zuverlässige API und ein Dashboard zur Verwaltung von E-Mail-Zustellung, Vorlagen und Analysen, was ihn zu einer beliebten Wahl für die Integration von E-Mail-Funktionalität in Anwendungen und Workflows macht.
+
+Mit Resend können Sie:
+
+- **Transaktions-E-Mails versenden**: Liefern Sie Passwort-Zurücksetzungen, Benachrichtigungen, Bestätigungen und mehr mit hoher Zustellbarkeit
+- **Vorlagen verwalten**: Erstellen und aktualisieren Sie E-Mail-Vorlagen für konsistentes Branding und Messaging
+- **Analysen verfolgen**: Überwachen Sie Zustell-, Öffnungs- und Klickraten, um Ihre E-Mail-Performance zu optimieren
+- **Einfach integrieren**: Nutzen Sie eine unkomplizierte API und SDKs für eine nahtlose Integration in Ihre Anwendungen
+- **Sicherheit gewährleisten**: Profitieren Sie von robuster Authentifizierung und Domain-Verifizierung zum Schutz Ihrer E-Mail-Reputation
+
+In Sim ermöglicht die Resend-Integration Ihren Agenten, E-Mails programmatisch als Teil Ihrer automatisierten Workflows zu versenden. Dies ermöglicht Anwendungsfälle wie das Senden von Benachrichtigungen, Warnungen oder benutzerdefinierten Nachrichten direkt von Ihren Sim-gestützten Agenten. Durch die Verbindung von Sim mit Resend können Sie Kommunikationsaufgaben automatisieren und eine zeitnahe und zuverlässige E-Mail-Zustellung ohne manuelle Eingriffe sicherstellen. Die Integration nutzt Ihren Resend-API-Schlüssel und hält Ihre Anmeldedaten sicher, während sie leistungsstarke E-Mail-Automatisierungsszenarien ermöglicht.
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Integrieren Sie Resend in den Workflow. Kann E-Mails versenden. Benötigt API-Schlüssel.
+
+## Tools
+
+### `resend_send`
+
+Senden Sie eine E-Mail mit Ihrem eigenen Resend API-Schlüssel und Absenderadresse
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `fromAddress` | string | Ja | E-Mail-Adresse, von der gesendet wird |
+| `to` | string | Ja | E-Mail-Adresse des Empfängers |
+| `subject` | string | Ja | Betreff der E-Mail |
+| `body` | string | Ja | Inhalt der E-Mail |
+| `resendApiKey` | string | Ja | Resend API-Schlüssel zum Versenden von E-Mails |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Ob die E-Mail erfolgreich gesendet wurde |
+| `to` | string | E-Mail-Adresse des Empfängers |
+| `subject` | string | Betreff der E-Mail |
+| `body` | string | Inhalt der E-Mail |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `resend`

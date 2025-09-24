@@ -1,0 +1,67 @@
+---
+title: ElevenLabs
+description: ElevenLabsを使用してTTSに変換
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="elevenlabs"
+  color="#181C1E"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='0 0 876 876'
+      fill='none'
+    >
+      <path d='M498 138H618V738H498V138Z' fill='currentColor' />
+      <path d='M258 138H378V738H258V138Z' fill='currentColor' />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[ElevenLabs](https://elevenlabs.io/)は、信じられないほど自然で表現力豊かなAI音声を作成する最先端のテキスト読み上げプラットフォームです。現在利用可能な中で最もリアルで感情豊かな合成音声を提供しており、生き生きとしたオーディオコンテンツの作成に最適です。
+
+ElevenLabsでは、以下のことが可能です：
+
+- **自然な音声の生成**：人間の声とほぼ区別がつかないオーディオを作成
+- **多様な音声オプションから選択**：異なるアクセント、トーン、特性を持つ既製の音声ライブラリにアクセス
+- **音声のクローン作成**：音声サンプルに基づいてカスタム音声を作成（適切な許可を得た上で）
+- **音声パラメータの制御**：安定性、明瞭さ、感情的なトーンを調整して出力を微調整
+- **リアルな感情の追加**：幸福、悲しみ、興奮などの自然な感情を取り入れる
+
+Simでは、ElevenLabs統合によりエージェントがテキストを生き生きとした音声に変換でき、アプリケーションのインタラクティブ性と魅力を高めることができます。これは特に音声アシスタントの作成、オーディオコンテンツの生成、アクセシブルなアプリケーションの開発、より人間らしく感じる会話インターフェースの構築に価値があります。この統合により、ElevenLabsの高度な音声合成機能をエージェントワークフローにシームレスに組み込み、テキストベースのAIと自然な人間のコミュニケーションの間のギャップを埋めることができます。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+ElevenLabsをワークフローに統合します。テキストを音声に変換できます。APIキーが必要です。
+
+## ツール
+
+### `elevenlabs_tts`
+
+ElevenLabsの音声を使用してTTSに変換
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | はい | 音声に変換するテキスト |
+| `voiceId` | string | はい | 使用する音声のID |
+| `modelId` | string | いいえ | 使用するモデルのID（デフォルトはeleven_monolingual_v1） |
+| `apiKey` | string | はい | あなたのElevenLabs APIキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `audioUrl` | string | 生成された音声のURL |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `elevenlabs`

@@ -1,0 +1,121 @@
+---
+title: Wissen
+description: Vektorsuche verwenden
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="knowledge"
+  color="#00B0B0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='1.5'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+    >
+      <path d='M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14' />
+      <path d='m7.5 4.27 9 5.15' />
+      <polyline points='3.29 7 12 12 20.71 7' />
+      <line x1='12' x2='12' y1='22' y2='12' />
+      <circle cx='18.5' cy='15.5' r='2.5' />
+      <path d='M20.27 17.27 22 19' />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Die Wissensdatenbank von Sim ist eine leistungsstarke native Funktion, die es Ihnen ermöglicht, benutzerdefinierte Wissensdatenbanken direkt innerhalb der Plattform zu erstellen, zu verwalten und abzufragen. Mit fortschrittlicher KI-Embedding-Technologie und Vektorsuche ermöglicht der Wissensdatenbank-Block den Aufbau intelligenter Suchfunktionen in Ihre Workflows, wodurch relevante Informationen in Ihrer Organisation leicht zu finden und zu nutzen sind.
+
+Das Wissensdatenbank-System bietet eine umfassende Lösung für die Verwaltung von Organisationswissen durch seine flexible und skalierbare Architektur. Mit den integrierten Vektorsuchfunktionen können Teams semantische Suchen durchführen, die Bedeutung und Kontext verstehen und über herkömmliche Stichwortsuche hinausgehen.
+
+Zu den wichtigsten Funktionen der Wissensdatenbank gehören:
+
+- Semantische Suche: Fortschrittliche KI-gestützte Suche, die Bedeutung und Kontext versteht, nicht nur Schlüsselwörter
+- Vektor-Embeddings: Automatische Umwandlung von Text in hochdimensionale Vektoren für intelligentes Ähnlichkeitsmatching
+- Benutzerdefinierte Wissensdatenbanken: Erstellung und Verwaltung mehrerer Wissensdatenbanken für verschiedene Zwecke oder Abteilungen
+- Flexible Inhaltstypen: Unterstützung verschiedener Dokumentformate und Inhaltstypen
+- Echtzeit-Updates: Sofortige Indexierung neuer Inhalte für unmittelbare Durchsuchbarkeit
+
+In Sim ermöglicht der Knowledge Base-Block Ihren Agenten, intelligente semantische Suchen über Ihre benutzerdefinierten Wissensdatenbanken durchzuführen. Dies schafft Möglichkeiten für automatisierte Informationsabrufe, Inhaltsempfehlungen und Wissensentdeckung als Teil Ihrer KI-Workflows. Die Integration ermöglicht Agenten, relevante Informationen programmatisch zu suchen und abzurufen, was automatisierte Wissensmanagement-Aufgaben erleichtert und sicherstellt, dass wichtige Informationen leicht zugänglich sind. Durch die Nutzung des Knowledge Base-Blocks können Sie intelligente Agenten erstellen, die die Informationsfindung verbessern und gleichzeitig routinemäßige Wissensmanagement-Aufgaben automatisieren, die Teameffizienz steigern und einen konsistenten Zugang zu organisatorischem Wissen gewährleisten.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanweisungen
+
+Integrieren Sie Wissen in den Workflow. Kann suchen, Chunks hochladen und Dokumente erstellen.
+
+## Tools
+
+### `knowledge_search`
+
+Suche nach ähnlichen Inhalten in einer Wissensdatenbank mittels Vektorähnlichkeit
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Ja | ID der zu durchsuchenden Wissensdatenbank |
+| `query` | string | Nein | Suchanfragentext \(optional bei Verwendung von Tag-Filtern\) |
+| `topK` | number | Nein | Anzahl der ähnlichsten Ergebnisse, die zurückgegeben werden sollen \(1-100\) |
+| `tagFilters` | any | Nein | Array von Tag-Filtern mit tagName- und tagValue-Eigenschaften |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `results` | array | Array von Suchergebnissen aus der Wissensdatenbank |
+
+### `knowledge_upload_chunk`
+
+Einen neuen Chunk zu einem Dokument in einer Wissensdatenbank hochladen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Ja | ID der Wissensdatenbank, die das Dokument enthält |
+| `documentId` | string | Ja | ID des Dokuments, in das der Chunk hochgeladen werden soll |
+| `content` | string | Ja | Inhalt des hochzuladenden Chunks |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `data` | object | Informationen über den hochgeladenen Chunk |
+
+### `knowledge_create_document`
+
+Ein neues Dokument in einer Wissensdatenbank erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Ja | ID der Wissensdatenbank, die das Dokument enthält |
+| `name` | string | Ja | Name des Dokuments |
+| `content` | string | Ja | Inhalt des Dokuments |
+| `tag1` | string | Nein | Tag 1-Wert für das Dokument |
+| `tag2` | string | Nein | Tag 2-Wert für das Dokument |
+| `tag3` | string | Nein | Tag 3-Wert für das Dokument |
+| `tag4` | string | Nein | Tag 4-Wert für das Dokument |
+| `tag5` | string | Nein | Tag 5-Wert für das Dokument |
+| `tag6` | string | Nein | Tag 6-Wert für das Dokument |
+| `tag7` | string | Nein | Tag 7-Wert für das Dokument |
+| `documentTagsData` | array | Nein | Strukturierte Tag-Daten mit Namen, Typen und Werten |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `data` | object | Informationen über das erstellte Dokument |
+
+## Hinweise
+
+- Kategorie: `blocks`
+- Typ: `knowledge`

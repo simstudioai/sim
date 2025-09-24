@@ -1,0 +1,77 @@
+---
+title: Datei
+description: Mehrere Dateien lesen und parsen
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="file"
+  color="#40916C"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      
+      
+      viewBox='0 0 23 28'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <path
+        d='M8 15.2H15.2M8 20H11.6M2 4.4V23.6C2 24.2365 2.25286 24.847 2.70294 25.2971C3.15303 25.7471 3.76348 26 4.4 26H18.8C19.4365 26 20.047 25.7471 20.4971 25.2971C20.9471 24.847 21.2 24.2365 21.2 23.6V9.6104C21.2 9.29067 21.136 8.97417 21.012 8.67949C20.8879 8.38481 20.7062 8.11789 20.4776 7.8944L15.1496 2.684C14.7012 2.24559 14.0991 2.00008 13.472 2H4.4C3.76348 2 3.15303 2.25286 2.70294 2.70294C2.25286 3.15303 2 3.76348 2 4.4Z'
+        stroke='currentColor'
+        strokeWidth='2.25'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+      <path
+        d='M14 2V6.8C14 7.43652 14.2529 8.04697 14.7029 8.49706C15.153 8.94714 15.7635 9.2 16.4 9.2H21.2'
+        stroke='currentColor'
+        strokeWidth='2.25'
+        strokeLinejoin='round'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Das Datei-Parser-Tool bietet eine leistungsstarke Möglichkeit, Inhalte aus verschiedenen Dateiformaten zu extrahieren und zu verarbeiten, wodurch Dokumentendaten einfach in Ihre Agent-Workflows integriert werden können. Dieses Tool unterstützt mehrere Dateiformate und kann Dateien mit einer Größe von bis zu 200 MB verarbeiten.
+
+Mit dem Datei-Parser können Sie:
+
+- **Mehrere Dateiformate verarbeiten**: Text aus PDFs, CSVs, Word-Dokumenten (DOCX), Textdateien und mehr extrahieren
+- **Große Dateien verarbeiten**: Dokumente mit einer Größe von bis zu 200 MB verarbeiten
+- **Dateien von URLs parsen**: Inhalte direkt aus online gehosteten Dateien extrahieren, indem Sie deren URLs angeben
+- **Mehrere Dateien gleichzeitig verarbeiten**: Mehrere Dateien in einem einzigen Vorgang hochladen und parsen
+- **Strukturierte Daten extrahieren**: Formatierung und Struktur der Originaldokumente wenn möglich beibehalten
+
+Das Datei-Parser-Tool ist besonders nützlich für Szenarien, in denen Ihre Agenten mit Dokumenteninhalten arbeiten müssen, wie z.B. bei der Analyse von Berichten, der Extraktion von Daten aus Tabellenkalkulationen oder der Verarbeitung von Text aus verschiedenen Dokumentenquellen. Es vereinfacht den Prozess, Dokumenteninhalte für Ihre Agenten verfügbar zu machen, sodass sie genauso einfach mit in Dateien gespeicherten Informationen arbeiten können wie mit direkter Texteingabe.
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Datei in den Workflow integrieren. Kann eine Datei manuell hochladen oder eine Datei-URL einfügen.
+
+## Tools
+
+### `file_parser`
+
+Parsen einer oder mehrerer hochgeladener Dateien oder Dateien von URLs (Text, PDF, CSV, Bilder usw.)
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `filePath` | string | Ja | Pfad zu der/den Datei(en). Kann ein einzelner Pfad, URL oder ein Array von Pfaden sein. |
+| `fileType` | string | Nein | Typ der zu parsenden Datei (wird automatisch erkannt, wenn nicht angegeben) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `files` | array | Array der geparsten Dateien |
+| `combinedContent` | string | Kombinierter Inhalt aller geparsten Dateien |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `file`

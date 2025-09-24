@@ -1,0 +1,159 @@
+---
+title: YAMLワークフローリファレンス
+description: Simでのヤムルワークフロー作成の完全ガイド
+---
+
+import { Card, Cards } from "fumadocs-ui/components/card";
+import { Step, Steps } from "fumadocs-ui/components/steps";
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+
+YAMLワークフローは、Simでワークフロー設定を定義、バージョン管理、共有するための強力な方法を提供します。このリファレンスガイドでは、完全なYAML構文、ブロックスキーマ、堅牢なワークフローを作成するためのベストプラクティスについて説明します。
+
+## クイックスタート
+
+すべてのSimワークフローは、この基本構造に従います：
+
+```yaml
+version: '1.0'
+blocks:
+  start:
+    type: starter
+    name: Start
+    inputs:
+      startWorkflow: manual
+    connections:
+      success: agent-1
+
+  agent-1:
+    type: agent
+    name: "AI Assistant"
+    inputs:
+      systemPrompt: "You are a helpful assistant."
+      userPrompt: 'Hi'
+      model: gpt-4o
+      apiKey: '{{OPENAI_API_KEY}}'
+```
+
+## 基本概念
+
+<Steps>
+  <Step>
+    <strong>バージョン宣言</strong>: 必ず `version: '1.0'` （引用符付き）と記述
+  </Step>
+  <Step>
+    <strong>ブロック構造</strong>: すべてのワークフローブロックは `blocks` キーの下で定義
+  </Step>
+  <Step>
+    <strong>ブロック参照</strong>: ブロック名は小文字でスペースを削除して使用（例：`<aiassistant.content>`）
+  </Step>
+  <Step>
+    <strong>環境変数</strong>: 二重中括弧 `{{VARIABLE_NAME}}` で参照
+  </Step>
+</Steps>
+
+## ブロックタイプ
+
+Simは、それぞれ特定のYAMLスキーマを持つ複数のコアブロックタイプをサポートしています：
+
+<Cards>
+  <Card title="スターターブロック" href="/yaml/blocks/starter">
+    手動、ウェブフック、スケジュールトリガーをサポートするワークフローのエントリーポイント
+  </Card>
+  <Card title="エージェントブロック" href="/yaml/blocks/agent">
+    ツールと構造化出力をサポートするAI駆動の処理
+  </Card>
+  <Card title="ファンクションブロック" href="/yaml/blocks/function">
+    カスタムJavaScript/TypeScriptコードの実行
+  </Card>
+  <Card title="APIブロック" href="/yaml/blocks/api">
+    外部サービスへのHTTPリクエスト
+  </Card>
+  <Card title="条件ブロック" href="/yaml/blocks/condition">
+    ブール式に基づく条件分岐
+  </Card>
+  <Card title="ルーターブロック" href="/yaml/blocks/router">
+    AI駆動の複数パスへのインテリジェントルーティング
+  </Card>
+  <Card title="ループブロック" href="/yaml/blocks/loop">
+    forとforEachループによる反復処理
+  </Card>
+  <Card title="パラレルブロック" href="/yaml/blocks/parallel">
+    複数インスタンスでの並行実行
+  </Card>
+  <Card title="ウェブフックブロック" href="/yaml/blocks/webhook">
+    外部連携用のウェブフックトリガー
+  </Card>
+  <Card title="評価ブロック" href="/yaml/blocks/evaluator">
+    定義された基準とメトリクスに対する出力の検証
+  </Card>
+  <Card title="ワークフローブロック" href="/yaml/blocks/workflow">
+    再利用可能なコンポーネントとして他のワークフローを実行
+  </Card>
+  <Card title="レスポンスブロック" href="/yaml/blocks/response">
+    最終的なワークフロー出力のフォーマット
+  </Card>
+</Cards>
+
+## ブロック参照構文
+
+YAMLワークフローの最も重要な側面は、ブロック間でデータを参照する方法を理解することです：
+
+### 基本ルール
+
+1. **ブロック名を使用する**（ブロックIDではなく）小文字に変換し、スペースを削除
+2. **適切なプロパティを追加する**（エージェントには.content、ツールには.output）
+3. **チャットを使用する場合、スターターブロックを参照する** as `<start.input>`
+
+### 例
+
+```yaml
+# Block definitions
+email-processor:
+  type: agent
+  name: "Email Agent"
+  # ... configuration
+
+data-formatter:
+  type: function
+  name: "Data Agent"
+  # ... configuration
+
+# Referencing their outputs
+next-block:
+  type: agent
+  name: "Next Step"
+  inputs:
+    userPrompt: |
+      Process this email: <emailagent.content>
+      Use this formatted data: <dataagent.output>
+      Original input: <start.input>
+```
+
+### 特殊なケース
+
+- **ループ変数**: `<loop.index>`, `<loop.currentItem>`, `<loop.items>`
+- **並列変数**: `<parallel.index>`, `<parallel.currentItem>`
+
+## 環境変数
+
+APIキーなどの機密データには環境変数を使用してください：
+
+```yaml
+inputs:
+  apiKey: '{{OPENAI_API_KEY}}'
+  database: '{{DATABASE_URL}}'
+  token: '{{SLACK_BOT_TOKEN}}'
+```
+
+## ベストプラクティス
+
+- **ブロック名は読みやすくする**: UI表示用に「Email Processor」など
+- **環境変数を参照する**: APIキーをハードコードしない
+- **読みやすさのための構造化**: 関連するブロックを論理的にグループ化する
+- **段階的にテストする**: ワークフローを一歩ずつ構築する
+
+## 次のステップ
+
+- [ブロック参照構文](/yaml/block-reference) - 詳細な参照ルール
+- [完全なブロックスキーマ](/yaml/blocks) - 利用可能なすべてのブロックタイプ
+- [ワークフロー例](/yaml/examples) - 実世界のワークフローパターン
