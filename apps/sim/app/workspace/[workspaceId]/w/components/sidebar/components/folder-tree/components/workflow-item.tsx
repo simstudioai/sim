@@ -128,7 +128,7 @@ export function WorkflowItem({
   }
 
   const handleClick = (e: React.MouseEvent) => {
-    if (isDragging || isEditing) {
+    if (dragStartedRef.current || isEditing) {
       e.preventDefault()
       return
     }
