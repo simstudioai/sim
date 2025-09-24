@@ -3,7 +3,7 @@
   "version": 1.8,
   "locale": {
     "source": "en",
-    "targets": ["es", "fr", "zh"]
+    "targets": ["es", "fr", "zh", "ja", "de"]
   },
   "buckets": {
     "mdx": {

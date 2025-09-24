@@ -1,0 +1,142 @@
+---
+title: Gmail
+description: Gmail senden oder Workflows von Gmail-Ereignissen auslösen
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="gmail"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      xmlns='http://www.w3.org/2000/svg'
+      viewBox='0 0 48 48'
+      
+      
+      
+    >
+      <path fill='#4caf50' d='M45,16.2l-5,2.75l-5,4.75L35,40h7c1.657,0,3-1.343,3-3V16.2z' />
+      <path fill='#1e88e5' d='M3,16.2l3.614,1.71L13,23.7V40H6c-1.657,0-3-1.343-3-3V16.2z' />
+      <polygon
+        fill='#e53935'
+        points='35,11.2 24,19.45 13,11.2 12,17 13,23.7 24,31.95 35,23.7 36,17'
+      />
+      <path
+        fill='#c62828'
+        d='M3,12.298V16.2l10,7.5V11.2L9.876,8.859C9.132,8.301,8.228,8,7.298,8h0C4.924,8,3,9.924,3,12.298z'
+      />
+      <path
+        fill='#fbc02d'
+        d='M45,12.298V16.2l-10,7.5V11.2l3.124-2.341C38.868,8.301,39.772,8,40.702,8h0 C43.076,8,45,9.924,45,12.298z'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Gmail](https://gmail.com) ist Googles beliebter E-Mail-Dienst, der eine robuste Plattform zum Senden, Empfangen und Verwalten von E-Mail-Kommunikation bietet. Mit über 1,8 Milliarden aktiven Nutzern weltweit bietet Gmail eine funktionsreiche Erfahrung mit leistungsstarken Suchfunktionen, Organisationstools und Integrationsoptionen.
+
+Mit Gmail können Sie:
+
+- **E-Mails senden und empfangen**: Kommunizieren Sie mit Kontakten über eine übersichtliche, intuitive Benutzeroberfläche
+- **Nachrichten organisieren**: Verwenden Sie Labels, Ordner und Filter, um Ihren Posteingang zu organisieren
+- **Effizient suchen**: Finden Sie bestimmte Nachrichten schnell mit Googles leistungsstarker Suchtechnologie
+- **Workflows automatisieren**: Erstellen Sie Filter und Regeln, um eingehende E-Mails automatisch zu verarbeiten
+- **Von überall zugreifen**: Nutzen Sie Gmail geräteübergreifend mit synchronisierten Inhalten und Einstellungen
+- **Mit anderen Diensten integrieren**: Verbinden Sie sich mit Google Kalender, Drive und anderen Produktivitätstools
+
+In Sim ermöglicht die Gmail-Integration Ihren Agenten, E-Mails programmatisch zu senden, zu lesen und zu durchsuchen. Dies ermöglicht leistungsstarke Automatisierungsszenarien wie das Senden von Benachrichtigungen, die Verarbeitung eingehender Nachrichten, das Extrahieren von Informationen aus E-Mails und das Verwalten von Kommunikationsabläufen. Ihre Agenten können personalisierte E-Mails verfassen und senden, nach bestimmten Nachrichten mit Gmails Abfragesyntax suchen und Inhalte aus E-Mails extrahieren, um sie in anderen Teilen Ihres Workflows zu verwenden. In Kürze werden Agenten auch in der Lage sein, in Echtzeit auf neue E-Mails zu achten, was reaktionsschnelle Workflows ermöglicht, die Aktionen basierend auf eingehenden Nachrichten auslösen können. Diese Integration überbrückt die Lücke zwischen Ihren KI-Workflows und E-Mail-Kommunikationen und ermöglicht eine nahtlose Interaktion mit einer der weltweit am häufigsten genutzten Kommunikationsplattformen.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Gmail in den Workflow integrieren. Kann E-Mails senden, lesen und durchsuchen. Erfordert OAuth. Kann im Trigger-Modus verwendet werden, um einen Workflow auszulösen, wenn eine neue E-Mail empfangen wird.
+
+## Tools
+
+### `gmail_send`
+
+E-Mails über Gmail versenden
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `to` | string | Ja | E-Mail-Adresse des Empfängers |
+| `subject` | string | Ja | Betreff der E-Mail |
+| `body` | string | Ja | Inhalt der E-Mail |
+| `cc` | string | Nein | CC-Empfänger \(durch Komma getrennt\) |
+| `bcc` | string | Nein | BCC-Empfänger \(durch Komma getrennt\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Erfolgsmeldung |
+| `metadata` | object | E-Mail-Metadaten |
+
+### `gmail_draft`
+
+E-Mail-Entwürfe in Gmail erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `to` | string | Ja | E-Mail-Adresse des Empfängers |
+| `subject` | string | Ja | Betreff der E-Mail |
+| `body` | string | Ja | Inhalt der E-Mail |
+| `cc` | string | Nein | CC-Empfänger \(durch Komma getrennt\) |
+| `bcc` | string | Nein | BCC-Empfänger \(durch Komma getrennt\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Erfolgsmeldung |
+| `metadata` | object | Entwurfs-Metadaten |
+
+### `gmail_read`
+
+E-Mails von Gmail lesen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `messageId` | string | Nein | ID der zu lesenden Nachricht |
+| `folder` | string | Nein | Ordner/Label, aus dem E-Mails gelesen werden sollen |
+| `unreadOnly` | boolean | Nein | Nur ungelesene Nachrichten abrufen |
+| `maxResults` | number | Nein | Maximale Anzahl abzurufender Nachrichten \(Standard: 1, max: 10\) |
+| `includeAttachments` | boolean | Nein | E-Mail-Anhänge herunterladen und einschließen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Textinhalt der E-Mail |
+| `metadata` | json | Metadaten der E-Mail |
+| `attachments` | file[] | Anhänge der E-Mail |
+
+### `gmail_search`
+
+E-Mails in Gmail durchsuchen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Ja | Suchanfrage für E-Mails |
+| `maxResults` | number | Nein | Maximale Anzahl zurückzugebender Ergebnisse |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Zusammenfassung der Suchergebnisse |
+| `metadata` | object | Such-Metadaten |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `gmail`

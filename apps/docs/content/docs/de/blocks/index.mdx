@@ -1,0 +1,129 @@
+---
+title: Blöcke
+description: Die Bausteine deiner KI-Workflows
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Video } from '@/components/ui/video'
+
+Blöcke sind die Bausteine, die du miteinander verbindest, um KI-Workflows zu erstellen. Betrachte sie als spezialisierte Module, die jeweils eine bestimmte Aufgabe übernehmen – vom Chatten mit KI-Modellen über API-Aufrufe bis hin zur Datenverarbeitung.
+
+<div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg">
+  <Video src="connections.mp4" width={700} height={450} />
+</div>
+
+## Grundlegende Blocktypen
+
+Sim bietet sieben grundlegende Blocktypen, die die wesentlichen Funktionen von KI-Workflows abdecken:
+
+### Verarbeitungsblöcke
+- **[Agent](/blocks/agent)** - Chatte mit KI-Modellen (OpenAI, Anthropic, Google, lokale Modelle)
+- **[Function](/blocks/function)** - Führe benutzerdefinierten JavaScript/TypeScript-Code aus
+- **[API](/blocks/api)** - Verbinde dich mit externen Diensten über HTTP-Anfragen
+
+### Logikblöcke
+- **[Condition](/blocks/condition)** - Verzweige Workflow-Pfade basierend auf booleschen Ausdrücken
+- **[Router](/blocks/router)** - Nutze KI, um Anfragen intelligent auf verschiedene Pfade zu leiten
+- **[Evaluator](/blocks/evaluator)** - Bewerte und beurteile die Inhaltsqualität mit KI
+
+### Ausgabeblöcke
+- **[Response](/blocks/response)** - Formatiere und gib endgültige Ergebnisse aus deinem Workflow zurück
+
+## Wie Blöcke funktionieren
+
+Jeder Block hat drei Hauptkomponenten:
+
+**Eingaben**: Daten, die in den Block von anderen Blöcken oder Benutzereingaben kommen
+**Konfiguration**: Einstellungen, die das Verhalten des Blocks steuern
+**Ausgaben**: Daten, die der Block für andere Blöcke produziert
+
+<Steps>
+  <Step>
+    <strong>Eingabe empfangen</strong>: Block erhält Daten von verbundenen Blöcken oder Benutzereingaben
+  </Step>
+  <Step>
+    <strong>Verarbeiten</strong>: Block verarbeitet die Eingabe gemäß seiner Konfiguration
+  </Step>
+  <Step>
+    <strong>Ergebnisse ausgeben</strong>: Block erzeugt Ausgabedaten für die nächsten Blöcke im Workflow
+  </Step>
+</Steps>
+
+## Blöcke verbinden
+
+Sie erstellen Workflows, indem Sie Blöcke miteinander verbinden. Die Ausgabe eines Blocks wird zur Eingabe eines anderen:
+
+- **Ziehen zum Verbinden**: Ziehen Sie von einem Ausgabeport zu einem Eingabeport
+- **Mehrfachverbindungen**: Eine Ausgabe kann mit mehreren Eingängen verbunden werden
+- **Verzweigende Pfade**: Einige Blöcke können basierend auf Bedingungen zu verschiedenen Pfaden weiterleiten
+
+<div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg">
+  <Video src="connections.mp4" width={700} height={450} />
+</div>
+
+## Häufige Muster
+
+### Sequentielle Verarbeitung
+Verbinden Sie Blöcke in einer Kette, wobei jeder Block die Ausgabe des vorherigen verarbeitet:
+
+```
+User Input → Agent → Function → Response
+```
+
+### Bedingte Verzweigung
+Verwenden Sie Bedingungsblöcke oder Router-Blöcke, um verschiedene Pfade zu erstellen:
+
+```
+User Input → Router → Agent A (for questions)
+                   → Agent B (for commands)
+```
+
+### Qualitätskontrolle
+Verwenden Sie Evaluator-Blöcke, um Ausgaben zu bewerten und zu filtern:
+
+```
+Agent → Evaluator → Condition → Response (if good)
+                              → Agent (retry if bad)
+```
+
+## Block-Konfiguration
+
+Jeder Blocktyp hat spezifische Konfigurationsoptionen:
+
+**Alle Blöcke**:
+- Ein-/Ausgabeverbindungen
+- Fehlerbehandlungsverhalten
+- Zeitüberschreitungseinstellungen für die Ausführung
+
+**KI-Blöcke** (Agent, Router, Evaluator):
+- Modellauswahl (OpenAI, Anthropic, Google, lokal)
+- API-Schlüssel und Authentifizierung
+- Temperature und andere Modellparameter
+- Systemaufforderungen und Anweisungen
+
+**Logikblöcke** (Bedingung, Funktion):
+- Benutzerdefinierte Ausdrücke oder Code
+- Variablenreferenzen
+- Einstellungen für die Ausführungsumgebung
+
+**Integrationsblöcke** (API, Antwort):
+- Endpunktkonfiguration
+- Header und Authentifizierung
+- Anfrage-/Antwortformatierung
+
+<Cards>
+  <Card title="Agent Block" href="/blocks/agent">
+    Verbindung zu KI-Modellen herstellen und intelligente Antworten erzeugen
+  </Card>
+  <Card title="Function Block" href="/blocks/function">
+    Benutzerdefinierten Code ausführen, um Daten zu verarbeiten und zu transformieren
+  </Card>
+  <Card title="API Block" href="/blocks/api">
+    Integration mit externen Diensten und APIs
+  </Card>
+  <Card title="Condition Block" href="/blocks/condition">
+    Verzweigende Logik basierend auf Datenbewertung erstellen
+  </Card>
+</Cards>

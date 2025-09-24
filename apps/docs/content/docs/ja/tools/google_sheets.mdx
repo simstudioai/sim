@@ -1,0 +1,197 @@
+---
+title: Google スプレッドシート
+description: データの読み取り、書き込み、更新
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_sheets"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      viewBox='0 0 48 48'
+      
+      
+    >
+      <path
+        fill='#43a047'
+        d='M37,45H11c-1.657,0-3-1.343-3-3V6c0-1.657,1.343-3,3-3h19l10,10v29C40,43.657,38.657,45,37,45z'
+      />
+      <path fill='#c8e6c9' d='M40 13L30 13 30 3z' />
+      <path fill='#2e7d32' d='M30 13L40 23 40 13z' />
+      <path
+        fill='#e8f5e9'
+        d='M31,23H17h-2v2v2v2v2v2v2v2h18v-2v-2v-2v-2v-2v-2v-2H31z M17,25h4v2h-4V25z M17,29h4v2h-4V29z M17,33h4v2h-4V33z M31,35h-8v-2h8V35z M31,31h-8v-2h8V31z M31,27h-8v-2h8V27z'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google スプレッドシート](https://sheets.google.com)は、ユーザーがリアルタイムでスプレッドシートを作成、編集、共同作業できる強力なクラウドベースのスプレッドシートアプリケーションです。Googleの生産性スイートの一部として、Google スプレッドシートは堅牢な書式設定、数式、共有機能を備えたデータ整理、分析、視覚化のための多目的プラットフォームを提供しています。
+
+Simで Google スプレッドシートの「読み取り」ツールを統合して、ワークフローに組み込むためにスプレッドシートからデータを簡単に取得する方法を学びましょう。このチュートリアルでは、Google スプレッドシートの接続、データ読み取りの設定、およびその情報を使用してリアルタイムでプロセスを自動化する方法を説明します。ライブデータをエージェントと同期させるのに最適です。
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/xxP7MZRuq_0"
+  title="Simで Google スプレッドシート読み取りツールを使用する"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Simで Google スプレッドシートの「書き込み」ツールを使用して、ワークフローからGoogle スプレッドシートにデータを自動的に送信する方法を発見しましょう。このチュートリアルでは、統合のセットアップ、書き込み操作の設定、ワークフローの実行に伴うシートのシームレスな更新について説明します。手動入力なしでリアルタイムの記録を維持するのに最適です。
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/cO86qTj7qeY"
+  title="Simで Google スプレッドシート書き込みツールを使用する"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Simで Google スプレッドシートの「更新」ツールを活用して、ワークフローの実行に基づいてスプレッドシートの既存のエントリを変更する方法を探りましょう。このチュートリアルでは、更新ロジックの設定、データフィールドのマッピング、変更の即時同期を実演します。データを最新かつ一貫した状態に保つのに最適です。
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/95by2fL9yn4"
+  title="Simでのグーグルシート更新ツールの使用方法"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Simでグーグルシートの「追加」ツールを使用して、ワークフロー実行中にスプレッドシートに新しいデータ行を簡単に追加する方法を学びましょう。このチュートリアルでは、連携の設定、追加アクションの構成、スムーズなデータ拡張の確保について説明します。手動作業なしでレコードを拡張するのに最適です！
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/8DgNvLBCsAo"
+  title="Simでのグーグルシート追加ツールの使用方法"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+グーグルシートでは、以下のことができます：
+
+- **スプレッドシートの作成と編集**：包括的な書式設定と計算オプションを備えたデータ駆動型ドキュメントを開発
+- **リアルタイムでの共同作業**：同じスプレッドシートで複数のユーザーと同時に作業
+- **データ分析**：数式、関数、ピボットテーブルを使用してデータを処理し理解
+- **情報の視覚化**：チャート、グラフ、条件付き書式を作成してデータを視覚的に表現
+- **どこからでもアクセス**：自動クラウド同期により複数のデバイスでグーグルシートを使用
+- **オフラインでの作業**：インターネット接続なしで作業を続け、オンラインに戻ったときに変更を同期
+- **他のサービスとの統合**：グーグルドライブ、フォーム、サードパーティアプリケーションと連携
+
+Simでは、グーグルシート連携によりエージェントがプログラムでスプレッドシートデータと直接やり取りできるようになります。これにより、データ抽出、分析、レポート作成、管理などの強力な自動化シナリオが可能になります。エージェントは既存のスプレッドシートから情報を抽出したり、スプレッドシートにデータを書き込んだり、新しいスプレッドシートを一から作成したりできます。この連携はAIワークフローとデータ管理の間のギャップを埋め、構造化データとのシームレスな相互作用を可能にします。Simとグーグルシートをつなげることで、データワークフローの自動化、レポート生成、データからの洞察抽出、最新情報の維持などを、すべてインテリジェントエージェントを通じて行うことができます。この連携はさまざまなデータ形式と範囲指定をサポートし、グーグルシートの共同作業とアクセシビリティの特性を維持しながら、多様なデータ管理ニーズに対応できる柔軟性を備えています。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+Google Sheetsをワークフローに統合します。データの読み取り、書き込み、追加、更新が可能です。OAuthが必要です。
+
+## ツール
+
+### `google_sheets_read`
+
+Google Sheetsスプレッドシートからデータを読み取る
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | はい | 読み取り元のスプレッドシートID |
+| `range` | string | いいえ | 読み取るセル範囲 |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `data` | json | 範囲とセル値を含むシートデータ |
+| `metadata` | json | IDとURLを含むスプレッドシートのメタデータ |
+
+### `google_sheets_write`
+
+Google Sheetsスプレッドシートにデータを書き込む
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | はい | 書き込み先のスプレッドシートID |
+| `range` | string | いいえ | 書き込むセル範囲 |
+| `values` | array | はい | スプレッドシートに書き込むデータ |
+| `valueInputOption` | string | いいえ | 書き込むデータの形式 |
+| `includeValuesInResponse` | boolean | いいえ | レスポンスに書き込まれた値を含めるかどうか |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `updatedRange` | string | 更新されたセル範囲 |
+| `updatedRows` | number | 更新された行数 |
+| `updatedColumns` | number | 更新された列数 |
+| `updatedCells` | number | 更新されたセル数 |
+| `metadata` | json | IDとURLを含むスプレッドシートのメタデータ |
+
+### `google_sheets_update`
+
+Google Sheetsスプレッドシートのデータを更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | はい | 更新するスプレッドシートのID |
+| `range` | string | いいえ | 更新するセルの範囲 |
+| `values` | array | はい | スプレッドシートに更新するデータ |
+| `valueInputOption` | string | いいえ | 更新するデータの形式 |
+| `includeValuesInResponse` | boolean | いいえ | レスポンスに更新された値を含めるかどうか |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `updatedRange` | string | 更新されたセルの範囲 |
+| `updatedRows` | number | 更新された行数 |
+| `updatedColumns` | number | 更新された列数 |
+| `updatedCells` | number | 更新されたセル数 |
+| `metadata` | json | IDとURLを含むスプレッドシートのメタデータ |
+
+### `google_sheets_append`
+
+Google Sheetsスプレッドシートの末尾にデータを追加する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | はい | 追加先のスプレッドシートのID |
+| `range` | string | いいえ | 追加する位置の後のセル範囲 |
+| `values` | array | はい | スプレッドシートに追加するデータ |
+| `valueInputOption` | string | いいえ | 追加するデータの形式 |
+| `insertDataOption` | string | いいえ | データの挿入方法（OVERWRITE または INSERT_ROWS） |
+| `includeValuesInResponse` | boolean | いいえ | レスポンスに追加された値を含めるかどうか |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `tableRange` | string | データが追加されたテーブルの範囲 |
+| `updatedRange` | string | 更新されたセルの範囲 |
+| `updatedRows` | number | 更新された行数 |
+| `updatedColumns` | number | 更新された列数 |
+| `updatedCells` | number | 更新されたセル数 |
+| `metadata` | json | IDとURLを含むスプレッドシートのメタデータ |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `google_sheets`

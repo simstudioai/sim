@@ -1,0 +1,113 @@
+---
+title: Mistral Parser
+description: PDFドキュメントからテキストを抽出する
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="mistral_parse"
+  color="#000000"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      
+      
+      viewBox='1 0.5 24 22'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+      preserveAspectRatio='xMidYMid meet'
+    >
+      <g clipPath='url(#clip0_1621_58)'>
+        <path d='M17.4541 0H21.8177V4.39481H17.4541V0Z' fill='black' />
+        <path d='M19.6367 0H24.0003V4.39481H19.6367V0Z' fill='#F7D046' />
+        <path
+          d='M0 0H4.36359V4.39481H0V0ZM0 4.39481H4.36359V8.78961H0V4.39481ZM0 8.78971H4.36359V13.1845H0V8.78971ZM0 13.1845H4.36359V17.5793H0V13.1845ZM0 17.5794H4.36359V21.9742H0V17.5794Z'
+          fill='black'
+        />
+        <path d='M2.18164 0H6.54523V4.39481H2.18164V0Z' fill='#F7D046' />
+        <path
+          d='M19.6362 4.39478H23.9998V8.78958H19.6362V4.39478ZM2.18164 4.39478H6.54523V8.78958H2.18164V4.39478Z'
+          fill='#F2A73B'
+        />
+        <path d='M13.0908 4.39478H17.4544V8.78958H13.0908V4.39478Z' fill='black' />
+        <path
+          d='M15.2732 4.39478H19.6368V8.78958H15.2732V4.39478ZM6.5459 4.39478H10.9095V8.78958H6.5459V4.39478Z'
+          fill='#F2A73B'
+        />
+        <path
+          d='M10.9096 8.78979H15.2732V13.1846H10.9096V8.78979ZM15.2732 8.78979H19.6368V13.1846H15.2732V8.78979ZM6.5459 8.78979H10.9096V13.1846H6.5459V8.78979Z'
+          fill='#EE792F'
+        />
+        <path d='M8.72754 13.1846H13.0911V17.5794H8.72754V13.1846Z' fill='black' />
+        <path d='M10.9092 13.1846H15.2728V17.5794H10.9092V13.1846Z' fill='#EB5829' />
+        <path
+          d='M19.6362 8.78979H23.9998V13.1846H19.6362V8.78979ZM2.18164 8.78979H6.54523V13.1846H2.18164V8.78979Z'
+          fill='#EE792F'
+        />
+        <path d='M17.4541 13.1846H21.8177V17.5794H17.4541V13.1846Z' fill='black' />
+        <path d='M19.6367 13.1846H24.0003V17.5794H19.6367V13.1846Z' fill='#EB5829' />
+        <path d='M17.4541 17.5793H21.8177V21.9742H17.4541V17.5793Z' fill='black' />
+        <path d='M2.18164 13.1846H6.54523V17.5794H2.18164V13.1846Z' fill='#EB5829' />
+        <path
+          d='M19.6362 17.5793H23.9998V21.9742H19.6362V17.5793ZM2.18164 17.5793H6.54523V21.9742H2.18164V17.5793Z'
+          fill='#EA3326'
+        />
+      </g>
+      <defs>
+        <clipPath id='clip0_1621_58'>
+          <rect   fill='white' />
+        </clipPath>
+      </defs>
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Mistral Parseツールは、[Mistralの OCR API](https://mistral.ai/)を使用してPDFドキュメントからコンテンツを抽出し処理する強力な方法を提供します。このツールは高度な光学式文字認識を活用して、PDFファイルからテキストと構造を正確に抽出し、ドキュメントデータをエージェントワークフローに簡単に組み込むことができます。
+
+Mistral Parseツールでは、以下のことが可能です：
+
+- **PDFからテキストを抽出**: PDFコンテンツをテキスト、マークダウン、またはJSONフォーマットに正確に変換
+- **URLからPDFを処理**: URLを提供することでオンラインでホストされているPDFから直接コンテンツを抽出
+- **ドキュメント構造の維持**: 元のPDFからフォーマット、テーブル、レイアウトを保持
+- **画像の抽出**: オプションでPDFに埋め込まれた画像を含める
+- **特定のページを選択**: 複数ページのドキュメントから必要なページのみを処理
+
+Mistral Parseツールは、エージェントがPDFコンテンツを扱う必要があるシナリオ、例えばレポートの分析、フォームからのデータ抽出、またはスキャンされた文書からのテキスト処理などに特に役立ちます。PDFコンテンツをエージェントが利用できるようにするプロセスを簡素化し、PDFに保存された情報を直接テキスト入力と同じくらい簡単に扱えるようにします。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+Mistral Parseをワークフローに統合します。アップロードされたPDF文書またはURLからテキストを抽出できます。APIキーが必要です。
+
+## ツール
+
+### `mistral_parser`
+
+Mistral OCR APIを使用してPDF文書を解析する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `filePath` | string | はい | 処理するPDF文書のURL |
+| `fileUpload` | object | いいえ | ファイルアップロードコンポーネントからのファイルアップロードデータ |
+| `resultType` | string | いいえ | 解析結果の種類（markdown、text、またはjson）。デフォルトはmarkdown |
+| `includeImageBase64` | boolean | いいえ | レスポンスにbase64エンコードされた画像を含める |
+| `pages` | array | いいえ | 処理する特定のページ（ページ番号の配列、0から開始） |
+| `imageLimit` | number | いいえ | PDFから抽出する画像の最大数 |
+| `imageMinSize` | number | いいえ | PDFから抽出する画像の最小の高さと幅 |
+| `apiKey` | string | はい | Mistral APIキー（MISTRAL_API_KEY） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | PDFが正常に解析されたかどうか |
+| `content` | string | 要求されたフォーマット（markdown、text、またはJSON）で抽出されたコンテンツ |
+| `metadata` | object | jobId、fileType、pageCount、使用情報を含む処理メタデータ |
+
+## メモ
+
+- カテゴリー: `tools`
+- タイプ: `mistral_parse`

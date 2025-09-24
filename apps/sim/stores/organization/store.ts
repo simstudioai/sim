@@ -546,21 +546,35 @@ export const useOrganizationStore = create<OrganizationStore>()(
         const { activeOrganization, subscriptionData } = get()
         if (!activeOrganization) return
 
+        logger.info('Removing member', {
+          memberId,
+          organizationId: activeOrganization.id,
+          shouldReduceSeats,
+        })
+
         set({ isLoading: true })
 
         try {
-          await client.organization.removeMember({
-            memberIdOrEmail: memberId,
-            organizationId: activeOrganization.id,
-          })
-
-          // If the user opted to reduce seats as well
-          if (shouldReduceSeats && subscriptionData) {
-            const currentSeats = subscriptionData.seats || 0
-            if (currentSeats > 1) {
-              await get().reduceSeats(currentSeats - 1)
+          // Use our custom API endpoint for member removal instead of better-auth client
+          const response = await fetch(
+            `/api/organizations/${activeOrganization.id}/members/${memberId}`,
+            {
+              method: 'DELETE',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              credentials: 'include', // Ensure cookies are sent
+              body: JSON.stringify({ shouldReduceSeats }),
             }
+          )
+
+          if (!response.ok) {
+            const data = await response.json().catch(() => ({}) as any)
+            throw new Error((data as any).error || 'Failed to remove member')
           }
+
+          // If the user opted to reduce seats as well (handled by the API endpoint)
+          // No need to call reduceSeats separately as it's handled in the endpoint
 
           await get().refreshOrganization()
         } catch (error) {
@@ -584,10 +598,24 @@ export const useOrganizationStore = create<OrganizationStore>()(
             )}`,
             { method: 'DELETE' }
           )
+
           if (!response.ok) {
             const data = await response.json().catch(() => ({}) as any)
+
+            // If the invitation is not found (404), it might have already been processed
+            // Just refresh the organization data to get the latest state
+            if (response.status === 404) {
+              logger.info(
+                'Invitation not found or already processed, refreshing organization data',
+                { invitationId }
+              )
+              await get().refreshOrganization()
+              return
+            }
+
             throw new Error((data as any).error || 'Failed to cancel invitation')
           }
+
           await get().refreshOrganization()
         } catch (error) {
           logger.error('Failed to cancel invitation', { error })

@@ -43,8 +43,6 @@ export class PathTracker {
    * @param context - Current execution context
    */
   updateExecutionPaths(executedBlockIds: string[], context: ExecutionContext): void {
-    logger.info(`Updating paths for blocks: ${executedBlockIds.join(', ')}`)
-
     for (const blockId of executedBlockIds) {
       const block = this.getBlock(blockId)
       if (!block) continue

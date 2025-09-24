@@ -1,0 +1,73 @@
+---
+title: スケジュール
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+
+スケジュールブロックは、指定された間隔または時間に定期的なスケジュールでワークフローを自動的にトリガーします。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/schedule.png"
+    alt="スケジュールブロック"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## スケジュールオプション
+
+ドロップダウンオプションを使用してワークフローの実行タイミングを設定します：
+
+<Tabs items={['簡単な間隔', 'Cron式']}>
+  <Tab>
+    <ul className="list-disc space-y-1 pl-6">
+      <li><strong>数分ごと</strong>：5分、15分、30分間隔</li>
+      <li><strong>毎時</strong>：1時間ごとまたは数時間ごと</li>
+      <li><strong>毎日</strong>：1日に1回または複数回</li>
+      <li><strong>毎週</strong>：週の特定の曜日</li>
+      <li><strong>毎月</strong>：月の特定の日</li>
+    </ul>
+  </Tab>
+  <Tab>
+    <p>高度なスケジューリングにはCron式を使用します：</p>
+    <div className="text-sm space-y-1">
+      <div><code>0 9 * * 1-5</code> - 平日の午前9時</div>
+      <div><code>*/15 * * * *</code> - 15分ごと</div>
+      <div><code>0 0 1 * *</code> - 毎月1日</div>
+    </div>
+  </Tab>
+</Tabs>
+
+## スケジュールの設定
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="configure-schedule.mp4" width={700} height={450} />
+</div>
+
+ワークフローがスケジュールされると：
+- スケジュールが**有効**になり、次回の実行時間が表示されます
+- **「スケジュール済み」**ボタンをクリックするとスケジュールを無効にできます
+- **3回連続で失敗**すると、スケジュールは自動的に無効になります
+
+## 無効化されたスケジュール
+
+<div className="flex justify-center">
+  <Image
+    src="/static/schedule-disabled.png"
+    alt="無効化されたスケジュール"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+無効化されたスケジュールは、最後にいつアクティブだったかを表示し、いつでも再有効化できます。
+
+<Callout>
+スケジュールブロックは着信接続を受け取ることができず、純粋なワークフロートリガーとして機能します。
+</Callout>

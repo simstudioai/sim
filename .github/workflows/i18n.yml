@@ -55,7 +55,7 @@ jobs:
         with:
           token: ${{ secrets.GH_PAT }}
           commit-message: "feat(i18n): update translations"
-          title: "🌐 Auto-update translations"
+          title: "feat(i18n): update translations"
           body: |
             ## Summary
             Automated translation updates triggered by changes to documentation.
@@ -76,8 +76,10 @@ jobs:
             ## Testing
             This PR includes automated translations for modified English documentation content:
             - 🇪🇸 Spanish (es) translations
-            - 🇫🇷 French (fr) translations  
+            - 🇫🇷 French (fr) translations
             - 🇨🇳 Chinese (zh) translations
+            - 🇯🇵 Japanese (ja) translations
+            - 🇩🇪 German (de) translations
             
             **What reviewers should focus on:**
             - Verify translated content accuracy and context
@@ -137,15 +139,21 @@ jobs:
           es_count=$(find content/docs/es -name "*.mdx" 2>/dev/null | wc -l || echo 0)
           fr_count=$(find content/docs/fr -name "*.mdx" 2>/dev/null | wc -l || echo 0)
           zh_count=$(find content/docs/zh -name "*.mdx" 2>/dev/null | wc -l || echo 0)
+          ja_count=$(find content/docs/ja -name "*.mdx" 2>/dev/null | wc -l || echo 0)
+          de_count=$(find content/docs/de -name "*.mdx" 2>/dev/null | wc -l || echo 0)
           
           es_percentage=$((es_count * 100 / en_count))
           fr_percentage=$((fr_count * 100 / en_count))
           zh_percentage=$((zh_count * 100 / en_count))
+          ja_percentage=$((ja_count * 100 / en_count))
+          de_percentage=$((de_count * 100 / en_count))
           
           echo "### Coverage Statistics" >> $GITHUB_STEP_SUMMARY
           echo "- **🇬🇧 English**: $en_count files (source)" >> $GITHUB_STEP_SUMMARY
           echo "- **🇪🇸 Spanish**: $es_count/$en_count files ($es_percentage%)" >> $GITHUB_STEP_SUMMARY
           echo "- **🇫🇷 French**: $fr_count/$en_count files ($fr_percentage%)" >> $GITHUB_STEP_SUMMARY
           echo "- **🇨🇳 Chinese**: $zh_count/$en_count files ($zh_percentage%)" >> $GITHUB_STEP_SUMMARY
+          echo "- **🇯🇵 Japanese**: $ja_count/$en_count files ($ja_percentage%)" >> $GITHUB_STEP_SUMMARY
+          echo "- **🇩🇪 German**: $de_count/$en_count files ($de_percentage%)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "🔄 **Auto-translation PR**: Check for new pull request with updated translations" >> $GITHUB_STEP_SUMMARY

@@ -123,6 +123,11 @@ function validateBlockTypes(yamlWorkflow: YamlWorkflow): { errors: string[]; war
   const errors: string[] = []
   const warnings: string[] = []
 
+  // Precompute counts that are used in validations to avoid O(n^2) checks
+  const apiTriggerCount = Object.values(yamlWorkflow.blocks).filter(
+    (b) => b.type === 'api_trigger'
+  ).length
+
   Object.entries(yamlWorkflow.blocks).forEach(([blockId, block]) => {
     // Use shared structure validation
     const { errors: structureErrors, warnings: structureWarnings } = validateBlockStructure(
@@ -158,6 +163,11 @@ function validateBlockTypes(yamlWorkflow: YamlWorkflow): { errors: string[]; war
       })
     }
   })
+
+  // Enforce only one API trigger in YAML (single check outside the loop)
+  if (apiTriggerCount > 1) {
+    errors.push('Only one API trigger is allowed per workflow (YAML contains multiple).')
+  }
 
   return { errors, warnings }
 }

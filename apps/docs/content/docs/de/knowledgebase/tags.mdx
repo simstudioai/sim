@@ -1,0 +1,108 @@
+---
+title: Tags und Filterung
+---
+
+import { Video } from '@/components/ui/video'
+
+Tags bieten eine leistungsstarke Möglichkeit, Ihre Dokumente zu organisieren und präzise Filterungen für Ihre Vektorsuchen zu erstellen. Durch die Kombination von tag-basierter Filterung mit semantischer Suche können Sie genau die Inhalte aus Ihrer Wissensdatenbank abrufen, die Sie benötigen.
+
+## Tags zu Dokumenten hinzufügen
+
+Sie können jedem Dokument in Ihrer Wissensdatenbank benutzerdefinierte Tags hinzufügen, um Ihre Inhalte zu organisieren und zu kategorisieren und so leichter auffindbar zu machen.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="knowledgebase-tag.mp4" width={700} height={450} />
+</div>
+
+### Tag-Verwaltung
+- **Benutzerdefinierte Tags**: Erstellen Sie Ihr eigenes Tag-System, das zu Ihrem Arbeitsablauf passt
+- **Mehrere Tags pro Dokument**: Wenden Sie so viele Tags wie nötig auf jedes Dokument an, es stehen 7 Tag-Slots pro Wissensdatenbank zur Verfügung, die von allen Dokumenten in der Wissensdatenbank gemeinsam genutzt werden
+- **Tag-Organisation**: Gruppieren Sie verwandte Dokumente mit einheitlichen Tags
+
+### Best Practices für Tags
+- **Einheitliche Benennung**: Verwenden Sie standardisierte Tag-Namen für alle Ihre Dokumente
+- **Beschreibende Tags**: Verwenden Sie klare, aussagekräftige Tag-Namen
+- **Regelmäßige Bereinigung**: Entfernen Sie ungenutzte oder veraltete Tags regelmäßig
+
+## Verwendung von Tags in Wissensblöcken
+
+Tags werden besonders leistungsstark, wenn sie mit dem Wissensblock in Ihren Workflows kombiniert werden. Sie können Ihre Suchen auf bestimmte getaggte Inhalte filtern und so sicherstellen, dass Ihre KI-Agenten die relevantesten Informationen erhalten.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="knowledgebase-tag2.mp4" width={700} height={450} />
+</div>
+
+## Suchmodi
+
+Der Wissensblock unterstützt drei verschiedene Suchmodi, abhängig davon, was Sie angeben:
+
+### 1. Nur-Tag-Suche
+Wenn Sie **nur Tags angeben** (keine Suchanfrage):
+- **Direkter Abruf**: Ruft alle Dokumente ab, die die angegebenen Tags haben
+- **Keine Vektorsuche**: Ergebnisse basieren ausschließlich auf Tag-Übereinstimmung
+- **Schnelle Leistung**: Schneller Abruf ohne semantische Verarbeitung
+- **Exakte Übereinstimmung**: Nur Dokumente mit allen angegebenen Tags werden zurückgegeben
+
+**Anwendungsfall**: Wenn du alle Dokumente aus einer bestimmten Kategorie oder einem Projekt benötigst
+
+### 2. Nur Vektorsuche
+Wenn du **nur eine Suchanfrage angibst** (keine Tags):
+- **Semantische Suche**: Findet Inhalte basierend auf Bedeutung und Kontext
+- **Vollständige Wissensdatenbank**: Durchsucht alle Dokumente
+- **Relevanz-Ranking**: Ergebnisse nach semantischer Ähnlichkeit geordnet
+- **Natürliche Sprache**: Verwende Fragen oder Phrasen, um relevante Inhalte zu finden
+
+**Anwendungsfall**: Wenn du die relevantesten Inhalte unabhängig von der Organisation benötigst
+
+### 3. Kombinierte Tag-Filterung + Vektorsuche
+Wenn du **sowohl Tags als auch eine Suchanfrage angibst**:
+1. **Zuerst**: Filtere Dokumente auf solche mit den angegebenen Tags
+2. **Dann**: Führe eine Vektorsuche innerhalb dieser gefilterten Teilmenge durch
+3. **Ergebnis**: Semantisch relevante Inhalte nur aus deinen getaggten Dokumenten
+
+**Anwendungsfall**: Wenn du relevante Inhalte aus einer bestimmten Kategorie oder einem Projekt benötigst
+
+### Suchkonfiguration
+
+#### Tag-Filterung
+- **Mehrere Tags**: Verwende mehrere Tags für ODER-Logik (Dokument muss einen oder mehrere der Tags haben)
+- **Tag-Kombinationen**: Mische verschiedene Tag-Typen für präzise Filterung
+- **Groß-/Kleinschreibung**: Tag-Abgleich ist unabhängig von Groß-/Kleinschreibung
+- **Teilabgleich**: Exakte Übereinstimmung des Tag-Namens erforderlich
+
+#### Vektorsuche-Parameter
+- **Abfragekomplexität**: Fragen in natürlicher Sprache funktionieren am besten
+- **Ergebnislimits**: Konfiguriere, wie viele Chunks abgerufen werden sollen
+- **Relevanzschwelle**: Lege minimale Ähnlichkeitswerte fest
+- **Kontextfenster**: Passe die Chunk-Größe an deinen Anwendungsfall an
+
+## Integration mit Workflows
+
+### Konfiguration des Wissensblocks
+1. **Wissensdatenbank auswählen**: Wähle aus, welche Wissensdatenbank durchsucht werden soll
+2. **Tags hinzufügen**: Gib Filterungs-Tags an (optional)
+3. **Anfrage eingeben**: Füge deine Suchanfrage hinzu (optional)
+4. **Ergebnisse konfigurieren**: Lege die Anzahl der abzurufenden Chunks fest
+5. **Suche testen**: Sieh dir die Ergebnisse an, bevor du sie im Workflow verwendest
+
+### Dynamische Tag-Nutzung
+- **Variable Tags**: Verwenden Sie Workflow-Variablen als Tag-Werte
+- **Bedingte Filterung**: Wenden Sie verschiedene Tags basierend auf Workflow-Logik an
+- **Kontextbezogene Suche**: Passen Sie Tags basierend auf dem Gesprächskontext an
+- **Mehrstufige Filterung**: Verfeinern Sie Suchen durch Workflow-Schritte
+
+### Leistungsoptimierung
+- **Effiziente Filterung**: Tag-Filterung erfolgt vor der Vektorsuche für bessere Leistung
+- **Caching**: Häufig verwendete Tag-Kombinationen werden für Geschwindigkeit zwischengespeichert
+- **Parallele Verarbeitung**: Mehrere Tag-Suchen können gleichzeitig ausgeführt werden
+- **Ressourcenmanagement**: Automatische Optimierung der Suchressourcen
+
+## Erste Schritte mit Tags
+
+1. **Planen Sie Ihre Tag-Struktur**: Entscheiden Sie sich für einheitliche Namenskonventionen
+2. **Beginnen Sie mit dem Taggen**: Fügen Sie Ihren vorhandenen Dokumenten relevante Tags hinzu
+3. **Testen Sie Kombinationen**: Experimentieren Sie mit Tag- und Suchanfragekombinationen
+4. **Integration in Workflows**: Verwenden Sie den Knowledge-Block mit Ihrer Tagging-Strategie
+5. **Verfeinern Sie im Laufe der Zeit**: Passen Sie Ihren Tagging-Ansatz basierend auf Suchergebnissen an
+
+Tags verwandeln Ihre Wissensdatenbank von einem einfachen Dokumentenspeicher in ein präzise organisiertes, durchsuchbares Intelligenzsystem, das Ihre KI-Workflows mit chirurgischer Präzision navigieren können.

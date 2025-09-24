@@ -1,0 +1,303 @@
+---
+title: エージェント
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+
+エージェントブロックは、ワークフローと大規模言語モデル（LLM）の間のインターフェースとして機能します。さまざまなAIプロバイダーに対して推論リクエストを実行し、定義された指示に従って自然言語入力を処理し、下流での消費のために構造化または非構造化の出力を生成します。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/agent.png"
+    alt="エージェントブロックの設定"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## 概要
+
+エージェントブロックでは以下のことが可能です：
+
+<Steps>
+  <Step>
+    <strong>自然言語の処理</strong>：ユーザー入力を分析し、文脈に応じた応答を生成する
+  </Step>
+  <Step>
+    <strong>AI駆動タスクの実行</strong>：コンテンツ分析、生成、意思決定を実行する
+  </Step>
+  <Step>
+    <strong>外部ツールの呼び出し</strong>：処理中にAPI、データベース、サービスにアクセスする
+  </Step>
+  <Step>
+    <strong>構造化された出力の生成</strong>：スキーマ要件に一致するJSONデータを返す
+  </Step>
+</Steps> 
+
+## 設定オプション
+
+### システムプロンプト
+
+システムプロンプトは、エージェントの操作パラメータと動作制約を確立します。この設定は、エージェントの役割、応答方法、およびすべての着信リクエストの処理境界を定義します。
+
+```markdown
+You are a helpful assistant that specializes in financial analysis.
+Always provide clear explanations and cite sources when possible.
+When responding to questions about investments, include risk disclaimers.
+```
+
+### ユーザープロンプト
+
+ユーザープロンプトは、推論処理のための主要な入力データを表します。このパラメータは、エージェントが分析して応答する自然言語テキストまたは構造化データを受け入れます。入力ソースには以下が含まれます：
+
+- **静的設定**：ブロック設定で指定された直接テキスト入力
+- **動的入力**：接続インターフェースを通じて上流ブロックから渡されるデータ
+- **ランタイム生成**：ワークフロー実行中にプログラムで生成されるコンテンツ
+
+### モデル選択
+
+エージェントブロックは、統一された推論インターフェースを通じて複数のLLMプロバイダーをサポートしています。利用可能なモデルには以下が含まれます：
+
+**OpenAIモデル**: GPT-5、GPT-4o、o1、o3、o4-mini、gpt-4.1（APIベースの推論）
+**Anthropicモデル**: Claude 3.7 Sonnet（APIベースの推論）
+**Googleモデル**: Gemini 2.5 Pro、Gemini 2.0 Flash（APIベースの推論）
+**代替プロバイダー**: Groq、Cerebras、xAI、DeepSeek（APIベースの推論）
+**ローカルデプロイメント**: Ollama互換モデル（セルフホスト推論）
+
+<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
+  <Video src="models.mp4" width={500} height={350} />
+</div>
+
+### 温度設定
+
+レスポンスの創造性とランダム性を制御します：
+
+<Tabs items={['低（0-0.3）', '中（0.3-0.7）', '高（0.7-2.0）']}>
+  <Tab>
+    より決定論的で焦点を絞ったレスポンス。事実に基づくタスク、カスタマーサポート、正確さが重要な状況に最適です。
+  </Tab>
+  <Tab>
+    創造性と焦点のバランスが取れています。正確さと創造性の両方を必要とする一般的な用途に適しています。
+  </Tab>
+  <Tab>
+    より創造的で多様なレスポンス。クリエイティブライティング、ブレインストーミング、多様なアイデアの生成に理想的です。
+  </Tab>
+</Tabs>
+
+<div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+  温度範囲（0-1または0-2）は選択したモデルによって異なります。
+</div>
+
+### APIキー
+
+選択したLLMプロバイダーのAPIキーです。これは安全に保存され、認証に使用されます。
+
+### ツール
+
+ツールは外部API統合やサービス接続を通じてエージェントの機能を拡張します。ツールシステムは関数呼び出しを可能にし、エージェントがテキスト生成を超えた操作を実行できるようにします。
+
+**ツール統合プロセス**：
+1. エージェントブロック内のツール設定セクションにアクセス
+2. 60以上の事前構築された統合から選択するか、カスタム関数を定義
+3. 認証パラメータと操作制約を設定
+
+<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
+  <Video src="tools.mp4" width={500} height={350} />
+</div>
+
+**利用可能なツールカテゴリ**：
+- **コミュニケーション**: Gmail、Slack、Telegram、WhatsApp、Microsoft Teams
+- **データソース**: Notion、Google Sheets、Airtable、Supabase、Pinecone
+- **ウェブサービス**: Firecrawl、Google検索、Exa AI、ブラウザ自動化
+- **開発**: GitHub、Jira、Linearリポジトリと課題管理
+- **AIサービス**: OpenAI、Perplexity、Hugging Face、ElevenLabs
+
+**ツール実行制御**:
+- **自動**: モデルがコンテキストと必要性に基づいてツール呼び出しを決定
+- **必須**: すべての推論リクエスト中にツールが呼び出されなければならない
+- **なし**: ツール定義は利用可能だがモデルコンテキストから除外
+
+<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
+  <Video src="granular-tool-control.mp4" width={500} height={350} />
+</div>
+
+### レスポンス形式
+
+レスポンス形式パラメータは、JSONスキーマ検証を通じて構造化された出力生成を強制します。これにより、事前定義されたデータ構造に準拠した一貫性のある機械可読なレスポンスが保証されます：
+
+```json
+{
+  "name": "user_analysis",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "sentiment": {
+        "type": "string",
+        "enum": ["positive", "negative", "neutral"]
+      },
+      "confidence": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    "required": ["sentiment", "confidence"]
+  }
+}
+```
+
+この設定はモデルの出力を指定されたスキーマに準拠するよう制約し、自由形式のテキストレスポンスを防止し、構造化データの生成を確保します。
+
+### 結果へのアクセス
+
+エージェントが完了すると、その出力にアクセスできます：
+
+- **`<agent.content>`**: エージェントのレスポンステキストまたは構造化データ
+- **`<agent.tokens>`**: トークン使用統計（プロンプト、完了、合計）
+- **`<agent.tool_calls>`**: エージェントが実行中に使用したツールの詳細
+- **`<agent.cost>`**: APIコールの推定コスト（利用可能な場合）
+
+## 高度な機能
+
+### メモリ + エージェント: 会話履歴
+
+一貫した`id`（例えば、`chat`）を持つ`Memory`ブロックを使用して、実行間でメッセージを保持し、その履歴をエージェントのプロンプトに含めます。
+
+- エージェントの前にユーザーのメッセージを追加
+- コンテキストのために会話履歴を読み取る
+- エージェントの実行後に返信を追加
+
+```yaml
+# 1) Add latest user message
+- Memory (operation: add)
+  id: chat
+  role: user
+  content: {{input}}
+
+# 2) Load conversation history
+- Memory (operation: get)
+  id: chat
+
+# 3) Run the agent with prior messages available
+- Agent
+  System Prompt: ...
+  User Prompt: |
+    Use the conversation so far:
+    {{memory_get.memories}}
+    Current user message: {{input}}
+
+# 4) Store the agent reply
+- Memory (operation: add)
+  id: chat
+  role: assistant
+  content: {{agent.content}}
+```
+
+詳細については`Memory`ブロックリファレンスを参照してください: [/tools/memory](/tools/memory)。
+
+## 入力と出力
+
+<Tabs items={['設定', '変数', '結果']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>システムプロンプト</strong>: エージェントの動作と役割を定義する指示
+      </li>
+      <li>
+        <strong>ユーザープロンプト</strong>: 処理する入力テキストまたはデータ
+      </li>
+      <li>
+        <strong>モデル</strong>: AIモデルの選択（OpenAI、Anthropic、Google など）
+      </li>
+      <li>
+        <strong>温度</strong>: レスポンスのランダム性制御（0-2）
+      </li>
+      <li>
+        <strong>ツール</strong>: 関数呼び出し用の利用可能なツールの配列
+      </li>
+      <li>
+        <strong>レスポンス形式</strong>: 構造化出力用のJSONスキーマ
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>agent.content</strong>: エージェントのレスポンステキストまたは構造化データ
+      </li>
+      <li>
+        <strong>agent.tokens</strong>: トークン使用統計オブジェクト
+      </li>
+      <li>
+        <strong>agent.tool_calls</strong>: ツール実行詳細の配列
+      </li>
+      <li>
+        <strong>agent.cost</strong>: 推定APIコールコスト（利用可能な場合）
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>コンテンツ</strong>: エージェントからの主要なレスポンス出力
+      </li>
+      <li>
+        <strong>メタデータ</strong>: 使用統計と実行詳細
+      </li>
+      <li>
+        <strong>アクセス</strong>: エージェント後のブロックで利用可能
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## 使用例
+
+### カスタマーサポートの自動化
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">シナリオ：データベースアクセスによる顧客問い合わせ対応</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>ユーザーがAPIブロックを通じてサポートチケットを送信</li>
+    <li>エージェントがPostgresで注文/サブスクリプションを確認し、ナレッジベースでガイダンスを検索</li>
+    <li>エスカレーションが必要な場合、エージェントは関連コンテキストを含むLinearの課題を作成</li>
+    <li>エージェントが明確なメール返信を作成</li>
+    <li>Gmailが顧客に返信を送信</li>
+    <li>将来のメッセージのために会話履歴を維持するため、会話がメモリに保存される</li>
+  </ol>
+</div>
+
+### マルチモデルコンテンツ分析
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">シナリオ：異なるAIモデルでコンテンツを分析</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>ファンクションブロックがアップロードされた文書を処理</li>
+    <li>GPT-4oを搭載したエージェントが技術的分析を実行</li>
+    <li>Claudeを搭載したエージェントが感情やトーンを分析</li>
+    <li>ファンクションブロックが最終レポート用に結果を統合</li>
+  </ol>
+</div>
+
+### ツール活用型リサーチアシスタント
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">シナリオ：ウェブ検索と文書アクセス機能を持つリサーチアシスタント</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>入力を通じてユーザークエリを受信</li>
+    <li>エージェントがGoogle検索ツールを使用してウェブを検索</li>
+    <li>エージェントが社内文書用のNotionデータベースにアクセス</li>
+    <li>エージェントが包括的な調査レポートをまとめる</li>
+  </ol>
+</div>
+
+## ベストプラクティス
+
+- **システムプロンプトを具体的に**: エージェントの役割、トーン、制限を明確に定義してください。指示が具体的であればあるほど、エージェントは目的を果たすことができます。
+- **適切な温度設定を選択**: 精度が重要な場合は低い温度設定（0〜0.3）を使用し、よりクリエイティブまたは多様な応答には温度を上げる（0.7〜2.0）
+- **ツールを効果的に活用**: エージェントの目的を補完し、その能力を強化するツールを統合してください。エージェントに負担をかけないよう、提供するツールを選択的にしてください。重複の少いタスクには、最良の結果を得るために別のエージェントブロックを使用してください。
