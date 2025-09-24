@@ -235,7 +235,7 @@ export const env = createEnv({
     NEXT_PUBLIC_SUPPORT_EMAIL:             z.string().email().optional(),          // Custom support email
 
     NEXT_PUBLIC_E2B_ENABLED:               z.string().optional(),
-    NEXT_PUBLIC_COPILOT_TRAINING_ENABLED:  z.string().optional(),                  // Enable E2B remote code execution (client-side)
+    NEXT_PUBLIC_COPILOT_TRAINING_ENABLED:  z.string().optional(),                  
     NEXT_PUBLIC_DOCUMENTATION_URL:         z.string().url().optional(),            // Custom documentation URL
     NEXT_PUBLIC_TERMS_URL:                 z.string().url().optional(),            // Custom terms of service URL
     NEXT_PUBLIC_PRIVACY_URL:               z.string().url().optional(),            // Custom privacy policy URL
