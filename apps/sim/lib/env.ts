@@ -88,9 +88,6 @@ export const env = createEnv({
     // Monitoring & Analytics
     TELEMETRY_ENDPOINT:                    z.string().url().optional(),            // Custom telemetry/analytics endpoint
     COST_MULTIPLIER:                       z.number().optional(),                  // Multiplier for cost calculations
-    SENTRY_ORG:                            z.string().optional(),                  // Sentry organization for error tracking
-    SENTRY_PROJECT:                        z.string().optional(),                  // Sentry project for error tracking
-    SENTRY_AUTH_TOKEN:                     z.string().optional(),                  // Sentry authentication token
     LOG_LEVEL:                             z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR']).optional(), // Minimum log level to display (defaults to ERROR in production, DEBUG in development)
 
     // External Services
@@ -209,7 +206,6 @@ export const env = createEnv({
     NEXT_PUBLIC_VERCEL_URL:                z.string().optional(),                  // Vercel deployment URL for preview/production
 
     // Client-side Services
-    NEXT_PUBLIC_SENTRY_DSN:                z.string().url().optional(),            // Sentry DSN for client-side error tracking
     NEXT_PUBLIC_SOCKET_URL:                z.string().url().optional(),            // WebSocket server URL for real-time features
 
     // Asset Storage
@@ -257,7 +253,6 @@ export const env = createEnv({
   experimental__runtimeEnv: {
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_VERCEL_URL: process.env.NEXT_PUBLIC_VERCEL_URL,
-    NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
     NEXT_PUBLIC_BLOB_BASE_URL: process.env.NEXT_PUBLIC_BLOB_BASE_URL,
     NEXT_PUBLIC_BILLING_ENABLED: process.env.NEXT_PUBLIC_BILLING_ENABLED,
     NEXT_PUBLIC_GOOGLE_CLIENT_ID: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
