@@ -291,48 +291,33 @@ export function TriggerModal({
 
   const generateTestUrl = async () => {
     try {
-      // If we have a saved trigger, use its API endpoint (network → show spinner)
-      if (triggerId) {
-        setIsGeneratingTestUrl(true)
-        const res = await fetch(`/api/webhooks/${triggerId}/test-url`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
-        })
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}))
-          throw new Error(err?.error || 'Failed to generate test URL')
-        }
-        const json = await res.json()
-        setTestUrl(json.url)
-        setTestUrlExpiresAt(json.expiresAt)
-        setConfig((prev) => ({
-          ...prev,
-          testUrl: json.url,
-          testUrlExpiresAt: json.expiresAt,
-        }))
-      } else {
-        // For unsaved triggers, generate a temporary test URL
-        const testPath = crypto.randomUUID()
-        const baseUrl = window.location.origin
-        const tempTestUrl = `${baseUrl}/api/webhooks/test/${testPath}?token=${crypto.randomUUID()}`
-        setTestUrl(tempTestUrl)
-
-        // Set expiration to 24 hours from now
-        const expiresAt = new Date()
-        expiresAt.setHours(expiresAt.getHours() + 24)
-        const expiresIso = expiresAt.toISOString()
-        setTestUrlExpiresAt(expiresIso)
-        setConfig((prev) => ({
-          ...prev,
-          testUrl: tempTestUrl,
-          testUrlExpiresAt: expiresIso,
-        }))
+      if (!triggerId) {
+        logger.warn('Cannot generate test URL until trigger is saved')
+        return
       }
+
+      setIsGeneratingTestUrl(true)
+      const res = await fetch(`/api/webhooks/${triggerId}/test-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.error || 'Failed to generate test URL')
+      }
+      const json = await res.json()
+      setTestUrl(json.url)
+      setTestUrlExpiresAt(json.expiresAt)
+      setConfig((prev) => ({
+        ...prev,
+        testUrl: json.url,
+        testUrlExpiresAt: json.expiresAt,
+      }))
     } catch (e) {
       logger.error('Failed to generate test webhook URL', { error: e })
     } finally {
-      if (triggerId) setIsGeneratingTestUrl(false)
+      setIsGeneratingTestUrl(false)
     }
   }
 
@@ -514,7 +499,8 @@ export function TriggerModal({
                         >
                           <p className='text-sm'>
                             Temporary URL for testing canvas state instead of deployed version.
-                            Expires after 24 hours.
+                            Expires after 24 hours. You must save the trigger before generating a
+                            test URL.
                           </p>
                         </TooltipContent>
                       </Tooltip>
@@ -537,7 +523,7 @@ export function TriggerModal({
                               variant='ghost'
                               size='sm'
                               onClick={generateTestUrl}
-                              disabled={isGeneratingTestUrl}
+                              disabled={isGeneratingTestUrl || !triggerId}
                               className={cn(
                                 'group h-7 w-7 rounded-md p-0',
                                 'text-muted-foreground/60 transition-all duration-200',
