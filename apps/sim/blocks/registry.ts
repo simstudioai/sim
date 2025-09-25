@@ -77,6 +77,7 @@ import { TwilioSMSBlock } from '@/blocks/blocks/twilio'
 import { TypeformBlock } from '@/blocks/blocks/typeform'
 import { VisionBlock } from '@/blocks/blocks/vision'
 import { WealthboxBlock } from '@/blocks/blocks/wealthbox'
+import { WebexBlock } from '@/blocks/blocks/webex'
 import { WebhookBlock } from '@/blocks/blocks/webhook'
 import { WhatsAppBlock } from '@/blocks/blocks/whatsapp'
 import { WikipediaBlock } from '@/blocks/blocks/wikipedia'
@@ -163,6 +164,7 @@ export const registry: Record<string, BlockConfig> = {
   typeform: TypeformBlock,
   vision: VisionBlock,
   wealthbox: WealthboxBlock,
+  webex: WebexBlock,
   webhook: WebhookBlock,
   whatsapp: WhatsAppBlock,
   wikipedia: WikipediaBlock,

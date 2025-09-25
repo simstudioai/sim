@@ -25,6 +25,7 @@ import {
   SlackIcon,
   SupabaseIcon,
   WealthboxIcon,
+  WebexIcon,
   xIcon,
 } from '@/components/icons'
 import { env } from '@/lib/env'
@@ -47,6 +48,7 @@ export type OAuthProvider =
   | 'slack'
   | 'reddit'
   | 'wealthbox'
+  | 'webex'
   | string
 
 export type OAuthService =
@@ -74,6 +76,7 @@ export type OAuthService =
   | 'slack'
   | 'reddit'
   | 'wealthbox'
+  | 'webex'
   | 'onedrive'
 export interface OAuthProviderConfig {
   id: OAuthProvider
@@ -487,6 +490,29 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'wealthbox',
   },
+  webex: {
+    id: 'webex',
+    name: 'Webex',
+    icon: (props) => WebexIcon(props),
+    services: {
+      webex: {
+        id: 'webex',
+        name: 'Webex',
+        description: 'Manage Webex items.',
+        providerId: 'webex',
+        icon: (props) => WebexIcon(props),
+        baseProviderIcon: (props) => WebexIcon(props),
+        scopes: [
+          'spark:people_read',
+          'spark:messages_read',
+          'spark:messages_write',
+          'spark-compliance:rooms_read',
+          'spark:rooms_read',
+        ],
+      },
+    },
+    defaultService: 'webex',
+  },
 }
 
 // Helper function to get a service by provider and service ID
@@ -568,6 +594,8 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     return 'reddit'
   } else if (provider === 'wealthbox') {
     return 'wealthbox'
+  } else if (provider === 'webex') {
+    return 'webex'
   }
 
   return providerConfig.defaultService
@@ -863,6 +891,19 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
       )
       return {
         tokenEndpoint: 'https://app.crmworkspace.com/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'webex': {
+      const { clientId, clientSecret } = getCredentials(
+        env.WEBEX_CLIENT_ID,
+        env.WEBEX_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://webexapis.com/v1/access_token',
         clientId,
         clientSecret,
         useBasicAuth: false,
