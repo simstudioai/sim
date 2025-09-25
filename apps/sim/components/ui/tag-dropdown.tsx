@@ -443,7 +443,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           const dynamicOutputs = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks)
           if (dynamicOutputs.length > 0) {
             blockTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
-          } else if (sourceBlock.type === 'starter') {
+          } else if (sourceBlock.type === 'starter' || sourceBlock.type === 'generic_webhook') {
+            // Starter with no dynamic outputs and generic webhook should expose only root tag
             blockTags = [normalizedBlockName]
           } else {
             blockTags = []
