@@ -292,7 +292,7 @@ function InputMappingField({
           ref={inputRef}
           className={cn(
             'allow-scroll h-9 w-full overflow-auto text-transparent caret-foreground placeholder:text-muted-foreground/50',
-            'transition-colors duration-200 border border-input bg-white dark:bg-background dark:border-input/60'
+            'border border-input bg-white transition-colors duration-200 dark:border-input/60 dark:bg-background'
           )}
           type='text'
           value={value}
