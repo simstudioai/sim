@@ -126,7 +126,7 @@ const WorkflowContent = React.memo(() => {
   useStreamCleanup(copilotCleanup)
 
   // Extract workflow data from the abstraction
-  const { blocks, edges, loops, parallels, isDiffMode } = currentWorkflow
+  const { blocks, edges, isDiffMode, lastSaved } = currentWorkflow
 
   // Check if workflow is empty (no blocks)
   const isWorkflowEmpty = useMemo(() => {
@@ -1840,8 +1840,8 @@ const WorkflowContent = React.memo(() => {
     }
   }, [collaborativeSetSubblockValue])
 
-  // Show skeleton UI while loading, then smoothly transition to real content
-  const showSkeletonUI = !isWorkflowReady
+  // Show skeleton UI while loading until the workflow store is hydrated
+  const showSkeletonUI = !isWorkflowReady || typeof lastSaved !== 'number'
 
   if (showSkeletonUI) {
     return (
@@ -1945,10 +1945,11 @@ const WorkflowContent = React.memo(() => {
           type={triggerWarning.type}
         />
 
-        {/* Trigger list for empty workflows - only show after workflow has loaded */}
-        {isWorkflowReady && isWorkflowEmpty && effectivePermissions.canEdit && (
-          <TriggerList onSelect={handleTriggerSelect} />
-        )}
+        {/* Trigger list for empty workflows - only show after workflow has loaded and hydrated */}
+        {isWorkflowReady &&
+          typeof lastSaved === 'number' &&
+          isWorkflowEmpty &&
+          effectivePermissions.canEdit && <TriggerList onSelect={handleTriggerSelect} />}
       </div>
     </div>
   )
