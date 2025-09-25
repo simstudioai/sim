@@ -6,6 +6,7 @@ on:
     paths:
       - 'apps/docs/**'
   workflow_dispatch: # Allow manual triggering
+  workflow_call:
 
 jobs:
   process-docs-embeddings:

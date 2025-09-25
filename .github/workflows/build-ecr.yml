@@ -3,6 +3,7 @@ name: Build and Push to ECR
 on:
   push:
     branches: [main, staging]
+  workflow_call:
 
 permissions:
   id-token: write

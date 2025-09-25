@@ -84,7 +84,7 @@ const nextConfig: NextConfig = {
   turbopack: {
     resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
   },
-  serverExternalPackages: ['pdf-parse'],
+  serverExternalPackages: ['pdf-parse', '@azure/storage-blob'],
   experimental: {
     optimizeCss: true,
     turbopackSourceMaps: false,

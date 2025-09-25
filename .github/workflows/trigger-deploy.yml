@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - staging
+  workflow_call:
 
 jobs:
   deploy:

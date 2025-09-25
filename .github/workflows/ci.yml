@@ -55,11 +55,54 @@ jobs:
           fail_ci_if_error: false
           verbose: true
 
+  # Call GHCR build workflow (runs in parallel with ECR)
+  build-ghcr:
+    name: Build GHCR Images
+    needs: test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    uses: ./.github/workflows/build-ghcr-build.yml
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: write
+
+  # Call ECR build workflow (runs in parallel with GHCR build)
+  build-ecr-deploy:
+    name: Build ECR and Deploy
+    needs: test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    uses: ./.github/workflows/build-ecr.yml
+    secrets: inherit
+    permissions:
+      id-token: write
+      contents: read
+
+  # Call Trigger.dev deploy workflow (runs in parallel)
+  trigger-deploy:
+    name: Deploy Trigger.dev
+    needs: test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    uses: ./.github/workflows/trigger-deploy.yml
+    secrets: inherit
+
+  # Push GHCR images after ECR/ECS deployment is complete
+  push-ghcr:
+    name: Push GHCR Images
+    needs: [build-ghcr, build-ecr-deploy]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    uses: ./.github/workflows/build-ghcr-push.yml
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: write
+
+  # Run database migrations (depends on GHCR push and trigger deployment)
   migrations:
     name: Apply Database Migrations
+    needs: [push-ghcr, trigger-deploy]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
-    needs: test
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -77,3 +120,11 @@ jobs:
         env:
           DATABASE_URL: ${{ github.ref == 'refs/heads/main' && secrets.DATABASE_URL || secrets.STAGING_DATABASE_URL }}
         run: bunx drizzle-kit migrate --config=./drizzle.config.ts
+
+  # Process docs embeddings if needed
+  process-docs:
+    name: Process Docs
+    needs: migrations
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    uses: ./.github/workflows/docs-embeddings.yml
+    secrets: inherit
