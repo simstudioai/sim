@@ -170,67 +170,61 @@ export class WorkflowBlockHandler implements BlockHandler {
    * Loads a child workflow from the API
    */
   private async loadChildWorkflow(workflowId: string) {
-    try {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      }
-      if (typeof window === 'undefined') {
-        const token = await generateInternalToken()
-        headers.Authorization = `Bearer ${token}`
-      }
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    if (typeof window === 'undefined') {
+      const token = await generateInternalToken()
+      headers.Authorization = `Bearer ${token}`
+    }
 
-      const response = await fetch(`${getBaseUrl()}/api/workflows/${workflowId}`, {
-        headers,
-      })
+    const response = await fetch(`${getBaseUrl()}/api/workflows/${workflowId}`, {
+      headers,
+    })
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          logger.error(`Child workflow ${workflowId} not found`)
-          return null
-        }
-        throw new Error(`Failed to fetch workflow: ${response.status} ${response.statusText}`)
-      }
-
-      const { data: workflowData } = await response.json()
-
-      if (!workflowData) {
-        logger.error(`Child workflow ${workflowId} returned empty data`)
+    if (!response.ok) {
+      if (response.status === 404) {
+        logger.warn(`Child workflow ${workflowId} not found`)
         return null
       }
+      throw new Error(`Failed to fetch workflow: ${response.status} ${response.statusText}`)
+    }
 
-      logger.info(`Loaded child workflow: ${workflowData.name} (${workflowId})`)
-      const workflowState = workflowData.state
+    const { data: workflowData } = await response.json()
 
-      if (!workflowState || !workflowState.blocks) {
-        logger.error(`Child workflow ${workflowId} has invalid state`)
-        return null
-      }
-      const serializedWorkflow = this.serializer.serializeWorkflow(
-        workflowState.blocks,
-        workflowState.edges || [],
-        workflowState.loops || {},
-        workflowState.parallels || {},
-        true // Enable validation during execution
+    if (!workflowData) {
+      throw new Error(`Child workflow ${workflowId} returned empty data`)
+    }
+
+    logger.info(`Loaded child workflow: ${workflowData.name} (${workflowId})`)
+    const workflowState = workflowData.state
+
+    if (!workflowState || !workflowState.blocks) {
+      throw new Error(`Child workflow ${workflowId} has invalid state`)
+    }
+    // Important: do not swallow serialization/validation errors
+    const serializedWorkflow = this.serializer.serializeWorkflow(
+      workflowState.blocks,
+      workflowState.edges || [],
+      workflowState.loops || {},
+      workflowState.parallels || {},
+      true // Enable validation during execution
+    )
+
+    const workflowVariables = (workflowData.variables as Record<string, any>) || {}
+
+    if (Object.keys(workflowVariables).length > 0) {
+      logger.info(
+        `Loaded ${Object.keys(workflowVariables).length} variables for child workflow: ${workflowId}`
       )
+    } else {
+      logger.debug(`No workflow variables found for child workflow: ${workflowId}`)
+    }
 
-      const workflowVariables = (workflowData.variables as Record<string, any>) || {}
-
-      if (Object.keys(workflowVariables).length > 0) {
-        logger.info(
-          `Loaded ${Object.keys(workflowVariables).length} variables for child workflow: ${workflowId}`
-        )
-      } else {
-        logger.debug(`No workflow variables found for child workflow: ${workflowId}`)
-      }
-
-      return {
-        name: workflowData.name,
-        serializedState: serializedWorkflow,
-        variables: workflowVariables,
-      }
-    } catch (error) {
-      logger.error(`Error loading child workflow ${workflowId}:`, error)
-      return null
+    return {
+      name: workflowData.name,
+      serializedState: serializedWorkflow,
+      variables: workflowVariables,
     }
   }
 
@@ -264,58 +258,59 @@ export class WorkflowBlockHandler implements BlockHandler {
    * Loads child workflow using deployed state (for API/webhook/schedule/chat executions)
    */
   private async loadChildWorkflowDeployed(workflowId: string) {
-    try {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      }
-      if (typeof window === 'undefined') {
-        const token = await generateInternalToken()
-        headers.Authorization = `Bearer ${token}`
-      }
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    if (typeof window === 'undefined') {
+      const token = await generateInternalToken()
+      headers.Authorization = `Bearer ${token}`
+    }
 
-      // Fetch deployed state
-      const deployedRes = await fetch(`${getBaseUrl()}/api/workflows/${workflowId}/deployed`, {
-        headers,
-        cache: 'no-store',
-      })
-      if (!deployedRes.ok) {
+    // Fetch deployed state
+    const deployedRes = await fetch(`${getBaseUrl()}/api/workflows/${workflowId}/deployed`, {
+      headers,
+      cache: 'no-store',
+    })
+    if (!deployedRes.ok) {
+      if (deployedRes.status === 404) {
         return null
       }
-      const deployedJson = await deployedRes.json()
-      const deployedState = deployedJson?.data?.deployedState || deployedJson?.deployedState
-      if (!deployedState || !deployedState.blocks) {
-        return null
-      }
-
-      // Fetch variables and name from live metadata (variables are not stored in deployments)
-      const metaRes = await fetch(`${getBaseUrl()}/api/workflows/${workflowId}`, {
-        headers,
-        cache: 'no-store',
-      })
-      if (!metaRes.ok) {
-        return null
-      }
-      const metaJson = await metaRes.json()
-      const wfData = metaJson?.data
-
-      const serializedWorkflow = this.serializer.serializeWorkflow(
-        deployedState.blocks,
-        deployedState.edges || [],
-        deployedState.loops || {},
-        deployedState.parallels || {},
-        true
+      throw new Error(
+        `Failed to fetch deployed workflow: ${deployedRes.status} ${deployedRes.statusText}`
       )
+    }
+    const deployedJson = await deployedRes.json()
+    const deployedState = deployedJson?.data?.deployedState || deployedJson?.deployedState
+    if (!deployedState || !deployedState.blocks) {
+      throw new Error(`Deployed state missing or invalid for child workflow ${workflowId}`)
+    }
 
-      const workflowVariables = (wfData?.variables as Record<string, any>) || {}
+    // Fetch variables and name from live metadata (variables are not stored in deployments)
+    const metaRes = await fetch(`${getBaseUrl()}/api/workflows/${workflowId}`, {
+      headers,
+      cache: 'no-store',
+    })
+    if (!metaRes.ok) {
+      throw new Error(`Failed to fetch workflow metadata: ${metaRes.status} ${metaRes.statusText}`)
+    }
+    const metaJson = await metaRes.json()
+    const wfData = metaJson?.data
 
-      return {
-        name: wfData?.name || 'Workflow',
-        serializedState: serializedWorkflow,
-        variables: workflowVariables,
-      }
-    } catch (error) {
-      logger.error(`Error loading deployed child workflow ${workflowId}:`, error)
-      return null
+    // Important: do not swallow serialization/validation errors
+    const serializedWorkflow = this.serializer.serializeWorkflow(
+      deployedState.blocks,
+      deployedState.edges || [],
+      deployedState.loops || {},
+      deployedState.parallels || {},
+      true
+    )
+
+    const workflowVariables = (wfData?.variables as Record<string, any>) || {}
+
+    return {
+      name: wfData?.name || 'Workflow',
+      serializedState: serializedWorkflow,
+      variables: workflowVariables,
     }
   }
 
