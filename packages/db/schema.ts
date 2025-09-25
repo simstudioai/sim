@@ -186,19 +186,11 @@ export const workflowBlocks = pgTable(
     outputs: jsonb('outputs').notNull().default('{}'),
     data: jsonb('data').default('{}'),
 
-    parentId: text('parent_id'),
-    extent: text('extent'), // 'parent' or null or 'subflow'
-
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
     workflowIdIdx: index('workflow_blocks_workflow_id_idx').on(table.workflowId),
-    parentIdIdx: index('workflow_blocks_parent_id_idx').on(table.parentId),
-    workflowParentIdx: index('workflow_blocks_workflow_parent_idx').on(
-      table.workflowId,
-      table.parentId
-    ),
     workflowTypeIdx: index('workflow_blocks_workflow_type_idx').on(table.workflowId, table.type),
   })
 )

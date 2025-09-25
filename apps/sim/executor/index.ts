@@ -99,6 +99,8 @@ export class Executor {
             executionId?: string
             workspaceId?: string
             isChildExecution?: boolean
+            // Marks executions that must use deployed constraints (API/webhook/schedule/chat)
+            isDeployedContext?: boolean
           }
         },
     private initialBlockStates: Record<string, BlockOutput> = {},
@@ -725,6 +727,7 @@ export class Executor {
       workflowId,
       workspaceId: this.contextExtensions.workspaceId,
       executionId: this.contextExtensions.executionId,
+      isDeployedContext: this.contextExtensions.isDeployedContext || false,
       blockStates: new Map(),
       blockLogs: [],
       metadata: {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { X } from 'lucide-react'
+import { Check, Copy, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -56,6 +56,7 @@ export function WebhookModal({
   const [isDeleting, setIsDeleting] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
   const [isLoadingToken, setIsLoadingToken] = useState(false)
+  const [isGeneratingTestUrl, setIsGeneratingTestUrl] = useState(false)
   const [testResult, setTestResult] = useState<{
     success: boolean
     message?: string
@@ -72,6 +73,8 @@ export function WebhookModal({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [showUnsavedChangesConfirm, setShowUnsavedChangesConfirm] = useState(false)
   const [isCurrentConfigValid, setIsCurrentConfigValid] = useState(true)
+  const [testUrl, setTestUrl] = useState<string>('')
+  const [testUrlExpiresAt, setTestUrlExpiresAt] = useState<string>('')
 
   // Generic webhook state
   const [generalToken, setGeneralToken] = useState('')
@@ -407,6 +410,29 @@ export function WebhookModal({
       : 'https://your-domain.com'
 
   const webhookUrl = `${baseUrl}/api/webhooks/trigger/${formattedPath}`
+
+  const generateTestUrl = async () => {
+    if (!webhookId) return
+    try {
+      setIsGeneratingTestUrl(true)
+      const res = await fetch(`/api/webhooks/${webhookId}/test-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.error || 'Failed to generate test URL')
+      }
+      const json = await res.json()
+      setTestUrl(json.url)
+      setTestUrlExpiresAt(json.expiresAt)
+    } catch (e) {
+      logger.error('Failed to generate test webhook URL', { error: e })
+    } finally {
+      setIsGeneratingTestUrl(false)
+    }
+  }
 
   const copyToClipboard = (text: string, type: string): void => {
     navigator.clipboard.writeText(text)
@@ -830,6 +856,60 @@ export function WebhookModal({
                 copied={copied}
                 copyToClipboard={copyToClipboard}
               />
+            )}
+
+            {/* Test Webhook URL */}
+            {webhookId && (
+              <div className='mb-4 space-y-1'>
+                <div className='flex items-center justify-between'>
+                  <div className='flex items-center gap-2'>
+                    <span className='font-medium text-sm'>Test Webhook URL</span>
+                  </div>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    onClick={generateTestUrl}
+                    disabled={isGeneratingTestUrl}
+                  >
+                    {isGeneratingTestUrl ? 'Generating…' : testUrl ? 'Regenerate' : 'Generate'}
+                  </Button>
+                </div>
+                {testUrl ? (
+                  <div className='flex items-center gap-2'>
+                    <input
+                      readOnly
+                      value={testUrl}
+                      className='h-9 flex-1 font-mono text-xs'
+                      onClick={(e: React.MouseEvent<HTMLInputElement>) =>
+                        (e.target as HTMLInputElement).select()
+                      }
+                    />
+                    <Button
+                      type='button'
+                      size='icon'
+                      variant='outline'
+                      className='h-9 w-9'
+                      onClick={() => copyToClipboard(testUrl, 'testUrl')}
+                    >
+                      {copied === 'testUrl' ? (
+                        <Check className='h-4 w-4' />
+                      ) : (
+                        <Copy className='h-4 w-4' />
+                      )}
+                    </Button>
+                  </div>
+                ) : (
+                  <p className='text-muted-foreground text-xs'>
+                    Generate a temporary URL that executes this webhook against the live
+                    (un-deployed) workflow state.
+                  </p>
+                )}
+                {testUrlExpiresAt && (
+                  <p className='text-muted-foreground text-xs'>
+                    Expires: {new Date(testUrlExpiresAt).toLocaleString()}
+                  </p>
+                )}
+              </div>
             )}
 
             {renderProviderContent()}

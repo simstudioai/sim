@@ -27,17 +27,30 @@ interface DeployedWorkflowModalProps {
   isOpen: boolean
   onClose: () => void
   needsRedeployment: boolean
-  deployedWorkflowState: WorkflowState
+  activeDeployedState?: WorkflowState
+  selectedDeployedState?: WorkflowState
+  selectedVersion?: number
+  onActivateVersion?: () => void
+  isActivating?: boolean
+  selectedVersionLabel?: string
+  workflowId: string
+  isSelectedVersionActive?: boolean
 }
 
 export function DeployedWorkflowModal({
   isOpen,
   onClose,
   needsRedeployment,
-  deployedWorkflowState,
+  activeDeployedState,
+  selectedDeployedState,
+  selectedVersion,
+  onActivateVersion,
+  isActivating,
+  selectedVersionLabel,
+  workflowId,
+  isSelectedVersionActive,
 }: DeployedWorkflowModalProps) {
   const [showRevertDialog, setShowRevertDialog] = useState(false)
-  const { revertToDeployedState } = useWorkflowStore()
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
 
   // Get current workflow state to compare with deployed state
@@ -48,11 +61,29 @@ export function DeployedWorkflowModal({
     parallels: state.parallels,
   }))
 
-  const handleRevert = () => {
-    if (activeWorkflowId) {
-      revertToDeployedState(deployedWorkflowState)
+  const handleRevert = async () => {
+    if (!activeWorkflowId) {
+      logger.error('Cannot revert: no active workflow ID')
+      return
+    }
+
+    try {
+      const versionToRevert = selectedVersion !== undefined ? selectedVersion : 'active'
+      const response = await fetch(
+        `/api/workflows/${workflowId}/deployments/${versionToRevert}/revert`,
+        {
+          method: 'POST',
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error('Failed to revert to version')
+      }
+
       setShowRevertDialog(false)
       onClose()
+    } catch (error) {
+      logger.error('Failed to revert workflow:', error)
     }
   }
 
@@ -70,39 +101,54 @@ export function DeployedWorkflowModal({
         </div>
         <DeployedWorkflowCard
           currentWorkflowState={currentWorkflowState}
-          deployedWorkflowState={deployedWorkflowState}
+          activeDeployedWorkflowState={activeDeployedState}
+          selectedDeployedWorkflowState={selectedDeployedState}
+          selectedVersionLabel={selectedVersionLabel}
         />
 
         <div className='mt-6 flex justify-between'>
-          {needsRedeployment && (
-            <AlertDialog open={showRevertDialog} onOpenChange={setShowRevertDialog}>
-              <AlertDialogTrigger asChild>
-                <Button variant='destructive'>Revert to Deployed</Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent style={{ zIndex: 1001 }} className='sm:max-w-[425px]'>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Revert to Deployed Version?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will replace your current workflow with the deployed version. Any unsaved
-                    changes will be lost. This action cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={handleRevert}
-                    className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
-                  >
-                    Revert
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
+          <div className='flex items-center gap-2'>
+            {onActivateVersion && (
+              <Button
+                onClick={onActivateVersion}
+                disabled={isSelectedVersionActive || !!isActivating}
+                variant={isSelectedVersionActive ? 'secondary' : 'default'}
+              >
+                {isSelectedVersionActive ? 'Active' : isActivating ? 'Activating…' : 'Activate'}
+              </Button>
+            )}
+          </div>
 
-          <Button variant='outline' onClick={onClose} className='ml-auto'>
-            Close
-          </Button>
+          <div className='flex items-center gap-2'>
+            {(needsRedeployment || selectedVersion !== undefined) && (
+              <AlertDialog open={showRevertDialog} onOpenChange={setShowRevertDialog}>
+                <AlertDialogTrigger asChild>
+                  <Button variant='outline'>Load Deployment</Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent style={{ zIndex: 1001 }} className='sm:max-w-[425px]'>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Load this Deployment?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will replace your current workflow with the deployed version. Your
+                      current changes will be lost.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleRevert}
+                      className='bg-primary text-primary-foreground hover:bg-primary/90'
+                    >
+                      Load Deployment
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+            <Button variant='outline' onClick={onClose}>
+              Close
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

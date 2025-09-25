@@ -1,6 +1,5 @@
-import { db } from '@sim/db'
-import { workflow } from '@sim/db/schema'
-import { eq } from 'drizzle-orm'
+import { db, workflowDeploymentVersion } from '@sim/db'
+import { and, desc, eq } from 'drizzle-orm'
 import type { NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
@@ -32,35 +31,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return addNoCacheHeaders(response)
     }
 
-    // Fetch the workflow's deployed state
-    const result = await db
-      .select({
-        deployedState: workflow.deployedState,
-        isDeployed: workflow.isDeployed,
-      })
-      .from(workflow)
-      .where(eq(workflow.id, id))
+    // Fetch active deployment version state
+    const [active] = await db
+      .select({ state: workflowDeploymentVersion.state })
+      .from(workflowDeploymentVersion)
+      .where(
+        and(
+          eq(workflowDeploymentVersion.workflowId, id),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
+      .orderBy(desc(workflowDeploymentVersion.createdAt))
       .limit(1)
 
-    if (result.length === 0) {
-      logger.warn(`[${requestId}] Workflow not found: ${id}`)
-      const response = createErrorResponse('Workflow not found', 404)
-      return addNoCacheHeaders(response)
-    }
-
-    const workflowData = result[0]
-
-    // If the workflow is not deployed, return appropriate response
-    if (!workflowData.isDeployed || !workflowData.deployedState) {
-      const response = createSuccessResponse({
-        deployedState: null,
-        message: 'Workflow is not deployed or has no deployed state',
-      })
-      return addNoCacheHeaders(response)
-    }
-
     const response = createSuccessResponse({
-      deployedState: workflowData.deployedState,
+      deployedState: active?.state || null,
     })
     return addNoCacheHeaders(response)
   } catch (error: any) {

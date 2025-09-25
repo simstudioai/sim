@@ -23,6 +23,7 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useCurrentWorkflow } from '../../hooks'
 import { ActionBar } from './components/action-bar/action-bar'
 import { ConnectionBlocks } from './components/connection-blocks/connection-blocks'
+import { useSubBlockValue } from './components/sub-block/hooks/use-sub-block-value'
 import { SubBlock } from './components/sub-block/sub-block'
 
 const logger = createLogger('WorkflowBlock')
@@ -202,8 +203,16 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   }, [currentWorkflow.isDiffMode, id])
 
   const displayIsWide = currentWorkflow.isDiffMode ? diffIsWide : isWide
-  const displayAdvancedMode = currentWorkflow.isDiffMode ? diffAdvancedMode : blockAdvancedMode
-  const displayTriggerMode = currentWorkflow.isDiffMode ? diffTriggerMode : blockTriggerMode
+  const displayAdvancedMode = currentWorkflow.isDiffMode
+    ? diffAdvancedMode
+    : data.isPreview
+      ? (data.blockState?.advancedMode ?? false)
+      : blockAdvancedMode
+  const displayTriggerMode = currentWorkflow.isDiffMode
+    ? diffTriggerMode
+    : data.isPreview
+      ? (data.blockState?.triggerMode ?? false)
+      : blockTriggerMode
 
   // Collaborative workflow actions
   const {
@@ -466,10 +475,8 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
       stateToUse = mergedState?.subBlocks || {}
     }
 
-    const isAdvancedMode = useWorkflowStore.getState().blocks[blockId]?.advancedMode ?? false
-    const isTriggerMode = useWorkflowStore.getState().blocks[blockId]?.triggerMode ?? false
-    const effectiveAdvanced = currentWorkflow.isDiffMode ? displayAdvancedMode : isAdvancedMode
-    const effectiveTrigger = currentWorkflow.isDiffMode ? displayTriggerMode : isTriggerMode
+    const effectiveAdvanced = displayAdvancedMode
+    const effectiveTrigger = displayTriggerMode
     const e2bClientEnabled = isTruthy(getEnv('NEXT_PUBLIC_E2B_ENABLED'))
 
     // Filter visible blocks and those that meet their conditions
@@ -616,6 +623,80 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const shouldShowScheduleBadge =
     type === 'schedule' && !isLoadingScheduleInfo && scheduleInfo !== null
   const userPermissions = useUserPermissionsContext()
+  const registryDeploymentStatuses = useWorkflowRegistry((state) => state.deploymentStatuses)
+  const [childActiveVersion, setChildActiveVersion] = useState<number | null>(null)
+  const [childIsDeployed, setChildIsDeployed] = useState<boolean>(false)
+  const [isLoadingChildVersion, setIsLoadingChildVersion] = useState(false)
+
+  // Use the store directly for real-time updates when workflow dropdown changes
+  const [workflowIdFromStore] = useSubBlockValue<string>(id, 'workflowId')
+
+  // Determine if this is a workflow block (child workflow selector) and fetch child status
+  const isWorkflowSelector = type === 'workflow' || type === 'workflow_input'
+  let childWorkflowId: string | undefined
+  if (!data.isPreview) {
+    // Use store value for real-time updates
+    const val = workflowIdFromStore
+    if (typeof val === 'string' && val.trim().length > 0) {
+      childWorkflowId = val
+    }
+  } else if (data.isPreview && data.subBlockValues?.workflowId?.value) {
+    const val = data.subBlockValues.workflowId.value
+    if (typeof val === 'string' && val.trim().length > 0) childWorkflowId = val
+  }
+
+  const childDeployment = childWorkflowId ? registryDeploymentStatuses[childWorkflowId] : null
+
+  // Fetch active deployment version for the selected child workflow
+  useEffect(() => {
+    let cancelled = false
+    const fetchActiveVersion = async (wfId: string) => {
+      try {
+        setIsLoadingChildVersion(true)
+        const res = await fetch(`/api/workflows/${wfId}/deployments`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' },
+        })
+        if (!res.ok) {
+          if (!cancelled) {
+            setChildActiveVersion(null)
+            setChildIsDeployed(false)
+          }
+          return
+        }
+        const json = await res.json()
+        const versions = Array.isArray(json?.data?.versions)
+          ? json.data.versions
+          : Array.isArray(json?.versions)
+            ? json.versions
+            : []
+        const active = versions.find((v: any) => v.isActive)
+        if (!cancelled) {
+          const v = active ? Number(active.version) : null
+          setChildActiveVersion(v)
+          setChildIsDeployed(v != null)
+        }
+      } catch {
+        if (!cancelled) {
+          setChildActiveVersion(null)
+          setChildIsDeployed(false)
+        }
+      } finally {
+        if (!cancelled) setIsLoadingChildVersion(false)
+      }
+    }
+
+    // Always fetch when childWorkflowId changes
+    if (childWorkflowId) {
+      void fetchActiveVersion(childWorkflowId)
+    } else {
+      setChildActiveVersion(null)
+      setChildIsDeployed(false)
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [childWorkflowId])
 
   return (
     <div className='group relative'>
@@ -645,7 +726,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
 
         <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
         {/* Connection Blocks - Don't show for trigger blocks, starter blocks, or blocks in trigger mode */}
-        {config.category !== 'triggers' && type !== 'starter' && !blockTriggerMode && (
+        {config.category !== 'triggers' && type !== 'starter' && !displayTriggerMode && (
           <ConnectionBlocks
             blockId={id}
             setIsConnecting={setIsConnecting}
@@ -655,7 +736,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         )}
 
         {/* Input Handle - Don't show for trigger blocks, starter blocks, or blocks in trigger mode */}
-        {config.category !== 'triggers' && type !== 'starter' && !blockTriggerMode && (
+        {config.category !== 'triggers' && type !== 'starter' && !displayTriggerMode && (
           <Handle
             type='target'
             position={horizontalHandles ? Position.Left : Position.Top}
@@ -732,6 +813,31 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
             </div>
           </div>
           <div className='flex flex-shrink-0 items-center gap-2'>
+            {isWorkflowSelector && childWorkflowId && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className='relative mr-1 flex items-center justify-center'>
+                    <div
+                      className={cn(
+                        'h-2.5 w-2.5 rounded-full',
+                        childIsDeployed ? 'bg-green-500' : 'bg-red-500'
+                      )}
+                    />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side='top' className='px-3 py-2'>
+                  <span className='text-sm'>
+                    {childIsDeployed
+                      ? isLoadingChildVersion
+                        ? 'Deployed'
+                        : childActiveVersion != null
+                          ? `Deployed (v${childActiveVersion})`
+                          : 'Deployed'
+                      : 'Not Deployed'}
+                  </span>
+                </TooltipContent>
+              </Tooltip>
+            )}
             {!isEnabled && (
               <Badge variant='secondary' className='bg-gray-100 text-gray-500 hover:bg-gray-100'>
                 Disabled
@@ -1078,7 +1184,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
             />
 
             {/* Error Handle - Don't show for trigger blocks, starter blocks, or blocks in trigger mode */}
-            {config.category !== 'triggers' && type !== 'starter' && !blockTriggerMode && (
+            {config.category !== 'triggers' && type !== 'starter' && !displayTriggerMode && (
               <Handle
                 type='source'
                 position={horizontalHandles ? Position.Right : Position.Bottom}

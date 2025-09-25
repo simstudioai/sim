@@ -1,6 +1,6 @@
-import * as schema from '@sim/db/schema'
-import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db/schema'
-import { and, eq, or } from 'drizzle-orm'
+import * as schema from '@sim/db'
+import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db'
+import { and, eq, or, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { env } from '@/lib/env'
@@ -75,7 +75,12 @@ export async function updateSubflowNodeList(dbOrTx: any, workflowId: string, par
     const childBlocks = await dbOrTx
       .select({ id: workflowBlocks.id })
       .from(workflowBlocks)
-      .where(and(eq(workflowBlocks.workflowId, workflowId), eq(workflowBlocks.parentId, parentId)))
+      .where(
+        and(
+          eq(workflowBlocks.workflowId, workflowId),
+          sql`${workflowBlocks.data}->>'parentId' = ${parentId}`
+        )
+      )
 
     const childNodeIds = childBlocks.map((block: any) => block.id)
 
@@ -261,11 +266,13 @@ async function handleBlockOperationTx(
           name: payload.name,
           positionX: payload.position.x,
           positionY: payload.position.y,
-          data: payload.data || {},
+          data: {
+            ...(payload.data || {}),
+            ...(parentId ? { parentId } : {}),
+            ...(extent ? { extent } : {}),
+          },
           subBlocks: payload.subBlocks || {},
           outputs: payload.outputs || {},
-          parentId,
-          extent,
           enabled: payload.enabled ?? true,
           horizontalHandles: payload.horizontalHandles ?? true,
           isWide: payload.isWide ?? false,
@@ -358,7 +365,10 @@ async function handleBlockOperationTx(
 
       // Check if this is a subflow block that needs cascade deletion
       const blockToRemove = await tx
-        .select({ type: workflowBlocks.type, parentId: workflowBlocks.parentId })
+        .select({
+          type: workflowBlocks.type,
+          parentId: sql<string | null>`${workflowBlocks.data}->>'parentId'`,
+        })
         .from(workflowBlocks)
         .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
         .limit(1)
@@ -369,7 +379,10 @@ async function handleBlockOperationTx(
           .select({ id: workflowBlocks.id, type: workflowBlocks.type })
           .from(workflowBlocks)
           .where(
-            and(eq(workflowBlocks.workflowId, workflowId), eq(workflowBlocks.parentId, payload.id))
+            and(
+              eq(workflowBlocks.workflowId, workflowId),
+              sql`${workflowBlocks.data}->>'parentId' = ${payload.id}`
+            )
           )
 
         logger.debug(
@@ -398,7 +411,10 @@ async function handleBlockOperationTx(
         await tx
           .delete(workflowBlocks)
           .where(
-            and(eq(workflowBlocks.workflowId, workflowId), eq(workflowBlocks.parentId, payload.id))
+            and(
+              eq(workflowBlocks.workflowId, workflowId),
+              sql`${workflowBlocks.data}->>'parentId' = ${payload.id}`
+            )
           )
 
         // Remove the subflow entry
@@ -497,7 +513,7 @@ async function handleBlockOperationTx(
       const [existing] = await tx
         .select({
           id: workflowBlocks.id,
-          parentId: workflowBlocks.parentId,
+          parentId: sql<string | null>`${workflowBlocks.data}->>'parentId'`,
         })
         .from(workflowBlocks)
         .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
@@ -505,13 +521,28 @@ async function handleBlockOperationTx(
 
       const isRemovingFromParent = !payload.parentId
 
+      // Get current data to update
+      const [currentBlock] = await tx
+        .select({ data: workflowBlocks.data })
+        .from(workflowBlocks)
+        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+        .limit(1)
+
+      const currentData = currentBlock?.data || {}
+
+      // Update data with parentId and extent
+      const updatedData = isRemovingFromParent
+        ? {} // Clear data entirely when removing from parent
+        : {
+            ...currentData,
+            ...(payload.parentId ? { parentId: payload.parentId } : {}),
+            ...(payload.extent ? { extent: payload.extent } : {}),
+          }
+
       const updateResult = await tx
         .update(workflowBlocks)
         .set({
-          parentId: isRemovingFromParent ? null : payload.parentId || null,
-          extent: isRemovingFromParent ? null : payload.extent || null,
-          // When removing from a subflow, also clear data JSON entirely
-          ...(isRemovingFromParent ? { data: {} } : {}),
+          data: updatedData,
           updatedAt: new Date(),
         })
         .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
@@ -654,11 +685,13 @@ async function handleBlockOperationTx(
           name: payload.name,
           positionX: payload.position.x,
           positionY: payload.position.y,
-          data: payload.data || {},
+          data: {
+            ...(payload.data || {}),
+            ...(parentId ? { parentId } : {}),
+            ...(extent ? { extent } : {}),
+          },
           subBlocks: payload.subBlocks || {},
           outputs: payload.outputs || {},
-          parentId,
-          extent,
           enabled: payload.enabled ?? true,
           horizontalHandles: payload.horizontalHandles ?? true,
           isWide: payload.isWide ?? false,

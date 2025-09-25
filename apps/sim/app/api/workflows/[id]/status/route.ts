@@ -1,3 +1,5 @@
+import { db, workflowDeploymentVersion } from '@sim/db'
+import { and, desc, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
@@ -22,20 +24,39 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // Check if the workflow has meaningful changes that would require redeployment
     let needsRedeployment = false
-    if (validation.workflow.isDeployed && validation.workflow.deployedState) {
+
+    if (validation.workflow.isDeployed) {
+      // Get current state from normalized tables (same logic as deployment API)
+      // Load current state from normalized tables using centralized helper
       const normalizedData = await loadWorkflowFromNormalizedTables(id)
+
+      if (!normalizedData) {
+        return createErrorResponse('Failed to load workflow state', 500)
+      }
+
       const currentState = {
-        blocks: normalizedData?.blocks || {},
-        edges: normalizedData?.edges || [],
-        loops: normalizedData?.loops || {},
-        parallels: normalizedData?.parallels || {},
+        blocks: normalizedData.blocks,
+        edges: normalizedData.edges,
+        loops: normalizedData.loops,
+        parallels: normalizedData.parallels,
         lastSaved: Date.now(),
       }
 
-      needsRedeployment = hasWorkflowChanged(
-        currentState as any,
-        validation.workflow.deployedState as any
-      )
+      const [active] = await db
+        .select({ state: workflowDeploymentVersion.state })
+        .from(workflowDeploymentVersion)
+        .where(
+          and(
+            eq(workflowDeploymentVersion.workflowId, id),
+            eq(workflowDeploymentVersion.isActive, true)
+          )
+        )
+        .orderBy(desc(workflowDeploymentVersion.createdAt))
+        .limit(1)
+
+      if (active?.state) {
+        needsRedeployment = hasWorkflowChanged(currentState as any, active.state as any)
+      }
     }
 
     return createSuccessResponse({

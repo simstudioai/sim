@@ -57,7 +57,10 @@ const nodeTypes: NodeTypes = {
   workflowBlock: WorkflowBlock,
   subflowNode: SubflowNodeComponent,
 }
-const edgeTypes: EdgeTypes = { workflowEdge: WorkflowEdge }
+const edgeTypes: EdgeTypes = {
+  default: WorkflowEdge,
+  workflowEdge: WorkflowEdge, // Keep for backward compatibility
+}
 
 interface SelectedEdgeInfo {
   id: string
@@ -123,7 +126,7 @@ const WorkflowContent = React.memo(() => {
   useStreamCleanup(copilotCleanup)
 
   // Extract workflow data from the abstraction
-  const { blocks, edges, loops, parallels, isDiffMode } = currentWorkflow
+  const { blocks, edges, isDiffMode, lastSaved } = currentWorkflow
 
   // Check if workflow is empty (no blocks)
   const isWorkflowEmpty = useMemo(() => {
@@ -308,6 +311,7 @@ const WorkflowContent = React.memo(() => {
         nodeId,
         newParentId,
         getNodes,
+        blocks,
         collaborativeUpdateBlockPosition,
         updateParentId,
         () => resizeLoopNodes(getNodes, updateNodeDimensions, blocks)
@@ -348,30 +352,30 @@ const WorkflowContent = React.memo(() => {
   // Wrapper functions that use the utilities but provide the getNodes function
   const getNodeDepthWrapper = useCallback(
     (nodeId: string): number => {
-      return getNodeDepth(nodeId, getNodes)
+      return getNodeDepth(nodeId, getNodes, blocks)
     },
-    [getNodes]
+    [getNodes, blocks]
   )
 
   const getNodeHierarchyWrapper = useCallback(
     (nodeId: string): string[] => {
-      return getNodeHierarchy(nodeId, getNodes)
+      return getNodeHierarchy(nodeId, getNodes, blocks)
     },
-    [getNodes]
+    [getNodes, blocks]
   )
 
   const getNodeAbsolutePositionWrapper = useCallback(
     (nodeId: string): { x: number; y: number } => {
-      return getNodeAbsolutePosition(nodeId, getNodes)
+      return getNodeAbsolutePosition(nodeId, getNodes, blocks)
     },
-    [getNodes]
+    [getNodes, blocks]
   )
 
   const isPointInLoopNodeWrapper = useCallback(
     (position: { x: number; y: number }) => {
-      return isPointInLoopNode(position, getNodes)
+      return isPointInLoopNode(position, getNodes, blocks)
     },
-    [getNodes]
+    [getNodes, blocks]
   )
 
   // Compute the absolute position of a node's source anchor (right-middle)
@@ -529,7 +533,7 @@ const WorkflowContent = React.memo(() => {
           if (!node) return false
 
           // If dropping outside containers, ignore blocks that are inside a container
-          if (!containerAtPoint && node.parentId) return false
+          if (!containerAtPoint && blocks[id]?.data?.parentId) return false
           return true
         })
         .map(([id, block]) => {
@@ -1282,11 +1286,6 @@ const WorkflowContent = React.memo(() => {
     validateNestedSubflows()
   }, [blocks, validateNestedSubflows])
 
-  // Validate nested subflows whenever blocks change
-  useEffect(() => {
-    validateNestedSubflows()
-  }, [blocks, validateNestedSubflows])
-
   // Update edges
   const onEdgesChange = useCallback(
     (changes: any) => {
@@ -1326,12 +1325,12 @@ const WorkflowContent = React.memo(() => {
 
         // Get parent information (handle container start node case)
         const sourceParentId =
-          sourceNode.parentId ||
+          blocks[sourceNode.id]?.data?.parentId ||
           (connection.sourceHandle === 'loop-start-source' ||
           connection.sourceHandle === 'parallel-start-source'
             ? connection.source
             : undefined)
-        const targetParentId = targetNode.parentId
+        const targetParentId = blocks[targetNode.id]?.data?.parentId
 
         // Generate a unique edge ID
         const edgeId = crypto.randomUUID()
@@ -1340,7 +1339,7 @@ const WorkflowContent = React.memo(() => {
         if (
           (connection.sourceHandle === 'loop-start-source' ||
             connection.sourceHandle === 'parallel-start-source') &&
-          targetNode.parentId === sourceNode.id
+          blocks[targetNode.id]?.data?.parentId === sourceNode.id
         ) {
           // This is a connection from container start to a node inside the container - always allow
 
@@ -1556,7 +1555,7 @@ const WorkflowContent = React.memo(() => {
   const onNodeDragStart = useCallback(
     (_event: React.MouseEvent, node: any) => {
       // Store the original parent ID when starting to drag
-      const currentParentId = node.parentId || blocks[node.id]?.data?.parentId || null
+      const currentParentId = blocks[node.id]?.data?.parentId || null
       setDragStartParentId(currentParentId)
       // Store starting position for undo/redo move entry
       setDragStartPosition({
@@ -1752,7 +1751,9 @@ const WorkflowContent = React.memo(() => {
 
       // An edge is inside a loop if either source or target has a parent
       // If source and target have different parents, prioritize source's parent
-      const parentLoopId = sourceNode?.parentId || targetNode?.parentId
+      const parentLoopId =
+        (sourceNode?.id && blocks[sourceNode.id]?.data?.parentId) ||
+        (targetNode?.id && blocks[targetNode.id]?.data?.parentId)
 
       // Create a unique identifier that combines edge ID and parent context
       const contextId = `${edge.id}${parentLoopId ? `-${parentLoopId}` : ''}`
@@ -1771,7 +1772,9 @@ const WorkflowContent = React.memo(() => {
     // Check if this edge connects nodes inside a loop
     const sourceNode = getNodes().find((n) => n.id === edge.source)
     const targetNode = getNodes().find((n) => n.id === edge.target)
-    const parentLoopId = sourceNode?.parentId || targetNode?.parentId
+    const parentLoopId =
+      (sourceNode?.id && blocks[sourceNode.id]?.data?.parentId) ||
+      (targetNode?.id && blocks[targetNode.id]?.data?.parentId)
     const isInsideLoop = Boolean(parentLoopId)
 
     // Create a unique context ID for this edge
@@ -1782,7 +1785,6 @@ const WorkflowContent = React.memo(() => {
 
     return {
       ...edge,
-      type: edge.type || 'workflowEdge',
       data: {
         // Send only necessary data to the edge component
         isSelected,
@@ -1838,8 +1840,8 @@ const WorkflowContent = React.memo(() => {
     }
   }, [collaborativeSetSubblockValue])
 
-  // Show skeleton UI while loading, then smoothly transition to real content
-  const showSkeletonUI = !isWorkflowReady
+  // Show skeleton UI while loading until the workflow store is hydrated
+  const showSkeletonUI = !isWorkflowReady || typeof lastSaved !== 'number'
 
   if (showSkeletonUI) {
     return (
@@ -1943,10 +1945,11 @@ const WorkflowContent = React.memo(() => {
           type={triggerWarning.type}
         />
 
-        {/* Trigger list for empty workflows - only show after workflow has loaded */}
-        {isWorkflowReady && isWorkflowEmpty && effectivePermissions.canEdit && (
-          <TriggerList onSelect={handleTriggerSelect} />
-        )}
+        {/* Trigger list for empty workflows - only show after workflow has loaded and hydrated */}
+        {isWorkflowReady &&
+          typeof lastSaved === 'number' &&
+          isWorkflowEmpty &&
+          effectivePermissions.canEdit && <TriggerList onSelect={handleTriggerSelect} />}
       </div>
     </div>
   )

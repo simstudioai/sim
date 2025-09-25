@@ -45,6 +45,7 @@ interface ChatDeployProps {
   showDeleteConfirmation?: boolean
   setShowDeleteConfirmation?: (show: boolean) => void
   onDeploymentComplete?: () => void
+  onDeployed?: () => void
 }
 
 interface ExistingChat {
@@ -72,6 +73,7 @@ export function ChatDeploy({
   showDeleteConfirmation: externalShowDeleteConfirmation,
   setShowDeleteConfirmation: externalSetShowDeleteConfirmation,
   onDeploymentComplete,
+  onDeployed,
 }: ChatDeployProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [existingChat, setExistingChat] = useState<ExistingChat | null>(null)
@@ -193,6 +195,7 @@ export function ChatDeploy({
 
       onChatExistsChange?.(true)
       setShowSuccessView(true)
+      onDeployed?.()
 
       // Fetch the updated chat data immediately after deployment
       // This ensures existingChat is available when switching back to edit mode

@@ -445,6 +445,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             blockTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
           } else if (sourceBlock.type === 'starter') {
             blockTags = [normalizedBlockName]
+          } else if (sourceBlock.type === 'generic_webhook') {
+            blockTags = [normalizedBlockName]
           } else {
             blockTags = []
           }
@@ -688,6 +690,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           } else {
             blockTags = [normalizedBlockName]
           }
+        } else if (accessibleBlock.type === 'generic_webhook') {
+          blockTags = [normalizedBlockName]
         } else {
           blockTags = []
         }

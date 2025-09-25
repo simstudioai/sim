@@ -226,28 +226,24 @@ export function hasWorkflowChanged(
     const currentBlock = currentState.blocks[blockId]
     const deployedBlock = deployedState.blocks[blockId]
 
-    // Skip position as it doesn't affect functionality
-    const { position: currentPosition, ...currentBlockProps } = currentBlock
-    const { position: deployedPosition, ...deployedBlockProps } = deployedBlock
+    // Destructure and exclude non-functional fields
+    const { position: _currentPos, subBlocks: currentSubBlocks = {}, ...currentRest } = currentBlock
 
-    // Extract and normalize subBlocks separately for cleaner comparison
-    const currentSubBlocks = currentBlockProps.subBlocks || {}
-    const deployedSubBlocks = deployedBlockProps.subBlocks || {}
+    const {
+      position: _deployedPos,
+      subBlocks: deployedSubBlocks = {},
+      ...deployedRest
+    } = deployedBlock
 
-    // Create normalized block representations without position or subBlocks
     normalizedCurrentBlocks[blockId] = {
-      ...currentBlockProps,
+      ...currentRest,
       subBlocks: undefined,
     }
 
     normalizedDeployedBlocks[blockId] = {
-      ...deployedBlockProps,
+      ...deployedRest,
       subBlocks: undefined,
     }
-
-    // Handle subBlocks separately
-    const _normalizedCurrentSubBlocks: Record<string, any> = {}
-    const _normalizedDeployedSubBlocks: Record<string, any> = {}
 
     // Get all subBlock IDs from both states
     const allSubBlockIds = [

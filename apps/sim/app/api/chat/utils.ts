@@ -399,11 +399,10 @@ export async function executeWorkflowForChat(
     `[${requestId}] Using ${outputBlockIds.length} output blocks and ${selectedOutputIds.length} selected output IDs for extraction`
   )
 
-  // Find the workflow (deployedState is NOT deprecated - needed for chat execution)
+  // Find the workflow to check if it's deployed
   const workflowResult = await db
     .select({
       isDeployed: workflow.isDeployed,
-      deployedState: workflow.deployedState,
       variables: workflow.variables,
     })
     .from(workflow)
@@ -415,13 +414,17 @@ export async function executeWorkflowForChat(
     throw new Error('Workflow not available')
   }
 
-  // For chat execution, use ONLY the deployed state (no fallback)
-  if (!workflowResult[0].deployedState) {
+  // Load the active deployed state from the deployment versions table
+  const { loadDeployedWorkflowState } = await import('@/lib/workflows/db-helpers')
+
+  let deployedState: WorkflowState
+  try {
+    deployedState = await loadDeployedWorkflowState(workflowId)
+  } catch (error) {
+    logger.error(`[${requestId}] Failed to load deployed state for workflow ${workflowId}:`, error)
     throw new Error(`Workflow must be deployed to be available for chat`)
   }
 
-  // Use deployed state for chat execution (this is the stable, deployed version)
-  const deployedState = workflowResult[0].deployedState as WorkflowState
   const { blocks, edges, loops, parallels } = deployedState
 
   // Prepare for execution, similar to use-workflow-execution.ts
@@ -611,6 +614,7 @@ export async function executeWorkflowForChat(
             target: e.target,
           })),
           onStream,
+          isDeployedContext: true,
         },
       })
 

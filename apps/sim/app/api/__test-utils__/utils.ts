@@ -147,20 +147,63 @@ export const sampleWorkflowState = {
   isDeployed: false,
 }
 
+// Global mock data that can be configured by tests
+export const globalMockData = {
+  webhooks: [] as any[],
+  workflows: [] as any[],
+  schedules: [] as any[],
+  shouldThrowError: false,
+  errorMessage: 'Database error',
+}
+
 export const mockDb = {
-  select: vi.fn().mockImplementation(() => ({
-    from: vi.fn().mockImplementation(() => ({
-      where: vi.fn().mockImplementation(() => ({
-        limit: vi.fn().mockImplementation(() => [
-          {
-            id: 'workflow-id',
-            userId: 'user-id',
-            state: sampleWorkflowState,
-          },
-        ]),
+  select: vi.fn().mockImplementation(() => {
+    if (globalMockData.shouldThrowError) {
+      throw new Error(globalMockData.errorMessage)
+    }
+    return {
+      from: vi.fn().mockImplementation(() => ({
+        innerJoin: vi.fn().mockImplementation(() => ({
+          where: vi.fn().mockImplementation(() => ({
+            limit: vi.fn().mockImplementation(() => {
+              // Return webhook/workflow join data if available
+              if (globalMockData.webhooks.length > 0) {
+                return [
+                  {
+                    webhook: globalMockData.webhooks[0],
+                    workflow: globalMockData.workflows[0] || {
+                      id: 'test-workflow',
+                      userId: 'test-user',
+                    },
+                  },
+                ]
+              }
+              return []
+            }),
+          })),
+        })),
+        where: vi.fn().mockImplementation(() => ({
+          limit: vi.fn().mockImplementation(() => {
+            // Return schedules if available
+            if (globalMockData.schedules.length > 0) {
+              return globalMockData.schedules
+            }
+            // Return simple workflow data
+            if (globalMockData.workflows.length > 0) {
+              return globalMockData.workflows
+            }
+            return [
+              {
+                id: 'workflow-id',
+                userId: 'user-id',
+                state: sampleWorkflowState,
+              },
+            ]
+          }),
+        })),
       })),
-    })),
-  })),
+    }
+  }),
   update: vi.fn().mockImplementation(() => ({
     set: vi.fn().mockImplementation(() => ({
       where: vi.fn().mockResolvedValue([]),
@@ -351,6 +394,27 @@ export function mockExecutionDependencies() {
 
   vi.mock('@sim/db', () => ({
     db: mockDb,
+    // Add common schema exports that tests might need
+    webhook: {
+      id: 'id',
+      path: 'path',
+      workflowId: 'workflowId',
+      isActive: 'isActive',
+      provider: 'provider',
+      providerConfig: 'providerConfig',
+    },
+    workflow: { id: 'id', userId: 'userId' },
+    workflowSchedule: {
+      id: 'id',
+      workflowId: 'workflowId',
+      nextRunAt: 'nextRunAt',
+      status: 'status',
+    },
+    userStats: {
+      userId: 'userId',
+      totalScheduledExecutions: 'totalScheduledExecutions',
+      lastActive: 'lastActive',
+    },
   }))
 }
 
