@@ -97,51 +97,66 @@ jobs:
         run: |
           ECR_REGISTRY="${{ steps.login-ecr.outputs.registry }}"
           
-          # Determine stack prefix and tag based on environment
+          # Determine tag based on environment
           if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            STACK_PREFIX="PROD"
             TAG="latest"
           else
-            STACK_PREFIX="STAGING"
             TAG="staging"
           fi
           
-          # Map stack type to ECR repo and get stack name
+          # Map stack type to ECR repo
           case "${{ matrix.stack_type }}" in
             APP)
-              STACK_NAME_VAR="${STACK_PREFIX}_APP_STACK"
               ECR_REPO="${{ secrets.ECR_APP }}"
               ;;
             CORE)
-              STACK_NAME_VAR="${STACK_PREFIX}_CORE_STACK"
               ECR_REPO="${{ secrets.ECR_MIGRATIONS }}"
               ;;
             MONITORING)
-              STACK_NAME_VAR="${STACK_PREFIX}_MONITORING_STACK"
               ECR_REPO="${{ secrets.ECR_REALTIME }}"
               ;;
           esac
           
-          # Get stack name from secrets
-          STACK_NAME=$(eval echo \${{ secrets.${STACK_NAME_VAR} }})
-          
           # Full image URI with simple tag
           IMAGE_URI="${ECR_REGISTRY}/${ECR_REPO}:${TAG}"
           
-          echo "name=$STACK_NAME" >> $GITHUB_OUTPUT
           echo "image=$IMAGE_URI" >> $GITHUB_OUTPUT
+
+      - name: Get stack name
+        id: stack-name
+        run: |
+          # Use conditional expressions to get stack name based on branch and type
+          APP_STACK="${{ github.ref == 'refs/heads/main' && secrets.PROD_APP_STACK || secrets.STAGING_APP_STACK }}"
+          CORE_STACK="${{ github.ref == 'refs/heads/main' && secrets.PROD_CORE_STACK || secrets.STAGING_CORE_STACK }}"
+          MONITORING_STACK="${{ github.ref == 'refs/heads/main' && secrets.PROD_MONITORING_STACK || secrets.STAGING_MONITORING_STACK }}"
+          
+          # Select the appropriate stack based on matrix type
+          case "${{ matrix.stack_type }}" in
+            APP)
+              STACK_NAME="$APP_STACK"
+              ;;
+            CORE)
+              STACK_NAME="$CORE_STACK"
+              ;;
+            MONITORING)
+              STACK_NAME="$MONITORING_STACK"
+              ;;
+          esac
+          
+          echo "Updating stack: $STACK_NAME"
+          echo "name=$STACK_NAME" >> $GITHUB_OUTPUT
 
       - name: Get ECS services from stack
         id: ecs-services
         run: |
           # Get all ECS services from the stack
           SERVICES=$(aws cloudformation describe-stack-resources \
-            --stack-name "${{ steps.stack.outputs.name }}" \
+            --stack-name "${{ steps.stack-name.outputs.name }}" \
             --query "StackResources[?ResourceType=='AWS::ECS::Service'].PhysicalResourceId" \
             --output text 2>/dev/null || echo "")
           
           if [ -z "$SERVICES" ]; then
-            echo "No ECS services found in stack ${{ steps.stack.outputs.name }}"
+            echo "No ECS services found in stack ${{ steps.stack-name.outputs.name }}"
             echo "services=" >> $GITHUB_OUTPUT
           else
             echo "Found services: $SERVICES"
