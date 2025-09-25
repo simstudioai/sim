@@ -18,9 +18,12 @@ describe('WorkflowBlockHandler', () => {
   let mockFetch: Mock
 
   beforeEach(() => {
-    // Ensure code path treats environment as browser to skip token generation,
-    // but we also mock token generation above for safety when window is absent.
-    ;(global as any).window = {}
+    // Mock window.location.origin for getBaseUrl()
+    ;(global as any).window = {
+      location: {
+        origin: 'http://localhost:3000',
+      },
+    }
     handler = new WorkflowBlockHandler()
     mockFetch = global.fetch as Mock
 
