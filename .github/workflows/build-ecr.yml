@@ -1,0 +1,243 @@
+name: Build and Push to ECR
+
+on:
+  push:
+    branches: [main, staging]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-push-ecr:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - dockerfile: ./docker/app.Dockerfile
+            ecr_repo_secret: ECR_APP
+            service_type: app
+          - dockerfile: ./docker/db.Dockerfile
+            ecr_repo_secret: ECR_MIGRATIONS
+            service_type: core
+          - dockerfile: ./docker/realtime.Dockerfile
+            ecr_repo_secret: ECR_REALTIME
+            service_type: monitoring
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ github.ref == 'refs/heads/main' && secrets.AWS_REGION || secrets.STAGING_AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Generate image tags
+        id: meta
+        run: |
+          ECR_REGISTRY="${{ steps.login-ecr.outputs.registry }}"
+          ECR_REPO="${{ secrets[matrix.ecr_repo_secret] }}"
+          
+          # Simple tagging: :latest for main, :staging for staging
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            TAG="latest"
+          else
+            TAG="staging"
+          fi
+          
+          FULL_IMAGE="${ECR_REGISTRY}/${ECR_REPO}:${TAG}"
+          
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "full_image=$FULL_IMAGE" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.full_image }}
+          platforms: linux/amd64
+          cache-from: type=gha,scope=build-ecr-${{ matrix.service_type }}
+          cache-to: type=gha,mode=max,scope=build-ecr-${{ matrix.service_type }}
+          provenance: false
+          sbom: false
+
+  update-ecs-services:
+    needs: build-and-push-ecr
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        stack_type: [APP, CORE, MONITORING]
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ github.ref == 'refs/heads/main' && secrets.AWS_REGION || secrets.STAGING_AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Determine stack and image details
+        id: stack
+        run: |
+          ECR_REGISTRY="${{ steps.login-ecr.outputs.registry }}"
+          
+          # Determine stack prefix and tag based on environment
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            STACK_PREFIX="PROD"
+            TAG="latest"
+          else
+            STACK_PREFIX="STAGING"
+            TAG="staging"
+          fi
+          
+          # Map stack type to ECR repo and get stack name
+          case "${{ matrix.stack_type }}" in
+            APP)
+              STACK_NAME_VAR="${STACK_PREFIX}_APP_STACK"
+              ECR_REPO="${{ secrets.ECR_APP }}"
+              ;;
+            CORE)
+              STACK_NAME_VAR="${STACK_PREFIX}_CORE_STACK"
+              ECR_REPO="${{ secrets.ECR_MIGRATIONS }}"
+              ;;
+            MONITORING)
+              STACK_NAME_VAR="${STACK_PREFIX}_MONITORING_STACK"
+              ECR_REPO="${{ secrets.ECR_REALTIME }}"
+              ;;
+          esac
+          
+          # Get stack name from secrets
+          STACK_NAME=$(eval echo \${{ secrets.${STACK_NAME_VAR} }})
+          
+          # Full image URI with simple tag
+          IMAGE_URI="${ECR_REGISTRY}/${ECR_REPO}:${TAG}"
+          
+          echo "name=$STACK_NAME" >> $GITHUB_OUTPUT
+          echo "image=$IMAGE_URI" >> $GITHUB_OUTPUT
+
+      - name: Get ECS services from stack
+        id: ecs-services
+        run: |
+          # Get all ECS services from the stack
+          SERVICES=$(aws cloudformation describe-stack-resources \
+            --stack-name "${{ steps.stack.outputs.name }}" \
+            --query "StackResources[?ResourceType=='AWS::ECS::Service'].PhysicalResourceId" \
+            --output text 2>/dev/null || echo "")
+          
+          if [ -z "$SERVICES" ]; then
+            echo "No ECS services found in stack ${{ steps.stack.outputs.name }}"
+            echo "services=" >> $GITHUB_OUTPUT
+          else
+            echo "Found services: $SERVICES"
+            echo "services=$SERVICES" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update ECS services
+        if: steps.ecs-services.outputs.services != ''
+        run: |
+          SERVICES="${{ steps.ecs-services.outputs.services }}"
+          
+          for SERVICE_ARN in $SERVICES; do
+            echo "Updating service: $SERVICE_ARN"
+            
+            # Extract cluster name from service ARN
+            CLUSTER_NAME=$(echo $SERVICE_ARN | cut -d'/' -f2)
+            SERVICE_NAME=$(echo $SERVICE_ARN | cut -d'/' -f3)
+            
+            # Get the current task definition
+            TASK_DEF_ARN=$(aws ecs describe-services \
+              --cluster "$CLUSTER_NAME" \
+              --services "$SERVICE_NAME" \
+              --query "services[0].taskDefinition" \
+              --output text)
+            
+            # Get the task definition details
+            TASK_DEF=$(aws ecs describe-task-definition \
+              --task-definition "$TASK_DEF_ARN" \
+              --query "taskDefinition")
+            
+            # Update the image in the task definition
+            # For Ubuntu ECS, container definitions may have multiple containers
+            NEW_TASK_DEF=$(echo "$TASK_DEF" | jq --arg IMAGE "${{ steps.stack.outputs.image }}" \
+              '.containerDefinitions |= map(
+                if .essential == true then 
+                  .image = $IMAGE 
+                else . end
+              ) | 
+              del(.taskDefinitionArn) | 
+              del(.revision) | 
+              del(.status) | 
+              del(.requiresAttributes) | 
+              del(.compatibilities) | 
+              del(.registeredAt) | 
+              del(.registeredBy)')
+            
+            # Register new task definition
+            NEW_TASK_ARN=$(aws ecs register-task-definition \
+              --cli-input-json "$NEW_TASK_DEF" \
+              --query "taskDefinition.taskDefinitionArn" \
+              --output text)
+            
+            echo "Registered new task definition: $NEW_TASK_ARN"
+            
+            # Update service with new task definition
+            aws ecs update-service \
+              --cluster "$CLUSTER_NAME" \
+              --service "$SERVICE_NAME" \
+              --task-definition "$NEW_TASK_ARN" \
+              --force-new-deployment
+            
+            echo "Service update initiated for $SERVICE_NAME"
+          done
+
+      - name: Wait for service stability
+        if: steps.ecs-services.outputs.services != ''
+        run: |
+          SERVICES="${{ steps.ecs-services.outputs.services }}"
+          
+          for SERVICE_ARN in $SERVICES; do
+            CLUSTER_NAME=$(echo $SERVICE_ARN | cut -d'/' -f2)
+            SERVICE_NAME=$(echo $SERVICE_ARN | cut -d'/' -f3)
+            
+            echo "Waiting for service $SERVICE_NAME to stabilize..."
+            
+            # Wait up to 30 minutes for service to stabilize
+            ATTEMPTS=0
+            MAX_ATTEMPTS=120
+            while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
+              DEPLOYMENT_STATUS=$(aws ecs describe-services \
+                --cluster "$CLUSTER_NAME" \
+                --services "$SERVICE_NAME" \
+                --query "services[0].deployments[?status=='PRIMARY'].rolloutState" \
+                --output text)
+              
+              if [ "$DEPLOYMENT_STATUS" = "COMPLETED" ]; then
+                echo "✅ Service $SERVICE_NAME updated successfully!"
+                break
+              fi
+              
+              echo "Deployment status: $DEPLOYMENT_STATUS (attempt $((ATTEMPTS+1))/$MAX_ATTEMPTS)"
+              sleep 15
+              ATTEMPTS=$((ATTEMPTS+1))
+            done
+            
+            if [ $ATTEMPTS -eq $MAX_ATTEMPTS ]; then
+              echo "⚠️ Service $SERVICE_NAME did not stabilize within timeout"
+            fi
+          done 
