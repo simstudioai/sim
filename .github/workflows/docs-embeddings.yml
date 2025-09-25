@@ -1,12 +1,8 @@
 name: Process Docs Embeddings
 
 on:
-  push:
-    branches: [main, staging]
-    paths:
-      - 'apps/docs/**'
-  workflow_dispatch: # Allow manual triggering
   workflow_call:
+  workflow_dispatch: # Allow manual triggering
 
 jobs:
   process-docs-embeddings:

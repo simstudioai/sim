@@ -2,6 +2,7 @@ name: Build GHCR Images (Build Only)
 
 on:
   workflow_call:
+  workflow_dispatch:
 
 permissions:
   contents: read

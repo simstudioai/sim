@@ -1,11 +1,8 @@
 name: Trigger.dev Deploy
 
 on:
-  push:
-    branches:
-      - main
-      - staging
   workflow_call:
+  workflow_dispatch:
 
 jobs:
   deploy:
