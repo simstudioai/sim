@@ -16,12 +16,10 @@ import {
   PasswordAuth,
   VoiceInterface,
 } from '@/app/chat/components'
+import { CHAT_ERROR_MESSAGES, CHAT_REQUEST_TIMEOUT_MS } from '@/app/chat/constants'
 import { useAudioStreaming, useChatStreaming } from '@/app/chat/hooks'
 
 const logger = createLogger('ChatClient')
-
-// Chat timeout configuration (5 minutes)
-const CHAT_REQUEST_TIMEOUT_MS = 300000
 
 interface ChatConfig {
   id: string
@@ -237,7 +235,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       }
     } catch (error) {
       logger.error('Error fetching chat config:', error)
-      setError('This chat is currently unavailable. Please try again later.')
+      setError(CHAT_ERROR_MESSAGES.CHAT_UNAVAILABLE)
     }
   }
 
@@ -372,7 +370,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       setIsLoading(false)
       const errorMessage: ChatMessage = {
         id: crypto.randomUUID(),
-        content: 'Sorry, there was an error processing your message. Please try again.',
+        content: CHAT_ERROR_MESSAGES.GENERIC_ERROR,
         type: 'assistant',
         timestamp: new Date(),
       }

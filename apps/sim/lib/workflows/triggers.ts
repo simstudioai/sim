@@ -5,6 +5,7 @@ import { getBlock } from '@/blocks'
  */
 export const TRIGGER_TYPES = {
   INPUT: 'input_trigger',
+  MANUAL: 'manual_trigger',
   CHAT: 'chat_trigger',
   API: 'api_trigger',
   WEBHOOK: 'webhook',
@@ -81,7 +82,7 @@ export class TriggerUtils {
    * Check if a block is a manual-compatible trigger
    */
   static isManualTrigger(block: { type: string; subBlocks?: any }): boolean {
-    if (block.type === TRIGGER_TYPES.INPUT) {
+    if (block.type === TRIGGER_TYPES.INPUT || block.type === TRIGGER_TYPES.MANUAL) {
       return true
     }
 
@@ -139,6 +140,8 @@ export class TriggerUtils {
         return 'Chat'
       case TRIGGER_TYPES.INPUT:
         return 'Input Trigger'
+      case TRIGGER_TYPES.MANUAL:
+        return 'Manual'
       case TRIGGER_TYPES.API:
         return 'API'
       case TRIGGER_TYPES.WEBHOOK:
@@ -216,12 +219,14 @@ export class TriggerUtils {
    * Check if a trigger type requires single instance constraint
    */
   static requiresSingleInstance(triggerType: string): boolean {
-    // API and Input triggers cannot coexist with each other
-    // Chat trigger must be unique
-    // Schedules and webhooks can coexist with API/Input triggers
+    // Each trigger type can only have one instance of itself
+    // Manual and Input Form can coexist
+    // API, Chat triggers must be unique
+    // Schedules and webhooks can have multiple instances
     return (
       triggerType === TRIGGER_TYPES.API ||
       triggerType === TRIGGER_TYPES.INPUT ||
+      triggerType === TRIGGER_TYPES.MANUAL ||
       triggerType === TRIGGER_TYPES.CHAT
     )
   }
@@ -244,11 +249,12 @@ export class TriggerUtils {
     const blockArray = Array.isArray(blocks) ? blocks : Object.values(blocks)
     const hasLegacyStarter = TriggerUtils.hasLegacyStarter(blocks)
 
-    // Legacy starter block can't coexist with Chat, Input, or API triggers
+    // Legacy starter block can't coexist with Chat, Input, Manual, or API triggers
     if (hasLegacyStarter) {
       if (
         triggerType === TRIGGER_TYPES.CHAT ||
         triggerType === TRIGGER_TYPES.INPUT ||
+        triggerType === TRIGGER_TYPES.MANUAL ||
         triggerType === TRIGGER_TYPES.API
       ) {
         return true
@@ -260,6 +266,7 @@ export class TriggerUtils {
         (block) =>
           block.type === TRIGGER_TYPES.CHAT ||
           block.type === TRIGGER_TYPES.INPUT ||
+          block.type === TRIGGER_TYPES.MANUAL ||
           block.type === TRIGGER_TYPES.API
       )
       if (hasModernTriggers) {
@@ -270,6 +277,11 @@ export class TriggerUtils {
     // Only one Input trigger allowed
     if (triggerType === TRIGGER_TYPES.INPUT) {
       return blockArray.some((block) => block.type === TRIGGER_TYPES.INPUT)
+    }
+
+    // Only one Manual trigger allowed
+    if (triggerType === TRIGGER_TYPES.MANUAL) {
+      return blockArray.some((block) => block.type === TRIGGER_TYPES.MANUAL)
     }
 
     // Only one API trigger allowed

@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ChatMessage } from '@/app/chat/components/message/message'
+import { CHAT_ERROR_MESSAGES } from '@/app/chat/constants'
 // No longer need complex output extraction - backend handles this
 import type { ExecutionResult } from '@/executor/types'
 
@@ -150,6 +151,25 @@ export function useChatStreaming() {
             try {
               const json = JSON.parse(line.substring(6))
               const { blockId, chunk: contentChunk, event: eventType } = json
+
+              // Handle error events from the server
+              if (eventType === 'error' || json.event === 'error') {
+                const errorMessage = json.error || CHAT_ERROR_MESSAGES.GENERIC_ERROR
+                setMessages((prev) =>
+                  prev.map((msg) =>
+                    msg.id === messageId
+                      ? {
+                          ...msg,
+                          content: errorMessage,
+                          isStreaming: false,
+                          type: 'assistant' as const,
+                        }
+                      : msg
+                  )
+                )
+                setIsLoading(false)
+                return
+              }
 
               if (eventType === 'final' && json.data) {
                 // The backend has already processed and combined all outputs

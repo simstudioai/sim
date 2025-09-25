@@ -671,6 +671,19 @@ export function useWorkflowExecution() {
       selectedOutputIds = chatStore.getState().getSelectedWorkflowOutput(activeWorkflowId)
     }
 
+    // Helper to extract test values from inputFormat subblock
+    const extractTestValuesFromInputFormat = (inputFormatValue: any): Record<string, any> => {
+      const testInput: Record<string, any> = {}
+      if (Array.isArray(inputFormatValue)) {
+        inputFormatValue.forEach((field: any) => {
+          if (field && typeof field === 'object' && field.name && field.value !== undefined) {
+            testInput[field.name] = field.value
+          }
+        })
+      }
+      return testInput
+    }
+
     // Determine start block and workflow input based on execution type
     let startBlockId: string | undefined
     let finalWorkflowInput = workflowInput
@@ -720,19 +733,12 @@ export function useWorkflowExecution() {
           // Extract test values from the API trigger's inputFormat
           if (selectedTrigger.type === 'api_trigger' || selectedTrigger.type === 'starter') {
             const inputFormatValue = selectedTrigger.subBlocks?.inputFormat?.value
-            if (Array.isArray(inputFormatValue)) {
-              const testInput: Record<string, any> = {}
-              inputFormatValue.forEach((field: any) => {
-                if (field && typeof field === 'object' && field.name && field.value !== undefined) {
-                  testInput[field.name] = field.value
-                }
-              })
+            const testInput = extractTestValuesFromInputFormat(inputFormatValue)
 
-              // Use the test input as workflow input
-              if (Object.keys(testInput).length > 0) {
-                finalWorkflowInput = testInput
-                logger.info('Using API trigger test values for manual run:', testInput)
-              }
+            // Use the test input as workflow input
+            if (Object.keys(testInput).length > 0) {
+              finalWorkflowInput = testInput
+              logger.info('Using API trigger test values for manual run:', testInput)
             }
           }
         }
@@ -741,18 +747,29 @@ export function useWorkflowExecution() {
         logger.error('Multiple API triggers found')
         setIsExecuting(false)
         throw error
-      } else if (manualTriggers.length === 1) {
-        // No API trigger, check for manual trigger
-        selectedTrigger = manualTriggers[0]
+      } else if (manualTriggers.length >= 1) {
+        // No API trigger, check for manual triggers
+        // Prefer manual_trigger over input_trigger for simple runs
+        const manualTrigger = manualTriggers.find((t) => t.type === 'manual_trigger')
+        const inputTrigger = manualTriggers.find((t) => t.type === 'input_trigger')
+
+        selectedTrigger = manualTrigger || inputTrigger || manualTriggers[0]
         const blockEntry = entries.find(([, block]) => block === selectedTrigger)
         if (blockEntry) {
           selectedBlockId = blockEntry[0]
+
+          // Extract test values from input trigger's inputFormat if it's an input_trigger
+          if (selectedTrigger.type === 'input_trigger') {
+            const inputFormatValue = selectedTrigger.subBlocks?.inputFormat?.value
+            const testInput = extractTestValuesFromInputFormat(inputFormatValue)
+
+            // Use the test input as workflow input
+            if (Object.keys(testInput).length > 0) {
+              finalWorkflowInput = testInput
+              logger.info('Using Input trigger test values for manual run:', testInput)
+            }
+          }
         }
-      } else if (manualTriggers.length > 1) {
-        const error = new Error('Multiple Input Trigger blocks found. Keep only one.')
-        logger.error('Multiple input triggers found')
-        setIsExecuting(false)
-        throw error
       } else {
         // Fallback: Check for legacy starter block
         const starterBlock = Object.values(filteredStates).find((block) => block.type === 'starter')
@@ -769,8 +786,8 @@ export function useWorkflowExecution() {
         }
 
         if (!selectedBlockId || !selectedTrigger) {
-          const error = new Error('Manual run requires an Input Trigger or API Trigger block')
-          logger.error('No input or API triggers found for manual run')
+          const error = new Error('Manual run requires a Manual, Input Form, or API Trigger block')
+          logger.error('No manual/input or API triggers found for manual run')
           setIsExecuting(false)
           throw error
         }

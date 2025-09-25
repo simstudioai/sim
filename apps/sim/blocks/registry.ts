@@ -38,6 +38,7 @@ import { JiraBlock } from '@/blocks/blocks/jira'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
 import { LinearBlock } from '@/blocks/blocks/linear'
 import { LinkupBlock } from '@/blocks/blocks/linkup'
+import { ManualTriggerBlock } from '@/blocks/blocks/manual_trigger'
 import { McpBlock } from '@/blocks/blocks/mcp'
 import { Mem0Block } from '@/blocks/blocks/mem0'
 import { MemoryBlock } from '@/blocks/blocks/memory'
@@ -153,6 +154,7 @@ export const registry: Record<string, BlockConfig> = {
   starter: StarterBlock,
   input_trigger: InputTriggerBlock,
   chat_trigger: ChatTriggerBlock,
+  manual_trigger: ManualTriggerBlock,
   api_trigger: ApiTriggerBlock,
   supabase: SupabaseBlock,
   tavily: TavilyBlock,

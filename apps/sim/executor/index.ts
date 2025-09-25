@@ -1,6 +1,7 @@
 import { BlockPathCalculator } from '@/lib/block-path-calculator'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { TraceSpan } from '@/lib/logs/types'
+import { getBlock } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/consts'
 import {
@@ -1779,9 +1780,16 @@ export class Executor {
 
         context.blockLogs.push(blockLog)
 
-        // Skip console logging for infrastructure blocks like loops and parallels
+        // Skip console logging for infrastructure blocks and trigger blocks
         // For streaming blocks, we'll add the console entry after stream processing
-        if (block.metadata?.id !== BlockType.LOOP && block.metadata?.id !== BlockType.PARALLEL) {
+        const blockConfig = getBlock(block.metadata?.id || '')
+        const isTriggerBlock =
+          blockConfig?.category === 'triggers' || block.metadata?.id === BlockType.STARTER
+        if (
+          block.metadata?.id !== BlockType.LOOP &&
+          block.metadata?.id !== BlockType.PARALLEL &&
+          !isTriggerBlock
+        ) {
           // Determine iteration context for this block
           let iterationCurrent: number | undefined
           let iterationTotal: number | undefined
@@ -1889,8 +1897,15 @@ export class Executor {
 
       context.blockLogs.push(blockLog)
 
-      // Skip console logging for infrastructure blocks like loops and parallels
-      if (block.metadata?.id !== BlockType.LOOP && block.metadata?.id !== BlockType.PARALLEL) {
+      // Skip console logging for infrastructure blocks and trigger blocks
+      const nonStreamBlockConfig = getBlock(block.metadata?.id || '')
+      const isNonStreamTriggerBlock =
+        nonStreamBlockConfig?.category === 'triggers' || block.metadata?.id === BlockType.STARTER
+      if (
+        block.metadata?.id !== BlockType.LOOP &&
+        block.metadata?.id !== BlockType.PARALLEL &&
+        !isNonStreamTriggerBlock
+      ) {
         // Determine iteration context for this block
         let iterationCurrent: number | undefined
         let iterationTotal: number | undefined
@@ -2001,8 +2016,15 @@ export class Executor {
       // Log the error even if we'll continue execution through error path
       context.blockLogs.push(blockLog)
 
-      // Skip console logging for infrastructure blocks like loops and parallels
-      if (block.metadata?.id !== BlockType.LOOP && block.metadata?.id !== BlockType.PARALLEL) {
+      // Skip console logging for infrastructure blocks and trigger blocks
+      const errorBlockConfig = getBlock(block.metadata?.id || '')
+      const isErrorTriggerBlock =
+        errorBlockConfig?.category === 'triggers' || block.metadata?.id === BlockType.STARTER
+      if (
+        block.metadata?.id !== BlockType.LOOP &&
+        block.metadata?.id !== BlockType.PARALLEL &&
+        !isErrorTriggerBlock
+      ) {
         // Determine iteration context for this block
         let iterationCurrent: number | undefined
         let iterationTotal: number | undefined
