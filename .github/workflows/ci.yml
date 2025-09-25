@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main, staging]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   test:
     name: Test and Build

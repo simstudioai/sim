@@ -1,9 +1,8 @@
 name: Build and Publish Docker Image
 
 on:
-  push:
-    branches: [main, staging]
   workflow_call:
+  workflow_dispatch:
 
 permissions:
   contents: read
