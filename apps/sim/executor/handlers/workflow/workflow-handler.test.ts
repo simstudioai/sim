@@ -4,6 +4,10 @@ import { WorkflowBlockHandler } from '@/executor/handlers/workflow/workflow-hand
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
+vi.mock('@/lib/auth/internal', () => ({
+  generateInternalToken: vi.fn().mockResolvedValue('test-token'),
+}))
+
 // Mock fetch globally
 global.fetch = vi.fn()
 
@@ -14,6 +18,9 @@ describe('WorkflowBlockHandler', () => {
   let mockFetch: Mock
 
   beforeEach(() => {
+    // Ensure code path treats environment as browser to skip token generation,
+    // but we also mock token generation above for safety when window is absent.
+    ;(global as any).window = {}
     handler = new WorkflowBlockHandler()
     mockFetch = global.fetch as Mock
 
@@ -133,7 +140,7 @@ describe('WorkflowBlockHandler', () => {
       mockFetch.mockRejectedValueOnce(new Error('Network error'))
 
       await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
-        'Error in child workflow "child-workflow-id": Child workflow child-workflow-id not found'
+        'Error in child workflow "child-workflow-id": Network error'
       )
     })
   })
@@ -167,9 +174,9 @@ describe('WorkflowBlockHandler', () => {
           }),
       })
 
-      const result = await (handler as any).loadChildWorkflow(workflowId)
-
-      expect(result).toBeNull()
+      await expect((handler as any).loadChildWorkflow(workflowId)).rejects.toThrow(
+        'Child workflow invalid-workflow has invalid state'
+      )
     })
   })
 
