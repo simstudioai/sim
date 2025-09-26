@@ -41,6 +41,7 @@ const tools = [
   'Google Calendar',
   'Google Docs',
   'Google Drive',
+  'Google Vault',
   'Google Search',
   'Google Sheets',
   'HuggingFace',
