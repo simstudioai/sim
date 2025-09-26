@@ -1,6 +1,6 @@
-import { ToolConfig } from './types'
-import { VlmRunParams, VlmRunResponse } from './types'
-import { VlmRun } from 'vlmrun'
+import { ToolConfig } from './types';
+import { VlmRunParams, VlmRunResponse,HttpMethod } from './types';
+import { VlmRun } from 'vlmrun';
 
 export const parseInvoiceTool: ToolConfig<VlmRunParams, VlmRunResponse> = {
   id: 'vlmrun_parse_invoice',
@@ -9,17 +9,6 @@ export const parseInvoiceTool: ToolConfig<VlmRunParams, VlmRunResponse> = {
   version: '1.0.0',
   provider: 'vlmrun',
 
-  request: {
-  url: () => 'https://api.vlmrun.com/files/upload',
-  method: 'POST' as const, 
-  headers: (params: VlmRunParams) => ({  
-    'Authorization': `Bearer ${params.apiKey}`,
-    'Content-Type': 'multipart/form-data',
-  }),
-  body: (params: VlmRunParams) => ({     
-    filePath: params.filePath,
-  }),
-},
   params: {
     apiKey: {
       type: 'string',
@@ -31,64 +20,63 @@ export const parseInvoiceTool: ToolConfig<VlmRunParams, VlmRunResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Path to the invoice file (PDF or image)',
+      description: 'Path to the invoice file (PDF or image) or URL',
     },
   },
 
+  request: {
+    url: (params: VlmRunParams) =>
+     params.filePath.startsWith('http://') || params.filePath.startsWith('https://') ? 'https://api.vlmrun.com/document/generate' : 'https://api.vlmrun.com/v1/files',
+
+    method: (params: VlmRunParams) => (params.filePath.startsWith('http://') || params.filePath.startsWith('https://') ? 'POST' : 'POST') as HttpMethod,
+    headers: (params: VlmRunParams) => ({
+      'Authorization': `Bearer ${params.apiKey}`,
+      
+    }),
+    body: (params: VlmRunParams) => ({
+      filePath: params.filePath, // Placeholder; SDK handles actual file upload
+    }),
+  },
+
   execute: async (params: VlmRunParams): Promise<VlmRunResponse> => {
-  const client = new VlmRun({ apiKey: params.apiKey })
-  console.log(`[DEBUG] Starting execution with filePath/URL: ${params.filePath}`)
+    const client = new VlmRun({ apiKey: params.apiKey });
 
-  let fileId: string | undefined
-  let parseResponse: any
+    try {
+      let parseResponse: any;
+      if (params.filePath.startsWith('http://') || params.filePath.startsWith('https://')) {
+        parseResponse = await client.document.generate({
+          url: params.filePath,
+          model: 'vlm-1',
+          domain: 'document.invoice',
+          batch: false,
+        });
+      } else {
+        const uploadResponse = await client.files.upload({ filePath: params.filePath });
+        const fileId = uploadResponse.id;
+        parseResponse = await client.document.generate({
+          fileId,
+          model: 'vlm-1',
+          domain: 'document.invoice',
+          batch: false,
+        });
+      }
 
-  const isUrl = params.filePath.startsWith('http://') || params.filePath.startsWith('https://')
-  console.log(`[DEBUG] Detected as URL: ${isUrl}`)
+      if (parseResponse.status !== 'completed') {
+        throw new Error(`Parsing failed: status ${parseResponse.status}. Check file/URL or retry.`);
+      }
 
-  try {
-    if (isUrl) {
-      console.log(`[DEBUG] Using URL for document generation: ${params.filePath}`)
-      parseResponse = await client.document.generate({
-        url: params.filePath,
-        model: 'vlm-1',
-        domain: 'document.invoice',
-        batch: false,
-      })
-    } else {
-      console.log(`[DEBUG] Uploading local file: ${params.filePath}`)
-      const uploadResponse = await client.files.upload({ filePath: params.filePath })
-      fileId = uploadResponse.id
-      console.log(`[DEBUG] File uploaded, ID: ${fileId}`)
-      console.log(`[DEBUG] Generating document from fileId: ${fileId}`)
-      parseResponse = await client.document.generate({
-        fileId,
-        model: 'vlm-1',
-        domain: 'document.invoice',
-        batch: false,
-      })
+      return {
+        data: parseResponse.response,
+        success: true,
+        output: parseResponse.response, 
+      };
+    } catch (error) {
+      return {
+        data: null,
+        success: false,
+        output: {},
+        error: `Error processing invoice: ${(error as Error).message}`,
+      };
     }
-
-    console.log(`[DEBUG] API response: ${JSON.stringify(parseResponse)}`)
-
-    if (parseResponse.status !== 'completed') {
-      console.error(`[ERROR] Parsing failed: status ${parseResponse.status}`)
-      throw new Error(`Parsing failed: status ${parseResponse.status}. Check file/URL or retry.`)
-    }
-
-    return {
-      success: true,
-      data: parseResponse.response,
-      output: parseResponse.response,
-      error: undefined,
-    }
-  } catch (error) {
-    console.error(`[ERROR] Execution failed: ${(error as Error).message}`)
-    return {
-      success: false,
-      data: null,
-      output: {},
-      error: (error as Error).message,
-    }
-  }
-},
-}
+  },
+};

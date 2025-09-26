@@ -126,6 +126,7 @@ import {
 } from '@/tools/outlook'
 import { parallelSearchTool } from '@/tools/parallel'
 import { perplexityChatTool } from '@/tools/perplexity'
+import {parseInvoiceTool} from '@/tools/vlmrun'
 import {
   pineconeFetchTool,
   pineconeGenerateEmbeddingsTool,
@@ -372,6 +373,7 @@ export const tools: Record<string, ToolConfig> = {
   sharepoint_create_list: sharepointCreateListTool,
   sharepoint_update_list: sharepointUpdateListItemTool,
   sharepoint_add_list_items: sharepointAddListItemTool,
+  vlmrun_parse_invoice:parseInvoiceTool,
   // Provider chat tools
   // Provider chat tools - handled separately in agent blocks
 }

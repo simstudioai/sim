@@ -11,14 +11,14 @@ import {
   getToolAsync,
   validateRequiredParametersAfterMerge,
 } from '@/tools/utils'
-import { parseInvoiceTool } from '@/tools/vlmrun/index'
+// import { parseInvoiceTool } from '@/tools/vlmrun/index'
 
 const logger = createLogger('Tools')
 
-export const tools: Record<string, ToolConfig> = {
+// export const tools: Record<string, ToolConfig> = {
 
-  vlmrun_parse_invoice: parseInvoiceTool,
-}
+//   vlmrun_parse_invoice: parseInvoiceTool,
+// }
 
 /**
  * System parameters that should be filtered out when extracting tool arguments
