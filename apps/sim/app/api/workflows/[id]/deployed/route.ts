@@ -3,7 +3,7 @@ import { and, desc, eq } from 'drizzle-orm'
 import type { NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
-import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
+import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('WorkflowDeployedStateAPI')
@@ -11,7 +11,6 @@ const logger = createLogger('WorkflowDeployedStateAPI')
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-// Helper function to add Cache-Control headers to NextResponse
 function addNoCacheHeaders(response: NextResponse): NextResponse {
   response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
   return response
@@ -23,15 +22,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     logger.debug(`[${requestId}] Fetching deployed state for workflow: ${id}`)
-    const validation = await validateWorkflowAccess(request, id, false)
 
-    if (validation.error) {
-      logger.warn(`[${requestId}] Failed to fetch deployed state: ${validation.error.message}`)
-      const response = createErrorResponse(validation.error.message, validation.error.status)
+    const { error } = await validateWorkflowPermissions(id, requestId, 'read')
+    if (error) {
+      const response = createErrorResponse(error.message, error.status)
       return addNoCacheHeaders(response)
     }
 
-    // Fetch active deployment version state
     const [active] = await db
       .select({ state: workflowDeploymentVersion.state })
       .from(workflowDeploymentVersion)

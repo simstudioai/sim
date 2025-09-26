@@ -2,8 +2,10 @@ import { db } from '@sim/db'
 import { apiKey, userStats, workflow as workflowTable } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { getSession } from '@/lib/auth'
 import { getEnv } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { hasWorkspaceAdminAccess } from '@/lib/permissions/utils'
 import type { ExecutionResult } from '@/executor/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -398,4 +400,65 @@ export const createHttpResponseFromBlock = (executionResult: ExecutionResult): N
     status: status,
     headers: responseHeaders,
   })
+}
+
+/**
+ * Validates that the current user has permission to access/modify a workflow
+ * Returns session and workflow info if authorized, or error response if not
+ */
+export async function validateWorkflowPermissions(
+  workflowId: string,
+  requestId: string,
+  action: 'read' | 'write' = 'read'
+) {
+  const session = await getSession()
+  if (!session?.user?.id) {
+    logger.warn(`[${requestId}] No authenticated user session for workflow ${action}`)
+    return {
+      error: { message: 'Unauthorized', status: 401 },
+      session: null,
+      workflow: null,
+    }
+  }
+
+  const workflow = await getWorkflowById(workflowId)
+  if (!workflow) {
+    logger.warn(`[${requestId}] Workflow ${workflowId} not found`)
+    return {
+      error: { message: 'Workflow not found', status: 404 },
+      session: null,
+      workflow: null,
+    }
+  }
+
+  if (workflow.workspaceId) {
+    const hasAccess = await hasWorkspaceAdminAccess(session.user.id, workflow.workspaceId)
+    if (!hasAccess) {
+      logger.warn(
+        `[${requestId}] User ${session.user.id} unauthorized to ${action} workflow ${workflowId} in workspace ${workflow.workspaceId}`
+      )
+      return {
+        error: { message: `Unauthorized: Access denied to ${action} this workflow`, status: 403 },
+        session: null,
+        workflow: null,
+      }
+    }
+  } else {
+    if (workflow.userId !== session.user.id) {
+      logger.warn(
+        `[${requestId}] User ${session.user.id} unauthorized to ${action} workflow ${workflowId} owned by ${workflow.userId}`
+      )
+      return {
+        error: { message: `Unauthorized: Access denied to ${action} this workflow`, status: 403 },
+        session: null,
+        workflow: null,
+      }
+    }
+  }
+
+  return {
+    error: null,
+    session,
+    workflow,
+  }
 }
