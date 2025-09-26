@@ -55,6 +55,15 @@ import {
   googleSheetsUpdateTool,
   googleSheetsWriteTool,
 } from '@/tools/google_sheets'
+import {
+  createMattersExportTool,
+  createMattersHoldsTool,
+  createMattersTool,
+  downloadExportFileTool,
+  listMattersExportTool,
+  listMattersHoldsTool,
+  listMattersTool,
+} from '@/tools/google_vault'
 import { requestTool as httpRequest } from '@/tools/http'
 import { huggingfaceChatTool } from '@/tools/huggingface'
 import {
@@ -356,6 +365,13 @@ export const tools: Record<string, ToolConfig> = {
   wikipedia_search: wikipediaSearchTool,
   wikipedia_content: wikipediaPageContentTool,
   wikipedia_random: wikipediaRandomPageTool,
+  google_vault_create_matters_export: createMattersExportTool,
+  google_vault_list_matters_export: listMattersExportTool,
+  google_vault_create_matters_holds: createMattersHoldsTool,
+  google_vault_list_matters_holds: listMattersHoldsTool,
+  google_vault_create_matters: createMattersTool,
+  google_vault_list_matters: listMattersTool,
+  google_vault_download_export_file: downloadExportFileTool,
   qdrant_fetch_points: qdrantFetchTool,
   qdrant_search_vector: qdrantSearchTool,
   qdrant_upsert_points: qdrantUpsertTool,

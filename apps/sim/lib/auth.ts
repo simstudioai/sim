@@ -470,6 +470,22 @@ export const auth = betterAuth({
         },
 
         {
+          providerId: 'google-vault',
+          clientId: env.GOOGLE_CLIENT_ID as string,
+          clientSecret: env.GOOGLE_CLIENT_SECRET as string,
+          discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+          accessType: 'offline',
+          scopes: [
+            'https://www.googleapis.com/auth/userinfo.email',
+            'https://www.googleapis.com/auth/userinfo.profile',
+            'https://www.googleapis.com/auth/ediscovery',
+            'https://www.googleapis.com/auth/devstorage.read_only',
+          ],
+          prompt: 'consent',
+          redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/google-vault`,
+        },
+
+        {
           providerId: 'microsoft-teams',
           clientId: env.MICROSOFT_CLIENT_ID as string,
           clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
