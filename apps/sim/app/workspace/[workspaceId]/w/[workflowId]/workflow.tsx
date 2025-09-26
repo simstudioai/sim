@@ -1751,9 +1751,7 @@ const WorkflowContent = React.memo(() => {
 
       // An edge is inside a loop if either source or target has a parent
       // If source and target have different parents, prioritize source's parent
-      const parentLoopId =
-        (sourceNode?.id && blocks[sourceNode.id]?.data?.parentId) ||
-        (targetNode?.id && blocks[targetNode.id]?.data?.parentId)
+      const parentLoopId = sourceNode?.parentId || targetNode?.parentId
 
       // Create a unique identifier that combines edge ID and parent context
       const contextId = `${edge.id}${parentLoopId ? `-${parentLoopId}` : ''}`
@@ -1772,9 +1770,7 @@ const WorkflowContent = React.memo(() => {
     // Check if this edge connects nodes inside a loop
     const sourceNode = getNodes().find((n) => n.id === edge.source)
     const targetNode = getNodes().find((n) => n.id === edge.target)
-    const parentLoopId =
-      (sourceNode?.id && blocks[sourceNode.id]?.data?.parentId) ||
-      (targetNode?.id && blocks[targetNode.id]?.data?.parentId)
+    const parentLoopId = sourceNode?.parentId || targetNode?.parentId
     const isInsideLoop = Boolean(parentLoopId)
 
     // Create a unique context ID for this edge
@@ -1867,6 +1863,12 @@ const WorkflowContent = React.memo(() => {
   return (
     <div className='flex h-screen w-full flex-col overflow-hidden'>
       <div className='relative h-full w-full flex-1 transition-all duration-200'>
+        <style jsx global>{`
+          /* Ensure edge labels (e.g., delete X) render above group/subflow nodes */
+          .react-flow__edge-labels {
+            z-index: 60 !important;
+          }
+        `}</style>
         <div className='fixed top-0 right-0 z-10'>
           <Panel />
         </div>

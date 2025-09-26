@@ -981,8 +981,28 @@ export function useCollaborativeWorkflow() {
   const collaborativeRemoveEdge = useCallback(
     (edgeId: string) => {
       const edge = workflowStore.edges.find((e) => e.id === edgeId)
+
+      // Skip if edge doesn't exist (already removed during cascade deletion)
+      if (!edge) {
+        logger.debug('Edge already removed, skipping operation', { edgeId })
+        return
+      }
+
+      // Check if the edge's source and target blocks still exist
+      const sourceExists = workflowStore.blocks[edge.source]
+      const targetExists = workflowStore.blocks[edge.target]
+
+      if (!sourceExists || !targetExists) {
+        logger.debug('Edge source or target block no longer exists, skipping operation', {
+          edgeId,
+          sourceExists: !!sourceExists,
+          targetExists: !!targetExists,
+        })
+        return
+      }
+
       // Only record edge removal if it's not part of a parent update operation
-      if (edge && !skipEdgeRecording.current) {
+      if (!skipEdgeRecording.current) {
         undoRedo.recordRemoveEdge(edgeId, edge)
       }
 

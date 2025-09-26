@@ -1,6 +1,7 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/consts'
+import { ParallelRoutingUtils } from '@/executor/parallels/utils'
 import type { PathTracker } from '@/executor/path/path'
 import type { InputResolver } from '@/executor/resolver/resolver'
 import { Routing } from '@/executor/routing/routing'
@@ -338,17 +339,13 @@ export class ParallelBlockHandler implements BlockHandler {
 
     if (!parallel || !parallelState) return false
 
-    // Check each node in the parallel for all iterations
-    for (const nodeId of parallel.nodes) {
-      for (let i = 0; i < parallelState.parallelCount; i++) {
-        const virtualBlockId = `${nodeId}_parallel_${parallelId}_iteration_${i}`
-        if (!context.executedBlocks.has(virtualBlockId)) {
-          return false
-        }
-      }
-    }
-
-    return true
+    // Use the shared utility that respects conditional routing
+    return ParallelRoutingUtils.areAllRequiredVirtualBlocksExecuted(
+      parallel,
+      parallelState.parallelCount,
+      context.executedBlocks,
+      context
+    )
   }
 
   /**

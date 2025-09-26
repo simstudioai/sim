@@ -194,8 +194,9 @@ export class ConditionBlockHandler implements BlockHandler {
       `Condition block ${block.id} selected path: ${selectedCondition.title} (${selectedCondition.id}) -> ${targetBlock.metadata?.name || targetBlock.id}`
     )
 
-    // Update context decisions
-    context.decisions.condition.set(block.id, selectedCondition.id)
+    // Update context decisions - use virtual block ID if available (for parallel execution)
+    const decisionKey = context.currentVirtualBlockId || block.id
+    context.decisions.condition.set(decisionKey, selectedCondition.id)
 
     // Return output, preserving source output structure if possible
     return {
