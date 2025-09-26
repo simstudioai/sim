@@ -221,11 +221,12 @@
       "name": "@sim/db",
       "version": "0.1.0",
       "devDependencies": {
+        "drizzle-kit": "0.31.4",
         "typescript": "^5.7.3",
       },
       "peerDependencies": {
-        "drizzle-orm": "^0.44.5",
-        "postgres": "^3.4.5",
+        "drizzle-orm": "0.44.5",
+        "postgres": "3.4.7",
       },
     },
     "packages/ts-sdk": {
