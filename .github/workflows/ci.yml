@@ -59,22 +59,23 @@ jobs:
           fail_ci_if_error: false
           verbose: true
 
-  # Call GHCR build workflow (runs in parallel with ECR)
-  build-ghcr:
-    name: Build GHCR Images
+  # Main branch: build (ECR + GHCR)
+  build:
+    name: Build (ECR + GHCR)
     needs: test
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
-    uses: ./.github/workflows/build-ghcr-build.yml
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/build.yml
     secrets: inherit
     permissions:
       contents: read
       packages: write
+      id-token: write
 
-  # Call ECR build workflow (runs in parallel with GHCR build)
+  # Staging branch: ECR only
   build-ecr-deploy:
-    name: Build ECR and Deploy
+    name: Build ECR and Deploy (Staging)
     needs: test
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
     uses: ./.github/workflows/build-ecr.yml
     secrets: inherit
     permissions:
@@ -89,23 +90,17 @@ jobs:
     uses: ./.github/workflows/trigger-deploy.yml
     secrets: inherit
 
-  # Push GHCR images after ECR/ECS deployment is complete
-  push-ghcr:
-    name: Push GHCR Images
-    needs: [build-ghcr, build-ecr-deploy]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
-    uses: ./.github/workflows/build-ghcr-push.yml
-    secrets: inherit
-    permissions:
-      contents: read
-      packages: write
-
-  # Run database migrations (depends on GHCR push and trigger deployment)
+  # Run database migrations (depends on build completion and trigger deployment)
   migrations:
     name: Apply Database Migrations
-    needs: [push-ghcr, trigger-deploy]
+    needs: [build-ecr-deploy, build, trigger-deploy]
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    if: |
+      always() &&
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') &&
+      (needs.build-ecr-deploy.result == 'success' || needs.build.result == 'success') &&
+      needs.trigger-deploy.result == 'success'
     
     steps:
       - name: Checkout code
