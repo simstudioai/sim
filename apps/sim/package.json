@@ -115,7 +115,6 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "4.1.13",
     "@testing-library/jest-dom": "^6.6.3",
     "@types/html-to-text": "9.0.4",
     "@types/js-yaml": "4.0.9",
