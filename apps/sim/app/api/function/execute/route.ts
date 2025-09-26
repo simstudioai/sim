@@ -39,6 +39,89 @@ function createSecureFetch(requestId: string) {
 const E2B_JS_WRAPPER_LINES = 3 // Lines before user code: ';(async () => {', '  try {', '    const __sim_result = await (async () => {'
 const E2B_PYTHON_WRAPPER_LINES = 1 // Lines before user code: 'def __sim_main__():'
 
+type TypeScriptModule = typeof import('typescript')
+
+let typescriptModulePromise: Promise<TypeScriptModule> | null = null
+
+async function loadTypeScriptModule(): Promise<TypeScriptModule> {
+  if (!typescriptModulePromise) {
+    typescriptModulePromise = import('typescript').then((mod) => {
+      const tsModule = (mod?.default ?? mod) as TypeScriptModule
+      return tsModule
+    })
+  }
+
+  return typescriptModulePromise
+}
+
+async function extractJavaScriptImports(
+  code: string
+): Promise<{ imports: string; remainingCode: string; importLineCount: number }> {
+  try {
+    const tsModule = await loadTypeScriptModule()
+
+    const sourceFile = tsModule.createSourceFile(
+      'user-code.js',
+      code,
+      tsModule.ScriptTarget.Latest,
+      true,
+      tsModule.ScriptKind.JS
+    )
+
+    const importSegments: Array<{ text: string; start: number; end: number }> = []
+
+    sourceFile.statements.forEach((statement) => {
+      if (
+        tsModule.isImportDeclaration(statement) ||
+        tsModule.isImportEqualsDeclaration(statement)
+      ) {
+        importSegments.push({
+          text: statement.getFullText(sourceFile).trim(),
+          start: statement.getFullStart(),
+          end: statement.getEnd(),
+        })
+      }
+    })
+
+    if (importSegments.length === 0) {
+      return { imports: '', remainingCode: code, importLineCount: 0 }
+    }
+
+    importSegments.sort((a, b) => a.start - b.start)
+
+    const imports = importSegments.map((segment) => segment.text).join('\n')
+
+    let cursor = 0
+    const parts: string[] = []
+    let importLineCount = 0
+
+    for (const segment of importSegments) {
+      if (segment.start > cursor) {
+        parts.push(code.slice(cursor, segment.start))
+      }
+
+      const removedSegment = code.slice(segment.start, segment.end)
+      importLineCount += removedSegment.split('\n').length - 1
+
+      const newlinePlaceholder = removedSegment.replace(/[^\n]/g, '')
+      parts.push(newlinePlaceholder)
+
+      cursor = segment.end
+    }
+
+    if (cursor < code.length) {
+      parts.push(code.slice(cursor))
+    }
+
+    const remainingCode = parts.join('')
+
+    return { imports, remainingCode, importLineCount: Math.max(importLineCount, 0) }
+  } catch (error) {
+    logger.error('Failed to extract JavaScript imports', { error })
+    return { imports: '', remainingCode: code, importLineCount: 0 }
+  }
+}
+
 /**
  * Enhanced error information interface
  */
@@ -624,6 +707,15 @@ export async function POST(req: NextRequest) {
       if (lang === CodeLanguage.JavaScript) {
         // Track prologue lines for error adjustment
         let prologueLineCount = 0
+
+        const { imports, remainingCode } = await extractJavaScriptImports(resolvedCode)
+
+        const importSection: string = imports ? `${imports}\n` : ''
+        const importLineCount = imports ? imports.split('\n').length : 0
+
+        const codeBody = remainingCode
+        resolvedCode = importSection ? `${imports}\n\n${codeBody}` : codeBody
+
         prologue += `const params = JSON.parse(${JSON.stringify(JSON.stringify(executionParams))});\n`
         prologueLineCount++
         prologue += `const environmentVariables = JSON.parse(${JSON.stringify(JSON.stringify(envVars))});\n`
@@ -632,11 +724,12 @@ export async function POST(req: NextRequest) {
           prologue += `const ${k} = JSON.parse(${JSON.stringify(JSON.stringify(v))});\n`
           prologueLineCount++
         }
+
         const wrapped = [
           ';(async () => {',
           '  try {',
           '    const __sim_result = await (async () => {',
-          `      ${resolvedCode.split('\n').join('\n      ')}`,
+          `      ${codeBody.split('\n').join('\n      ')}`,
           '    })();',
           "    console.log('__SIM_RESULT__=' + JSON.stringify(__sim_result));",
           '  } catch (error) {',
@@ -645,7 +738,7 @@ export async function POST(req: NextRequest) {
           '  }',
           '})();',
         ].join('\n')
-        const codeForE2B = prologue + wrapped + epilogue
+        const codeForE2B = importSection + prologue + wrapped + epilogue
 
         const execStart = Date.now()
         const {
@@ -674,7 +767,7 @@ export async function POST(req: NextRequest) {
             e2bStdout,
             lang,
             resolvedCode,
-            prologueLineCount
+            prologueLineCount + importLineCount
           )
           return NextResponse.json(
             {

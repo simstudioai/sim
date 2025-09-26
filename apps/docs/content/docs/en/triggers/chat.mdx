@@ -1,0 +1,43 @@
+---
+title: Chat Trigger
+description: Start a workflow from a chat deployment
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+## Overview
+
+The Chat trigger creates a conversational interface for your workflow. Deploy your workflow as a chat and users can interact with it through a shareable URL. Each message starts a new workflow execution using your latest deployment.
+
+## Runtime Outputs
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/triggers/chat-trigger-light.png'
+    alt='Chat deployment conversation'
+    width={400}
+    height={250}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+The trigger writes three fields that downstream blocks can reference:
+
+| Reference | Description |
+|-----------|-------------|
+| `<chat.input>` | Latest user message |
+| `<chat.conversationId>` | Conversation thread ID |
+| `<chat.files>` | Optional uploaded files |
+
+Files include `name`, `mimeType`, and a signed download `url`.
+
+## Usage Notes
+
+1. Add one Chat Trigger block per workflow.
+2. Deploy the workflow in chat mode.
+3. Share the deployment link—every reply reuses the conversation ID so the workflow can keep context.
+
+<Callout type="info">
+The builder blocks multiple Chat Trigger blocks in the same workflow.
+</Callout>
