@@ -23,7 +23,7 @@ jobs:
           - dockerfile: ./docker/realtime.Dockerfile
             ecr_repo_secret: ECR_REALTIME
             service_type: monitoring
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
 
     steps:
       - name: Checkout repository
@@ -46,7 +46,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: useblacksmith/setup-docker-builder@v1
 
       - name: Generate image tags
         id: meta
@@ -67,21 +67,19 @@ jobs:
           echo "full_image=$FULL_IMAGE" >> $GITHUB_OUTPUT
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v6
+        uses: useblacksmith/build-push-action@v2
         with:
           context: .
           file: ${{ matrix.dockerfile }}
           push: true
           tags: ${{ steps.meta.outputs.full_image }}
           platforms: linux/amd64
-          cache-from: type=gha,scope=build-ecr-${{ matrix.service_type }}
-          cache-to: type=gha,mode=max,scope=build-ecr-${{ matrix.service_type }}
           provenance: false
           sbom: false
 
   update-ecs-services:
     needs: build-and-push-ecr
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     strategy:
       fail-fast: false
       matrix:

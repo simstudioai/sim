@@ -13,7 +13,7 @@ concurrency:
 jobs:
   test:
     name: Test and Build
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
 
     steps:
       - name: Checkout code
@@ -104,7 +104,7 @@ jobs:
   migrations:
     name: Apply Database Migrations
     needs: [push-ghcr, trigger-deploy]
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     
     steps:
