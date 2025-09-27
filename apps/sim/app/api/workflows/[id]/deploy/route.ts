@@ -4,7 +4,6 @@ import type { NextRequest } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { generateApiKey } from '@/lib/api-key/service'
 import { createLogger } from '@/lib/logs/console/logger'
-import { hasWorkspaceAdminAccess } from '@/lib/permissions/utils'
 import { generateRequestId } from '@/lib/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
@@ -144,7 +143,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       error,
       session,
       workflow: workflowData,
-    } = await validateWorkflowPermissions(id, requestId, 'write')
+    } = await validateWorkflowPermissions(id, requestId, 'admin')
     if (error) {
       return createErrorResponse(error.message, error.status)
     }
@@ -233,40 +232,28 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const currentUserId = session?.user?.id
 
       if (currentUserId) {
-        const [workflowData] = await db
-          .select({ workspaceId: workflow.workspaceId })
-          .from(workflow)
-          .where(eq(workflow.id, id))
+        const [personalKey] = await db
+          .select({
+            id: apiKey.id,
+            key: apiKey.key,
+            name: apiKey.name,
+            expiresAt: apiKey.expiresAt,
+          })
+          .from(apiKey)
+          .where(
+            and(
+              eq(apiKey.id, providedApiKey),
+              eq(apiKey.userId, currentUserId),
+              eq(apiKey.type, 'personal')
+            )
+          )
           .limit(1)
 
-        if (workflowData?.workspaceId) {
-          const isAdmin = await hasWorkspaceAdminAccess(currentUserId, workflowData.workspaceId)
-
-          if (isAdmin) {
-            const [personalKey] = await db
-              .select({
-                id: apiKey.id,
-                key: apiKey.key,
-                name: apiKey.name,
-                expiresAt: apiKey.expiresAt,
-              })
-              .from(apiKey)
-              .where(
-                and(
-                  eq(apiKey.id, providedApiKey),
-                  eq(apiKey.userId, currentUserId),
-                  eq(apiKey.type, 'personal')
-                )
-              )
-              .limit(1)
-
-            if (personalKey) {
-              if (!personalKey.expiresAt || personalKey.expiresAt >= new Date()) {
-                matchedKey = { ...personalKey, type: 'personal' }
-                isValidKey = true
-                keyInfo = { name: personalKey.name, type: 'personal' }
-              }
-            }
+        if (personalKey) {
+          if (!personalKey.expiresAt || personalKey.expiresAt >= new Date()) {
+            matchedKey = { ...personalKey, type: 'personal' }
+            isValidKey = true
+            keyInfo = { name: personalKey.name, type: 'personal' }
           }
         }
       }
@@ -388,7 +375,7 @@ export async function DELETE(
   try {
     logger.debug(`[${requestId}] Undeploying workflow: ${id}`)
 
-    const { error } = await validateWorkflowPermissions(id, requestId, 'write')
+    const { error } = await validateWorkflowPermissions(id, requestId, 'admin')
     if (error) {
       return createErrorResponse(error.message, error.status)
     }

@@ -409,7 +409,7 @@ export const createHttpResponseFromBlock = (executionResult: ExecutionResult): N
 export async function validateWorkflowPermissions(
   workflowId: string,
   requestId: string,
-  action: 'read' | 'write' = 'read'
+  action: 'read' | 'write' | 'admin' = 'read'
 ) {
   const session = await getSession()
   if (!session?.user?.id) {

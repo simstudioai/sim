@@ -21,7 +21,7 @@ export async function POST(
   const { id, version } = await params
 
   try {
-    const { error } = await validateWorkflowPermissions(id, requestId, 'write')
+    const { error } = await validateWorkflowPermissions(id, requestId, 'admin')
     if (error) {
       return createErrorResponse(error.message, error.status)
     }
