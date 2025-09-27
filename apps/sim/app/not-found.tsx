@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { useBrandConfig } from '@/lib/branding/branding'
 import Nav from '@/app/(landing)/components/nav/nav'
@@ -11,6 +11,7 @@ import { soehne } from '@/app/fonts/soehne/soehne'
 export default function NotFound() {
   const [buttonClass, setButtonClass] = useState('auth-button-gradient')
   const brandConfig = useBrandConfig()
+  const router = useRouter()
 
   useEffect(() => {
     const root = document.documentElement
@@ -66,10 +67,11 @@ export default function NotFound() {
 
             <div className='mt-8 w-full space-y-3'>
               <Button
-                asChild
+                type='button'
+                onClick={() => router.push('/')}
                 className={`${buttonClass} flex w-full items-center justify-center gap-2 rounded-[10px] border font-medium text-[15px] text-white transition-all duration-200`}
               >
-                <Link href='/'>Return to Home</Link>
+                Return to Home
               </Button>
             </div>
 
