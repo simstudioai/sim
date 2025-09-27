@@ -21,7 +21,11 @@ export function UsersIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
-
+export const VlmRunIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+    <path d="M12 2L2 12h3v8h14v-8h3L12 2z" />
+  </svg>
+)
 export function SettingsIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
