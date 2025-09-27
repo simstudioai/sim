@@ -1,12 +1,12 @@
 /**
- * Tests for chat subdomain API route
+ * Tests for chat identifier API route
  *
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMockRequest } from '@/app/api/__test-utils__/utils'
 
-describe('Chat Subdomain API Route', () => {
+describe('Chat Identifier API Route', () => {
   const createMockStream = () => {
     return new ReadableStream({
       start(controller) {
@@ -134,7 +134,7 @@ describe('Chat Subdomain API Route', () => {
   })
 
   describe('GET endpoint', () => {
-    it('should return chat info for a valid subdomain', async () => {
+    it('should return chat info for a valid identifier', async () => {
       const req = createMockRequest('GET')
       const params = Promise.resolve({ identifier: 'test-chat' })
 
@@ -152,7 +152,7 @@ describe('Chat Subdomain API Route', () => {
       expect(data.customizations).toHaveProperty('welcomeMessage', 'Welcome to the test chat')
     })
 
-    it('should return 404 for non-existent subdomain', async () => {
+    it('should return 404 for non-existent identifier', async () => {
       vi.doMock('@sim/db', () => {
         const mockLimit = vi.fn().mockReturnValue([])
         const mockWhere = vi.fn().mockReturnValue({ limit: mockLimit })

@@ -16,29 +16,36 @@ export function useIdentifierValidation(
       clearTimeout(timeoutRef.current)
     }
 
+    // Reset states immediately when identifier changes
     setError(null)
     setIsValid(false)
     setIsChecking(false)
 
+    // Skip validation if empty
     if (!identifier.trim()) {
       return
     }
 
+    // Skip validation if same as original (existing deployment)
     if (originalIdentifier && identifier === originalIdentifier) {
       setIsValid(true)
       return
     }
 
+    // If we're editing an existing deployment but originalIdentifier isn't available yet,
+    // assume it's valid and wait for the data to load
     if (isEditingExisting && !originalIdentifier) {
       setIsValid(true)
       return
     }
 
+    // Validate format first - client-side validation
     if (!/^[a-z0-9-]+$/.test(identifier)) {
       setError('Identifier can only contain lowercase letters, numbers, and hyphens')
       return
     }
 
+    // Check availability with server
     setIsChecking(true)
     timeoutRef.current = setTimeout(async () => {
       try {
@@ -47,7 +54,10 @@ export function useIdentifierValidation(
         )
         const data = await response.json()
 
-        if (!response.ok || !data.available) {
+        if (!response.ok) {
+          setError('Error checking identifier availability')
+          setIsValid(false)
+        } else if (!data.available) {
           setError(data.error || 'This identifier is already in use')
           setIsValid(false)
         } else {

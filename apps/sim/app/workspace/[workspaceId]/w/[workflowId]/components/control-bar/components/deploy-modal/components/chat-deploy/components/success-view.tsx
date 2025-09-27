@@ -27,9 +27,9 @@ export function SuccessView({ deployedUrl, existingChat, onDelete, onUpdate }: S
   const hostname = url.hostname
   const isDevelopmentUrl = hostname.includes('localhost')
 
-  // Extract subdomain from path-based URL format (e.g., sim.ai/chat/subdomain)
+  // Extract identifier from path-based URL format (e.g., sim.ai/chat/identifier)
   const pathParts = url.pathname.split('/')
-  const subdomainPart = pathParts[2] || '' // /chat/subdomain
+  const identifierPart = pathParts[2] || '' // /chat/identifier
 
   let domainPrefix
   if (isDevelopmentUrl) {
@@ -57,7 +57,7 @@ export function SuccessView({ deployedUrl, existingChat, onDelete, onUpdate }: S
             rel='noopener noreferrer'
             className='flex h-10 flex-1 items-center break-all rounded-r-md border border-l-0 p-2 font-medium text-foreground text-sm'
           >
-            {subdomainPart}
+            {identifierPart}
           </a>
         </div>
         <p className='text-muted-foreground text-xs'>

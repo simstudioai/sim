@@ -1,9 +1,8 @@
 import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
-import { isDev, isHosted } from './lib/environment'
+import { isHosted } from './lib/environment'
 import { createLogger } from './lib/logs/console/logger'
 import { generateRuntimeCSP } from './lib/security/csp'
-import { getBaseDomain } from './lib/urls/utils'
 
 const logger = createLogger('Middleware')
 
@@ -14,86 +13,6 @@ const SUSPICIOUS_UA_PATTERNS = [
   /^\(\)\s*{/, // Command execution attempt
   /\b(sqlmap|nikto|gobuster|dirb|nmap)\b/i, // Known scanning tools
 ] as const
-
-const BASE_DOMAIN = getBaseDomain()
-
-const OPERATIONAL_SUBDOMAINS = new Set([
-  'telemetry',
-  'docs',
-  'api',
-  'admin',
-  'www',
-  'app',
-  'auth',
-  'blog',
-  'help',
-  'support',
-  'qa',
-  'agent',
-  'staging',
-])
-
-interface SubdomainAnalysis {
-  isCustomDomain: boolean
-  subdomain: string | null
-}
-
-/**
- * Analyzes the hostname to determine if it's a custom subdomain and extracts the subdomain part
- */
-function analyzeSubdomain(hostname: string): SubdomainAnalysis {
-  // Standard check for non-base domains
-  if (hostname === BASE_DOMAIN || hostname.startsWith('www.')) {
-    return { isCustomDomain: false, subdomain: null }
-  }
-
-  // Extract root domain from BASE_DOMAIN (e.g., "sim.ai" from "staging.sim.ai")
-  const baseParts = BASE_DOMAIN.split('.')
-  const rootDomain = isDev
-    ? 'localhost'
-    : baseParts.length >= 2
-      ? baseParts
-          .slice(-2)
-          .join('.') // Last 2 parts: ["sim", "ai"] -> "sim.ai"
-      : BASE_DOMAIN
-
-  // Check if hostname is under the same root domain
-  if (!hostname.includes(rootDomain)) {
-    return { isCustomDomain: false, subdomain: null }
-  }
-
-  // For nested subdomain environments: handle cases like myapp.staging.example.com
-  const hostParts = hostname.split('.')
-  const basePartCount = BASE_DOMAIN.split('.').length
-
-  // If hostname has more parts than base domain, it's a nested subdomain
-  const isCustomDomain = hostParts.length > basePartCount || hostname !== BASE_DOMAIN
-
-  return {
-    isCustomDomain,
-    subdomain: isCustomDomain ? hostname.split('.')[0] : null,
-  }
-}
-
-/**
- * Handles chat subdomain redirects for backward compatibility
- */
-function handleChatSubdomainRedirect(request: NextRequest, subdomain: string): NextResponse | null {
-  const url = request.nextUrl
-
-  // Skip redirect for API endpoints
-  if (url.pathname.startsWith('/api/chat/') || url.pathname.startsWith('/api/proxy/')) {
-    return null
-  }
-
-  // Build redirect URL
-  const baseDomain = isDev ? `localhost:${url.port || '3000'}` : getBaseDomain()
-  const protocol = isDev ? 'http' : 'https'
-  const redirectUrl = `${protocol}://${baseDomain}/chat/${subdomain}${url.pathname}${url.search}`
-
-  logger.info(`Redirecting subdomain request from ${request.headers.get('host')} to ${redirectUrl}`)
-  return NextResponse.redirect(redirectUrl, 301) // Permanent redirect
-}
 
 /**
  * Handles authentication-based redirects for root paths
@@ -214,24 +133,13 @@ function handleSecurityFiltering(request: NextRequest): NextResponse | null {
 
 export async function middleware(request: NextRequest) {
   const url = request.nextUrl
-  const hostname = request.headers.get('host') || ''
 
   const sessionCookie = getSessionCookie(request)
   const hasActiveSession = !!sessionCookie
 
-  const { isCustomDomain, subdomain } = analyzeSubdomain(hostname)
-
-  // Handle chat subdomains - redirect to path-based URLs for backward compatibility
-  if (subdomain && isCustomDomain && !OPERATIONAL_SUBDOMAINS.has(subdomain)) {
-    const redirect = handleChatSubdomainRedirect(request, subdomain)
-    if (redirect) return redirect
-  }
-
   // Handle root path redirects based on session status and hosting type
-  if (!isCustomDomain) {
-    const redirect = handleRootPathRedirects(request, hasActiveSession)
-    if (redirect) return redirect
-  }
+  const redirect = handleRootPathRedirects(request, hasActiveSession)
+  if (redirect) return redirect
 
   // Handle login/signup pages - redirect authenticated users to workspace
   if (url.pathname === '/login' || url.pathname === '/signup') {
