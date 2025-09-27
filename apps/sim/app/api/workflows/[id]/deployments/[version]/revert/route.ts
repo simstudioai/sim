@@ -3,8 +3,9 @@ import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { generateRequestId } from '@/lib/utils'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/db-helpers'
-import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
+import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('RevertToDeploymentVersionAPI')
@@ -16,12 +17,13 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; version: string }> }
 ) {
+  const requestId = generateRequestId()
   const { id, version } = await params
 
   try {
-    const validation = await validateWorkflowAccess(request, id, false)
-    if (validation.error) {
-      return createErrorResponse(validation.error.message, validation.error.status)
+    const { error } = await validateWorkflowPermissions(id, requestId, 'write')
+    if (error) {
+      return createErrorResponse(error.message, error.status)
     }
 
     const versionSelector = version === 'active' ? null : Number(version)

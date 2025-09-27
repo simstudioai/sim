@@ -12,26 +12,29 @@ describe('Workflow Deployment API Route', () => {
 
     process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test'
 
-    vi.doMock('drizzle-orm/postgres-js', () => ({
+    vi.mock('drizzle-orm/postgres-js', () => ({
       drizzle: vi.fn().mockReturnValue({}),
     }))
 
-    vi.doMock('postgres', () => vi.fn().mockReturnValue({}))
+    vi.mock('postgres', () => vi.fn().mockReturnValue({}))
 
-    vi.doMock('@/lib/utils', () => ({
+    vi.mock('@/lib/utils', () => ({
       generateApiKey: vi.fn().mockReturnValue('sim_testkeygenerated12345'),
       generateRequestId: vi.fn(() => 'test-request-id'),
     }))
 
-    vi.doMock('uuid', () => ({
+    vi.mock('uuid', () => ({
       v4: vi.fn().mockReturnValue('mock-uuid-1234'),
     }))
 
-    vi.stubGlobal('crypto', {
-      randomUUID: vi.fn().mockReturnValue('mock-request-id'),
+    Object.defineProperty(globalThis, 'crypto', {
+      value: {
+        randomUUID: vi.fn().mockReturnValue('mock-request-id'),
+      },
+      writable: true,
     })
 
-    vi.doMock('@/lib/logs/console/logger', () => ({
+    vi.mock('@/lib/logs/console/logger', () => ({
       createLogger: vi.fn().mockReturnValue({
         debug: vi.fn(),
         info: vi.fn(),
@@ -40,7 +43,7 @@ describe('Workflow Deployment API Route', () => {
       }),
     }))
 
-    vi.doMock('@/serializer', () => ({
+    vi.mock('@/serializer', () => ({
       serializeWorkflow: vi.fn().mockReturnValue({
         version: '1.0',
         blocks: [
@@ -60,7 +63,7 @@ describe('Workflow Deployment API Route', () => {
       }),
     }))
 
-    vi.doMock('@/lib/workflows/db-helpers', () => ({
+    vi.mock('@/lib/workflows/db-helpers', () => ({
       loadWorkflowFromNormalizedTables: vi.fn().mockResolvedValue({
         blocks: {
           'block-1': {
@@ -81,7 +84,7 @@ describe('Workflow Deployment API Route', () => {
       }),
     }))
 
-    vi.doMock('@/app/api/workflows/middleware', () => ({
+    vi.mock('@/app/api/workflows/middleware', () => ({
       validateWorkflowAccess: vi.fn().mockResolvedValue({
         workflow: {
           id: 'workflow-id',
@@ -90,7 +93,7 @@ describe('Workflow Deployment API Route', () => {
       }),
     }))
 
-    vi.doMock('@/app/api/workflows/utils', () => ({
+    vi.mock('@/app/api/workflows/utils', () => ({
       createSuccessResponse: vi.fn().mockImplementation((data) => {
         return new Response(JSON.stringify(data), {
           status: 200,
@@ -105,24 +108,24 @@ describe('Workflow Deployment API Route', () => {
       }),
     }))
 
-    vi.doMock('drizzle-orm', () => ({
+    vi.mock('drizzle-orm', () => ({
       eq: vi.fn((field, value) => ({ field, value, type: 'eq' })),
       and: vi.fn((...conditions) => ({ conditions, type: 'and' })),
       desc: vi.fn((field) => ({ field, type: 'desc' })),
       sql: vi.fn((strings, ...values) => ({ strings, values, type: 'sql' })),
     }))
 
-    vi.doMock('@/lib/auth', () => ({
+    vi.mock('@/lib/auth', () => ({
       getSession: vi.fn().mockResolvedValue({
         user: { id: 'user-id' },
       }),
     }))
 
-    vi.doMock('@/lib/permissions/utils', () => ({
+    vi.mock('@/lib/permissions/utils', () => ({
       hasWorkspaceAdminAccess: vi.fn().mockResolvedValue(true),
     }))
 
-    vi.doMock('@/lib/workflows/utils', () => ({
+    vi.mock('@/lib/workflows/utils', () => ({
       validateWorkflowPermissions: vi.fn().mockResolvedValue({
         error: null,
         session: { user: { id: 'user-id' } },
@@ -137,17 +140,8 @@ describe('Workflow Deployment API Route', () => {
       }),
     }))
 
-    vi.doMock('@/lib/workflows/db-helpers', () => ({
-      loadWorkflowFromNormalizedTables: vi.fn().mockResolvedValue({
-        blocks: { 'block-1': { id: 'block-1', type: 'starter' } },
-        edges: [],
-        loops: {},
-        parallels: {},
-      }),
-    }))
-
     let selectCallCount = 0
-    vi.doMock('@sim/db', () => ({
+    vi.mock('@sim/db', () => ({
       workflow: {},
       apiKey: {},
       workflowBlocks: {},
