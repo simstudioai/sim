@@ -102,17 +102,17 @@ export async function checkChatAccess(
   return { hasAccess: false }
 }
 
-export const encryptAuthToken = (subdomainId: string, type: string): string => {
-  return Buffer.from(`${subdomainId}:${type}:${Date.now()}`).toString('base64')
+export const encryptAuthToken = (chatId: string, type: string): string => {
+  return Buffer.from(`${chatId}:${type}:${Date.now()}`).toString('base64')
 }
 
-export const validateAuthToken = (token: string, subdomainId: string): boolean => {
+export const validateAuthToken = (token: string, chatId: string): boolean => {
   try {
     const decoded = Buffer.from(token, 'base64').toString()
     const [storedId, _type, timestamp] = decoded.split(':')
 
-    // Check if token is for this subdomain
-    if (storedId !== subdomainId) {
+    // Check if token is for this chat
+    if (storedId !== chatId) {
       return false
     }
 
@@ -132,21 +132,16 @@ export const validateAuthToken = (token: string, subdomainId: string): boolean =
 }
 
 // Set cookie helper function
-export const setChatAuthCookie = (
-  response: NextResponse,
-  subdomainId: string,
-  type: string
-): void => {
-  const token = encryptAuthToken(subdomainId, type)
+export const setChatAuthCookie = (response: NextResponse, chatId: string, type: string): void => {
+  const token = encryptAuthToken(chatId, type)
   // Set cookie with HttpOnly and secure flags
   response.cookies.set({
-    name: `chat_auth_${subdomainId}`,
+    name: `chat_auth_${chatId}`,
     value: token,
     httpOnly: true,
     secure: !isDev,
     sameSite: 'lax',
     path: '/',
-    // Using subdomain for the domain in production
     domain: isDev ? undefined : `.${getEmailDomain()}`,
     maxAge: 60 * 60 * 24, // 24 hours
   })

@@ -95,7 +95,7 @@ export function useChatDeployment() {
         chatSchema.parse(payload)
 
         // Determine endpoint and method
-        const endpoint = existingChatId ? `/api/chat/edit/${existingChatId}` : '/api/chat'
+        const endpoint = existingChatId ? `/api/chat/manage/${existingChatId}` : '/api/chat'
         const method = existingChatId ? 'PATCH' : 'POST'
 
         const response = await fetch(endpoint, {

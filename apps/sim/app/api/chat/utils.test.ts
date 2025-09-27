@@ -43,8 +43,6 @@ vi.mock('@/lib/utils', () => ({
 
 describe('Chat API Utils', () => {
   beforeEach(() => {
-    vi.resetModules()
-
     vi.doMock('@/lib/logs/console/logger', () => ({
       createLogger: vi.fn().mockReturnValue({
         info: vi.fn(),
@@ -61,6 +59,12 @@ describe('Chat API Utils', () => {
         NODE_ENV: 'development',
       },
     })
+
+    // Mock isDev to return true
+    vi.doMock('@/lib/environment', () => ({
+      isDev: true,
+      isHosted: false,
+    }))
   })
 
   afterEach(() => {
@@ -71,30 +75,30 @@ describe('Chat API Utils', () => {
     it('should encrypt and validate auth tokens', async () => {
       const { encryptAuthToken, validateAuthToken } = await import('@/app/api/chat/utils')
 
-      const subdomainId = 'test-subdomain-id'
+      const chatId = 'test-chat-id'
       const type = 'password'
 
-      const token = encryptAuthToken(subdomainId, type)
+      const token = encryptAuthToken(chatId, type)
       expect(typeof token).toBe('string')
       expect(token.length).toBeGreaterThan(0)
 
-      const isValid = validateAuthToken(token, subdomainId)
+      const isValid = validateAuthToken(token, chatId)
       expect(isValid).toBe(true)
 
-      const isInvalidSubdomain = validateAuthToken(token, 'wrong-subdomain-id')
-      expect(isInvalidSubdomain).toBe(false)
+      const isInvalidChat = validateAuthToken(token, 'wrong-chat-id')
+      expect(isInvalidChat).toBe(false)
     })
 
     it('should reject expired tokens', async () => {
       const { validateAuthToken } = await import('@/app/api/chat/utils')
 
-      const subdomainId = 'test-subdomain-id'
+      const chatId = 'test-chat-id'
       // Create an expired token by directly constructing it with an old timestamp
       const expiredToken = Buffer.from(
-        `${subdomainId}:password:${Date.now() - 25 * 60 * 60 * 1000}`
+        `${chatId}:password:${Date.now() - 25 * 60 * 60 * 1000}`
       ).toString('base64')
 
-      const isValid = validateAuthToken(expiredToken, subdomainId)
+      const isValid = validateAuthToken(expiredToken, chatId)
       expect(isValid).toBe(false)
     })
   })
@@ -110,13 +114,13 @@ describe('Chat API Utils', () => {
         },
       } as unknown as NextResponse
 
-      const subdomainId = 'test-subdomain-id'
+      const chatId = 'test-chat-id'
       const type = 'password'
 
-      setChatAuthCookie(mockResponse, subdomainId, type)
+      setChatAuthCookie(mockResponse, chatId, type)
 
       expect(mockSet).toHaveBeenCalledWith({
-        name: `chat_auth_${subdomainId}`,
+        name: `chat_auth_${chatId}`,
         value: expect.any(String),
         httpOnly: true,
         secure: false, // Development mode
@@ -134,7 +138,7 @@ describe('Chat API Utils', () => {
 
       const mockRequest = {
         headers: {
-          get: vi.fn().mockReturnValue('http://test.localhost:3000'),
+          get: vi.fn().mockReturnValue('http://localhost:3000'),
         },
       } as any
 
@@ -148,7 +152,7 @@ describe('Chat API Utils', () => {
 
       expect(mockResponse.headers.set).toHaveBeenCalledWith(
         'Access-Control-Allow-Origin',
-        'http://test.localhost:3000'
+        'http://localhost:3000'
       )
       expect(mockResponse.headers.set).toHaveBeenCalledWith(
         'Access-Control-Allow-Credentials',
@@ -169,7 +173,7 @@ describe('Chat API Utils', () => {
 
       const mockRequest = {
         headers: {
-          get: vi.fn().mockReturnValue('http://test.localhost:3000'),
+          get: vi.fn().mockReturnValue('http://localhost:3000'),
         },
       } as any
 

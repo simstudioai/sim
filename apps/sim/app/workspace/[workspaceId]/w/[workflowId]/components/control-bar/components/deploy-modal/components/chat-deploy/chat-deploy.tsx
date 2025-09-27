@@ -125,7 +125,7 @@ export function ChatDeploy({
         const data = await response.json()
 
         if (data.isDeployed && data.deployment) {
-          const detailResponse = await fetch(`/api/chat/edit/${data.deployment.id}`)
+          const detailResponse = await fetch(`/api/chat/manage/${data.deployment.id}`)
 
           if (detailResponse.ok) {
             const chatDetail = await detailResponse.json()
@@ -217,7 +217,7 @@ export function ChatDeploy({
     try {
       setIsDeleting(true)
 
-      const response = await fetch(`/api/chat/edit/${existingChat.id}`, {
+      const response = await fetch(`/api/chat/manage/${existingChat.id}`, {
         method: 'DELETE',
       })
 

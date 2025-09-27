@@ -15,7 +15,6 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('ChatDetailAPI')
 
-// Schema for updating an existing chat
 const chatUpdateSchema = z.object({
   workflowId: z.string().min(1, 'Workflow ID is required').optional(),
   identifier: z
@@ -59,14 +58,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       return createErrorResponse('Unauthorized', 401)
     }
 
-    // Check if user has access to view this chat
     const { hasAccess, chat: chatRecord } = await checkChatAccess(chatId, session.user.id)
 
     if (!hasAccess || !chatRecord) {
       return createErrorResponse('Chat not found or access denied', 404)
     }
 
-    // Create a new result object without the password
     const { password, ...safeData } = chatRecord
 
     const baseDomain = getEmailDomain()
@@ -105,16 +102,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     try {
       const validatedData = chatUpdateSchema.parse(body)
 
-      // Check if user has access to edit this chat
       const { hasAccess, chat: existingChatRecord } = await checkChatAccess(chatId, session.user.id)
 
       if (!hasAccess || !existingChatRecord) {
         return createErrorResponse('Chat not found or access denied', 404)
       }
 
-      const existingChat = [existingChatRecord] // Keep array format for compatibility
+      const existingChat = [existingChatRecord]
 
-      // Extract validated data
       const {
         workflowId,
         identifier,
@@ -127,7 +122,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         outputConfigs,
       } = validatedData
 
-      // Check if identifier is changing and if it's available
       if (identifier && identifier !== existingChat[0].identifier) {
         const existingIdentifier = await db
           .select()
@@ -140,64 +134,50 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         }
       }
 
-      // Handle password update
       let encryptedPassword
 
-      // Only encrypt and update password if one is provided
       if (password) {
         const { encrypted } = await encryptSecret(password)
         encryptedPassword = encrypted
         logger.info('Password provided, will be updated')
       } else if (authType === 'password' && !password) {
-        // If switching to password auth but no password provided,
-        // check if there's an existing password
         if (existingChat[0].authType !== 'password' || !existingChat[0].password) {
-          // If there's no existing password to reuse, return an error
           return createErrorResponse('Password is required when using password protection', 400)
         }
         logger.info('Keeping existing password')
       }
 
-      // Prepare update data
       const updateData: any = {
         updatedAt: new Date(),
       }
 
-      // Only include fields that are provided
       if (workflowId) updateData.workflowId = workflowId
       if (identifier) updateData.identifier = identifier
       if (title) updateData.title = title
       if (description !== undefined) updateData.description = description
       if (customizations) updateData.customizations = customizations
 
-      // Handle auth type update
       if (authType) {
         updateData.authType = authType
 
-        // Reset auth-specific fields when changing auth types
         if (authType === 'public') {
           updateData.password = null
           updateData.allowedEmails = []
         } else if (authType === 'password') {
           updateData.allowedEmails = []
-          // Password handled separately
         } else if (authType === 'email') {
           updateData.password = null
-          // Emails handled separately
         }
       }
 
-      // Always update password if provided (not just when changing auth type)
       if (encryptedPassword) {
         updateData.password = encryptedPassword
       }
 
-      // Always update allowed emails if provided
       if (allowedEmails) {
         updateData.allowedEmails = allowedEmails
       }
 
-      // Handle output fields
       if (outputConfigs) {
         updateData.outputConfigs = outputConfigs
       }
@@ -210,7 +190,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         outputConfigsCount: updateData.outputConfigs ? updateData.outputConfigs.length : undefined,
       })
 
-      // Update the chat deployment
       await db.update(chat).set(updateData).where(eq(chat.id, chatId))
 
       const updatedIdentifier = identifier || existingChat[0].identifier
@@ -256,14 +235,12 @@ export async function DELETE(
       return createErrorResponse('Unauthorized', 401)
     }
 
-    // Check if user has access to delete this chat
     const { hasAccess } = await checkChatAccess(chatId, session.user.id)
 
     if (!hasAccess) {
       return createErrorResponse('Chat not found or access denied', 404)
     }
 
-    // Delete the chat deployment
     await db.delete(chat).where(eq(chat.id, chatId))
 
     logger.info(`Chat "${chatId}" deleted successfully`)

@@ -93,8 +93,8 @@ describe('Chat Edit API Route', () => {
         getSession: vi.fn().mockResolvedValue(null),
       }))
 
-      const req = new NextRequest('http://localhost:3000/api/chat/edit/chat-123')
-      const { GET } = await import('@/app/api/chat/edit/[id]/route')
+      const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123')
+      const { GET } = await import('@/app/api/chat/manage/[id]/route')
       const response = await GET(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(401)
@@ -110,8 +110,8 @@ describe('Chat Edit API Route', () => {
 
       mockCheckChatAccess.mockResolvedValue({ hasAccess: false })
 
-      const req = new NextRequest('http://localhost:3000/api/chat/edit/chat-123')
-      const { GET } = await import('@/app/api/chat/edit/[id]/route')
+      const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123')
+      const { GET } = await import('@/app/api/chat/manage/[id]/route')
       const response = await GET(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(404)
@@ -137,8 +137,8 @@ describe('Chat Edit API Route', () => {
 
       mockCheckChatAccess.mockResolvedValue({ hasAccess: true, chat: mockChat })
 
-      const req = new NextRequest('http://localhost:3000/api/chat/edit/chat-123')
-      const { GET } = await import('@/app/api/chat/edit/[id]/route')
+      const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123')
+      const { GET } = await import('@/app/api/chat/manage/[id]/route')
       const response = await GET(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(200)
@@ -160,11 +160,11 @@ describe('Chat Edit API Route', () => {
         getSession: vi.fn().mockResolvedValue(null),
       }))
 
-      const req = new NextRequest('http://localhost:3000/api/chat/edit/chat-123', {
+      const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
         method: 'PATCH',
         body: JSON.stringify({ title: 'Updated Chat' }),
       })
-      const { PATCH } = await import('@/app/api/chat/edit/[id]/route')
+      const { PATCH } = await import('@/app/api/chat/manage/[id]/route')
       const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(401)
@@ -180,11 +180,11 @@ describe('Chat Edit API Route', () => {
 
       mockCheckChatAccess.mockResolvedValue({ hasAccess: false })
 
-      const req = new NextRequest('http://localhost:3000/api/chat/edit/chat-123', {
+      const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
         method: 'PATCH',
         body: JSON.stringify({ title: 'Updated Chat' }),
       })
-      const { PATCH } = await import('@/app/api/chat/edit/[id]/route')
+      const { PATCH } = await import('@/app/api/chat/manage/[id]/route')
       const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(404)
@@ -208,11 +208,11 @@ describe('Chat Edit API Route', () => {
 
       mockCheckChatAccess.mockResolvedValue({ hasAccess: true, chat: mockChat })
 
-      const req = new NextRequest('http://localhost:3000/api/chat/edit/chat-123', {
+      const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
         method: 'PATCH',
         body: JSON.stringify({ title: 'Updated Chat', description: 'Updated description' }),
       })
-      const { PATCH } = await import('@/app/api/chat/edit/[id]/route')
+      const { PATCH } = await import('@/app/api/chat/manage/[id]/route')
       const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(200)
@@ -241,11 +241,11 @@ describe('Chat Edit API Route', () => {
       // Mock identifier conflict
       mockLimit.mockResolvedValueOnce([{ id: 'other-chat-id', identifier: 'new-identifier' }])
 
-      const req = new NextRequest('http://localhost:3000/api/chat/edit/chat-123', {
+      const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
         method: 'PATCH',
         body: JSON.stringify({ identifier: 'new-identifier' }),
       })
-      const { PATCH } = await import('@/app/api/chat/edit/[id]/route')
+      const { PATCH } = await import('@/app/api/chat/manage/[id]/route')
       const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(400)
@@ -269,11 +269,11 @@ describe('Chat Edit API Route', () => {
 
       mockCheckChatAccess.mockResolvedValue({ hasAccess: true, chat: mockChat })
 
-      const req = new NextRequest('http://localhost:3000/api/chat/edit/chat-123', {
+      const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
         method: 'PATCH',
         body: JSON.stringify({ authType: 'password' }), // No password provided
       })
-      const { PATCH } = await import('@/app/api/chat/edit/[id]/route')
+      const { PATCH } = await import('@/app/api/chat/manage/[id]/route')
       const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(400)
@@ -300,11 +300,11 @@ describe('Chat Edit API Route', () => {
       // User doesn't own chat but has workspace admin access
       mockCheckChatAccess.mockResolvedValue({ hasAccess: true, chat: mockChat })
 
-      const req = new NextRequest('http://localhost:3000/api/chat/edit/chat-123', {
+      const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
         method: 'PATCH',
         body: JSON.stringify({ title: 'Admin Updated Chat' }),
       })
-      const { PATCH } = await import('@/app/api/chat/edit/[id]/route')
+      const { PATCH } = await import('@/app/api/chat/manage/[id]/route')
       const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(200)
@@ -318,10 +318,10 @@ describe('Chat Edit API Route', () => {
         getSession: vi.fn().mockResolvedValue(null),
       }))
 
-      const req = new NextRequest('http://localhost:3000/api/chat/edit/chat-123', {
+      const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
         method: 'DELETE',
       })
-      const { DELETE } = await import('@/app/api/chat/edit/[id]/route')
+      const { DELETE } = await import('@/app/api/chat/manage/[id]/route')
       const response = await DELETE(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(401)
@@ -337,10 +337,10 @@ describe('Chat Edit API Route', () => {
 
       mockCheckChatAccess.mockResolvedValue({ hasAccess: false })
 
-      const req = new NextRequest('http://localhost:3000/api/chat/edit/chat-123', {
+      const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
         method: 'DELETE',
       })
-      const { DELETE } = await import('@/app/api/chat/edit/[id]/route')
+      const { DELETE } = await import('@/app/api/chat/manage/[id]/route')
       const response = await DELETE(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(404)
@@ -358,10 +358,10 @@ describe('Chat Edit API Route', () => {
       mockCheckChatAccess.mockResolvedValue({ hasAccess: true })
       mockWhere.mockResolvedValue(undefined)
 
-      const req = new NextRequest('http://localhost:3000/api/chat/edit/chat-123', {
+      const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
         method: 'DELETE',
       })
-      const { DELETE } = await import('@/app/api/chat/edit/[id]/route')
+      const { DELETE } = await import('@/app/api/chat/manage/[id]/route')
       const response = await DELETE(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(200)
@@ -382,10 +382,10 @@ describe('Chat Edit API Route', () => {
       mockCheckChatAccess.mockResolvedValue({ hasAccess: true })
       mockWhere.mockResolvedValue(undefined)
 
-      const req = new NextRequest('http://localhost:3000/api/chat/edit/chat-123', {
+      const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
         method: 'DELETE',
       })
-      const { DELETE } = await import('@/app/api/chat/edit/[id]/route')
+      const { DELETE } = await import('@/app/api/chat/manage/[id]/route')
       const response = await DELETE(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(200)
