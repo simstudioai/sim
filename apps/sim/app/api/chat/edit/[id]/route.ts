@@ -18,10 +18,10 @@ const logger = createLogger('ChatDetailAPI')
 // Schema for updating an existing chat
 const chatUpdateSchema = z.object({
   workflowId: z.string().min(1, 'Workflow ID is required').optional(),
-  subdomain: z
+  identifier: z
     .string()
-    .min(1, 'Subdomain is required')
-    .regex(/^[a-z0-9-]+$/, 'Subdomain can only contain lowercase letters, numbers, and hyphens')
+    .min(1, 'Identifier is required')
+    .regex(/^[a-z0-9-]+$/, 'Identifier can only contain lowercase letters, numbers, and hyphens')
     .optional(),
   title: z.string().min(1, 'Title is required').optional(),
   description: z.string().optional(),
@@ -71,7 +71,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
     const baseDomain = getEmailDomain()
     const protocol = isDev ? 'http' : 'https'
-    const chatUrl = `${protocol}://${chatRecord.subdomain}.${baseDomain}`
+    const chatUrl = `${protocol}://${baseDomain}/chat/${chatRecord.identifier}`
 
     const result = {
       ...safeData,
@@ -117,7 +117,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       // Extract validated data
       const {
         workflowId,
-        subdomain,
+        identifier,
         title,
         description,
         customizations,
@@ -127,16 +127,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         outputConfigs,
       } = validatedData
 
-      // Check if subdomain is changing and if it's available
-      if (subdomain && subdomain !== existingChat[0].subdomain) {
-        const existingSubdomain = await db
+      // Check if identifier is changing and if it's available
+      if (identifier && identifier !== existingChat[0].identifier) {
+        const existingIdentifier = await db
           .select()
           .from(chat)
-          .where(eq(chat.subdomain, subdomain))
+          .where(eq(chat.identifier, identifier))
           .limit(1)
 
-        if (existingSubdomain.length > 0 && existingSubdomain[0].id !== chatId) {
-          return createErrorResponse('Subdomain already in use', 400)
+        if (existingIdentifier.length > 0 && existingIdentifier[0].id !== chatId) {
+          return createErrorResponse('Identifier already in use', 400)
         }
       }
 
@@ -165,7 +165,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
       // Only include fields that are provided
       if (workflowId) updateData.workflowId = workflowId
-      if (subdomain) updateData.subdomain = subdomain
+      if (identifier) updateData.identifier = identifier
       if (title) updateData.title = title
       if (description !== undefined) updateData.description = description
       if (customizations) updateData.customizations = customizations
@@ -213,11 +213,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       // Update the chat deployment
       await db.update(chat).set(updateData).where(eq(chat.id, chatId))
 
-      const updatedSubdomain = subdomain || existingChat[0].subdomain
+      const updatedIdentifier = identifier || existingChat[0].identifier
 
       const baseDomain = getEmailDomain()
       const protocol = isDev ? 'http' : 'https'
-      const chatUrl = `${protocol}://${updatedSubdomain}.${baseDomain}`
+      const chatUrl = `${protocol}://${baseDomain}/chat/${updatedIdentifier}`
 
       logger.info(`Chat "${chatId}" updated successfully`)
 

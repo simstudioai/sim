@@ -92,7 +92,7 @@ function throttle<T extends (...args: any[]) => any>(func: T, delay: number): T 
   }) as T
 }
 
-export default function ChatClient({ subdomain }: { subdomain: string }) {
+export default function ChatClient({ identifier }: { identifier: string }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -190,7 +190,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
   const fetchChatConfig = async () => {
     try {
-      const response = await fetch(`/api/chat/${subdomain}`, {
+      const response = await fetch(`/api/chat/${identifier}`, {
         credentials: 'same-origin',
         headers: {
           'X-Requested-With': 'XMLHttpRequest',
@@ -251,7 +251,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       .catch((err) => {
         logger.error('Failed to fetch GitHub stars:', err)
       })
-  }, [subdomain])
+  }, [identifier])
 
   const refreshChat = () => {
     fetchChatConfig()
@@ -309,7 +309,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
       logger.info('API payload:', payload)
 
-      const response = await fetch(`/api/chat/${subdomain}`, {
+      const response = await fetch(`/api/chat/${identifier}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -433,7 +433,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
     if (authRequired === 'password') {
       return (
         <PasswordAuth
-          subdomain={subdomain}
+          identifier={identifier}
           onAuthSuccess={handleAuthSuccess}
           title={title}
           primaryColor={primaryColor}
@@ -443,7 +443,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
     if (authRequired === 'email') {
       return (
         <EmailAuth
-          subdomain={subdomain}
+          identifier={identifier}
           onAuthSuccess={handleAuthSuccess}
           title={title}
           primaryColor={primaryColor}
