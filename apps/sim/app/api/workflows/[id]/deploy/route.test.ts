@@ -1,5 +1,5 @@
 /**
- * Integration tests for workflow deployment API route
+ * Integration tests for workflow deployment API route.
  *
  * @vitest-environment node
  */
@@ -10,10 +10,8 @@ describe('Workflow Deployment API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    // Set up environment to prevent @sim/db import errors
     process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test'
 
-    // Mock postgres dependencies
     vi.doMock('drizzle-orm/postgres-js', () => ({
       drizzle: vi.fn().mockReturnValue({}),
     }))
@@ -42,7 +40,6 @@ describe('Workflow Deployment API Route', () => {
       }),
     }))
 
-    // Mock serializer
     vi.doMock('@/serializer', () => ({
       serializeWorkflow: vi.fn().mockReturnValue({
         version: '1.0',
@@ -108,9 +105,6 @@ describe('Workflow Deployment API Route', () => {
       }),
     }))
 
-    // Mock the database schema module
-
-    // Mock drizzle-orm operators
     vi.doMock('drizzle-orm', () => ({
       eq: vi.fn((field, value) => ({ field, value, type: 'eq' })),
       and: vi.fn((...conditions) => ({ conditions, type: 'and' })),
@@ -118,7 +112,40 @@ describe('Workflow Deployment API Route', () => {
       sql: vi.fn((strings, ...values) => ({ strings, values, type: 'sql' })),
     }))
 
-    // Mock the database module with proper chainable query builder
+    vi.doMock('@/lib/auth', () => ({
+      getSession: vi.fn().mockResolvedValue({
+        user: { id: 'user-id' },
+      }),
+    }))
+
+    vi.doMock('@/lib/permissions/utils', () => ({
+      hasWorkspaceAdminAccess: vi.fn().mockResolvedValue(true),
+    }))
+
+    vi.doMock('@/lib/workflows/utils', () => ({
+      validateWorkflowPermissions: vi.fn().mockResolvedValue({
+        error: null,
+        session: { user: { id: 'user-id' } },
+        workflow: {
+          id: 'workflow-id',
+          userId: 'user-id',
+          workspaceId: 'workspace-id',
+          isDeployed: true,
+          deployedAt: new Date('2024-01-01'),
+          pinnedApiKeyId: null,
+        },
+      }),
+    }))
+
+    vi.doMock('@/lib/workflows/db-helpers', () => ({
+      loadWorkflowFromNormalizedTables: vi.fn().mockResolvedValue({
+        blocks: { 'block-1': { id: 'block-1', type: 'starter' } },
+        edges: [],
+        loops: {},
+        parallels: {},
+      }),
+    }))
+
     let selectCallCount = 0
     vi.doMock('@sim/db', () => ({
       workflow: {},
@@ -137,11 +164,9 @@ describe('Workflow Deployment API Route', () => {
           selectCallCount++
           const buildLimitResponse = () => ({
             limit: vi.fn().mockImplementation(() => {
-              // First call: workflow lookup (should return workflow)
               if (selectCallCount === 1) {
                 return Promise.resolve([{ userId: 'user-id', id: 'workflow-id' }])
               }
-              // Second call: blocks lookup
               if (selectCallCount === 2) {
                 return Promise.resolve([
                   {
@@ -156,19 +181,15 @@ describe('Workflow Deployment API Route', () => {
                   },
                 ])
               }
-              // Third call: edges lookup
               if (selectCallCount === 3) {
                 return Promise.resolve([])
               }
-              // Fourth call: subflows lookup
               if (selectCallCount === 4) {
                 return Promise.resolve([])
               }
-              // Fifth call: API key lookup (should return empty for new key test)
               if (selectCallCount === 5) {
                 return Promise.resolve([])
               }
-              // Default: empty array
               return Promise.resolve([])
             }),
           })
@@ -202,7 +223,6 @@ describe('Workflow Deployment API Route', () => {
    * Test GET deployment status
    */
   it('should fetch deployment info successfully', async () => {
-    // The global mock from mockExecutionDependencies() should handle this
     const req = createMockRequest('GET')
     const params = Promise.resolve({ id: 'workflow-id' })
 
