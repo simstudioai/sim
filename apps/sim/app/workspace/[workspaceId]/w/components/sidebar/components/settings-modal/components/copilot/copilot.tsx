@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Check, Copy, Eye, EyeOff, Plus, Search } from 'lucide-react'
+import { Check, Copy, Plus, Search } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,10 +13,6 @@ import {
   Input,
   Label,
   Skeleton,
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
 } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 
@@ -24,36 +20,28 @@ const logger = createLogger('CopilotSettings')
 
 interface CopilotKey {
   id: string
-  apiKey: string
+  displayKey: string
 }
 
 export function Copilot() {
   const [keys, setKeys] = useState<CopilotKey[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [visible, setVisible] = useState<Record<string, boolean>>({})
   const [searchTerm, setSearchTerm] = useState('')
 
   // Create flow state
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
-  const [newKey, setNewKey] = useState<CopilotKey | null>(null)
-  const [copiedKeyIds, setCopiedKeyIds] = useState<Record<string, boolean>>({})
+  const [newKey, setNewKey] = useState<string | null>(null)
+  const [isCreatingKey] = useState(false)
   const [newKeyCopySuccess, setNewKeyCopySuccess] = useState(false)
 
   // Delete flow state
   const [deleteKey, setDeleteKey] = useState<CopilotKey | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
-  // Filter keys based on search term
+  // Filter keys based on search term (by masked display value)
   const filteredKeys = keys.filter((key) =>
-    key.apiKey.toLowerCase().includes(searchTerm.toLowerCase())
+    key.displayKey.toLowerCase().includes(searchTerm.toLowerCase())
   )
-
-  const maskedValue = useCallback((value: string, show: boolean) => {
-    if (show) return value
-    if (!value) return ''
-    const last6 = value.slice(-6)
-    return `•••••${last6}`
-  }, [])
 
   const fetchKeys = useCallback(async () => {
     try {
@@ -61,7 +49,7 @@ export function Copilot() {
       const res = await fetch('/api/copilot/api-keys')
       if (!res.ok) throw new Error(`Failed to fetch: ${res.status}`)
       const data = await res.json()
-      setKeys(Array.isArray(data.keys) ? data.keys : [])
+      setKeys(Array.isArray(data.keys) ? (data.keys as CopilotKey[]) : [])
     } catch (error) {
       logger.error('Failed to fetch copilot keys', { error })
       setKeys([])
@@ -84,10 +72,11 @@ export function Copilot() {
       }
       const data = await res.json()
       // Show the new key dialog with the API key (only shown once)
-      if (data?.key) {
-        setNewKey(data.key)
+      if (data?.key?.apiKey) {
+        setNewKey(data.key.apiKey)
         setShowNewKeyDialog(true)
       }
+
       await fetchKeys()
     } catch (error) {
       logger.error('Failed to generate copilot API key', { error })
@@ -117,12 +106,7 @@ export function Copilot() {
   const onCopy = async (value: string, keyId?: string) => {
     try {
       await navigator.clipboard.writeText(value)
-      if (keyId) {
-        setCopiedKeyIds((prev) => ({ ...prev, [keyId]: true }))
-        setTimeout(() => {
-          setCopiedKeyIds((prev) => ({ ...prev, [keyId]: false }))
-        }, 1500)
-      } else {
+      if (!keyId) {
         setNewKeyCopySuccess(true)
         setTimeout(() => setNewKeyCopySuccess(false), 1500)
       }
@@ -166,77 +150,32 @@ export function Copilot() {
             </div>
           ) : (
             <div className='space-y-2'>
-              {filteredKeys.map((k) => {
-                const isVisible = !!visible[k.id]
-                const value = maskedValue(k.apiKey, isVisible)
-                return (
-                  <div key={k.id} className='flex flex-col gap-2'>
-                    <Label className='font-normal text-muted-foreground text-xs uppercase'>
-                      Copilot API Key
-                    </Label>
-                    <div className='flex items-center justify-between gap-4'>
-                      <div className='flex items-center gap-3'>
-                        <div className='flex h-8 items-center rounded-[8px] bg-muted px-3'>
-                          <code className='font-mono text-foreground text-xs'>{value}</code>
-                        </div>
-                        <div className='flex items-center gap-2'>
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant='ghost'
-                                  size='icon'
-                                  onClick={() => setVisible((v) => ({ ...v, [k.id]: !isVisible }))}
-                                  className='h-4 w-4 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground'
-                                >
-                                  {isVisible ? (
-                                    <EyeOff className='!h-3.5 !w-3.5' />
-                                  ) : (
-                                    <Eye className='!h-3.5 !w-3.5' />
-                                  )}
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>{isVisible ? 'Hide' : 'Reveal'}</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant='ghost'
-                                  size='icon'
-                                  onClick={() => onCopy(k.apiKey, k.id)}
-                                  className='h-4 w-4 p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground'
-                                >
-                                  {copiedKeyIds[k.id] ? (
-                                    <Check className='!h-3.5 !w-3.5' />
-                                  ) : (
-                                    <Copy className='!h-3.5 !w-3.5' />
-                                  )}
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Copy</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </div>
+              {filteredKeys.map((k) => (
+                <div key={k.id} className='flex flex-col gap-2'>
+                  <Label className='font-normal text-muted-foreground text-xs uppercase'>
+                    Copilot API Key
+                  </Label>
+                  <div className='flex items-center justify-between gap-4'>
+                    <div className='flex items-center gap-3'>
+                      <div className='flex h-8 items-center rounded-[8px] bg-muted px-3'>
+                        <code className='font-mono text-foreground text-xs'>{k.displayKey}</code>
                       </div>
-
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        onClick={() => {
-                          setDeleteKey(k)
-                          setShowDeleteDialog(true)
-                        }}
-                        className='h-8 text-muted-foreground hover:text-foreground'
-                      >
-                        Delete
-                      </Button>
                     </div>
+
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      onClick={() => {
+                        setDeleteKey(k)
+                        setShowDeleteDialog(true)
+                      }}
+                      className='h-8 text-muted-foreground hover:text-foreground'
+                    >
+                      Delete
+                    </Button>
                   </div>
-                )
-              })}
+                </div>
+              ))}
               {/* Show message when search has no results but there are keys */}
               {searchTerm.trim() && filteredKeys.length === 0 && keys.length > 0 && (
                 <div className='py-8 text-center text-muted-foreground text-sm'>
@@ -265,7 +204,7 @@ export function Copilot() {
                 disabled={isLoading}
               >
                 <Plus className='h-4 w-4 stroke-[2px]' />
-                Generate Key
+                Create Key
               </Button>
             </>
           )}
@@ -285,24 +224,23 @@ export function Copilot() {
       >
         <AlertDialogContent className='rounded-[10px] sm:max-w-lg'>
           <AlertDialogHeader>
-            <AlertDialogTitle>New Copilot API Key</AlertDialogTitle>
+            <AlertDialogTitle>Your API key has been created</AlertDialogTitle>
             <AlertDialogDescription>
-              <span className='font-semibold'>Copy it now</span> and store it securely.
+              This is the only time you will see your API key.{' '}
+              <span className='font-semibold'>Copy it now and store it securely.</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
 
           {newKey && (
             <div className='relative'>
               <div className='flex h-9 items-center rounded-[6px] border-none bg-muted px-3 pr-8'>
-                <code className='flex-1 truncate font-mono text-foreground text-sm'>
-                  {newKey.apiKey}
-                </code>
+                <code className='flex-1 truncate font-mono text-foreground text-sm'>{newKey}</code>
               </div>
               <Button
                 variant='ghost'
                 size='icon'
                 className='-translate-y-1/2 absolute top-1/2 right-2 h-4 w-4 rounded-[4px] p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground'
-                onClick={() => onCopy(newKey.apiKey)}
+                onClick={() => onCopy(newKey)}
               >
                 {newKeyCopySuccess ? (
                   <Check className='!h-3.5 !w-3.5' />
@@ -320,7 +258,7 @@ export function Copilot() {
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent className='rounded-[10px] sm:max-w-md'>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Copilot API key?</AlertDialogTitle>
+            <AlertDialogTitle>Delete API key?</AlertDialogTitle>
             <AlertDialogDescription>
               Deleting this API key will immediately revoke access for any integrations using it.{' '}
               <span className='text-red-500 dark:text-red-500'>This action cannot be undone.</span>

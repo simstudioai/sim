@@ -15,6 +15,8 @@ export async function POST(req: NextRequest) {
     // Move environment variable access inside the function
     const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
+    await req.json().catch(() => ({}))
+
     const res = await fetch(`${SIM_AGENT_API_URL}/api/validate-key/generate`, {
       method: 'POST',
       headers: {
@@ -31,14 +33,14 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const data = (await res.json().catch(() => null)) as { apiKey?: string } | null
+    const data = (await res.json().catch(() => null)) as { apiKey?: string; id?: string } | null
 
     if (!data?.apiKey) {
       return NextResponse.json({ error: 'Invalid response from Sim Agent' }, { status: 500 })
     }
 
     return NextResponse.json(
-      { success: true, key: { id: 'new', apiKey: data.apiKey } },
+      { success: true, key: { id: data?.id || 'new', apiKey: data.apiKey } },
       { status: 201 }
     )
   } catch (error) {

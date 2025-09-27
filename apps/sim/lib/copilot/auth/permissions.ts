@@ -8,7 +8,6 @@ const logger = createLogger('CopilotPermissions')
 
 /**
  * Verifies if a user has access to a workflow for copilot operations
- * Follows the same authorization pattern as /api/workflows/[id]/route.ts
  *
  * @param userId - The authenticated user ID
  * @param workflowId - The workflow ID to check access for
@@ -24,7 +23,6 @@ export async function verifyWorkflowAccess(
   isOwner: boolean
 }> {
   try {
-    // Fetch the workflow to get its workspace and owner info (same query as workflow API)
     const workflowData = await db
       .select({
         userId: workflow.userId,

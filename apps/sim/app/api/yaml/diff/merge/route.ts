@@ -18,7 +18,6 @@ import {
 
 const logger = createLogger('YamlDiffMergeAPI')
 
-// Sim Agent API configuration
 const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
 const MergeDiffRequestSchema = z.object({

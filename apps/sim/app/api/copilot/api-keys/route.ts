@@ -33,7 +33,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid response from Sim Agent' }, { status: 500 })
     }
 
-    const keys = apiKeys
+    const keys = apiKeys.map((k) => {
+      const value = typeof k.apiKey === 'string' ? k.apiKey : ''
+      const last6 = value.slice(-6)
+      const displayKey = `•••••${last6}`
+      return { id: k.id, displayKey }
+    })
 
     return NextResponse.json({ keys }, { status: 200 })
   } catch (error) {
