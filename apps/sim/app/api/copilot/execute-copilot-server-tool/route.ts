@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     const { toolName, payload } = ExecuteSchema.parse(body)
 
     logger.info(`[${tracker.requestId}] Executing server tool`, { toolName })
-    const result = await routeExecution(toolName, payload)
+    const result = await routeExecution(toolName, payload, { userId })
 
     try {
       const resultPreview = JSON.stringify(result).slice(0, 300)

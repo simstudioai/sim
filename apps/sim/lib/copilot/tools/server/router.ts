@@ -50,8 +50,11 @@ serverToolRegistry[readGDriveFileServerTool.name] = readGDriveFileServerTool
 serverToolRegistry[getOAuthCredentialsServerTool.name] = getOAuthCredentialsServerTool
 serverToolRegistry[makeApiRequestServerTool.name] = makeApiRequestServerTool
 
-// Main router function
-export async function routeExecution(toolName: string, payload: unknown): Promise<any> {
+export async function routeExecution(
+  toolName: string,
+  payload: unknown,
+  context?: { userId: string }
+): Promise<any> {
   const tool = serverToolRegistry[toolName]
   if (!tool) {
     throw new Error(`Unknown server tool: ${toolName}`)
@@ -81,7 +84,7 @@ export async function routeExecution(toolName: string, payload: unknown): Promis
     args = BuildWorkflowInput.parse(args)
   }
 
-  const result = await tool.execute(args)
+  const result = await tool.execute(args, context)
 
   if (toolName === 'get_blocks_and_tools') {
     return GetBlocksAndToolsResult.parse(result)
