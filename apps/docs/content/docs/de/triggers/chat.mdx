@@ -1,0 +1,43 @@
+---
+title: Chat-Auslöser
+description: Starten Sie einen Workflow aus einer Chat-Bereitstellung
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+## Übersicht
+
+Der Chat-Auslöser erstellt eine Konversationsschnittstelle für Ihren Workflow. Stellen Sie Ihren Workflow als Chat bereit, und Benutzer können über eine teilbare URL damit interagieren. Jede Nachricht startet eine neue Workflow-Ausführung mit Ihrer neuesten Bereitstellung.
+
+## Laufzeit-Ausgaben
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/triggers/chat-trigger-light.png'
+    alt='Chat-Bereitstellungskonversation'
+    width={400}
+    height={250}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+Der Auslöser schreibt drei Felder, auf die nachfolgende Blöcke verweisen können:
+
+| Referenz | Beschreibung |
+|-----------|-------------|
+| `<chat.input>` | Neueste Benutzernachricht |
+| `<chat.conversationId>` | Konversations-Thread-ID |
+| `<chat.files>` | Optionale hochgeladene Dateien |
+
+Dateien enthalten `name`, `mimeType` und einen signierten Download `url`.
+
+## Nutzungshinweise
+
+1. Fügen Sie einen Chat-Auslöser-Block pro Workflow hinzu.
+2. Stellen Sie den Workflow im Chat-Modus bereit.
+3. Teilen Sie den Bereitstellungslink – jede Antwort verwendet die Konversations-ID wieder, sodass der Workflow den Kontext beibehalten kann.
+
+<Callout type="info">
+Der Builder blockiert mehrere Chat-Auslöser-Blöcke im selben Workflow.
+</Callout>

@@ -4,6 +4,7 @@ title: 実行
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
 
 Simの実行エンジンは、ブロックを正しい順序で処理し、データフローを管理し、エラーを適切に処理することで、ワークフローに命を吹き込みます。これにより、Simでワークフローがどのように実行されるかを正確に理解することができます。
 
@@ -88,9 +89,25 @@ curl -X POST https://sim.ai/api/workflows/your-workflow-id/execute \
 
 各デプロイメント方法はデータをワークフローのスターターブロックに渡し、実行フローを開始します。
 
+## デプロイメントスナップショット
+
+すべての公開エントリーポイント（API、チャット、スケジュール、Webhook、手動実行）は、ワークフローのアクティブなデプロイメントスナップショットを実行します。キャンバスを変更するたびに新しいデプロイメントを公開することで、すべてのトリガーが更新されたバージョンを使用するようになります。
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/execution/deployment-versions-light.png'
+    alt='デプロイメントバージョン一覧表'
+    width={500}
+    height={280}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+デプロイモーダルは完全なバージョン履歴を保持しています。任意のスナップショットを検査し、ドラフトと比較して、必要に応じてワンクリックで昇格またはロールバックし、以前のリリースを復元することができます。
+
 ## プログラムによる実行
 
-公式SDKを使用してアプリケーションからワークフローを実行します：
+公式SDKを使用してアプリケーションからワークフローを実行できます：
 
 ```bash
 # TypeScript/JavaScript
@@ -118,18 +135,18 @@ const result = await client.executeWorkflow('workflow-id', {
 ### 信頼性を考慮した設計
 - 適切なフォールバックパスでエラーを適切に処理する
 - 機密データには環境変数を使用する
-- デバッグ用に関数ブロックにログを追加する
+- デバッグ用にFunction（関数）ブロックにログ記録を追加する
 
 ### パフォーマンスの最適化
 - 可能な限り外部APIコールを最小限に抑える
 - 独立した操作には並列実行を使用する
-- 適切な場合はメモリブロックで結果をキャッシュする
+- 適切な場合はMemory（メモリー）ブロックで結果をキャッシュする
 
 ### 実行の監視
 - パフォーマンスパターンを理解するために定期的にログを確認する
 - AIモデル使用のコストを追跡する
 - 問題をデバッグするためにワークフロースナップショットを使用する
 
-## 次のステップは？
+## 次のステップ
 
-[実行の基本](/execution/basics)からスタートしてワークフローの実行方法を理解し、次に[ログ記録](/execution/logging)で実行状況を監視し、[コスト計算](/execution/costs)で支出を最適化する方法を探りましょう。
+[実行の基本](/execution/basics)からスタートしてワークフローの実行方法を理解し、[ログ記録](/execution/logging)で実行を監視し、[コスト計算](/execution/costs)で支出を最適化する方法を探りましょう。

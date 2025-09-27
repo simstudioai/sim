@@ -1,0 +1,60 @@
+---
+title: Déclencheur d'API
+description: Démarrez un flux de travail à partir d'une requête HTTP authentifiée
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+## Aperçu
+
+Le déclencheur d'API expose votre flux de travail en tant que point de terminaison HTTP sécurisé. Envoyez des données JSON au point de terminaison et votre flux de travail les traite immédiatement. Les appels API s'exécutent toujours sur votre dernier déploiement.
+
+## Configurer le format d'entrée
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/triggers/api-trigger-light.png'
+    alt='Format d'entrée du déclencheur d'API'
+    width={400}
+    height={250}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+Ajoutez un champ **Format d'entrée** pour chaque paramètre. Les clés de sortie d'exécution reflètent le schéma et sont également disponibles sous `<api.input>`.
+
+```yaml
+- type: string
+  name: userId
+  value: demo-user # optional manual test value
+- type: number
+  name: maxTokens
+```
+
+Les exécutions manuelles dans l'éditeur utilisent la colonne `value` pour que vous puissiez tester sans envoyer de requête. Pendant l'exécution, le résolveur remplit à la fois `<api.userId>` et `<api.input.userId>`.
+
+## Exemple de requête
+
+```bash
+curl -X POST \
+  https://sim.ai/api/workflows/WORKFLOW_ID/execute \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: YOUR_KEY' \
+  -d '{"userId":"demo-user","maxTokens":1024}'
+```
+
+Les réponses réussies renvoient le résultat d'exécution sérialisé de l'Exécuteur. Les erreurs révèlent des problèmes de validation, d'authentification ou d'échec du flux de travail.
+
+## Référence de sortie
+
+| Référence | Description |
+|-----------|-------------|
+| `<api.field>` | Champ défini dans le Format d'entrée |
+| `<api.input>` | Corps de la requête structuré complet |
+
+Si aucun Format d'entrée n'est défini, l'exécuteur expose le JSON brut uniquement à `<api.input>`.
+
+<Callout type="warning">
+Un flux de travail ne peut contenir qu'un seul déclencheur d'API. Publiez un nouveau déploiement après les modifications pour que le point de terminaison reste à jour.
+</Callout>

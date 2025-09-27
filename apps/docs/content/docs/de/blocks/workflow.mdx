@@ -1,168 +1,40 @@
 ---
-title: Workflow
+title: Workflow-Block
+description: Führe einen anderen Workflow innerhalb des aktuellen Ablaufs aus
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-Der Workflow-Block ermöglicht es, andere Workflows als wiederverwendbare Komponenten innerhalb deines aktuellen Workflows auszuführen. Dies ermöglicht modulares Design, Codewiederverwendung und die Erstellung komplexer verschachtelter Workflows, die aus kleineren, fokussierten Workflows zusammengesetzt werden können.
+## Was er macht
 
-<div className="flex justify-center my-6">
+<div className='flex justify-center my-6'>
   <Image
-    src="/static/blocks/workflow.png"
-    alt="Workflow-Block"
+    src='/static/blocks/workflow.png'
+    alt='Workflow-Block-Konfiguration'
     width={400}
     height={280}
-    className="rounded-xl border border-border shadow-sm"
+    className='rounded-xl border border-border shadow-sm'
   />
 </div>
 
-<Callout type="info">
-  Workflow-Blöcke ermöglichen modulares Design, indem sie es erlauben, komplexe Workflows aus kleineren, wiederverwendbaren Komponenten zusammenzusetzen.
+Füge einen Workflow-Block hinzu, wenn du einen untergeordneten Workflow als Teil eines größeren Ablaufs aufrufen möchtest. Der Block führt die neueste bereitgestellte Version dieses Workflows aus, wartet auf dessen Abschluss und setzt dann mit dem übergeordneten Workflow fort.
+
+## Konfiguration
+
+1. **Wähle einen Workflow** aus dem Dropdown-Menü (Selbstreferenzen sind blockiert, um Schleifen zu verhindern).
+2. **Eingaben zuordnen**: Wenn der untergeordnete Workflow einen Eingabeformular-Trigger hat, siehst du jedes Feld und kannst übergeordnete Variablen verbinden. Die zugeordneten Werte sind das, was der untergeordnete Workflow erhält.
+3. **Ausgaben**: Nach Abschluss des untergeordneten Workflows stellt der Block folgendes bereit:
+   - `result` – die endgültige Antwort des untergeordneten Workflows
+   - `success` – ob er ohne Fehler ausgeführt wurde
+   - `error` – Nachricht, wenn die Ausführung fehlschlägt
+
+## Ausführungshinweise
+
+- Untergeordnete Workflows laufen im gleichen Workspace-Kontext, sodass Umgebungsvariablen und Tools übernommen werden.
+- Der Block verwendet Deployment-Versionierung: Jede API-, Zeitplan-, Webhook-, manuelle oder Chat-Ausführung ruft den bereitgestellten Snapshot auf. Stelle den untergeordneten Workflow neu bereit, wenn du ihn änderst.
+- Wenn der untergeordnete Workflow fehlschlägt, löst der Block einen Fehler aus, es sei denn, du behandelst ihn nachgelagert.
+
+<Callout>
+Halte untergeordnete Workflows fokussiert. Kleine, wiederverwendbare Abläufe machen es einfacher, sie zu kombinieren, ohne tiefe Verschachtelungen zu erzeugen.
 </Callout>
-
-## Überblick
-
-Der Workflow-Block dient als Brücke zwischen Workflows und ermöglicht es dir:
-
-<Steps>
-  <Step>
-    <strong>Bestehende Workflows wiederzuverwenden</strong>: Führe zuvor erstellte Workflows als Komponenten innerhalb neuer Workflows aus
-  </Step>
-  <Step>
-    <strong>Modulare Designs zu erstellen</strong>: Zerlege komplexe Prozesse in kleinere, überschaubare Workflows
-  </Step>
-  <Step>
-    <strong>Trennung der Zuständigkeiten beizubehalten</strong>: Halte verschiedene Geschäftslogik in separaten Workflows isoliert
-  </Step>
-  <Step>
-    <strong>Teamzusammenarbeit zu ermöglichen</strong>: Teile und verwende Workflows über verschiedene Projekte und Teammitglieder hinweg wieder
-  </Step>
-</Steps>
-
-## Funktionsweise
-
-Der Workflow-Block:
-
-1. Nimmt eine Referenz zu einem anderen Workflow in deinem Workspace
-2. Übergibt Eingabedaten vom aktuellen Workflow an den untergeordneten Workflow (verfügbar über start.input)
-3. Führt den untergeordneten Workflow in einem isolierten Kontext aus
-4. Gibt das Ergebnis zur weiteren Verarbeitung an den übergeordneten Workflow zurück
-
-## Konfigurationsoptionen
-
-### Workflow-Auswahl
-
-Wähle aus einer Dropdown-Liste der verfügbaren Workflows in deinem Workspace aus, welcher Workflow ausgeführt werden soll. Die Liste umfasst:
-
-- Alle Workflows, auf die du im aktuellen Workspace Zugriff hast
-- Workflows, die von anderen Teammitgliedern mit dir geteilt wurden
-- Sowohl aktivierte als auch deaktivierte Workflows (obwohl nur aktivierte Workflows ausgeführt werden können)
-
-### Ausführungskontext
-
-Der untergeordnete Workflow wird ausgeführt mit:
-
-- Seinem eigenen isolierten Ausführungskontext
-- Zugriff auf dieselben Workspace-Ressourcen (API-Schlüssel, Umgebungsvariablen)
-- Korrekten Workspace-Mitgliedschafts- und Berechtigungsprüfungen
-- Verschachteltem Tracespan im Ausführungsprotokoll
-
-<Callout type="warning">
-  **Zykluserkennung**: Das System erkennt und verhindert automatisch zirkuläre Abhängigkeiten zwischen Workflows, um Endlosschleifen zu vermeiden.
-</Callout>
-
-## Eingaben und Ausgaben
-
-<Tabs items={['Configuration', 'Variables', 'Results']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Workflow-Auswahl</strong>: Wählen Sie aus, welcher Workflow ausgeführt werden soll
-      </li>
-      <li>
-        <strong>Eingabedaten</strong>: Variable oder Blockreferenz, die an den untergeordneten Workflow übergeben wird
-      </li>
-      <li>
-        <strong>Ausführungskontext</strong>: Isolierte Umgebung mit Workspace-Ressourcen
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>workflow.success</strong>: Boolescher Wert, der den Abschlussstatus angibt
-      </li>
-      <li>
-        <strong>workflow.childWorkflowName</strong>: Name des ausgeführten untergeordneten Workflows
-      </li>
-      <li>
-        <strong>workflow.result</strong>: Vom untergeordneten Workflow zurückgegebenes Ergebnis
-      </li>
-      <li>
-        <strong>workflow.error</strong>: Fehlerdetails, falls der Workflow fehlgeschlagen ist
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Workflow-Antwort</strong>: Primäre Ausgabe des untergeordneten Workflows
-      </li>
-      <li>
-        <strong>Ausführungsstatus</strong>: Erfolgsstatus und Fehlerinformationen
-      </li>
-      <li>
-        <strong>Zugriff</strong>: Verfügbar in Blöcken nach dem Workflow
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
-
-## Beispielanwendungsfälle
-
-### Modulares Kunden-Onboarding
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Szenario: Komplexes Onboarding in wiederverwendbare Komponenten aufteilen</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Hauptworkflow empfängt Kundendaten</li>
-    <li>Workflow-Block führt Validierungs-Workflow aus</li>
-    <li>Workflow-Block führt Kontoeinrichtungs-Workflow aus</li>
-    <li>Workflow-Block führt Willkommens-E-Mail-Workflow aus</li>
-  </ol>
-</div>
-
-### Microservice-Architektur
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Szenario: Unabhängige Service-Workflows erstellen</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Zahlungsabwicklungs-Workflow verarbeitet Transaktionen</li>
-    <li>Bestandsverwaltungs-Workflow aktualisiert den Lagerbestand</li>
-    <li>Benachrichtigungs-Workflow sendet Bestätigungen</li>
-    <li>Hauptworkflow orchestriert alle Dienste</li>
-  </ol>
-</div>
-
-### Bedingte Verarbeitung
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Szenario: Führe verschiedene Workflows basierend auf Bedingungen aus</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Bedingungsblock bewertet den Benutzertyp</li>
-    <li>Enterprise-Benutzer → Komplexer Genehmigungsworkflow</li>
-    <li>Standard-Benutzer → Einfacher Genehmigungsworkflow</li>
-    <li>Kostenlose Benutzer → Grundlegender Verarbeitungsworkflow</li>
-  </ol>
-</div>
-
-## Bewährte Praktiken
-
-- **Workflows fokussiert halten**: Gestalte untergeordnete Workflows für spezifische, klar definierte Aufgaben mit eindeutigen Ein- und Ausgaben
-- **Verschachtelungstiefe minimieren**: Vermeide tief verschachtelte Workflow-Hierarchien für bessere Wartbarkeit und Leistung
-- **Fehler elegant behandeln**: Implementiere eine ordnungsgemäße Fehlerbehandlung für Fehler in untergeordneten Workflows und stelle Fallback-Mechanismen bereit
-- **Unabhängig testen**: Stelle sicher, dass untergeordnete Workflows unabhängig von übergeordneten Workflows getestet und validiert werden können
-- **Semantische Benennung verwenden**: Gib Workflows beschreibende Namen, die ihren Zweck und ihre Funktionalität klar angeben

@@ -1,0 +1,52 @@
+---
+title: Auslöser
+description: Grundlegende Möglichkeiten, Sim-Workflows zu starten
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+
+## Kern-Auslöser
+
+Wähle einen Auslöser pro Workflow, um zu definieren, wie er startet:
+
+<Cards>
+  <Card title="API" href="/triggers/api">
+    HTTP-Endpunkt, der JSON-Bodies in Workflow-Eingaben umwandelt
+  </Card>
+  <Card title="Chat" href="/triggers/chat">
+    Bereitgestellte Chat-Oberfläche mit Streaming-Antworten
+  </Card>
+  <Card title="Eingabeformular" href="/triggers/input-form">
+    Typisierte manuelle Eingabe für Editor-Ausführungen und Unterworkflows
+  </Card>
+  <Card title="Manuell" href="/triggers/manual">
+    Bedarfsgesteuerte Ausführungen ohne zusätzliche Daten
+  </Card>
+  <Card title="Zeitplan" href="/triggers/schedule">
+    Cron- oder intervallbasierte Ausführung
+  </Card>
+  <Card title="Webhook" href="/triggers/webhook">
+    Externe Webhook-Payloads empfangen
+  </Card>
+</Cards>
+
+## Schneller Vergleich
+
+| Auslöser | Startbedingung |
+|---------|-----------------|
+| **API** | Authentifizierter HTTP POST |
+| **Chat** | Chat-Deployment-Nachricht |
+| **Eingabeformular** | Bei manueller Übermittlung im Editor oder übergeordneten Workflow |
+| **Manuell** | Ausführen-Schaltfläche im Editor |
+| **Zeitplan** | Timer, der im Zeitplan-Modal verwaltet wird |
+| **Webhook** | Bei eingehendem HTTP-Request |
+
+## Verwendung von Auslösern
+
+1. Platziere den Auslöser-Block im Startslot.
+2. Konfiguriere alle erforderlichen Schemas oder Authentifizierungen.
+3. Verbinde den Block mit dem Rest des Workflows.
+
+> Deployments unterstützen jeden Auslöser. Aktualisiere den Workflow, stelle ihn neu bereit, und alle Auslöser-Einstiegspunkte übernehmen den neuen Snapshot. Erfahre mehr unter [Ausführung → Deployment-Snapshots](/execution).
+
+Legacy-Starter-Blöcke bleiben für bestehende Flows erhalten, erscheinen aber nicht mehr in neuen Builds.

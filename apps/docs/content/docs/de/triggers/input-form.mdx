@@ -1,0 +1,52 @@
+---
+title: Eingabeformular-Trigger
+description: Manueller Trigger mit einem strukturierten Eingabeschema
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+## Übersicht
+
+Verwenden Sie einen Eingabeformular-Trigger, wenn ein Workflow vom Editor aus mit typisierten Feldern gestartet werden soll. Das Ausführungspanel zeigt genau die Felder an, die Sie definieren, sodass der Workflow immer saubere Daten erhält.
+
+## Was Sie definieren
+
+Fügen Sie Felder im Eingabeformat-Builder hinzu (Text, Zahl, Boolean, JSON usw.). Für jedes Feld:
+
+- Der Wert erscheint als `<blockName.field>` im Workflow.
+- Die vollständige Nutzlast wird zur Vereinfachung unter `<blockName.input>` gespiegelt.
+
+Wenn Sie das Formular leer lassen, hat der Trigger keine Ausgaben.
+
+## Manuelle Ausführungen
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/triggers/input-form-panel-light.png'
+    alt='Eingabeformular-Ausführungspanel'
+    width={400}
+    height={250}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+Wenn Sie im Editor auf Ausführen drücken, rendert das Panel das Formular. Übermittelte Werte fließen direkt in die Trigger-Ausgabe ein, sodass nachgelagerte Blöcke darauf verweisen können, ohne zusätzliches Parsing. Zahlen werden in Zahlentypen umgewandelt, Booleans werden zu true/false, und JSON-Felder werden geparst, bevor der Workflow sie verarbeitet.
+
+## Untergeordnete Workflows
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/triggers/workflow-input-mapping-light.png'
+    alt='Workflow-Eingabezuordnung'
+    width={400}
+    height={250}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+Eingabeformular-Trigger steuern auch den Workflow-Block. Wenn Sie einen untergeordneten Workflow einbetten, zeigt der Zuordnungsschritt die Formularfelder des untergeordneten Workflows an, sodass Sie Variablen aus dem übergeordneten Workflow verbinden können. Was auch immer Sie zuordnen, wird zur Eingabeformular-Übermittlung des untergeordneten Workflows.
+
+<Callout>
+Benötigen Sie eine schnelle Ausführungsschaltfläche ohne Felder? Verwenden Sie einen manuellen Trigger. Wählen Sie Eingabeformular, wenn Sie Validierung und eine vorhersehbare Struktur wünschen.
+</Callout>

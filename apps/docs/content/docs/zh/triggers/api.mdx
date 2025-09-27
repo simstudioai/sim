@@ -1,0 +1,60 @@
+---
+title: API 触发器
+description: 通过经过身份验证的 HTTP 请求启动工作流
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+## 概述
+
+API 触发器将您的工作流公开为一个安全的 HTTP 端点。将 JSON 数据发送到该端点，您的工作流会立即处理它。API 调用始终针对您的最新部署执行。
+
+## 配置输入格式
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/triggers/api-trigger-light.png'
+    alt='API 触发器输入格式'
+    width={400}
+    height={250}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+为每个参数添加一个 **输入格式** 字段。运行时输出键会镜像该模式，并且也可以在 `<api.input>` 下使用。
+
+```yaml
+- type: string
+  name: userId
+  value: demo-user # optional manual test value
+- type: number
+  name: maxTokens
+```
+
+编辑器中的手动运行使用 `value` 列，因此您可以在不发送请求的情况下进行测试。在执行期间，解析器会填充 `<api.userId>` 和 `<api.input.userId>`。
+
+## 请求示例
+
+```bash
+curl -X POST \
+  https://sim.ai/api/workflows/WORKFLOW_ID/execute \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: YOUR_KEY' \
+  -d '{"userId":"demo-user","maxTokens":1024}'
+```
+
+成功的响应会返回来自执行器的序列化执行结果。错误会显示验证、身份验证或工作流失败的原因。
+
+## 输出参考
+
+| 参考 | 描述 |
+|-----------|-------------|
+| `<api.field>` | 在输入格式中定义的字段 |
+| `<api.input>` | 整个结构化请求体 |
+
+如果未定义输入格式，执行器仅在 `<api.input>` 处公开原始 JSON。
+
+<Callout type="warning">
+一个工作流只能包含一个 API 触发器。更改后请发布新的部署，以确保端点保持最新。
+</Callout>

@@ -1,0 +1,52 @@
+---
+title: Déclencheurs
+description: Méthodes principales pour démarrer les workflows Sim
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+
+## Déclencheurs principaux
+
+Choisissez un déclencheur par workflow pour définir comment il démarre :
+
+<Cards>
+  <Card title="API" href="/triggers/api">
+    Point de terminaison HTTP qui transforme les corps JSON en entrées de workflow
+  </Card>
+  <Card title="Chat" href="/triggers/chat">
+    Interface de chat déployée avec réponses en streaming
+  </Card>
+  <Card title="Formulaire d'entrée" href="/triggers/input-form">
+    Saisie manuelle typée utilisée dans les exécutions d'éditeur et les workflows enfants
+  </Card>
+  <Card title="Manuel" href="/triggers/manual">
+    Exécutions à la demande sans données supplémentaires
+  </Card>
+  <Card title="Planification" href="/triggers/schedule">
+    Exécution basée sur cron ou intervalle
+  </Card>
+  <Card title="Webhook" href="/triggers/webhook">
+    Réception de charges utiles webhook externes
+  </Card>
+</Cards>
+
+## Comparaison rapide
+
+| Déclencheur | Condition de démarrage |
+|---------|-----------------|
+| **API** | POST HTTP authentifié |
+| **Chat** | Message de déploiement de chat |
+| **Formulaire d'entrée** | À la soumission manuelle dans l'éditeur ou le workflow parent |
+| **Manuel** | Bouton d'exécution dans l'éditeur |
+| **Planification** | Minuteur géré dans la fenêtre de planification |
+| **Webhook** | À la réception d'une requête HTTP entrante |
+
+## Utilisation des déclencheurs
+
+1. Déposez le bloc déclencheur dans l'emplacement de départ.
+2. Configurez tout schéma ou authentification requis.
+3. Connectez le bloc au reste du workflow.
+
+> Les déploiements alimentent chaque déclencheur. Mettez à jour le workflow, redéployez, et tous les points d'entrée des déclencheurs récupèrent le nouveau snapshot. En savoir plus dans [Exécution → Snapshots de déploiement](/execution).
+
+Les anciens blocs de démarrage restent disponibles pour les flux existants mais n'apparaissent plus dans les nouvelles versions.

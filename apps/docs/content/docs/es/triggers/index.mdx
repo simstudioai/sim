@@ -1,0 +1,52 @@
+---
+title: Disparadores
+description: Formas principales de iniciar flujos de trabajo de Sim
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+
+## Disparadores principales
+
+Elige un disparador por flujo de trabajo para definir cómo comienza:
+
+<Cards>
+  <Card title="API" href="/triggers/api">
+    Punto final HTTP que mapea cuerpos JSON a entradas de flujo de trabajo
+  </Card>
+  <Card title="Chat" href="/triggers/chat">
+    Interfaz de chat implementada con respuestas en streaming
+  </Card>
+  <Card title="Formulario de entrada" href="/triggers/input-form">
+    Entrada manual tipada utilizada en ejecuciones del editor y flujos de trabajo secundarios
+  </Card>
+  <Card title="Manual" href="/triggers/manual">
+    Ejecuciones bajo demanda sin datos adicionales
+  </Card>
+  <Card title="Programación" href="/triggers/schedule">
+    Ejecución basada en cron o intervalos
+  </Card>
+  <Card title="Webhook" href="/triggers/webhook">
+    Recibe cargas útiles de webhooks externos
+  </Card>
+</Cards>
+
+## Comparación rápida
+
+| Disparador | Condición de inicio |
+|---------|-----------------|
+| **API** | POST HTTP autenticado |
+| **Chat** | Mensaje de implementación de chat |
+| **Formulario de entrada** | Al enviar manualmente en el editor o flujo de trabajo principal |
+| **Manual** | Botón de ejecución en el editor |
+| **Programación** | Temporizador gestionado en el modal de programación |
+| **Webhook** | Al recibir una solicitud HTTP |
+
+## Uso de disparadores
+
+1. Coloca el bloque disparador en la ranura de inicio.
+2. Configura cualquier esquema o autenticación requerida.
+3. Conecta el bloque al resto del flujo de trabajo.
+
+> Las implementaciones potencian cada disparador. Actualiza el flujo de trabajo, vuelve a implementarlo, y todos los puntos de entrada de disparadores recogen la nueva instantánea. Aprende más en [Ejecución → Instantáneas de implementación](/execution).
+
+Los bloques de inicio heredados permanecen para flujos existentes pero ya no aparecen en nuevas compilaciones.

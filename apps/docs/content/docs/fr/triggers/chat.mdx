@@ -1,0 +1,43 @@
+---
+title: Déclencheur de chat
+description: Démarrer un flux de travail à partir d'un déploiement de chat
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+## Aperçu
+
+Le déclencheur de chat crée une interface conversationnelle pour votre flux de travail. Déployez votre flux de travail sous forme de chat et les utilisateurs peuvent interagir avec lui via une URL partageable. Chaque message démarre une nouvelle exécution du flux de travail en utilisant votre dernier déploiement.
+
+## Sorties d'exécution
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/triggers/chat-trigger-light.png'
+    alt='Conversation de déploiement de chat'
+    width={400}
+    height={250}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+Le déclencheur écrit trois champs que les blocs en aval peuvent référencer :
+
+| Référence | Description |
+|-----------|-------------|
+| `<chat.input>` | Dernier message de l'utilisateur |
+| `<chat.conversationId>` | ID du fil de conversation |
+| `<chat.files>` | Fichiers téléchargés optionnels |
+
+Les fichiers incluent `name`, `mimeType`, et un `url` signé.
+
+## Notes d'utilisation
+
+1. Ajoutez un bloc Déclencheur de chat par flux de travail.
+2. Déployez le flux de travail en mode chat.
+3. Partagez le lien de déploiement — chaque réponse réutilise l'ID de conversation pour que le flux de travail puisse conserver le contexte.
+
+<Callout type="info">
+Le constructeur bloque plusieurs blocs Déclencheur de chat dans le même flux de travail.
+</Callout>

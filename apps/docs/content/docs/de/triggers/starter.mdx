@@ -1,11 +1,15 @@
 ---
-title: Starter
+title: Starter (Veraltet)
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
+
+<Callout type="warning">
+Der Starter-Block ist veraltet und wurde durch spezialisierte Core-Trigger ersetzt. Bitte beachten Sie die [Core-Trigger-Dokumentation](/triggers) für die neuen API-, Chat-, Eingabeformular-, Manuell-, Zeitplan- und Webhook-Trigger.
+</Callout>
 
 Der Starter-Block ermöglicht es Ihnen, die Workflow-Ausführung manuell mit Eingabeparametern zu starten und bietet zwei Eingabemodi: strukturierte Parameter oder konversationellen Chat.
 
@@ -23,7 +27,7 @@ Der Starter-Block ermöglicht es Ihnen, die Workflow-Ausführung manuell mit Ein
 
 Wählen Sie Ihre Eingabemethode aus dem Dropdown-Menü:
 
-<Tabs items={['Manual Mode', 'Chat Mode']}>
+<Tabs items={['Manueller Modus', 'Chat-Modus']}>
   <Tab>
     <div className="space-y-4">
       <ul className="list-disc space-y-1 pl-6">
@@ -59,5 +63,5 @@ Wählen Sie Ihre Eingabemethode aus dem Dropdown-Menü:
 Im Chat-Modus können Sie über spezielle Variablen auf Benutzereingaben und Konversationskontext zugreifen:
 
 - **`<start.input>`** - Enthält den Nachrichtentext des Benutzers
-- **`<start.conversationId>`** - Eindeutige Kennung für den Konversationsthread
-- **`<start.files>`** - Array der vom Benutzer hochgeladenen Dateien (falls vorhanden)
+- **`<start.conversationId>`** - Eindeutige Kennung für den Konversationsverlauf
+- **`<start.files>`** - Array von Dateien, die vom Benutzer hochgeladen wurden (falls vorhanden)

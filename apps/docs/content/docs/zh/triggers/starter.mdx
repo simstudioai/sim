@@ -1,5 +1,5 @@
 ---
-title: 入门
+title: Starter（已弃用）
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
@@ -7,12 +7,16 @@ import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
 
-入门模块允许您通过输入参数手动启动工作流执行，提供两种输入模式：结构化参数或对话式聊天。
+<Callout type="warning">
+Starter 模块已被弃用，并由更专业的核心触发器取代。请参阅[核心触发器文档](/triggers)，了解新的 API、聊天、输入表单、手动、计划和 Webhook 触发器。
+</Callout>
+
+Starter 模块允许您通过输入参数手动启动工作流执行，提供两种输入模式：结构化参数或对话式聊天。
 
 <div className="flex justify-center">
   <Image
     src="/static/starter.png"
-    alt="具有手动和聊天模式选项的入门模块"
+    alt="带有手动和聊天模式选项的 Starter 模块"
     width={500}
     height={400}
     className="my-6"
@@ -21,14 +25,14 @@ import { Video } from '@/components/ui/video'
 
 ## 执行模式
 
-从下拉菜单中选择您的输入方式：
+从下拉菜单中选择您的输入方法：
 
 <Tabs items={['手动模式', '聊天模式']}>
   <Tab>
     <div className="space-y-4">
       <ul className="list-disc space-y-1 pl-6">
         <li><strong>API 友好的结构化输入</strong>：定义特定参数（文本、数字、布尔值、JSON、文件、日期）</li>
-        <li><strong>在构建工作流时进行测试</strong>：调试工作流时快速迭代</li>
+        <li><strong>构建工作流时的测试</strong>：调试工作流时快速迭代</li>
       </ul>
       
       <div className="mx-auto w-full overflow-hidden rounded-lg">
@@ -49,14 +53,14 @@ import { Video } from '@/components/ui/video'
         <Video src="chat-input.mp4" width={700} height={450} />
       </div>
       
-      <p className="text-sm text-gray-600">与您的工作流进行聊天，并访问输入文本、会话 ID 和上传的文件以实现上下文感知的响应。</p>
+      <p className="text-sm text-gray-600">与您的工作流对话，并访问输入文本、会话 ID 和上传的文件，以实现上下文感知的响应。</p>
     </div>
   </Tab>
 </Tabs>
 
 ## 使用聊天变量
 
-在聊天模式下，通过特殊变量访问用户输入和会话上下文：
+在聊天模式下，可以通过特殊变量访问用户输入和会话上下文：
 
 - **`<start.input>`** - 包含用户的消息文本
 - **`<start.conversationId>`** - 会话线程的唯一标识符
