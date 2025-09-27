@@ -4,30 +4,23 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { useBrandConfig } from '@/lib/branding/branding'
-import AuthBackground from '@/app/(auth)/components/auth-background'
 import Nav from '@/app/(landing)/components/nav/nav'
-
-function isColorDark(hexColor: string): boolean {
-  const hex = hexColor.replace('#', '')
-  const r = Number.parseInt(hex.substring(0, 2), 16)
-  const g = Number.parseInt(hex.substring(2, 4), 16)
-  const b = Number.parseInt(hex.substring(4, 6), 16)
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-  return luminance < 0.5
-}
+import { inter } from '@/app/fonts/inter'
+import { soehne } from '@/app/fonts/soehne/soehne'
 
 export default function NotFound() {
   const [buttonClass, setButtonClass] = useState('auth-button-gradient')
   const brandConfig = useBrandConfig()
 
   useEffect(() => {
-    const rootStyle = getComputedStyle(document.documentElement)
-    const brandBackground = rootStyle.getPropertyValue('--brand-background-hex').trim()
-
-    if (brandBackground && isColorDark(brandBackground)) {
-      document.body.classList.add('auth-dark-bg')
-    } else {
-      document.body.classList.remove('auth-dark-bg')
+    const root = document.documentElement
+    const hadDark = root.classList.contains('dark')
+    const hadLight = root.classList.contains('light')
+    root.classList.add('light')
+    root.classList.remove('dark')
+    return () => {
+      if (!hadLight) root.classList.remove('light')
+      if (hadDark) root.classList.add('dark')
     }
   }, [])
 
@@ -55,36 +48,45 @@ export default function NotFound() {
   }, [])
 
   return (
-    <AuthBackground>
-      <main className='relative flex min-h-screen flex-col font-geist-sans text-foreground'>
-        {/* Header */}
-        <Nav hideAuthButtons={true} variant='auth' />
+    <div className='bg-white'>
+      <Nav variant='auth' />
+      <div className='flex min-h-[calc(100vh-120px)] items-center justify-center px-4'>
+        <div className='w-full max-w-[410px]'>
+          <div className='flex flex-col items-center justify-center'>
+            <div className='space-y-1 text-center'>
+              <h1
+                className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}
+              >
+                Page Not Found
+              </h1>
+              <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+                The page you’re looking for doesn’t exist or has been moved.
+              </p>
+            </div>
 
-        {/* Content */}
-        <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
-          <div className='text-center'>
-            <div className='mb-4 font-bold text-8xl text-foreground'>404</div>
-            <div className='mb-8'>
+            <div className='mt-8 w-full space-y-3'>
               <Button
                 asChild
                 className={`${buttonClass} flex w-full items-center justify-center gap-2 rounded-[10px] border font-medium text-[15px] text-white transition-all duration-200`}
               >
-                <Link href='/'>Back to Workspace</Link>
+                <Link href='/'>Return to Home</Link>
               </Button>
             </div>
 
-            <div className='text-center text-muted-foreground text-sm'>
+            <div
+              className={`${inter.className} auth-text-muted fixed right-0 bottom-0 left-0 z-50 pb-8 text-center font-[340] text-[13px] leading-relaxed`}
+            >
               Need help?{' '}
               <a
                 href={`mailto:${brandConfig.supportEmail}`}
-                className='underline-offset-4 transition hover:underline'
+                className='auth-link underline-offset-4 transition hover:underline'
               >
                 Contact support
               </a>
             </div>
           </div>
         </div>
-      </main>
-    </AuthBackground>
+      </div>
+    </div>
   )
 }

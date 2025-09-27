@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { useBrandConfig } from '@/lib/branding/branding'
 import Nav from '@/app/(landing)/components/nav/nav'
 import { inter } from '@/app/fonts/inter'
 import { soehne } from '@/app/fonts/soehne/soehne'
@@ -15,6 +16,7 @@ interface ChatErrorStateProps {
 export function ChatErrorState({ error, starCount }: ChatErrorStateProps) {
   const router = useRouter()
   const [buttonClass, setButtonClass] = useState('auth-button-gradient')
+  const brandConfig = useBrandConfig()
 
   useEffect(() => {
     // Check if CSS variable has been customized
@@ -76,6 +78,17 @@ export function ChatErrorState({ error, starCount }: ChatErrorStateProps) {
             </div>
           </div>
         </div>
+      </div>
+      <div
+        className={`${inter.className} auth-text-muted fixed right-0 bottom-0 left-0 z-50 pb-8 text-center font-[340] text-[13px] leading-relaxed`}
+      >
+        Need help?{' '}
+        <a
+          href={`mailto:${brandConfig.supportEmail}`}
+          className='auth-link underline-offset-4 transition hover:underline'
+        >
+          Contact support
+        </a>
       </div>
     </div>
   )
