@@ -6,7 +6,7 @@ import { generateApiKey } from '@/lib/api-key/service'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
-import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
+import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('WorkflowDeployAPI')
@@ -20,33 +20,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     logger.debug(`[${requestId}] Fetching deployment info for workflow: ${id}`)
-    const validation = await validateWorkflowAccess(request, id, false)
 
-    if (validation.error) {
-      logger.warn(`[${requestId}] Failed to fetch deployment info: ${validation.error.message}`)
-      return createErrorResponse(validation.error.message, validation.error.status)
+    const { error, workflow: workflowData } = await validateWorkflowPermissions(
+      id,
+      requestId,
+      'read'
+    )
+    if (error) {
+      return createErrorResponse(error.message, error.status)
     }
 
-    // Fetch the workflow information including deployment details
-    const result = await db
-      .select({
-        isDeployed: workflow.isDeployed,
-        deployedAt: workflow.deployedAt,
-        userId: workflow.userId,
-        pinnedApiKeyId: workflow.pinnedApiKeyId,
-      })
-      .from(workflow)
-      .where(eq(workflow.id, id))
-      .limit(1)
-
-    if (result.length === 0) {
-      logger.warn(`[${requestId}] Workflow not found: ${id}`)
-      return createErrorResponse('Workflow not found', 404)
-    }
-
-    const workflowData = result[0]
-
-    // If the workflow is not deployed, return appropriate response
     if (!workflowData.isDeployed) {
       logger.info(`[${requestId}] Workflow is not deployed: ${id}`)
       return createSuccessResponse({
@@ -70,7 +53,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         keyInfo = { name: pinnedKey[0].name, type: pinnedKey[0].type as 'personal' | 'workspace' }
       }
     } else {
-      // Fetch the user's API key, preferring the most recently used
       const userApiKey = await db
         .select({
           key: apiKey.key,
@@ -82,7 +64,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         .orderBy(desc(apiKey.lastUsed), desc(apiKey.createdAt))
         .limit(1)
 
-      // If no API key exists, create one automatically
       if (userApiKey.length === 0) {
         try {
           const newApiKeyVal = generateApiKey()
@@ -107,7 +88,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
-    // Check if the workflow has meaningful changes that would require redeployment
     let needsRedeployment = false
     const [active] = await db
       .select({ state: workflowDeploymentVersion.state })
@@ -158,42 +138,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   try {
     logger.debug(`[${requestId}] Deploying workflow: ${id}`)
-    const validation = await validateWorkflowAccess(request, id, false)
 
-    if (validation.error) {
-      logger.warn(`[${requestId}] Workflow deployment failed: ${validation.error.message}`)
-      return createErrorResponse(validation.error.message, validation.error.status)
+    const {
+      error,
+      session,
+      workflow: workflowData,
+    } = await validateWorkflowPermissions(id, requestId, 'admin')
+    if (error) {
+      return createErrorResponse(error.message, error.status)
     }
 
-    // Get the workflow to find the user and existing pin (removed deprecated state column)
-    const workflowData = await db
-      .select({
-        userId: workflow.userId,
-        pinnedApiKeyId: workflow.pinnedApiKeyId,
-      })
-      .from(workflow)
-      .where(eq(workflow.id, id))
-      .limit(1)
+    const userId = workflowData!.userId
 
-    if (workflowData.length === 0) {
-      logger.warn(`[${requestId}] Workflow not found: ${id}`)
-      return createErrorResponse('Workflow not found', 404)
-    }
-
-    const userId = workflowData[0].userId
-
-    // Parse request body to capture selected API key (if provided)
     let providedApiKey: string | null = null
     try {
       const parsed = await request.json()
       if (parsed && typeof parsed.apiKey === 'string' && parsed.apiKey.trim().length > 0) {
         providedApiKey = parsed.apiKey.trim()
       }
-    } catch (_err) {
-      // Body may be empty; ignore
-    }
+    } catch (_err) {}
 
-    // Get the current live state from normalized tables using centralized helper
     logger.debug(`[${requestId}] Getting current workflow state for deployment`)
 
     const normalizedData = await loadWorkflowFromNormalizedTables(id)
@@ -226,7 +190,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const deployedAt = new Date()
     logger.debug(`[${requestId}] Proceeding with deployment at ${deployedAt.toISOString()}`)
 
-    // Check if the user already has API keys
     const userApiKey = await db
       .select({
         key: apiKey.key,
@@ -236,23 +199,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .orderBy(desc(apiKey.lastUsed), desc(apiKey.createdAt))
       .limit(1)
 
-    // If no API key exists, create one
     if (userApiKey.length === 0) {
       try {
         const newApiKey = generateApiKey()
         await db.insert(apiKey).values({
           id: uuidv4(),
           userId,
-          workspaceId: null, // Personal keys must have NULL workspaceId
+          workspaceId: null,
           name: 'Default API Key',
           key: newApiKey,
-          type: 'personal', // Explicitly set type
+          type: 'personal',
           createdAt: new Date(),
           updatedAt: new Date(),
         })
         logger.info(`[${requestId}] Generated new API key for user: ${userId}`)
       } catch (keyError) {
-        // If key generation fails, log the error but continue with the request
         logger.error(`[${requestId}] Failed to generate API key:`, keyError)
       }
     }
@@ -268,30 +229,37 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (providedApiKey) {
       let isValidKey = false
 
-      const [personalKey] = await db
-        .select({ id: apiKey.id, key: apiKey.key, name: apiKey.name, expiresAt: apiKey.expiresAt })
-        .from(apiKey)
-        .where(
-          and(eq(apiKey.id, providedApiKey), eq(apiKey.userId, userId), eq(apiKey.type, 'personal'))
-        )
-        .limit(1)
+      const currentUserId = session?.user?.id
 
-      if (personalKey) {
-        if (!personalKey.expiresAt || personalKey.expiresAt >= new Date()) {
-          matchedKey = { ...personalKey, type: 'personal' }
-          isValidKey = true
-          keyInfo = { name: personalKey.name, type: 'personal' }
+      if (currentUserId) {
+        const [personalKey] = await db
+          .select({
+            id: apiKey.id,
+            key: apiKey.key,
+            name: apiKey.name,
+            expiresAt: apiKey.expiresAt,
+          })
+          .from(apiKey)
+          .where(
+            and(
+              eq(apiKey.id, providedApiKey),
+              eq(apiKey.userId, currentUserId),
+              eq(apiKey.type, 'personal')
+            )
+          )
+          .limit(1)
+
+        if (personalKey) {
+          if (!personalKey.expiresAt || personalKey.expiresAt >= new Date()) {
+            matchedKey = { ...personalKey, type: 'personal' }
+            isValidKey = true
+            keyInfo = { name: personalKey.name, type: 'personal' }
+          }
         }
       }
 
       if (!isValidKey) {
-        const [workflowData] = await db
-          .select({ workspaceId: workflow.workspaceId })
-          .from(workflow)
-          .where(eq(workflow.id, id))
-          .limit(1)
-
-        if (workflowData?.workspaceId) {
+        if (workflowData!.workspaceId) {
           const [workspaceKey] = await db
             .select({
               id: apiKey.id,
@@ -303,7 +271,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             .where(
               and(
                 eq(apiKey.id, providedApiKey),
-                eq(apiKey.workspaceId, workflowData.workspaceId),
+                eq(apiKey.workspaceId, workflowData!.workspaceId),
                 eq(apiKey.type, 'workspace')
               )
             )
@@ -325,7 +293,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    // In a transaction: create deployment version, update workflow flags and deployed state
     await db.transaction(async (tx) => {
       const [{ maxVersion }] = await tx
         .select({ maxVersion: sql`COALESCE(MAX("version"), 0)` })
@@ -366,7 +333,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       await tx.update(workflow).set(updateData).where(eq(workflow.id, id))
     })
 
-    // Update lastUsed for the key we returned
     if (matchedKey) {
       try {
         await db
@@ -408,14 +374,12 @@ export async function DELETE(
 
   try {
     logger.debug(`[${requestId}] Undeploying workflow: ${id}`)
-    const validation = await validateWorkflowAccess(request, id, false)
 
-    if (validation.error) {
-      logger.warn(`[${requestId}] Workflow undeployment failed: ${validation.error.message}`)
-      return createErrorResponse(validation.error.message, validation.error.status)
+    const { error } = await validateWorkflowPermissions(id, requestId, 'admin')
+    if (error) {
+      return createErrorResponse(error.message, error.status)
     }
 
-    // Deactivate versions and clear deployment fields
     await db.transaction(async (tx) => {
       await tx
         .update(workflowDeploymentVersion)
