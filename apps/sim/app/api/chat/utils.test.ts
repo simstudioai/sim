@@ -60,7 +60,6 @@ describe('Chat API Utils', () => {
       },
     })
 
-    // Mock isDev to return true
     vi.doMock('@/lib/environment', () => ({
       isDev: true,
       isHosted: false,

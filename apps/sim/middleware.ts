@@ -137,11 +137,9 @@ export async function middleware(request: NextRequest) {
   const sessionCookie = getSessionCookie(request)
   const hasActiveSession = !!sessionCookie
 
-  // Handle root path redirects based on session status and hosting type
   const redirect = handleRootPathRedirects(request, hasActiveSession)
   if (redirect) return redirect
 
-  // Handle login/signup pages - redirect authenticated users to workspace
   if (url.pathname === '/login' || url.pathname === '/signup') {
     if (hasActiveSession) {
       return NextResponse.redirect(new URL('/workspace', request.url))
@@ -149,31 +147,25 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Handle protected routes that require authentication
   if (url.pathname.startsWith('/workspace')) {
     if (!hasActiveSession) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
-    // Email verification is enforced by Better Auth (server-side). No cookie gating here.
     return NextResponse.next()
   }
 
-  // Handle invitation links
   const invitationRedirect = handleInvitationRedirects(request, hasActiveSession)
   if (invitationRedirect) return invitationRedirect
 
-  // Handle workspace invitation API endpoints
   const workspaceInvitationRedirect = handleWorkspaceInvitationAPI(request, hasActiveSession)
   if (workspaceInvitationRedirect) return workspaceInvitationRedirect
 
-  // Handle security filtering for suspicious requests
   const securityBlock = handleSecurityFiltering(request)
   if (securityBlock) return securityBlock
 
   const response = NextResponse.next()
   response.headers.set('Vary', 'User-Agent')
 
-  // Generate runtime CSP for main application routes that need dynamic environment variables
   if (
     url.pathname.startsWith('/workspace') ||
     url.pathname.startsWith('/chat') ||
@@ -185,7 +177,6 @@ export async function middleware(request: NextRequest) {
   return response
 }
 
-// Update matcher to include invitation routes and root path
 export const config = {
   matcher: [
     '/', // Root path for self-hosted redirect logic
