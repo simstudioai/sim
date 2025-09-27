@@ -71,7 +71,6 @@ export function Copilot() {
         throw new Error(body.error || 'Failed to generate API key')
       }
       const data = await res.json()
-      // Show the new key dialog with the API key (only shown once)
       if (data?.key?.apiKey) {
         setNewKey(data.key.apiKey)
         setShowNewKeyDialog(true)
@@ -291,20 +290,16 @@ export function Copilot() {
   )
 }
 
-// Loading skeleton for Copilot API keys
 function CopilotKeySkeleton() {
   return (
     <div className='flex flex-col gap-2'>
-      <Skeleton className='h-4 w-32' /> {/* API key label */}
+      <Skeleton className='h-4 w-32' />
       <div className='flex items-center justify-between gap-4'>
         <div className='flex items-center gap-3'>
-          <Skeleton className='h-8 w-40 rounded-[8px]' /> {/* Key preview */}
-          <div className='flex items-center gap-2'>
-            <Skeleton className='h-4 w-4' /> {/* Show/Hide button */}
-            <Skeleton className='h-4 w-4' /> {/* Copy button */}
-          </div>
+          <Skeleton className='h-8 w-20 rounded-[8px]' />
+          <Skeleton className='h-4 w-24' />
         </div>
-        <Skeleton className='h-8 w-16' /> {/* Delete button */}
+        <Skeleton className='h-8 w-16' />
       </div>
     </div>
   )
