@@ -11,6 +11,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
+import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useTagSelection } from '@/hooks/use-tag-selection'
@@ -92,6 +93,7 @@ export function LongInput({
   const overlayRef = useRef<HTMLDivElement>(null)
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
   // Use preview value when in preview mode, otherwise use store value or prop value
   const baseValue = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
@@ -405,7 +407,10 @@ export function LongInput({
             height: `${height}px`,
           }}
         >
-          {formatDisplayText(value?.toString() ?? '')}
+          {formatDisplayText(value?.toString() ?? '', {
+            accessiblePrefixes,
+            highlightAll: !accessiblePrefixes,
+          })}
         </div>
 
         {/* Wand Button */}
