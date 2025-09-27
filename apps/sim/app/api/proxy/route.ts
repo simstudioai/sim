@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
+import { generateInternalToken } from '@/lib/auth/internal'
 import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { validateProxyUrl } from '@/lib/security/url-validation'
+import { getBaseUrl } from '@/lib/urls/utils'
 import { generateRequestId } from '@/lib/utils'
 import { executeTool } from '@/tools'
 import { getTool, validateRequiredParametersAfterMerge } from '@/tools/utils'
@@ -76,6 +78,79 @@ export async function GET(request: Request) {
   const url = new URL(request.url)
   const targetUrl = url.searchParams.get('url')
   const requestId = generateRequestId()
+
+  // Vault download proxy: /api/proxy?vaultDownload=1&bucket=...&object=...&credentialId=...
+  const vaultDownload = url.searchParams.get('vaultDownload')
+  if (vaultDownload === '1') {
+    try {
+      const bucket = url.searchParams.get('bucket')
+      const objectParam = url.searchParams.get('object')
+      const credentialId = url.searchParams.get('credentialId')
+
+      if (!bucket || !objectParam || !credentialId) {
+        return createErrorResponse('Missing bucket, object, or credentialId', 400)
+      }
+
+      // Fetch access token using existing token API
+      const baseUrl = new URL(getBaseUrl())
+      const tokenUrl = new URL('/api/auth/oauth/token', baseUrl)
+
+      // Build headers: forward session cookies if present; include internal auth for server-side
+      const tokenHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+      const incomingCookie = request.headers.get('cookie')
+      if (incomingCookie) tokenHeaders.Cookie = incomingCookie
+      try {
+        const internalToken = await generateInternalToken()
+        tokenHeaders.Authorization = `Bearer ${internalToken}`
+      } catch (_e) {
+        // best-effort internal auth
+      }
+
+      // Optional workflow context for collaboration auth
+      const workflowId = url.searchParams.get('workflowId') || undefined
+
+      const tokenRes = await fetch(tokenUrl.toString(), {
+        method: 'POST',
+        headers: tokenHeaders,
+        body: JSON.stringify({ credentialId, workflowId }),
+      })
+
+      if (!tokenRes.ok) {
+        const err = await tokenRes.text()
+        return createErrorResponse(`Failed to fetch access token: ${err}`, 401)
+      }
+
+      const tokenJson = await tokenRes.json()
+      const accessToken = tokenJson.accessToken
+      if (!accessToken) {
+        return createErrorResponse('No access token available', 401)
+      }
+
+      // Avoid double-encoding: incoming object may already be percent-encoded
+      const objectDecoded = decodeURIComponent(objectParam)
+      const gcsUrl = `https://storage.googleapis.com/storage/v1/b/${encodeURIComponent(
+        bucket
+      )}/o/${encodeURIComponent(objectDecoded)}?alt=media`
+
+      const fileRes = await fetch(gcsUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+
+      if (!fileRes.ok) {
+        const errText = await fileRes.text()
+        return createErrorResponse(errText || 'Failed to download file', fileRes.status)
+      }
+
+      const headers = new Headers()
+      fileRes.headers.forEach((v, k) => headers.set(k, v))
+      return new NextResponse(fileRes.body, { status: 200, headers })
+    } catch (error: any) {
+      logger.error(`[${requestId}] Vault download proxy failed`, {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return createErrorResponse('Vault download failed', 500)
+    }
+  }
 
   if (!targetUrl) {
     logger.error(`[${requestId}] Missing 'url' parameter`)

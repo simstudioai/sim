@@ -1,0 +1,152 @@
+---
+title: 実行
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
+
+Simの実行エンジンは、ブロックを正しい順序で処理し、データフローを管理し、エラーを適切に処理することで、ワークフローに命を吹き込みます。これにより、Simでワークフローがどのように実行されるかを正確に理解することができます。
+
+<Callout type="info">
+  すべてのワークフロー実行は、ブロック接続とロジックに基づいた決定論的なパスに従い、予測可能で信頼性の高い結果を保証します。
+</Callout>
+
+## ドキュメント概要
+
+<Cards>
+  <Card title="実行の基本" href="/execution/basics">
+    基本的な実行フロー、ブロックタイプ、およびデータがワークフローをどのように流れるかについて学びます
+  </Card>
+
+  <Card title="ロギング" href="/execution/logging">
+    包括的なロギングとリアルタイムの可視性でワークフロー実行を監視します
+  </Card>
+  
+  <Card title="コスト計算" href="/execution/costs">
+    ワークフロー実行コストがどのように計算され最適化されるかを理解します
+  </Card>
+  
+  <Card title="外部API" href="/execution/api">
+    REST APIを通じてプログラム的に実行ログにアクセスしウェブフックを設定します
+  </Card>
+</Cards>
+
+## 主要概念
+
+### トポロジカル実行
+ブロックは依存関係の順序で実行され、スプレッドシートがセルを再計算する方法に似ています。実行エンジンは、完了した依存関係に基づいて、どのブロックが実行可能かを自動的に判断します。
+
+### パス追跡
+エンジンはワークフロー内の実行パスを積極的に追跡します。ルーターおよび条件ブロックはこれらのパスを動的に更新し、関連するブロックのみが実行されるようにします。
+
+### レイヤーベースの処理
+ブロックを一つずつ実行する代わりに、エンジンは並列実行可能なブロックのレイヤーを識別し、複雑なワークフローのパフォーマンスを最適化します。
+
+### 実行コンテキスト
+各ワークフローは実行中に以下を含む豊富なコンテキストを維持します：
+- ブロックの出力と状態
+- アクティブな実行パス
+- ループと並列反復の追跡
+- 環境変数
+- ルーティング決定
+
+## 実行トリガー
+
+ワークフローは複数のチャネルを通じて実行できます：
+
+- **手動**: エディターで直接テストとデバッグを行う
+- **APIとしてデプロイ**: API キーで保護された HTTP エンドポイントを作成
+- **チャットとしてデプロイ**: カスタムサブドメインに会話インターフェースを作成
+- **ウェブフック**: サードパーティサービスからの外部イベントに応答
+- **スケジュール**: cron 式を使用して定期的に実行
+
+### APIとしてデプロイ
+
+ワークフローをAPIとしてデプロイすると、Simは以下を行います：
+- 一意のHTTPエンドポイントを作成: `https://sim.ai/api/workflows/{workflowId}/execute`
+- 認証用のAPIキーを生成
+- JSONペイロードを含むPOSTリクエストを受け付け
+- ワークフロー実行結果をJSONとして返す
+
+APIコールの例：
+
+```bash
+curl -X POST https://sim.ai/api/workflows/your-workflow-id/execute \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"input": "your data here"}'
+```
+
+### チャットとしてデプロイ
+
+チャットデプロイはワークフロー用の会話インターフェースを作成します：
+- カスタムサブドメインでホスト: `https://your-name.sim.ai`
+- オプションの認証（パブリック、パスワード、またはメールベース）
+- あなたのブランディングでカスタマイズ可能なUI
+- リアルタイム対話のためのストリーミングレスポンス
+- AIアシスタント、サポートボット、インタラクティブツールに最適
+
+各デプロイメント方法はデータをワークフローのスターターブロックに渡し、実行フローを開始します。
+
+## デプロイメントスナップショット
+
+すべての公開エントリーポイント（API、チャット、スケジュール、Webhook、手動実行）は、ワークフローのアクティブなデプロイメントスナップショットを実行します。キャンバスを変更するたびに新しいデプロイメントを公開することで、すべてのトリガーが更新されたバージョンを使用するようになります。
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/execution/deployment-versions-light.png'
+    alt='デプロイメントバージョン一覧表'
+    width={500}
+    height={280}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+デプロイモーダルは完全なバージョン履歴を保持しています。任意のスナップショットを検査し、ドラフトと比較して、必要に応じてワンクリックで昇格またはロールバックし、以前のリリースを復元することができます。
+
+## プログラムによる実行
+
+公式SDKを使用してアプリケーションからワークフローを実行できます：
+
+```bash
+# TypeScript/JavaScript
+npm install simstudio-ts-sdk
+
+# Python
+pip install simstudio-sdk
+```
+
+```typescript
+// TypeScript Example
+import { SimStudioClient } from 'simstudio-ts-sdk';
+
+const client = new SimStudioClient({ 
+  apiKey: 'your-api-key' 
+});
+
+const result = await client.executeWorkflow('workflow-id', {
+  input: { message: 'Hello' }
+});
+```
+
+## ベストプラクティス
+
+### 信頼性を考慮した設計
+- 適切なフォールバックパスでエラーを適切に処理する
+- 機密データには環境変数を使用する
+- デバッグ用にFunction（関数）ブロックにログ記録を追加する
+
+### パフォーマンスの最適化
+- 可能な限り外部APIコールを最小限に抑える
+- 独立した操作には並列実行を使用する
+- 適切な場合はMemory（メモリー）ブロックで結果をキャッシュする
+
+### 実行の監視
+- パフォーマンスパターンを理解するために定期的にログを確認する
+- AIモデル使用のコストを追跡する
+- 問題をデバッグするためにワークフロースナップショットを使用する
+
+## 次のステップ
+
+[実行の基本](/execution/basics)からスタートしてワークフローの実行方法を理解し、[ログ記録](/execution/logging)で実行を監視し、[コスト計算](/execution/costs)で支出を最適化する方法を探りましょう。

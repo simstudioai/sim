@@ -82,35 +82,29 @@ describe('LoopBlockHandler', () => {
     it('should initialize loop on first execution', async () => {
       const result = await handler.execute(mockBlock, {}, mockContext)
 
-      // After execution, the counter is incremented for the next iteration
       expect(mockContext.loopIterations.get('loop-1')).toBe(1)
       expect(mockContext.activeExecutionPath.has('inner-block')).toBe(true)
 
-      // Type guard to check if result has the expected structure
       if (typeof result === 'object' && result !== null) {
         const response = result as any
-        expect(response.currentIteration).toBe(0) // Still shows current iteration as 0
+        expect(response.currentIteration).toBe(1)
         expect(response.maxIterations).toBe(3)
         expect(response.completed).toBe(false)
       }
     })
 
     it('should activate loop-end-source when iterations complete', async () => {
-      // Set to last iteration
-      mockContext.loopIterations.set('loop-1', 3)
+      mockContext.loopIterations.set('loop-1', 4)
 
       const result = await handler.execute(mockBlock, {}, mockContext)
 
-      // The loop handler no longer marks loops as completed - that's handled by the loop manager
       expect(mockContext.completedLoops.has('loop-1')).toBe(false)
-      // The loop handler also doesn't activate end connections anymore
       expect(mockContext.activeExecutionPath.has('after-loop')).toBe(false)
-      // But it should not activate the inner block either since we're at max iterations
       expect(mockContext.activeExecutionPath.has('inner-block')).toBe(false)
 
       if (typeof result === 'object' && result !== null) {
         const response = result as any
-        expect(response.completed).toBe(false) // Not completed until all blocks execute
+        expect(response.completed).toBe(false)
         expect(response.message).toContain('Final iteration')
       }
     })
@@ -131,7 +125,7 @@ describe('LoopBlockHandler', () => {
       if (typeof result === 'object' && result !== null) {
         const response = result as any
         expect(response.loopType).toBe('forEach')
-        expect(response.maxIterations).toBe(3) // Limited by items length
+        expect(response.maxIterations).toBe(3)
       }
     })
 
@@ -153,28 +147,26 @@ describe('LoopBlockHandler', () => {
     })
 
     it('should limit forEach loops by collection size, not iterations parameter', async () => {
-      // This tests the fix for the bug where forEach loops were using the iterations count
-      // instead of the actual collection size
       mockContext.workflow!.loops['loop-1'] = {
         id: 'loop-1',
         nodes: ['inner-block'],
-        iterations: 10, // High iteration count
+        iterations: 10,
         loopType: 'forEach',
-        forEachItems: ['a', 'b'], // Only 2 items
+        forEachItems: ['a', 'b'],
       }
 
-      // First execution
       let result = await handler.execute(mockBlock, {}, mockContext)
       expect(mockContext.loopIterations.get('loop-1')).toBe(1)
       expect(mockContext.loopItems.get('loop-1')).toBe('a')
 
       if (typeof result === 'object' && result !== null) {
         const response = result as any
-        expect(response.maxIterations).toBe(2) // Should be limited to 2, not 10
+        expect(response.maxIterations).toBe(2)
         expect(response.completed).toBe(false)
       }
 
-      // Second execution
+      mockContext.loopIterations.set('loop-1', 2)
+
       result = await handler.execute(mockBlock, {}, mockContext)
       expect(mockContext.loopIterations.get('loop-1')).toBe(2)
       expect(mockContext.loopItems.get('loop-1')).toBe('b')
@@ -184,7 +176,10 @@ describe('LoopBlockHandler', () => {
         expect(response.completed).toBe(false)
       }
 
-      // Third execution should complete the loop
+      // Manually increment iteration for third execution (exceeds max)
+      mockContext.loopIterations.set('loop-1', 3)
+
+      // Third execution should exceed the loop limit
       result = await handler.execute(mockBlock, {}, mockContext)
       // The loop handler no longer marks loops as completed - that's handled by the loop manager
       expect(mockContext.completedLoops.has('loop-1')).toBe(false)
@@ -196,7 +191,7 @@ describe('LoopBlockHandler', () => {
         nodes: ['inner-block'],
         iterations: 5,
         loopType: 'forEach',
-        forEachItems: '', // Empty collection
+        forEachItems: '',
       }
 
       await expect(handler.execute(mockBlock, {}, mockContext)).rejects.toThrow(
@@ -210,7 +205,7 @@ describe('LoopBlockHandler', () => {
         nodes: ['inner-block'],
         iterations: 5,
         loopType: 'forEach',
-        forEachItems: [], // Empty array
+        forEachItems: [],
       }
 
       await expect(handler.execute(mockBlock, {}, mockContext)).rejects.toThrow(
@@ -223,12 +218,10 @@ describe('LoopBlockHandler', () => {
     it('should activate children when in active path', async () => {
       const handlerWithPathTracker = new LoopBlockHandler(undefined, mockPathTracker as any)
 
-      // Mock PathTracker to return true (block is in active path)
       mockPathTracker.isInActivePath.mockReturnValue(true)
 
       await handlerWithPathTracker.execute(mockBlock, {}, mockContext)
 
-      // Should activate children when in active path
       expect(mockContext.activeExecutionPath.has('inner-block')).toBe(true)
       expect(mockPathTracker.isInActivePath).toHaveBeenCalledWith('loop-1', mockContext)
     })
@@ -236,12 +229,10 @@ describe('LoopBlockHandler', () => {
     it('should not activate children when not in active path', async () => {
       const handlerWithPathTracker = new LoopBlockHandler(undefined, mockPathTracker as any)
 
-      // Mock PathTracker to return false (block is not in active path)
       mockPathTracker.isInActivePath.mockReturnValue(false)
 
       await handlerWithPathTracker.execute(mockBlock, {}, mockContext)
 
-      // Should not activate children when not in active path
       expect(mockContext.activeExecutionPath.has('inner-block')).toBe(false)
       expect(mockPathTracker.isInActivePath).toHaveBeenCalledWith('loop-1', mockContext)
     })
@@ -249,14 +240,12 @@ describe('LoopBlockHandler', () => {
     it('should handle PathTracker errors gracefully', async () => {
       const handlerWithPathTracker = new LoopBlockHandler(undefined, mockPathTracker as any)
 
-      // Mock PathTracker to throw error
       mockPathTracker.isInActivePath.mockImplementation(() => {
         throw new Error('PathTracker error')
       })
 
       await handlerWithPathTracker.execute(mockBlock, {}, mockContext)
 
-      // Should default to activating children when PathTracker fails
       expect(mockContext.activeExecutionPath.has('inner-block')).toBe(true)
     })
   })

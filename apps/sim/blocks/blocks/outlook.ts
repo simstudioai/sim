@@ -1,15 +1,18 @@
 import { OutlookIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { OutlookResponse } from '@/tools/outlook/types'
 
 export const OutlookBlock: BlockConfig<OutlookResponse> = {
   type: 'outlook',
   name: 'Outlook',
   description: 'Access Outlook',
+  authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Outlook into the workflow. Can read, draft, and send email messages. Requires OAuth. Can be used in trigger mode to trigger a workflow when a new email is received.',
+    'Integrate Outlook into the workflow. Can read, draft, and send email messages. Can be used in trigger mode to trigger a workflow when a new email is received.',
   docsLink: 'https://docs.sim.ai/tools/outlook',
   category: 'tools',
+  triggerAllowed: true,
   bgColor: '#E0E0E0',
   icon: OutlookIcon,
   subBlocks: [

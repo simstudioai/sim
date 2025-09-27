@@ -1,0 +1,89 @@
+---
+title: 翻訳
+description: テキストをあらゆる言語に翻訳
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="translate"
+  color="#FF4B4B"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='2'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      
+    >
+      <path d='m5 8 6 6' />
+      <path d='m4 14 6-6 2-3' />
+      <path d='M2 5h12' />
+      <path d='M7 2h1' />
+      <path d='m22 22-5-10-5 10' />
+      <path d='M14 18h6' />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+翻訳は言語間でテキストを翻訳できるツールです。
+
+翻訳を使用すると、次のことができます：
+
+- **テキスト翻訳**：言語間でテキストを翻訳
+- **文書翻訳**：言語間で文書を翻訳
+- **ウェブサイト翻訳**：言語間でウェブサイトを翻訳
+- **画像翻訳**：言語間で画像を翻訳
+- **音声翻訳**：言語間で音声を翻訳
+- **動画翻訳**：言語間で動画を翻訳
+- **スピーチ翻訳**：言語間でスピーチを翻訳
+- **テキスト翻訳**：言語間でテキストを翻訳
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+ワークフローに翻訳を統合します。テキストをあらゆる言語に翻訳できます。
+
+## ツール
+
+### `openai_chat`
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `content` | string | 翻訳されたテキスト |
+| `model` | string | 使用されたモデル |
+| `tokens` | json | トークン使用量 |
+
+### `anthropic_chat`
+
+### `google_chat`
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `content` | string | 翻訳されたテキスト |
+| `model` | string | 使用されたモデル |
+| `tokens` | json | トークン使用量 |
+
+## メモ
+
+- カテゴリー: `tools`
+- タイプ: `translate`

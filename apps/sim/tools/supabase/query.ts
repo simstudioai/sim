@@ -58,9 +58,21 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
 
       // Add order by if provided
       if (params.orderBy) {
-        const orderParam = params.orderBy.includes('DESC')
-          ? `${params.orderBy.replace(' DESC', '').replace('DESC', '')}.desc`
-          : `${params.orderBy}.asc`
+        let orderParam = params.orderBy.trim()
+
+        // Check if DESC is specified (case-insensitive)
+        if (/\s+DESC$/i.test(orderParam)) {
+          orderParam = `${orderParam.replace(/\s+DESC$/i, '').trim()}.desc`
+        }
+        // Check if ASC is specified (case-insensitive)
+        else if (/\s+ASC$/i.test(orderParam)) {
+          orderParam = `${orderParam.replace(/\s+ASC$/i, '').trim()}.asc`
+        }
+        // Default to ascending if no direction specified
+        else {
+          orderParam = `${orderParam}.asc`
+        }
+
         url += `&order=${orderParam}`
       }
 

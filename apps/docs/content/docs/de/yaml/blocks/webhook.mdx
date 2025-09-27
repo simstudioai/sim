@@ -1,0 +1,403 @@
+---
+title: Webhook-Block YAML-Schema
+description: YAML-Konfigurationsreferenz für Webhook-Blöcke
+---
+
+## Schema-Definition
+
+```yaml
+type: object
+required:
+  - type
+  - name
+properties:
+  type:
+    type: string
+    enum: [webhook]
+    description: Block type identifier
+  name:
+    type: string
+    description: Display name for this webhook block
+  inputs:
+    type: object
+    properties:
+      webhookConfig:
+        type: object
+        description: Webhook configuration settings
+        properties:
+          enabled:
+            type: boolean
+            description: Whether the webhook is active
+            default: true
+          secret:
+            type: string
+            description: Secret key for webhook verification
+          headers:
+            type: array
+            description: Expected headers for validation as table entries
+            items:
+              type: object
+              properties:
+                id:
+                  type: string
+                  description: Unique identifier for the header entry
+                key:
+                  type: string
+                  description: Header name
+                value:
+                  type: string
+                  description: Expected header value
+                cells:
+                  type: object
+                  description: Cell display values for the table interface
+                  properties:
+                    Key:
+                      type: string
+                      description: Display value for the key column
+                    Value:
+                      type: string
+                      description: Display value for the value column
+          methods:
+            type: array
+            description: Allowed HTTP methods
+            items:
+              type: string
+              enum: [GET, POST, PUT, DELETE, PATCH]
+            default: [POST]
+      responseConfig:
+        type: object
+        description: Response configuration for the webhook
+        properties:
+          status:
+            type: number
+            description: HTTP status code to return
+            default: 200
+            minimum: 100
+            maximum: 599
+          headers:
+            type: array
+            description: Response headers as table entries
+            items:
+              type: object
+              properties:
+                id:
+                  type: string
+                  description: Unique identifier for the header entry
+                key:
+                  type: string
+                  description: Header name
+                value:
+                  type: string
+                  description: Header value
+                cells:
+                  type: object
+                  description: Cell display values for the table interface
+                  properties:
+                    Key:
+                      type: string
+                      description: Display value for the key column
+                    Value:
+                      type: string
+                      description: Display value for the value column
+          body:
+            type: string
+            description: Response body content
+  connections:
+    type: object
+    properties:
+      success:
+        type: string
+        description: Target block ID for successful webhook processing
+      error:
+        type: string
+        description: Target block ID for error handling
+```
+
+## Verbindungskonfiguration
+
+Verbindungen definieren, wohin der Workflow basierend auf der Webhook-Verarbeitung geht:
+
+```yaml
+connections:
+  success: <string>                     # Target block ID for successful processing
+  error: <string>                       # Target block ID for error handling (optional)
+```
+
+## Beispiele
+
+### Einfacher Webhook-Auslöser
+
+```yaml
+github-webhook:
+  type: webhook
+  name: "GitHub Webhook"
+  inputs:
+    webhookConfig:
+      enabled: true
+      secret: "{{GITHUB_WEBHOOK_SECRET}}"
+      methods: [POST]
+      headers:
+        - key: "X-GitHub-Event"
+          value: "push"
+    responseConfig:
+      status: 200
+      body: |
+        {
+          "message": "Webhook received successfully",
+          "timestamp": "{{new Date().toISOString()}}"
+        }
+  connections:
+    success: process-github-event
+    error: webhook-error-handler
+```
+
+### Slack-Event-Webhook
+
+```yaml
+slack-events:
+  type: webhook
+  name: "Slack Events"
+  inputs:
+    webhookConfig:
+      enabled: true
+      secret: "{{SLACK_SIGNING_SECRET}}"
+      methods: [POST]
+      headers:
+        - key: "Content-Type"
+          value: "application/json"
+    responseConfig:
+      status: 200
+      headers:
+        - key: "Content-Type"
+          value: "application/json"
+      body: |
+        {
+          "challenge": "<webhook.challenge>"
+        }
+  connections:
+    success: handle-slack-event
+```
+
+### Zahlungs-Webhook (Stripe)
+
+```yaml
+stripe-webhook:
+  type: webhook
+  name: "Stripe Payment Webhook"
+  inputs:
+    webhookConfig:
+      enabled: true
+      secret: "{{STRIPE_WEBHOOK_SECRET}}"
+      methods: [POST]
+      headers:
+        - key: "Stripe-Signature"
+          value: "*"
+    responseConfig:
+      status: 200
+      headers:
+        - key: "Content-Type"
+          value: "application/json"
+      body: |
+        {
+          "received": true
+        }
+  connections:
+    success: process-payment-event
+    error: payment-webhook-error
+```
+
+### Webhook mit vollständigem Tabellenkopfformat
+
+Wenn Header über die UI-Tabellenschnittstelle erstellt werden, enthält das YAML zusätzliche Metadaten:
+
+```yaml
+api-webhook-complete:
+  type: webhook
+  name: "API Webhook with Table Headers"
+  inputs:
+    webhookConfig:
+      enabled: true
+      methods: [POST]
+      headers:
+        - id: header-1-uuid-here
+          key: "Authorization"
+          value: "Bearer {{WEBHOOK_API_KEY}}"
+          cells:
+            Key: "Authorization"
+            Value: "Bearer {{WEBHOOK_API_KEY}}"
+        - id: header-2-uuid-here
+          key: "Content-Type"
+          value: "application/json"
+          cells:
+            Key: "Content-Type"
+            Value: "application/json"
+    responseConfig:
+      status: 200
+      headers:
+        - id: response-header-1-uuid
+          key: "Content-Type"
+          value: "application/json"
+          cells:
+            Key: "Content-Type"
+            Value: "application/json"
+        - id: response-header-2-uuid
+          key: "X-Webhook-Response"
+          value: "processed"
+          cells:
+            Key: "X-Webhook-Response"
+            Value: "processed"
+      body: |
+        {
+          "status": "received",
+          "timestamp": "{{new Date().toISOString()}}"
+        }
+  connections:
+    success: process-webhook-complete
+```
+
+### Generischer API-Webhook
+
+```yaml
+api-webhook:
+  type: webhook
+  name: "API Webhook"
+  inputs:
+    webhookConfig:
+      enabled: true
+      methods: [POST, PUT]
+      headers:
+        - key: "Authorization"
+          value: "Bearer {{WEBHOOK_API_KEY}}"
+        - key: "Content-Type"
+          value: "application/json"
+    responseConfig:
+      status: 202
+      headers:
+        - key: "Content-Type"
+          value: "application/json"
+        - key: "X-Processed-By"
+          value: "Sim"
+      body: |
+        {
+          "status": "accepted",
+          "id": "{{Math.random().toString(36).substr(2, 9)}}",
+          "received_at": "{{new Date().toISOString()}}"
+        }
+  connections:
+    success: process-webhook-data
+```
+
+### Multi-Methoden-Webhook
+
+```yaml
+crud-webhook:
+  type: webhook
+  name: "CRUD Webhook"
+  inputs:
+    webhookConfig:
+      enabled: true
+      methods: [GET, POST, PUT, DELETE]
+      headers:
+        - key: "X-API-Key"
+          value: "{{CRUD_API_KEY}}"
+    responseConfig:
+      status: 200
+      headers:
+        - key: "Content-Type"
+          value: "application/json"
+      body: |
+        {
+          "method": "<webhook.method>",
+          "processed": true,
+          "timestamp": "{{new Date().toISOString()}}"
+        }
+  connections:
+    success: route-by-method
+```
+
+## Tabellenparameterformate
+
+Der Webhook-Block unterstützt zwei Formate für Header (sowohl Validierungs-Header als auch Antwort-Header):
+
+### Vereinfachtes Format (manuelles YAML)
+
+Beim manuellen Schreiben von YAML können Sie das vereinfachte Format verwenden:
+
+```yaml
+headers:
+  - key: "Authorization"
+    value: "Bearer {{API_TOKEN}}"
+  - key: "Content-Type"
+    value: "application/json"
+```
+
+### Vollständiges Tabellenformat (UI-generiert)
+
+Wenn Header über die UI-Tabellenschnittstelle erstellt werden, enthält das YAML zusätzliche Metadaten:
+
+```yaml
+headers:
+  - id: unique-identifier-here
+    key: "Authorization"
+    value: "Bearer {{API_TOKEN}}"
+    cells:
+      Key: "Authorization"
+      Value: "Bearer {{API_TOKEN}}"
+```
+
+**Wesentliche Unterschiede:**
+- `id`: Eindeutige Kennung zur Verfolgung der Tabellenzeile
+- `cells`: Anzeigewerte, die von der UI-Tabellenschnittstelle verwendet werden
+- Beide Formate sind für die Webhook-Verarbeitung funktional gleichwertig
+- Das vollständige Format bewahrt den UI-Status beim Importieren/Exportieren von Workflows
+
+**Wichtig:** Setzen Sie Headernamen und Werte, die Sonderzeichen enthalten, immer in Anführungszeichen:
+
+```yaml
+headers:
+  - id: auth-header-uuid
+    cells:
+      Key: "Authorization"
+      Value: "Bearer {{WEBHOOK_API_KEY}}"
+  - id: content-type-uuid
+    cells:
+      Key: "Content-Type"
+      Value: "application/json"
+```
+
+## Webhook-Variablen
+
+In Webhook-ausgelösten Workflows sind diese speziellen Variablen verfügbar:
+
+```yaml
+# Available in blocks after the webhook
+<webhook.payload>               # Full request payload/body
+<webhook.headers>               # Request headers
+<webhook.method>                # HTTP method used
+<webhook.query>                 # Query parameters
+<webhook.path>                  # Request path
+<webhook.challenge>             # Challenge parameter (for verification)
+```
+
+## Ausgabereferenzen
+
+Nachdem ein Webhook eine Anfrage verarbeitet hat, können Sie auf seine Daten verweisen:
+
+```yaml
+# In subsequent blocks
+process-webhook:
+  inputs:
+    payload: <webhook-name.payload>      # Request payload
+    headers: <webhook-name.headers>      # Request headers
+    method: <webhook-name.method>        # HTTP method
+```
+
+## Sicherheits-Best-Practices
+
+- Verwenden Sie immer Webhook-Geheimnisse zur Verifizierung
+- Validieren Sie erwartete Header und Methoden
+- Implementieren Sie angemessene Fehlerbehandlung
+- Verwenden Sie HTTPS-Endpunkte in der Produktion
+- Überwachen Sie Webhook-Aktivitäten und -Fehler
+- Setzen Sie angemessene Antwort-Timeouts
+- Validieren Sie die Payload-Struktur vor der Verarbeitung

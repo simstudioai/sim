@@ -1,13 +1,15 @@
 import { MicrosoftExcelIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { MicrosoftExcelResponse } from '@/tools/microsoft_excel/types'
 
 export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
   type: 'microsoft_excel',
   name: 'Microsoft Excel',
   description: 'Read, write, and update data',
+  authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Microsoft Excel into the workflow. Can read, write, update, and add to table. Requires OAuth.',
+    'Integrate Microsoft Excel into the workflow. Can read, write, update, and add to table.',
   docsLink: 'https://docs.sim.ai/tools/microsoft_excel',
   category: 'tools',
   bgColor: '#E0E0E0',

@@ -12,6 +12,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { getEnv, isTruthy } from '@/lib/env'
 import { useGeneralStore } from '@/stores/settings/general/store'
 
 const TOOLTIPS = {
@@ -19,15 +20,22 @@ const TOOLTIPS = {
   autoPan: 'Automatically pan to active blocks during workflow execution.',
   consoleExpandedByDefault:
     'Show console entries expanded by default. When disabled, entries will be collapsed by default.',
+  floatingControls:
+    'Show floating controls for zoom, undo, and redo at the bottom of the workflow canvas.',
+  trainingControls:
+    'Show training controls for recording workflow edits to build copilot training datasets.',
 }
 
 export function General() {
   const isLoading = useGeneralStore((state) => state.isLoading)
+  const isTrainingEnabled = isTruthy(getEnv('NEXT_PUBLIC_COPILOT_TRAINING_ENABLED'))
   const theme = useGeneralStore((state) => state.theme)
   const isAutoConnectEnabled = useGeneralStore((state) => state.isAutoConnectEnabled)
 
   const isAutoPanEnabled = useGeneralStore((state) => state.isAutoPanEnabled)
   const isConsoleExpandedByDefault = useGeneralStore((state) => state.isConsoleExpandedByDefault)
+  const showFloatingControls = useGeneralStore((state) => state.showFloatingControls)
+  const showTrainingControls = useGeneralStore((state) => state.showTrainingControls)
 
   // Loading states
   const isAutoConnectLoading = useGeneralStore((state) => state.isAutoConnectLoading)
@@ -37,6 +45,8 @@ export function General() {
     (state) => state.isConsoleExpandedByDefaultLoading
   )
   const isThemeLoading = useGeneralStore((state) => state.isThemeLoading)
+  const isFloatingControlsLoading = useGeneralStore((state) => state.isFloatingControlsLoading)
+  const isTrainingControlsLoading = useGeneralStore((state) => state.isTrainingControlsLoading)
 
   const setTheme = useGeneralStore((state) => state.setTheme)
   const toggleAutoConnect = useGeneralStore((state) => state.toggleAutoConnect)
@@ -45,6 +55,8 @@ export function General() {
   const toggleConsoleExpandedByDefault = useGeneralStore(
     (state) => state.toggleConsoleExpandedByDefault
   )
+  const toggleFloatingControls = useGeneralStore((state) => state.toggleFloatingControls)
+  const toggleTrainingControls = useGeneralStore((state) => state.toggleTrainingControls)
 
   // Sync theme from store to next-themes when theme changes
   useEffect(() => {
@@ -74,6 +86,18 @@ export function General() {
   const handleConsoleExpandedByDefaultChange = async (checked: boolean) => {
     if (checked !== isConsoleExpandedByDefault && !isConsoleExpandedByDefaultLoading) {
       await toggleConsoleExpandedByDefault()
+    }
+  }
+
+  const handleFloatingControlsChange = async (checked: boolean) => {
+    if (checked !== showFloatingControls && !isFloatingControlsLoading) {
+      await toggleFloatingControls()
+    }
+  }
+
+  const handleTrainingControlsChange = async (checked: boolean) => {
+    if (checked !== showTrainingControls && !isTrainingControlsLoading) {
+      await toggleTrainingControls()
     }
   }
 
@@ -241,6 +265,68 @@ export function General() {
                 disabled={isLoading || isConsoleExpandedByDefaultLoading}
               />
             </div>
+
+            <div className='flex items-center justify-between'>
+              <div className='flex items-center gap-2'>
+                <Label htmlFor='floating-controls' className='font-normal'>
+                  Floating controls
+                </Label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      className='h-7 p-1 text-gray-500'
+                      aria-label='Learn more about floating controls'
+                      disabled={isLoading || isFloatingControlsLoading}
+                    >
+                      <Info className='h-5 w-5' />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side='top' className='max-w-[300px] p-3'>
+                    <p className='text-sm'>{TOOLTIPS.floatingControls}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <Switch
+                id='floating-controls'
+                checked={showFloatingControls}
+                onCheckedChange={handleFloatingControlsChange}
+                disabled={isLoading || isFloatingControlsLoading}
+              />
+            </div>
+
+            {isTrainingEnabled && (
+              <div className='flex items-center justify-between'>
+                <div className='flex items-center gap-2'>
+                  <Label htmlFor='training-controls' className='font-normal'>
+                    Training controls
+                  </Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant='ghost'
+                        size='icon'
+                        className='h-5 w-5 p-0'
+                        aria-label='Learn more about training controls'
+                        disabled={isLoading || isTrainingControlsLoading}
+                      >
+                        <Info className='h-3.5 w-3.5 text-muted-foreground' />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side='top' className='max-w-[300px] p-3'>
+                      <p className='text-sm'>{TOOLTIPS.trainingControls}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <Switch
+                  id='training-controls'
+                  checked={showTrainingControls}
+                  onCheckedChange={handleTrainingControlsChange}
+                  disabled={isLoading || isTrainingControlsLoading}
+                />
+              </div>
+            )}
           </>
         )}
       </div>

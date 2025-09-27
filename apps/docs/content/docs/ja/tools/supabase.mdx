@@ -1,0 +1,208 @@
+---
+title: Supabase
+description: Supabaseデータベースを使用する
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="supabase"
+  color="#1C1C1C"
+  icon={true}
+  iconSvg={`<svg className="block-icon"    viewBox='0 0 27 27' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        d='M15.4057 26.2606C14.7241 27.1195 13.3394 26.649 13.3242 25.5519L13.083 9.50684H23.8724C25.8262 9.50684 26.9157 11.7636 25.7006 13.2933L15.4057 26.2606Z'
+        fill='url(#paint0_linear)'
+      />
+      <path
+        d='M15.4057 26.2606C14.7241 27.1195 13.3394 26.649 13.3242 25.5519L13.083 9.50684H23.8724C25.8262 9.50684 26.9157 11.7636 25.7006 13.2933L15.4057 26.2606Z'
+        fill='url(#paint1_linear)'
+        fillOpacity='0.2'
+      />
+      <path
+        d='M11.0167 0.443853C11.6983 -0.415083 13.0832 0.0553814 13.0982 1.15237L13.2042 17.1976H2.55005C0.596215 17.1976 -0.493259 14.9408 0.721603 13.4111L11.0167 0.443853Z'
+        fill='#3ECF8E'
+      />
+      <defs>
+        <linearGradient
+          id='paint0_linear'
+          x1='13.084'
+          y1='13.0655'
+          x2='22.6727'
+          y2='17.087'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop stopColor='#249361' />
+          <stop offset='1' stopColor='#3ECF8E' />
+        </linearGradient>
+        <linearGradient
+          id='paint1_linear'
+          x1='8.83277'
+          y1='7.24485'
+          x2='13.2057'
+          y2='15.477'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop />
+          <stop offset='1' stopOpacity='0' />
+        </linearGradient>
+      </defs>
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Supabase](https://www.supabase.com/)は、開発者がモダンなアプリケーションを構築、スケーリング、管理するためのツール群を提供する強力なオープンソースのバックエンド・アズ・ア・サービスプラットフォームです。Supabaseは、フルマネージドの[PostgreSQL](https://www.postgresql.org/)データベース、堅牢な認証機能、即時利用可能なRESTfulおよびGraphQL API、リアルタイムサブスクリプション、ファイルストレージ、エッジ関数を提供し、これらすべてを統一された開発者フレンドリーなインターフェースを通じてアクセスできます。そのオープンソースの性質と人気のあるフレームワークとの互換性により、SQLの柔軟性と透明性という追加の利点を持ちながら、Firebaseの魅力的な代替手段となっています。
+
+**なぜSupabaseなのか？**
+- **即時API：** データベース内のすべてのテーブルとビューは、RESTおよびGraphQLエンドポイントを通じて即座に利用可能になり、カスタムバックエンドコードを書かずにデータ駆動型アプリケーションを簡単に構築できます。
+- **リアルタイムデータ：** Supabaseはリアルタイムサブスクリプションを可能にし、アプリがデータベースの変更に即座に反応できるようにします。
+- **認証と認可：** メール、OAuth、SSOなどをサポートする組み込みのユーザー管理機能に加え、きめ細かいアクセス制御のための行レベルセキュリティを提供します。
+- **ストレージ：** データベースとシームレスに統合された組み込みストレージで、ファイルを安全にアップロード、提供、管理できます。
+- **エッジ関数：** 低レイテンシーのカスタムロジックのために、ユーザーの近くにサーバーレス関数をデプロイできます。
+
+**Simでのスパベースの使用**
+
+SimのSupabase統合により、エージェントワークフローをSupabaseプロジェクトに簡単に接続できます。プロジェクトID、テーブル名、サービスロールシークレットという数項目の設定だけで、Simブロックから直接データベースに安全にアクセスできます。この統合によりAPIコールの複雑さが抽象化され、ロジックと自動化の構築に集中できます。
+
+**SimでSupabaseを使用する主なメリット:**
+- **ノーコード/ローコードのデータベース操作:** SQLやバックエンドコードを書かずに、Supabaseテーブルの照会、挿入、更新、削除が可能。
+- **柔軟なクエリ:** [PostgREST フィルター構文](https://postgrest.org/en/stable/api.html#operators)を使用して、フィルタリング、並べ替え、結果の制限などの高度なクエリを実行できます。
+- **シームレスな統合:** Supabaseをワークフロー内の他のツールやサービスに簡単に接続し、データの同期、通知のトリガー、レコードの強化などの強力な自動化を実現。
+- **安全でスケーラブル:** すべての操作はSupabaseサービスロールシークレットを使用し、マネージドクラウドプラットフォームのスケーラビリティを備えたデータへの安全なアクセスを確保します。
+
+内部ツールの構築、ビジネスプロセスの自動化、本番アプリケーションの実行など、どのような用途でも、SimのSupabaseは、データとバックエンドロジックを管理するための高速で信頼性が高く、開発者に優しい方法を提供します—インフラ管理は必要ありません。ブロックを設定し、必要な操作を選択するだけで、Simが残りを処理します。
+{/* MANUAL-CONTENT-END */}
+
+## 使用方法
+
+ワークフローにSupabaseを統合します。複数の行の取得、単一行の取得、作成、更新、削除、およびアップサートが可能です。
+
+## ツール
+
+### `supabase_query`
+
+Supabaseテーブルからデータを照会する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `table` | string | はい | 照会するSupabaseテーブルの名前 |
+| `filter` | string | いいえ | PostgRESTフィルター（例："id=eq.123"） |
+| `orderBy` | string | いいえ | 並べ替える列（降順の場合はDESCを追加） |
+| `limit` | number | いいえ | 返す最大行数 |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `results` | array | クエリから返されたレコードの配列 |
+
+### `supabase_insert`
+
+Supabaseテーブルにデータを挿入する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | SupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `table` | string | はい | データを挿入するSupabaseテーブルの名前 |
+| `data` | any | はい | 挿入するデータ |
+| `apiKey` | string | はい | Supabaseサービスロールのシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `results` | array | 挿入されたレコードの配列 |
+
+### `supabase_get_row`
+
+フィルター条件に基づいてSupabaseテーブルから単一の行を取得する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | SupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `table` | string | はい | クエリを実行するSupabaseテーブルの名前 |
+| `filter` | string | はい | 特定の行を見つけるためのPostgRESTフィルター（例："id=eq.123"） |
+| `apiKey` | string | はい | Supabaseサービスロールのシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `results` | array | 行データを含む配列（見つかった場合）、空の配列（見つからなかった場合） |
+
+### `supabase_update`
+
+フィルター条件に基づいてSupabaseテーブルの行を更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `table` | string | はい | 更新するSupabaseテーブルの名前 |
+| `filter` | string | はい | 更新する行を識別するPostgRESTフィルター（例："id=eq.123"） |
+| `data` | object | はい | 一致する行で更新するデータ |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `results` | array | 更新されたレコードの配列 |
+
+### `supabase_delete`
+
+フィルター条件に基づいてSupabaseテーブルから行を削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `table` | string | はい | 削除するSupabaseテーブルの名前 |
+| `filter` | string | はい | 削除する行を識別するPostgRESTフィルター（例："id=eq.123"） |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `results` | array | 削除されたレコードの配列 |
+
+### `supabase_upsert`
+
+Supabaseテーブルにデータを挿入または更新する（アップサート操作）
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | SupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `table` | string | はい | データをアップサートするSupabaseテーブルの名前 |
+| `data` | any | はい | アップサート（挿入または更新）するデータ |
+| `apiKey` | string | はい | Supabaseサービスロールのシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `results` | array | アップサートされたレコードの配列 |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `supabase`

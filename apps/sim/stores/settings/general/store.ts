@@ -22,6 +22,8 @@ export const useGeneralStore = create<GeneralStore>()(
           isAutoPanEnabled: true,
           isConsoleExpandedByDefault: true,
           isDebugModeEnabled: false,
+          showFloatingControls: true,
+          showTrainingControls: false,
           theme: 'system' as const, // Keep for compatibility but not used
           telemetryEnabled: true,
           isLoading: false,
@@ -34,6 +36,8 @@ export const useGeneralStore = create<GeneralStore>()(
           isTelemetryLoading: false,
           isBillingUsageNotificationsLoading: false,
           isBillingUsageNotificationsEnabled: true,
+          isFloatingControlsLoading: false,
+          isTrainingControlsLoading: false,
         }
 
         // Optimistic update helper
@@ -99,6 +103,28 @@ export const useGeneralStore = create<GeneralStore>()(
 
           toggleDebugMode: () => {
             set({ isDebugModeEnabled: !get().isDebugModeEnabled })
+          },
+
+          toggleFloatingControls: async () => {
+            if (get().isFloatingControlsLoading) return
+            const newValue = !get().showFloatingControls
+            await updateSettingOptimistic(
+              'showFloatingControls',
+              newValue,
+              'isFloatingControlsLoading',
+              'showFloatingControls'
+            )
+          },
+
+          toggleTrainingControls: async () => {
+            if (get().isTrainingControlsLoading) return
+            const newValue = !get().showTrainingControls
+            await updateSettingOptimistic(
+              'showTrainingControls',
+              newValue,
+              'isTrainingControlsLoading',
+              'showTrainingControls'
+            )
           },
 
           setTheme: async (theme) => {
@@ -203,6 +229,8 @@ export const useGeneralStore = create<GeneralStore>()(
                 isAutoConnectEnabled: data.autoConnect,
                 isAutoPanEnabled: data.autoPan ?? true,
                 isConsoleExpandedByDefault: data.consoleExpandedByDefault ?? true,
+                showFloatingControls: data.showFloatingControls ?? true,
+                showTrainingControls: data.showTrainingControls ?? false,
                 theme: data.theme || 'system',
                 telemetryEnabled: data.telemetryEnabled,
                 isBillingUsageNotificationsEnabled: data.billingUsageNotificationsEnabled ?? true,

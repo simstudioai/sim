@@ -1,0 +1,160 @@
+---
+title: Wealthbox
+description: Mit Wealthbox interagieren
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="wealthbox"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      version='1.0'
+      
+      
+      viewBox='50 -50 200 200'
+    >
+      <g fill='#106ED4' stroke='none' transform='translate(0, 200) scale(0.15, -0.15)'>
+        <path d='M764 1542 c-110 -64 -230 -134 -266 -156 -42 -24 -71 -49 -78 -65 -7 -19 -10 -126 -8 -334 3 -291 4 -307 23 -326 11 -11 103 -67 205 -126 102 -59 219 -127 261 -151 42 -24 85 -44 96 -44 23 0 527 288 561 320 22 22 22 23 22 340 0 288 -2 320 -17 338 -32 37 -537 322 -569 321 -18 0 -107 -46 -230 -117z m445 -144 c108 -62 206 -123 219 -135 22 -22 22 -26 22 -261 0 -214 -2 -242 -17 -260 -23 -26 -414 -252 -437 -252 -9 0 -70 31 -134 69 -64 37 -161 94 -215 125 l-97 57 2 261 3 261 210 123 c116 67 219 123 229 123 10 1 107 -50 215 -111z' />
+        <path d='M700 1246 l-55 -32 -3 -211 -2 -211 37 -23 c21 -12 52 -30 69 -40 l30 -18 103 59 c56 33 109 60 117 60 8 0 62 -27 119 -60 l104 -60 63 37 c35 21 66 42 70 48 4 5 8 101 8 212 l0 202 -62 35 -63 35 -3 -197 c-1 -108 -6 -200 -11 -205 -5 -5 -54 17 -114 52 -58 34 -108 61 -111 61 -2 0 -51 -27 -107 -60 -56 -32 -106 -57 -111 -54 -4 3 -8 95 -8 205 0 109 -3 199 -7 199 -5 -1 -33 -16 -63 -34z' />
+      </g>
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Wealthbox](https://www.wealthbox.com/) ist eine umfassende CRM-Plattform, die speziell für Finanzberater und Vermögensverwaltungsprofis entwickelt wurde. Sie bietet ein zentrales System zur Verwaltung von Kundenbeziehungen, zur Verfolgung von Interaktionen und zur Organisation von Geschäftsabläufen in der Finanzdienstleistungsbranche.
+
+Mit Wealthbox können Sie:
+
+- **Kundenbeziehungen verwalten**: Speichern Sie detaillierte Kontaktinformationen, Hintergrunddaten und Beziehungshistorien für alle Ihre Kunden
+- **Interaktionen verfolgen**: Erstellen und pflegen Sie Notizen zu Besprechungen, Anrufen und anderen Kundenkontaktpunkten
+- **Aufgaben organisieren**: Planen und verwalten Sie Nachfolgeaktivitäten, Fristen und wichtige Aktionspunkte
+- **Dokumenten-Workflows**: Führen Sie umfassende Aufzeichnungen über Kundenkommunikation und Geschäftsprozesse
+- **Auf Kundendaten zugreifen**: Rufen Sie Informationen schnell mit organisierter Kontaktverwaltung und Suchfunktionen ab
+- **Automatisierte Nachverfolgungen**: Setzen Sie Erinnerungen und planen Sie Aufgaben, um ein konsistentes Kundenengagement zu gewährleisten
+
+In Sim ermöglicht die Wealthbox-Integration Ihren Agenten, über OAuth-Authentifizierung nahtlos mit Ihren CRM-Daten zu interagieren. Dies ermöglicht leistungsstarke Automatisierungsszenarien wie das automatische Erstellen von Kundennotizen aus Besprechungsprotokollen, das Aktualisieren von Kontaktinformationen, das Planen von Nachfolgeaufgaben und das Abrufen von Kundendetails für personalisierte Kommunikation. Ihre Agenten können bestehende Notizen, Kontakte und Aufgaben lesen, um die Kundenhistorie zu verstehen, und gleichzeitig neue Einträge erstellen, um aktuelle Aufzeichnungen zu führen. Diese Integration überbrückt die Lücke zwischen Ihren KI-Workflows und Ihrem Kundenbeziehungsmanagement und ermöglicht automatisierte Dateneingabe, intelligente Kundeneinblicke und optimierte administrative Prozesse, die Zeit für wertvollere kundenorientierte Aktivitäten freisetzen.
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Integrieren Sie Wealthbox in den Workflow. Kann Notizen lesen und schreiben, Kontakte lesen und schreiben sowie Aufgaben lesen und schreiben. Erfordert OAuth.
+
+## Tools
+
+### `wealthbox_read_note`
+
+Inhalt aus einer Wealthbox-Notiz lesen
+
+#### Input
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `noteId` | string | Nein | Die ID der zu lesenden Notiz |
+
+#### Output
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des Operationserfolgs |
+| `output` | object | Notizdaten und Metadaten |
+
+### `wealthbox_write_note`
+
+Eine Wealthbox-Notiz erstellen oder aktualisieren
+
+#### Input
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `content` | string | Ja | Der Hauptinhalt der Notiz |
+| `contactId` | string | Nein | ID des Kontakts, der mit dieser Notiz verknüpft werden soll |
+
+#### Output
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des Operationserfolgs |
+| `output` | object | Daten und Metadaten der erstellten oder aktualisierten Notiz |
+
+### `wealthbox_read_contact`
+
+Inhalt aus einem Wealthbox-Kontakt lesen
+
+#### Input
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | Nein | Die ID des zu lesenden Kontakts |
+
+#### Output
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des Operationserfolgs |
+| `output` | object | Kontaktdaten und Metadaten |
+
+### `wealthbox_write_contact`
+
+Einen neuen Wealthbox-Kontakt erstellen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `firstName` | string | Ja | Der Vorname des Kontakts |
+| `lastName` | string | Ja | Der Nachname des Kontakts |
+| `emailAddress` | string | Nein | Die E-Mail-Adresse des Kontakts |
+| `backgroundInformation` | string | Nein | Hintergrundinformationen über den Kontakt |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des Operationserfolgs |
+| `output` | object | Erstellte oder aktualisierte Kontaktdaten und Metadaten |
+
+### `wealthbox_read_task`
+
+Inhalt aus einer Wealthbox-Aufgabe lesen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Nein | Die ID der zu lesenden Aufgabe |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Status des Operationserfolgs |
+| `output` | object | Aufgabendaten und Metadaten |
+
+### `wealthbox_write_task`
+
+Eine Wealthbox-Aufgabe erstellen oder aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Ja | Der Name/Titel der Aufgabe |
+| `dueDate` | string | Ja | Das Fälligkeitsdatum und die Uhrzeit der Aufgabe \(Format: "JJJJ-MM-TT HH:MM AM/PM -HHMM", z.B. "2015-05-24 11:00 AM -0400"\) |
+| `contactId` | string | Nein | ID des Kontakts, der mit dieser Aufgabe verknüpft werden soll |
+| `description` | string | Nein | Beschreibung oder Notizen zur Aufgabe |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | Erfolgsstatus der Operation |
+| `output` | object | Erstellte oder aktualisierte Aufgabendaten und Metadaten |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `wealthbox`

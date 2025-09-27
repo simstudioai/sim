@@ -1,168 +1,40 @@
 ---
-title: 工作流
+title: 工作流模块
+description: 在当前流程中运行另一个工作流
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-工作流模块允许您在当前工作流中将其他工作流作为可重用组件执行。这使得模块化设计、代码复用以及由更小、更专注的工作流组成的复杂嵌套工作流的创建成为可能。
+## 功能简介
 
-<div className="flex justify-center">
+<div className='flex justify-center my-6'>
   <Image
-    src="/static/blocks/workflow.png"
-    alt="工作流模块"
-    width={500}
-    height={350}
-    className="my-6"
+    src='/static/blocks/workflow.png'
+    alt='工作流模块配置'
+    width={400}
+    height={280}
+    className='rounded-xl border border-border shadow-sm'
   />
 </div>
 
-<Callout type="info">
-  工作流模块通过允许您使用更小的可重用组件来组成复杂的工作流，从而实现模块化设计。
+当您希望在更大的流程中调用子工作流时，可以使用工作流模块。该模块运行该工作流的最新部署版本，等待其完成后，再继续执行父流程。
+
+## 配置方法
+
+1. **选择一个工作流**：从下拉菜单中选择（为了防止循环，禁止自引用）。
+2. **映射输入**：如果子工作流有输入表单触发器，您将看到每个字段，并可以连接父变量。映射的值是子工作流接收到的值。
+3. **输出**：子工作流完成后，该模块会提供以下输出：
+   - `result` – 子工作流的最终响应
+   - `success` – 是否运行无错误
+   - `error` – 运行失败时的消息
+
+## 执行注意事项
+
+- 子工作流在相同的工作区上下文中运行，因此环境变量和工具会被继承。
+- 该模块使用部署版本控制：任何 API、计划任务、Webhook、手动或聊天执行都会调用已部署的快照。当您更改子工作流时，需要重新部署。
+- 如果子工作流失败，该模块会引发错误，除非您在下游处理了该错误。
+
+<Callout>
+保持子工作流的专注性。小型、可复用的流程更容易组合使用，而不会导致深层嵌套。
 </Callout>
-
-## 概述
-
-工作流模块充当工作流之间的桥梁，使您能够：
-
-<Steps>
-  <Step>
-    <strong>复用现有工作流</strong>：在新工作流中将之前创建的工作流作为组件执行
-  </Step>
-  <Step>
-    <strong>创建模块化设计</strong>：将复杂的流程分解为更小、更易管理的工作流
-  </Step>
-  <Step>
-    <strong>保持关注点分离</strong>：将不同的业务逻辑隔离在独立的工作流中
-  </Step>
-  <Step>
-    <strong>支持团队协作</strong>：在不同项目和团队成员之间共享和复用工作流
-  </Step>
-</Steps>
-
-## 工作原理
-
-工作流模块：
-
-1. 引用工作区中的另一个工作流
-2. 将当前工作流的输入数据传递给子工作流（通过 start.input 提供）
-3. 在隔离的上下文中执行子工作流
-4. 将结果返回给父工作流以进行进一步处理
-
-## 配置选项
-
-### 工作流选择
-
-从工作区中可用工作流的下拉列表中选择要执行的工作流。列表包括：
-
-- 您在当前工作区中有权限访问的所有工作流
-- 其他团队成员与您共享的工作流
-- 启用和禁用的工作流（但只有启用的工作流可以执行）
-
-### 执行上下文
-
-子工作流的执行包括：
-
-- 独立的执行上下文
-- 访问相同的工作区资源（API 密钥、环境变量）
-- 正确的工作区成员资格和权限检查
-- 在执行日志中嵌套的追踪跨度
-
-<Callout type="warning">
-  **循环检测**：系统会自动检测并防止工作流之间的循环依赖，以避免无限循环。
-</Callout>
-
-## 输入和输出
-
-<Tabs items={['配置', '变量', '结果']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>工作流选择</strong>：选择要执行的工作流
-      </li>
-      <li>
-        <strong>输入数据</strong>：传递给子工作流的变量或块引用
-      </li>
-      <li>
-        <strong>执行上下文</strong>：带有工作区资源的独立环境
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>workflow.success</strong>：布尔值，指示完成状态
-      </li>
-      <li>
-        <strong>workflow.childWorkflowName</strong>：已执行的子工作流名称
-      </li>
-      <li>
-        <strong>workflow.result</strong>：子工作流返回的结果
-      </li>
-      <li>
-        <strong>workflow.error</strong>：如果工作流失败，提供错误详情
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>工作流响应</strong>：子工作流的主要输出
-      </li>
-      <li>
-        <strong>执行状态</strong>：成功状态和错误信息
-      </li>
-      <li>
-        <strong>访问</strong>：在工作流之后的块中可用
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
-
-## 示例用例
-
-### 模块化客户入职
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">场景：将复杂的入职流程分解为可重用的组件</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>主工作流接收客户数据</li>
-    <li>工作流块执行验证工作流</li>
-    <li>工作流块执行账户设置工作流</li>
-    <li>工作流块执行欢迎邮件工作流</li>
-  </ol>
-</div>
-
-### 微服务架构
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">场景：创建独立的服务工作流</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>支付处理工作流处理交易</li>
-    <li>库存管理工作流更新库存</li>
-    <li>通知工作流发送确认信息</li>
-    <li>主工作流协调所有服务</li>
-  </ol>
-</div>
-
-### 条件处理
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">场景：根据条件执行不同的工作流</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>条件块评估用户类型</li>
-    <li>企业用户 → 复杂的审批工作流</li>
-    <li>标准用户 → 简单的审批工作流</li>
-    <li>免费用户 → 基础的处理工作流</li>
-  </ol>
-</div>
-
-## 最佳实践
-
-- **保持工作流专注**：设计子工作流以处理特定的、定义明确的任务，并具有清晰的输入和输出
-- **最小化嵌套深度**：避免深度嵌套的工作流层级，以提高可维护性和性能
-- **优雅地处理错误**：为子工作流失败实施适当的错误处理，并提供备用机制
-- **独立测试**：确保子工作流可以独立于父工作流进行测试和验证
-- **使用语义化命名**：为工作流赋予描述性名称，清楚地表明其目的和功能

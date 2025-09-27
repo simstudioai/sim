@@ -22,8 +22,20 @@ const MAX_WORKFLOW_DEPTH = 10
 export class WorkflowBlockHandler implements BlockHandler {
   private serializer = new Serializer()
 
+  // Tolerant JSON parser for mapping values
+  // Keeps handler self-contained without introducing utilities
+  private safeParse(input: unknown): unknown {
+    if (typeof input !== 'string') return input
+    try {
+      return JSON.parse(input)
+    } catch {
+      return input
+    }
+  }
+
   canHandle(block: SerializedBlock): boolean {
-    return block.metadata?.id === BlockType.WORKFLOW
+    const id = block.metadata?.id
+    return id === BlockType.WORKFLOW || id === 'workflow_input'
   }
 
   async execute(
@@ -46,8 +58,20 @@ export class WorkflowBlockHandler implements BlockHandler {
         throw new Error(`Maximum workflow nesting depth of ${MAX_WORKFLOW_DEPTH} exceeded`)
       }
 
-      // Load the child workflow from API
-      const childWorkflow = await this.loadChildWorkflow(workflowId)
+      // In deployed contexts, enforce that child workflow has an active deployment
+      if (context.isDeployedContext) {
+        const hasActiveDeployment = await this.checkChildDeployment(workflowId)
+        if (!hasActiveDeployment) {
+          throw new Error(
+            `Child workflow is not deployed. Please deploy the workflow before invoking it.`
+          )
+        }
+      }
+
+      // Load the child workflow
+      const childWorkflow = context.isDeployedContext
+        ? await this.loadChildWorkflowDeployed(workflowId)
+        : await this.loadChildWorkflow(workflowId)
 
       if (!childWorkflow) {
         throw new Error(`Child workflow ${workflowId} not found`)
@@ -63,13 +87,22 @@ export class WorkflowBlockHandler implements BlockHandler {
       )
 
       // Prepare the input for the child workflow
-      // The input from this block should be passed as start.input to the child workflow
-      let childWorkflowInput = {}
+      // Prefer structured mapping if provided; otherwise fall back to legacy 'input' passthrough
+      let childWorkflowInput: Record<string, any> = {}
 
-      if (inputs.input !== undefined) {
-        // If input is provided, use it directly
+      if (inputs.inputMapping !== undefined && inputs.inputMapping !== null) {
+        // Handle inputMapping - could be object or stringified JSON
+        const raw = inputs.inputMapping
+        const normalized = this.safeParse(raw)
+
+        if (normalized && typeof normalized === 'object' && !Array.isArray(normalized)) {
+          childWorkflowInput = normalized as Record<string, any>
+        } else {
+          childWorkflowInput = {}
+        }
+      } else if (inputs.input !== undefined) {
+        // Legacy behavior: pass under start.input
         childWorkflowInput = inputs.input
-        logger.info(`Passing input to child workflow: ${JSON.stringify(childWorkflowInput)}`)
       }
 
       // Remove the workflowId from the input to avoid confusion
@@ -83,6 +116,8 @@ export class WorkflowBlockHandler implements BlockHandler {
         workflowVariables: childWorkflow.variables || {},
         contextExtensions: {
           isChildExecution: true, // Prevent child executor from managing global state
+          // Propagate deployed context down to child execution so nested children obey constraints
+          isDeployedContext: context.isDeployedContext === true,
         },
       })
 
@@ -135,6 +170,68 @@ export class WorkflowBlockHandler implements BlockHandler {
    * Loads a child workflow from the API
    */
   private async loadChildWorkflow(workflowId: string) {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    if (typeof window === 'undefined') {
+      const token = await generateInternalToken()
+      headers.Authorization = `Bearer ${token}`
+    }
+
+    const response = await fetch(`${getBaseUrl()}/api/workflows/${workflowId}`, {
+      headers,
+    })
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        logger.warn(`Child workflow ${workflowId} not found`)
+        return null
+      }
+      throw new Error(`Failed to fetch workflow: ${response.status} ${response.statusText}`)
+    }
+
+    const { data: workflowData } = await response.json()
+
+    if (!workflowData) {
+      throw new Error(`Child workflow ${workflowId} returned empty data`)
+    }
+
+    logger.info(`Loaded child workflow: ${workflowData.name} (${workflowId})`)
+    const workflowState = workflowData.state
+
+    if (!workflowState || !workflowState.blocks) {
+      throw new Error(`Child workflow ${workflowId} has invalid state`)
+    }
+    // Important: do not swallow serialization/validation errors
+    const serializedWorkflow = this.serializer.serializeWorkflow(
+      workflowState.blocks,
+      workflowState.edges || [],
+      workflowState.loops || {},
+      workflowState.parallels || {},
+      true // Enable validation during execution
+    )
+
+    const workflowVariables = (workflowData.variables as Record<string, any>) || {}
+
+    if (Object.keys(workflowVariables).length > 0) {
+      logger.info(
+        `Loaded ${Object.keys(workflowVariables).length} variables for child workflow: ${workflowId}`
+      )
+    } else {
+      logger.debug(`No workflow variables found for child workflow: ${workflowId}`)
+    }
+
+    return {
+      name: workflowData.name,
+      serializedState: serializedWorkflow,
+      variables: workflowVariables,
+    }
+  }
+
+  /**
+   * Checks if a workflow has an active deployed version
+   */
+  private async checkChildDeployment(workflowId: string): Promise<boolean> {
     try {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -143,59 +240,77 @@ export class WorkflowBlockHandler implements BlockHandler {
         const token = await generateInternalToken()
         headers.Authorization = `Bearer ${token}`
       }
-
-      const response = await fetch(`${getBaseUrl()}/api/workflows/${workflowId}`, {
+      const response = await fetch(`${getBaseUrl()}/api/workflows/${workflowId}/deployed`, {
         headers,
+        cache: 'no-store',
       })
+      if (!response.ok) return false
+      const json = await response.json()
+      // API returns { deployedState: state | null }
+      return !!json?.data?.deployedState || !!json?.deployedState
+    } catch (e) {
+      logger.error(`Failed to check child deployment for ${workflowId}:`, e)
+      return false
+    }
+  }
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          logger.error(`Child workflow ${workflowId} not found`)
-          return null
-        }
-        throw new Error(`Failed to fetch workflow: ${response.status} ${response.statusText}`)
-      }
+  /**
+   * Loads child workflow using deployed state (for API/webhook/schedule/chat executions)
+   */
+  private async loadChildWorkflowDeployed(workflowId: string) {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    if (typeof window === 'undefined') {
+      const token = await generateInternalToken()
+      headers.Authorization = `Bearer ${token}`
+    }
 
-      const { data: workflowData } = await response.json()
-
-      if (!workflowData) {
-        logger.error(`Child workflow ${workflowId} returned empty data`)
+    // Fetch deployed state
+    const deployedRes = await fetch(`${getBaseUrl()}/api/workflows/${workflowId}/deployed`, {
+      headers,
+      cache: 'no-store',
+    })
+    if (!deployedRes.ok) {
+      if (deployedRes.status === 404) {
         return null
       }
-
-      logger.info(`Loaded child workflow: ${workflowData.name} (${workflowId})`)
-      const workflowState = workflowData.state
-
-      if (!workflowState || !workflowState.blocks) {
-        logger.error(`Child workflow ${workflowId} has invalid state`)
-        return null
-      }
-      const serializedWorkflow = this.serializer.serializeWorkflow(
-        workflowState.blocks,
-        workflowState.edges || [],
-        workflowState.loops || {},
-        workflowState.parallels || {},
-        true // Enable validation during execution
+      throw new Error(
+        `Failed to fetch deployed workflow: ${deployedRes.status} ${deployedRes.statusText}`
       )
+    }
+    const deployedJson = await deployedRes.json()
+    const deployedState = deployedJson?.data?.deployedState || deployedJson?.deployedState
+    if (!deployedState || !deployedState.blocks) {
+      throw new Error(`Deployed state missing or invalid for child workflow ${workflowId}`)
+    }
 
-      const workflowVariables = (workflowData.variables as Record<string, any>) || {}
+    // Fetch variables and name from live metadata (variables are not stored in deployments)
+    const metaRes = await fetch(`${getBaseUrl()}/api/workflows/${workflowId}`, {
+      headers,
+      cache: 'no-store',
+    })
+    if (!metaRes.ok) {
+      throw new Error(`Failed to fetch workflow metadata: ${metaRes.status} ${metaRes.statusText}`)
+    }
+    const metaJson = await metaRes.json()
+    const wfData = metaJson?.data
 
-      if (Object.keys(workflowVariables).length > 0) {
-        logger.info(
-          `Loaded ${Object.keys(workflowVariables).length} variables for child workflow: ${workflowId}`
-        )
-      } else {
-        logger.debug(`No workflow variables found for child workflow: ${workflowId}`)
-      }
+    // Important: do not swallow serialization/validation errors
+    const serializedWorkflow = this.serializer.serializeWorkflow(
+      deployedState.blocks,
+      deployedState.edges || [],
+      deployedState.loops || {},
+      deployedState.parallels || {},
+      true
+    )
 
-      return {
-        name: workflowData.name,
-        serializedState: serializedWorkflow,
-        variables: workflowVariables,
-      }
-    } catch (error) {
-      logger.error(`Error loading child workflow ${workflowId}:`, error)
-      return null
+    const workflowVariables = (wfData?.variables as Record<string, any>) || {}
+
+    return {
+      name: wfData?.name || 'Workflow',
+      serializedState: serializedWorkflow,
+      variables: workflowVariables,
     }
   }
 
@@ -308,10 +423,11 @@ export class WorkflowBlockHandler implements BlockHandler {
       }
       return failure as Record<string, any>
     }
-    let result = childResult
-    if (childResult?.output) {
-      result = childResult.output
-    }
+
+    // childResult is an ExecutionResult with structure { success, output, metadata, logs }
+    // We want the actual output from the execution
+    const result = childResult.output || {}
+
     return {
       success: true,
       childWorkflowName,

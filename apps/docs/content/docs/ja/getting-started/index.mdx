@@ -1,0 +1,193 @@
+---
+title: はじめに
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { File, Files, Folder } from 'fumadocs-ui/components/files'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import {
+  AgentIcon,
+  ApiIcon,
+  ChartBarIcon,
+  CodeIcon,
+  ConditionalIcon,
+  ConnectIcon,
+  ExaAIIcon,
+  FirecrawlIcon,
+  GmailIcon,
+  NotionIcon,
+  PerplexityIcon,
+  SlackIcon,
+} from '@/components/icons'
+import { Video } from '@/components/ui/video'
+import { Image } from '@/components/ui/image'
+
+このチュートリアルでは、Simで最初のAIワークフローを構築する方法をご案内します。最先端のLLM検索ツールを使用して個人に関する情報を見つけることができる人物調査エージェントを作成します。
+
+<Callout type="info">
+  このチュートリアルは約10分で完了し、Simでワークフローを構築するための基本的な概念をカバーしています。
+</Callout>
+
+## 作成するもの
+
+人物調査エージェントの機能：
+1. チャットインターフェースを通じて人物の名前を受け取る
+2. 高度な検索機能を持つAIエージェントを使用する
+3. 最先端のLLM検索ツール（ExaとLinkup）を使用してウェブを検索する
+4. レスポンスフォーマットを使用して構造化された情報を抽出する
+5. その人物に関する包括的なデータを返す
+
+<Image
+  src="/static/getting-started/started-1.png"
+  alt="はじめての例"
+  width={800}
+  height={500}
+/>
+
+## ステップバイステップのチュートリアル
+
+<Steps>
+  <Step title="ワークフローを作成しAIエージェントを追加する">
+    Simを開き、ダッシュボードで「新規ワークフロー」をクリックします。名前を「Getting Started」とします。
+    
+    新しいワークフローを作成すると、自動的に**スタートブロック**が含まれます - これはユーザーから入力を受け取るエントリーポイントです。この例ではチャットを通じてワークフローをトリガーするため、スタートブロックの設定は必要ありません。
+    
+    次に、左側のブロックパネルから**エージェントブロック**をキャンバスにドラッグします。
+    
+    エージェントブロックの設定：
+    - **モデル**：「OpenAI GPT-4o」を選択
+    - **システムプロンプト**：「あなたは人物調査エージェントです。人物の名前が与えられたら、利用可能な検索ツールを使用して、その人物の所在地、職業、学歴、その他の関連情報を含む包括的な情報を見つけてください。」
+    - **ユーザープロンプト**：スタートブロックの出力からこのフィールドへの接続をドラッグします（これにより `<start.input>` がユーザープロンプトに接続されます）
+    
+    <div className="mx-auto w-full overflow-hidden rounded-lg">
+      <Video src="getting-started/started-2.mp4" width={700} height={450} />
+    </div>
+  </Step>
+  
+  <Step title="エージェントにツールを追加する">
+    より良い機能を持たせるためにエージェントにツールを追加しましょう。エージェントブロックをクリックして選択します。
+    
+    **ツール**セクションで：
+    - **ツールを追加**をクリック
+    - 利用可能なツールから**Exa**を選択
+    - 利用可能なツールから**Linkup**を選択
+    - 両方のツールのAPIキーを追加します（これによりエージェントはウェブを検索し、追加情報にアクセスできるようになります）
+    
+    <div className="mx-auto w-3/5 overflow-hidden rounded-lg">
+      <Video src="getting-started/started-3.mp4" width={700} height={450} />
+    </div>
+  </Step>
+  
+  <Step title="基本的なワークフローをテストする">
+    それでは、ワークフローをテストしましょう。画面右側の**チャットパネル**に移動します。
+    
+    チャットパネルで：
+    - ドロップダウンをクリックして `agent1.content` を選択します（これによりエージェントの出力が表示されます）
+    - 「ジョンはサンフランシスコ出身のソフトウェアエンジニアで、スタンフォード大学でコンピュータサイエンスを学びました。」のようなテストメッセージを入力します
+    - 「送信」をクリックしてワークフローを実行します
+    
+    テキストに記述された人物を分析するエージェントの応答が表示されるはずです。
+    
+    <div className="mx-auto w-full overflow-hidden rounded-lg">
+      <Video src="getting-started/started-4.mp4" width={700} height={450} />
+    </div>
+  </Step>
+  
+  <Step title="構造化された出力を追加する">
+    次に、エージェントが構造化されたデータを返すようにしましょう。エージェントブロックをクリックして選択します。
+    
+    **レスポンスフォーマット**セクションで：
+    - スキーマフィールドの横にある**魔法の杖アイコン**（✨）をクリック
+    - 表示されるプロンプトに「location、profession、educationを含むpersonという名前のスキーマを作成する」と入力します
+    - AIが自動的にJSONスキーマを生成します
+    
+    <div className="mx-auto w-full overflow-hidden rounded-lg">
+      <Video src="getting-started/started-5.mp4" width={700} height={450} />
+    </div>
+  </Step>
+  
+  <Step title="構造化された出力をテストする">
+    **チャットパネル**に戻ります。
+    
+    レスポンスフォーマットを追加したので、新しい出力オプションが利用可能になりました：
+    - ドロップダウンをクリックして、新しい構造化出力オプション（先ほど作成したスキーマ）を選択します
+    - 「サラはニューヨーク出身のマーケティングマネージャーで、ハーバードビジネススクールでMBAを取得しています。」のような新しいテストメッセージを入力します
+    - 「送信」をクリックしてワークフローを再度実行します
+    
+    これで、人物の情報が所在地、職業、学歴のフィールドに整理された構造化されたJSON出力が表示されるはずです。
+    
+    <div className="mx-auto w-full overflow-hidden rounded-lg">
+      <Video src="getting-started/started-6.mp4" width={700} height={450} />
+    </div>
+  </Step>
+</Steps>
+
+## 作成したもの
+
+おめでとうございます！あなたは初めてのAIワークフローを作成しました：
+- ✅ チャットインターフェースを通じてテキスト入力を受け取る
+- ✅ AIを使用して非構造化テキストから情報を抽出する
+- ✅ 外部ツール（ExaとLinkup）を統合して機能を強化する
+- ✅ AIで生成されたスキーマを使用して構造化されたJSONデータを返す
+- ✅ ワークフローのテストと反復を実証する
+- ✅ ビジュアルワークフロー構築の力を示す
+
+## 学んだ主要な概念
+
+### 使用したブロックタイプ
+
+<Files>
+  <File
+    name="スタートブロック"
+    icon={<ConnectIcon className="h-4 w-4" />}
+    annotation="ユーザー入力のエントリーポイント（自動的に含まれる）"
+  />
+  <File
+    name="エージェントブロック"
+    icon={<AgentIcon className="h-4 w-4" />}
+    annotation="テキスト処理と分析のためのAIモデル"
+  />
+</Files>
+
+### コアワークフローの概念
+
+**データフロー**：変数は接続をドラッグすることでブロック間を流れます
+
+**チャットインターフェース**：さまざまな出力オプションを使用して、チャットパネルでリアルタイムにワークフローをテストします
+
+**ツール統合**：ExaやLinkupなどの外部ツールを追加してエージェントの機能を強化します
+
+**変数参照**：`<blockName.output>` 構文を使用してブロック出力にアクセスします
+
+**構造化出力**：JSONスキーマを使用してAIから一貫性のある構造化データを取得します
+
+**AI生成スキーマ**：魔法の杖（✨）を使用して自然言語でスキーマを生成します
+
+**反復的な開発**：ワークフローを簡単にテスト、修正、再テストできます
+
+## 次のステップ
+
+<Cards>
+  <Card title="ブロックを追加する" href="/blocks">
+    API、関数、条件ブロックについて学ぶ
+  </Card>
+  <Card title="ツールを使用する" href="/tools">
+    Gmail、Slack、Notionなどの外部サービスと統合する
+  </Card>
+  <Card title="カスタムロジックを追加する" href="/blocks/function">
+    カスタムデータ処理に関数ブロックを使用する
+  </Card>
+  <Card title="ワークフローをデプロイする" href="/execution">
+    REST API経由でワークフローにアクセスできるようにする
+  </Card>
+</Cards>
+
+## サポートが必要ですか？
+
+**ステップで行き詰まっていますか？** 各コンポーネントの詳細な説明については、[ブロックドキュメント](/blocks)をご確認ください。
+
+**もっと例を見たいですか？** 利用可能な連携機能を確認するには、[ツールドキュメント](/tools)をご覧ください。
+
+**デプロイの準備はできましたか？** ワークフローを実際に稼働させるには、[実行とデプロイ](/execution)について学びましょう。

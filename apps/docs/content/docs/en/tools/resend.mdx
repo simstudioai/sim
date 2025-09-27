@@ -1,0 +1,78 @@
+---
+title: Resend
+description: Send emails with Resend.
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="resend"
+  color="#181C1E"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+    
+    
+    
+    viewBox='0 0 1800 1800'
+    fill='none'
+    xmlns='http://www.w3.org/2000/svg'
+  >
+    <path
+      d='M1000.46 450C1174.77 450 1278.43 553.669 1278.43 691.282C1278.43 828.896 1174.77 932.563 1000.46 932.563H912.382L1350 1350H1040.82L707.794 1033.48C683.944 1011.47 672.936 985.781 672.935 963.765C672.935 932.572 694.959 905.049 737.161 893.122L908.712 847.244C973.85 829.812 1018.81 779.353 1018.81 713.298C1018.8 632.567 952.745 585.78 871.095 585.78H450V450H1000.46Z'
+      fill='#FDFDFD'
+    />
+  </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Resend](https://resend.com/) is a modern email service designed for developers to send transactional and marketing emails with ease. It provides a simple, reliable API and dashboard for managing email delivery, templates, and analytics, making it a popular choice for integrating email functionality into applications and workflows.
+
+With Resend, you can:
+
+- **Send transactional emails**: Deliver password resets, notifications, confirmations, and more with high deliverability
+- **Manage templates**: Create and update email templates for consistent branding and messaging
+- **Track analytics**: Monitor delivery, open, and click rates to optimize your email performance
+- **Integrate easily**: Use a straightforward API and SDKs for seamless integration with your applications
+- **Ensure security**: Benefit from robust authentication and domain verification to protect your email reputation
+
+In Sim, the Resend integration allows your agents to programmatically send emails as part of your automated workflows. This enables use cases such as sending notifications, alerts, or custom messages directly from your Sim-powered agents. By connecting Sim with Resend, you can automate communication tasks, ensuring timely and reliable email delivery without manual intervention. The integration leverages your Resend API key, keeping your credentials secure while enabling powerful email automation scenarios.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Resend into the workflow. Can send emails. Requires API Key.
+
+
+
+## Tools
+
+### `resend_send`
+
+Send an email using your own Resend API key and from address
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fromAddress` | string | Yes | Email address to send from |
+| `to` | string | Yes | Recipient email address |
+| `subject` | string | Yes | Email subject |
+| `body` | string | Yes | Email body content |
+| `resendApiKey` | string | Yes | Resend API key for sending emails |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the email was sent successfully |
+| `to` | string | Recipient email address |
+| `subject` | string | Email subject |
+| `body` | string | Email body content |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `resend`

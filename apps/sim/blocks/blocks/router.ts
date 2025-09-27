@@ -1,6 +1,6 @@
 import { ConnectIcon } from '@/components/icons'
 import { isHosted } from '@/lib/environment'
-import type { BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { ProviderId } from '@/providers/types'
 import {
   getAllModelProviders,
@@ -108,8 +108,13 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
   type: 'router',
   name: 'Router',
   description: 'Route workflow',
+  authMode: AuthMode.ApiKey,
   longDescription:
     'This is a core workflow block. Intelligently direct workflow execution to different paths based on input analysis. Use natural language to instruct the router to route to certain blocks based on the input.',
+  bestPractices: `
+  - For the prompt, make it almost programmatic. Use the system prompt to define the routing criteria. Should be very specific with no ambiguity.
+  - Use the target block *names* to define the routing criteria.
+  `,
   category: 'blocks',
   bgColor: '#28C43F',
   icon: ConnectIcon,

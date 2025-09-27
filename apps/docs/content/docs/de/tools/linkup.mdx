@@ -1,0 +1,72 @@
+---
+title: Linkup
+description: Durchsuche das Web mit Linkup
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="linkup"
+  color="#D6D3C7"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      viewBox='0 0 24 24'
+      
+      
+      fill='none'
+    >
+      <path
+        d='M20.2 14.1c-.4-.3-1.6-.4-2.9-.2.5-1.4 1.3-3.9.1-5-.6-.5-1.5-.7-2.6-.5-.3 0-.6.1-1 .2-1.1-1.6-2.4-2.5-3.8-2.5-1.6 0-3.1 1-4.1 2.9-1.2 2.1-1.9 5.1-1.9 8.8v.03l.4.3c3-.9 7.5-2.3 10.7-2.9 0 .9.1 1.9.1 2.8v.03l.4.3c.1 0 5.4-1.7 5.3-3.3 0-.2-.1-.5-.3-.7zM19.9 14.7c.03.4-1.7 1.4-4 2.3.5-.7 1-1.6 1.3-2.5 1.4-.1 2.4-.1 2.7.2zM16.4 14.6c-.3.7-.7 1.4-1.2 2-.02-.6-.1-1.2-.2-1.8.4-.1.9-.1 1.4-.2zM16.5 9.4c.8.7.9 2.4.1 5.1-.5.1-1 .1-1.5.2-.3-2-.9-3.8-1.7-5.3.3-.1.6-.2.8-.2.9-.1 1.7.05 2.3.2zM9.5 6.8c1.2 0 2.3.7 3.2 2.1-2.8 1.1-5.9 3.4-8.4 7.8.2-5.1 1.9-9.9 5.2-9.9zM4.7 17c3.4-4.9 6.4-6.8 8.4-7.8.7 1.3 1.2 2.9 1.5 4.8-3.2.6-7.3 1.8-9.9 3z'
+        fill='currentColor'
+        stroke='currentColor'
+        strokeWidth='0.5'
+        strokeLinejoin='round'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Linkup](https://linkup.so) ist ein leistungsstarkes Web-Suchwerkzeug, das sich nahtlos in Sim integrieren lässt und es deinen KI-Agenten ermöglicht, auf aktuelle Informationen aus dem Web mit korrekter Quellenangabe zuzugreifen.
+
+Linkup verbessert deine KI-Agenten, indem es ihnen die Möglichkeit gibt, im Web nach aktuellen Informationen zu suchen. Bei der Integration in das Toolkit deines Agenten:
+
+- **Echtzeit-Informationszugriff**: Agenten können die neuesten Informationen aus dem Web abrufen und so ihre Antworten aktuell und relevant halten.
+- **Quellenangabe**: Alle Informationen werden mit korrekten Zitaten versehen, was Transparenz und Glaubwürdigkeit gewährleistet.
+- **Einfache Implementierung**: Füge Linkup mit minimaler Konfiguration zum Werkzeugkasten deines Agenten hinzu.
+- **Kontextbewusstsein**: Agenten können Webinformationen nutzen und dabei ihre Persönlichkeit und ihren Gesprächsstil beibehalten.
+
+Um Linkup in deinem Agenten zu implementieren, füge das Tool einfach zur Konfiguration deines Agenten hinzu. Dein Agent kann dann im Web suchen, wann immer er Fragen beantworten muss, die aktuelle Informationen erfordern.
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Integriere Linkup in den Workflow. Kann das Web durchsuchen. Benötigt API-Schlüssel.
+
+## Tools
+
+### `linkup_search`
+
+Durchsuche das Web nach Informationen mit Linkup
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | Ja | Die Suchanfrage |
+| `depth` | string | Ja | Suchtiefe (muss entweder "standard" oder "deep" sein) |
+| `outputType` | string | Ja | Art der zurückzugebenden Ausgabe (muss entweder "sourcedAnswer" oder "searchResults" sein) |
+| `apiKey` | string | Ja | Gib deinen Linkup API-Schlüssel ein |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `answer` | string | Die mit Quellen belegte Antwort auf die Suchanfrage |
+| `sources` | array | Array von Quellen, die zur Erstellung der Antwort verwendet wurden, jede enthält Name, URL und Textausschnitt |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `linkup`

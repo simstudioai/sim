@@ -1,0 +1,40 @@
+---
+title: Workflow-Block
+description: Führe einen anderen Workflow innerhalb des aktuellen Ablaufs aus
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+## Was er macht
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/blocks/workflow.png'
+    alt='Workflow-Block-Konfiguration'
+    width={400}
+    height={280}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+Füge einen Workflow-Block hinzu, wenn du einen untergeordneten Workflow als Teil eines größeren Ablaufs aufrufen möchtest. Der Block führt die neueste bereitgestellte Version dieses Workflows aus, wartet auf dessen Abschluss und setzt dann mit dem übergeordneten Workflow fort.
+
+## Konfiguration
+
+1. **Wähle einen Workflow** aus dem Dropdown-Menü (Selbstreferenzen sind blockiert, um Schleifen zu verhindern).
+2. **Eingaben zuordnen**: Wenn der untergeordnete Workflow einen Eingabeformular-Trigger hat, siehst du jedes Feld und kannst übergeordnete Variablen verbinden. Die zugeordneten Werte sind das, was der untergeordnete Workflow erhält.
+3. **Ausgaben**: Nach Abschluss des untergeordneten Workflows stellt der Block folgendes bereit:
+   - `result` – die endgültige Antwort des untergeordneten Workflows
+   - `success` – ob er ohne Fehler ausgeführt wurde
+   - `error` – Nachricht, wenn die Ausführung fehlschlägt
+
+## Ausführungshinweise
+
+- Untergeordnete Workflows laufen im gleichen Workspace-Kontext, sodass Umgebungsvariablen und Tools übernommen werden.
+- Der Block verwendet Deployment-Versionierung: Jede API-, Zeitplan-, Webhook-, manuelle oder Chat-Ausführung ruft den bereitgestellten Snapshot auf. Stelle den untergeordneten Workflow neu bereit, wenn du ihn änderst.
+- Wenn der untergeordnete Workflow fehlschlägt, löst der Block einen Fehler aus, es sei denn, du behandelst ihn nachgelagert.
+
+<Callout>
+Halte untergeordnete Workflows fokussiert. Kleine, wiederverwendbare Abläufe machen es einfacher, sie zu kombinieren, ohne tiefe Verschachtelungen zu erzeugen.
+</Callout>

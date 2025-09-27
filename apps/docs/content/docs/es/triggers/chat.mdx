@@ -1,0 +1,43 @@
+---
+title: Disparador de chat
+description: Inicia un flujo de trabajo desde un despliegue de chat
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+## Descripción general
+
+El disparador de Chat crea una interfaz conversacional para tu flujo de trabajo. Despliega tu flujo de trabajo como un chat y los usuarios pueden interactuar con él a través de una URL compartible. Cada mensaje inicia una nueva ejecución del flujo de trabajo utilizando tu último despliegue.
+
+## Salidas en tiempo de ejecución
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/triggers/chat-trigger-light.png'
+    alt='Conversación de despliegue de chat'
+    width={400}
+    height={250}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+El disparador escribe tres campos que los bloques posteriores pueden referenciar:
+
+| Referencia | Descripción |
+|-----------|-------------|
+| `<chat.input>` | Último mensaje del usuario |
+| `<chat.conversationId>` | ID del hilo de conversación |
+| `<chat.files>` | Archivos subidos opcionales |
+
+Los archivos incluyen `name`, `mimeType`, y una descarga firmada `url`.
+
+## Notas de uso
+
+1. Añade un bloque de Disparador de Chat por flujo de trabajo.
+2. Despliega el flujo de trabajo en modo chat.
+3. Comparte el enlace de despliegue—cada respuesta reutiliza el ID de conversación para que el flujo de trabajo pueda mantener el contexto.
+
+<Callout type="info">
+El constructor bloquea múltiples bloques de Disparador de Chat en el mismo flujo de trabajo.
+</Callout>

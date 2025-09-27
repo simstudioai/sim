@@ -45,9 +45,6 @@ next-env.d.ts
 # cursorrules
 .cursorrules
 
-# Sentry Config File
-.env.sentry-build-plugin
-
 # Uploads
 /uploads
 

@@ -1,0 +1,126 @@
+---
+title: Webhooks
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Video } from '@/components/ui/video'
+
+Webhooks ermöglichen externen Diensten die Ausführung von Workflows durch das Senden von HTTP-Anfragen an Ihren Workflow. Sim unterstützt zwei Ansätze für webhook-basierte Auslöser.
+
+## Generischer Webhook-Auslöser
+
+Der generische Webhook-Block erstellt einen flexiblen Endpunkt, der beliebige Payloads empfangen und Ihren Workflow auslösen kann:
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="webhooks-1.mp4" width={700} height={450} />
+</div>
+
+### Funktionsweise
+
+1. **Generischen Webhook-Block hinzufügen** - Ziehen Sie den generischen Webhook-Block an den Anfang Ihres Workflows
+2. **Payload konfigurieren** - Richten Sie die erwartete Payload-Struktur ein (optional)
+3. **Webhook-URL erhalten** - Kopieren Sie den automatisch generierten eindeutigen Endpunkt
+4. **Externe Integration** - Konfigurieren Sie Ihren externen Dienst, um POST-Anfragen an diese URL zu senden
+5. **Workflow-Ausführung** - Jede Anfrage an die Webhook-URL löst den Workflow aus
+
+### Funktionen
+
+- **Flexible Payload**: Akzeptiert jede JSON-Payload-Struktur
+- **Automatische Analyse**: Webhook-Daten werden automatisch analysiert und stehen nachfolgenden Blöcken zur Verfügung
+- **Authentifizierung**: Optionale Bearer-Token- oder benutzerdefinierte Header-Authentifizierung
+- **Rate-Limiting**: Eingebauter Schutz gegen Missbrauch
+- **Deduplizierung**: Verhindert doppelte Ausführungen bei wiederholten Anfragen
+
+<Callout type="info">
+Der generische Webhook-Auslöser wird jedes Mal aktiviert, wenn die Webhook-URL eine Anfrage erhält, was ihn perfekt für Echtzeit-Integrationen macht.
+</Callout>
+
+## Auslösemodus für Service-Blöcke
+
+Alternativ können Sie spezifische Service-Blöcke (wie Slack, GitHub usw.) im "Auslösemodus" verwenden, um speziellere Webhook-Endpunkte zu erstellen:
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="slack-trigger.mp4" width={700} height={450} />
+</div>
+
+### Einrichten des Trigger-Modus
+
+1. **Service-Block hinzufügen** - Wähle einen Service-Block (z.B. Slack, GitHub, Airtable)
+2. **Trigger-Modus aktivieren** - Schalte "Als Trigger verwenden" in den Block-Einstellungen ein
+3. **Service konfigurieren** - Richte Authentifizierung und Event-Filter für diesen Service ein
+4. **Webhook-Registrierung** - Der Service registriert den Webhook automatisch bei der externen Plattform
+5. **Ereignisbasierte Ausführung** - Workflow wird nur für bestimmte Ereignisse dieses Services ausgelöst
+
+### Wann welcher Ansatz verwendet werden sollte
+
+**Verwende Generic Webhook, wenn:**
+- Du mit benutzerdefinierten Anwendungen oder Diensten integrierst
+- Du maximale Flexibilität bei der Payload-Struktur benötigst
+- Du mit Diensten arbeitest, die keine dedizierten Blöcke haben
+- Du interne Integrationen erstellst
+
+**Verwende den Trigger-Modus, wenn:**
+- Du mit unterstützten Diensten arbeitest (Slack, GitHub, etc.)
+- Du dienstspezifische Ereignisfilterung benötigst
+- Du automatische Webhook-Registrierung benötigst
+- Du strukturierte Datenverarbeitung für diesen Dienst wünschst
+
+## Unterstützte Dienste für den Trigger-Modus
+
+Die folgenden Service-Blöcke unterstützen den Trigger-Modus:
+
+- **Slack** - Nachrichten, Erwähnungen, Reaktionen
+- **GitHub** - Push, PR, Issue-Events  
+- **Airtable** - Datensatzänderungen
+- **Telegram** - Bot-Nachrichten und Befehle
+- **Gmail** - E-Mail-Benachrichtigungen
+- **WhatsApp** - Messaging-Events
+- **Jira** - Issue-Updates, Kommentare
+- **Linear** - Issue-Statusänderungen
+- **Notion** - Seitenaktualisierungen
+
+## Sicherheit und Best Practices
+
+### Authentifizierungsoptionen
+
+- **Bearer Tokens**: `Authorization: Bearer <token>` Header einfügen
+- **Benutzerdefinierte Header**: Definiere benutzerdefinierte Authentifizierungs-Header
+
+### Payload-Verarbeitung
+
+- **Validierung**: Validiere eingehende Payloads, um fehlerhafte Daten zu vermeiden
+- **Größenbeschränkungen**: Webhooks haben Payload-Größenbeschränkungen aus Sicherheitsgründen
+- **Fehlerbehandlung**: Konfiguriere Fehlerantworten für ungültige Anfragen
+
+### Webhooks testen
+
+1. Verwende Tools wie Postman oder curl, um deine Webhook-Endpunkte zu testen
+2. Überprüfe die Ausführungsprotokolle des Workflows zur Fehlerbehebung
+3. Stelle sicher, dass die Payload-Struktur deinen Erwartungen entspricht
+4. Teste Authentifizierungs- und Fehlerszenarien
+
+<Callout type="warning">
+Validiere und bereinige immer eingehende Webhook-Daten, bevor du sie in deinen Workflows verarbeitest.
+</Callout>
+
+## Häufige Anwendungsfälle
+
+### Echtzeit-Benachrichtigungen
+- Slack-Nachrichten, die automatisierte Antworten auslösen
+- E-Mail-Benachrichtigungen für kritische Ereignisse
+
+### CI/CD-Integration  
+- GitHub-Pushes, die Deployment-Workflows auslösen
+- Build-Status-Updates
+- Automatisierte Test-Pipelines
+
+### Datensynchronisation
+- Airtable-Änderungen, die andere Systeme aktualisieren
+- Formularübermittlungen, die Folgemaßnahmen auslösen
+- E-Commerce-Auftragsverarbeitung
+
+### Kundensupport
+- Workflows zur Erstellung von Support-Tickets
+- Automatisierte Eskalationsprozesse
+- Multi-Kanal-Kommunikationsweiterleitung

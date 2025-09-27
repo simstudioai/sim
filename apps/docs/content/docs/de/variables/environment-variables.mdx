@@ -1,0 +1,96 @@
+---
+title: Umgebungsvariablen
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+Umgebungsvariablen bieten eine sichere Möglichkeit, Konfigurationswerte und Geheimnisse in Ihren Workflows zu verwalten, einschließlich API-Schlüssel und anderer sensibler Daten, auf die Ihre Workflows zugreifen müssen. Sie halten Geheimnisse aus Ihren Workflow-Definitionen heraus und machen sie während der Ausführung verfügbar.
+
+## Variablentypen
+
+Umgebungsvariablen in Sim funktionieren auf zwei Ebenen:
+
+- **Persönliche Umgebungsvariablen**: Privat für Ihr Konto, nur Sie können sie sehen und verwenden
+- **Workspace-Umgebungsvariablen**: Werden im gesamten Workspace geteilt und sind für alle Teammitglieder verfügbar
+
+<Callout type="info">
+Workspace-Umgebungsvariablen haben Vorrang vor persönlichen Variablen, wenn es einen Namenskonflikt gibt.
+</Callout>
+
+## Einrichten von Umgebungsvariablen
+
+Navigieren Sie zu den Einstellungen, um Ihre Umgebungsvariablen zu konfigurieren:
+
+<Image
+  src="/static/environment/environment-1.png"
+  alt="Umgebungsvariablen-Modal zum Erstellen neuer Variablen"
+  width={500}
+  height={350}
+/>
+
+In Ihren Workspace-Einstellungen können Sie sowohl persönliche als auch Workspace-Umgebungsvariablen erstellen und verwalten. Persönliche Variablen sind privat für Ihr Konto, während Workspace-Variablen mit allen Teammitgliedern geteilt werden.
+
+### Variablen auf Workspace-Ebene setzen
+
+Verwenden Sie den Workspace-Bereichsschalter, um Variablen für Ihr gesamtes Team verfügbar zu machen:
+
+<Image
+  src="/static/environment/environment-2.png"
+  alt="Workspace-Bereich für Umgebungsvariablen umschalten"
+  width={500}
+  height={350}
+/>
+
+Wenn Sie den Workspace-Bereich aktivieren, wird die Variable für alle Workspace-Mitglieder verfügbar und kann in jedem Workflow innerhalb dieses Workspaces verwendet werden.
+
+### Ansicht der Workspace-Variablen
+
+Sobald Sie Workspace-Variablen haben, erscheinen sie in Ihrer Liste der Umgebungsvariablen:
+
+<Image
+  src="/static/environment/environment-3.png"
+  alt="Workspace-Variablen in der Liste der Umgebungsvariablen"
+  width={500}
+  height={350}
+/>
+
+## Verwendung von Variablen in Workflows
+
+Um Umgebungsvariablen in Ihren Workflows zu referenzieren, verwenden Sie die `{{}}` Notation. Wenn Sie `{{` in ein beliebiges Eingabefeld eingeben, erscheint ein Dropdown-Menü mit Ihren persönlichen und Workspace-Umgebungsvariablen. Wählen Sie einfach die Variable aus, die Sie verwenden möchten.
+
+<Image
+  src="/static/environment/environment-4.png"
+  alt="Verwendung von Umgebungsvariablen mit doppelter Klammernotation"
+  width={500}
+  height={350}
+/>
+
+## Variablen-Präzedenz
+
+Wenn Sie sowohl persönliche als auch Workspace-Variablen mit demselben Namen haben:
+
+1. **Workspace-Variablen haben Vorrang** vor persönlichen Variablen
+2. Dies verhindert Namenskonflikte und gewährleistet ein konsistentes Verhalten in Team-Workflows
+3. Wenn eine Workspace-Variable existiert, wird die persönliche Variable mit demselben Namen ignoriert
+
+<Callout type="warning">
+Wählen Sie Variablennamen sorgfältig, um unbeabsichtigte Überschreibungen zu vermeiden. Erwägen Sie, persönliche Variablen mit Ihren Initialen oder Workspace-Variablen mit dem Projektnamen zu versehen.
+</Callout>
+
+## Sicherheits-Best-Practices
+
+### Für sensible Daten
+- Speichern Sie API-Schlüssel, Tokens und Passwörter als Umgebungsvariablen anstatt sie im Code festzuschreiben
+- Verwenden Sie Workspace-Variablen für gemeinsam genutzte Ressourcen, die mehrere Teammitglieder benötigen
+- Bewahren Sie persönliche Anmeldedaten in persönlichen Variablen auf
+
+### Variablenbenennung
+- Verwenden Sie beschreibende Namen: `DATABASE_URL` anstatt `DB`
+- Folgen Sie einheitlichen Benennungskonventionen in Ihrem Team
+- Erwägen Sie Präfixe, um Konflikte zu vermeiden: `PROD_API_KEY`, `DEV_API_KEY`
+
+### Zugriffskontrolle
+- Workspace-Umgebungsvariablen respektieren Workspace-Berechtigungen
+- Nur Benutzer mit Schreibzugriff oder höher können Workspace-Variablen erstellen/ändern
+- Persönliche Variablen sind immer privat für den einzelnen Benutzer

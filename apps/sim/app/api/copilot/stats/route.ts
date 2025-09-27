@@ -8,7 +8,7 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/auth'
 import { env } from '@/lib/env'
-import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
+import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent/constants'
 
 const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 

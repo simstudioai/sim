@@ -1,15 +1,13 @@
 name: Trigger.dev Deploy
 
 on:
-  push:
-    branches:
-      - main
-      - staging
+  workflow_call:
+  workflow_dispatch:
 
 jobs:
   deploy:
     name: Trigger.dev Deploy
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     concurrency:
       group: trigger-deploy-${{ github.ref }}
       cancel-in-progress: false

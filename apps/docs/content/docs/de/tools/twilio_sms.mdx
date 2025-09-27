@@ -1,0 +1,67 @@
+---
+title: Twilio SMS
+description: SMS-Nachrichten versenden
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="twilio_sms"
+  color="#F22F46"
+  icon={true}
+  iconSvg={`<svg className="block-icon"  xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'>
+      <path
+        fill='currentColor'
+        d='M128 0c70.656 0 128 57.344 128 128s-57.344 128-128 128S0 198.656 0 128 57.344 0 128 0zm0 33.792c-52.224 0-94.208 41.984-94.208 94.208S75.776 222.208 128 222.208s94.208-41.984 94.208-94.208S180.224 33.792 128 33.792zm31.744 99.328c14.704 0 26.624 11.92 26.624 26.624 0 14.704-11.92 26.624-26.624 26.624-14.704 0-26.624-11.92-26.624-26.624 0-14.704 11.92-26.624 26.624-26.624zm-63.488 0c14.704 0 26.624 11.92 26.624 26.624 0 14.704-11.92 26.624-26.624 26.624-14.704 0-26.624-11.92-26.624-26.624 0-14.704 11.92-26.624 26.624-26.624zm63.488-63.488c14.704 0 26.624 11.92 26.624 26.624 0 14.704-11.92 26.624-26.624 26.624-14.704 0-26.624-11.92-26.624-26.624 0-14.704 11.92-26.624 26.624-26.624zm-63.488 0c14.704 0 26.624 11.92 26.624 26.624 0 14.704-11.92 26.624-26.624 26.624-14.704 0-26.624-11.92-26.624-26.624 0-14.704 11.92-26.624 26.624-26.624z'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Twilio SMS](https://www.twilio.com/en-us/sms) ist eine leistungsstarke Cloud-Kommunikationsplattform, die es Unternehmen ermöglicht, Messaging-Funktionen in ihre Anwendungen und Dienste zu integrieren.
+
+Twilio SMS bietet eine robuste API zum programmatischen Senden und Empfangen von Textnachrichten weltweit. Mit Abdeckung in über 180 Ländern und einer 99,999% Verfügbarkeits-SLA hat sich Twilio als Branchenführer in der Kommunikationstechnologie etabliert.
+
+Zu den wichtigsten Funktionen von Twilio SMS gehören:
+
+- **Globale Reichweite**: Senden Sie Nachrichten an Empfänger weltweit mit lokalen Telefonnummern in mehreren Ländern
+- **Programmierbares Messaging**: Passen Sie die Nachrichtenzustellung mit Webhooks, Zustellbestätigungen und Planungsoptionen an
+- **Erweiterte Analytik**: Verfolgen Sie Zustellraten, Engagement-Metriken und optimieren Sie Ihre Messaging-Kampagnen
+
+In Sim ermöglicht die Twilio SMS-Integration Ihren Agenten, diese leistungsstarken Messaging-Funktionen als Teil ihrer Workflows zu nutzen. Dies schafft Möglichkeiten für anspruchsvolle Kundenbindungsszenarien wie Terminerinnerungen, Verifizierungscodes, Warnmeldungen und interaktive Gespräche. Die Integration überbrückt die Lücke zwischen Ihren KI-Workflows und Kundenkommunikationskanälen und ermöglicht es Ihren Agenten, zeitnahe, relevante Informationen direkt auf die Mobilgeräte der Benutzer zu liefern. Durch die Verbindung von Sim mit Twilio SMS können Sie intelligente Agenten erstellen, die Kunden über ihren bevorzugten Kommunikationskanal ansprechen, die Benutzererfahrung verbessern und gleichzeitig routinemäßige Messaging-Aufgaben automatisieren.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanweisungen
+
+Twilio in den Workflow integrieren. Kann SMS-Nachrichten senden.
+
+## Tools
+
+### `twilio_send_sms`
+
+Senden Sie Textnachrichten an einzelne oder mehrere Empfänger über die Twilio API.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `phoneNumbers` | string | Ja | Telefonnummern, an die die Nachricht gesendet werden soll, durch Zeilenumbrüche getrennt |
+| `message` | string | Ja | Zu sendende Nachricht |
+| `accountSid` | string | Ja | Twilio Account SID |
+| `authToken` | string | Ja | Twilio Auth Token |
+| `fromNumber` | string | Ja | Twilio-Telefonnummer, von der die Nachricht gesendet wird |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `success` | boolean | SMS-Sendeerfolg-Status |
+| `messageId` | string | Eindeutige Twilio-Nachrichtenkennung \(SID\) |
+| `status` | string | Nachrichtenzustellungsstatus von Twilio |
+| `fromNumber` | string | Telefonnummer, von der die Nachricht gesendet wurde |
+| `toNumber` | string | Telefonnummer, an die die Nachricht gesendet wurde |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `twilio_sms`

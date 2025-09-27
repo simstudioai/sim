@@ -1,169 +1,40 @@
 ---
-title: Workflow
+title: Workflow Block
+description: Run another workflow inside the current flow
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-The Workflow block allows you to execute other workflows as reusable components within your current workflow. This enables modular design, code reuse, and the creation of complex nested workflows that can be composed from smaller, focused workflows.
+## What It Does
 
-<div className="flex justify-center">
+<div className='flex justify-center my-6'>
   <Image
-    src="/static/blocks/workflow.png"
-    alt="Workflow Block"
-    width={500}
-    height={350}
-    className="my-6"
+    src='/static/blocks/workflow.png'
+    alt='Workflow block configuration'
+    width={400}
+    height={280}
+    className='rounded-xl border border-border shadow-sm'
   />
 </div>
 
-<Callout type="info">
-  Workflow blocks enable modular design by allowing you to compose complex workflows from smaller, reusable components.
+Drop a Workflow block when you want to call a child workflow as part of a larger flow. The block runs the latest deployed version of that workflow, waits for it to finish, and then continues with the parent.
+
+## Configure It
+
+1. **Pick a workflow** from the dropdown (self-references are blocked to prevent loops).
+2. **Map inputs**: If the child workflow has an Input Form trigger, you’ll see each field and can connect parent variables. The mapped values are what the child receives.
+3. **Outputs**: After the child finishes, the block exposes:
+   - `result` – the child workflow’s final response
+   - `success` – whether it ran without errors
+   - `error` – message when the run fails
+
+## Execution Notes
+
+- Child workflows run in the same workspace context, so environment variables and tools carry over.
+- The block uses deployment versioning: any API, schedule, webhook, manual, or chat execution calls the deployed snapshot. Redeploy the child when you change it.
+- If the child fails, the block raises an error unless you handle it downstream.
+
+<Callout>
+Keep child workflows focused. Small, reusable flows make it easier to combine them without creating deep nesting.
 </Callout>
-
-## Overview
-
-The Workflow block serves as a bridge between workflows, enabling you to:
-
-<Steps>
-  <Step>
-    <strong>Reuse existing workflows</strong>: Execute previously created workflows as components within new workflows
-  </Step>
-  <Step>
-    <strong>Create modular designs</strong>: Break down complex processes into smaller, manageable workflows
-  </Step>
-  <Step>
-    <strong>Maintain separation of concerns</strong>: Keep different business logic isolated in separate workflows
-  </Step>
-  <Step>
-    <strong>Enable team collaboration</strong>: Share and reuse workflows across different projects and team members
-  </Step>
-</Steps>
-
-## How It Works
-
-The Workflow block:
-
-1. Takes a reference to another workflow in your workspace
-2. Passes input data from the current workflow to the child workflow (available via start.input)
-3. Executes the child workflow in an isolated context
-4. Returns the result back to the parent workflow for further processing
-
-## Configuration Options
-
-### Workflow Selection
-
-Choose which workflow to execute from a dropdown list of available workflows in your workspace. The list includes:
-
-- All workflows you have access to in the current workspace
-- Workflows shared with you by other team members
-- Both enabled and disabled workflows (though only enabled workflows can be executed)
-
-
-### Execution Context
-
-The child workflow executes with:
-
-- Its own isolated execution context
-- Access to the same workspace resources (API keys, environment variables)
-- Proper workspace membership and permission checks
-- Nested tracespan in the execution log
-
-<Callout type="warning">
-  **Cycle Detection**: The system automatically detects and prevents circular dependencies between workflows to avoid infinite loops.
-</Callout>
-
-## Inputs and Outputs
-
-<Tabs items={['Configuration', 'Variables', 'Results']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Workflow Selection</strong>: Choose which workflow to execute
-      </li>
-      <li>
-        <strong>Input Data</strong>: Variable or block reference to pass to child workflow
-      </li>
-      <li>
-        <strong>Execution Context</strong>: Isolated environment with workspace resources
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>workflow.success</strong>: Boolean indicating completion status
-      </li>
-      <li>
-        <strong>workflow.childWorkflowName</strong>: Name of executed child workflow
-      </li>
-      <li>
-        <strong>workflow.result</strong>: Result returned by the child workflow
-      </li>
-      <li>
-        <strong>workflow.error</strong>: Error details if workflow failed
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Workflow Response</strong>: Primary output from child workflow
-      </li>
-      <li>
-        <strong>Execution Status</strong>: Success status and error information
-      </li>
-      <li>
-        <strong>Access</strong>: Available in blocks after the workflow
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
-
-## Example Use Cases
-
-### Modular Customer Onboarding
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Break down complex onboarding into reusable components</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Main workflow receives customer data</li>
-    <li>Workflow block executes validation workflow</li>
-    <li>Workflow block executes account setup workflow</li>
-    <li>Workflow block executes welcome email workflow</li>
-  </ol>
-</div>
-
-### Microservice Architecture
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Create independent service workflows</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Payment processing workflow handles transactions</li>
-    <li>Inventory management workflow updates stock</li>
-    <li>Notification workflow sends confirmations</li>
-    <li>Main workflow orchestrates all services</li>
-  </ol>
-</div>
-
-### Conditional Processing
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Execute different workflows based on conditions</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>Condition block evaluates user type</li>
-    <li>Enterprise users → Complex approval workflow</li>
-    <li>Standard users → Simple approval workflow</li>
-    <li>Free users → Basic processing workflow</li>
-  </ol>
-</div>
-
-## Best Practices
-
-- **Keep workflows focused**: Design child workflows to handle specific, well-defined tasks with clear inputs and outputs
-- **Minimize nesting depth**: Avoid deeply nested workflow hierarchies for better maintainability and performance
-- **Handle errors gracefully**: Implement proper error handling for child workflow failures and provide fallback mechanisms
-- **Test independently**: Ensure child workflows can be tested and validated independently from parent workflows
-- **Use semantic naming**: Give workflows descriptive names that clearly indicate their purpose and functionality

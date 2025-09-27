@@ -1,13 +1,14 @@
 import { EyeIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { VisionResponse } from '@/tools/vision/types'
 
 export const VisionBlock: BlockConfig<VisionResponse> = {
   type: 'vision',
   name: 'Vision',
   description: 'Analyze images with vision models',
-  longDescription:
-    'Integrate Vision into the workflow. Can analyze images with vision models. Requires API Key.',
+  authMode: AuthMode.ApiKey,
+  longDescription: 'Integrate Vision into the workflow. Can analyze images with vision models.',
   docsLink: 'https://docs.sim.ai/tools/vision',
   category: 'tools',
   bgColor: '#4D5FFF',

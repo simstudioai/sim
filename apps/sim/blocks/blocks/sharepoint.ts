@@ -1,6 +1,7 @@
 import { MicrosoftSharepointIcon } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { SharepointResponse } from '@/tools/sharepoint/types'
 
 const logger = createLogger('SharepointBlock')
@@ -9,6 +10,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
   type: 'sharepoint',
   name: 'Sharepoint',
   description: 'Work with pages and lists',
+  authMode: AuthMode.OAuth,
   longDescription:
     'Integrate SharePoint into the workflow. Read/create pages, list sites, and work with lists (read, create, update items). Requires OAuth.',
   docsLink: 'https://docs.sim.ai/tools/sharepoint',

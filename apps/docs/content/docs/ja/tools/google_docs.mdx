@@ -1,0 +1,144 @@
+---
+title: Google ドキュメント
+description: ドキュメントの読み取り、作成、編集
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_docs"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      viewBox='0 0 48 48'
+      
+      
+    >
+      <path
+        fill='#2196f3'
+        d='M37,45H11c-1.657,0-3-1.343-3-3V6c0-1.657,1.343-3,3-3h19l10,10v29C40,43.657,38.657,45,37,45z'
+      />
+      <path fill='#bbdefb' d='M40 13L30 13 30 3z' />
+      <path fill='#1565c0' d='M30 13L40 23 40 13z' />
+      <path fill='#e3f2fd' d='M15 23H33V25H15zM15 27H33V29H15zM15 31H33V33H15zM15 35H25V37H15z' />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google ドキュメント](https://docs.google.com)は、ユーザーがリアルタイムでドキュメントを作成、編集、共同作業できる強力なクラウドベースのドキュメント作成・編集サービスです。Googleの生産性スイートの一部として、Google ドキュメントは堅牢な書式設定、コメント機能、共有機能を備えたテキストドキュメント用の多目的プラットフォームを提供しています。
+
+Simで Google ドキュメントの「読み取り」ツールを統合して、ドキュメントからデータを簡単に取得し、ワークフローに組み込む方法を学びましょう。このチュートリアルでは、Google ドキュメントの接続、データ読み取りの設定、およびその情報をリアルタイムでプロセスを自動化するために使用する方法を説明します。エージェントとライブデータを同期するのに最適です。
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/f41gy9rBHhE"
+  title="Simで Google ドキュメント読み取りツールを使用する"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Simで Google ドキュメントの「更新」ツールを統合して、ワークフローを通じてドキュメントに簡単にコンテンツを追加する方法を学びましょう。このチュートリアルでは、Google ドキュメントの接続、データ書き込みの設定、およびその情報をシームレスにドキュメント更新を自動化するために使用する方法を説明します。最小限の労力で動的なリアルタイムドキュメントを維持するのに最適です。
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/L64ROHS2ivA"
+  title="Simで Google ドキュメント更新ツールを使用する"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Simで Google ドキュメントの「作成」ツールを統合して、ワークフローを通じて新しいドキュメントを簡単に生成する方法を学びましょう。このチュートリアルでは、Google ドキュメントの接続、ドキュメント作成の設定、およびワークフローデータを使用してコンテンツを自動的に入力する方法を説明します。ドキュメント生成の効率化と生産性向上に最適です。
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/lWpHH4qddWk"
+  title="SimでGoogle Docs作成ツールを使用する"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Google Docsでは、次のことができます：
+
+- **ドキュメントの作成と編集**：包括的な書式設定オプションでテキストドキュメントを作成
+- **リアルタイムでの共同作業**：同じドキュメントで複数のユーザーが同時に作業可能
+- **変更の追跡**：改訂履歴を表示し、以前のバージョンを復元
+- **コメントと提案**：元のコンテンツを変更せずにフィードバックや編集の提案が可能
+- **どこからでもアクセス**：自動クラウド同期により、複数のデバイスでGoogle Docsを使用
+- **オフラインでの作業**：インターネット接続なしで作業を続け、オンラインに戻ったときに変更を同期
+- **他のサービスとの統合**：Google Drive、Sheets、Slides、およびサードパーティアプリケーションと連携
+
+Simでは、Google Docs統合によりエージェントがプログラムでドキュメントコンテンツと直接やり取りできます。これにより、ドキュメント作成、コンテンツ抽出、共同編集、ドキュメント管理などの強力な自動化シナリオが可能になります。エージェントは既存のドキュメントから情報を抽出したり、ドキュメントに書き込んでコンテンツを更新したり、新しいドキュメントを一から作成したりできます。この統合により、AIワークフローとドキュメント管理の間のギャップが埋まり、世界で最も広く使用されているドキュメントプラットフォームの一つとシームレスに連携できます。SimとGoogle Docsを接続することで、ドキュメントワークフローの自動化、レポートの生成、ドキュメントからの洞察の抽出、ドキュメントの維持管理など、すべてをインテリジェントエージェントを通じて行うことができます。
+{/* MANUAL-CONTENT-END */}
+
+## 使用手順
+
+Google Docsをワークフローに統合します。ドキュメントの読み取り、書き込み、作成が可能です。OAuthが必要です。
+
+## ツール
+
+### `google_docs_read`
+
+Google Docsドキュメントからコンテンツを読み取る
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `documentId` | string | はい | 読み取るドキュメントのID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `content` | string | 抽出されたドキュメントのテキストコンテンツ |
+| `metadata` | json | ID、タイトル、URLを含むドキュメントのメタデータ |
+
+### `google_docs_write`
+
+Google Docsドキュメントにコンテンツを書き込みまたは更新する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `documentId` | string | はい | 書き込み先ドキュメントのID |
+| `content` | string | はい | ドキュメントに書き込むコンテンツ |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `updatedContent` | boolean | ドキュメントのコンテンツが正常に更新されたかどうかを示す |
+| `metadata` | json | ID、タイトル、URLを含む更新されたドキュメントのメタデータ |
+
+### `google_docs_create`
+
+新しいGoogle Docsドキュメントを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | はい | 作成するドキュメントのタイトル |
+| `content` | string | いいえ | 作成するドキュメントのコンテンツ |
+| `folderSelector` | string | いいえ | ドキュメントを作成するフォルダを選択 |
+| `folderId` | string | いいえ | ドキュメントを作成するフォルダのID（内部使用） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `metadata` | json | 作成されたドキュメントのメタデータ（ID、タイトル、URLを含む） |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `google_docs`

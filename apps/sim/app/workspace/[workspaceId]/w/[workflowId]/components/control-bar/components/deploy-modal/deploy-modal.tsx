@@ -1,16 +1,28 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2, X } from 'lucide-react'
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui'
+import { Loader2, MoreVertical, X } from 'lucide-react'
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui'
 import { getEnv } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/db-helpers'
 import {
   DeployForm,
   DeploymentInfo,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components'
 import { ChatDeploy } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/chat-deploy/chat-deploy'
+import { DeployedWorkflowModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deployment-controls/components/deployed-workflow-modal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -52,7 +64,7 @@ interface DeployFormValues {
   newKeyName?: string
 }
 
-type TabView = 'api' | 'chat'
+type TabView = 'general' | 'api' | 'chat'
 
 export function DeployModal({
   open,
@@ -75,20 +87,35 @@ export function DeployModal({
   const [isLoading, setIsLoading] = useState(false)
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
   const [keysLoaded, setKeysLoaded] = useState(false)
-  const [activeTab, setActiveTab] = useState<TabView>('api')
+  const [activeTab, setActiveTab] = useState<TabView>('general')
   const [chatSubmitting, setChatSubmitting] = useState(false)
   const [apiDeployError, setApiDeployError] = useState<string | null>(null)
   const [chatExists, setChatExists] = useState(false)
   const [isChatFormValid, setIsChatFormValid] = useState(false)
 
+  const [versions, setVersions] = useState<WorkflowDeploymentVersionResponse[]>([])
+  const [versionsLoading, setVersionsLoading] = useState(false)
+  const [activatingVersion, setActivatingVersion] = useState<number | null>(null)
+  const [previewVersion, setPreviewVersion] = useState<number | null>(null)
+  const [previewing, setPreviewing] = useState(false)
+  const [previewDeployedState, setPreviewDeployedState] = useState<WorkflowState | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 5
+
   const getInputFormatExample = () => {
     let inputFormatExample = ''
     try {
       const blocks = Object.values(useWorkflowStore.getState().blocks)
+
+      // Check for API trigger block first (takes precedence)
+      const apiTriggerBlock = blocks.find((block) => block.type === 'api_trigger')
+      // Fall back to legacy starter block
       const starterBlock = blocks.find((block) => block.type === 'starter')
 
-      if (starterBlock) {
-        const inputFormat = useSubBlockStore.getState().getValue(starterBlock.id, 'inputFormat')
+      const targetBlock = apiTriggerBlock || starterBlock
+
+      if (targetBlock) {
+        const inputFormat = useSubBlockStore.getState().getValue(targetBlock.id, 'inputFormat')
 
         if (inputFormat && Array.isArray(inputFormat) && inputFormat.length > 0) {
           const exampleData: Record<string, any> = {}
@@ -172,7 +199,7 @@ export function DeployModal({
       setIsLoading(true)
       fetchApiKeys()
       fetchChatDeploymentInfo()
-      setActiveTab('api')
+      setActiveTab('general')
     }
   }, [open, workflowId])
 
@@ -274,10 +301,76 @@ export function DeployModal({
       setDeploymentInfo(newDeploymentInfo)
 
       await refetchDeployedState()
+      await fetchVersions()
     } catch (error: unknown) {
       logger.error('Error deploying workflow:', { error })
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const fetchVersions = async () => {
+    if (!workflowId) return
+    try {
+      setVersionsLoading(true)
+      const res = await fetch(`/api/workflows/${workflowId}/deployments`)
+      if (res.ok) {
+        const data = await res.json()
+        setVersions(Array.isArray(data.versions) ? data.versions : [])
+      } else {
+        setVersions([])
+      }
+    } catch {
+      setVersions([])
+    } finally {
+      setVersionsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (open && workflowId) {
+      fetchVersions()
+    }
+  }, [open, workflowId])
+
+  const activateVersion = async (version: number) => {
+    if (!workflowId) return
+    try {
+      setActivatingVersion(version)
+      const res = await fetch(`/api/workflows/${workflowId}/deployments/${version}/activate`, {
+        method: 'POST',
+      })
+      if (res.ok) {
+        await refetchDeployedState()
+        await fetchVersions()
+        if (workflowId) {
+          useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
+        }
+        if (previewVersion !== null) {
+          setPreviewVersion(null)
+          setPreviewDeployedState(null)
+          setPreviewing(false)
+        }
+      }
+    } finally {
+      setActivatingVersion(null)
+    }
+  }
+
+  const openVersionPreview = async (version: number) => {
+    if (!workflowId) return
+    try {
+      setPreviewing(true)
+      setPreviewVersion(version)
+      const res = await fetch(`/api/workflows/${workflowId}/deployments/${version}`)
+      if (res.ok) {
+        const data = await res.json()
+        setPreviewDeployedState(data.deployedState || null)
+      } else {
+        setPreviewDeployedState(null)
+      }
+    } finally {
+      // keep modal open even if error; user can close
     }
   }
 
@@ -338,6 +431,7 @@ export function DeployModal({
       }
 
       await refetchDeployedState()
+      await fetchVersions()
 
       // Ensure modal status updates immediately
       setDeploymentInfo((prev) => (prev ? { ...prev, needsRedeployment: false } : prev))
@@ -355,34 +449,33 @@ export function DeployModal({
   }
 
   const handleWorkflowPreDeploy = async () => {
-    if (!isDeployed) {
-      const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          deployApiEnabled: true,
-          deployChatEnabled: false,
-        }),
-      })
+    // Always deploy to ensure a new deployment version exists
+    const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        deployApiEnabled: true,
+        deployChatEnabled: false,
+      }),
+    })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to deploy workflow')
-      }
-
-      const { isDeployed: newDeployStatus, deployedAt, apiKey } = await response.json()
-
-      setDeploymentStatus(
-        workflowId,
-        newDeployStatus,
-        deployedAt ? new Date(deployedAt) : undefined,
-        apiKey
-      )
-
-      setDeploymentInfo((prev) => (prev ? { ...prev, apiKey } : null))
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error || 'Failed to deploy workflow')
     }
+
+    const { isDeployed: newDeployStatus, deployedAt, apiKey } = await response.json()
+
+    setDeploymentStatus(
+      workflowId,
+      newDeployStatus,
+      deployedAt ? new Date(deployedAt) : undefined,
+      apiKey
+    )
+
+    setDeploymentInfo((prev) => (prev ? { ...prev, apiKey } : null))
   }
 
   const handleChatFormSubmit = () => {
@@ -418,6 +511,16 @@ export function DeployModal({
           <div className='flex h-14 flex-none items-center border-b px-6'>
             <div className='flex gap-2'>
               <button
+                onClick={() => setActiveTab('general')}
+                className={`rounded-md px-3 py-1 text-sm transition-colors ${
+                  activeTab === 'general'
+                    ? 'bg-accent text-foreground'
+                    : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                }`}
+              >
+                General
+              </button>
+              <button
                 onClick={() => setActiveTab('api')}
                 className={`rounded-md px-3 py-1 text-sm transition-colors ${
                   activeTab === 'api'
@@ -442,6 +545,175 @@ export function DeployModal({
 
           <div className='flex-1 overflow-y-auto'>
             <div className='p-6'>
+              {activeTab === 'general' && (
+                <>
+                  {isDeployed ? (
+                    <DeploymentInfo
+                      isLoading={isLoading}
+                      deploymentInfo={
+                        deploymentInfo ? { ...deploymentInfo, needsRedeployment } : null
+                      }
+                      onRedeploy={handleRedeploy}
+                      onUndeploy={handleUndeploy}
+                      isSubmitting={isSubmitting}
+                      isUndeploying={isUndeploying}
+                      workflowId={workflowId}
+                      deployedState={deployedState}
+                      isLoadingDeployedState={isLoadingDeployedState}
+                      getInputFormatExample={getInputFormatExample}
+                    />
+                  ) : (
+                    <>
+                      {apiDeployError && (
+                        <div className='mb-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-destructive text-sm'>
+                          <div className='font-semibold'>API Deployment Error</div>
+                          <div>{apiDeployError}</div>
+                        </div>
+                      )}
+                      <div className='-mx-1 px-1'>
+                        <DeployForm
+                          apiKeys={apiKeys}
+                          keysLoaded={keysLoaded}
+                          onSubmit={onDeploy}
+                          onApiKeyCreated={fetchApiKeys}
+                          formId='deploy-api-form-general'
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <div className='mt-6'>
+                    <div className='mb-3 font-medium text-sm'>Deployment Versions</div>
+                    {versionsLoading ? (
+                      <div className='rounded-md border p-4 text-center text-muted-foreground text-sm'>
+                        Loading deployments...
+                      </div>
+                    ) : versions.length === 0 ? (
+                      <div className='rounded-md border p-4 text-center text-muted-foreground text-sm'>
+                        No deployments yet
+                      </div>
+                    ) : (
+                      <>
+                        <div className='overflow-hidden rounded-md border'>
+                          <table className='w-full'>
+                            <thead className='border-b bg-muted/50'>
+                              <tr>
+                                <th className='w-10' />
+                                <th className='px-4 py-2 text-left font-medium text-muted-foreground text-xs'>
+                                  Version
+                                </th>
+                                <th className='px-4 py-2 text-left font-medium text-muted-foreground text-xs'>
+                                  Deployed By
+                                </th>
+                                <th className='px-4 py-2 text-left font-medium text-muted-foreground text-xs'>
+                                  Created
+                                </th>
+                                <th className='w-10' />
+                              </tr>
+                            </thead>
+                            <tbody className='divide-y'>
+                              {versions
+                                .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                                .map((v) => (
+                                  <tr
+                                    key={v.id}
+                                    className='cursor-pointer transition-colors hover:bg-muted/30'
+                                    onClick={() => openVersionPreview(v.version)}
+                                  >
+                                    <td className='px-4 py-2.5'>
+                                      <div
+                                        className={`h-2 w-2 rounded-full ${
+                                          v.isActive ? 'bg-green-500' : 'bg-muted-foreground/40'
+                                        }`}
+                                        title={v.isActive ? 'Active' : 'Inactive'}
+                                      />
+                                    </td>
+                                    <td className='px-4 py-2.5'>
+                                      <span className='font-medium text-sm'>v{v.version}</span>
+                                    </td>
+                                    <td className='px-4 py-2.5'>
+                                      <span className='text-muted-foreground text-sm'>
+                                        {v.deployedBy || 'Unknown'}
+                                      </span>
+                                    </td>
+                                    <td className='px-4 py-2.5'>
+                                      <span className='text-muted-foreground text-sm'>
+                                        {new Date(v.createdAt).toLocaleDateString()}{' '}
+                                        {new Date(v.createdAt).toLocaleTimeString()}
+                                      </span>
+                                    </td>
+                                    <td
+                                      className='px-4 py-2.5'
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <Button
+                                            variant='ghost'
+                                            size='icon'
+                                            className='h-8 w-8'
+                                            disabled={activatingVersion === v.version}
+                                          >
+                                            <MoreVertical className='h-4 w-4' />
+                                          </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align='end'>
+                                          <DropdownMenuItem
+                                            onClick={() => activateVersion(v.version)}
+                                            disabled={v.isActive || activatingVersion === v.version}
+                                          >
+                                            {v.isActive
+                                              ? 'Active'
+                                              : activatingVersion === v.version
+                                                ? 'Activating...'
+                                                : 'Activate'}
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            onClick={() => openVersionPreview(v.version)}
+                                          >
+                                            Inspect
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
+                                    </td>
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        {versions.length > itemsPerPage && (
+                          <div className='mt-3 flex items-center justify-between'>
+                            <span className='text-muted-foreground text-sm'>
+                              Showing{' '}
+                              {Math.min((currentPage - 1) * itemsPerPage + 1, versions.length)} -{' '}
+                              {Math.min(currentPage * itemsPerPage, versions.length)} of{' '}
+                              {versions.length}
+                            </span>
+                            <div className='flex gap-2'>
+                              <Button
+                                variant='outline'
+                                size='sm'
+                                onClick={() => setCurrentPage(currentPage - 1)}
+                                disabled={currentPage === 1}
+                              >
+                                Previous
+                              </Button>
+                              <Button
+                                variant='outline'
+                                size='sm'
+                                onClick={() => setCurrentPage(currentPage + 1)}
+                                disabled={currentPage * itemsPerPage >= versions.length}
+                              >
+                                Next
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
               {activeTab === 'api' && (
                 <>
                   {isDeployed ? (
@@ -491,11 +763,48 @@ export function DeployModal({
                   onValidationChange={setIsChatFormValid}
                   onPreDeployWorkflow={handleWorkflowPreDeploy}
                   onDeploymentComplete={handleCloseModal}
+                  onDeployed={async () => {
+                    await refetchDeployedState()
+                    await fetchVersions()
+                    if (workflowId) {
+                      useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
+                    }
+                  }}
                 />
               )}
             </div>
           </div>
         </div>
+
+        {activeTab === 'general' && !isDeployed && (
+          <div className='flex flex-shrink-0 justify-between border-t px-6 py-4'>
+            <Button variant='outline' onClick={handleCloseModal}>
+              Cancel
+            </Button>
+
+            <Button
+              type='submit'
+              form='deploy-api-form-general'
+              disabled={isSubmitting || (!keysLoaded && !apiKeys.length)}
+              className={cn(
+                'gap-2 font-medium',
+                'bg-[var(--brand-primary-hover-hex)] hover:bg-[var(--brand-primary-hover-hex)]',
+                'shadow-[0_0_0_0_var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
+                'text-white transition-all duration-200',
+                'disabled:opacity-50 disabled:hover:bg-[var(--brand-primary-hover-hex)] disabled:hover:shadow-none'
+              )}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
+                  Deploying...
+                </>
+              ) : (
+                'Deploy'
+              )}
+            </Button>
+          </div>
+        )}
 
         {activeTab === 'api' && !isDeployed && (
           <div className='flex flex-shrink-0 justify-between border-t px-6 py-4'>
@@ -587,6 +896,25 @@ export function DeployModal({
           </div>
         )}
       </DialogContent>
+      {previewVersion !== null && previewDeployedState && workflowId && (
+        <DeployedWorkflowModal
+          isOpen={true}
+          onClose={() => {
+            setPreviewVersion(null)
+            setPreviewDeployedState(null)
+            setPreviewing(false)
+          }}
+          needsRedeployment={true}
+          activeDeployedState={deployedState}
+          selectedDeployedState={previewDeployedState as WorkflowState}
+          selectedVersion={previewVersion}
+          onActivateVersion={() => activateVersion(previewVersion)}
+          isActivating={activatingVersion === previewVersion}
+          selectedVersionLabel={`v${previewVersion}`}
+          workflowId={workflowId}
+          isSelectedVersionActive={versions.find((v) => v.version === previewVersion)?.isActive}
+        />
+      )}
     </Dialog>
   )
 }

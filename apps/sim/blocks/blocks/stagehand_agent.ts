@@ -1,13 +1,14 @@
 import { StagehandIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { StagehandAgentResponse } from '@/tools/stagehand/types'
 
 export const StagehandAgentBlock: BlockConfig<StagehandAgentResponse> = {
   type: 'stagehand_agent',
   name: 'Stagehand Agent',
   description: 'Autonomous web browsing agent',
+  authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Stagehand Agent into the workflow. Can navigate the web and perform tasks. Requires API Key.',
+    'Integrate Stagehand Agent into the workflow. Can navigate the web and perform tasks.',
   docsLink: 'https://docs.sim.ai/tools/stagehand_agent',
   category: 'tools',
   bgColor: '#FFC83C',

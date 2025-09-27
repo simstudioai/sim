@@ -20,7 +20,7 @@ interface NavProps {
 }
 
 export default function Nav({ hideAuthButtons = false, variant = 'landing' }: NavProps = {}) {
-  const [githubStars, setGithubStars] = useState('15k')
+  const [githubStars, setGithubStars] = useState('15.4k')
   const [isHovered, setIsHovered] = useState(false)
   const [isLoginHovered, setIsLoginHovered] = useState(false)
   const router = useRouter()
@@ -148,8 +148,8 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
         )}
       </div>
 
-      {/* Auth Buttons - respect hideAuthButtons prop and only show on hosted instances for landing pages */}
-      {!hideAuthButtons && (variant === 'auth' || isHosted) && (
+      {/* Auth Buttons - show only when hosted, regardless of variant */}
+      {!hideAuthButtons && isHosted && (
         <div className='flex items-center justify-center gap-[16px] pt-[1.5px]'>
           <button
             onClick={handleLoginClick}

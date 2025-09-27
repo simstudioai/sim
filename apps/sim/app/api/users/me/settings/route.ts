@@ -26,6 +26,8 @@ const SettingsSchema = z.object({
     })
     .optional(),
   billingUsageNotificationsEnabled: z.boolean().optional(),
+  showFloatingControls: z.boolean().optional(),
+  showTrainingControls: z.boolean().optional(),
 })
 
 // Default settings values
@@ -38,6 +40,8 @@ const defaultSettings = {
   telemetryEnabled: true,
   emailPreferences: {},
   billingUsageNotificationsEnabled: true,
+  showFloatingControls: true,
+  showTrainingControls: false,
 }
 
 export async function GET() {

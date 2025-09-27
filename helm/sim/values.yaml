@@ -110,9 +110,6 @@ app:
     NEXT_PUBLIC_TERMS_URL: ""                            # Terms of service URL (leave empty for none)
     NEXT_PUBLIC_PRIVACY_URL: ""                          # Privacy policy URL (leave empty for none)
     
-    # Monitoring & Analytics (leave empty if not using)
-    NEXT_PUBLIC_SENTRY_DSN: ""                           # Sentry DSN for error tracking
-    
     # Access Control (leave empty if not restricting login)
     ALLOWED_LOGIN_EMAILS: ""                             # Comma-separated list of allowed email addresses for login
     ALLOWED_LOGIN_DOMAINS: ""                            # Comma-separated list of allowed email domains for login

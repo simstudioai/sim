@@ -1,0 +1,231 @@
+---
+title: 並列
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+並列ブロックはSimのコンテナブロックで、複数のブロックインスタンスを同時に実行し、ワークフローの処理を高速化することができます。
+
+並列ブロックは2種類の同時実行をサポートしています：
+
+<Callout type="info">
+  並列ブロックはコンテンツを複数回同時に実行するコンテナノードであり、順次実行するループとは異なります。
+</Callout>
+
+## 概要
+
+並列ブロックでは以下のことが可能です：
+
+<Steps>
+  <Step>
+    <strong>作業の分散</strong>：複数の項目を同時に処理
+  </Step>
+  <Step>
+    <strong>実行の高速化</strong>：独立した操作を同時に実行
+  </Step>
+  <Step>
+    <strong>一括操作の処理</strong>：大規模なデータセットを効率的に処理
+  </Step>
+  <Step>
+    <strong>結果の集約</strong>：すべての並列実行からの出力を収集
+  </Step>
+</Steps>
+
+## 設定オプション
+
+### 並列タイプ
+
+2種類の並列実行から選択できます：
+
+<Tabs items={['Count-based', 'Collection-based']}>
+  <Tab>
+    **カウントベースの並列処理** - 固定数の並列インスタンスを実行します：
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/parallel-1.png"
+        alt="カウントベースの並列実行"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    同じ操作を複数回同時に実行する必要がある場合に使用します。
+    
+
+    ```
+    Example: Run 5 parallel instances
+    - Instance 1 ┐
+    - Instance 2 ├─ All execute simultaneously
+    - Instance 3 │
+    - Instance 4 │
+    - Instance 5 ┘
+    ```
+
+  </Tab>
+  <Tab>
+    **コレクションベースの並列処理** - コレクションを並列インスタンス間で分散します：
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/parallel-2.png"
+        alt="コレクションベースの並列実行"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    各インスタンスはコレクションから1つの項目を同時に処理します。
+    
+
+    ```
+    Example: Process ["task1", "task2", "task3"] in parallel
+    - Instance 1: Process "task1" ┐
+    - Instance 2: Process "task2" ├─ All execute simultaneously
+    - Instance 3: Process "task3" ┘
+    ```
+
+  </Tab>
+</Tabs>
+
+## 並列ブロックの使用方法
+
+### 並列ブロックの作成
+
+1. ツールバーから並列ブロックをキャンバスにドラッグします
+2. 並列タイプとパラメータを設定します
+3. 並列コンテナ内に単一のブロックをドラッグします
+4. 必要に応じてブロックを接続します
+
+### 結果へのアクセス
+
+並列ブロックが完了した後、集計された結果にアクセスできます：
+
+- **`<parallel.results>`**: すべての並列インスタンスからの結果の配列
+
+## 使用例
+
+### バッチAPI処理
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">シナリオ：複数のAPIコールを同時に処理する</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>APIエンドポイントのコレクションを持つ並列ブロック</li>
+    <li>並列内部：APIブロックが各エンドポイントを呼び出す</li>
+    <li>並列後：すべてのレスポンスをまとめて処理</li>
+  </ol>
+</div>
+
+### マルチモデルAI処理
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">シナリオ：複数のAIモデルからレスポンスを取得する</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>モデルIDのリスト（例：["gpt-4o", "claude-3.7-sonnet", "gemini-2.5-pro"]）に対するコレクションベースの並列処理</li>
+    <li>並列内部：エージェントのモデルがコレクションの現在のアイテムに設定される</li>
+    <li>並列後：最適な回答を比較して選択</li>
+  </ol>
+</div>
+
+## 高度な機能
+
+### 結果の集約
+
+すべての並列インスタンスからの結果は自動的に収集されます：
+
+```javascript
+// In a Function block after the parallel
+const allResults = input.parallel.results;
+// Returns: [result1, result2, result3, ...]
+```
+
+### インスタンスの分離
+
+各並列インスタンスは独立して実行されます：
+- 個別の変数スコープ
+- インスタンス間で共有される状態なし
+- 一つのインスタンスの失敗が他に影響しない
+
+### 制限事項
+
+<Callout type="warning">
+  コンテナブロック（ループと並列）は互いにネストできません。つまり：
+  - 並列ブロック内にループブロックを配置できません
+  - 並列ブロック内に別の並列ブロックを配置できません
+  - どのコンテナブロック内にも別のコンテナブロックを配置できません
+</Callout>
+
+<Callout type="warning">
+  並列ブロックには単一のブロックしか含めることができません。並列内で複数のブロックを互いに接続することはできません - その場合、最初のブロックのみが実行されます。
+</Callout>
+
+<Callout type="info">
+  並列実行は高速ですが、以下の点に注意してください：
+  - 同時リクエスト時のAPIレート制限
+  - 大規模データセット使用時のメモリ使用量
+  - リソース枯渇を防ぐための最大20の同時インスタンス
+</Callout>
+
+## 並列処理 vs ループ処理
+
+それぞれの使用タイミングを理解する：
+
+| 機能 | 並列処理 | ループ処理 |
+|---------|----------|------|
+| 実行方法 | 同時実行 | 順次実行 |
+| 速度 | 独立した操作では高速 | 遅いが順序を保持 |
+| 順序 | 順序保証なし | 順序を維持 |
+| ユースケース | 独立した操作 | 依存関係のある操作 |
+| リソース使用量 | 高い | 低い |
+
+## 入力と出力
+
+<Tabs items={['設定', '変数', '結果']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>並列タイプ</strong>：「count」または「collection」から選択
+      </li>
+      <li>
+        <strong>カウント</strong>：実行するインスタンス数（カウントベース）
+      </li>
+      <li>
+        <strong>コレクション</strong>：分散する配列またはオブジェクト（コレクションベース）
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>parallel.currentItem</strong>：このインスタンスのアイテム
+      </li>
+      <li>
+        <strong>parallel.index</strong>：インスタンス番号（0から始まる）
+      </li>
+      <li>
+        <strong>parallel.items</strong>：完全なコレクション（コレクションベース）
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>parallel.results</strong>：すべてのインスタンス結果の配列
+      </li>
+      <li>
+        <strong>アクセス</strong>：並列処理後のブロックで利用可能
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## ベストプラクティス
+
+- **独立した操作のみ**：操作が互いに依存しないようにする
+- **レート制限の処理**：APIを多用するワークフローには遅延やスロットリングを追加
+- **エラー処理**：各インスタンスは自身のエラーを適切に処理すべき

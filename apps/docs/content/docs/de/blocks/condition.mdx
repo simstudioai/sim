@@ -1,0 +1,242 @@
+---
+title: Bedingung
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
+import { Image } from '@/components/ui/image'
+
+Der Bedingungsblock ermöglicht es Ihnen, den Ausführungspfad Ihres Workflows basierend auf booleschen Ausdrücken zu verzweigen und so dynamische, reaktionsfähige Workflows mit unterschiedlichen Ausführungspfaden zu erstellen. Er wertet Bedingungen aus und leitet den Workflow entsprechend weiter, sodass Sie den Ausführungsfluss basierend auf Daten oder Logik steuern können, ohne ein LLM zu benötigen.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/condition.png"
+    alt="Bedingungsblock"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+<Callout>
+  Bedingungsblöcke ermöglichen deterministische Entscheidungsfindung ohne ein LLM zu benötigen, was sie ideal
+  für unkomplizierte Verzweigungslogik macht.
+</Callout>
+
+## Überblick
+
+Der Bedingungsblock ermöglicht Ihnen:
+
+<Steps>
+  <Step>
+    <strong>Verzweigungslogik erstellen</strong>: Workflows basierend auf booleschen Ausdrücken leiten
+  </Step>
+  <Step>
+    <strong>Datengesteuerte Entscheidungen treffen</strong>: Bedingungen anhand von Ausgaben vorheriger Blöcke auswerten
+  </Step>
+  <Step>
+    <strong>Mehrere Szenarien behandeln</strong>: Mehrere Bedingungen mit unterschiedlichen Pfaden definieren
+  </Step>
+  <Step>
+    <strong>Deterministische Weiterleitung bieten</strong>: Entscheidungen ohne ein LLM treffen
+  </Step>
+</Steps>
+
+## Funktionsweise
+
+Der Bedingungsblock arbeitet durch einen sequentiellen Auswertungsprozess:
+
+1. **Ausdruck auswerten** - Verarbeitet den JavaScript/TypeScript-booleschen Ausdruck mit aktuellen Workflow-Daten
+2. **Ergebnis bestimmen** - Gibt basierend auf der Ausdrucksauswertung true oder false zurück
+3. **Workflow weiterleiten** - Leitet die Ausführung basierend auf dem Ergebnis an den entsprechenden Zielblock weiter  
+4. **Kontext bereitstellen** - Generiert Metadaten über die Entscheidung für Debugging und Überwachung
+
+## Konfigurationsoptionen
+
+### Bedingungen
+
+Definieren Sie eine oder mehrere Bedingungen, die ausgewertet werden. Jede Bedingung umfasst:
+
+- **Ausdruck**: Ein JavaScript/TypeScript-Ausdruck, der zu true oder false ausgewertet wird
+- **Pfad**: Der Zielblock, zu dem weitergeleitet werden soll, wenn die Bedingung true ist
+- **Beschreibung**: Optionale Erklärung, was die Bedingung prüft
+
+Sie können mehrere Bedingungen erstellen, die der Reihe nach ausgewertet werden, wobei die erste übereinstimmende Bedingung den Ausführungspfad bestimmt.
+
+### Format für Bedingungsausdrücke
+
+Bedingungen verwenden JavaScript-Syntax und können auf Eingabewerte aus vorherigen Blöcken verweisen.
+
+<Tabs items={['Schwellenwert', 'Textanalyse', 'Mehrere Bedingungen']}>
+  <Tab>
+
+    ```javascript
+    // Check if a score is above a threshold
+    <agent.score> > 75
+    ```
+
+  </Tab>
+  <Tab>
+
+    ```javascript
+    // Check if a text contains specific keywords
+    <agent.text>.includes('urgent') || <agent.text>.includes('emergency')
+    ```
+
+  </Tab>
+  <Tab>
+
+    ```javascript
+    // Check multiple conditions
+    <agent.age> >= 18 && <agent.country> === 'US'
+    ```
+
+  </Tab>
+</Tabs>
+
+### Zugriff auf Ergebnisse
+
+Nach der Auswertung einer Bedingung können Sie auf folgende Ausgaben zugreifen:
+
+- **`<condition.result>`**: Boolesches Ergebnis der Bedingungsauswertung
+- **`<condition.matched_condition>`**: ID der übereinstimmenden Bedingung
+- **`<condition.content>`**: Beschreibung des Auswertungsergebnisses
+- **`<condition.path>`**: Details zum gewählten Routing-Ziel
+
+## Erweiterte Funktionen
+
+### Komplexe Ausdrücke
+
+Verwenden Sie JavaScript-Operatoren und -Funktionen in Bedingungen:
+
+```javascript
+// String operations
+<user.email>.endsWith('@company.com')
+
+// Array operations
+<api.tags>.includes('urgent')
+
+// Mathematical operations
+<agent.confidence> * 100 > 85
+
+// Date comparisons
+new Date(<api.created_at>) > new Date('2024-01-01')
+```
+
+### Auswertung mehrerer Bedingungen
+
+Bedingungen werden der Reihe nach ausgewertet, bis eine übereinstimmt:
+
+```javascript
+// Condition 1: Check for high priority
+<ticket.priority> === 'high'
+
+// Condition 2: Check for urgent keywords
+<ticket.subject>.toLowerCase().includes('urgent')
+
+// Condition 3: Default fallback
+true
+```
+
+### Fehlerbehandlung
+
+Bedingungen behandeln automatisch:
+- Undefinierte oder Null-Werte mit sicherer Auswertung
+- Typabweichungen mit geeigneten Fallbacks
+- Ungültige Ausdrücke mit Fehlerprotokollierung
+- Fehlende Variablen mit Standardwerten
+
+## Eingaben und Ausgaben
+
+<Tabs items={['Konfiguration', 'Variablen', 'Ergebnisse']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Bedingungen</strong>: Array von booleschen Ausdrücken zur Auswertung
+      </li>
+      <li>
+        <strong>Ausdrücke</strong>: JavaScript/TypeScript-Bedingungen mit Block-Ausgaben
+      </li>
+      <li>
+        <strong>Routing-Pfade</strong>: Zielblöcke für jedes Bedingungsergebnis
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>condition.result</strong>: Boolesches Ergebnis der Bedingungsauswertung
+      </li>
+      <li>
+        <strong>condition.matched_condition</strong>: ID der übereinstimmenden Bedingung
+      </li>
+      <li>
+        <strong>condition.content</strong>: Beschreibung des Auswertungsergebnisses
+      </li>
+      <li>
+        <strong>condition.path</strong>: Details zum gewählten Routing-Ziel
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Boolesches Ergebnis</strong>: Primäres Ergebnis der Bedingungsauswertung
+      </li>
+      <li>
+        <strong>Routing-Informationen</strong>: Pfadauswahl und Bedingungsdetails
+      </li>
+      <li>
+        <strong>Zugriff</strong>: Verfügbar in Blöcken nach der Bedingung
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Beispielanwendungsfälle
+
+### Routing im Kundenservice
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Szenario: Support-Tickets nach Priorität weiterleiten</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>API-Block ruft Support-Ticket-Daten ab</li>
+    <li>Bedingung prüft, ob `<api.priority>` gleich 'high' ist</li>
+    <li>Tickets mit hoher Priorität → Mitarbeiter mit Eskalationswerkzeugen</li>
+    <li>Tickets mit normaler Priorität → Standard-Support-Mitarbeiter</li>
+  </ol>
+</div>
+
+### Inhaltsmoderation
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Szenario: Inhalte basierend auf Analyseergebnissen filtern</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Agent analysiert nutzergenerierte Inhalte</li>
+    <li>Bedingung prüft, ob `<agent.toxicity_score>` > 0.7</li>
+    <li>Toxische Inhalte → Moderationsworkflow</li>
+    <li>Unbedenkliche Inhalte → Veröffentlichungsworkflow</li>
+  </ol>
+</div>
+
+### Benutzer-Onboarding-Prozess
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Szenario: Onboarding basierend auf Benutzertyp personalisieren</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Funktionsblock verarbeitet Benutzerregistrierungsdaten</li>
+    <li>Bedingung prüft, ob `<user.account_type>` === 'enterprise'</li>
+    <li>Unternehmensbenutzer → Erweiterter Einrichtungsworkflow</li>
+    <li>Einzelbenutzer → Einfacher Onboarding-Workflow</li>
+  </ol>
+</div>
+
+## Best Practices
+
+- **Bedingungen richtig anordnen**: Platzieren Sie spezifischere Bedingungen vor allgemeinen, damit spezifische Logik Vorrang vor Fallbacks hat
+- **Standardbedingung einfügen**: Fügen Sie eine Auffangbedingung (`true`) als letzte Bedingung hinzu, um nicht übereinstimmende Fälle zu behandeln und zu verhindern, dass die Workflow-Ausführung stecken bleibt
+- **Ausdrücke einfach halten**: Verwenden Sie klare, unkomplizierte boolesche Ausdrücke für bessere Lesbarkeit und einfachere Fehlersuche
+- **Dokumentieren Sie Ihre Bedingungen**: Fügen Sie Beschreibungen hinzu, um den Zweck jeder Bedingung für bessere Teamzusammenarbeit und Wartung zu erklären
+- **Testen Sie Grenzfälle**: Überprüfen Sie, ob Bedingungen Grenzwerte korrekt behandeln, indem Sie mit Werten an den Grenzen Ihrer Bedingungsbereiche testen

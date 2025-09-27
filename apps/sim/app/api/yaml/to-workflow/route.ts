@@ -11,7 +11,6 @@ import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/w
 
 const logger = createLogger('YamlToWorkflowAPI')
 
-// Sim Agent API configuration
 const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
 const ConvertRequestSchema = z.object({

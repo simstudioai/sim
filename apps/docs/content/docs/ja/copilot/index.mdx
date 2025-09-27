@@ -1,0 +1,161 @@
+---
+title: Copilot
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
+import { MessageCircle, Package, Zap, Infinity as InfinityIcon, Brain, BrainCircuit } from 'lucide-react'
+
+Copilotはエディター内のアシスタントで、Sim Copilotを使用してワークフローの構築や編集を支援し、それらを理解して改善するのに役立ちます。以下のことができます：
+
+- **説明**: Simや現在のワークフローに関する質問に回答
+- **ガイド**: 編集の提案やベストプラクティスの提示
+- **編集**: 承認後にブロック、接続、設定の変更を実行
+
+<Callout type="info">
+  CopilotはSimが管理するサービスです。セルフホスト型のデプロイメントでは、ホスト型アプリ（sim.ai → 設定 → Copilot）でCopilot APIキーを生成してください
+  1. [sim.ai](https://sim.ai) → 設定 → Copilotに移動し、Copilot APIキーを生成
+  2. セルフホスト環境の `COPILOT_API_KEY` にその値を設定
+</Callout>
+
+## コンテキストメニュー (@)
+
+`@` 記号を使用して、さまざまなリソースを参照し、ワークスペースについてCopilotにより多くのコンテキストを提供できます：
+
+<Image
+  src="/static/copilot/copilot-menu.png"
+  alt="利用可能な参照オプションを表示するCopilotコンテキストメニュー"
+  width={600}
+  height={400}
+/>
+
+`@` メニューから以下にアクセスできます：
+- **チャット**: 以前のCopilotの会話を参照
+- **すべてのワークフロー**: ワークスペース内の任意のワークフローを参照
+- **ワークフローブロック**: ワークフローの特定のブロックを参照
+- **ブロック**: ブロックタイプとテンプレートを参照
+- **ナレッジ**: アップロードした文書やナレッジベースを参照
+- **ドキュメント**: Simのドキュメントを参照
+- **テンプレート**: ワークフローテンプレートを参照
+- **ログ**: 実行ログと結果を参照
+
+このコンテキスト情報は、Copilotがあなたの特定のユースケースに対してより正確で関連性の高い支援を提供するのに役立ちます。
+
+## モード
+
+<Cards>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <MessageCircle className="h-4 w-4 text-muted-foreground" />
+        質問
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">
+      ワークフローに変更を加えずに、説明、ガイダンス、提案を行うQ&Aモード。
+    </div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <Package className="h-4 w-4 text-muted-foreground" />
+        エージェント
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">
+      構築・編集モード。Copilotが特定の編集（ブロックの追加、変数の接続、設定の調整）を提案し、承認後に適用します。
+    </div>
+  </Card>
+</Cards>
+
+## 深度レベル
+
+<Cards>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <Zap className="h-4 w-4 text-muted-foreground" />
+        高速
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">最も速く、最も安価です。小さな編集、シンプルなワークフロー、軽微な調整に最適です。</div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <InfinityIcon className="h-4 w-4 text-muted-foreground" />
+        自動
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">速度と推論のバランスが取れています。ほとんどのタスクに推奨されるデフォルト設定です。</div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <Brain className="h-4 w-4 text-muted-foreground" />
+        高度
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">パフォーマンスを維持しながら、より大きなワークフローや複雑な編集のためのより深い推論を提供します。</div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <BrainCircuit className="h-4 w-4 text-muted-foreground" />
+        ビヘモス
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">詳細な計画、デバッグ、複雑なアーキテクチャ変更のための最大限の推論能力を提供します。</div>
+  </Card>
+</Cards>
+
+### モード選択インターフェース
+
+Copilotインターフェースのモードセレクターを使用して、異なる推論モードを簡単に切り替えることができます：
+
+<Image
+  src="/static/copilot/copilot-models.png"
+  alt="MAXトグル付きの高度モードを表示するCopilotモード選択"
+  width={600}
+  height={300}
+/>
+
+このインターフェースでは以下のことが可能です：
+- **推論レベルの選択**：高速、自動、高度、またはビヘモスから選択
+- **MAXモードの有効化**：最も徹底的な分析が必要な場合に最大推論能力を切り替え
+- **モードの説明を確認**：各モードが最適化されている用途を理解
+
+タスクの複雑さに基づいてモードを選択してください - 簡単な質問には高速モードを、複雑なアーキテクチャ変更にはビヘモスモードを使用します。
+
+## 課金とコスト計算
+
+### コストの計算方法
+
+Copilotの使用量は、基盤となるLLMからのトークンごとに課金されます：
+
+- **入力トークン**：プロバイダーの基本料金で課金（**原価**）
+- **出力トークン**：プロバイダーの基本出力料金の**1.5倍**で課金
+
+```javascript
+copilotCost = (inputTokens × inputPrice + outputTokens × (outputPrice × 1.5)) / 1,000,000
+```
+
+| コンポーネント | 適用レート           |
+|----------|----------------------|
+| 入力    | inputPrice           |
+| 出力   | outputPrice × 1.5    |
+
+<Callout type="warning">
+  表示価格は2025年9月4日時点のレートを反映しています。最新の価格については、プロバイダーのドキュメントをご確認ください。
+</Callout>
+
+<Callout type="info">
+  モデル価格は100万トークンあたりの金額です。実際のコストを算出するには1,000,000で割ります。背景や例については<a href="/execution/costs">コスト計算ページ</a>をご覧ください。
+</Callout>

@@ -4,6 +4,7 @@ title: 执行
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
 
 Sim 的执行引擎通过按正确的顺序处理模块、管理数据流并优雅地处理错误，使您的工作流栩栩如生，从而让您能够准确了解工作流在 Sim 中的执行方式。
 
@@ -88,6 +89,22 @@ curl -X POST https://sim.ai/api/workflows/your-workflow-id/execute \
 
 每种部署方法都会将数据传递到工作流的起始块，从而开始执行流程。
 
+## 部署快照
+
+所有公共入口点——API、Chat、Schedule、Webhook 和手动运行——都会执行工作流的活动部署快照。每次更改画布时发布一个新的部署，以便每个触发器都使用更新的版本。
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/execution/deployment-versions-light.png'
+    alt='部署版本表'
+    width={500}
+    height={280}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+部署模式会保留完整的版本历史记录——可以检查任何快照，将其与草稿进行比较，并在需要恢复之前的版本时一键提升或回滚。
+
 ## 编程执行
 
 使用我们的官方 SDK 从您的应用程序中执行工作流：
@@ -115,21 +132,21 @@ const result = await client.executeWorkflow('workflow-id', {
 
 ## 最佳实践
 
-### 设计可靠性
+### 可靠性设计
 - 使用适当的回退路径优雅地处理错误
 - 对敏感数据使用环境变量
-- 在功能块中添加日志以便调试
+- 在函数模块中添加日志以便调试
 
-### 优化性能
+### 性能优化
 - 尽量减少外部 API 调用
 - 对独立操作使用并行执行
-- 在适当情况下使用内存块缓存结果
+- 在适当情况下使用内存模块缓存结果
 
-### 监控执行
+### 执行监控
 - 定期查看日志以了解性能模式
 - 跟踪 AI 模型使用的成本
 - 使用工作流快照调试问题
 
-## 接下来是什么？
+## 接下来做什么？
 
 从 [执行基础](/execution/basics) 开始，了解工作流如何运行，然后探索 [日志记录](/execution/logging) 以监控您的执行情况，以及 [成本计算](/execution/costs) 以优化您的支出。

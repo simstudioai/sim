@@ -1,0 +1,85 @@
+---
+title: はじめに
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+Simは、AIアプリケーション用のビジュアルワークフロービルダーで、視覚的にAIエージェントワークフローを構築できます。キャンバス上でブロックを接続するだけで、強力なAIエージェント、自動化ワークフロー、データ処理パイプラインを作成できます—コーディング不要です。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/introduction.png"
+    alt="Simビジュアルワークフローキャンバス"
+    width={700}
+    height={450}
+    className="my-6"
+  />
+</div>
+
+## 構築できるもの
+
+**AIアシスタント＆チャットボット**
+ウェブ検索、カレンダーへのアクセス、メール送信、ビジネスツールとの連携ができるインテリジェントなエージェントを作成できます。
+
+**ビジネスプロセスの自動化**
+データ入力、レポート生成、カスタマーサポートの応答、コンテンツ作成などの繰り返し作業を自動化します。
+
+**データ処理と分析**
+文書から洞察を抽出し、データセットを分析し、レポートを生成し、システム間でデータを同期します。
+
+**API統合ワークフロー**
+複数のサービスを統一エンドポイントに接続し、複雑なビジネスロジックを調整し、イベント駆動型の自動化を処理します。
+
+## 仕組み
+
+**ビジュアルキャンバス**
+ワークフローを構築するためにブロックをドラッグ＆ドロップします。AIモデル、データベース、API、ビジネスツールを簡単なポイント＆クリック接続で連携させます。
+
+**スマートブロック**
+処理ブロック（AIエージェント、API、関数）、ロジックブロック（条件分岐、ループ、ルーター）、出力ブロック（レスポンス、評価器）から選択できます。
+
+**複数のトリガー**
+チャットインターフェース、REST API、ウェブフック、スケジュールされたジョブ、またはSlackやGitHubなどのサービスからの外部イベントでワークフローを開始できます。
+
+**チームコラボレーション**
+リアルタイム編集とアクセス権限管理により、チームメンバーと同じワークフローで同時に作業できます。
+
+## 組み込み統合機能
+
+Simは80以上のサービスとすぐに連携できます：
+
+- **AIモデル**: OpenAI、Anthropic、Google、Groq、Cerebras、ローカルOllamaモデル
+- **コミュニケーション**: Gmail、Slack、Teams、Telegram、WhatsApp  
+- **生産性**: Notion、Google Sheets、Airtable、Monday.com
+- **開発**: GitHub、Jira、Linear、ブラウザ自動化
+- **検索＆ウェブ**: Google検索、Perplexity、Firecrawl、Exa AI
+- **データベース**: PostgreSQL、MySQL、Supabase、Pinecone、Qdrant
+
+カスタム機能が必要ですか？[MCP統合](/mcp)を使用して、外部サービスと接続できます。
+
+## デプロイメントオプション
+
+**クラウドホスティング**: [sim.ai](https://sim.ai)ですぐに始められます。マネージドインフラストラクチャ、自動スケーリング、組み込みモニタリング機能を備えています。
+
+**セルフホスティング**: Dockerを使用して自社のインフラストラクチャにデプロイでき、完全なデータプライバシーのためにOllamaを通じてローカルAIモデルをサポートしています。
+
+## 次のステップ
+
+最初のAIワークフローを構築する準備はできていますか？
+
+<Cards>
+  <Card title="はじめに" href="/getting-started">
+    10分で最初のワークフローを作成
+  </Card>
+  <Card title="ワークフローブロック" href="/blocks">
+    構成要素について学ぶ
+  </Card>
+  <Card title="ツールと連携機能" href="/tools">
+    60以上の組み込み連携機能を探索
+  </Card>
+  <Card title="チーム権限" href="/permissions/roles-and-permissions">
+    ワークスペースの役割と権限を設定
+  </Card>
+</Cards>

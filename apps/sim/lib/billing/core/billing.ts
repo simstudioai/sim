@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { member, subscription, user } from '@sim/db/schema'
+import { member, subscription, user, userStats } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getUserUsageData } from '@/lib/billing/core/usage'
@@ -96,6 +96,100 @@ export async function calculateUserOverage(userId: string): Promise<{
     logger.error('Failed to calculate user overage', { userId, error })
     return null
   }
+}
+
+/**
+ * Calculate overage amount for a subscription
+ * Shared logic between invoice.finalized and customer.subscription.deleted handlers
+ */
+export async function calculateSubscriptionOverage(sub: {
+  id: string
+  plan: string | null
+  referenceId: string
+  seats?: number | null
+}): Promise<number> {
+  // Enterprise plans have no overages
+  if (sub.plan === 'enterprise') {
+    logger.info('Enterprise plan has no overages', {
+      subscriptionId: sub.id,
+      plan: sub.plan,
+    })
+    return 0
+  }
+
+  let totalOverage = 0
+
+  if (sub.plan === 'team') {
+    // Team plan: sum all member usage
+    const members = await db
+      .select({ userId: member.userId })
+      .from(member)
+      .where(eq(member.organizationId, sub.referenceId))
+
+    let totalTeamUsage = 0
+    for (const m of members) {
+      const usage = await getUserUsageData(m.userId)
+      totalTeamUsage += usage.currentUsage
+    }
+
+    const { basePrice } = getPlanPricing(sub.plan)
+    const baseSubscriptionAmount = (sub.seats || 1) * basePrice
+    totalOverage = Math.max(0, totalTeamUsage - baseSubscriptionAmount)
+
+    logger.info('Calculated team overage', {
+      subscriptionId: sub.id,
+      totalTeamUsage,
+      baseSubscriptionAmount,
+      totalOverage,
+    })
+  } else if (sub.plan === 'pro') {
+    // Pro plan: include snapshot if user joined a team
+    const usage = await getUserUsageData(sub.referenceId)
+    let totalProUsage = usage.currentUsage
+
+    // Add any snapshotted Pro usage (from when they joined a team)
+    const userStatsRows = await db
+      .select({ proPeriodCostSnapshot: userStats.proPeriodCostSnapshot })
+      .from(userStats)
+      .where(eq(userStats.userId, sub.referenceId))
+      .limit(1)
+
+    if (userStatsRows.length > 0 && userStatsRows[0].proPeriodCostSnapshot) {
+      const snapshotUsage = Number.parseFloat(userStatsRows[0].proPeriodCostSnapshot.toString())
+      totalProUsage += snapshotUsage
+      logger.info('Including snapshotted Pro usage in overage calculation', {
+        userId: sub.referenceId,
+        currentUsage: usage.currentUsage,
+        snapshotUsage,
+        totalProUsage,
+      })
+    }
+
+    const { basePrice } = getPlanPricing(sub.plan)
+    totalOverage = Math.max(0, totalProUsage - basePrice)
+
+    logger.info('Calculated pro overage', {
+      subscriptionId: sub.id,
+      totalProUsage,
+      basePrice,
+      totalOverage,
+    })
+  } else {
+    // Free plan or unknown plan type
+    const usage = await getUserUsageData(sub.referenceId)
+    const { basePrice } = getPlanPricing(sub.plan || 'free')
+    totalOverage = Math.max(0, usage.currentUsage - basePrice)
+
+    logger.info('Calculated overage for plan', {
+      subscriptionId: sub.id,
+      plan: sub.plan || 'free',
+      usage: usage.currentUsage,
+      basePrice,
+      totalOverage,
+    })
+  }
+
+  return totalOverage
 }
 
 /**

@@ -8,6 +8,11 @@ export const MemoryBlock: BlockConfig = {
   longDescription:
     'Integrate Memory into the workflow. Can add, get a memory, get all memories, and delete memories.',
   bgColor: '#F64F9E',
+  bestPractices: `
+  - Do not use this block unless the user explicitly asks for it.
+  - Search up examples with memory blocks to understand YAML syntax. 
+  - Used in conjunction with agent blocks to persist messages between runs. User messages should be added with role 'user' and assistant messages should be added with role 'assistant' with the agent sandwiched between.
+  `,
   icon: BrainIcon,
   category: 'blocks',
   docsLink: 'https://docs.sim.ai/tools/memory',

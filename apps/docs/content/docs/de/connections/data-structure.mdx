@@ -1,0 +1,194 @@
+---
+title: Verbindungsdatenstruktur
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+Wenn Sie Blöcke verbinden, ist das Verständnis der Datenstruktur verschiedener Block-Ausgaben wichtig, da die Ausgabedatenstruktur des Quellblocks bestimmt, welche Werte im Zielblock verfügbar sind. Jeder Blocktyp erzeugt eine spezifische Ausgabestruktur, auf die Sie in nachgelagerten Blöcken verweisen können.
+
+<Callout type="info">
+  Das Verständnis dieser Datenstrukturen ist wesentlich für die effektive Nutzung von Verbindungs-Tags und
+  den Zugriff auf die richtigen Daten in Ihren Workflows.
+</Callout>
+
+## Block-Ausgabestrukturen
+
+Verschiedene Blocktypen erzeugen unterschiedliche Ausgabestrukturen. Hier ist, was Sie von jedem Blocktyp erwarten können:
+
+<Tabs items={['Agent Output', 'API Output', 'Function Output', 'Evaluator Output', 'Condition Output', 'Router Output']}>
+  <Tab>
+
+    ```json
+    {
+      "content": "The generated text response",
+      "model": "gpt-4o",
+      "tokens": {
+        "prompt": 120,
+        "completion": 85,
+        "total": 205
+      },
+      "toolCalls": [...],
+      "cost": [...],
+      "usage": [...]
+    }
+    ```
+
+    ### Ausgabefelder des Agent-Blocks
+
+    - **content**: Die vom Agenten generierte Haupttextantwort
+    - **model**: Das verwendete KI-Modell (z.B. "gpt-4o", "claude-3-opus")
+    - **tokens**: Token-Nutzungsstatistiken
+      - **prompt**: Anzahl der Token in der Eingabeaufforderung
+      - **completion**: Anzahl der Token in der Vervollständigung
+      - **total**: Insgesamt verwendete Token
+    - **toolCalls**: Array von Werkzeugaufrufen des Agenten (falls vorhanden)
+    - **cost**: Array von Kostenobjekten für jeden Werkzeugaufruf (falls vorhanden)
+    - **usage**: Token-Nutzungsstatistiken für die gesamte Antwort
+
+  </Tab>
+  <Tab>
+
+    ```json
+    {
+      "data": "Response data",
+      "status": 200,
+      "headers": {
+        "content-type": "application/json",
+        "cache-control": "no-cache"
+      }
+    }
+    ```
+
+    ### Ausgabefelder des API-Blocks
+
+    - **data**: Die Antwortdaten von der API (kann jeden Typ haben)
+    - **status**: HTTP-Statuscode der Antwort
+    - **headers**: Von der API zurückgegebene HTTP-Header
+
+  </Tab>
+  <Tab>
+
+    ```json
+    {
+      "result": "Function return value",
+      "stdout": "Console output",
+    }
+    ```
+
+    ### Ausgabefelder des Funktionsblocks
+
+    - **result**: Der Rückgabewert der Funktion (kann jeden Typ haben)
+    - **stdout**: Während der Funktionsausführung erfasste Konsolenausgabe
+
+  </Tab>
+  <Tab>
+
+    ```json
+    {
+      "content": "Evaluation summary",
+      "model": "gpt-5",
+      "tokens": {
+        "prompt": 120,
+        "completion": 85,
+        "total": 205
+      },
+      "metric1": 8.5,
+      "metric2": 7.2,
+      "metric3": 9.0
+    }
+    ```
+
+    ### Ausgabefelder des Evaluator-Blocks
+
+    - **content**: Zusammenfassung der Auswertung
+    - **model**: Das für die Auswertung verwendete KI-Modell
+    - **tokens**: Statistiken zur Token-Nutzung
+    - **[metricName]**: Bewertung für jede im Evaluator definierte Metrik (dynamische Felder)
+
+  </Tab>
+  <Tab>
+
+    ```json
+    {
+      "content": "Original content passed through",
+      "conditionResult": true,
+      "selectedPath": {
+        "blockId": "2acd9007-27e8-4510-a487-73d3b825e7c1",
+        "blockType": "agent",
+        "blockTitle": "Follow-up Agent"
+      },
+      "selectedConditionId": "condition-1"
+    }
+    ```
+
+    ### Ausgabefelder des Condition-Blocks
+
+    - **content**: Der ursprüngliche, durchgeleitete Inhalt
+    - **conditionResult**: Boolesches Ergebnis der Bedingungsauswertung
+    - **selectedPath**: Informationen über den ausgewählten Pfad
+      - **blockId**: ID des nächsten Blocks im ausgewählten Pfad
+      - **blockType**: Typ des nächsten Blocks
+      - **blockTitle**: Titel des nächsten Blocks
+    - **selectedConditionId**: ID der ausgewählten Bedingung
+
+  </Tab>
+  <Tab>
+
+    ```json
+    {
+      "content": "Routing decision",
+      "model": "gpt-4o",
+      "tokens": {
+        "prompt": 120,
+        "completion": 85,
+        "total": 205
+      },
+      "selectedPath": {
+        "blockId": "2acd9007-27e8-4510-a487-73d3b825e7c1",
+        "blockType": "agent",
+        "blockTitle": "Customer Service Agent"
+      }
+    }
+    ```
+
+    ### Ausgabefelder des Router-Blocks
+
+    - **content**: Der Routing-Entscheidungstext
+    - **model**: Das für das Routing verwendete KI-Modell
+    - **tokens**: Statistiken zur Token-Nutzung
+    - **selectedPath**: Informationen über den ausgewählten Pfad
+      - **blockId**: ID des ausgewählten Zielblocks
+      - **blockType**: Typ des ausgewählten Blocks
+      - **blockTitle**: Titel des ausgewählten Blocks
+
+  </Tab>
+</Tabs>
+
+## Benutzerdefinierte Ausgabestrukturen
+
+Einige Blöcke können basierend auf ihrer Konfiguration benutzerdefinierte Ausgabestrukturen erzeugen:
+
+1. **Agent-Blöcke mit Antwortformat**: Bei Verwendung eines Antwortformats in einem Agent-Block entspricht die Ausgabestruktur dem definierten Schema anstelle der Standardstruktur.
+
+2. **Function-Blöcke**: Das Feld `result` kann jede Datenstruktur enthalten, die von Ihrem Funktionscode zurückgegeben wird.
+
+3. **API-Blöcke**: Das Feld `data` enthält die Rückgabe der API, die jede gültige JSON-Struktur sein kann.
+
+<Callout type="warning">
+  Überprüfen Sie während der Entwicklung immer die tatsächliche Ausgabestruktur Ihrer Blöcke, um sicherzustellen, dass Sie in Ihren Verbindungen auf die richtigen Felder verweisen.
+</Callout>
+
+## Verschachtelte Datenstrukturen
+
+Viele Block-Ausgaben enthalten verschachtelte Datenstrukturen. Du kannst auf diese mit Punktnotation in Verbindungs-Tags zugreifen:
+
+```
+<blockName.path.to.nested.data>
+```
+
+Zum Beispiel:
+
+- `<agent1.tokens.total>` - Greife auf die Gesamtzahl der Tokens aus einem Agent-Block zu
+- `<api1.data.results[0].id>` - Greife auf die ID des ersten Ergebnisses einer API-Antwort zu
+- `<function1.result.calculations.total>` - Greife auf ein verschachteltes Feld im Ergebnis eines Funktionsblocks zu

@@ -41,6 +41,7 @@ const tools = [
   'Google Calendar',
   'Google Docs',
   'Google Drive',
+  'Google Vault',
   'Google Search',
   'Google Sheets',
   'HuggingFace',
@@ -213,6 +214,12 @@ export default function Footer({ fullWidth = false }: FooterProps) {
                 className='text-[14px] text-muted-foreground transition-colors hover:text-foreground'
               >
                 Enterprise
+              </Link>
+              <Link
+                href='/changelog'
+                className='text-[14px] text-muted-foreground transition-colors hover:text-foreground'
+              >
+                Changelog
               </Link>
               <Link
                 href='/privacy'

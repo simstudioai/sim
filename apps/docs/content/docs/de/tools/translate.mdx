@@ -1,0 +1,89 @@
+---
+title: Übersetzen
+description: Text in jede Sprache übersetzen
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="translate"
+  color="#FF4B4B"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='2'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      
+    >
+      <path d='m5 8 6 6' />
+      <path d='m4 14 6-6 2-3' />
+      <path d='M2 5h12' />
+      <path d='M7 2h1' />
+      <path d='m22 22-5-10-5 10' />
+      <path d='M14 18h6' />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Übersetzen ist ein Tool, mit dem Sie Text zwischen verschiedenen Sprachen übersetzen können.
+
+Mit Übersetzen können Sie:
+
+- **Text übersetzen**: Text zwischen Sprachen übersetzen
+- **Dokumente übersetzen**: Dokumente zwischen Sprachen übersetzen
+- **Webseiten übersetzen**: Webseiten zwischen Sprachen übersetzen
+- **Bilder übersetzen**: Bilder zwischen Sprachen übersetzen
+- **Audio übersetzen**: Audiodateien zwischen Sprachen übersetzen
+- **Videos übersetzen**: Videos zwischen Sprachen übersetzen
+- **Sprache übersetzen**: Gesprochene Sprache zwischen Sprachen übersetzen
+- **Text übersetzen**: Text zwischen Sprachen übersetzen
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Integrieren Sie Übersetzen in den Workflow. Kann Text in jede Sprache übersetzen.
+
+## Tools
+
+### `openai_chat`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Übersetzter Text |
+| `model` | string | Verwendetes Modell |
+| `tokens` | json | Token-Nutzung |
+
+### `anthropic_chat`
+
+### `google_chat`
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `content` | string | Übersetzter Text |
+| `model` | string | Verwendetes Modell |
+| `tokens` | json | Token-Nutzung |
+
+## Notizen
+
+- Kategorie: `tools`
+- Typ: `translate`

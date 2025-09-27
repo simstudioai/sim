@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
-import { useParams, usePathname } from 'next/navigation'
+import { useParams, usePathname, useRouter } from 'next/navigation'
 
 const languages = {
   en: { name: 'English', flag: '🇺🇸' },
   es: { name: 'Español', flag: '🇪🇸' },
   fr: { name: 'Français', flag: '🇫🇷' },
+  de: { name: 'Deutsch', flag: '🇩🇪' },
+  ja: { name: '日本語', flag: '🇯🇵' },
   zh: { name: '简体中文', flag: '🇨🇳' },
 }
 
@@ -15,6 +17,7 @@ export function LanguageDropdown() {
   const [isOpen, setIsOpen] = useState(false)
   const pathname = usePathname()
   const params = useParams()
+  const router = useRouter()
 
   const [currentLang, setCurrentLang] = useState(() => {
     const langFromParams = params?.lang as string
@@ -56,8 +59,17 @@ export function LanguageDropdown() {
       newPath = `/${locale}${segments.length > 0 ? `/${segments.join('/')}` : '/introduction'}`
     }
 
-    window.location.href = newPath
+    router.push(newPath)
   }
+
+  useEffect(() => {
+    if (!isOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isOpen])
 
   return (
     <div className='relative'>
@@ -67,9 +79,12 @@ export function LanguageDropdown() {
           e.stopPropagation()
           setIsOpen(!isOpen)
         }}
-        className='flex items-center gap-2 rounded-xl border border-border/20 bg-muted/50 px-3 py-2 text-sm backdrop-blur-sm transition-colors hover:bg-muted'
+        aria-haspopup='listbox'
+        aria-expanded={isOpen}
+        aria-controls='language-menu'
+        className='flex items-center gap-1.5 rounded-lg border border-border/30 bg-muted/40 px-2.5 py-1.5 text-sm shadow-sm backdrop-blur-sm transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring'
       >
-        <span className='text-base'>{languages[currentLang as keyof typeof languages]?.flag}</span>
+        <span className='text-sm'>{languages[currentLang as keyof typeof languages]?.flag}</span>
         <span className='font-medium text-foreground'>
           {languages[currentLang as keyof typeof languages]?.name}
         </span>
@@ -80,8 +95,12 @@ export function LanguageDropdown() {
 
       {isOpen && (
         <>
-          <div className='fixed inset-0 z-10' onClick={() => setIsOpen(false)} />
-          <div className='absolute top-full left-0 z-20 mt-1 w-48 rounded-lg border border-border/50 bg-background/95 shadow-xl backdrop-blur-md'>
+          <div className='fixed inset-0 z-[1000]' aria-hidden onClick={() => setIsOpen(false)} />
+          <div
+            id='language-menu'
+            role='listbox'
+            className='absolute top-full left-0 z-[1001] mt-1 max-h-[75vh] w-56 overflow-auto rounded-xl border border-border/50 bg-white shadow-2xl md:w-44 md:bg-background/95 md:backdrop-blur-md dark:bg-neutral-950 md:dark:bg-background/95'
+          >
             {Object.entries(languages).map(([code, lang]) => (
               <button
                 key={code}
@@ -90,13 +109,17 @@ export function LanguageDropdown() {
                   e.stopPropagation()
                   handleLanguageChange(code)
                 }}
-                className={`flex w-full items-center gap-3 px-3 py-2.5 text-sm transition-colors first:rounded-t-lg last:rounded-b-lg hover:bg-muted/80 ${
+                role='option'
+                aria-selected={currentLang === code}
+                className={`flex w-full items-center gap-3 px-3 py-3 text-base transition-colors first:rounded-t-xl last:rounded-b-xl hover:bg-muted/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring md:gap-2 md:px-2.5 md:py-2 md:text-sm ${
                   currentLang === code ? 'bg-muted/60 font-medium text-primary' : 'text-foreground'
                 }`}
               >
-                <span className='text-base'>{lang.flag}</span>
-                <span>{lang.name}</span>
-                {currentLang === code && <Check className='ml-auto h-4 w-4 text-primary' />}
+                <span className='text-base md:text-sm'>{lang.flag}</span>
+                <span className='leading-none'>{lang.name}</span>
+                {currentLang === code && (
+                  <Check className='ml-auto h-4 w-4 text-primary md:h-3.5 md:w-3.5' />
+                )}
               </button>
             ))}
           </div>

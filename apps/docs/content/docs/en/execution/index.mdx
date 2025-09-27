@@ -4,6 +4,7 @@ title: Execution
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
 
 Sim's execution engine brings your workflows to life by processing blocks in the correct order, managing data flow, and handling errors gracefully, so you can understand exactly how workflows are executed in Sim.
 
@@ -87,6 +88,22 @@ Chat deployment creates a conversational interface for your workflow:
 - Perfect for AI assistants, support bots, or interactive tools
 
 Each deployment method passes data to your workflow's starter block, beginning the execution flow.
+
+## Deployment Snapshots
+
+All public entry points—API, Chat, Schedule, Webhook, and Manual runs—execute the workflow’s active deployment snapshot. Publish a new deployment whenever you change the canvas so every trigger uses the updated version.
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/execution/deployment-versions-light.png'
+    alt='Deployment versions table'
+    width={500}
+    height={280}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+The Deploy modal keeps a full version history—inspect any snapshot, compare it against your draft, and promote or roll back with one click when you need to restore a prior release.
 
 ## Programmatic Execution
 

@@ -1,0 +1,67 @@
+---
+title: Starter (Veraltet)
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+
+<Callout type="warning">
+Der Starter-Block ist veraltet und wurde durch spezialisierte Core-Trigger ersetzt. Bitte beachten Sie die [Core-Trigger-Dokumentation](/triggers) für die neuen API-, Chat-, Eingabeformular-, Manuell-, Zeitplan- und Webhook-Trigger.
+</Callout>
+
+Der Starter-Block ermöglicht es Ihnen, die Workflow-Ausführung manuell mit Eingabeparametern zu starten und bietet zwei Eingabemodi: strukturierte Parameter oder konversationellen Chat.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/starter.png"
+    alt="Starter-Block mit manuellen und Chat-Modus-Optionen"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Ausführungsmodi
+
+Wählen Sie Ihre Eingabemethode aus dem Dropdown-Menü:
+
+<Tabs items={['Manueller Modus', 'Chat-Modus']}>
+  <Tab>
+    <div className="space-y-4">
+      <ul className="list-disc space-y-1 pl-6">
+        <li><strong>API-freundliche strukturierte Eingaben</strong>: Definieren Sie spezifische Parameter (Text, Zahl, Boolean, JSON, Datei, Datum)</li>
+        <li><strong>Testen während der Workflow-Erstellung</strong>: Schnelle Iteration beim Debuggen von Workflows</li>
+      </ul>
+      
+      <div className="mx-auto w-full overflow-hidden rounded-lg">
+        <Video src="input-format.mp4" width={700} height={450} />
+      </div>
+      
+      <p className="text-sm text-gray-600">Konfigurieren Sie Eingabeparameter, die beim Bereitstellen als API-Endpunkt verfügbar sein werden.</p>
+    </div>
+  </Tab>
+  <Tab>
+    <div className="space-y-4">
+      <ul className="list-disc space-y-1 pl-6">
+        <li><strong>Natürliche Sprache</strong>: Benutzer geben Fragen oder Anfragen ein</li>
+        <li><strong>Konversationell</strong>: Ideal für KI-gestützte Workflows</li>
+      </ul>
+      
+      <div className="mx-auto w-full overflow-hidden rounded-lg">
+        <Video src="chat-input.mp4" width={700} height={450} />
+      </div>
+      
+      <p className="text-sm text-gray-600">Chatten Sie mit Ihrem Workflow und greifen Sie auf Eingabetext, Konversations-ID und hochgeladene Dateien für kontextbezogene Antworten zu.</p>
+    </div>
+  </Tab>
+</Tabs>
+
+## Verwendung von Chat-Variablen
+
+Im Chat-Modus können Sie über spezielle Variablen auf Benutzereingaben und Konversationskontext zugreifen:
+
+- **`<start.input>`** - Enthält den Nachrichtentext des Benutzers
+- **`<start.conversationId>`** - Eindeutige Kennung für den Konversationsverlauf
+- **`<start.files>`** - Array von Dateien, die vom Benutzer hochgeladen wurden (falls vorhanden)

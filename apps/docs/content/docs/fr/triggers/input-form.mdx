@@ -1,0 +1,52 @@
+---
+title: Déclencheur de formulaire d'entrée
+description: Déclencheur manuel avec un schéma d'entrée structuré
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+## Aperçu
+
+Utilisez un déclencheur de formulaire d'entrée lorsqu'un flux de travail doit démarrer depuis l'éditeur avec des champs typés. Le panneau d'exécution affiche exactement les champs que vous définissez, ainsi le flux de travail reçoit toujours des données propres.
+
+## Ce que vous définissez
+
+Ajoutez des champs dans le constructeur de format d'entrée (texte, nombre, booléen, JSON, etc.). Pour chaque champ :
+
+- La valeur apparaît comme `<blockName.field>` dans le flux de travail.
+- La charge utile complète est reflétée à `<blockName.input>` pour plus de commodité.
+
+Si vous laissez le formulaire vide, le déclencheur n'a pas de sorties.
+
+## Exécutions manuelles
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/triggers/input-form-panel-light.png'
+    alt="Panneau d'exécution du formulaire d'entrée"
+    width={400}
+    height={250}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+Lorsque vous appuyez sur Exécuter dans l'éditeur, le panneau affiche le formulaire. Les valeurs soumises alimentent directement la sortie du déclencheur, ainsi les blocs en aval peuvent y faire référence sans analyse supplémentaire. Les nombres sont convertis en nombres, les booléens deviennent vrai/faux, et les champs JSON sont analysés avant que le flux de travail ne les voie.
+
+## Flux de travail enfants
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/triggers/workflow-input-mapping-light.png'
+    alt='Mappage des entrées du flux de travail'
+    width={400}
+    height={250}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+Les déclencheurs de formulaire d'entrée alimentent également le bloc Flux de travail. Lorsque vous intégrez un flux de travail enfant, l'étape de mappage affiche les champs du formulaire enfant afin que vous puissiez connecter des variables depuis le parent. Tout ce que vous mappez devient la soumission du formulaire d'entrée du flux de travail enfant.
+
+<Callout>
+Besoin d'un bouton d'exécution rapide sans champs ? Utilisez un déclencheur manuel. Choisissez le formulaire d'entrée lorsque vous voulez une validation et une structure prévisible.
+</Callout>
