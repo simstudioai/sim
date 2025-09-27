@@ -92,7 +92,7 @@ function throttle<T extends (...args: any[]) => any>(func: T, delay: number): T 
   }) as T
 }
 
-export default function ChatClient({ identifier }: { identifier: string }) {
+export default function ChatClient({ subdomain }: { subdomain: string }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -190,7 +190,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
 
   const fetchChatConfig = async () => {
     try {
-      const response = await fetch(`/api/chat/${identifier}`, {
+      const response = await fetch(`/api/chat/${subdomain}`, {
         credentials: 'same-origin',
         headers: {
           'X-Requested-With': 'XMLHttpRequest',
@@ -251,7 +251,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
       .catch((err) => {
         logger.error('Failed to fetch GitHub stars:', err)
       })
-  }, [identifier])
+  }, [subdomain])
 
   const refreshChat = () => {
     fetchChatConfig()
@@ -309,7 +309,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
 
       logger.info('API payload:', payload)
 
-      const response = await fetch(`/api/chat/${identifier}`, {
+      const response = await fetch(`/api/chat/${subdomain}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -433,7 +433,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
     if (authRequired === 'password') {
       return (
         <PasswordAuth
-          identifier={identifier}
+          subdomain={subdomain}
           onAuthSuccess={handleAuthSuccess}
           title={title}
           primaryColor={primaryColor}
@@ -443,7 +443,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
     if (authRequired === 'email') {
       return (
         <EmailAuth
-          identifier={identifier}
+          subdomain={subdomain}
           onAuthSuccess={handleAuthSuccess}
           title={title}
           primaryColor={primaryColor}

@@ -633,7 +633,7 @@ export const chat = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    identifier: text('identifier').notNull(),
+    subdomain: text('subdomain').notNull(),
     title: text('title').notNull(),
     description: text('description'),
     isActive: boolean('is_active').notNull().default(true),
@@ -652,8 +652,8 @@ export const chat = pgTable(
   },
   (table) => {
     return {
-      // Ensure identifiers are unique
-      identifierIdx: uniqueIndex('identifier_idx').on(table.identifier),
+      // Ensure subdomains are unique
+      subdomainIdx: uniqueIndex('subdomain_idx').on(table.subdomain),
     }
   }
 )

@@ -14,14 +14,14 @@ import { soehne } from '@/app/fonts/soehne/soehne'
 const logger = createLogger('PasswordAuth')
 
 interface PasswordAuthProps {
-  identifier: string
+  subdomain: string
   onAuthSuccess: () => void
   title?: string
   primaryColor?: string
 }
 
 export default function PasswordAuth({
-  identifier,
+  subdomain,
   onAuthSuccess,
   title = 'chat',
   primaryColor = 'var(--brand-primary-hover-hex)',
@@ -94,7 +94,7 @@ export default function PasswordAuth({
     try {
       const payload = { password }
 
-      const response = await fetch(`/api/chat/${identifier}`, {
+      const response = await fetch(`/api/chat/${subdomain}`, {
         method: 'POST',
         credentials: 'same-origin',
         headers: {

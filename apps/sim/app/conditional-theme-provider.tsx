@@ -17,8 +17,7 @@ export function ConditionalThemeProvider({ children, ...props }: ThemeProviderPr
     pathname.startsWith('/privacy') ||
     pathname.startsWith('/invite') ||
     pathname.startsWith('/verify') ||
-    pathname.startsWith('/changelog') ||
-    pathname.startsWith('/chat')
+    pathname.startsWith('/changelog')
       ? 'light'
       : undefined
 
