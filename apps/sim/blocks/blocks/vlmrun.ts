@@ -6,7 +6,8 @@ export const VlmRunInvoiceParserBlock: BlockConfig<VlmRunResponse> = {
   type: 'vlmrun_invoice_parser',
   name: 'VLM Run Invoice Parser',
   description: 'Upload and parse an invoice to extract structured JSON',
-  longDescription: 'Uploads an invoice file (PDF/image) and uses VLM Run to extract data like invoice number, total, due date, etc.',
+  longDescription:
+    'Uploads an invoice file (PDF/image) and uses VLM Run to extract data like invoice number, total, due date, etc.',
   category: 'tools',
   bgColor: '#4A90E2',
   icon: VlmRunIcon,
@@ -44,6 +45,9 @@ export const VlmRunInvoiceParserBlock: BlockConfig<VlmRunResponse> = {
   },
 
   outputs: {
-    data: { type: 'any', description: 'Structured invoice JSON (e.g., { invoice_number, total, due_date })' },
+    data: {
+      type: 'any',
+      description: 'Structured invoice JSON (e.g., { invoice_number, total, due_date })',
+    },
   },
 }
