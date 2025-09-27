@@ -62,7 +62,6 @@
     "@trigger.dev/sdk": "4.0.4",
     "@types/pdf-parse": "1.1.5",
     "@types/three": "0.177.0",
-    "@vercel/speed-insights": "^1.2.0",
     "better-auth": "1.2.9",
     "browser-image-compression": "^2.0.2",
     "cheerio": "1.1.2",
