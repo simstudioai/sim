@@ -16,7 +16,7 @@ import { soehne } from '@/app/fonts/soehne/soehne'
 const logger = createLogger('EmailAuth')
 
 interface EmailAuthProps {
-  subdomain: string
+  identifier: string
   onAuthSuccess: () => void
   title?: string
   primaryColor?: string
@@ -39,7 +39,7 @@ const validateEmailField = (emailValue: string): string[] => {
 }
 
 export default function EmailAuth({
-  subdomain,
+  identifier,
   onAuthSuccess,
   title = 'chat',
   primaryColor = 'var(--brand-primary-hover-hex)',
@@ -133,7 +133,7 @@ export default function EmailAuth({
     setIsSendingOtp(true)
 
     try {
-      const response = await fetch(`/api/chat/${subdomain}/otp`, {
+      const response = await fetch(`/api/chat/${identifier}/otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -170,7 +170,7 @@ export default function EmailAuth({
     setIsVerifyingOtp(true)
 
     try {
-      const response = await fetch(`/api/chat/${subdomain}/otp`, {
+      const response = await fetch(`/api/chat/${identifier}/otp`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -201,7 +201,7 @@ export default function EmailAuth({
     setCountdown(30)
 
     try {
-      const response = await fetch(`/api/chat/${subdomain}/otp`, {
+      const response = await fetch(`/api/chat/${identifier}/otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

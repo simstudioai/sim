@@ -21,7 +21,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const deploymentResults = await db
       .select({
         id: chat.id,
-        subdomain: chat.subdomain,
+        identifier: chat.identifier,
         isActive: chat.isActive,
       })
       .from(chat)
@@ -33,7 +33,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       deploymentResults.length > 0
         ? {
             id: deploymentResults[0].id,
-            subdomain: deploymentResults[0].subdomain,
+            identifier: deploymentResults[0].identifier,
           }
         : null
 
