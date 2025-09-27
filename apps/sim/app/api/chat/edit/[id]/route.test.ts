@@ -39,7 +39,7 @@ describe('Chat Edit API Route', () => {
     }))
 
     vi.doMock('@sim/db/schema', () => ({
-      chat: { id: 'id', identifier: 'identifier', userId: 'userId' },
+      chat: { id: 'id', subdomain: 'subdomain', userId: 'userId' },
     }))
 
     vi.doMock('@/lib/logs/console/logger', () => ({
@@ -128,7 +128,7 @@ describe('Chat Edit API Route', () => {
 
       const mockChat = {
         id: 'chat-123',
-        identifier: 'test-chat',
+        subdomain: 'test-chat',
         title: 'Test Chat',
         description: 'A test chat',
         password: 'encrypted-password',
@@ -144,11 +144,11 @@ describe('Chat Edit API Route', () => {
       expect(response.status).toBe(200)
       expect(mockCreateSuccessResponse).toHaveBeenCalledWith({
         id: 'chat-123',
-        identifier: 'test-chat',
+        subdomain: 'test-chat',
         title: 'Test Chat',
         description: 'A test chat',
         customizations: { primaryColor: '#000000' },
-        chatUrl: 'http://localhost:3000/chat/test-chat',
+        chatUrl: 'http://test-chat.localhost:3000',
         hasPassword: true,
       })
     })
@@ -201,7 +201,7 @@ describe('Chat Edit API Route', () => {
 
       const mockChat = {
         id: 'chat-123',
-        identifier: 'test-chat',
+        subdomain: 'test-chat',
         title: 'Test Chat',
         authType: 'public',
       }
@@ -219,12 +219,12 @@ describe('Chat Edit API Route', () => {
       expect(mockUpdate).toHaveBeenCalled()
       expect(mockCreateSuccessResponse).toHaveBeenCalledWith({
         id: 'chat-123',
-        chatUrl: 'http://localhost:3000/chat/test-chat',
+        chatUrl: 'http://test-chat.localhost:3000',
         message: 'Chat deployment updated successfully',
       })
     })
 
-    it('should handle identifier conflicts', async () => {
+    it('should handle subdomain conflicts', async () => {
       vi.doMock('@/lib/auth', () => ({
         getSession: vi.fn().mockResolvedValue({
           user: { id: 'user-id' },
@@ -233,23 +233,23 @@ describe('Chat Edit API Route', () => {
 
       const mockChat = {
         id: 'chat-123',
-        identifier: 'test-chat',
+        subdomain: 'test-chat',
         title: 'Test Chat',
       }
 
       mockCheckChatAccess.mockResolvedValue({ hasAccess: true, chat: mockChat })
-      // Mock identifier conflict
-      mockLimit.mockResolvedValueOnce([{ id: 'other-chat-id', identifier: 'new-identifier' }])
+      // Mock subdomain conflict
+      mockLimit.mockResolvedValueOnce([{ id: 'other-chat-id', subdomain: 'new-subdomain' }])
 
       const req = new NextRequest('http://localhost:3000/api/chat/edit/chat-123', {
         method: 'PATCH',
-        body: JSON.stringify({ identifier: 'new-identifier' }),
+        body: JSON.stringify({ subdomain: 'new-subdomain' }),
       })
       const { PATCH } = await import('@/app/api/chat/edit/[id]/route')
       const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(400)
-      expect(mockCreateErrorResponse).toHaveBeenCalledWith('Identifier already in use', 400)
+      expect(mockCreateErrorResponse).toHaveBeenCalledWith('Subdomain already in use', 400)
     })
 
     it('should validate password requirement for password auth', async () => {
@@ -261,7 +261,7 @@ describe('Chat Edit API Route', () => {
 
       const mockChat = {
         id: 'chat-123',
-        identifier: 'test-chat',
+        subdomain: 'test-chat',
         title: 'Test Chat',
         authType: 'public',
         password: null,
@@ -292,7 +292,7 @@ describe('Chat Edit API Route', () => {
 
       const mockChat = {
         id: 'chat-123',
-        identifier: 'test-chat',
+        subdomain: 'test-chat',
         title: 'Test Chat',
         authType: 'public',
       }

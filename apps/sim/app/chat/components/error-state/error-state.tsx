@@ -49,7 +49,7 @@ export function ChatErrorState({ error, starCount }: ChatErrorStateProps) {
   }, [])
 
   return (
-    <div className='bg-white'>
+    <div className='min-h-screen bg-white'>
       <Nav variant='auth' />
       <div className='flex min-h-[calc(100vh-120px)] items-center justify-center px-4'>
         <div className='w-full max-w-[410px]'>
