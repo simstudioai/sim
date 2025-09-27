@@ -1,0 +1,43 @@
+---
+title: 聊天触发器
+description: 从聊天部署中启动工作流
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+## 概述
+
+聊天触发器为您的工作流创建了一个对话界面。将您的工作流部署为聊天，用户可以通过一个可分享的 URL 与其交互。每条消息都会使用您最新的部署启动一个新的工作流执行。
+
+## 运行时输出
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/triggers/chat-trigger-light.png'
+    alt='聊天部署对话'
+    width={400}
+    height={250}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+触发器会写入三个字段，供下游模块引用：
+
+| 引用 | 描述 |
+|-----------|-------------|
+| `<chat.input>` | 最新的用户消息 |
+| `<chat.conversationId>` | 对话线程 ID |
+| `<chat.files>` | 可选的上传文件 |
+
+文件包括 `name`、`mimeType`，以及一个带签名的下载链接 `url`。
+
+## 使用说明
+
+1. 每个工作流添加一个聊天触发器模块。
+2. 以聊天模式部署工作流。
+3. 分享部署链接——每次回复都会重用对话 ID，以便工作流保持上下文。
+
+<Callout type="info">
+构建器会阻止在同一工作流中添加多个聊天触发器模块。
+</Callout>

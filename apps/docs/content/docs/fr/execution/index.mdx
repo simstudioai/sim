@@ -4,6 +4,7 @@ title: Exécution
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
 
 Le moteur d'exécution de Sim donne vie à vos flux de travail en traitant les blocs dans le bon ordre, en gérant le flux de données et en traitant les erreurs avec élégance, afin que vous puissiez comprendre exactement comment les flux de travail sont exécutés dans Sim.
 
@@ -89,6 +90,22 @@ Le déploiement en tant que Chat crée une interface conversationnelle pour votr
 
 Chaque méthode de déploiement transmet des données au bloc de démarrage de votre workflow, initiant ainsi le flux d'exécution.
 
+## Instantanés de déploiement
+
+Tous les points d'entrée publics — API, Chat, Planification, Webhook et exécutions manuelles — exécutent l'instantané de déploiement actif du workflow. Publiez un nouveau déploiement chaque fois que vous modifiez le canevas afin que chaque déclencheur utilise la version mise à jour.
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/execution/deployment-versions-light.png'
+    alt='Tableau des versions de déploiement'
+    width={500}
+    height={280}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+La fenêtre de déploiement conserve un historique complet des versions — inspectez n'importe quel instantané, comparez-le à votre brouillon, et promouvez ou revenez en arrière en un clic lorsque vous devez restaurer une version antérieure.
+
 ## Exécution programmatique
 
 Exécutez des workflows depuis vos applications en utilisant nos SDK officiels :
@@ -122,7 +139,7 @@ const result = await client.executeWorkflow('workflow-id', {
 - Ajoutez des journalisations aux blocs de fonction pour le débogage
 
 ### Optimisation des performances
-- Minimisez les appels API externes lorsque c'est possible
+- Minimisez les appels API externes lorsque possible
 - Utilisez l'exécution parallèle pour les opérations indépendantes
 - Mettez en cache les résultats avec des blocs de mémoire lorsque c'est approprié
 
@@ -131,6 +148,6 @@ const result = await client.executeWorkflow('workflow-id', {
 - Suivez les coûts d'utilisation des modèles d'IA
 - Utilisez des instantanés de workflow pour déboguer les problèmes
 
-## Quelle est la suite ?
+## Et ensuite ?
 
-Commencez par les [Principes fondamentaux d'exécution](/execution/basics) pour comprendre comment les workflows s'exécutent, puis explorez la [Journalisation](/execution/logging) pour surveiller vos exécutions et le [Calcul des coûts](/execution/costs) pour optimiser vos dépenses.
+Commencez par les [Principes de base de l'exécution](/execution/basics) pour comprendre comment les workflows s'exécutent, puis explorez la [Journalisation](/execution/logging) pour surveiller vos exécutions et le [Calcul des coûts](/execution/costs) pour optimiser vos dépenses.

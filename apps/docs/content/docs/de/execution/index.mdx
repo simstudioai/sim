@@ -4,6 +4,7 @@ title: Ausführung
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
 
 Die Ausführungs-Engine von Sim bringt Ihre Workflows zum Leben, indem sie Blöcke in der richtigen Reihenfolge verarbeitet, den Datenfluss verwaltet und Fehler elegant behandelt, sodass Sie genau verstehen können, wie Workflows in Sim ausgeführt werden.
 
@@ -89,9 +90,25 @@ Die Chat-Bereitstellung erstellt eine Konversationsschnittstelle für Ihren Work
 
 Jede Bereitstellungsmethode übergibt Daten an den Starter-Block Ihres Workflows und beginnt so den Ausführungsfluss.
 
+## Deployment-Snapshots
+
+Alle öffentlichen Einstiegspunkte—API, Chat, Zeitplan, Webhook und manuelle Ausführungen—führen den aktiven Deployment-Snapshot des Workflows aus. Veröffentliche ein neues Deployment, wann immer du die Arbeitsfläche änderst, damit jeder Trigger die aktualisierte Version verwendet.
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/execution/deployment-versions-light.png'
+    alt='Tabelle mit Deployment-Versionen'
+    width={500}
+    height={280}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+Das Deploy-Modal behält eine vollständige Versionshistorie bei—inspiziere jeden Snapshot, vergleiche ihn mit deinem Entwurf und führe Upgrades oder Rollbacks mit einem Klick durch, wenn du eine frühere Version wiederherstellen musst.
+
 ## Programmatische Ausführung
 
-Führen Sie Workflows aus Ihren Anwendungen mit unseren offiziellen SDKs aus:
+Führe Workflows aus deinen Anwendungen mit unseren offiziellen SDKs aus:
 
 ```bash
 # TypeScript/JavaScript
@@ -116,21 +133,21 @@ const result = await client.executeWorkflow('workflow-id', {
 
 ## Best Practices
 
-### Für Zuverlässigkeit entwickeln
-- Fehler elegant mit geeigneten Fallback-Pfaden behandeln
-- Umgebungsvariablen für sensible Daten verwenden
-- Logging zu Funktionsblöcken für Debugging hinzufügen
+### Design für Zuverlässigkeit
+- Behandle Fehler elegant mit geeigneten Fallback-Pfaden
+- Verwende Umgebungsvariablen für sensible Daten
+- Füge Logging zu Funktionsblöcken für Debugging hinzu
 
 ### Leistung optimieren
-- Externe API-Aufrufe wenn möglich minimieren
-- Parallele Ausführung für unabhängige Operationen nutzen
-- Ergebnisse mit Memory-Blöcken bei Bedarf zwischenspeichern
+- Minimiere externe API-Aufrufe wo möglich
+- Nutze parallele Ausführung für unabhängige Operationen
+- Cache Ergebnisse mit Memory-Blöcken, wenn angemessen
 
 ### Ausführungen überwachen
-- Logs regelmäßig überprüfen, um Leistungsmuster zu verstehen
-- Kosten für KI-Modellnutzung verfolgen
-- Workflow-Snapshots zur Fehlerbehebung verwenden
+- Überprüfe Logs regelmäßig, um Leistungsmuster zu verstehen
+- Verfolge Kosten für KI-Modellnutzung
+- Verwende Workflow-Snapshots zur Fehlerbehebung
 
 ## Was kommt als nächstes?
 
-Beginnen Sie mit [Ausführungsgrundlagen](/execution/basics), um zu verstehen, wie Workflows ausgeführt werden, und erkunden Sie dann [Protokollierung](/execution/logging), um Ihre Ausführungen zu überwachen, sowie [Kostenberechnung](/execution/costs), um Ihre Ausgaben zu optimieren.
+Beginne mit [Ausführungsgrundlagen](/execution/basics), um zu verstehen, wie Workflows laufen, und erkunde dann [Logging](/execution/logging), um deine Ausführungen zu überwachen, sowie [Kostenberechnung](/execution/costs), um deine Ausgaben zu optimieren.

@@ -1,0 +1,43 @@
+---
+title: チャットトリガー
+description: チャットデプロイメントからワークフローを開始する
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+## 概要
+
+チャットトリガーはワークフロー用の会話インターフェースを作成します。ワークフローをチャットとしてデプロイすると、ユーザーは共有可能なURLを通じてそれと対話できます。各メッセージは最新のデプロイメントを使用して新しいワークフロー実行を開始します。
+
+## ランタイム出力
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/triggers/chat-trigger-light.png'
+    alt='チャットデプロイメントの会話'
+    width={400}
+    height={250}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+このトリガーは、下流のブロックが参照できる3つのフィールドを書き込みます：
+
+| 参照 | 説明 |
+|-----------|-------------|
+| `<chat.input>` | 最新のユーザーメッセージ |
+| `<chat.conversationId>` | 会話スレッドID |
+| `<chat.files>` | オプションのアップロードファイル |
+
+ファイルには `name`、`mimeType`、および署名付きダウンロード `url` が含まれます。
+
+## 使用上の注意
+
+1. ワークフローごとにチャットトリガーブロックを1つ追加します。
+2. ワークフローをチャットモードでデプロイします。
+3. デプロイメントリンクを共有します—各返信は同じ会話IDを再利用するため、ワークフローはコンテキストを保持できます。
+
+<Callout type="info">
+ビルダーは同じワークフロー内の複数のチャットトリガーブロックをブロックします。
+</Callout>

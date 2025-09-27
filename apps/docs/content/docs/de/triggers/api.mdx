@@ -1,0 +1,60 @@
+---
+title: API-Trigger
+description: Starten Sie einen Workflow über eine authentifizierte HTTP-Anfrage
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+## Übersicht
+
+Der API-Trigger stellt Ihren Workflow als sicheren HTTP-Endpunkt bereit. Senden Sie JSON-Daten an den Endpunkt und Ihr Workflow verarbeitet diese sofort. API-Aufrufe werden immer gegen Ihre neueste Bereitstellung ausgeführt.
+
+## Eingabeformat konfigurieren
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/triggers/api-trigger-light.png'
+    alt='API-Trigger Eingabeformat'
+    width={400}
+    height={250}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+Fügen Sie für jeden Parameter ein Feld **Eingabeformat** hinzu. Die Ausgabeschlüssel zur Laufzeit spiegeln das Schema wider und sind auch unter `<api.input>` verfügbar.
+
+```yaml
+- type: string
+  name: userId
+  value: demo-user # optional manual test value
+- type: number
+  name: maxTokens
+```
+
+Manuelle Ausführungen im Editor verwenden die Spalte `value`, damit Sie testen können, ohne eine Anfrage zu senden. Während der Ausführung füllt der Resolver sowohl `<api.userId>` als auch `<api.input.userId>`.
+
+## Anfrage-Beispiel
+
+```bash
+curl -X POST \
+  https://sim.ai/api/workflows/WORKFLOW_ID/execute \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: YOUR_KEY' \
+  -d '{"userId":"demo-user","maxTokens":1024}'
+```
+
+Erfolgreiche Antworten geben das serialisierte Ausführungsergebnis vom Executor zurück. Fehler zeigen Validierungs-, Authentifizierungs- oder Workflow-Fehler an.
+
+## Ausgabe-Referenz
+
+| Referenz | Beschreibung |
+|-----------|-------------|
+| `<api.field>` | Im Eingabeformat definiertes Feld |
+| `<api.input>` | Gesamter strukturierter Anfragekörper |
+
+Wenn kein Eingabeformat definiert ist, stellt der Executor das rohe JSON nur unter `<api.input>` bereit.
+
+<Callout type="warning">
+Ein Workflow kann nur einen API-Trigger enthalten. Veröffentlichen Sie eine neue Bereitstellung nach Änderungen, damit der Endpunkt aktuell bleibt.
+</Callout>
