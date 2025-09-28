@@ -1,6 +1,10 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { GoogleDriveToolParams, GoogleDriveUploadResponse } from '@/tools/google_drive/types'
-import { GOOGLE_WORKSPACE_MIME_TYPES, SOURCE_MIME_TYPES } from '@/tools/google_drive/utils'
+import {
+  GOOGLE_WORKSPACE_MIME_TYPES,
+  handleSheetsFormat,
+  SOURCE_MIME_TYPES,
+} from '@/tools/google_drive/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('GoogleDriveUploadTool')
@@ -14,10 +18,7 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
   oauth: {
     required: true,
     provider: 'google-drive',
-    additionalScopes: [
-      'https://www.googleapis.com/auth/drive.file',
-      'https://www.googleapis.com/auth/spreadsheets',
-    ],
+    additionalScopes: ['https://www.googleapis.com/auth/drive.file'],
   },
 
   params: {
@@ -99,106 +100,60 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
         throw new Error(data.error?.message || 'Failed to create file in Google Drive')
       }
 
-      // Now upload content to the created file
       const fileId = data.id
       const requestedMimeType = params?.mimeType || 'text/plain'
       const authHeader =
         response.headers.get('Authorization') || `Bearer ${params?.accessToken || ''}`
 
-      // Special handling for Google Sheets - use Sheets API to properly populate data
-      let handledAsSheet = false
-      if (requestedMimeType === 'application/vnd.google-apps.spreadsheet' && params?.content) {
-        // Parse content if it's a JSON string
-        let values: any = params.content
-        if (typeof values === 'string') {
-          try {
-            values = JSON.parse(values)
-          } catch (_error) {
-            // Not valid JSON, keep as string for CSV upload
-          }
-        }
+      let preparedContent: string | undefined =
+        typeof params?.content === 'string' ? (params?.content as string) : undefined
 
-        // If we have valid array data, use Sheets API to populate it
-        if (Array.isArray(values)) {
-          logger.info('Populating Google Sheet with array data', {
+      if (requestedMimeType === 'application/vnd.google-apps.spreadsheet' && params?.content) {
+        const { csv, rowCount, columnCount } = handleSheetsFormat(params.content as unknown)
+        if (csv !== undefined) {
+          preparedContent = csv
+          logger.info('Prepared CSV content for Google Sheets upload', {
             fileId,
             fileName: params?.fileName,
-            rowCount: values.length,
-          })
-
-          const sheetsApiUrl = `https://sheets.googleapis.com/v4/spreadsheets/${fileId}/values/Sheet1?valueInputOption=USER_ENTERED`
-
-          const sheetsResponse = await fetch(sheetsApiUrl, {
-            method: 'PUT',
-            headers: {
-              Authorization: authHeader,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              majorDimension: 'ROWS',
-              values: values,
-            }),
-          })
-
-          if (!sheetsResponse.ok) {
-            const sheetsError = await sheetsResponse.json()
-            logger.error('Failed to populate Google Sheet with data', {
-              status: sheetsResponse.status,
-              statusText: sheetsResponse.statusText,
-              error: sheetsError,
-            })
-            throw new Error(
-              sheetsError.error?.message || 'Failed to populate Google Sheet with data'
-            )
-          }
-
-          handledAsSheet = true
-          logger.info('Successfully populated Google Sheet', {
-            fileId,
-            rowCount: values.length,
-            columnCount: values[0]?.length || 0,
+            rowCount,
+            columnCount,
           })
         }
       }
 
-      // For non-Google Sheets or non-array content, use original upload logic
-      if (!handledAsSheet) {
-        // For non-Google Sheets or empty content, use the original upload logic
-        const uploadMimeType = GOOGLE_WORKSPACE_MIME_TYPES.includes(requestedMimeType)
-          ? SOURCE_MIME_TYPES[requestedMimeType] || 'text/plain'
-          : requestedMimeType
+      const uploadMimeType = GOOGLE_WORKSPACE_MIME_TYPES.includes(requestedMimeType)
+        ? SOURCE_MIME_TYPES[requestedMimeType] || 'text/plain'
+        : requestedMimeType
 
-        logger.info('Uploading content to file', {
-          fileId,
-          fileName: params?.fileName,
-          requestedMimeType,
-          uploadMimeType,
+      logger.info('Uploading content to file', {
+        fileId,
+        fileName: params?.fileName,
+        requestedMimeType,
+        uploadMimeType,
+      })
+
+      const uploadResponse = await fetch(
+        `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&supportsAllDrives=true`,
+        {
+          method: 'PATCH',
+          headers: {
+            Authorization: authHeader,
+            'Content-Type': uploadMimeType,
+          },
+          body: preparedContent !== undefined ? preparedContent : params?.content || '',
+        }
+      )
+
+      if (!uploadResponse.ok) {
+        const uploadError = await uploadResponse.json()
+        logger.error('Failed to upload content to file', {
+          status: uploadResponse.status,
+          statusText: uploadResponse.statusText,
+          error: uploadError,
         })
-
-        const uploadResponse = await fetch(
-          `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&supportsAllDrives=true`,
-          {
-            method: 'PATCH',
-            headers: {
-              Authorization: authHeader,
-              'Content-Type': uploadMimeType,
-            },
-            body: params?.content || '',
-          }
-        )
-
-        if (!uploadResponse.ok) {
-          const uploadError = await uploadResponse.json()
-          logger.error('Failed to upload content to file', {
-            status: uploadResponse.status,
-            statusText: uploadResponse.statusText,
-            error: uploadError,
-          })
-          throw new Error(uploadError.error?.message || 'Failed to upload content to file')
-        }
+        throw new Error(uploadError.error?.message || 'Failed to upload content to file')
       }
 
-      // For Google Workspace documents, update the name again to ensure it sticks after conversion
       if (GOOGLE_WORKSPACE_MIME_TYPES.includes(requestedMimeType)) {
         logger.info('Updating file name to ensure it persists after conversion', {
           fileId,
@@ -227,7 +182,6 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
         }
       }
 
-      // Get the final file data
       const finalFileResponse = await fetch(
         `https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true&fields=id,name,mimeType,webViewLink,webContentLink,size,createdTime,modifiedTime,parents`,
         {
