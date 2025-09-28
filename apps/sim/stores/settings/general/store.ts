@@ -194,16 +194,9 @@ export const useGeneralStore = create<GeneralStore>()(
                 // If parsing fails, continue to load from DB
               }
             }
-            // Skip loading if on a subdomain or chat path
-            if (
-              typeof window !== 'undefined' &&
-              (window.location.pathname.startsWith('/chat/') ||
-                (window.location.hostname !== 'sim.ai' &&
-                  window.location.hostname !== 'localhost' &&
-                  window.location.hostname !== '127.0.0.1' &&
-                  !window.location.hostname.startsWith('www.')))
-            ) {
-              logger.debug('Skipping settings load - on chat or subdomain page')
+            // Skip loading if on a chat path
+            if (typeof window !== 'undefined' && window.location.pathname.startsWith('/chat/')) {
+              logger.debug('Skipping settings load - on chat page')
               return
             }
 
@@ -258,15 +251,8 @@ export const useGeneralStore = create<GeneralStore>()(
           },
 
           updateSetting: async (key, value) => {
-            if (
-              typeof window !== 'undefined' &&
-              (window.location.pathname.startsWith('/chat/') ||
-                (window.location.hostname !== 'sim.ai' &&
-                  window.location.hostname !== 'localhost' &&
-                  window.location.hostname !== '127.0.0.1' &&
-                  !window.location.hostname.startsWith('www.')))
-            ) {
-              logger.debug(`Skipping setting update for ${key} on chat or subdomain page`)
+            if (typeof window !== 'undefined' && window.location.pathname.startsWith('/chat/')) {
+              logger.debug(`Skipping setting update for ${key} on chat page`)
               return
             }
 

@@ -13,18 +13,18 @@ import {
 } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
-const logger = createLogger('ChatSubdomainAPI')
+const logger = createLogger('ChatIdentifierAPI')
 
-// This endpoint handles chat interactions via the subdomain
+// This endpoint handles chat interactions via the identifier
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ subdomain: string }> }
+  { params }: { params: Promise<{ identifier: string }> }
 ) {
-  const { subdomain } = await params
+  const { identifier } = await params
   const requestId = generateRequestId()
 
   try {
-    logger.debug(`[${requestId}] Processing chat request for subdomain: ${subdomain}`)
+    logger.debug(`[${requestId}] Processing chat request for identifier: ${identifier}`)
 
     // Parse the request body once
     let parsedBody
@@ -34,7 +34,7 @@ export async function POST(
       return addCorsHeaders(createErrorResponse('Invalid request body', 400), request)
     }
 
-    // Find the chat deployment for this subdomain
+    // Find the chat deployment for this identifier
     const deploymentResult = await db
       .select({
         id: chat.id,
@@ -47,11 +47,11 @@ export async function POST(
         outputConfigs: chat.outputConfigs,
       })
       .from(chat)
-      .where(eq(chat.subdomain, subdomain))
+      .where(eq(chat.identifier, identifier))
       .limit(1)
 
     if (deploymentResult.length === 0) {
-      logger.warn(`[${requestId}] Chat not found for subdomain: ${subdomain}`)
+      logger.warn(`[${requestId}] Chat not found for identifier: ${identifier}`)
       return addCorsHeaders(createErrorResponse('Chat not found', 404), request)
     }
 
@@ -59,7 +59,7 @@ export async function POST(
 
     // Check if the chat is active
     if (!deployment.isActive) {
-      logger.warn(`[${requestId}] Chat is not active: ${subdomain}`)
+      logger.warn(`[${requestId}] Chat is not active: ${identifier}`)
       return addCorsHeaders(createErrorResponse('This chat is currently unavailable', 403), request)
     }
 
@@ -139,15 +139,15 @@ export async function POST(
 // This endpoint returns information about the chat
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ subdomain: string }> }
+  { params }: { params: Promise<{ identifier: string }> }
 ) {
-  const { subdomain } = await params
+  const { identifier } = await params
   const requestId = generateRequestId()
 
   try {
-    logger.debug(`[${requestId}] Fetching chat info for subdomain: ${subdomain}`)
+    logger.debug(`[${requestId}] Fetching chat info for identifier: ${identifier}`)
 
-    // Find the chat deployment for this subdomain
+    // Find the chat deployment for this identifier
     const deploymentResult = await db
       .select({
         id: chat.id,
@@ -162,11 +162,11 @@ export async function GET(
         outputConfigs: chat.outputConfigs,
       })
       .from(chat)
-      .where(eq(chat.subdomain, subdomain))
+      .where(eq(chat.identifier, identifier))
       .limit(1)
 
     if (deploymentResult.length === 0) {
-      logger.warn(`[${requestId}] Chat not found for subdomain: ${subdomain}`)
+      logger.warn(`[${requestId}] Chat not found for identifier: ${identifier}`)
       return addCorsHeaders(createErrorResponse('Chat not found', 404), request)
     }
 
@@ -174,7 +174,7 @@ export async function GET(
 
     // Check if the chat is active
     if (!deployment.isActive) {
-      logger.warn(`[${requestId}] Chat is not active: ${subdomain}`)
+      logger.warn(`[${requestId}] Chat is not active: ${identifier}`)
       return addCorsHeaders(createErrorResponse('This chat is currently unavailable', 403), request)
     }
 
@@ -205,7 +205,7 @@ export async function GET(
     const authResult = await validateChatAuth(requestId, deployment, request)
     if (!authResult.authorized) {
       logger.info(
-        `[${requestId}] Authentication required for chat: ${subdomain}, type: ${deployment.authType}`
+        `[${requestId}] Authentication required for chat: ${identifier}, type: ${deployment.authType}`
       )
       return addCorsHeaders(
         createErrorResponse(authResult.error || 'Authentication required', 401),
