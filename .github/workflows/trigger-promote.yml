@@ -1,15 +1,15 @@
-name: Trigger.dev Deploy
+name: Trigger.dev Promote
 
 on:
   workflow_call:
   workflow_dispatch:
 
 jobs:
-  deploy:
-    name: Deploy to Trigger.dev
+  promote:
+    name: Promote Trigger.dev
     runs-on: blacksmith-4vcpu-ubuntu-2404
     concurrency:
-      group: trigger-deploy-${{ github.ref }}
+      group: trigger-promote-${{ github.ref }}
       cancel-in-progress: false
     env:
       TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
@@ -31,12 +31,12 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Deploy to Trigger.dev (Staging)
+      - name: Promote Trigger.dev (Staging)
         if: github.ref == 'refs/heads/staging'
         working-directory: ./apps/sim
-        run: npx --yes trigger.dev@4.0.4 deploy -e staging --skip-promotion
+        run: npx --yes trigger.dev@4.0.4 deploy promote --latest -e staging
 
-      - name: Deploy to Trigger.dev (Production)
+      - name: Promote Trigger.dev (Production)
         if: github.ref == 'refs/heads/main'
         working-directory: ./apps/sim
-        run: npx --yes trigger.dev@4.0.4 deploy --skip-promotion
+        run: npx --yes trigger.dev@4.0.4 deploy promote --latest
