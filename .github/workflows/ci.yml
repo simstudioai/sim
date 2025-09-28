@@ -28,7 +28,7 @@ jobs:
       packages: write
       id-token: write
 
-  # Deploy Trigger.dev with skip-promotion (after builds complete to ensure atomicity)
+  # Deploy Trigger.dev (after builds complete)
   trigger-deploy:
     name: Deploy Trigger.dev
     needs: build-images
@@ -49,18 +49,10 @@ jobs:
     uses: ./.github/workflows/migrations.yml
     secrets: inherit
 
-  # Promote Trigger.dev deployment after ECS completes
-  trigger-promote:
-    name: Promote Trigger.dev
-    needs: migrations
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
-    uses: ./.github/workflows/trigger-promote.yml
-    secrets: inherit
-
   # Process docs embeddings if needed
   process-docs:
     name: Process Docs
-    needs: trigger-promote
+    needs: migrations
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     uses: ./.github/workflows/docs-embeddings.yml
     secrets: inherit
