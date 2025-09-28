@@ -1,0 +1,28 @@
+name: Database Migrations
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  migrate:
+    name: Apply Database Migrations
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Apply migrations
+        working-directory: ./packages/db
+        env:
+          DATABASE_URL: ${{ github.ref == 'refs/heads/main' && secrets.DATABASE_URL || secrets.STAGING_DATABASE_URL }}
+        run: bunx drizzle-kit migrate --config=./drizzle.config.ts
