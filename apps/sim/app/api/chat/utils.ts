@@ -11,7 +11,6 @@ import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { hasAdminPermission } from '@/lib/permissions/utils'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
-import { getEmailDomain } from '@/lib/urls/utils'
 import { decryptSecret, generateRequestId } from '@/lib/utils'
 import { TriggerUtils } from '@/lib/workflows/triggers'
 import { CHAT_ERROR_MESSAGES } from '@/app/chat/constants'
@@ -142,7 +141,6 @@ export const setChatAuthCookie = (response: NextResponse, chatId: string, type: 
     secure: !isDev,
     sameSite: 'lax',
     path: '/',
-    domain: isDev ? undefined : `.${getEmailDomain()}`,
     maxAge: 60 * 60 * 24, // 24 hours
   })
 }
