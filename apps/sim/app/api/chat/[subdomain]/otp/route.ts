@@ -113,13 +113,13 @@ const otpVerifySchema = z.object({
 // Send OTP endpoint
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ identifier: string }> }
+  { params }: { params: Promise<{ subdomain: string }> }
 ) {
-  const { identifier } = await params
+  const { subdomain } = await params
   const requestId = generateRequestId()
 
   try {
-    logger.debug(`[${requestId}] Processing OTP request for identifier: ${identifier}`)
+    logger.debug(`[${requestId}] Processing OTP request for subdomain: ${subdomain}`)
 
     // Parse request body
     let body
@@ -136,11 +136,11 @@ export async function POST(
           title: chat.title,
         })
         .from(chat)
-        .where(eq(chat.identifier, identifier))
+        .where(eq(chat.subdomain, subdomain))
         .limit(1)
 
       if (deploymentResult.length === 0) {
-        logger.warn(`[${requestId}] Chat not found for identifier: ${identifier}`)
+        logger.warn(`[${requestId}] Chat not found for subdomain: ${subdomain}`)
         return addCorsHeaders(createErrorResponse('Chat not found', 404), request)
       }
 
@@ -227,13 +227,13 @@ export async function POST(
 // Verify OTP endpoint
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ identifier: string }> }
+  { params }: { params: Promise<{ subdomain: string }> }
 ) {
-  const { identifier } = await params
+  const { subdomain } = await params
   const requestId = generateRequestId()
 
   try {
-    logger.debug(`[${requestId}] Verifying OTP for identifier: ${identifier}`)
+    logger.debug(`[${requestId}] Verifying OTP for subdomain: ${subdomain}`)
 
     // Parse request body
     let body
@@ -248,11 +248,11 @@ export async function PUT(
           authType: chat.authType,
         })
         .from(chat)
-        .where(eq(chat.identifier, identifier))
+        .where(eq(chat.subdomain, subdomain))
         .limit(1)
 
       if (deploymentResult.length === 0) {
-        logger.warn(`[${requestId}] Chat not found for identifier: ${identifier}`)
+        logger.warn(`[${requestId}] Chat not found for subdomain: ${subdomain}`)
         return addCorsHeaders(createErrorResponse('Chat not found', 404), request)
       }
 

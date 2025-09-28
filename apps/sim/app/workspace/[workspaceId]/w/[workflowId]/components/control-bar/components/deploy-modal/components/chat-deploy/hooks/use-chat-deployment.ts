@@ -14,10 +14,10 @@ export interface ChatDeploymentState {
 
 const chatSchema = z.object({
   workflowId: z.string().min(1, 'Workflow ID is required'),
-  identifier: z
+  subdomain: z
     .string()
-    .min(1, 'Identifier is required')
-    .regex(/^[a-z0-9-]+$/, 'Identifier can only contain lowercase letters, numbers, and hyphens'),
+    .min(1, 'Subdomain is required')
+    .regex(/^[a-z0-9-]+$/, 'Subdomain can only contain lowercase letters, numbers, and hyphens'),
   title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
   customizations: z.object({
@@ -75,7 +75,7 @@ export function useChatDeployment() {
         // Create request payload
         const payload = {
           workflowId,
-          identifier: formData.identifier.trim(),
+          subdomain: formData.subdomain.trim(),
           title: formData.title.trim(),
           description: formData.description.trim(),
           customizations: {
@@ -107,9 +107,9 @@ export function useChatDeployment() {
         const result = await response.json()
 
         if (!response.ok) {
-          // Handle identifier conflict specifically
-          if (result.error === 'Identifier already in use') {
-            throw new Error('This identifier is already in use')
+          // Handle subdomain conflict specifically
+          if (result.error === 'Subdomain already in use') {
+            throw new Error('This subdomain is already in use')
           }
           throw new Error(result.error || `Failed to ${existingChatId ? 'update' : 'deploy'} chat`)
         }
