@@ -1,18 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import {
-  CheckCheck,
-  ChevronDown,
-  Copy,
-  Eye,
-  EyeOff,
-  Settings as SettingsIcon,
-  Shield,
-} from 'lucide-react'
+import { Check, ChevronDown, Copy, Eye, EyeOff } from 'lucide-react'
 import { Alert, AlertDescription, Button, Input, Label } from '@/components/ui'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useSession } from '@/lib/auth-client'
 import { env } from '@/lib/env'
+import { isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useOrganizationStore } from '@/stores/organization'
@@ -25,7 +19,10 @@ interface SSOProvider {
   domain: string
   issuer: string
   organizationId: string
-  createdAt: string
+  userId?: string
+  oidcConfig?: string
+  samlConfig?: string
+  providerType: 'oidc' | 'saml'
 }
 
 export function SSO() {
@@ -33,12 +30,12 @@ export function SSO() {
   const { activeOrganization, getUserRole, hasEnterprisePlan } = useOrganizationStore()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
   const [showClientSecret, setShowClientSecret] = useState(false)
   const [copied, setCopied] = useState(false)
   const [providers, setProviders] = useState<SSOProvider[]>([])
   const [isLoadingProviders, setIsLoadingProviders] = useState(true)
   const [showConfigForm, setShowConfigForm] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
 
   const [formData, setFormData] = useState({
     providerType: 'oidc' as 'oidc' | 'saml',
@@ -75,67 +72,108 @@ export function SSO() {
   const [showErrors, setShowErrors] = useState(false)
 
   const userEmail = session?.user?.email
+  const userId = session?.user?.id
   const userRole = getUserRole(userEmail)
   const isOwner = userRole === 'owner'
+  const isAdmin = userRole === 'admin'
+  const canManageSSO = isOwner || isAdmin
+
+  const [isSSOProviderOwner, setIsSSOProviderOwner] = useState<boolean | null>(null)
 
   useEffect(() => {
     const fetchProviders = async () => {
       try {
         const response = await fetch('/api/auth/sso/providers')
-        if (response.ok) {
-          const data = await response.json()
-          setProviders(data.providers || [])
+        if (!response.ok) {
+          throw new Error(`Failed to fetch providers: ${response.statusText}`)
+        }
+
+        const data = await response.json()
+        setProviders(data.providers || [])
+
+        // For self-hosted, check if current user owns any SSO provider
+        if (!isBillingEnabled && userId) {
+          const ownsProvider = data.providers.some((p: any) => p.userId === userId)
+          setIsSSOProviderOwner(ownsProvider)
+        } else {
+          // For hosted, ownership check not needed
+          setIsSSOProviderOwner(null)
         }
       } catch (error) {
         logger.error('Failed to fetch SSO providers', { error })
+        setProviders([])
+        setIsSSOProviderOwner(false)
       } finally {
         setIsLoadingProviders(false)
       }
     }
 
-    if (isOwner && activeOrganization && hasEnterprisePlan) {
+    // For self-hosted (no billing), always fetch to check ownership
+    // For hosted, require organization + enterprise plan + owner/admin role
+    const shouldFetch = !isBillingEnabled
+      ? true
+      : canManageSSO && activeOrganization && hasEnterprisePlan
+
+    if (shouldFetch) {
       fetchProviders()
     } else {
       setIsLoadingProviders(false)
     }
-  }, [isOwner, activeOrganization, hasEnterprisePlan])
+  }, [canManageSSO, activeOrganization, hasEnterprisePlan, userId, isBillingEnabled])
 
-  if (!activeOrganization) {
-    return (
-      <div className='flex h-full items-center justify-center p-6'>
-        <Alert>
-          <AlertDescription>
-            You must be part of an organization to configure Single Sign-On.
-          </AlertDescription>
-        </Alert>
-      </div>
-    )
-  }
+  // For self-hosted, bypass organization/plan checks if user owns SSO providers
+  if (isBillingEnabled) {
+    if (!activeOrganization) {
+      return (
+        <div className='flex h-full items-center justify-center p-6'>
+          <Alert>
+            <AlertDescription>
+              You must be part of an organization to configure Single Sign-On.
+            </AlertDescription>
+          </Alert>
+        </div>
+      )
+    }
 
-  if (!hasEnterprisePlan) {
-    return (
-      <div className='flex h-full items-center justify-center p-6'>
-        <Alert>
-          <AlertDescription>
-            Single Sign-On is available on Enterprise plans only.
-            <br />
-            Contact your admin to upgrade your plan.
-          </AlertDescription>
-        </Alert>
-      </div>
-    )
-  }
+    if (!hasEnterprisePlan) {
+      return (
+        <div className='flex h-full items-center justify-center p-6'>
+          <Alert>
+            <AlertDescription>
+              Single Sign-On is available on Enterprise plans only.
+              <br />
+              Contact your admin to upgrade your plan.
+            </AlertDescription>
+          </Alert>
+        </div>
+      )
+    }
 
-  if (!isOwner) {
-    return (
-      <div className='flex h-full items-center justify-center p-6'>
-        <Alert>
-          <AlertDescription>
-            Only organization owners can configure Single Sign-On settings.
-          </AlertDescription>
-        </Alert>
-      </div>
-    )
+    if (!canManageSSO) {
+      return (
+        <div className='flex h-full items-center justify-center p-6'>
+          <Alert>
+            <AlertDescription>
+              Only organization owners and admins can configure Single Sign-On settings.
+            </AlertDescription>
+          </Alert>
+        </div>
+      )
+    }
+  } else {
+    // Self-hosted: only show to SSO provider owners
+    // Wait for loading to complete before showing error
+    if (!isLoadingProviders && isSSOProviderOwner === false && providers.length > 0) {
+      return (
+        <div className='flex h-full items-center justify-center p-6'>
+          <Alert>
+            <AlertDescription>
+              Only the user who configured SSO can manage these settings.
+            </AlertDescription>
+          </Alert>
+        </div>
+      )
+    }
   }
 
   const validateProviderId = (value: string): string[] => {
@@ -212,7 +250,6 @@ export function SSO() {
     e.preventDefault()
     setIsLoading(true)
     setError(null)
-    setSuccess(null)
 
     setShowErrors(true)
     const validation = validateAll(formData)
@@ -267,7 +304,6 @@ export function SSO() {
       }
 
       const result = await response.json()
-      setSuccess('SSO provider configured successfully!')
       logger.info('SSO provider configured', { providerId: result.providerId })
 
       setFormData({
@@ -286,16 +322,21 @@ export function SSO() {
         showAdvanced: false,
       })
 
-      try {
-        const providersResponse = await fetch('/api/auth/sso/providers')
-        if (providersResponse.ok) {
-          const providersData = await providersResponse.json()
-          setProviders(providersData.providers || [])
-          setShowConfigForm(false)
+      // Refresh providers list
+      const providersResponse = await fetch('/api/auth/sso/providers')
+      if (providersResponse.ok) {
+        const providersData = await providersResponse.json()
+        setProviders(providersData.providers || [])
+
+        // Update ownership status for self-hosted
+        if (!isBillingEnabled && userId) {
+          const ownsProvider = providersData.providers.some((p: any) => p.userId === userId)
+          setIsSSOProviderOwner(ownsProvider)
         }
-      } catch (error) {
-        logger.error('Failed to refresh providers list', { error })
       }
+
+      setShowConfigForm(false)
+      setIsEditing(false)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error occurred'
       setError(message)
@@ -348,12 +389,45 @@ export function SSO() {
     } catch {}
   }
 
+  const handleReconfigure = (provider: SSOProvider) => {
+    try {
+      // Parse config based on provider type
+      let clientId = ''
+      let clientSecret = ''
+      let scopes = 'openid,profile,email'
+
+      if (provider.providerType === 'oidc' && provider.oidcConfig) {
+        const config = JSON.parse(provider.oidcConfig)
+        clientId = config.clientId || ''
+        clientSecret = config.clientSecret || ''
+        scopes = config.scopes?.join(',') || 'openid,profile,email'
+      }
+
+      setFormData({
+        providerType: provider.providerType,
+        providerId: provider.providerId,
+        issuerUrl: provider.issuer,
+        domain: provider.domain,
+        clientId,
+        clientSecret,
+        scopes,
+        entryPoint: '',
+        cert: '',
+        callbackUrl: '',
+        audience: '',
+        wantAssertionsSigned: true,
+        showAdvanced: false,
+      })
+      setIsEditing(true)
+      setShowConfigForm(true)
+    } catch (error) {
+      logger.error('Failed to parse provider config', { error })
+      setError('Failed to load provider configuration')
+    }
+  }
+
   if (isLoadingProviders) {
-    return (
-      <div className='flex h-full items-center justify-center p-6'>
-        <div>Loading SSO configuration...</div>
-      </div>
-    )
+    return <SsoSkeleton />
   }
 
   const hasProviders = providers.length > 0
@@ -361,17 +435,11 @@ export function SSO() {
 
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex-1 overflow-y-auto px-6 pt-3 pb-3'>
-        <div className='space-y-4'>
+      <div className='flex-1 overflow-y-auto px-6 pt-4 pb-4'>
+        <div className='space-y-6'>
           {error && (
             <Alert variant='destructive' className='rounded-[8px]'>
               <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          {success && (
-            <Alert className='rounded-[8px]'>
-              <AlertDescription className='text-green-600'>{success}</AlertDescription>
             </Alert>
           )}
 
@@ -380,29 +448,20 @@ export function SSO() {
             <div className='space-y-4'>
               {providers.map((provider) => (
                 <div key={provider.id} className='rounded-[12px] border border-border p-6'>
-                  <div className='flex items-start justify-between'>
-                    <div className='flex items-start space-x-3'>
-                      <div className='flex h-10 w-10 items-center justify-center rounded-[8px] bg-primary/10'>
-                        <Shield className='h-5 w-5 text-primary' />
-                      </div>
-                      <div className='flex-1'>
-                        <h3 className='font-medium text-base'>Single Sign-On Provider</h3>
-                        <p className='mt-1 text-muted-foreground text-sm'>
-                          {provider.providerId} • {provider.domain}
-                        </p>
-                        <p className='mt-2 text-muted-foreground text-xs'>
-                          Configured on {new Date(provider.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
+                  <div className='flex items-start justify-between gap-3'>
+                    <div className='flex-1'>
+                      <h3 className='font-medium text-base'>Single Sign-On Provider</h3>
+                      <p className='mt-1 text-muted-foreground text-sm'>
+                        {provider.providerId} • {provider.domain}
+                      </p>
                     </div>
                     <div className='flex items-center space-x-2'>
                       <Button
                         variant='outline'
                         size='sm'
-                        onClick={() => setShowConfigForm(true)}
+                        onClick={() => handleReconfigure(provider)}
                         className='rounded-[8px]'
                       >
-                        <SettingsIcon className='mr-2 h-4 w-4' />
                         Reconfigure
                       </Button>
                     </div>
@@ -445,7 +504,7 @@ export function SSO() {
                           className='-translate-y-1/2 absolute top-1/2 right-3 rounded p-1 text-muted-foreground transition hover:text-foreground'
                         >
                           {copied ? (
-                            <CheckCheck className='h-4 w-4 text-green-500' />
+                            <Check className='h-4 w-4 text-green-500' />
                           ) : (
                             <Copy className='h-4 w-4' />
                           )}
@@ -463,7 +522,10 @@ export function SSO() {
                 <div className='mb-4'>
                   <Button
                     variant='outline'
-                    onClick={() => setShowConfigForm(false)}
+                    onClick={() => {
+                      setShowConfigForm(false)
+                      setIsEditing(false)
+                    }}
                     className='rounded-[8px]'
                   >
                     ← Back to SSO Status
@@ -563,11 +625,7 @@ export function SSO() {
                       <p>{errors.issuerUrl.join(' ')}</p>
                     </div>
                   )}
-                  <p className='text-muted-foreground text-xs'>
-                    {formData.providerType === 'oidc'
-                      ? ''
-                      : 'The base URL or entity ID of your SAML identity provider'}
-                  </p>
+                  <p className='text-muted-foreground text-xs' />
                 </div>
 
                 <div className='space-y-1'>
@@ -726,9 +784,7 @@ export function SSO() {
                           <p>{errors.entryPoint.join(' ')}</p>
                         </div>
                       )}
-                      <p className='text-muted-foreground text-xs'>
-                        The SAML SSO login URL from your identity provider
-                      </p>
+                      <p className='text-muted-foreground text-xs' />
                     </div>
 
                     <div className='space-y-1'>
@@ -754,9 +810,7 @@ export function SSO() {
                           <p>{errors.cert.join(' ')}</p>
                         </div>
                       )}
-                      <p className='text-muted-foreground text-xs'>
-                        The X.509 certificate from your SAML identity provider (PEM format)
-                      </p>
+                      <p className='text-muted-foreground text-xs' />
                     </div>
 
                     {/* Advanced SAML Options */}
@@ -846,7 +900,13 @@ export function SSO() {
                   className='w-full rounded-[10px]'
                   disabled={isLoading || hasAnyErrors(errors)}
                 >
-                  {isLoading ? 'Configuring...' : 'Configure SSO Provider'}
+                  {isLoading
+                    ? isEditing
+                      ? 'Updating...'
+                      : 'Configuring...'
+                    : isEditing
+                      ? 'Update SSO Provider'
+                      : 'Configure SSO Provider'}
                 </Button>
               </form>
 
@@ -873,7 +933,7 @@ export function SSO() {
                     className='-translate-y-1/2 absolute top-1/2 right-3 rounded p-1 text-muted-foreground transition hover:text-foreground'
                   >
                     {copied ? (
-                      <CheckCheck className='h-4 w-4 text-green-500' />
+                      <Check className='h-4 w-4 text-green-500' />
                     ) : (
                       <Copy className='h-4 w-4' />
                     )}
@@ -882,6 +942,73 @@ export function SSO() {
               </div>
             </>
           )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SsoSkeleton() {
+  return (
+    <div className='flex h-full flex-col'>
+      <div className='flex-1 overflow-y-auto px-6 pt-4 pb-4'>
+        <div className='space-y-4'>
+          {/* Provider type toggle */}
+          <div className='space-y-1'>
+            <Skeleton className='h-4 w-28' />
+            <div className='flex items-center gap-2'>
+              <Skeleton className='h-9 w-20 rounded-[8px]' />
+              <Skeleton className='h-9 w-20 rounded-[8px]' />
+            </div>
+            <Skeleton className='h-3 w-56' />
+          </div>
+
+          {/* Core fields */}
+          <div className='space-y-3'>
+            <div className='space-y-1'>
+              <Skeleton className='h-4 w-24' />
+              <Skeleton className='h-9 w-full rounded-[10px]' />
+            </div>
+            <div className='space-y-1'>
+              <Skeleton className='h-4 w-24' />
+              <Skeleton className='h-9 w-full rounded-[10px]' />
+            </div>
+            <div className='space-y-1'>
+              <Skeleton className='h-4 w-16' />
+              <Skeleton className='h-9 w-full rounded-[10px]' />
+            </div>
+          </div>
+
+          {/* OIDC section (client id/secret/scopes) */}
+          <div className='space-y-3'>
+            <div className='space-y-1'>
+              <Skeleton className='h-4 w-20' />
+              <Skeleton className='h-9 w-full rounded-[10px]' />
+            </div>
+            <div className='space-y-1'>
+              <Skeleton className='h-4 w-24' />
+              <div className='relative'>
+                <Skeleton className='h-9 w-full rounded-[10px]' />
+                <Skeleton className='-translate-y-1/2 absolute top-1/2 right-3 h-4 w-4 rounded' />
+              </div>
+            </div>
+            <div className='space-y-1'>
+              <Skeleton className='h-4 w-16' />
+              <Skeleton className='h-9 w-full rounded-[10px]' />
+            </div>
+          </div>
+
+          {/* Submit button */}
+          <Skeleton className='h-9 w-full rounded-[10px]' />
+
+          {/* Callback URL */}
+          <div className='space-y-1'>
+            <Skeleton className='h-4 w-20' />
+            <div className='relative'>
+              <Skeleton className='h-9 w-full rounded-[10px]' />
+              <Skeleton className='-translate-y-1/2 absolute top-1/2 right-3 h-4 w-4 rounded' />
+            </div>
+          </div>
         </div>
       </div>
     </div>

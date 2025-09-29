@@ -1,9 +1,11 @@
+import { useEffect, useState } from 'react'
 import {
   Bot,
   CreditCard,
   FileCode,
   Home,
   Key,
+  LogIn,
   Server,
   Settings,
   Shield,
@@ -116,7 +118,7 @@ const allNavigationItems: NavigationItem[] = [
   {
     id: 'sso',
     label: 'Single Sign-On',
-    icon: Shield,
+    icon: LogIn,
     requiresTeam: true,
     requiresEnterprise: true,
     requiresOwner: true,
@@ -131,8 +133,35 @@ export function SettingsNavigation({
   const { data: session } = useSession()
   const { hasEnterprisePlan, getUserRole } = useOrganizationStore()
   const userEmail = session?.user?.email
+  const userId = session?.user?.id
   const userRole = getUserRole(userEmail)
   const isOwner = userRole === 'owner'
+  const isAdmin = userRole === 'admin'
+  const canManageSSO = isOwner || isAdmin
+
+  const [isSSOProviderOwner, setIsSSOProviderOwner] = useState<boolean | null>(null)
+
+  // For self-hosted, check if user owns any SSO providers
+  useEffect(() => {
+    // Only check ownership for self-hosted instances
+    if (!isHosted && userId) {
+      fetch('/api/auth/sso/providers')
+        .then((res) => {
+          if (!res.ok) throw new Error('Failed to fetch providers')
+          return res.json()
+        })
+        .then((data) => {
+          const ownsProvider = data.providers?.some((p: any) => p.userId === userId) || false
+          setIsSSOProviderOwner(ownsProvider)
+        })
+        .catch(() => {
+          setIsSSOProviderOwner(false)
+        })
+    } else if (isHosted) {
+      // For hosted, we don't need to check ownership
+      setIsSSOProviderOwner(null)
+    }
+  }, [userId, isHosted])
 
   const navigationItems = allNavigationItems.filter((item) => {
     if (item.id === 'copilot' && !isHosted) {
@@ -150,6 +179,18 @@ export function SettingsNavigation({
       return false
     }
 
+    // For SSO, special handling based on environment
+    if (item.id === 'sso') {
+      if (isHosted) {
+        // Hosted: require enterprise plan + owner/admin
+        return hasOrganization && hasEnterprisePlan && canManageSSO
+      }
+      // Self-hosted: only show to SSO provider owners
+      // Return false while loading to prevent flash
+      return isSSOProviderOwner === true
+    }
+
+    // For other owner-only items (not SSO, which is handled above)
     if (item.requiresOwner && !isOwner) {
       return false
     }
