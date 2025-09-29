@@ -1837,7 +1837,7 @@ const WorkflowContent = React.memo(() => {
   }, [collaborativeSetSubblockValue])
 
   // Show skeleton UI while loading until the workflow store is hydrated
-  const showSkeletonUI = !isWorkflowReady || typeof lastSaved !== 'number'
+  const showSkeletonUI = !isWorkflowReady
 
   if (showSkeletonUI) {
     return (
@@ -1942,10 +1942,9 @@ const WorkflowContent = React.memo(() => {
         />
 
         {/* Trigger list for empty workflows - only show after workflow has loaded and hydrated */}
-        {isWorkflowReady &&
-          typeof lastSaved === 'number' &&
-          isWorkflowEmpty &&
-          effectivePermissions.canEdit && <TriggerList onSelect={handleTriggerSelect} />}
+        {isWorkflowReady && isWorkflowEmpty && effectivePermissions.canEdit && (
+          <TriggerList onSelect={handleTriggerSelect} />
+        )}
       </div>
     </div>
   )

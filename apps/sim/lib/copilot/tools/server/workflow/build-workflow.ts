@@ -96,44 +96,6 @@ export const buildWorkflowServerTool: BaseServerTool<
       // Use sanitized state if available
       const finalWorkflowState = validation.sanitizedState || workflowState
 
-      // Apply positions using smart layout
-      const positionResponse = await fetch(`${SIM_AGENT_API_URL}/api/yaml/apply-layout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workflowState: finalWorkflowState,
-          options: {
-            strategy: 'smart',
-            direction: 'auto',
-            spacing: {
-              horizontal: 500,
-              vertical: 400,
-              layer: 700,
-            },
-            alignment: 'center',
-            padding: {
-              x: 250,
-              y: 250,
-            },
-          },
-        }),
-      })
-
-      if (!positionResponse.ok) {
-        const errorText = await positionResponse.text().catch(() => '')
-        logger.warn('Failed to apply layout to workflow', {
-          status: positionResponse.status,
-          error: errorText,
-        })
-        // Non-critical error - continue with unpositioned workflow
-      } else {
-        const layoutResult = await positionResponse.json()
-        if (layoutResult.success && layoutResult.workflowState) {
-          // Update the workflow state with positioned blocks
-          Object.assign(finalWorkflowState, layoutResult.workflowState)
-        }
-      }
-
       return {
         success: true,
         workflowState: finalWorkflowState,
