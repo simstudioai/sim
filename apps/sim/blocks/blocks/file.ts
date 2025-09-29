@@ -1,4 +1,4 @@
-import { DocumentIcon } from '@/components/icons'
+import { DocumentIcon } from '@/components/icons/icons'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockConfig, SubBlockLayout, SubBlockType } from '@/blocks/types'
 import type { FileParserOutput } from '@/tools/file/types'

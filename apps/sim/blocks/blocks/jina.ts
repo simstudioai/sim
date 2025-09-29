@@ -1,4 +1,4 @@
-import { JinaAIIcon } from '@/components/icons'
+import { JinaAIIcon } from '@/components/icons/icons'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { ReadUrlResponse } from '@/tools/jina/types'
 

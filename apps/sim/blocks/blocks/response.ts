@@ -1,4 +1,4 @@
-import { ResponseIcon } from '@/components/icons'
+import { ResponseIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import type { ResponseBlockOutput } from '@/tools/response/types'
 

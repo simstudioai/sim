@@ -1,4 +1,4 @@
-import { WhatsAppIcon } from '@/components/icons'
+import { WhatsAppIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { WhatsAppResponse } from '@/tools/whatsapp/types'

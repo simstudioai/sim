@@ -10,7 +10,7 @@ import {
   type RateLimitCounterType,
   type SubscriptionPlan,
   type TriggerType,
-} from '@/services/queue/types'
+} from '@/lib/queue/types'
 
 const logger = createLogger('RateLimiter')
 

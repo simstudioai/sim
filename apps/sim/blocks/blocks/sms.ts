@@ -1,4 +1,4 @@
-import { SMSIcon } from '@/components/icons'
+import { SMSIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import type { SMSSendResult } from '@/tools/sms/types'
 

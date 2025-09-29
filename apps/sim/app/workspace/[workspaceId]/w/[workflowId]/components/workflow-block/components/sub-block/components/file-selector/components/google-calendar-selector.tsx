@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Check, ChevronDown, RefreshCw, X } from 'lucide-react'
-import { GoogleCalendarIcon } from '@/components/icons'
+import { GoogleCalendarIcon } from '@/components/icons/icons'
 import { Button } from '@/components/ui/button'
 import {
   Command,

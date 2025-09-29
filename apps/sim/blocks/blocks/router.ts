@@ -1,4 +1,4 @@
-import { ConnectIcon } from '@/components/icons'
+import { ConnectIcon } from '@/components/icons/icons'
 import { isHosted } from '@/lib/environment'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { ProviderId } from '@/providers/types'

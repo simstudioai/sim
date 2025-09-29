@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, RefreshCw, X } from 'lucide-react'
-import { WealthboxIcon } from '@/components/icons'
+import { WealthboxIcon } from '@/components/icons/icons'
 import { Button } from '@/components/ui/button'
 import {
   Command,

@@ -1,4 +1,4 @@
-import { ClayIcon } from '@/components/icons'
+import { ClayIcon } from '@/components/icons/icons'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { ClayPopulateResponse } from '@/tools/clay/types'
 

@@ -1,4 +1,4 @@
-import { GoogleDocsIcon } from '@/components/icons'
+import { GoogleDocsIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { GoogleDocsResponse } from '@/tools/google_docs/types'

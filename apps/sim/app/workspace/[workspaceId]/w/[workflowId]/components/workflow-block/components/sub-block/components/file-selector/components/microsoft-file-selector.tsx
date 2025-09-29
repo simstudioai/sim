@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, ExternalLink, RefreshCw, X } from 'lucide-react'
-import { MicrosoftExcelIcon } from '@/components/icons'
+import { MicrosoftExcelIcon } from '@/components/icons/icons'
 import { Button } from '@/components/ui/button'
 import {
   Command,

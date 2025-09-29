@@ -1,4 +1,4 @@
-import { WorkflowIcon } from '@/components/icons'
+import { WorkflowIcon } from '@/components/icons/icons'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockConfig } from '@/blocks/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'

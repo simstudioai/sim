@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Check, ChevronDown, RefreshCw, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { PackageSearchIcon } from '@/components/icons'
+import { PackageSearchIcon } from '@/components/icons/icons'
 import { Button } from '@/components/ui/button'
 import {
   Command,

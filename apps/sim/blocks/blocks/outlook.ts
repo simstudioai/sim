@@ -1,4 +1,4 @@
-import { OutlookIcon } from '@/components/icons'
+import { OutlookIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { OutlookResponse } from '@/tools/outlook/types'

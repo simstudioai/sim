@@ -1,4 +1,4 @@
-import { MySQLIcon } from '@/components/icons'
+import { MySQLIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import type { MySQLResponse } from '@/tools/mysql/types'
 

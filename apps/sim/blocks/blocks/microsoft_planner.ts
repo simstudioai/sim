@@ -1,4 +1,4 @@
-import { MicrosoftPlannerIcon } from '@/components/icons'
+import { MicrosoftPlannerIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { MicrosoftPlannerResponse } from '@/tools/microsoft_planner/types'

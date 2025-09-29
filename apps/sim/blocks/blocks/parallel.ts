@@ -1,4 +1,4 @@
-import { ParallelIcon } from '@/components/icons'
+import { ParallelIcon } from '@/components/icons/icons'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
 

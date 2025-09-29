@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, ExternalLink, RefreshCw, X } from 'lucide-react'
-import { JiraIcon } from '@/components/icons'
+import { JiraIcon } from '@/components/icons/icons'
 import { Button } from '@/components/ui/button'
 import {
   Command,

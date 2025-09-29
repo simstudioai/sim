@@ -65,23 +65,6 @@ const groupNodesByParents = (
 }
 
 /**
- * Sort blocks by priority
- */
-const sortBlocksByPriority = (
-  blocks: string[],
-  orphanedBlocks: Set<string>,
-  disabledBlocks: Set<string>,
-  terminalBlocks: Set<string>
-): string[] => {
-  return [...blocks].sort((a, b) => {
-    const aScore = getBlockPriorityScore(a, orphanedBlocks, disabledBlocks, terminalBlocks)
-    const bScore = getBlockPriorityScore(b, orphanedBlocks, disabledBlocks, terminalBlocks)
-    if (aScore !== bScore) return aScore - bScore
-    return a.localeCompare(b)
-  })
-}
-
-/**
  * Get the dimensions of a block
  */
 const getBlockDimensions = (
@@ -610,9 +593,3 @@ export const detectHandleOrientation = (blocks: Record<string, any>): 'horizonta
 
   return horizontalCount >= verticalCount ? 'horizontal' : 'vertical'
 }
-
-/**
- * NOTE: Auto layout functions have been moved to the centralized backend system
- * at apps/sim/lib/autolayout/ - all auto layout now goes through the API routes
- * and uses the same improved algorithm for consistent results.
- */

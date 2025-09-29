@@ -1,4 +1,4 @@
-import { ArxivIcon } from '@/components/icons'
+import { ArxivIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import type { ArxivResponse } from '@/tools/arxiv/types'
 

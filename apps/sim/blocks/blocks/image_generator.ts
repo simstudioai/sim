@@ -1,4 +1,4 @@
-import { ImageIcon } from '@/components/icons'
+import { ImageIcon } from '@/components/icons/icons'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { DalleResponse } from '@/tools/openai/types'
 

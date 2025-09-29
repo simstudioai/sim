@@ -1,4 +1,4 @@
-import { DiscordIcon } from '@/components/icons'
+import { DiscordIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { DiscordResponse } from '@/tools/discord/types'

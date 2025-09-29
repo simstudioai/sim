@@ -1,4 +1,4 @@
-import { AgentIcon } from '@/components/icons'
+import { AgentIcon } from '@/components/icons/icons'
 import { isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockConfig } from '@/blocks/types'

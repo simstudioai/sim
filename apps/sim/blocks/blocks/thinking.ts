@@ -1,4 +1,4 @@
-import { BrainIcon } from '@/components/icons'
+import { BrainIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import type { ThinkingToolResponse } from '@/tools/thinking/types'
 

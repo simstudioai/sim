@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Check, ChevronDown, RefreshCw } from 'lucide-react'
-import { LinearIcon } from '@/components/icons'
+import { LinearIcon } from '@/components/icons/icons'
 import { Button } from '@/components/ui/button'
 import {
   Command,

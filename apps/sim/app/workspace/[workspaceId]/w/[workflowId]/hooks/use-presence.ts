@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { useSocket } from '@/contexts/socket-context'
+import { useSocket } from '@/lib/contexts/socket-context'
 
 // Socket presence user from server
 interface SocketPresenceUser {

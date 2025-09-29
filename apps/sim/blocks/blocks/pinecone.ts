@@ -1,4 +1,4 @@
-import { PineconeIcon } from '@/components/icons'
+import { PineconeIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { PineconeResponse } from '@/tools/pinecone/types'

@@ -1,4 +1,4 @@
-import { OutlookIcon } from '@/components/icons'
+import { OutlookIcon } from '@/components/icons/icons'
 import type { TriggerConfig } from '@/triggers/types'
 
 export const outlookPollingTrigger: TriggerConfig = {

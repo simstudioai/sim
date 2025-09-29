@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, ExternalLink, RefreshCw, X } from 'lucide-react'
-import { ConfluenceIcon } from '@/components/icons'
+import { ConfluenceIcon } from '@/components/icons/icons'
 import { Button } from '@/components/ui/button'
 import {
   Command,

@@ -1,4 +1,4 @@
-import { ApiIcon } from '@/components/icons'
+import { ApiIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import type { RequestResponse } from '@/tools/http/types'
 

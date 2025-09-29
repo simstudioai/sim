@@ -1,4 +1,4 @@
-import { CodeIcon } from '@/components/icons'
+import { CodeIcon } from '@/components/icons/icons'
 import { CodeLanguage, getLanguageDisplayName } from '@/lib/execution/languages'
 import type { BlockConfig } from '@/blocks/types'
 import type { CodeExecutionOutput } from '@/tools/function/types'

@@ -1,4 +1,4 @@
-import { TypeformIcon } from '@/components/icons'
+import { TypeformIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { TypeformResponse } from '@/tools/typeform/types'

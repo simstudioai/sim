@@ -1,4 +1,4 @@
-import { HunterIOIcon } from '@/components/icons'
+import { HunterIOIcon } from '@/components/icons/icons'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { HunterResponse } from '@/tools/hunter/types'
 

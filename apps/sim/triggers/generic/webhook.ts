@@ -1,4 +1,4 @@
-import { WebhookIcon } from '@/components/icons'
+import { WebhookIcon } from '@/components/icons/icons'
 import type { TriggerConfig } from '../types'
 
 export const genericWebhookTrigger: TriggerConfig = {

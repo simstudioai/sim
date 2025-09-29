@@ -6,8 +6,8 @@ import {
   HIPAABadgeIcon,
   LinkedInIcon,
   xIcon as XIcon,
-} from '@/components/icons'
-import { inter } from '@/app/fonts/inter'
+} from '@/components/icons/icons'
+import { inter } from '@/app/styles/fonts/inter'
 
 const blocks = [
   'Agent',

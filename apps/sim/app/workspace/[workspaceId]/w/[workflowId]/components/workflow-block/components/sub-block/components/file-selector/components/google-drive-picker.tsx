@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ExternalLink, FileIcon, FolderIcon, RefreshCw, X } from 'lucide-react'
 import useDrivePicker from 'react-google-drive-picker'
-import { GoogleDocsIcon, GoogleSheetsIcon } from '@/components/icons'
+import { GoogleDocsIcon, GoogleSheetsIcon } from '@/components/icons/icons'
 import { Button } from '@/components/ui/button'
 import { getEnv } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'

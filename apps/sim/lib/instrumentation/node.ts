@@ -4,8 +4,8 @@
  * This file contains all server-side instrumentation logic.
  */
 
-import { env } from './lib/env'
-import { createLogger } from './lib/logs/console/logger.ts'
+import { env } from '../env.ts'
+import { createLogger } from '../logs/console/logger.ts'
 
 const logger = createLogger('OtelInstrumentation')
 
@@ -33,7 +33,7 @@ async function initializeOpenTelemetry() {
     let telemetryConfig
     try {
       // Use dynamic import for ES modules
-      telemetryConfig = (await import('./telemetry.config.ts')).default
+      telemetryConfig = (await import('../../telemetry.config.ts')).default
     } catch (_e) {
       telemetryConfig = DEFAULT_TELEMETRY_CONFIG
     }

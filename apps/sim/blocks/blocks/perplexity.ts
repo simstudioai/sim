@@ -1,4 +1,4 @@
-import { PerplexityIcon } from '@/components/icons'
+import { PerplexityIcon } from '@/components/icons/icons'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { PerplexityChatResponse } from '@/tools/perplexity/types'
 

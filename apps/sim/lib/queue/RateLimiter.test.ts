@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { RateLimiter } from '@/services/queue/RateLimiter'
-import { MANUAL_EXECUTION_LIMIT, RATE_LIMITS } from '@/services/queue/types'
+import { RateLimiter } from '@/lib/queue/RateLimiter'
+import { MANUAL_EXECUTION_LIMIT, RATE_LIMITS } from '@/lib/queue/types'
 
 // Mock the database module
 vi.mock('@sim/db', () => ({

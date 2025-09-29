@@ -6,6 +6,7 @@ import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { env, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { RateLimiter } from '@/lib/queue'
 import {
   handleSlackChallenge,
   handleWhatsAppVerification,
@@ -13,7 +14,6 @@ import {
   verifyProviderWebhook,
 } from '@/lib/webhooks/utils'
 import { executeWebhookJob } from '@/background/webhook-execution'
-import { RateLimiter } from '@/services/queue'
 
 const logger = createLogger('WebhookProcessor')
 

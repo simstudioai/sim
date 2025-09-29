@@ -1,4 +1,4 @@
-import { BrowserUseIcon } from '@/components/icons'
+import { BrowserUseIcon } from '@/components/icons/icons'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { BrowserUseResponse } from '@/tools/browser_use/types'
 

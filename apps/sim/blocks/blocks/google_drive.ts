@@ -1,4 +1,4 @@
-import { GoogleDriveIcon } from '@/components/icons'
+import { GoogleDriveIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { GoogleDriveResponse } from '@/tools/google_drive/types'

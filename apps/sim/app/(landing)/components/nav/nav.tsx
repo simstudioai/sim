@@ -5,12 +5,12 @@ import { ArrowRight, ChevronRight } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { GithubIcon } from '@/components/icons'
+import { GithubIcon } from '@/components/icons/icons'
 import { useBrandConfig } from '@/lib/branding/branding'
 import { isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
-import { soehne } from '@/app/fonts/soehne/soehne'
+import { soehne } from '@/app/styles/fonts/soehne/soehne'
 
 const logger = createLogger('nav')
 

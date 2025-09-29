@@ -1,4 +1,4 @@
-import { S3Icon } from '@/components/icons'
+import { S3Icon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { S3Response } from '@/tools/s3/types'

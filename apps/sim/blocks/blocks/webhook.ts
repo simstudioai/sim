@@ -11,7 +11,7 @@ import {
   TelegramIcon,
   WebhookIcon,
   WhatsAppIcon,
-} from '@/components/icons'
+} from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 

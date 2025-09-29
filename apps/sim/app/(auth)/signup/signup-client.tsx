@@ -11,9 +11,9 @@ import { client, useSession } from '@/lib/auth-client'
 import { quickValidateEmail } from '@/lib/email/validation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
-import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
-import { inter } from '@/app/fonts/inter'
-import { soehne } from '@/app/fonts/soehne/soehne'
+import { OauthButtons } from '@/app/(auth)/components'
+import { inter } from '@/app/styles/fonts/inter'
+import { soehne } from '@/app/styles/fonts/soehne/soehne'
 
 const logger = createLogger('SignupForm')
 
@@ -503,7 +503,7 @@ function SignupFormContent({
         </div>
       )}
 
-      <SocialLoginButtons
+      <OauthButtons
         githubAvailable={githubAvailable}
         googleAvailable={googleAvailable}
         callbackURL={redirectUrl || '/workspace'}
@@ -546,15 +546,17 @@ function SignupFormContent({
   )
 }
 
-export default function SignupPage({
-  githubAvailable,
-  googleAvailable,
-  isProduction,
-}: {
+interface SignupFormProps {
   githubAvailable: boolean
   googleAvailable: boolean
   isProduction: boolean
-}) {
+}
+
+export default function SignupForm({
+  githubAvailable,
+  googleAvailable,
+  isProduction,
+}: SignupFormProps) {
   return (
     <Suspense
       fallback={<div className='flex h-screen items-center justify-center'>Loading...</div>}

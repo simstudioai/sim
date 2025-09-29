@@ -1,4 +1,4 @@
-import { WikipediaIcon } from '@/components/icons'
+import { WikipediaIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import type { WikipediaResponse } from '@/tools/wikipedia/types'
 

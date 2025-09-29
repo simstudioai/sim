@@ -1,4 +1,4 @@
-import { TranslateIcon } from '@/components/icons'
+import { TranslateIcon } from '@/components/icons/icons'
 import { isHosted } from '@/lib/environment'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import {

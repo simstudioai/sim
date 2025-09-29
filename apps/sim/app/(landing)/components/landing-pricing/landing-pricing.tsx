@@ -14,7 +14,7 @@ import {
 import { useRouter } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
-import { inter } from '@/app/fonts/inter'
+import { inter } from '@/app/styles/fonts/inter'
 import {
   ENTERPRISE_PLAN_FEATURES,
   PRO_PLAN_FEATURES,

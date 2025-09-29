@@ -3,7 +3,7 @@
 import { isHosted } from '@/lib/environment'
 import Footer from '@/app/(landing)/components/footer/footer'
 import Nav from '@/app/(landing)/components/nav/nav'
-import { soehne } from '@/app/fonts/soehne/soehne'
+import { soehne } from '@/app/styles/fonts/soehne/soehne'
 
 interface LegalLayoutProps {
   title: string

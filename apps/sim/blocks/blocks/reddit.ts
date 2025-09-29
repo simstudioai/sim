@@ -1,4 +1,4 @@
-import { RedditIcon } from '@/components/icons'
+import { RedditIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { RedditResponse } from '@/tools/reddit/types'

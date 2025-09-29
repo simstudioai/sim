@@ -1,4 +1,4 @@
-import { HuggingFaceIcon } from '@/components/icons'
+import { HuggingFaceIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { HuggingFaceChatResponse } from '@/tools/huggingface/types'

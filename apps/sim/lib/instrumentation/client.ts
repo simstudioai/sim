@@ -5,7 +5,7 @@
  * It respects the user's telemetry preferences stored in localStorage.
  *
  */
-import { env } from './lib/env'
+import { env } from '../env'
 
 if (typeof window !== 'undefined') {
   const TELEMETRY_STATUS_KEY = 'simstudio-telemetry-status'

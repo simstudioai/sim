@@ -31,9 +31,9 @@ import {
   SlackIcon,
   StripeIcon,
   SupabaseIcon,
-} from '@/components/icons'
+} from '@/components/icons/icons'
 import { LandingPromptStorage } from '@/lib/browser-storage'
-import { soehne } from '@/app/fonts/soehne/soehne'
+import { soehne } from '@/app/styles/fonts/soehne/soehne'
 import {
   CARD_WIDTH,
   IconButton,

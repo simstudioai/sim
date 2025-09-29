@@ -1,4 +1,4 @@
-import { TavilyIcon } from '@/components/icons'
+import { TavilyIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { TavilyResponse } from '@/tools/tavily/types'

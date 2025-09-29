@@ -1,4 +1,4 @@
-import { SlackIcon } from '@/components/icons'
+import { SlackIcon } from '@/components/icons/icons'
 import type { TriggerConfig } from '../types'
 
 export const slackWebhookTrigger: TriggerConfig = {

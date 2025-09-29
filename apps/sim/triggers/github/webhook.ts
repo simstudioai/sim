@@ -1,4 +1,4 @@
-import { GithubIcon } from '@/components/icons'
+import { GithubIcon } from '@/components/icons/icons'
 import type { TriggerConfig } from '../types'
 
 export const githubWebhookTrigger: TriggerConfig = {

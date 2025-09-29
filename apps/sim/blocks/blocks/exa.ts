@@ -1,4 +1,4 @@
-import { ExaAIIcon } from '@/components/icons'
+import { ExaAIIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { ExaResponse } from '@/tools/exa/types'

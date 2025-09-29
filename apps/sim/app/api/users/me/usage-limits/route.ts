@@ -4,8 +4,8 @@ import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getEffectiveCurrentPeriodCost } from '@/lib/billing/core/usage'
 import { createLogger } from '@/lib/logs/console/logger'
+import { RateLimiter } from '@/lib/queue'
 import { createErrorResponse } from '@/app/api/workflows/utils'
-import { RateLimiter } from '@/services/queue'
 
 const logger = createLogger('UsageLimitsAPI')
 

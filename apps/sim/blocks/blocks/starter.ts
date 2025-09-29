@@ -1,4 +1,4 @@
-import { StartIcon } from '@/components/icons'
+import { StartIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 
 export const StarterBlock: BlockConfig = {

@@ -1,4 +1,4 @@
-import { GmailIcon } from '@/components/icons'
+import { GmailIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { GmailToolResponse } from '@/tools/gmail/types'

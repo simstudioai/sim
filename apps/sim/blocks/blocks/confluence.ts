@@ -1,4 +1,4 @@
-import { ConfluenceIcon } from '@/components/icons'
+import { ConfluenceIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { ConfluenceResponse } from '@/tools/confluence/types'

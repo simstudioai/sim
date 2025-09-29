@@ -1,4 +1,4 @@
-import { GoogleIcon } from '@/components/icons'
+import { GoogleIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { GoogleSearchResponse } from '@/tools/google/types'

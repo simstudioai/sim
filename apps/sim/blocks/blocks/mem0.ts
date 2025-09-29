@@ -1,4 +1,4 @@
-import { Mem0Icon } from '@/components/icons'
+import { Mem0Icon } from '@/components/icons/icons'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { Mem0Response } from '@/tools/mem0/types'
 

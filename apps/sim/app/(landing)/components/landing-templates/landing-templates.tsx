@@ -1,4 +1,4 @@
-import { inter } from '@/app/fonts/inter'
+import { inter } from '@/app/styles/fonts/inter'
 import LandingTemplatePreview from './components/landing-template-preview'
 
 // Mock data for templates

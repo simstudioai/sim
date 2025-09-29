@@ -1,4 +1,4 @@
-import { SerperIcon } from '@/components/icons'
+import { SerperIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { SearchResponse } from '@/tools/serper/types'

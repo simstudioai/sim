@@ -1,4 +1,4 @@
-import { GoogleCalendarIcon } from '@/components/icons'
+import { GoogleCalendarIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { GoogleCalendarResponse } from '@/tools/google_calendar/types'

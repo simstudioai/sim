@@ -1,4 +1,4 @@
-import { GmailIcon } from '@/components/icons'
+import { GmailIcon } from '@/components/icons/icons'
 import type { TriggerConfig } from '@/triggers/types'
 
 export const gmailPollingTrigger: TriggerConfig = {

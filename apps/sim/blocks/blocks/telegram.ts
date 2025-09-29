@@ -1,4 +1,4 @@
-import { TelegramIcon } from '@/components/icons'
+import { TelegramIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { TelegramMessageResponse } from '@/tools/telegram/types'

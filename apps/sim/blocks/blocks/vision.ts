@@ -1,4 +1,4 @@
-import { EyeIcon } from '@/components/icons'
+import { EyeIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { VisionResponse } from '@/tools/vision/types'

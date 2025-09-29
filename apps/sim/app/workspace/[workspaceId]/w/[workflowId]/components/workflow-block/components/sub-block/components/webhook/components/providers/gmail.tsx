@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Info } from 'lucide-react'
-import { GmailIcon } from '@/components/icons'
+import { GmailIcon } from '@/components/icons/icons'
 import {
   Badge,
   Button,

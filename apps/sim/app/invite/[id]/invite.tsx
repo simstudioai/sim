@@ -201,7 +201,6 @@ export default function Invite() {
               ? 'Create an account to join this workspace on Sim'
               : 'Sign in to your account to accept this invitation'
           }
-          icon='userPlus'
           actions={[
             ...(isNewUser
               ? [
@@ -265,7 +264,6 @@ export default function Invite() {
                 ? `You are currently a member of "${currentOrgName}". You must leave your current organization before accepting a new invitation.`
                 : 'You are already a member of an organization. Leave your current organization before accepting a new invitation.'
             }
-            icon='users'
             actions={[
               {
                 label: 'Manage Team Settings',
@@ -292,7 +290,6 @@ export default function Invite() {
           type='error'
           title='Invitation Error'
           description={errorMessage}
-          icon='error'
           isExpiredError={isExpiredError}
           actions={[
             {
@@ -314,7 +311,6 @@ export default function Invite() {
           type='success'
           title='Welcome!'
           description={`You have successfully joined ${invitationDetails?.name || 'the workspace'}. Redirecting to your workspace...`}
-          icon='success'
           actions={[
             {
               label: 'Return to Home',
@@ -334,7 +330,6 @@ export default function Invite() {
           invitationType === 'organization' ? 'Organization Invitation' : 'Workspace Invitation'
         }
         description={`You've been invited to join ${invitationDetails?.name || `a ${invitationType}`}. Click accept below to join.`}
-        icon={invitationType === 'organization' ? 'users' : 'mail'}
         actions={[
           {
             label: 'Accept Invitation',

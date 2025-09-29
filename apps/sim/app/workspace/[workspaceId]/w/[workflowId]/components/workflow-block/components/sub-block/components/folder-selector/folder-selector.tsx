@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, RefreshCw } from 'lucide-react'
-import { GmailIcon, OutlookIcon } from '@/components/icons'
+import { GmailIcon, OutlookIcon } from '@/components/icons/icons'
 import { Button } from '@/components/ui/button'
 import {
   Command,

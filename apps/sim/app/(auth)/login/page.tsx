@@ -1,17 +1,2 @@
-import { getOAuthProviderStatus } from '@/app/(auth)/components/oauth-provider-checker'
-import LoginForm from '@/app/(auth)/login/login-form'
-
-// Force dynamic rendering to avoid prerender errors with search params
+export { default } from '@/app/(auth)/login/login-server'
 export const dynamic = 'force-dynamic'
-
-export default async function LoginPage() {
-  const { githubAvailable, googleAvailable, isProduction } = await getOAuthProviderStatus()
-
-  return (
-    <LoginForm
-      githubAvailable={githubAvailable}
-      googleAvailable={googleAvailable}
-      isProduction={isProduction}
-    />
-  )
-}

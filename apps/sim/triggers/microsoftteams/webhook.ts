@@ -1,4 +1,4 @@
-import { MicrosoftTeamsIcon } from '@/components/icons'
+import { MicrosoftTeamsIcon } from '@/components/icons/icons'
 import type { TriggerConfig } from '../types'
 
 export const microsoftTeamsWebhookTrigger: TriggerConfig = {

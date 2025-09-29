@@ -26,7 +26,7 @@ import {
   SupabaseIcon,
   WealthboxIcon,
   xIcon,
-} from '@/components/icons'
+} from '@/components/icons/icons'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 

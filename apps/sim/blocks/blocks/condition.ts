@@ -1,4 +1,4 @@
-import { ConditionalIcon } from '@/components/icons'
+import { ConditionalIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 
 interface ConditionBlockOutput {

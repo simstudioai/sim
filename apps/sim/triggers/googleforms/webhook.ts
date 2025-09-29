@@ -1,4 +1,4 @@
-import { GoogleFormsIcon } from '@/components/icons'
+import { GoogleFormsIcon } from '@/components/icons/icons'
 import type { TriggerConfig } from '../types'
 
 export const googleFormsWebhookTrigger: TriggerConfig = {

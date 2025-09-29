@@ -1,4 +1,4 @@
-import { WhatsAppIcon } from '@/components/icons'
+import { WhatsAppIcon } from '@/components/icons/icons'
 import type { TriggerConfig } from '../types'
 
 export const whatsappWebhookTrigger: TriggerConfig = {

@@ -1,4 +1,4 @@
-import { QdrantIcon } from '@/components/icons'
+import { QdrantIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { QdrantResponse } from '@/tools/qdrant/types'

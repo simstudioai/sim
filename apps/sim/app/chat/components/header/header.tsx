@@ -2,9 +2,9 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { GithubIcon } from '@/components/icons'
+import { GithubIcon } from '@/components/icons/icons'
 import { useBrandConfig } from '@/lib/branding/branding'
-import { inter } from '@/app/fonts/inter'
+import { inter } from '@/app/styles/fonts/inter'
 
 interface ChatHeaderProps {
   chatConfig: {

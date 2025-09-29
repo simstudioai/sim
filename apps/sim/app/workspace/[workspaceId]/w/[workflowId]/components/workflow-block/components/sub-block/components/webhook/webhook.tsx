@@ -11,7 +11,7 @@ import {
   StripeIcon,
   TelegramIcon,
   WhatsAppIcon,
-} from '@/components/icons'
+} from '@/components/icons/icons'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console/logger'
 import { WebhookModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components/webhook/components'

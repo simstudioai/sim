@@ -1,4 +1,4 @@
-import { AirtableIcon } from '@/components/icons'
+import { AirtableIcon } from '@/components/icons/icons'
 import type { TriggerConfig } from '../types'
 
 export const airtableWebhookTrigger: TriggerConfig = {

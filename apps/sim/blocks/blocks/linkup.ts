@@ -1,4 +1,4 @@
-import { LinkupIcon } from '@/components/icons'
+import { LinkupIcon } from '@/components/icons/icons'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { LinkupSearchToolResponse } from '@/tools/linkup/types'
 

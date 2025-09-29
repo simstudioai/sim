@@ -1,4 +1,4 @@
-import { inter } from '@/app/fonts/inter'
+import { inter } from '@/app/styles/fonts/inter'
 
 interface LandingTemplatePreviewProps {
   previewImage: string

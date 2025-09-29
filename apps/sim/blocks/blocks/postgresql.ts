@@ -1,4 +1,4 @@
-import { PostgresIcon } from '@/components/icons'
+import { PostgresIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import type { PostgresResponse } from '@/tools/postgresql/types'
 

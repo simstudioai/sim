@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import Nav from '@/app/(landing)/components/nav/nav'
-import AuthBackground from './components/auth-background'
+import AuthBackground from './components/auth-background/auth-background'
 
 // Helper to detect if a color is dark
 function isColorDark(hexColor: string): boolean {

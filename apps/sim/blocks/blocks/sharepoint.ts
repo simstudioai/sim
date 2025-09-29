@@ -1,4 +1,4 @@
-import { MicrosoftSharepointIcon } from '@/components/icons'
+import { MicrosoftSharepointIcon } from '@/components/icons/icons'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'

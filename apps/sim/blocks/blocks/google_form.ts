@@ -1,4 +1,4 @@
-import { GoogleFormsIcon } from '@/components/icons'
+import { GoogleFormsIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 
 export const GoogleFormsBlock: BlockConfig = {

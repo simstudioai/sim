@@ -18,9 +18,9 @@ import { client } from '@/lib/auth-client'
 import { quickValidateEmail } from '@/lib/email/validation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
-import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
-import { inter } from '@/app/fonts/inter'
-import { soehne } from '@/app/fonts/soehne/soehne'
+import { OauthButtons } from '@/app/(auth)/components'
+import { inter } from '@/app/styles/fonts/inter'
+import { soehne } from '@/app/styles/fonts/soehne/soehne'
 
 const logger = createLogger('LoginForm')
 
@@ -85,7 +85,7 @@ const validatePassword = (passwordValue: string): string[] => {
   return errors
 }
 
-export default function LoginPage({
+function LoginFormContent({
   githubAvailable,
   googleAvailable,
   isProduction,
@@ -347,12 +347,13 @@ export default function LoginPage({
 
       setResetStatus({
         type: 'success',
-        message: 'Password reset link sent to your email',
+        message: '',
       })
 
       setTimeout(() => {
         setForgotPasswordOpen(false)
         setResetStatus({ type: null, message: '' })
+        setForgotPasswordEmail('')
       }, 2000)
     } catch (error) {
       logger.error('Error requesting password reset:', { error })
@@ -476,7 +477,7 @@ export default function LoginPage({
         </div>
       )}
 
-      <SocialLoginButtons
+      <OauthButtons
         googleAvailable={googleAvailable}
         githubAvailable={githubAvailable}
         isProduction={isProduction}
@@ -551,22 +552,41 @@ export default function LoginPage({
                 </div>
               )}
             </div>
-            {resetStatus.type === 'success' && (
-              <div className='mt-1 space-y-1 text-[#4CAF50] text-xs'>
-                <p>{resetStatus.message}</p>
-              </div>
-            )}
             <Button
               type='button'
               onClick={handleForgotPassword}
               className={`${buttonClass} w-full rounded-[10px] border font-medium text-[15px] text-white transition-all duration-200`}
-              disabled={isSubmittingReset}
+              disabled={isSubmittingReset || resetStatus.type === 'success'}
             >
-              {isSubmittingReset ? 'Sending...' : 'Send Reset Link'}
+              {isSubmittingReset
+                ? 'Sending...'
+                : resetStatus.type === 'success'
+                  ? 'Sent!'
+                  : 'Send Reset Link'}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
     </>
+  )
+}
+
+interface LoginFormProps {
+  githubAvailable: boolean
+  googleAvailable: boolean
+  isProduction: boolean
+}
+
+export default function LoginForm({
+  githubAvailable,
+  googleAvailable,
+  isProduction,
+}: LoginFormProps) {
+  return (
+    <LoginFormContent
+      githubAvailable={githubAvailable}
+      googleAvailable={googleAvailable}
+      isProduction={isProduction}
+    />
   )
 }

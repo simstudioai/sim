@@ -1,19 +1,18 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertCircle, CheckCircle2, Mail, RotateCcw, ShieldX, UserPlus, Users2 } from 'lucide-react'
+import { RotateCcw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { LoadingAgent } from '@/components/ui/loading-agent'
 import { useBrandConfig } from '@/lib/branding/branding'
-import { inter } from '@/app/fonts/inter'
-import { soehne } from '@/app/fonts/soehne/soehne'
+import { inter } from '@/app/styles/fonts/inter'
+import { soehne } from '@/app/styles/fonts/soehne/soehne'
 
 interface InviteStatusCardProps {
   type: 'login' | 'loading' | 'error' | 'success' | 'invitation' | 'warning'
   title: string
   description: string | React.ReactNode
-  icon?: 'userPlus' | 'mail' | 'users' | 'error' | 'success' | 'warning'
   actions?: Array<{
     label: string
     onClick: () => void
@@ -24,38 +23,10 @@ interface InviteStatusCardProps {
   isExpiredError?: boolean
 }
 
-const iconMap = {
-  userPlus: UserPlus,
-  mail: Mail,
-  users: Users2,
-  error: ShieldX,
-  success: CheckCircle2,
-  warning: AlertCircle,
-}
-
-const iconColorMap = {
-  userPlus: 'text-[var(--brand-primary-hex)]',
-  mail: 'text-[var(--brand-primary-hex)]',
-  users: 'text-[var(--brand-primary-hex)]',
-  error: 'text-red-500 dark:text-red-400',
-  success: 'text-green-500 dark:text-green-400',
-  warning: 'text-yellow-600 dark:text-yellow-500',
-}
-
-const iconBgMap = {
-  userPlus: 'bg-[var(--brand-primary-hex)]/10',
-  mail: 'bg-[var(--brand-primary-hex)]/10',
-  users: 'bg-[var(--brand-primary-hex)]/10',
-  error: 'bg-red-50 dark:bg-red-950/20',
-  success: 'bg-green-50 dark:bg-green-950/20',
-  warning: 'bg-yellow-50 dark:bg-yellow-950/20',
-}
-
 export function InviteStatusCard({
   type,
   title,
   description,
-  icon,
   actions = [],
   isExpiredError = false,
 }: InviteStatusCardProps) {
@@ -113,10 +84,6 @@ export function InviteStatusCard({
       </div>
     )
   }
-
-  const IconComponent = icon ? iconMap[icon] : null
-  const iconColor = icon ? iconColorMap[icon] : ''
-  const iconBg = icon ? iconBgMap[icon] : ''
 
   return (
     <div className={`${soehne.className} space-y-6`}>

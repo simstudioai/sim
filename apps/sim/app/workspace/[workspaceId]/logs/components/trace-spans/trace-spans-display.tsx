@@ -9,7 +9,7 @@ import {
   CodeIcon,
   ConditionalIcon,
   ConnectIcon,
-} from '@/components/icons'
+} from '@/components/icons/icons'
 import { cn, redactApiKeys } from '@/lib/utils'
 import type { TraceSpan } from '@/stores/logs/filters/types'
 

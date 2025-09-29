@@ -1,4 +1,4 @@
-import { TelegramIcon } from '@/components/icons'
+import { TelegramIcon } from '@/components/icons/icons'
 import type { TriggerConfig } from '../types'
 
 export const telegramWebhookTrigger: TriggerConfig = {

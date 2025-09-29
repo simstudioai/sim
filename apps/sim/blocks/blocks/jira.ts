@@ -1,4 +1,4 @@
-import { JiraIcon } from '@/components/icons'
+import { JiraIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { JiraResponse } from '@/tools/jira/types'

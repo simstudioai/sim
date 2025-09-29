@@ -1,4 +1,4 @@
-import { OpenAIIcon } from '@/components/icons'
+import { OpenAIIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 

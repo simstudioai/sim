@@ -1,4 +1,4 @@
-import { MicrosoftExcelIcon } from '@/components/icons'
+import { MicrosoftExcelIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { MicrosoftExcelResponse } from '@/tools/microsoft_excel/types'

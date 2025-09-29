@@ -1,4 +1,4 @@
-import { ApiIcon } from '@/components/icons'
+import { ApiIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 
 export const ApiTriggerBlock: BlockConfig = {

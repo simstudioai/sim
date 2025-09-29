@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Check, ChevronDown, Hash, Lock, RefreshCw } from 'lucide-react'
-import { SlackIcon } from '@/components/icons'
+import { SlackIcon } from '@/components/icons/icons'
 import { Button } from '@/components/ui/button'
 import {
   Command,

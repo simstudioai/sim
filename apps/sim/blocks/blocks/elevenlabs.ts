@@ -1,4 +1,4 @@
-import { ElevenLabsIcon } from '@/components/icons'
+import { ElevenLabsIcon } from '@/components/icons/icons'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { ElevenLabsBlockResponse } from '@/tools/elevenlabs/types'
 

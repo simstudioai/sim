@@ -1,4 +1,4 @@
-import { StagehandIcon } from '@/components/icons'
+import { StagehandIcon } from '@/components/icons/icons'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { StagehandAgentResponse } from '@/tools/stagehand/types'
 

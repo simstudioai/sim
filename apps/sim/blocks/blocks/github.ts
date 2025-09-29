@@ -1,4 +1,4 @@
-import { GithubIcon } from '@/components/icons'
+import { GithubIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { GitHubResponse } from '@/tools/github/types'

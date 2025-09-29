@@ -1,4 +1,4 @@
-import { ResendIcon } from '@/components/icons'
+import { ResendIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import type { MailSendResult } from '@/tools/resend/types'
 

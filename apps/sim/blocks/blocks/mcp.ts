@@ -1,4 +1,4 @@
-import { ServerIcon } from '@/components/icons'
+import { ServerIcon } from '@/components/icons/icons'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import type { BlockConfig } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'

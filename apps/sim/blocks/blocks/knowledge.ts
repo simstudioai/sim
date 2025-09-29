@@ -1,4 +1,4 @@
-import { PackageSearchIcon } from '@/components/icons'
+import { PackageSearchIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 
 export const KnowledgeBlock: BlockConfig = {

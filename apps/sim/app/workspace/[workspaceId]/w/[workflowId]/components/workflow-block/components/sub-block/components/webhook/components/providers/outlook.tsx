@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Info } from 'lucide-react'
-import { OutlookIcon } from '@/components/icons'
+import { OutlookIcon } from '@/components/icons/icons'
 import {
   Badge,
   Button,

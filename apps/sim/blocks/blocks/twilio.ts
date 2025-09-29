@@ -1,4 +1,4 @@
-import { TwilioIcon } from '@/components/icons'
+import { TwilioIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { TwilioSMSBlockOutput } from '@/tools/twilio/types'

@@ -1,4 +1,4 @@
-import { WealthboxIcon } from '@/components/icons'
+import { WealthboxIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { WealthboxResponse } from '@/tools/wealthbox/types'

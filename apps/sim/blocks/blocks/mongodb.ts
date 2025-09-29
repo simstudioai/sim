@@ -1,4 +1,4 @@
-import { MongoDBIcon } from '@/components/icons'
+import { MongoDBIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import type { MongoDBResponse } from '@/tools/mongodb/types'
 

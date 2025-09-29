@@ -19,7 +19,7 @@ import {
   OpenAIIcon,
   OpenRouterIcon,
   xAIIcon,
-} from '@/components/icons'
+} from '@/components/icons/icons'
 
 export interface ModelPricing {
   input: number // Per 1M tokens

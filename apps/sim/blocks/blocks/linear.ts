@@ -1,4 +1,4 @@
-import { LinearIcon } from '@/components/icons'
+import { LinearIcon } from '@/components/icons/icons'
 import type { BlockConfig, BlockIcon } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { LinearResponse } from '@/tools/linear/types'

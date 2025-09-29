@@ -1,4 +1,4 @@
-import { MistralIcon } from '@/components/icons'
+import { MistralIcon } from '@/components/icons/icons'
 import { AuthMode, type BlockConfig, type SubBlockLayout, type SubBlockType } from '@/blocks/types'
 import type { MistralParserOutput } from '@/tools/mistral/types'
 

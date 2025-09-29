@@ -1,4 +1,4 @@
-import { GoogleSheetsIcon } from '@/components/icons'
+import { GoogleSheetsIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { GoogleSheetsResponse } from '@/tools/google_sheets/types'

@@ -1,4 +1,4 @@
-import { FirecrawlIcon } from '@/components/icons'
+import { FirecrawlIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { FirecrawlResponse } from '@/tools/firecrawl/types'

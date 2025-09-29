@@ -1,4 +1,4 @@
-import { MicrosoftTeamsIcon } from '@/components/icons'
+import { MicrosoftTeamsIcon } from '@/components/icons/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { MicrosoftTeamsResponse } from '@/tools/microsoft_teams/types'
