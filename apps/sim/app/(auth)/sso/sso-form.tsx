@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { client } from '@/lib/auth-client'
 import { quickValidateEmail } from '@/lib/email/validation'
+import { env, isFalsy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { inter } from '@/app/fonts/inter'
@@ -210,38 +211,46 @@ export default function SSOForm() {
         </Button>
       </form>
 
-      <div className={`${inter.className} relative my-6 font-light`}>
-        <div className='absolute inset-0 flex items-center'>
-          <div className='auth-divider w-full border-t' />
-        </div>
-        <div className='relative flex justify-center text-sm'>
-          <span className='bg-white px-4 font-[340] text-muted-foreground'>Or</span>
-        </div>
-      </div>
+      {/* Only show divider and email signin button if email/password is enabled */}
+      {!isFalsy(env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED) && (
+        <>
+          <div className={`${inter.className} relative my-6 font-light`}>
+            <div className='absolute inset-0 flex items-center'>
+              <div className='auth-divider w-full border-t' />
+            </div>
+            <div className='relative flex justify-center text-sm'>
+              <span className='bg-white px-4 font-[340] text-muted-foreground'>Or</span>
+            </div>
+          </div>
 
-      <div className={`${inter.className} space-y-3`}>
-        <Link
-          href={`/login${callbackUrl ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : ''}`}
-        >
-          <Button
-            variant='outline'
-            className='w-full rounded-[10px] shadow-sm hover:bg-gray-50'
-            type='button'
+          <div className={`${inter.className} space-y-3`}>
+            <Link
+              href={`/login${callbackUrl ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : ''}`}
+            >
+              <Button
+                variant='outline'
+                className='w-full rounded-[10px] shadow-sm hover:bg-gray-50'
+                type='button'
+              >
+                Sign in with email
+              </Button>
+            </Link>
+          </div>
+        </>
+      )}
+
+      {/* Only show signup link if email/password signup is enabled */}
+      {!isFalsy(env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED) && (
+        <div className={`${inter.className} pt-6 text-center font-light text-[14px]`}>
+          <span className='font-normal'>Don't have an account? </span>
+          <Link
+            href={`/signup${callbackUrl ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : ''}`}
+            className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
           >
-            Sign in with email
-          </Button>
-        </Link>
-      </div>
-
-      <div className={`${inter.className} pt-6 text-center font-light text-[14px]`}>
-        <span className='font-normal'>Don't have an account? </span>
-        <Link
-          href={`/signup${callbackUrl ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : ''}`}
-          className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
-        >
-          Sign up
-        </Link>
-      </div>
+            Sign up
+          </Link>
+        </div>
+      )}
 
       <div
         className={`${inter.className} auth-text-muted absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[13px] leading-relaxed sm:px-8 md:px-[44px]`}
