@@ -346,21 +346,6 @@ export function TeamManagement() {
           </div>
         )}
 
-        {/* Team Information Section - at bottom of modal */}
-        <div className='mt-12 border-t pt-6'>
-          <div className='space-y-3 text-xs'>
-            <div className='flex justify-between'>
-              <span className='text-muted-foreground'>Team ID:</span>
-              <span className='font-mono'>{activeOrganization.id}</span>
-            </div>
-            <div className='flex justify-between'>
-              <span className='text-muted-foreground'>Created:</span>
-              <span>{new Date(activeOrganization.createdAt).toLocaleDateString()}</span>
-            </div>
-            <div className='flex justify-between'>
-              <span className='text-muted-foreground'>Your Role:</span>
-              <span className='font-medium capitalize'>{userRole}</span>
-            </div>
         {/* Member Invitation Card */}
         {adminOrOwner && (
           <MemberInvitationCard
