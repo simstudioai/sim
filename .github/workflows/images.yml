@@ -129,12 +129,9 @@ jobs:
 
       - name: Generate ARM64 tags
         id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ matrix.image }}
-          tags: |
-            type=raw,value=latest-arm64
-            type=sha,format=long,suffix=-arm64
+        run: |
+          IMAGE="${{ matrix.image }}"
+          echo "tags=${IMAGE}:latest-arm64,${IMAGE}:${{ github.sha }}-arm64" >> $GITHUB_OUTPUT
 
       - name: Build and push ARM64 to GHCR
         uses: useblacksmith/build-push-action@v2
