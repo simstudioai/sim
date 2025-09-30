@@ -1,6 +1,7 @@
 import { db, workflowDeploymentVersion } from '@sim/db'
 import { and, desc, eq } from 'drizzle-orm'
 import type { NextRequest, NextResponse } from 'next/server'
+import { verifyInternalToken } from '@/lib/auth/internal'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
@@ -23,10 +24,22 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     logger.debug(`[${requestId}] Fetching deployed state for workflow: ${id}`)
 
-    const { error } = await validateWorkflowPermissions(id, requestId, 'read')
-    if (error) {
-      const response = createErrorResponse(error.message, error.status)
-      return addNoCacheHeaders(response)
+    const authHeader = request.headers.get('authorization')
+    let isInternalCall = false
+
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1]
+      isInternalCall = await verifyInternalToken(token)
+    }
+
+    if (!isInternalCall) {
+      const { error } = await validateWorkflowPermissions(id, requestId, 'read')
+      if (error) {
+        const response = createErrorResponse(error.message, error.status)
+        return addNoCacheHeaders(response)
+      }
+    } else {
+      logger.debug(`[${requestId}] Internal API call for deployed workflow: ${id}`)
     }
 
     const [active] = await db
