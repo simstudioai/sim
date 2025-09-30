@@ -36,23 +36,10 @@ jobs:
     uses: ./.github/workflows/trigger-deploy.yml
     secrets: inherit
 
-  # Run database migrations (depends on build completion and trigger deployment)
-  migrations:
-    name: Apply Database Migrations
-    needs: [build-images, trigger-deploy]
-    if: |
-      always() &&
-      github.event_name == 'push' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') &&
-      needs.build-images.result == 'success' &&
-      needs.trigger-deploy.result == 'success'
-    uses: ./.github/workflows/migrations.yml
-    secrets: inherit
-
   # Process docs embeddings if needed
   process-docs:
     name: Process Docs
-    needs: migrations
+    needs: [build-images, trigger-deploy]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     uses: ./.github/workflows/docs-embeddings.yml
     secrets: inherit
