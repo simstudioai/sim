@@ -1,21 +1,88 @@
 {
-  "$schema": "https://railway.app/railway.schema.json",
   "build": {
-    "builder": "NIXPACKS",
-    "buildCommand": "cd apps/sim && bun install --frozen-lockfile && bun run build"
+    "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "cd apps/sim && NODE_ENV=production bun run socket-server/index.ts",
+    "numReplicas": 1,
     "healthcheckPath": "/health",
-    "healthcheckTimeout": 300,
-    "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 10
-  },
-  "environments": {
-    "production": {
-      "variables": {
-        "NODE_ENV": "production"
-      }
+    "restartPolicy": {
+      "maxRetries": 10
     }
-  }
+  },
+  "services": [
+    {
+      "name": "simstudio",
+      "dockerfile": "app.Dockerfile",
+      "ports": [
+        "3000:3000"
+      ],
+      "environment": [
+        "NODE_ENV=production",
+        "DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}",
+        "NEXT_PUBLIC_APP_URL=https://${RAILWAY_STATIC_URL}",
+        "BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}",
+        "ENCRYPTION_KEY=${ENCRYPTION_KEY}",
+        "COPILOT_API_KEY=${COPILOT_API_KEY}",
+        "SIM_AGENT_API_URL=${SIM_AGENT_API_URL}",
+        "OLLAMA_URL=${OLLAMA_URL:-http://ollama:11434}",
+        "SOCKET_SERVER_URL=https://${RAILWAY_STATIC_URL}",
+        "NEXT_PUBLIC_SOCKET_URL=https://${RAILWAY_STATIC_URL}"
+      ],
+      "dependsOn": [
+        "db",
+        "migrations",
+        "realtime"
+      ]
+    },
+    {
+      "name": "realtime",
+      "dockerfile": "realtime.Dockerfile",
+      "ports": [
+        "3002:3002"
+      ],
+      "environment": [
+        "NODE_ENV=production",
+        "DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}",
+        "NEXT_PUBLIC_APP_URL=https://${RAILWAY_STATIC_URL}",
+        "BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}"
+      ],
+      "dependsOn": [
+        "db"
+      ]
+    },
+    {
+      "name": "migrations",
+      "dockerfile": "migrations.Dockerfile",
+      "environment": [
+        "DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}"
+      ],
+      "dependsOn": [
+        "db"
+      ],
+      "command": "bun run db:migrate"
+    },
+    {
+      "name": "db",
+      "image": "pgvector/pgvector:pg17",
+      "ports": [
+        "5432:5432"
+      ],
+      "environment": [
+        "POSTGRES_USER=${POSTGRES_USER:-postgres}",
+        "POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}",
+        "POSTGRES_DB=${POSTGRES_DB:-simstudio}"
+      ],
+      "volumeMounts": [
+        {
+          "name": "postgres_data",
+          "mountPath": "/var/lib/postgresql/data"
+        }
+      ]
+    }
+  ],
+  "volumes": [
+    {
+      "name": "postgres_data"
+    }
+  ]
 }
