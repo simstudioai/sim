@@ -175,56 +175,30 @@ Verwenden Sie einen `Memory`Block mit einer konsistenten `id` (zum Beispiel `cha
 - Lesen Sie den Gesprächsverlauf für den Kontext
 - Hängen Sie die Antwort des Agenten nach dessen Ausführung an
 
-```yaml
-# 1) Add latest user message
-- Memory (operation: add)
-  id: chat
-  role: user
-  content: {{input}}
-
-# 2) Load conversation history
-- Memory (operation: get)
-  id: chat
-
-# 3) Run the agent with prior messages available
-- Agent
-  System Prompt: ...
-  User Prompt: |
-    Use the conversation so far:
-    {{memory_get.memories}}
-    Current user message: {{input}}
-
-# 4) Store the agent reply
-- Memory (operation: add)
-  id: chat
-  role: assistant
-  content: {{agent.content}}
-```
-
-Siehe die `Memory`Block-Referenz für Details: [/tools/memory](/tools/memory).
+Siehe die [`Memory`](/tools/memory) Blockreferenz für Details.
 
 ## Eingaben und Ausgaben
 
-<Tabs items={['Configuration', 'Variables', 'Results']}>
+<Tabs items={['Konfiguration', 'Variablen', 'Ergebnisse']}>
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
-        <strong>System Prompt</strong>: Anweisungen, die das Verhalten und die Rolle des Agenten definieren
+        <strong>System-Prompt</strong>: Anweisungen, die das Verhalten und die Rolle des Agenten definieren
       </li>
       <li>
-        <strong>User Prompt</strong>: Eingabetext oder -daten zur Verarbeitung
+        <strong>Benutzer-Prompt</strong>: Eingabetext oder zu verarbeitende Daten
       </li>
       <li>
-        <strong>Model</strong>: KI-Modellauswahl (OpenAI, Anthropic, Google, etc.)
+        <strong>Modell</strong>: KI-Modellauswahl (OpenAI, Anthropic, Google, usw.)
       </li>
       <li>
-        <strong>Temperature</strong>: Steuerung der Antwort-Zufälligkeit (0-2)
+        <strong>Temperatur</strong>: Steuerung der Zufälligkeit der Antwort (0-2)
       </li>
       <li>
         <strong>Tools</strong>: Array verfügbarer Tools für Funktionsaufrufe
       </li>
       <li>
-        <strong>Response Format</strong>: JSON-Schema für strukturierte Ausgabe
+        <strong>Antwortformat</strong>: JSON-Schema für strukturierte Ausgabe
       </li>
     </ul>
   </Tab>
@@ -261,7 +235,7 @@ Siehe die `Memory`Block-Referenz für Details: [/tools/memory](/tools/memory).
 
 ## Beispielanwendungsfälle
 
-### Automatisierung des Kundendienstes
+### Automatisierung des Kundenservice
 
 <div className="mb-4 rounded-md border p-4">
   <h4 className="font-medium">Szenario: Bearbeitung von Kundenanfragen mit Datenbankzugriff</h4>
@@ -269,9 +243,9 @@ Siehe die `Memory`Block-Referenz für Details: [/tools/memory](/tools/memory).
     <li>Benutzer reicht ein Support-Ticket über den API-Block ein</li>
     <li>Agent prüft Bestellungen/Abonnements in Postgres und durchsucht die Wissensdatenbank nach Anleitungen</li>
     <li>Falls eine Eskalation erforderlich ist, erstellt der Agent ein Linear-Ticket mit relevantem Kontext</li>
-    <li>Agent verfasst eine klare E-Mail-Antwort</li>
+    <li>Agent erstellt eine klare E-Mail-Antwort</li>
     <li>Gmail sendet die Antwort an den Kunden</li>
-    <li>Konversation wird im Speicher gesichert, um den Verlauf für zukünftige Nachrichten zu erhalten</li>
+    <li>Konversation wird im Memory gespeichert, um den Verlauf für zukünftige Nachrichten beizubehalten</li>
   </ol>
 </div>
 
@@ -287,20 +261,20 @@ Siehe die `Memory`Block-Referenz für Details: [/tools/memory](/tools/memory).
   </ol>
 </div>
 
-### Werkzeuggestützter Rechercheassistent
+### Werkzeuggestützter Forschungsassistent
 
 <div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Szenario: Rechercheassistent mit Websuche und Dokumentenzugriff</h4>
+  <h4 className="font-medium">Szenario: Forschungsassistent mit Websuche und Dokumentenzugriff</h4>
   <ol className="list-decimal pl-5 text-sm">
     <li>Benutzeranfrage über Eingabe erhalten</li>
-    <li>Agent durchsucht das Web mit dem Google Search-Tool</li>
+    <li>Agent durchsucht das Web mit dem Google-Suchwerkzeug</li>
     <li>Agent greift auf Notion-Datenbank für interne Dokumente zu</li>
-    <li>Agent erstellt umfassenden Recherchebericht</li>
+    <li>Agent erstellt umfassenden Forschungsbericht</li>
   </ol>
 </div>
 
-## Best Practices
+## Bewährte Praktiken
 
-- **Sei spezifisch in System-Prompts**: Definiere die Rolle, den Tonfall und die Einschränkungen des Agenten klar. Je spezifischer deine Anweisungen sind, desto besser kann der Agent seinen vorgesehenen Zweck erfüllen.
+- **Sei spezifisch in System-Prompts**: Definiere die Rolle, den Ton und die Einschränkungen des Agenten klar. Je spezifischer deine Anweisungen sind, desto besser kann der Agent seinen vorgesehenen Zweck erfüllen.
 - **Wähle die richtige Temperatureinstellung**: Verwende niedrigere Temperatureinstellungen (0-0,3), wenn Genauigkeit wichtig ist, oder erhöhe die Temperatur (0,7-2,0) für kreativere oder abwechslungsreichere Antworten
-- **Nutze Tools effektiv**: Integriere Tools, die den Zweck des Agenten ergänzen und seine Fähigkeiten erweitern. Sei selektiv bei der Auswahl der Tools, um den Agenten nicht zu überfordern. Für Aufgaben mit wenig Überschneidung verwende einen anderen Agent-Block für die besten Ergebnisse.
+- **Nutze Werkzeuge effektiv**: Integriere Werkzeuge, die den Zweck des Agenten ergänzen und seine Fähigkeiten verbessern. Sei selektiv bei der Auswahl der Werkzeuge, um den Agenten nicht zu überfordern. Für Aufgaben mit wenig Überschneidung verwende einen anderen Agent-Block für die besten Ergebnisse.

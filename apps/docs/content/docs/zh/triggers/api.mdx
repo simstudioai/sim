@@ -24,15 +24,7 @@ API 触发器将您的工作流公开为一个安全的 HTTP 端点。将 JSON �
 
 为每个参数添加一个 **输入格式** 字段。运行时输出键会镜像该模式，并且也可以在 `<api.input>` 下使用。
 
-```yaml
-- type: string
-  name: userId
-  value: demo-user # optional manual test value
-- type: number
-  name: maxTokens
-```
-
-编辑器中的手动运行使用 `value` 列，因此您可以在不发送请求的情况下进行测试。在执行期间，解析器会填充 `<api.userId>` 和 `<api.input.userId>`。
+在编辑器中手动运行使用 `value` 列，因此您可以在不发送请求的情况下进行测试。在执行过程中，解析器会填充 `<api.userId>` 和 `<api.input.userId>`。
 
 ## 请求示例
 
@@ -44,17 +36,17 @@ curl -X POST \
   -d '{"userId":"demo-user","maxTokens":1024}'
 ```
 
-成功的响应会返回来自执行器的序列化执行结果。错误会显示验证、身份验证或工作流失败的原因。
+成功的响应会返回来自执行器的序列化执行结果。错误会显示验证、认证或工作流失败的信息。
 
 ## 输出参考
 
 | 参考 | 描述 |
 |-----------|-------------|
-| `<api.field>` | 在输入格式中定义的字段 |
+| `<api.field>` | 输入格式中定义的字段 |
 | `<api.input>` | 整个结构化请求体 |
 
-如果未定义输入格式，执行器仅在 `<api.input>` 处公开原始 JSON。
+如果未定义输入格式，执行器仅在 `<api.input>` 处暴露原始 JSON。
 
 <Callout type="warning">
-一个工作流只能包含一个 API 触发器。更改后请发布新的部署，以确保端点保持最新。
+一个工作流只能包含一个 API 触发器。更改后发布新的部署，以确保端点保持最新。
 </Callout>

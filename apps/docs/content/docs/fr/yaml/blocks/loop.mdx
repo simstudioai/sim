@@ -10,7 +10,6 @@ type: object
 required:
   - type
   - name
-  - inputs
   - connections
 properties:
   type:
@@ -22,21 +21,23 @@ properties:
     description: Display name for this loop block
   inputs:
     type: object
-    required:
-      - loopType
+    description: Optional. If omitted, defaults will be applied.
     properties:
       loopType:
         type: string
         enum: [for, forEach]
         description: Type of loop to execute
+        default: for
       iterations:
         type: number
         description: Number of iterations (for 'for' loops)
+        default: 5
         minimum: 1
         maximum: 1000
       collection:
         type: string
         description: Collection to iterate over (for 'forEach' loops)
+        default: ""
       maxConcurrency:
         type: number
         description: Maximum concurrent executions
@@ -45,13 +46,10 @@ properties:
         maximum: 10
   connections:
     type: object
-    required:
-      - loop
     properties:
+      # Nested format (recommended)
       loop:
         type: object
-        required:
-          - start
         properties:
           start:
             type: string
@@ -59,26 +57,37 @@ properties:
           end:
             type: string
             description: Target block ID for loop completion (optional)
+      # Direct handle format (alternative)
+      loop-start-source:
+        type: string | string[]
+        description: Target block ID to execute inside the loop (direct format)
+      loop-end-source:
+        type: string | string[]
+        description: Target block ID for loop completion (direct format, optional)
       error:
         type: string
         description: Target block ID for error handling
+    note: Use either the nested 'loop' format OR the direct 'loop-start-source' format, not both
 ```
 
 ## Configuration de connexion
 
-Les blocs Loop utilisent un format de connexion spécial avec une section `loop` :
+Les blocs de boucle prennent en charge deux formats de connexion :
+
+### Format de gestion directe (alternative)
 
 ```yaml
 connections:
-  loop:
-    start: <string>                     # Target block ID to execute inside the loop
-    end: <string>                       # Target block ID after loop completion (optional)
+  loop-start-source: <string>           # Target block ID to execute inside the loop
+  loop-end-source: <string>             # Target block ID after loop completion (optional)
   error: <string>                       # Target block ID for error handling (optional)
 ```
 
+Les deux formats fonctionnent de manière identique. Utilisez celui que vous préférez.
+
 ## Configuration des blocs enfants
 
-Les blocs à l'intérieur d'une boucle doivent avoir leur `parentId` défini sur l'ID du bloc de boucle :
+Les blocs à l'intérieur d'une boucle doivent avoir leur `parentId` défini sur l'ID du bloc de boucle. La propriété `extent` est automatiquement définie sur `'parent'` et n'a pas besoin d'être spécifiée :
 
 ```yaml
 loop-1:
@@ -261,9 +270,62 @@ process-task:
     success: task-completed
 ```
 
+### Exemple de format de gestion directe
+
+La même boucle peut être écrite en utilisant le format de gestion directe :
+
+```yaml
+my-loop:
+  type: loop
+  name: "Process Items"
+  inputs:
+    loopType: forEach
+    collection: <start.items>
+  connections:
+    loop-start-source: process-item      # Direct handle format
+    loop-end-source: final-results       # Direct handle format
+    error: handle-error
+
+process-item:
+  type: agent
+  name: "Process Item"
+  parentId: my-loop
+  inputs:
+    systemPrompt: "Process this item"
+    userPrompt: <loop.currentItem>
+    model: gpt-4o
+    apiKey: '{{OPENAI_API_KEY}}'
+```
+
+### Exemple de boucle minimale (utilisant les valeurs par défaut)
+
+Vous pouvez omettre entièrement la section `inputs`, et les valeurs par défaut seront appliquées :
+
+```yaml
+simple-loop:
+  type: loop
+  name: "Simple Loop"
+  # No inputs section - defaults to loopType: 'for', iterations: 5
+  connections:
+    loop-start-source: process-step
+    loop-end-source: complete
+
+process-step:
+  type: agent
+  name: "Process Step"
+  parentId: simple-loop
+  inputs:
+    systemPrompt: "Execute step"
+    userPrompt: "Step <loop.index>"
+    model: gpt-4o
+    apiKey: '{{OPENAI_API_KEY}}'
+```
+
+Cette boucle exécutera 5 itérations par défaut.
+
 ## Variables de boucle
 
-À l'intérieur des blocs enfants de la boucle, ces variables spéciales sont disponibles :
+À l'intérieur des blocs enfants de boucle, ces variables spéciales sont disponibles :
 
 ```yaml
 # Available in all child blocks of the loop

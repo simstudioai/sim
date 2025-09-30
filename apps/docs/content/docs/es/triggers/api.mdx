@@ -24,14 +24,6 @@ El disparador de API expone tu flujo de trabajo como un punto de conexión HTTP 
 
 Añade un campo de **Formato de entrada** para cada parámetro. Las claves de salida en tiempo de ejecución reflejan el esquema y también están disponibles bajo `<api.input>`.
 
-```yaml
-- type: string
-  name: userId
-  value: demo-user # optional manual test value
-- type: number
-  name: maxTokens
-```
-
 Las ejecuciones manuales en el editor utilizan la columna `value` para que puedas realizar pruebas sin enviar una solicitud. Durante la ejecución, el resolutor completa tanto `<api.userId>` como `<api.input.userId>`.
 
 ## Ejemplo de solicitud
@@ -44,17 +36,17 @@ curl -X POST \
   -d '{"userId":"demo-user","maxTokens":1024}'
 ```
 
-Las respuestas exitosas devuelven el resultado de ejecución serializado del Ejecutor. Los errores muestran fallos de validación, autenticación o del flujo de trabajo.
+Las respuestas exitosas devuelven el resultado de ejecución serializado del Ejecutor. Los errores muestran fallos de validación, autenticación o flujo de trabajo.
 
 ## Referencia de salida
 
 | Referencia | Descripción |
 |-----------|-------------|
-| `<api.field>` | Campo definido en el formato de entrada |
+| `<api.field>` | Campo definido en el Formato de Entrada |
 | `<api.input>` | Cuerpo completo estructurado de la solicitud |
 
-Si no se define un formato de entrada, el ejecutor expone el JSON sin procesar solo en `<api.input>`.
+Si no se define un Formato de Entrada, el ejecutor expone el JSON sin procesar solo en `<api.input>`.
 
 <Callout type="warning">
-Un flujo de trabajo puede contener solo un disparador de API. Publica una nueva implementación después de realizar cambios para que el punto de conexión se mantenga actualizado.
+Un flujo de trabajo puede contener solo un Disparador de API. Publica una nueva implementación después de realizar cambios para que el punto de conexión se mantenga actualizado.
 </Callout>
