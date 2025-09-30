@@ -1,3 +1,4 @@
+import { TriggerUtils } from '@/lib/workflows/triggers'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import type { BlockDimensions, BoundingBox } from './types'
 
@@ -70,5 +71,9 @@ export function getBlocksByParent(blocks: Record<string, BlockState>): {
 }
 
 export function isStarterBlock(block: BlockState): boolean {
-  return block.type === 'starter' || block.type === 'webhook' || block.type === 'schedule'
+  if (TriggerUtils.isTriggerBlock({ type: block.type, triggerMode: block.triggerMode })) {
+    return true
+  }
+
+  return block.triggerMode === true
 }

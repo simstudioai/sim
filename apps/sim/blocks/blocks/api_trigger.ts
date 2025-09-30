@@ -3,6 +3,7 @@ import type { BlockConfig } from '@/blocks/types'
 
 export const ApiTriggerBlock: BlockConfig = {
   type: 'api_trigger',
+  triggerAllowed: true,
   name: 'API',
   description: 'Expose as HTTP API endpoint',
   longDescription:

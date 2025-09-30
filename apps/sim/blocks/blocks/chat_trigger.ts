@@ -7,6 +7,7 @@ const ChatTriggerIcon = (props: SVGProps<SVGSVGElement>) => createElement(Messag
 
 export const ChatTriggerBlock: BlockConfig = {
   type: 'chat_trigger',
+  triggerAllowed: true,
   name: 'Chat',
   description: 'Start workflow from a chat deployment',
   longDescription: 'Chat trigger to run the workflow via deployed chat interfaces.',
