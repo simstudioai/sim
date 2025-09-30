@@ -141,10 +141,28 @@ export async function POST(request: NextRequest) {
       const computedCallbackUrl =
         callbackUrl || `${issuer.replace('/metadata', '')}/callback/${providerId}`
 
+      const escapeXml = (str: string) =>
+        str.replace(/[<>&"']/g, (c) => {
+          switch (c) {
+            case '<':
+              return '&lt;'
+            case '>':
+              return '&gt;'
+            case '&':
+              return '&amp;'
+            case '"':
+              return '&quot;'
+            case "'":
+              return '&apos;'
+            default:
+              return c
+          }
+        })
+
       const spMetadataXml = `<?xml version="1.0" encoding="UTF-8"?>
-<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${issuer}">
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${escapeXml(issuer)}">
   <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
-    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${computedCallbackUrl}" index="1"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${escapeXml(computedCallbackUrl)}" index="1"/>
   </md:SPSSODescriptor>
 </md:EntityDescriptor>`
 
@@ -179,7 +197,25 @@ export async function POST(request: NextRequest) {
       hasOidcConfig: !!providerConfig.oidcConfig,
       hasSamlConfig: !!providerConfig.samlConfig,
       samlConfigKeys: providerConfig.samlConfig ? Object.keys(providerConfig.samlConfig) : [],
-      fullConfig: JSON.stringify(providerConfig, null, 2),
+      fullConfig: JSON.stringify(
+        {
+          ...providerConfig,
+          oidcConfig: providerConfig.oidcConfig
+            ? {
+                ...providerConfig.oidcConfig,
+                clientSecret: '[REDACTED]',
+              }
+            : undefined,
+          samlConfig: providerConfig.samlConfig
+            ? {
+                ...providerConfig.samlConfig,
+                cert: '[REDACTED]',
+              }
+            : undefined,
+        },
+        null,
+        2
+      ),
     })
 
     const registration = await auth.api.registerSSOProvider({

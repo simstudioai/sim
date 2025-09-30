@@ -28,24 +28,26 @@ export async function GET(req: NextRequest) {
 
       providers = results.map((provider) => ({
         ...provider,
-        providerType: provider.oidcConfig ? 'oidc' : ('saml' as 'oidc' | 'saml'),
+        providerType:
+          provider.oidcConfig && provider.samlConfig
+            ? 'oidc'
+            : provider.oidcConfig
+              ? 'oidc'
+              : provider.samlConfig
+                ? 'saml'
+                : ('oidc' as 'oidc' | 'saml'),
       }))
     } else {
+      // Unauthenticated users can only see basic info (domain only)
+      // This is needed for SSO login flow to check if a domain has SSO enabled
       const results = await db
         .select({
-          id: ssoProvider.id,
-          providerId: ssoProvider.providerId,
           domain: ssoProvider.domain,
-          oidcConfig: ssoProvider.oidcConfig,
-          samlConfig: ssoProvider.samlConfig,
         })
         .from(ssoProvider)
 
       providers = results.map((provider) => ({
-        id: provider.id,
-        providerId: provider.providerId,
         domain: provider.domain,
-        providerType: provider.oidcConfig ? 'oidc' : ('saml' as 'oidc' | 'saml'),
       }))
     }
 

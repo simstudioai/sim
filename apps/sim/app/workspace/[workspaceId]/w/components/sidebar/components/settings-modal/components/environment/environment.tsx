@@ -396,7 +396,7 @@ export function EnvironmentVariables({
             autoComplete='new-password'
             autoCapitalize='off'
             spellCheck='false'
-            readOnly={!isConflict}
+            readOnly={isConflict}
             className={`allow-scroll h-9 rounded-[8px] border-none px-3 font-normal text-sm ring-0 ring-offset-0 placeholder:text-muted-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 ${isConflict ? 'cursor-not-allowed border border-red-500 bg-[#F6D2D2] outline-none ring-0 disabled:bg-[#F6D2D2] disabled:opacity-100 dark:bg-[#442929] disabled:dark:bg-[#442929]' : 'bg-muted'}`}
           />
           <div className='flex items-center justify-end gap-2'>
