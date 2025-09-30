@@ -45,11 +45,9 @@ jobs:
         id: deploy-staging
         working-directory: ./apps/sim
         run: |
-          OUTPUT=$(npx --yes trigger.dev@4.0.4 deploy -e staging --skip-promotion 2>&1)
-          echo "$OUTPUT"
-          VERSION=$(echo "$OUTPUT" | grep -oP 'Successfully deployed version \K[0-9]+\.[0-9]+' || echo "$OUTPUT" | grep -oP 'version \K[0-9]+\.[0-9]+' | head -1)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Deployed version: $VERSION"
+          npx --yes trigger.dev@4.0.4 deploy -e staging --skip-promotion
+          echo "version=$TRIGGER_DEPLOYMENT_VERSION" >> $GITHUB_OUTPUT
+          echo "Deployed version: $TRIGGER_DEPLOYMENT_VERSION"
 
       - name: Store Staging version in Parameter Store
         if: github.ref == 'refs/heads/staging'
@@ -65,11 +63,9 @@ jobs:
         id: deploy-production
         working-directory: ./apps/sim
         run: |
-          OUTPUT=$(npx --yes trigger.dev@4.0.4 deploy --skip-promotion 2>&1)
-          echo "$OUTPUT"
-          VERSION=$(echo "$OUTPUT" | grep -oP 'Successfully deployed version \K[0-9]+\.[0-9]+' || echo "$OUTPUT" | grep -oP 'version \K[0-9]+\.[0-9]+' | head -1)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Deployed version: $VERSION"
+          npx --yes trigger.dev@4.0.4 deploy --skip-promotion
+          echo "version=$TRIGGER_DEPLOYMENT_VERSION" >> $GITHUB_OUTPUT
+          echo "Deployed version: $TRIGGER_DEPLOYMENT_VERSION"
 
       - name: Store Production version in Parameter Store
         if: github.ref == 'refs/heads/main'
