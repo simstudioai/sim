@@ -13,6 +13,9 @@ jobs:
       cancel-in-progress: false
     env:
       TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
+    permissions:
+      id-token: write
+      contents: read
 
     steps:
       - name: Checkout code
@@ -31,12 +34,48 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
       - name: Deploy to Trigger.dev (Staging)
         if: github.ref == 'refs/heads/staging'
+        id: deploy-staging
         working-directory: ./apps/sim
-        run: npx --yes trigger.dev@4.0.4 deploy -e staging
+        run: |
+          OUTPUT=$(npx --yes trigger.dev@4.0.4 deploy -e staging --skip-promotion 2>&1)
+          echo "$OUTPUT"
+          VERSION=$(echo "$OUTPUT" | grep -oP 'Successfully deployed version \K[0-9]+\.[0-9]+' || echo "$OUTPUT" | grep -oP 'version \K[0-9]+\.[0-9]+' | head -1)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Deployed version: $VERSION"
+
+      - name: Store Staging version in Parameter Store
+        if: github.ref == 'refs/heads/staging'
+        run: |
+          aws ssm put-parameter \
+            --name "${{ secrets.TRIGGER_VERSION_SECRET_MANAGER_STAGING }}" \
+            --value "${{ steps.deploy-staging.outputs.version }}" \
+            --type "String" \
+            --overwrite
 
       - name: Deploy to Trigger.dev (Production)
         if: github.ref == 'refs/heads/main'
+        id: deploy-production
         working-directory: ./apps/sim
-        run: npx --yes trigger.dev@4.0.4 deploy
+        run: |
+          OUTPUT=$(npx --yes trigger.dev@4.0.4 deploy --skip-promotion 2>&1)
+          echo "$OUTPUT"
+          VERSION=$(echo "$OUTPUT" | grep -oP 'Successfully deployed version \K[0-9]+\.[0-9]+' || echo "$OUTPUT" | grep -oP 'version \K[0-9]+\.[0-9]+' | head -1)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Deployed version: $VERSION"
+
+      - name: Store Production version in Parameter Store
+        if: github.ref == 'refs/heads/main'
+        run: |
+          aws ssm put-parameter \
+            --name "${{ secrets.TRIGGER_VERSION_SECRET_MANAGER_PROD }}" \
+            --value "${{ steps.deploy-production.outputs.version }}" \
+            --type "String" \
+            --overwrite
