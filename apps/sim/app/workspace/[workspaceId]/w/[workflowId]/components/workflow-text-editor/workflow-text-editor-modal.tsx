@@ -16,10 +16,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { applyWorkflowDiff } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-text-editor/workflow-applier'
 import { exportWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-text-editor/workflow-exporter'
-import {
-  type EditorFormat,
-  WorkflowTextEditor,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-text-editor/workflow-text-editor'
+import { WorkflowTextEditor } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-text-editor/workflow-text-editor'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('WorkflowTextEditorModal')
@@ -34,7 +31,6 @@ export function WorkflowTextEditorModal({
   className,
 }: WorkflowTextEditorModalProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const [format, setFormat] = useState<EditorFormat>('yaml')
   const [initialContent, setInitialContent] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
@@ -44,47 +40,31 @@ export function WorkflowTextEditorModal({
   useEffect(() => {
     if (isOpen && activeWorkflowId) {
       setIsLoading(true)
-      exportWorkflow(format)
+      exportWorkflow('json')
         .then((content) => {
           setInitialContent(content)
         })
         .catch((error) => {
           logger.error('Failed to export workflow:', error)
-          setInitialContent('# Error loading workflow content')
+          setInitialContent('// Error loading workflow content')
         })
         .finally(() => {
           setIsLoading(false)
         })
     }
-  }, [isOpen, format, activeWorkflowId])
-
-  // Handle format changes
-  const handleFormatChange = useCallback((newFormat: EditorFormat) => {
-    setFormat(newFormat)
-  }, [])
+  }, [isOpen, activeWorkflowId])
 
   // Handle save operation
   const handleSave = useCallback(
-    async (content: string, contentFormat: EditorFormat) => {
-      console.log('🔥 WorkflowTextEditorModal.handleSave called!', {
-        contentFormat,
-        contentLength: content.length,
-        activeWorkflowId,
-      })
-
+    async (content: string) => {
       if (!activeWorkflowId) {
         return { success: false, errors: ['No active workflow'] }
       }
 
       try {
-        logger.info('Applying workflow changes from text editor', { format: contentFormat })
+        logger.info('Applying workflow changes from JSON editor')
 
-        console.log('🔥 About to call applyWorkflowDiff!', { contentFormat })
-
-        // Apply changes using the simplified approach
-        const applyResult = await applyWorkflowDiff(content, contentFormat)
-
-        console.log('🔥 applyWorkflowDiff returned!', { success: applyResult.success })
+        const applyResult = await applyWorkflowDiff(content, 'json')
 
         if (applyResult.success) {
           logger.info('Successfully applied workflow changes', {
@@ -93,7 +73,7 @@ export function WorkflowTextEditorModal({
 
           // Update initial content to reflect current state
           try {
-            const updatedContent = await exportWorkflow(contentFormat)
+            const updatedContent = await exportWorkflow('json')
             setInitialContent(updatedContent)
           } catch (error) {
             logger.error('Failed to refresh content after save:', error)
@@ -158,10 +138,10 @@ export function WorkflowTextEditorModal({
 
       <DialogContent className='flex h-[85vh] w-[90vw] max-w-6xl flex-col p-0'>
         <DialogHeader className='flex-shrink-0 border-b px-6 py-4'>
-          <DialogTitle>Workflow Text Editor</DialogTitle>
+          <DialogTitle>Workflow JSON Editor</DialogTitle>
           <DialogDescription>
-            Edit your workflow as YAML or JSON. Changes will completely replace the current workflow
-            when you save.
+            Edit your workflow as JSON. Changes will completely replace the current workflow when
+            you save.
           </DialogDescription>
         </DialogHeader>
 
@@ -176,9 +156,7 @@ export function WorkflowTextEditorModal({
           ) : (
             <WorkflowTextEditor
               initialValue={initialContent}
-              format={format}
               onSave={handleSave}
-              onFormatChange={handleFormatChange}
               disabled={isDisabled}
               className='h-full rounded-none border-0'
             />

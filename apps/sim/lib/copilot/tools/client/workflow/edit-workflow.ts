@@ -148,22 +148,29 @@ export class EditWorkflowClientTool extends BaseClientTool {
       const result = parsed.result as any
       this.lastResult = result
       logger.info('server result parsed', {
-        hasYaml: !!result?.yamlContent,
-        yamlLength: (result?.yamlContent || '').length,
+        hasWorkflowState: !!result?.workflowState,
+        blocksCount: result?.workflowState
+          ? Object.keys(result.workflowState.blocks || {}).length
+          : 0,
       })
 
-      // Update diff via YAML so colors/highlights persist
-      try {
-        if (!this.hasAppliedDiff) {
-          const diffStore = useWorkflowDiffStore.getState()
-          await diffStore.setProposedChanges(result.yamlContent)
-          logger.info('diff proposed changes set for edit_workflow')
-          this.hasAppliedDiff = true
-        } else {
-          logger.info('skipping diff apply (already applied)')
+      // Update diff directly with workflow state - no YAML conversion needed!
+      if (result.workflowState) {
+        try {
+          if (!this.hasAppliedDiff) {
+            const diffStore = useWorkflowDiffStore.getState()
+            await diffStore.setProposedChanges(result.workflowState)
+            logger.info('diff proposed changes set for edit_workflow with direct workflow state')
+            this.hasAppliedDiff = true
+          } else {
+            logger.info('skipping diff apply (already applied)')
+          }
+        } catch (e) {
+          logger.warn('Failed to set proposed changes in diff store', e as any)
+          throw new Error('Failed to create workflow diff')
         }
-      } catch (e) {
-        logger.warn('Failed to set proposed changes in diff store', e as any)
+      } else {
+        throw new Error('No workflow state returned from server')
       }
 
       // Mark complete early to unblock LLM stream

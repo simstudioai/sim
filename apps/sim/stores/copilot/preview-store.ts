@@ -206,7 +206,7 @@ export const usePreviewStore = create<PreviewStore>()(
           if (message.role === 'assistant' && message.toolCalls) {
             message.toolCalls.forEach((toolCall: CopilotToolCall) => {
               if (
-                toolCall.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW &&
+                toolCall.name === COPILOT_TOOL_IDS.EDIT_WORKFLOW &&
                 toolCall.state === 'success' &&
                 toolCall.id
               ) {

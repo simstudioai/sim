@@ -3,20 +3,20 @@ import { createLogger } from '@/lib/logs/console/logger'
 const logger = createLogger('AutoLayoutUtils')
 
 /**
- * Default auto layout options
+ * Default auto layout options (now using native compact spacing)
  */
 export const DEFAULT_AUTO_LAYOUT_OPTIONS: AutoLayoutOptions = {
   strategy: 'smart',
   direction: 'auto',
   spacing: {
-    horizontal: 250,
+    horizontal: 550,
     vertical: 200,
-    layer: 350,
+    layer: 550,
   },
   alignment: 'center',
   padding: {
-    x: 125,
-    y: 125,
+    x: 150,
+    y: 150,
   },
 }
 

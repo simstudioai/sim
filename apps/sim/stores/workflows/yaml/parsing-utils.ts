@@ -31,6 +31,11 @@ export interface ConnectionsFormat {
     start?: string | string[]
     end?: string | string[]
   }
+  // Direct handle format (alternative to nested format above)
+  'loop-start-source'?: string | string[]
+  'loop-end-source'?: string | string[]
+  'parallel-start-source'?: string | string[]
+  'parallel-end-source'?: string | string[]
   // Legacy format support
   incoming?: Array<{
     source: string
@@ -560,6 +565,60 @@ function parseNewFormatConnections(
         })
       }
     }
+  }
+
+  // Parse direct handle formats (alternative to nested format)
+  // This allows using 'loop-start-source' directly instead of 'loop.start'
+  if (connections['loop-start-source']) {
+    const targets = Array.isArray(connections['loop-start-source'])
+      ? connections['loop-start-source']
+      : [connections['loop-start-source']]
+    targets.forEach((target) => {
+      if (typeof target === 'string') {
+        edges.push(createEdge(blockId, target, 'loop-start-source', 'target'))
+      } else {
+        errors.push(`Invalid loop-start-source target in block '${blockId}': must be a string`)
+      }
+    })
+  }
+
+  if (connections['loop-end-source']) {
+    const targets = Array.isArray(connections['loop-end-source'])
+      ? connections['loop-end-source']
+      : [connections['loop-end-source']]
+    targets.forEach((target) => {
+      if (typeof target === 'string') {
+        edges.push(createEdge(blockId, target, 'loop-end-source', 'target'))
+      } else {
+        errors.push(`Invalid loop-end-source target in block '${blockId}': must be a string`)
+      }
+    })
+  }
+
+  if (connections['parallel-start-source']) {
+    const targets = Array.isArray(connections['parallel-start-source'])
+      ? connections['parallel-start-source']
+      : [connections['parallel-start-source']]
+    targets.forEach((target) => {
+      if (typeof target === 'string') {
+        edges.push(createEdge(blockId, target, 'parallel-start-source', 'target'))
+      } else {
+        errors.push(`Invalid parallel-start-source target in block '${blockId}': must be a string`)
+      }
+    })
+  }
+
+  if (connections['parallel-end-source']) {
+    const targets = Array.isArray(connections['parallel-end-source'])
+      ? connections['parallel-end-source']
+      : [connections['parallel-end-source']]
+    targets.forEach((target) => {
+      if (typeof target === 'string') {
+        edges.push(createEdge(blockId, target, 'parallel-end-source', 'target'))
+      } else {
+        errors.push(`Invalid parallel-end-source target in block '${blockId}': must be a string`)
+      }
+    })
   }
 }
 

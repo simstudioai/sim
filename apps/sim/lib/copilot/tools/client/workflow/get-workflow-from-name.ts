@@ -5,6 +5,7 @@ import {
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
 import { createLogger } from '@/lib/logs/console/logger'
+import { sanitizeForCopilot } from '@/lib/workflows/json-sanitizer'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('GetWorkflowFromNameClientTool')
@@ -82,7 +83,9 @@ export class GetWorkflowFromNameClientTool extends BaseClientTool {
         loops: wf.state.loops || {},
         parallels: wf.state.parallels || {},
       }
-      const userWorkflow = JSON.stringify(workflowState, null, 2)
+      // Sanitize workflow state for copilot (remove UI-specific data)
+      const sanitizedState = sanitizeForCopilot(workflowState)
+      const userWorkflow = JSON.stringify(sanitizedState, null, 2)
 
       await this.markToolComplete(200, `Retrieved workflow ${workflowName}`, { userWorkflow })
       this.setState(ClientToolCallState.success)

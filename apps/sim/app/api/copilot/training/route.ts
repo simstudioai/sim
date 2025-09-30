@@ -51,12 +51,8 @@ export async function POST(request: NextRequest) {
 
     logger.info('Sending training data to agent indexer', {
       title,
-      operationsCount: operations.length,
+      operationsCount: Array.isArray(operations) ? operations.length : 0,
     })
-
-    const wrappedOperations = {
-      operations: operations,
-    }
 
     // Forward to agent indexer
     const upstreamUrl = `${baseUrl}/operations/add`
@@ -71,7 +67,7 @@ export async function POST(request: NextRequest) {
         prompt,
         input,
         output,
-        operations: wrappedOperations,
+        operations: { operations },
       }),
     })
 

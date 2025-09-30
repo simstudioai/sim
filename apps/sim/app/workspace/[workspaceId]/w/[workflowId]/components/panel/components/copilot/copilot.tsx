@@ -17,7 +17,6 @@ import type {
   MessageFileAttachment,
   UserInputRef,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/user-input'
-import { COPILOT_TOOL_IDS } from '@/stores/copilot/constants'
 import { usePreviewStore } from '@/stores/copilot/preview-store'
 import { useCopilotStore } from '@/stores/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -291,29 +290,6 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
       }
     }
   }, [isSendingMessage, abortMessage])
-
-  // Watch for completed preview_workflow tool calls in the new format
-  useEffect(() => {
-    if (!messages.length) return
-
-    const lastMessage = messages[messages.length - 1]
-    if (lastMessage.role !== 'assistant' || !lastMessage.toolCalls) return
-
-    // Check for completed preview_workflow tool calls
-    const previewToolCall = lastMessage.toolCalls.find(
-      (tc) =>
-        tc.name === COPILOT_TOOL_IDS.BUILD_WORKFLOW &&
-        tc.state === 'success' &&
-        !isToolCallSeen(tc.id)
-    )
-
-    if (previewToolCall) {
-      logger.info('Preview workflow completed via native SSE')
-      // Mark as seen to prevent duplicate processing
-      markToolCallAsSeen(previewToolCall.id)
-      // Tool call handling logic would go here if needed
-    }
-  }, [messages, isToolCallSeen, markToolCallAsSeen])
 
   // Handle new chat creation
   const handleStartNewChat = useCallback(() => {

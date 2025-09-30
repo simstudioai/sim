@@ -32,7 +32,6 @@ import { createExecutionContext, getTool } from '@/lib/copilot/tools/client/regi
 import { GetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/get-environment-variables'
 import { GetOAuthCredentialsClientTool } from '@/lib/copilot/tools/client/user/get-oauth-credentials'
 import { SetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/set-environment-variables'
-import { BuildWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/build-workflow'
 import { EditWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/edit-workflow'
 import { GetGlobalWorkflowVariablesClientTool } from '@/lib/copilot/tools/client/workflow/get-global-workflow-variables'
 import { GetUserWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/get-user-workflow'
@@ -84,7 +83,6 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   gdrive_request_access: (id) => new GDriveRequestAccessClientTool(id),
   oauth_request_access: (id) => new OAuthRequestAccessClientTool(id),
   edit_workflow: (id) => new EditWorkflowClientTool(id),
-  build_workflow: (id) => new BuildWorkflowClientTool(id),
   get_user_workflow: (id) => new GetUserWorkflowClientTool(id),
   list_user_workflows: (id) => new ListUserWorkflowsClientTool(id),
   get_workflow_from_name: (id) => new GetWorkflowFromNameClientTool(id),
@@ -114,7 +112,6 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   mark_todo_in_progress: (MarkTodoInProgressClientTool as any)?.metadata,
   gdrive_request_access: (GDriveRequestAccessClientTool as any)?.metadata,
   edit_workflow: (EditWorkflowClientTool as any)?.metadata,
-  build_workflow: (BuildWorkflowClientTool as any)?.metadata,
   get_user_workflow: (GetUserWorkflowClientTool as any)?.metadata,
   list_user_workflows: (ListUserWorkflowsClientTool as any)?.metadata,
   get_workflow_from_name: (GetWorkflowFromNameClientTool as any)?.metadata,
@@ -1275,7 +1272,7 @@ async function* parseSSEStream(
 // Initial state (subset required for UI/streaming)
 const initialState = {
   mode: 'agent' as const,
-  selectedModel: 'gpt-5' as CopilotStore['selectedModel'],
+  selectedModel: 'claude-4.5-sonnet' as CopilotStore['selectedModel'],
   agentPrefetch: true,
   isCollapsed: false,
   currentChat: null as CopilotChat | null,
@@ -1809,7 +1806,7 @@ export const useCopilotStore = create<CopilotStore>()(
             const b = blocks[bi]
             if (b?.type === 'tool_call') {
               const tn = b.toolCall?.name
-              if (tn === 'build_workflow' || tn === 'edit_workflow') {
+              if (tn === 'edit_workflow') {
                 id = b.toolCall?.id
                 break outer
               }
@@ -1818,9 +1815,7 @@ export const useCopilotStore = create<CopilotStore>()(
         }
         // Fallback to map if not found in messages
         if (!id) {
-          const candidates = Object.values(toolCallsById).filter(
-            (t) => t.name === 'build_workflow' || t.name === 'edit_workflow'
-          )
+          const candidates = Object.values(toolCallsById).filter((t) => t.name === 'edit_workflow')
           id = candidates.length ? candidates[candidates.length - 1].id : undefined
         }
       }

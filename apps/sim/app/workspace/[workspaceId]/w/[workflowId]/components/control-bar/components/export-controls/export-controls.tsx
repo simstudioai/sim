@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { Upload } from 'lucide-react'
+import { ArrowDownToLine } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useWorkflowJsonStore } from '@/stores/workflows/json/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('ExportControls')
@@ -16,6 +17,7 @@ interface ExportControlsProps {
 export function ExportControls({ disabled = false }: ExportControlsProps) {
   const [isExporting, setIsExporting] = useState(false)
   const { workflows, activeWorkflowId } = useWorkflowRegistry()
+  const { getJson } = useWorkflowJsonStore()
 
   const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
 
@@ -35,7 +37,7 @@ export function ExportControls({ disabled = false }: ExportControlsProps) {
     }
   }
 
-  const handleExportYaml = async () => {
+  const handleExportJson = async () => {
     if (!currentWorkflow || !activeWorkflowId) {
       logger.warn('No active workflow to export')
       return
@@ -43,25 +45,18 @@ export function ExportControls({ disabled = false }: ExportControlsProps) {
 
     setIsExporting(true)
     try {
-      // Use the new database-based export endpoint
-      const response = await fetch(`/api/workflows/yaml/export?workflowId=${activeWorkflowId}`)
+      // Get the JSON from the store
+      const jsonContent = await getJson()
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null)
-        throw new Error(errorData?.error || `Failed to export YAML: ${response.statusText}`)
+      if (!jsonContent) {
+        throw new Error('Failed to generate JSON')
       }
 
-      const result = await response.json()
-
-      if (!result.success || !result.yaml) {
-        throw new Error(result.error || 'Failed to export YAML')
-      }
-
-      const filename = `${currentWorkflow.name.replace(/[^a-z0-9]/gi, '-')}.yaml`
-      downloadFile(result.yaml, filename, 'text/yaml')
-      logger.info('Workflow exported as YAML from database')
+      const filename = `${currentWorkflow.name.replace(/[^a-z0-9]/gi, '-')}.json`
+      downloadFile(jsonContent, filename, 'application/json')
+      logger.info('Workflow exported as JSON')
     } catch (error) {
-      logger.error('Failed to export workflow as YAML:', error)
+      logger.error('Failed to export workflow as JSON:', error)
     } finally {
       setIsExporting(false)
     }
@@ -73,26 +68,21 @@ export function ExportControls({ disabled = false }: ExportControlsProps) {
     if (disabled) return 'Export not available'
     if (!currentWorkflow) return 'No workflow to export'
     if (isExporting) return 'Exporting...'
-    return 'Export as YAML'
+    return 'Export workflow as JSON'
   }
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        {isDisabled ? (
-          <div className='inline-flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-[11px] border bg-card text-card-foreground opacity-50 shadow-xs transition-colors'>
-            <Upload className='h-4 w-4' />
-          </div>
-        ) : (
-          <Button
-            variant='outline'
-            onClick={handleExportYaml}
-            className='h-12 w-12 rounded-[11px] border bg-card text-card-foreground shadow-xs hover:bg-secondary'
-          >
-            <Upload className='h-5 w-5' />
-            <span className='sr-only'>Export as YAML</span>
-          </Button>
-        )}
+        <Button
+          variant='outline'
+          onClick={handleExportJson}
+          disabled={isDisabled}
+          className='h-12 w-12 rounded-[11px] border bg-card text-card-foreground shadow-xs hover:bg-secondary'
+        >
+          <ArrowDownToLine className='h-5 w-5' />
+          <span className='sr-only'>Export</span>
+        </Button>
       </TooltipTrigger>
       <TooltipContent>{getTooltipText()}</TooltipContent>
     </Tooltip>

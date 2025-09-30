@@ -64,7 +64,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
     const { getPreviewByToolCall, getLatestPendingPreview } = usePreviewStore()
 
     // Import COPILOT_TOOL_IDS - placing it here since it's needed in multiple functions
-    const WORKFLOW_TOOL_NAMES = ['build_workflow', 'edit_workflow']
+    const WORKFLOW_TOOL_NAMES = ['edit_workflow']
 
     // Get checkpoints for this message if it's a user message
     const messageCheckpoints = isUser ? allMessageCheckpoints[message.id] || [] : []
@@ -118,7 +118,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           .map((block) => (block as any).toolCall),
       ]
 
-      // Find workflow tools (build_workflow or edit_workflow)
+      // Find workflow tools (edit_workflow)
       const workflowTools = allToolCalls.filter((toolCall) =>
         WORKFLOW_TOOL_NAMES.includes(toolCall?.name)
       )

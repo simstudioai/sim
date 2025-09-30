@@ -146,25 +146,54 @@ const WorkflowContent = React.memo(() => {
 
       // Parse deleted edge identifiers to reconstruct edges
       diffAnalysis.edge_diff.deleted_edges.forEach((edgeIdentifier) => {
-        // Edge identifier format: "sourceId-source-targetId-target"
-        // Parse this to extract the components
-        const match = edgeIdentifier.match(/^([^-]+)-source-([^-]+)-target$/)
-        if (match) {
-          const [, sourceId, targetId] = match
+        // Edge identifier format: "sourceId-sourceHandle-targetId-targetHandle"
+        // Split by '-' and extract components
+        const parts = edgeIdentifier.split('-')
+        if (parts.length >= 4) {
+          // Find the index where targetId starts (after the source handle)
+          // We need to handle cases where IDs contain hyphens
+          let sourceEndIndex = -1
+          let targetStartIndex = -1
 
-          // Only reconstruct if both blocks still exist
-          if (blocks[sourceId] && blocks[targetId]) {
-            // Generate a unique edge ID
-            const edgeId = `deleted-edge-${sourceId}-${targetId}`
+          // Look for valid handle names to identify boundaries
+          const validHandles = ['source', 'target', 'success', 'error', 'default', 'condition']
 
-            reconstructedEdges.push({
-              id: edgeId,
-              source: sourceId,
-              target: targetId,
-              sourceHandle: null, // Default handle
-              targetHandle: null, // Default handle
-              type: 'workflowEdge',
-            })
+          for (let i = 1; i < parts.length - 1; i++) {
+            if (validHandles.includes(parts[i])) {
+              sourceEndIndex = i
+              // Find the next part that could be the start of targetId
+              for (let j = i + 1; j < parts.length - 1; j++) {
+                // Check if this could be a valid target ID start
+                if (parts[j].length > 0) {
+                  targetStartIndex = j
+                  break
+                }
+              }
+              break
+            }
+          }
+
+          if (sourceEndIndex > 0 && targetStartIndex > 0) {
+            const sourceId = parts.slice(0, sourceEndIndex).join('-')
+            const sourceHandle = parts[sourceEndIndex]
+            const targetHandle = parts[parts.length - 1]
+            const targetId = parts.slice(targetStartIndex, parts.length - 1).join('-')
+
+            // Only reconstruct if both blocks still exist
+            if (blocks[sourceId] && blocks[targetId]) {
+              // Generate a unique edge ID
+              const edgeId = `deleted-${sourceId}-${sourceHandle}-${targetId}-${targetHandle}`
+
+              reconstructedEdges.push({
+                id: edgeId,
+                source: sourceId,
+                target: targetId,
+                sourceHandle,
+                targetHandle,
+                type: 'workflowEdge',
+                data: { isDeleted: true }, // Mark as deleted for styling
+              })
+            }
           }
         }
       })

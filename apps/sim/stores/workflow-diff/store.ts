@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { getClientTool } from '@/lib/copilot/tools/client/manager'
 import { createLogger } from '@/lib/logs/console/logger'
-import { type DiffAnalysis, WorkflowDiffEngine } from '@/lib/workflows/diff'
+import { type DiffAnalysis, type WorkflowDiff, WorkflowDiffEngine } from '@/lib/workflows/diff'
 import { validateWorkflowState } from '@/lib/workflows/validation'
 import { Serializer } from '@/serializer'
 import { useWorkflowRegistry } from '../workflows/registry/store'
@@ -119,14 +119,26 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
         _batchedStateUpdate: batchedUpdate,
 
-        setProposedChanges: async (yamlContent: string, diffAnalysis?: DiffAnalysis) => {
+        setProposedChanges: async (
+          proposedContent: string | WorkflowState,
+          diffAnalysis?: DiffAnalysis
+        ) => {
           // PERFORMANCE OPTIMIZATION: Immediate state update to prevent UI flicker
           batchedUpdate({ isDiffReady: false, diffError: null })
 
           // Clear any existing diff state to ensure a fresh start
           diffEngine.clearDiff()
 
-          const result = await diffEngine.createDiffFromYaml(yamlContent, diffAnalysis)
+          let result: { success: boolean; diff?: WorkflowDiff; errors?: string[] }
+
+          // Handle both YAML string and direct WorkflowState object
+          if (typeof proposedContent === 'string') {
+            // Legacy YAML path (for backward compatibility)
+            result = await diffEngine.createDiffFromYaml(proposedContent, diffAnalysis)
+          } else {
+            // Direct WorkflowState path (new, more efficient)
+            result = await diffEngine.createDiffFromWorkflowState(proposedContent, diffAnalysis)
+          }
 
           if (result.success && result.diff) {
             // Validate proposed workflow using serializer round-trip to catch canvas-breaking issues
@@ -421,7 +433,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
                   for (const b of m.contentBlocks as any[]) {
                     if (b?.type === 'tool_call') {
                       const tn = b.toolCall?.name
-                      if (tn === 'build_workflow' || tn === 'edit_workflow') {
+                      if (tn === 'edit_workflow') {
                         toolCallId = b.toolCall?.id
                         break outer
                       }
@@ -431,7 +443,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
                 // Fallback to toolCallsById map if not found in messages
                 if (!toolCallId) {
                   const candidates = Object.values(toolCallsById).filter(
-                    (t: any) => t.name === 'build_workflow' || t.name === 'edit_workflow'
+                    (t: any) => t.name === 'edit_workflow'
                   ) as any[]
                   toolCallId = candidates.length ? candidates[candidates.length - 1].id : undefined
                 }
@@ -487,7 +499,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               for (const b of m.contentBlocks as any[]) {
                 if (b?.type === 'tool_call') {
                   const tn = b.toolCall?.name
-                  if (tn === 'build_workflow' || tn === 'edit_workflow') {
+                  if (tn === 'edit_workflow') {
                     toolCallId = b.toolCall?.id
                     break outer
                   }
@@ -497,7 +509,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             // Fallback to toolCallsById map if not found in messages
             if (!toolCallId) {
               const candidates = Object.values(toolCallsById).filter(
-                (t: any) => t.name === 'build_workflow' || t.name === 'edit_workflow'
+                (t: any) => t.name === 'edit_workflow'
               ) as any[]
               toolCallId = candidates.length ? candidates[candidates.length - 1].id : undefined
             }

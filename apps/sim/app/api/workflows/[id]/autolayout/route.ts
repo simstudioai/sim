@@ -6,13 +6,9 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
-import { simAgentClient } from '@/lib/sim-agent/client'
 import { generateRequestId } from '@/lib/utils'
+import { applyAutoLayout } from '@/lib/workflows/autolayout'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
-import { getAllBlocks } from '@/blocks/registry'
-import type { BlockConfig } from '@/blocks/types'
-import { resolveOutputType } from '@/blocks/utils'
-import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -120,115 +116,39 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Could not load workflow data' }, { status: 500 })
     }
 
-    // Create workflow state for autolayout
-    const workflowState = {
-      blocks: currentWorkflowData.blocks,
-      edges: currentWorkflowData.edges,
-      loops: currentWorkflowData.loops || {},
-      parallels: currentWorkflowData.parallels || {},
-    }
-
     const autoLayoutOptions = {
-      strategy: layoutOptions.strategy,
-      direction: layoutOptions.direction,
-      spacing: {
-        horizontal: layoutOptions.spacing?.horizontal || 500,
-        vertical: layoutOptions.spacing?.vertical || 400,
-        layer: layoutOptions.spacing?.layer || 700,
+      horizontalSpacing: layoutOptions.spacing?.horizontal || 550,
+      verticalSpacing: layoutOptions.spacing?.vertical || 200,
+      padding: {
+        x: layoutOptions.padding?.x || 150,
+        y: layoutOptions.padding?.y || 150,
       },
       alignment: layoutOptions.alignment,
-      padding: {
-        x: layoutOptions.padding?.x || 250,
-        y: layoutOptions.padding?.y || 250,
-      },
     }
 
-    // Gather block registry and utilities for sim-agent
-    const blocks = getAllBlocks()
-    const blockRegistry = blocks.reduce(
-      (acc, block) => {
-        const blockType = block.type
-        acc[blockType] = {
-          ...block,
-          id: blockType,
-          subBlocks: block.subBlocks || [],
-          outputs: block.outputs || {},
-        } as any
-        return acc
-      },
-      {} as Record<string, BlockConfig>
+    const layoutResult = applyAutoLayout(
+      currentWorkflowData.blocks,
+      currentWorkflowData.edges,
+      currentWorkflowData.loops || {},
+      currentWorkflowData.parallels || {},
+      autoLayoutOptions
     )
 
-    const autoLayoutResult = await simAgentClient.makeRequest('/api/yaml/autolayout', {
-      body: {
-        workflowState,
-        options: autoLayoutOptions,
-        blockRegistry,
-        utilities: {
-          generateLoopBlocks: generateLoopBlocks.toString(),
-          generateParallelBlocks: generateParallelBlocks.toString(),
-          resolveOutputType: resolveOutputType.toString(),
-        },
-      },
-    })
-
-    // Log the full response for debugging
-    logger.info(`[${requestId}] Sim-agent autolayout response:`, {
-      success: autoLayoutResult.success,
-      status: autoLayoutResult.status,
-      error: autoLayoutResult.error,
-      hasData: !!autoLayoutResult.data,
-      hasWorkflowState: !!autoLayoutResult.data?.workflowState,
-      hasBlocks: !!autoLayoutResult.data?.blocks,
-      dataKeys: autoLayoutResult.data ? Object.keys(autoLayoutResult.data) : [],
-    })
-
-    if (
-      !autoLayoutResult.success ||
-      (!autoLayoutResult.data?.workflowState && !autoLayoutResult.data?.blocks)
-    ) {
+    if (!layoutResult.success || !layoutResult.blocks) {
       logger.error(`[${requestId}] Auto layout failed:`, {
-        success: autoLayoutResult.success,
-        error: autoLayoutResult.error,
-        status: autoLayoutResult.status,
-        fullResponse: autoLayoutResult,
-      })
-      const errorMessage =
-        autoLayoutResult.error ||
-        (autoLayoutResult.status === 401
-          ? 'Unauthorized - check API key'
-          : autoLayoutResult.status === 404
-            ? 'Sim-agent service not found'
-            : `HTTP ${autoLayoutResult.status}`)
-
-      return NextResponse.json(
-        {
-          error: 'Auto layout failed',
-          details: errorMessage,
-        },
-        { status: 500 }
-      )
-    }
-
-    // Handle both response formats from sim-agent
-    const layoutedBlocks =
-      autoLayoutResult.data?.workflowState?.blocks || autoLayoutResult.data?.blocks
-
-    if (!layoutedBlocks) {
-      logger.error(`[${requestId}] No blocks returned from sim-agent:`, {
-        responseData: autoLayoutResult.data,
+        error: layoutResult.error,
       })
       return NextResponse.json(
         {
           error: 'Auto layout failed',
-          details: 'No blocks returned from sim-agent',
+          details: layoutResult.error || 'Unknown error',
         },
         { status: 500 }
       )
     }
 
     const elapsed = Date.now() - startTime
-    const blockCount = Object.keys(layoutedBlocks).length
+    const blockCount = Object.keys(layoutResult.blocks).length
 
     logger.info(`[${requestId}] Autolayout completed successfully in ${elapsed}ms`, {
       blockCount,
@@ -236,7 +156,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       workflowId,
     })
 
-    // Return the layouted blocks to the frontend - let the store handle saving
     return NextResponse.json({
       success: true,
       message: `Autolayout applied successfully to ${blockCount} blocks`,
@@ -245,7 +164,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         direction: layoutOptions.direction,
         blockCount,
         elapsed: `${elapsed}ms`,
-        layoutedBlocks: layoutedBlocks,
+        layoutedBlocks: layoutResult.blocks,
       },
     })
   } catch (error) {

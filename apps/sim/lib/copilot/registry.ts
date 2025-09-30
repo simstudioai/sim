@@ -3,7 +3,6 @@ import { z } from 'zod'
 // Tool IDs supported by the new Copilot runtime
 export const ToolIds = z.enum([
   'get_user_workflow',
-  'build_workflow',
   'edit_workflow',
   'run_workflow',
   'get_workflow_console',
@@ -11,6 +10,7 @@ export const ToolIds = z.enum([
   'get_blocks_metadata',
   'get_trigger_examples',
   'get_examples_rag',
+  'get_operations_examples',
   'search_documentation',
   'search_online',
   'make_api_request',
@@ -71,10 +71,6 @@ export const ToolArgSchemas = {
   // New
   oauth_request_access: z.object({}),
 
-  build_workflow: z.object({
-    yamlContent: z.string(),
-  }),
-
   edit_workflow: z.object({
     operations: z
       .array(
@@ -108,10 +104,6 @@ export const ToolArgSchemas = {
     blockIds: StringArray.min(1),
   }),
 
-  get_build_workflow_examples: z.object({
-    exampleIds: StringArray.min(1),
-  }),
-
   get_edit_workflow_examples: z.object({
     exampleIds: StringArray.min(1),
   }),
@@ -119,6 +111,10 @@ export const ToolArgSchemas = {
   get_trigger_examples: z.object({}),
 
   get_examples_rag: z.object({
+    query: z.string(),
+  }),
+
+  get_operations_examples: z.object({
     query: z.string(),
   }),
 
@@ -200,7 +196,6 @@ export const ToolSSESchemas = {
     'set_global_workflow_variables',
     ToolArgSchemas.set_global_workflow_variables
   ),
-  build_workflow: toolCallSSEFor('build_workflow', ToolArgSchemas.build_workflow),
   edit_workflow: toolCallSSEFor('edit_workflow', ToolArgSchemas.edit_workflow),
   run_workflow: toolCallSSEFor('run_workflow', ToolArgSchemas.run_workflow),
   get_workflow_console: toolCallSSEFor('get_workflow_console', ToolArgSchemas.get_workflow_console),
@@ -210,6 +205,10 @@ export const ToolSSESchemas = {
 
   get_trigger_examples: toolCallSSEFor('get_trigger_examples', ToolArgSchemas.get_trigger_examples),
   get_examples_rag: toolCallSSEFor('get_examples_rag', ToolArgSchemas.get_examples_rag),
+  get_operations_examples: toolCallSSEFor(
+    'get_operations_examples',
+    ToolArgSchemas.get_operations_examples
+  ),
   search_documentation: toolCallSSEFor('search_documentation', ToolArgSchemas.search_documentation),
   search_online: toolCallSSEFor('search_online', ToolArgSchemas.search_online),
   make_api_request: toolCallSSEFor('make_api_request', ToolArgSchemas.make_api_request),
@@ -286,7 +285,6 @@ export const ToolResultSchemas = {
     message: z.string().optional(),
   }),
 
-  build_workflow: BuildOrEditWorkflowResult,
   edit_workflow: BuildOrEditWorkflowResult,
   run_workflow: z.object({
     executionId: z.string().optional(),
@@ -298,11 +296,6 @@ export const ToolResultSchemas = {
   get_blocks_metadata: z.object({ metadata: z.record(z.any()) }),
   get_trigger_blocks: z.object({ triggerBlockIds: z.array(z.string()) }),
   get_block_best_practices: z.object({ bestPractices: z.array(z.any()) }),
-  get_build_workflow_examples: z.object({
-    examples: z.array(
-      z.object({ id: z.string(), title: z.string().optional(), yamlContent: z.string().optional() })
-    ),
-  }),
   get_edit_workflow_examples: z.object({
     examples: z.array(
       z.object({
@@ -322,6 +315,15 @@ export const ToolResultSchemas = {
     ),
   }),
   get_examples_rag: z.object({
+    examples: z.array(
+      z.object({
+        id: z.string(),
+        title: z.string().optional(),
+        operations: z.array(z.any()).optional(),
+      })
+    ),
+  }),
+  get_operations_examples: z.object({
     examples: z.array(
       z.object({
         id: z.string(),

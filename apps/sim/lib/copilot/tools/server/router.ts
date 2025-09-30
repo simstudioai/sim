@@ -10,12 +10,9 @@ import { searchOnlineServerTool } from '@/lib/copilot/tools/server/other/search-
 import { getEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/user/get-environment-variables'
 import { getOAuthCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-oauth-credentials'
 import { setEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/user/set-environment-variables'
-import { buildWorkflowServerTool } from '@/lib/copilot/tools/server/workflow/build-workflow'
 import { editWorkflowServerTool } from '@/lib/copilot/tools/server/workflow/edit-workflow'
 import { getWorkflowConsoleServerTool } from '@/lib/copilot/tools/server/workflow/get-workflow-console'
 import {
-  BuildWorkflowInput,
-  BuildWorkflowResult,
   ExecuteResponseSuccessSchema,
   GetBlocksAndToolsInput,
   GetBlocksAndToolsResult,
@@ -38,7 +35,6 @@ const logger = createLogger('ServerToolRouter')
 serverToolRegistry[getBlocksAndToolsServerTool.name] = getBlocksAndToolsServerTool
 serverToolRegistry[getBlocksMetadataServerTool.name] = getBlocksMetadataServerTool
 serverToolRegistry[getTriggerBlocksServerTool.name] = getTriggerBlocksServerTool
-serverToolRegistry[buildWorkflowServerTool.name] = buildWorkflowServerTool
 serverToolRegistry[editWorkflowServerTool.name] = editWorkflowServerTool
 serverToolRegistry[getWorkflowConsoleServerTool.name] = getWorkflowConsoleServerTool
 serverToolRegistry[searchDocumentationServerTool.name] = searchDocumentationServerTool
@@ -80,9 +76,6 @@ export async function routeExecution(
   if (toolName === 'get_trigger_blocks') {
     args = GetTriggerBlocksInput.parse(args)
   }
-  if (toolName === 'build_workflow') {
-    args = BuildWorkflowInput.parse(args)
-  }
 
   const result = await tool.execute(args, context)
 
@@ -94,9 +87,6 @@ export async function routeExecution(
   }
   if (toolName === 'get_trigger_blocks') {
     return GetTriggerBlocksResult.parse(result)
-  }
-  if (toolName === 'build_workflow') {
-    return BuildWorkflowResult.parse(result)
   }
 
   return result

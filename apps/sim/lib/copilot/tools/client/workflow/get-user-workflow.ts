@@ -5,6 +5,7 @@ import {
   ClientToolCallState,
 } from '@/lib/copilot/tools/client/base-tool'
 import { createLogger } from '@/lib/logs/console/logger'
+import { sanitizeForCopilot } from '@/lib/workflows/json-sanitizer'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
@@ -130,11 +131,14 @@ export class GetUserWorkflowClientTool extends BaseClientTool {
         return
       }
 
+      // Sanitize workflow state for copilot (remove UI-specific data)
+      const sanitizedState = sanitizeForCopilot(workflowState)
+
       // Convert to JSON string for transport
       let workflowJson = ''
       try {
-        workflowJson = JSON.stringify(workflowState, null, 2)
-        logger.info('Successfully stringified workflow state', {
+        workflowJson = JSON.stringify(sanitizedState, null, 2)
+        logger.info('Successfully stringified sanitized workflow state', {
           workflowId,
           jsonLength: workflowJson.length,
         })

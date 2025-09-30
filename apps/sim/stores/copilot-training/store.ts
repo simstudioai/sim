@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
+import { sanitizeForCopilot } from '@/lib/workflows/json-sanitizer'
 import {
   computeEditSequence,
   type EditOperation,
@@ -126,8 +127,12 @@ export const useCopilotTrainingStore = create<CopilotTrainingState>()(
         const endSnapshot = captureWorkflowSnapshot()
         const duration = state.startTime ? Date.now() - state.startTime : 0
 
+        // Sanitize snapshots for compute-edit-sequence (it works with sanitized state)
+        const sanitizedStart = sanitizeForCopilot(state.startSnapshot!)
+        const sanitizedEnd = sanitizeForCopilot(endSnapshot)
+
         // Compute the edit sequence
-        const { operations, summary } = computeEditSequence(state.startSnapshot, endSnapshot)
+        const { operations, summary } = computeEditSequence(sanitizedStart, sanitizedEnd)
 
         // Get workflow ID from the store
         const { activeWorkflowId } = useWorkflowStore.getState() as any

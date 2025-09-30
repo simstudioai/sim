@@ -28,6 +28,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+import { sanitizeForCopilot } from '@/lib/workflows/json-sanitizer'
 import { formatEditSequence } from '@/lib/workflows/training/compute-edit-sequence'
 import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
 
@@ -102,73 +103,19 @@ export function TrainingModal() {
 
   const sendToIndexer = async (dataset: any) => {
     try {
-      // Extract subblock values from the workflow states
-      const extractSubBlockValues = (state: any) => {
-        const subBlockValues: Record<string, Record<string, any>> = {}
+      // Sanitize workflow states to remove UI-specific data (positions, lastSaved, etc)
+      const sanitizedInput = sanitizeForCopilot(dataset.startState)
+      const sanitizedOutput = sanitizeForCopilot(dataset.endState)
 
-        if (state.blocks) {
-          for (const [blockId, block] of Object.entries(state.blocks)) {
-            if ((block as any).subBlocks) {
-              const blockSubValues: Record<string, any> = {}
-              for (const [subBlockId, subBlock] of Object.entries((block as any).subBlocks)) {
-                if ((subBlock as any).value !== undefined) {
-                  blockSubValues[subBlockId] = (subBlock as any).value
-                }
-              }
-              if (Object.keys(blockSubValues).length > 0) {
-                subBlockValues[blockId] = blockSubValues
-              }
-            }
-          }
-        }
-
-        return subBlockValues
-      }
-
-      const startSubBlockValues = extractSubBlockValues(dataset.startState)
-      const endSubBlockValues = extractSubBlockValues(dataset.endState)
-
-      // Convert both states to YAML in parallel
-      const [startYamlResponse, endYamlResponse] = await Promise.all([
-        fetch('/api/workflows/yaml/convert', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            workflowState: dataset.startState,
-            subBlockValues: startSubBlockValues,
-          }),
-        }),
-        fetch('/api/workflows/yaml/convert', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            workflowState: dataset.endState,
-            subBlockValues: endSubBlockValues,
-          }),
-        }),
-      ])
-
-      if (!startYamlResponse.ok) {
-        throw new Error('Failed to convert start state to YAML')
-      }
-      if (!endYamlResponse.ok) {
-        throw new Error('Failed to convert end state to YAML')
-      }
-
-      const [startResult, endResult] = await Promise.all([
-        startYamlResponse.json(),
-        endYamlResponse.json(),
-      ])
-
-      // Now send to the indexer with YAML states
+      // Send to the indexer with sanitized JSON workflow states
       const response = await fetch('/api/copilot/training', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: dataset.title,
           prompt: dataset.prompt,
-          input: startResult.yaml, // YAML string
-          output: endResult.yaml, // YAML string
+          input: sanitizedInput,
+          output: sanitizedOutput,
           operations: dataset.editSequence,
         }),
       })

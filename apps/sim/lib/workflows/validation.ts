@@ -154,6 +154,14 @@ export function validateWorkflowState(
 
       // Check if block type exists
       const blockConfig = getBlock(block.type)
+
+      // Special handling for container blocks (loop and parallel)
+      if (block.type === 'loop' || block.type === 'parallel') {
+        // These are valid container types, they don't need block configs
+        sanitizedBlocks[blockId] = block
+        continue
+      }
+
       if (!blockConfig) {
         errors.push(`Block ${block.name || blockId}: unknown block type '${block.type}'`)
         if (options.sanitize) {

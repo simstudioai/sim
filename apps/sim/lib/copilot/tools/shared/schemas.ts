@@ -34,23 +34,3 @@ export const GetTriggerBlocksResult = z.object({
   triggerBlockIds: z.array(z.string()),
 })
 export type GetTriggerBlocksResultType = z.infer<typeof GetTriggerBlocksResult>
-
-// build_workflow
-export const BuildWorkflowInput = z.object({
-  yamlContent: z.string(),
-  description: z.string().optional(),
-})
-export const BuildWorkflowResult = z.object({
-  success: z.boolean(),
-  message: z.string(),
-  yamlContent: z.string(),
-  description: z.string().optional(),
-  workflowState: z.unknown().optional(),
-  data: z
-    .object({
-      blocksCount: z.number(),
-      edgesCount: z.number(),
-    })
-    .optional(),
-})
-export type BuildWorkflowResultType = z.infer<typeof BuildWorkflowResult>
