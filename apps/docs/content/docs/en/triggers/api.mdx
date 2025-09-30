@@ -24,14 +24,6 @@ The API trigger exposes your workflow as a secure HTTP endpoint. Send JSON data 
 
 Add an **Input Format** field for each parameter. Runtime output keys mirror the schema and are also available under `<api.input>`.
 
-```yaml
-- type: string
-  name: userId
-  value: demo-user # optional manual test value
-- type: number
-  name: maxTokens
-```
-
 Manual runs in the editor use the `value` column so you can test without sending a request. During execution the resolver populates both `<api.userId>` and `<api.input.userId>`.
 
 ## Request Example

@@ -175,33 +175,7 @@ Use a `Memory` block with a consistent `id` (for example, `chat`) to persist mes
 - Read the conversation history for context
 - Append the Agent's reply after it runs
 
-```yaml
-# 1) Add latest user message
-- Memory (operation: add)
-  id: chat
-  role: user
-  content: {{input}}
-
-# 2) Load conversation history
-- Memory (operation: get)
-  id: chat
-
-# 3) Run the agent with prior messages available
-- Agent
-  System Prompt: ...
-  User Prompt: |
-    Use the conversation so far:
-    {{memory_get.memories}}
-    Current user message: {{input}}
-
-# 4) Store the agent reply
-- Memory (operation: add)
-  id: chat
-  role: assistant
-  content: {{agent.content}}
-```
-
-See the `Memory` block reference for details: [/tools/memory](/tools/memory).
+See the [`Memory`](/tools/memory) block reference for details.
 
 ## Inputs and Outputs
 
