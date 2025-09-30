@@ -10,7 +10,6 @@ type: object
 required:
   - type
   - name
-  - inputs
   - connections
 properties:
   type:
@@ -22,21 +21,23 @@ properties:
     description: Display name for this loop block
   inputs:
     type: object
-    required:
-      - loopType
+    description: Optional. If omitted, defaults will be applied.
     properties:
       loopType:
         type: string
         enum: [for, forEach]
         description: Type of loop to execute
+        default: for
       iterations:
         type: number
         description: Number of iterations (for 'for' loops)
+        default: 5
         minimum: 1
         maximum: 1000
       collection:
         type: string
         description: Collection to iterate over (for 'forEach' loops)
+        default: ""
       maxConcurrency:
         type: number
         description: Maximum concurrent executions
@@ -45,13 +46,10 @@ properties:
         maximum: 10
   connections:
     type: object
-    required:
-      - loop
     properties:
+      # Nested format (recommended)
       loop:
         type: object
-        required:
-          - start
         properties:
           start:
             type: string
@@ -59,26 +57,37 @@ properties:
           end:
             type: string
             description: Target block ID for loop completion (optional)
+      # Direct handle format (alternative)
+      loop-start-source:
+        type: string | string[]
+        description: Target block ID to execute inside the loop (direct format)
+      loop-end-source:
+        type: string | string[]
+        description: Target block ID for loop completion (direct format, optional)
       error:
         type: string
         description: Target block ID for error handling
+    note: Use either the nested 'loop' format OR the direct 'loop-start-source' format, not both
 ```
 
 ## Verbindungskonfiguration
 
-Loop-Blöcke verwenden ein spezielles Verbindungsformat mit einem `loop`Abschnitt:
+Loop-Blöcke unterstützen zwei Verbindungsformate:
+
+### Direktes Handle-Format (Alternative)
 
 ```yaml
 connections:
-  loop:
-    start: <string>                     # Target block ID to execute inside the loop
-    end: <string>                       # Target block ID after loop completion (optional)
+  loop-start-source: <string>           # Target block ID to execute inside the loop
+  loop-end-source: <string>             # Target block ID after loop completion (optional)
   error: <string>                       # Target block ID for error handling (optional)
 ```
 
+Beide Formate funktionieren identisch. Verwenden Sie das Format, das Ihnen besser gefällt.
+
 ## Konfiguration von untergeordneten Blöcken
 
-Blöcke innerhalb einer Schleife müssen ihre `parentId` auf die Loop-Block-ID setzen:
+Blöcke innerhalb einer Schleife müssen ihre `parentId` auf die Loop-Block-ID gesetzt haben. Die Eigenschaft `extent` wird automatisch auf `'parent'` gesetzt und muss nicht angegeben werden:
 
 ```yaml
 loop-1:
@@ -106,7 +115,7 @@ process-item:
 
 ## Beispiele
 
-### For-Schleife (feste Iterationen)
+### For-Schleife (feste Anzahl von Iterationen)
 
 ```yaml
 countdown-loop:
@@ -227,7 +236,7 @@ store-analysis:
       };
 ```
 
-### Schleife mit paralleler Verarbeitung
+### Schleife für parallele Verarbeitung
 
 ```yaml
 parallel-processing-loop:
@@ -261,9 +270,62 @@ process-task:
     success: task-completed
 ```
 
+### Beispiel für direktes Handle-Format
+
+Dieselbe Schleife kann mit dem direkten Handle-Format geschrieben werden:
+
+```yaml
+my-loop:
+  type: loop
+  name: "Process Items"
+  inputs:
+    loopType: forEach
+    collection: <start.items>
+  connections:
+    loop-start-source: process-item      # Direct handle format
+    loop-end-source: final-results       # Direct handle format
+    error: handle-error
+
+process-item:
+  type: agent
+  name: "Process Item"
+  parentId: my-loop
+  inputs:
+    systemPrompt: "Process this item"
+    userPrompt: <loop.currentItem>
+    model: gpt-4o
+    apiKey: '{{OPENAI_API_KEY}}'
+```
+
+### Minimales Schleifenbeispiel (mit Standardwerten)
+
+Sie können den Abschnitt `inputs` vollständig weglassen, dann werden Standardwerte angewendet:
+
+```yaml
+simple-loop:
+  type: loop
+  name: "Simple Loop"
+  # No inputs section - defaults to loopType: 'for', iterations: 5
+  connections:
+    loop-start-source: process-step
+    loop-end-source: complete
+
+process-step:
+  type: agent
+  name: "Process Step"
+  parentId: simple-loop
+  inputs:
+    systemPrompt: "Execute step"
+    userPrompt: "Step <loop.index>"
+    model: gpt-4o
+    apiKey: '{{OPENAI_API_KEY}}'
+```
+
+Diese Schleife führt standardmäßig 5 Iterationen aus.
+
 ## Schleifenvariablen
 
-Innerhalb von untergeordneten Schleifenblöcken sind diese speziellen Variablen verfügbar:
+Innerhalb von Schleifenunterblöcken sind diese speziellen Variablen verfügbar:
 
 ```yaml
 # Available in all child blocks of the loop
@@ -290,6 +352,6 @@ final-processor:
 - Verwenden Sie forEach für die Verarbeitung von Sammlungen, for-Schleifen für feste Iterationen
 - Erwägen Sie die Verwendung von maxConcurrency für I/O-gebundene Operationen
 - Integrieren Sie Fehlerbehandlung für eine robuste Schleifenausführung
-- Verwenden Sie aussagekräftige Namen für Schleifen-Unterblöcke
+- Verwenden Sie aussagekräftige Namen für Schleifenunterblöcke
 - Testen Sie zuerst mit kleinen Sammlungen
-- Überwachen Sie die Ausführungszeit bei großen Sammlungen
+- Überwachen Sie die Ausführungszeit für große Sammlungen

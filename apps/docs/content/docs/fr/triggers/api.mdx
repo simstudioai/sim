@@ -24,14 +24,6 @@ Le déclencheur d'API expose votre flux de travail en tant que point de terminai
 
 Ajoutez un champ **Format d'entrée** pour chaque paramètre. Les clés de sortie d'exécution reflètent le schéma et sont également disponibles sous `<api.input>`.
 
-```yaml
-- type: string
-  name: userId
-  value: demo-user # optional manual test value
-- type: number
-  name: maxTokens
-```
-
 Les exécutions manuelles dans l'éditeur utilisent la colonne `value` pour que vous puissiez tester sans envoyer de requête. Pendant l'exécution, le résolveur remplit à la fois `<api.userId>` et `<api.input.userId>`.
 
 ## Exemple de requête
@@ -44,17 +36,17 @@ curl -X POST \
   -d '{"userId":"demo-user","maxTokens":1024}'
 ```
 
-Les réponses réussies renvoient le résultat d'exécution sérialisé de l'Exécuteur. Les erreurs révèlent des problèmes de validation, d'authentification ou d'échec du flux de travail.
+Les réponses réussies renvoient le résultat d'exécution sérialisé de l'exécuteur. Les erreurs révèlent des problèmes de validation, d'authentification ou d'échec du workflow.
 
-## Référence de sortie
+## Référence des sorties
 
 | Référence | Description |
 |-----------|-------------|
-| `<api.field>` | Champ défini dans le Format d'entrée |
-| `<api.input>` | Corps de la requête structuré complet |
+| `<api.field>` | Champ défini dans le format d'entrée |
+| `<api.input>` | Corps de requête structuré complet |
 
-Si aucun Format d'entrée n'est défini, l'exécuteur expose le JSON brut uniquement à `<api.input>`.
+Si aucun format d'entrée n'est défini, l'exécuteur expose uniquement le JSON brut à `<api.input>`.
 
 <Callout type="warning">
-Un flux de travail ne peut contenir qu'un seul déclencheur d'API. Publiez un nouveau déploiement après les modifications pour que le point de terminaison reste à jour.
+Un workflow ne peut contenir qu'un seul déclencheur API. Publiez un nouveau déploiement après les modifications pour que le point de terminaison reste à jour.
 </Callout>

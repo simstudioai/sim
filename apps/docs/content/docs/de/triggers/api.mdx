@@ -24,15 +24,7 @@ Der API-Trigger stellt Ihren Workflow als sicheren HTTP-Endpunkt bereit. Senden 
 
 Fügen Sie für jeden Parameter ein Feld **Eingabeformat** hinzu. Die Ausgabeschlüssel zur Laufzeit spiegeln das Schema wider und sind auch unter `<api.input>` verfügbar.
 
-```yaml
-- type: string
-  name: userId
-  value: demo-user # optional manual test value
-- type: number
-  name: maxTokens
-```
-
-Manuelle Ausführungen im Editor verwenden die Spalte `value`, damit Sie testen können, ohne eine Anfrage zu senden. Während der Ausführung füllt der Resolver sowohl `<api.userId>` als auch `<api.input.userId>`.
+Manuelle Ausführungen im Editor verwenden die Spalte `value`, damit Sie testen können, ohne eine Anfrage zu senden. Während der Ausführung füllt der Resolver sowohl `<api.userId>` als auch `<api.input.userId>` aus.
 
 ## Anfrage-Beispiel
 
@@ -56,5 +48,5 @@ Erfolgreiche Antworten geben das serialisierte Ausführungsergebnis vom Executor
 Wenn kein Eingabeformat definiert ist, stellt der Executor das rohe JSON nur unter `<api.input>` bereit.
 
 <Callout type="warning">
-Ein Workflow kann nur einen API-Trigger enthalten. Veröffentlichen Sie eine neue Bereitstellung nach Änderungen, damit der Endpunkt aktuell bleibt.
+Ein Workflow kann nur einen API-Trigger enthalten. Veröffentlichen Sie nach Änderungen eine neue Bereitstellung, damit der Endpunkt aktuell bleibt.
 </Callout>

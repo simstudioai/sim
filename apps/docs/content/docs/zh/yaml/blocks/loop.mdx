@@ -10,7 +10,6 @@ type: object
 required:
   - type
   - name
-  - inputs
   - connections
 properties:
   type:
@@ -22,21 +21,23 @@ properties:
     description: Display name for this loop block
   inputs:
     type: object
-    required:
-      - loopType
+    description: Optional. If omitted, defaults will be applied.
     properties:
       loopType:
         type: string
         enum: [for, forEach]
         description: Type of loop to execute
+        default: for
       iterations:
         type: number
         description: Number of iterations (for 'for' loops)
+        default: 5
         minimum: 1
         maximum: 1000
       collection:
         type: string
         description: Collection to iterate over (for 'forEach' loops)
+        default: ""
       maxConcurrency:
         type: number
         description: Maximum concurrent executions
@@ -45,13 +46,10 @@ properties:
         maximum: 10
   connections:
     type: object
-    required:
-      - loop
     properties:
+      # Nested format (recommended)
       loop:
         type: object
-        required:
-          - start
         properties:
           start:
             type: string
@@ -59,26 +57,37 @@ properties:
           end:
             type: string
             description: Target block ID for loop completion (optional)
+      # Direct handle format (alternative)
+      loop-start-source:
+        type: string | string[]
+        description: Target block ID to execute inside the loop (direct format)
+      loop-end-source:
+        type: string | string[]
+        description: Target block ID for loop completion (direct format, optional)
       error:
         type: string
         description: Target block ID for error handling
+    note: Use either the nested 'loop' format OR the direct 'loop-start-source' format, not both
 ```
 
 ## 连接配置
 
-Loop 块使用一种特殊的连接格式，其中包含一个 `loop` 部分：
+循环块支持两种连接格式：
+
+### 直接句柄格式（替代方案）
 
 ```yaml
 connections:
-  loop:
-    start: <string>                     # Target block ID to execute inside the loop
-    end: <string>                       # Target block ID after loop completion (optional)
+  loop-start-source: <string>           # Target block ID to execute inside the loop
+  loop-end-source: <string>             # Target block ID after loop completion (optional)
   error: <string>                       # Target block ID for error handling (optional)
 ```
 
+两种格式的功能完全相同，可根据您的喜好选择使用。
+
 ## 子块配置
 
-循环中的块必须将其 `parentId` 设置为循环块的 ID：
+循环中的块必须将其 `parentId` 设置为循环块的 ID。`extent` 属性会自动设置为 `'parent'`，无需手动指定：
 
 ```yaml
 loop-1:
@@ -261,9 +270,62 @@ process-task:
     success: task-completed
 ```
 
+### 直接句柄格式示例
+
+同一个循环可以使用直接句柄格式编写：
+
+```yaml
+my-loop:
+  type: loop
+  name: "Process Items"
+  inputs:
+    loopType: forEach
+    collection: <start.items>
+  connections:
+    loop-start-source: process-item      # Direct handle format
+    loop-end-source: final-results       # Direct handle format
+    error: handle-error
+
+process-item:
+  type: agent
+  name: "Process Item"
+  parentId: my-loop
+  inputs:
+    systemPrompt: "Process this item"
+    userPrompt: <loop.currentItem>
+    model: gpt-4o
+    apiKey: '{{OPENAI_API_KEY}}'
+```
+
+### 最小循环示例（使用默认值）
+
+您可以完全省略 `inputs` 部分，系统将应用默认值：
+
+```yaml
+simple-loop:
+  type: loop
+  name: "Simple Loop"
+  # No inputs section - defaults to loopType: 'for', iterations: 5
+  connections:
+    loop-start-source: process-step
+    loop-end-source: complete
+
+process-step:
+  type: agent
+  name: "Process Step"
+  parentId: simple-loop
+  inputs:
+    systemPrompt: "Execute step"
+    userPrompt: "Step <loop.index>"
+    model: gpt-4o
+    apiKey: '{{OPENAI_API_KEY}}'
+```
+
+此循环默认将执行 5 次迭代。
+
 ## 循环变量
 
-在循环的子块中，可以使用以下特殊变量：
+在循环子块中，可以使用以下特殊变量：
 
 ```yaml
 # Available in all child blocks of the loop
@@ -274,7 +336,7 @@ process-task:
 
 ## 输出引用
 
-循环完成后，可以引用其聚合结果：
+循环完成后，您可以引用其聚合结果：
 
 ```yaml
 # In blocks after the loop
@@ -286,10 +348,10 @@ final-processor:
 
 ## 最佳实践
 
-- 设置合理的迭代限制以避免长时间的执行
-- 使用 forEach 处理集合，使用 for 循环处理固定迭代
-- 对于 I/O 密集型操作，考虑使用 maxConcurrency
+- 设置合理的迭代限制以避免长时间执行
+- 使用 forEach 处理集合，使用 for 循环进行固定迭代
+- 考虑对 I/O 密集型操作使用 maxConcurrency
 - 包含错误处理以确保循环执行的健壮性
 - 为循环子块使用描述性名称
 - 先用小集合进行测试
-- 对大集合的执行时间进行监控
+- 对于大集合，监控执行时间

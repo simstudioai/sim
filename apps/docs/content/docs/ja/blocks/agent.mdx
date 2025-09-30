@@ -172,33 +172,7 @@ When responding to questions about investments, include risk disclaimers.
 - コンテキストのために会話履歴を読み取る
 - エージェントの実行後に返信を追加
 
-```yaml
-# 1) Add latest user message
-- Memory (operation: add)
-  id: chat
-  role: user
-  content: {{input}}
-
-# 2) Load conversation history
-- Memory (operation: get)
-  id: chat
-
-# 3) Run the agent with prior messages available
-- Agent
-  System Prompt: ...
-  User Prompt: |
-    Use the conversation so far:
-    {{memory_get.memories}}
-    Current user message: {{input}}
-
-# 4) Store the agent reply
-- Memory (operation: add)
-  id: chat
-  role: assistant
-  content: {{agent.content}}
-```
-
-詳細については`Memory`ブロックリファレンスを参照してください: [/tools/memory](/tools/memory)。
+詳細については[`Memory`](/tools/memory)ブロックリファレンスを参照してください。
 
 ## 入力と出力
 
@@ -209,7 +183,7 @@ When responding to questions about investments, include risk disclaimers.
         <strong>システムプロンプト</strong>: エージェントの動作と役割を定義する指示
       </li>
       <li>
-        <strong>ユーザープロンプト</strong>: 処理する入力テキストまたはデータ
+        <strong>ユーザープロンプト</strong>: 処理するテキストまたはデータ入力
       </li>
       <li>
         <strong>モデル</strong>: AIモデルの選択（OpenAI、Anthropic、Google など）
@@ -221,14 +195,14 @@ When responding to questions about investments, include risk disclaimers.
         <strong>ツール</strong>: 関数呼び出し用の利用可能なツールの配列
       </li>
       <li>
-        <strong>レスポンス形式</strong>: 構造化出力用のJSONスキーマ
+        <strong>レスポンス形式</strong>: 構造化された出力のためのJSONスキーマ
       </li>
     </ul>
   </Tab>
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
-        <strong>agent.content</strong>: エージェントのレスポンステキストまたは構造化データ
+        <strong>agent.content</strong>: エージェントの応答テキストまたは構造化データ
       </li>
       <li>
         <strong>agent.tokens</strong>: トークン使用統計オブジェクト
@@ -237,14 +211,14 @@ When responding to questions about investments, include risk disclaimers.
         <strong>agent.tool_calls</strong>: ツール実行詳細の配列
       </li>
       <li>
-        <strong>agent.cost</strong>: 推定APIコールコスト（利用可能な場合）
+        <strong>agent.cost</strong>: 推定APIコール費用（利用可能な場合）
       </li>
     </ul>
   </Tab>
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
-        <strong>コンテンツ</strong>: エージェントからの主要なレスポンス出力
+        <strong>コンテンツ</strong>: エージェントからの主要な応答出力
       </li>
       <li>
         <strong>メタデータ</strong>: 使用統計と実行詳細
@@ -261,43 +235,43 @@ When responding to questions about investments, include risk disclaimers.
 ### カスタマーサポートの自動化
 
 <div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">シナリオ：データベースアクセスによる顧客問い合わせ対応</h4>
+  <h4 className="font-medium">シナリオ: データベースアクセスによる顧客問い合わせ対応</h4>
   <ol className="list-decimal pl-5 text-sm">
-    <li>ユーザーがAPIブロックを通じてサポートチケットを送信</li>
+    <li>ユーザーがAPIブロック経由でサポートチケットを送信</li>
     <li>エージェントがPostgresで注文/サブスクリプションを確認し、ナレッジベースでガイダンスを検索</li>
     <li>エスカレーションが必要な場合、エージェントは関連コンテキストを含むLinearの課題を作成</li>
-    <li>エージェントが明確なメール返信を作成</li>
+    <li>エージェントが明確な返信メールを作成</li>
     <li>Gmailが顧客に返信を送信</li>
-    <li>将来のメッセージのために会話履歴を維持するため、会話がメモリに保存される</li>
+    <li>将来のメッセージのために履歴を維持するため、会話がメモリに保存される</li>
   </ol>
 </div>
 
 ### マルチモデルコンテンツ分析
 
 <div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">シナリオ：異なるAIモデルでコンテンツを分析</h4>
+  <h4 className="font-medium">シナリオ: 異なるAIモデルでコンテンツを分析</h4>
   <ol className="list-decimal pl-5 text-sm">
-    <li>ファンクションブロックがアップロードされた文書を処理</li>
+    <li>関数ブロックがアップロードされた文書を処理</li>
     <li>GPT-4oを搭載したエージェントが技術的分析を実行</li>
-    <li>Claudeを搭載したエージェントが感情やトーンを分析</li>
-    <li>ファンクションブロックが最終レポート用に結果を統合</li>
+    <li>Claudeを搭載したエージェントが感情とトーンを分析</li>
+    <li>関数ブロックが最終レポート用に結果を統合</li>
   </ol>
 </div>
 
-### ツール活用型リサーチアシスタント
+### ツール搭載型リサーチアシスタント
 
 <div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">シナリオ：ウェブ検索と文書アクセス機能を持つリサーチアシスタント</h4>
+  <h4 className="font-medium">シナリオ：ウェブ検索とドキュメントアクセス機能を持つリサーチアシスタント</h4>
   <ol className="list-decimal pl-5 text-sm">
-    <li>入力を通じてユーザークエリを受信</li>
+    <li>入力からユーザークエリを受信</li>
     <li>エージェントがGoogle検索ツールを使用してウェブを検索</li>
     <li>エージェントが社内文書用のNotionデータベースにアクセス</li>
-    <li>エージェントが包括的な調査レポートをまとめる</li>
+    <li>エージェントが包括的な調査レポートを作成</li>
   </ol>
 </div>
 
 ## ベストプラクティス
 
-- **システムプロンプトを具体的に**: エージェントの役割、トーン、制限を明確に定義してください。指示が具体的であればあるほど、エージェントは目的を果たすことができます。
-- **適切な温度設定を選択**: 精度が重要な場合は低い温度設定（0〜0.3）を使用し、よりクリエイティブまたは多様な応答には温度を上げる（0.7〜2.0）
-- **ツールを効果的に活用**: エージェントの目的を補完し、その能力を強化するツールを統合してください。エージェントに負担をかけないよう、提供するツールを選択的にしてください。重複の少いタスクには、最良の結果を得るために別のエージェントブロックを使用してください。
+- **システムプロンプトで具体的に指示する**：エージェントの役割、トーン、制限を明確に定義してください。指示が具体的であればあるほど、エージェントは目的を果たすことができます。
+- **適切な温度設定を選択する**：精度が重要な場合は低い温度設定（0〜0.3）を使用し、よりクリエイティブまたは多様な応答を得るには温度を上げる（0.7〜2.0）
+- **ツールを効果的に活用する**：エージェントの目的を補完し、その能力を強化するツールを統合してください。エージェントに負担をかけないよう、提供するツールを選択的にしてください。重複の少いタスクには、最良の結果を得るために別のエージェントブロックを使用してください。

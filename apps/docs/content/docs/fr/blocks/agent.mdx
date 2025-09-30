@@ -175,33 +175,7 @@ Utilisez un bloc `Memory` avec un `id` cohérent (par exemple, `chat`) pour cons
 - Lisez l'historique de conversation pour le contexte
 - Ajoutez la réponse de l'Agent après son exécution
 
-```yaml
-# 1) Add latest user message
-- Memory (operation: add)
-  id: chat
-  role: user
-  content: {{input}}
-
-# 2) Load conversation history
-- Memory (operation: get)
-  id: chat
-
-# 3) Run the agent with prior messages available
-- Agent
-  System Prompt: ...
-  User Prompt: |
-    Use the conversation so far:
-    {{memory_get.memories}}
-    Current user message: {{input}}
-
-# 4) Store the agent reply
-- Memory (operation: add)
-  id: chat
-  role: assistant
-  content: {{agent.content}}
-```
-
-Consultez la référence du bloc `Memory` pour plus de détails : [/tools/memory](/tools/memory).
+Voir la référence du bloc [`Memory`](/tools/memory) pour plus de détails.
 
 ## Entrées et sorties
 
@@ -209,51 +183,51 @@ Consultez la référence du bloc `Memory` pour plus de détails : [/tools/memory
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
-        <strong>Prompt système</strong> : Instructions définissant le comportement et le rôle de l'agent
+        <strong>Prompt système</strong> : instructions définissant le comportement et le rôle de l'agent
       </li>
       <li>
-        <strong>Prompt utilisateur</strong> : Texte d'entrée ou données à traiter
+        <strong>Prompt utilisateur</strong> : texte ou données d'entrée à traiter
       </li>
       <li>
-        <strong>Modèle</strong> : Sélection du modèle d'IA (OpenAI, Anthropic, Google, etc.)
+        <strong>Modèle</strong> : sélection du modèle d'IA (OpenAI, Anthropic, Google, etc.)
       </li>
       <li>
-        <strong>Température</strong> : Contrôle de l'aléatoire des réponses (0-2)
+        <strong>Température</strong> : contrôle de l'aléatoire des réponses (0-2)
       </li>
       <li>
-        <strong>Outils</strong> : Tableau d'outils disponibles pour l'appel de fonctions
+        <strong>Outils</strong> : tableau des outils disponibles pour l'appel de fonctions
       </li>
       <li>
-        <strong>Format de réponse</strong> : Schéma JSON pour une sortie structurée
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>agent.content</strong> : Texte de réponse de l'agent ou données structurées
-      </li>
-      <li>
-        <strong>agent.tokens</strong> : Objet de statistiques d'utilisation des tokens
-      </li>
-      <li>
-        <strong>agent.tool_calls</strong> : Tableau des détails d'exécution des outils
-      </li>
-      <li>
-        <strong>agent.cost</strong> : Coût estimé de l'appel API (si disponible)
+        <strong>Format de réponse</strong> : schéma JSON pour une sortie structurée
       </li>
     </ul>
   </Tab>
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
-        <strong>Contenu</strong> : Sortie de réponse principale de l'agent
+        <strong>agent.content</strong> : texte de réponse de l'agent ou données structurées
       </li>
       <li>
-        <strong>Métadonnées</strong> : Statistiques d'utilisation et détails d'exécution
+        <strong>agent.tokens</strong> : objet de statistiques d'utilisation des tokens
       </li>
       <li>
-        <strong>Accès</strong> : Disponible dans les blocs après l'agent
+        <strong>agent.tool_calls</strong> : tableau des détails d'exécution des outils
+      </li>
+      <li>
+        <strong>agent.cost</strong> : coût estimé de l'appel API (si disponible)
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Contenu</strong> : sortie de réponse principale de l'agent
+      </li>
+      <li>
+        <strong>Métadonnées</strong> : statistiques d'utilisation et détails d'exécution
+      </li>
+      <li>
+        <strong>Accès</strong> : disponible dans les blocs après l'agent
       </li>
     </ul>
   </Tab>
@@ -268,7 +242,7 @@ Consultez la référence du bloc `Memory` pour plus de détails : [/tools/memory
   <ol className="list-decimal pl-5 text-sm">
     <li>L'utilisateur soumet un ticket de support via le bloc API</li>
     <li>L'agent vérifie les commandes/abonnements dans Postgres et recherche des conseils dans la base de connaissances</li>
-    <li>Si une escalade est nécessaire, l'agent crée un ticket Linear avec le contexte pertinent</li>
+    <li>Si une escalade est nécessaire, l'agent crée un problème Linear avec le contexte pertinent</li>
     <li>L'agent rédige une réponse par e-mail claire</li>
     <li>Gmail envoie la réponse au client</li>
     <li>La conversation est enregistrée dans Memory pour conserver l'historique des messages futurs</li>
@@ -278,7 +252,7 @@ Consultez la référence du bloc `Memory` pour plus de détails : [/tools/memory
 ### Analyse de contenu multi-modèles
 
 <div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scénario : analyser du contenu avec différents modèles d'IA</h4>
+  <h4 className="font-medium">Scénario : analyser le contenu avec différents modèles d'IA</h4>
   <ol className="list-decimal pl-5 text-sm">
     <li>Le bloc de fonction traite le document téléchargé</li>
     <li>L'agent avec GPT-4o effectue une analyse technique</li>
