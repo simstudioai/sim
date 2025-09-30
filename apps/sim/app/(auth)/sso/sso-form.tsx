@@ -70,6 +70,19 @@ export default function SSOForm() {
           logger.warn('Invalid callback URL detected and blocked:', { url: callback })
         }
       }
+
+      // Check for SSO error from redirect
+      const error = searchParams.get('error')
+      if (error) {
+        const errorMessages: Record<string, string> = {
+          account_not_found:
+            'No account found. Please contact your administrator to set up SSO access.',
+          sso_failed: 'SSO authentication failed. Please try again.',
+          invalid_provider: 'SSO provider not configured correctly.',
+        }
+        setEmailErrors([errorMessages[error] || 'SSO authentication failed. Please try again.'])
+        setShowEmailValidationError(true)
+      }
     }
 
     const checkCustomBrand = () => {
@@ -130,6 +143,7 @@ export default function SSOForm() {
       await client.signIn.sso({
         email: emailValue,
         callbackURL: safeCallbackUrl,
+        errorCallbackURL: `/sso?error=sso_failed&callbackUrl=${encodeURIComponent(safeCallbackUrl)}`,
       })
     } catch (err) {
       logger.error('SSO sign-in failed', { error: err, email: emailValue })

@@ -13,6 +13,51 @@ import { useOrganizationStore } from '@/stores/organization'
 
 const logger = createLogger('SSO')
 
+// Trusted SSO provider IDs that match auth.ts configuration
+const TRUSTED_SSO_PROVIDERS = [
+  // Common SSO provider patterns
+  'okta',
+  'okta-saml',
+  'okta-prod',
+  'okta-dev',
+  'okta-staging',
+  'okta-test',
+  'azure-ad',
+  'azure-active-directory',
+  'azure-corp',
+  'azure-enterprise',
+  'adfs',
+  'adfs-company',
+  'adfs-corp',
+  'adfs-enterprise',
+  'auth0',
+  'auth0-prod',
+  'auth0-dev',
+  'auth0-staging',
+  'onelogin',
+  'onelogin-prod',
+  'onelogin-corp',
+  'jumpcloud',
+  'jumpcloud-prod',
+  'jumpcloud-corp',
+  'ping-identity',
+  'ping-federate',
+  'pingone',
+  'shibboleth',
+  'shibboleth-idp',
+  'google-workspace',
+  'google-sso',
+  'saml',
+  'saml2',
+  'saml-sso',
+  'oidc',
+  'oidc-sso',
+  'openid-connect',
+  'custom-sso',
+  'enterprise-sso',
+  'company-sso',
+]
+
 interface SSOProvider {
   id: string
   providerId: string
@@ -52,6 +97,7 @@ export function SSO() {
     callbackUrl: '',
     audience: '',
     wantAssertionsSigned: true,
+    idpMetadata: '', // Optional IDP metadata XML
     // Advanced options
     showAdvanced: false,
   })
@@ -188,7 +234,11 @@ export function SSO() {
     if (!value || !value.trim()) return ['Issuer URL is required.']
     try {
       const url = new URL(value.trim())
-      if (url.protocol !== 'https:') out.push('Issuer URL must use HTTPS.')
+      // Allow http:// for localhost development
+      const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1'
+      if (url.protocol !== 'https:' && !isLocalhost) {
+        out.push('Issuer URL must use HTTPS.')
+      }
     } catch {
       out.push('Enter a valid issuer URL like https://your-identity-provider.com/oauth2/default')
     }
@@ -246,6 +296,29 @@ export function SSO() {
   const hasAnyErrors = (errs: Record<string, string[]>) =>
     Object.values(errs).some((l) => l.length > 0)
 
+  // Check if all required fields are filled
+  const isFormValid = () => {
+    const requiredFields = ['providerId', 'issuerUrl', 'domain']
+    const hasRequiredFields = requiredFields.every((field) => {
+      const value = formData[field as keyof typeof formData]
+      return typeof value === 'string' && value.trim() !== ''
+    })
+
+    if (formData.providerType === 'oidc') {
+      return (
+        hasRequiredFields &&
+        formData.clientId.trim() !== '' &&
+        formData.clientSecret.trim() !== '' &&
+        formData.scopes.trim() !== ''
+      )
+    }
+    if (formData.providerType === 'saml') {
+      return hasRequiredFields && formData.entryPoint.trim() !== '' && formData.cert.trim() !== ''
+    }
+
+    return false
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
@@ -279,9 +352,10 @@ export function SSO() {
       } else if (formData.providerType === 'saml') {
         requestBody.entryPoint = formData.entryPoint
         requestBody.cert = formData.cert
+        requestBody.wantAssertionsSigned = formData.wantAssertionsSigned
         if (formData.callbackUrl) requestBody.callbackUrl = formData.callbackUrl
         if (formData.audience) requestBody.audience = formData.audience
-        requestBody.wantAssertionsSigned = formData.wantAssertionsSigned
+        if (formData.idpMetadata) requestBody.idpMetadata = formData.idpMetadata
 
         requestBody.mapping = {
           id: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier',
@@ -319,6 +393,7 @@ export function SSO() {
         callbackUrl: '',
         audience: '',
         wantAssertionsSigned: true,
+        idpMetadata: '',
         showAdvanced: false,
       })
 
@@ -416,6 +491,7 @@ export function SSO() {
         callbackUrl: '',
         audience: '',
         wantAssertionsSigned: true,
+        idpMetadata: '',
         showAdvanced: false,
       })
       setIsEditing(true)
@@ -573,30 +649,32 @@ export function SSO() {
 
                 <div className='space-y-1'>
                   <Label htmlFor='provider-id'>Provider ID</Label>
-                  <Input
+                  <select
                     id='provider-id'
-                    type='text'
-                    placeholder='e.g., your-provider-name'
                     value={formData.providerId}
-                    name='sso_provider_identifier'
-                    autoComplete='off'
-                    autoCapitalize='none'
-                    spellCheck={false}
-                    readOnly
-                    onFocus={(e) => e.target.removeAttribute('readOnly')}
                     onChange={(e) => handleInputChange('providerId', e.target.value)}
                     className={cn(
-                      'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
+                      'w-full rounded-[10px] border border-input bg-background px-3 py-2 text-sm ring-offset-background transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
                       showErrors &&
                         errors.providerId.length > 0 &&
                         'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
                     )}
-                  />
+                  >
+                    <option value=''>Select a provider ID</option>
+                    {TRUSTED_SSO_PROVIDERS.map((providerId) => (
+                      <option key={providerId} value={providerId}>
+                        {providerId}
+                      </option>
+                    ))}
+                  </select>
                   {showErrors && errors.providerId.length > 0 && (
                     <div className='mt-1 text-red-400 text-xs'>
                       <p>{errors.providerId.join(' ')}</p>
                     </div>
                   )}
+                  <p className='text-muted-foreground text-xs'>
+                    Select a pre-configured provider ID from the trusted providers list
+                  </p>
                 </div>
 
                 <div className='space-y-1'>
@@ -604,7 +682,7 @@ export function SSO() {
                   <Input
                     id='issuer-url'
                     type='url'
-                    placeholder='https://your-domain.identityprovider.com/oauth2/default'
+                    placeholder='Enter Issuer URL'
                     value={formData.issuerUrl}
                     name='sso_issuer_endpoint'
                     autoComplete='off'
@@ -633,7 +711,7 @@ export function SSO() {
                   <Input
                     id='domain'
                     type='text'
-                    placeholder='your-domain.identityprovider.com'
+                    placeholder='Enter Domain'
                     value={formData.domain}
                     name='sso_identity_domain'
                     autoComplete='off'
@@ -664,7 +742,7 @@ export function SSO() {
                       <Input
                         id='client-id'
                         type='text'
-                        placeholder='0oabcdef123456789'
+                        placeholder='Enter Client ID'
                         value={formData.clientId}
                         name='sso_client_identifier'
                         autoComplete='off'
@@ -693,7 +771,7 @@ export function SSO() {
                         <Input
                           id='client-secret'
                           type={showClientSecret ? 'text' : 'password'}
-                          placeholder='••••••••••••••••••••••••••••••••'
+                          placeholder='Enter Client Secret'
                           value={formData.clientSecret}
                           name='sso_client_key'
                           autoComplete='new-password'
@@ -766,7 +844,7 @@ export function SSO() {
                       <Input
                         id='entry-point'
                         type='url'
-                        placeholder='https://adfs.company.com/adfs/ls/'
+                        placeholder='Enter Entry Point URL'
                         value={formData.entryPoint}
                         autoComplete='off'
                         autoCapitalize='none'
@@ -841,7 +919,7 @@ export function SSO() {
                             <Input
                               id='audience'
                               type='text'
-                              placeholder='https://yourapp.com'
+                              placeholder='Enter Audience'
                               value={formData.audience}
                               autoComplete='off'
                               autoCapitalize='none'
@@ -859,7 +937,7 @@ export function SSO() {
                             <Input
                               id='callback-url'
                               type='url'
-                              placeholder='https://yourapp.com/api/auth/sso/callback/provider-id'
+                              placeholder='Enter Callback URL'
                               value={formData.callbackUrl}
                               autoComplete='off'
                               autoCapitalize='none'
@@ -889,6 +967,25 @@ export function SSO() {
                               Require signed SAML assertions
                             </Label>
                           </div>
+
+                          <div className='space-y-1'>
+                            <Label htmlFor='idp-metadata'>Identity Provider Metadata XML</Label>
+                            <textarea
+                              id='idp-metadata'
+                              placeholder='<?xml version="1.0" encoding="UTF-8"?>&#10;<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata">&#10;  ...&#10;</md:EntityDescriptor>'
+                              value={formData.idpMetadata}
+                              autoComplete='off'
+                              autoCapitalize='none'
+                              spellCheck={false}
+                              onChange={(e) => handleInputChange('idpMetadata', e.target.value)}
+                              className='min-h-[100px] w-full rounded-[10px] border border-input bg-background px-3 py-2 text-sm ring-offset-background transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100'
+                              rows={4}
+                            />
+                            <p className='text-muted-foreground text-xs'>
+                              Paste the complete IDP metadata XML from your identity provider for
+                              advanced configuration
+                            </p>
+                          </div>
                         </>
                       )}
                     </div>
@@ -898,7 +995,7 @@ export function SSO() {
                 <Button
                   type='submit'
                   className='w-full rounded-[10px]'
-                  disabled={isLoading || hasAnyErrors(errors)}
+                  disabled={isLoading || hasAnyErrors(errors) || !isFormValid()}
                 >
                   {isLoading
                     ? isEditing

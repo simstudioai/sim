@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
       signatureAlgorithm,
       digestAlgorithm,
       identifierFormat,
+      idpMetadata, // Optional IDP metadata XML
       // Mapping configuration
       mapping = {
         id: 'sub',
@@ -142,21 +143,54 @@ export async function POST(request: NextRequest) {
       providerConfig.oidcConfig = oidcConfig
     } else if (providerType === 'saml') {
       // Build SAML configuration
+      // callbackUrl and spMetadata are REQUIRED by Better Auth
+      const computedCallbackUrl =
+        callbackUrl || `${issuer.replace('/metadata', '')}/callback/${providerId}`
+
+      // Generate SP metadata if not provided
+      const spMetadataXml = `<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${issuer}">
+  <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${computedCallbackUrl}" index="1"/>
+  </md:SPSSODescriptor>
+</md:EntityDescriptor>`
+
       const samlConfig: any = {
         entryPoint,
         cert,
+        callbackUrl: computedCallbackUrl, // Required field
+        spMetadata: {
+          // Required field
+          metadata: spMetadataXml,
+        },
+        mapping, // Add mapping to samlConfig for SAML providers
       }
 
       // Add optional SAML fields
-      if (callbackUrl) samlConfig.callbackUrl = callbackUrl
       if (audience) samlConfig.audience = audience
       if (wantAssertionsSigned !== undefined) samlConfig.wantAssertionsSigned = wantAssertionsSigned
       if (signatureAlgorithm) samlConfig.signatureAlgorithm = signatureAlgorithm
       if (digestAlgorithm) samlConfig.digestAlgorithm = digestAlgorithm
       if (identifierFormat) samlConfig.identifierFormat = identifierFormat
+      if (idpMetadata) {
+        samlConfig.idpMetadata = {
+          metadata: idpMetadata,
+        }
+      }
 
       providerConfig.samlConfig = samlConfig
+      // Remove top-level mapping for SAML as it should be in samlConfig
+      providerConfig.mapping = undefined
     }
+
+    logger.info('Calling Better Auth registerSSOProvider with config:', {
+      providerId: providerConfig.providerId,
+      domain: providerConfig.domain,
+      hasOidcConfig: !!providerConfig.oidcConfig,
+      hasSamlConfig: !!providerConfig.samlConfig,
+      samlConfigKeys: providerConfig.samlConfig ? Object.keys(providerConfig.samlConfig) : [],
+      fullConfig: JSON.stringify(providerConfig, null, 2),
+    })
 
     const registration = await auth.api.registerSSOProvider({
       body: providerConfig,

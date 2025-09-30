@@ -155,6 +155,7 @@ export const auth = betterAuth({
 
         // Common SSO provider patterns - covers most enterprise use cases
         'okta',
+        'okta-saml',
         'okta-prod',
         'okta-dev',
         'okta-staging',
@@ -193,13 +194,6 @@ export const auth = betterAuth({
         'custom-sso',
         'enterprise-sso',
         'company-sso',
-
-        // Additional SSO providers from environment variable (for self-hosted)
-        ...(env.SSO_TRUSTED_PROVIDERS
-          ? env.SSO_TRUSTED_PROVIDERS.split(',')
-              .map((p) => p.trim())
-              .filter((p) => p)
-          : []),
       ],
     },
   },

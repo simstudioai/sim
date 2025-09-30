@@ -13,6 +13,7 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
     pathname === '/homepage' ||
     pathname.startsWith('/login') ||
     pathname.startsWith('/signup') ||
+    pathname.startsWith('/sso') ||
     pathname.startsWith('/terms') ||
     pathname.startsWith('/privacy') ||
     pathname.startsWith('/invite') ||
