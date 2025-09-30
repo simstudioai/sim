@@ -37,7 +37,7 @@ async function processDocsEmbeddings(options: ProcessingOptions = {}) {
     // Configuration
     const config = {
       clearExisting: options.clearExisting ?? false,
-      docsPath: options.docsPath ?? path.join(process.cwd(), '../../apps/docs/content/docs'),
+      docsPath: options.docsPath ?? path.join(process.cwd(), '../../apps/docs/content/docs/en'),
       baseUrl: options.baseUrl ?? (isDev ? 'http://localhost:3001' : 'https://docs.sim.ai'),
       chunkSize: options.chunkSize ?? 300, // Max 300 tokens per chunk
       minChunkSize: options.minChunkSize ?? 100,

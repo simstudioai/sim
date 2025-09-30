@@ -1,0 +1,109 @@
+---
+title: ArXiv
+description: Suche und rufe wissenschaftliche Arbeiten von ArXiv ab
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="arxiv"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"  id='logomark' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 17.732 24.269'>
+      <g id='tiny'>
+        <path
+          d='M573.549,280.916l2.266,2.738,6.674-7.84c.353-.47.52-.717.353-1.117a1.218,1.218,0,0,0-1.061-.748h0a.953.953,0,0,0-.712.262Z'
+          transform='translate(-566.984 -271.548)'
+          fill='#bdb9b4'
+        />
+        <path
+          d='M579.525,282.225l-10.606-10.174a1.413,1.413,0,0,0-.834-.5,1.09,1.09,0,0,0-1.027.66c-.167.4-.047.681.319,1.206l8.44,10.242h0l-6.282,7.716a1.336,1.336,0,0,0-.323,1.3,1.114,1.114,0,0,0,1.04.69A.992.992,0,0,0,571,293l8.519-7.92A1.924,1.924,0,0,0,579.525,282.225Z'
+          transform='translate(-566.984 -271.548)'
+          fill='#b31b1b'
+        />
+        <path
+          d='M584.32,293.912l-8.525-10.275,0,0L573.53,280.9l-1.389,1.254a2.063,2.063,0,0,0,0,2.965l10.812,10.419a.925.925,0,0,0,.742.282,1.039,1.039,0,0,0,.953-.667A1.261,1.261,0,0,0,584.32,293.912Z'
+          transform='translate(-566.984 -271.548)'
+          fill='#bdb9b4'
+        />
+      </g>
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[ArXiv](https://arxiv.org/) ist ein kostenfreies, frei zugängliches Repository für wissenschaftliche Forschungsarbeiten in Bereichen wie Physik, Mathematik, Informatik, quantitative Biologie, quantitative Finanzwissenschaft, Statistik, Elektrotechnik, Systemwissenschaften und Wirtschaftswissenschaften. ArXiv bietet eine umfangreiche Sammlung von Preprints und veröffentlichten Artikeln und ist damit eine primäre Ressource für Forscher und Praktiker weltweit.
+
+Mit ArXiv können Sie:
+
+- **Nach wissenschaftlichen Arbeiten suchen**: Finden Sie Forschungsarbeiten anhand von Schlüsselwörtern, Autorennamen, Titeln, Kategorien und mehr
+- **Metadaten von Arbeiten abrufen**: Zugriff auf Abstracts, Autorenlisten, Veröffentlichungsdaten und andere bibliografische Informationen
+- **Volltext-PDFs herunterladen**: Erhalten Sie den vollständigen Text der meisten Arbeiten für eingehende Studien
+- **Autorenbeiträge erkunden**: Sehen Sie alle Arbeiten eines bestimmten Autors
+- **Auf dem Laufenden bleiben**: Entdecken Sie die neuesten Einreichungen und Trendthemen in Ihrem Fachgebiet
+
+In Sim ermöglicht die ArXiv-Integration Ihren Agenten, wissenschaftliche Arbeiten von ArXiv programmatisch zu suchen, abzurufen und zu analysieren. Dies erlaubt Ihnen, Literaturrecherchen zu automatisieren, Forschungsassistenten zu erstellen oder aktuelles wissenschaftliches Wissen in Ihre agentischen Workflows einzubinden. Nutzen Sie ArXiv als dynamische Datenquelle für Forschung, Entdeckung und Wissensextraktion innerhalb Ihrer Sim-Projekte.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanleitung
+
+Integriert ArXiv in den Workflow. Kann nach Arbeiten suchen, Arbeitsdetails abrufen und Autorenarbeiten finden. Benötigt kein OAuth oder einen API-Schlüssel.
+
+## Tools
+
+### `arxiv_search`
+
+Suche nach wissenschaftlichen Artikeln auf ArXiv nach Schlüsselwörtern, Autoren, Titeln oder anderen Feldern.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `searchQuery` | string | Ja | Die auszuführende Suchanfrage |
+| `searchField` | string | Nein | Feld, in dem gesucht werden soll: all, ti \(Titel\), au \(Autor\), abs \(Abstract\), co \(Kommentar\), jr \(Journal\), cat \(Kategorie\), rn \(Berichtsnummer\) |
+| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Ergebnisse \(Standard: 10, max: 2000\) |
+| `sortBy` | string | Nein | Sortieren nach: relevance, lastUpdatedDate, submittedDate \(Standard: relevance\) |
+| `sortOrder` | string | Nein | Sortierreihenfolge: ascending, descending \(Standard: descending\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `papers` | json | Array von Artikeln, die der Suchanfrage entsprechen |
+
+### `arxiv_get_paper`
+
+Erhalte detaillierte Informationen über einen bestimmten ArXiv-Artikel anhand seiner ID.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `paperId` | string | Ja | ArXiv-Artikel-ID \(z.B. "1706.03762"\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `paper` | json | Detaillierte Informationen über den angeforderten ArXiv-Artikel |
+
+### `arxiv_get_author_papers`
+
+Suche nach Artikeln eines bestimmten Autors auf ArXiv.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `authorName` | string | Ja | Zu suchender Autorenname |
+| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Ergebnisse \(Standard: 10, max: 2000\) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `authorPapers` | json | Array von Publikationen, die vom angegebenen Autor verfasst wurden |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `arxiv`

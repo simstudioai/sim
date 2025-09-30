@@ -23,6 +23,7 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useCurrentWorkflow } from '../../hooks'
 import { ActionBar } from './components/action-bar/action-bar'
 import { ConnectionBlocks } from './components/connection-blocks/connection-blocks'
+import { useSubBlockValue } from './components/sub-block/hooks/use-sub-block-value'
 import { SubBlock } from './components/sub-block/sub-block'
 
 const logger = createLogger('WorkflowBlock')
@@ -141,11 +142,32 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     isShowingDiff,
     id,
   ])
+  // Always call hooks to maintain consistent hook order
+  const storeHorizontalHandles = useWorkflowStore(
+    (state) => state.blocks[id]?.horizontalHandles ?? true
+  )
+  const storeIsWide = useWorkflowStore((state) => state.blocks[id]?.isWide ?? false)
+  const storeBlockHeight = useWorkflowStore((state) => state.blocks[id]?.height ?? 0)
+  const storeBlockAdvancedMode = useWorkflowStore(
+    (state) => state.blocks[id]?.advancedMode ?? false
+  )
+  const storeBlockTriggerMode = useWorkflowStore((state) => state.blocks[id]?.triggerMode ?? false)
+
+  // Get block properties from currentWorkflow when in diff mode, otherwise from workflow store
   const horizontalHandles = data.isPreview
     ? (data.blockState?.horizontalHandles ?? true) // In preview mode, use blockState and default to horizontal
-    : useWorkflowStore((state) => state.blocks[id]?.horizontalHandles ?? true) // Changed default to true for consistency
-  const isWide = useWorkflowStore((state) => state.blocks[id]?.isWide ?? false)
-  const blockHeight = useWorkflowStore((state) => state.blocks[id]?.height ?? 0)
+    : currentWorkflow.isDiffMode
+      ? (currentWorkflow.blocks[id]?.horizontalHandles ?? true)
+      : storeHorizontalHandles
+
+  const isWide = currentWorkflow.isDiffMode
+    ? (currentWorkflow.blocks[id]?.isWide ?? false)
+    : storeIsWide
+
+  const blockHeight = currentWorkflow.isDiffMode
+    ? (currentWorkflow.blocks[id]?.height ?? 0)
+    : storeBlockHeight
+
   // Get per-block webhook status by checking if webhook is configured
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
 
@@ -157,8 +179,14 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   )
   const blockWebhookStatus = !!(hasWebhookProvider && hasWebhookPath)
 
-  const blockAdvancedMode = useWorkflowStore((state) => state.blocks[id]?.advancedMode ?? false)
-  const blockTriggerMode = useWorkflowStore((state) => state.blocks[id]?.triggerMode ?? false)
+  const blockAdvancedMode = currentWorkflow.isDiffMode
+    ? (currentWorkflow.blocks[id]?.advancedMode ?? false)
+    : storeBlockAdvancedMode
+
+  // Get triggerMode from currentWorkflow blocks when in diff mode, otherwise from workflow store
+  const blockTriggerMode = currentWorkflow.isDiffMode
+    ? (currentWorkflow.blocks[id]?.triggerMode ?? false)
+    : storeBlockTriggerMode
 
   // Local UI state for diff mode controls
   const [diffIsWide, setDiffIsWide] = useState<boolean>(isWide)
@@ -175,8 +203,16 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   }, [currentWorkflow.isDiffMode, id])
 
   const displayIsWide = currentWorkflow.isDiffMode ? diffIsWide : isWide
-  const displayAdvancedMode = currentWorkflow.isDiffMode ? diffAdvancedMode : blockAdvancedMode
-  const displayTriggerMode = currentWorkflow.isDiffMode ? diffTriggerMode : blockTriggerMode
+  const displayAdvancedMode = currentWorkflow.isDiffMode
+    ? diffAdvancedMode
+    : data.isPreview
+      ? (data.blockState?.advancedMode ?? false)
+      : blockAdvancedMode
+  const displayTriggerMode = currentWorkflow.isDiffMode
+    ? diffTriggerMode
+    : data.isPreview
+      ? (data.blockState?.triggerMode ?? false)
+      : blockTriggerMode
 
   // Collaborative workflow actions
   const {
@@ -439,10 +475,8 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
       stateToUse = mergedState?.subBlocks || {}
     }
 
-    const isAdvancedMode = useWorkflowStore.getState().blocks[blockId]?.advancedMode ?? false
-    const isTriggerMode = useWorkflowStore.getState().blocks[blockId]?.triggerMode ?? false
-    const effectiveAdvanced = currentWorkflow.isDiffMode ? displayAdvancedMode : isAdvancedMode
-    const effectiveTrigger = currentWorkflow.isDiffMode ? displayTriggerMode : isTriggerMode
+    const effectiveAdvanced = displayAdvancedMode
+    const effectiveTrigger = displayTriggerMode
     const e2bClientEnabled = isTruthy(getEnv('NEXT_PUBLIC_E2B_ENABLED'))
 
     // Filter visible blocks and those that meet their conditions
@@ -589,6 +623,80 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const shouldShowScheduleBadge =
     type === 'schedule' && !isLoadingScheduleInfo && scheduleInfo !== null
   const userPermissions = useUserPermissionsContext()
+  const registryDeploymentStatuses = useWorkflowRegistry((state) => state.deploymentStatuses)
+  const [childActiveVersion, setChildActiveVersion] = useState<number | null>(null)
+  const [childIsDeployed, setChildIsDeployed] = useState<boolean>(false)
+  const [isLoadingChildVersion, setIsLoadingChildVersion] = useState(false)
+
+  // Use the store directly for real-time updates when workflow dropdown changes
+  const [workflowIdFromStore] = useSubBlockValue<string>(id, 'workflowId')
+
+  // Determine if this is a workflow block (child workflow selector) and fetch child status
+  const isWorkflowSelector = type === 'workflow' || type === 'workflow_input'
+  let childWorkflowId: string | undefined
+  if (!data.isPreview) {
+    // Use store value for real-time updates
+    const val = workflowIdFromStore
+    if (typeof val === 'string' && val.trim().length > 0) {
+      childWorkflowId = val
+    }
+  } else if (data.isPreview && data.subBlockValues?.workflowId?.value) {
+    const val = data.subBlockValues.workflowId.value
+    if (typeof val === 'string' && val.trim().length > 0) childWorkflowId = val
+  }
+
+  const childDeployment = childWorkflowId ? registryDeploymentStatuses[childWorkflowId] : null
+
+  // Fetch active deployment version for the selected child workflow
+  useEffect(() => {
+    let cancelled = false
+    const fetchActiveVersion = async (wfId: string) => {
+      try {
+        setIsLoadingChildVersion(true)
+        const res = await fetch(`/api/workflows/${wfId}/deployments`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' },
+        })
+        if (!res.ok) {
+          if (!cancelled) {
+            setChildActiveVersion(null)
+            setChildIsDeployed(false)
+          }
+          return
+        }
+        const json = await res.json()
+        const versions = Array.isArray(json?.data?.versions)
+          ? json.data.versions
+          : Array.isArray(json?.versions)
+            ? json.versions
+            : []
+        const active = versions.find((v: any) => v.isActive)
+        if (!cancelled) {
+          const v = active ? Number(active.version) : null
+          setChildActiveVersion(v)
+          setChildIsDeployed(v != null)
+        }
+      } catch {
+        if (!cancelled) {
+          setChildActiveVersion(null)
+          setChildIsDeployed(false)
+        }
+      } finally {
+        if (!cancelled) setIsLoadingChildVersion(false)
+      }
+    }
+
+    // Always fetch when childWorkflowId changes
+    if (childWorkflowId) {
+      void fetchActiveVersion(childWorkflowId)
+    } else {
+      setChildActiveVersion(null)
+      setChildIsDeployed(false)
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [childWorkflowId])
 
   return (
     <div className='group relative'>
@@ -618,7 +726,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
 
         <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
         {/* Connection Blocks - Don't show for trigger blocks, starter blocks, or blocks in trigger mode */}
-        {config.category !== 'triggers' && type !== 'starter' && !blockTriggerMode && (
+        {config.category !== 'triggers' && type !== 'starter' && !displayTriggerMode && (
           <ConnectionBlocks
             blockId={id}
             setIsConnecting={setIsConnecting}
@@ -628,7 +736,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         )}
 
         {/* Input Handle - Don't show for trigger blocks, starter blocks, or blocks in trigger mode */}
-        {config.category !== 'triggers' && type !== 'starter' && !blockTriggerMode && (
+        {config.category !== 'triggers' && type !== 'starter' && !displayTriggerMode && (
           <Handle
             type='target'
             position={horizontalHandles ? Position.Left : Position.Top}
@@ -660,7 +768,10 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
 
         {/* Block Header */}
         <div
-          className='workflow-drag-handle flex cursor-grab items-center justify-between border-b p-3 [&:active]:cursor-grabbing'
+          className={cn(
+            'workflow-drag-handle flex cursor-grab items-center justify-between p-3 [&:active]:cursor-grabbing',
+            subBlockRows.length > 0 && 'border-b'
+          )}
           onMouseDown={(e) => {
             e.stopPropagation()
           }}
@@ -702,6 +813,31 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
             </div>
           </div>
           <div className='flex flex-shrink-0 items-center gap-2'>
+            {isWorkflowSelector && childWorkflowId && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className='relative mr-1 flex items-center justify-center'>
+                    <div
+                      className={cn(
+                        'h-2.5 w-2.5 rounded-full',
+                        childIsDeployed ? 'bg-green-500' : 'bg-red-500'
+                      )}
+                    />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side='top' className='px-3 py-2'>
+                  <span className='text-sm'>
+                    {childIsDeployed
+                      ? isLoadingChildVersion
+                        ? 'Deployed'
+                        : childActiveVersion != null
+                          ? `Deployed (v${childActiveVersion})`
+                          : 'Deployed'
+                      : 'Not Deployed'}
+                  </span>
+                </TooltipContent>
+              </Tooltip>
+            )}
             {!isEnabled && (
               <Badge variant='secondary' className='bg-gray-100 text-gray-500 hover:bg-gray-100'>
                 Disabled
@@ -891,7 +1027,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                         <p className='mb-1 font-medium text-sm'>Description</p>
                         <p className='text-muted-foreground text-sm'>{config.longDescription}</p>
                       </div>
-                      {config.outputs && (
+                      {config.outputs && Object.keys(config.outputs).length > 0 && (
                         <div>
                           <p className='mb-1 font-medium text-sm'>Output</p>
                           <div className='text-sm'>
@@ -929,90 +1065,92 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                 </Tooltip>
               )
             )}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  onClick={() => {
-                    if (currentWorkflow.isDiffMode) {
-                      setDiffIsWide((prev) => !prev)
-                    } else if (userPermissions.canEdit) {
-                      collaborativeToggleBlockWide(id)
-                    }
-                  }}
-                  className={cn(
-                    'h-7 p-1 text-gray-500',
-                    !userPermissions.canEdit &&
-                      !currentWorkflow.isDiffMode &&
-                      'cursor-not-allowed opacity-50'
-                  )}
-                  disabled={!userPermissions.canEdit && !currentWorkflow.isDiffMode}
-                >
-                  {displayIsWide ? (
-                    <RectangleHorizontal className='h-5 w-5' />
-                  ) : (
-                    <RectangleVertical className='h-5 w-5' />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side='top'>
-                {!userPermissions.canEdit && !currentWorkflow.isDiffMode
-                  ? userPermissions.isOfflineMode
-                    ? 'Connection lost - please refresh'
-                    : 'Read-only mode'
-                  : displayIsWide
-                    ? 'Narrow Block'
-                    : 'Expand Block'}
-              </TooltipContent>
-            </Tooltip>
+            {subBlockRows.length > 0 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    onClick={() => {
+                      if (currentWorkflow.isDiffMode) {
+                        setDiffIsWide((prev) => !prev)
+                      } else if (userPermissions.canEdit) {
+                        collaborativeToggleBlockWide(id)
+                      }
+                    }}
+                    className={cn(
+                      'h-7 p-1 text-gray-500',
+                      !userPermissions.canEdit &&
+                        !currentWorkflow.isDiffMode &&
+                        'cursor-not-allowed opacity-50'
+                    )}
+                    disabled={!userPermissions.canEdit && !currentWorkflow.isDiffMode}
+                  >
+                    {displayIsWide ? (
+                      <RectangleHorizontal className='h-5 w-5' />
+                    ) : (
+                      <RectangleVertical className='h-5 w-5' />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side='top'>
+                  {!userPermissions.canEdit && !currentWorkflow.isDiffMode
+                    ? userPermissions.isOfflineMode
+                      ? 'Connection lost - please refresh'
+                      : 'Read-only mode'
+                    : displayIsWide
+                      ? 'Narrow Block'
+                      : 'Expand Block'}
+                </TooltipContent>
+              </Tooltip>
+            )}
           </div>
         </div>
 
-        {/* Block Content */}
-        <div
-          ref={contentRef}
-          className='cursor-pointer space-y-4 px-4 pt-3 pb-4'
-          onMouseDown={(e) => {
-            e.stopPropagation()
-          }}
-        >
-          {subBlockRows.length > 0
-            ? subBlockRows.map((row, rowIndex) => (
-                <div key={`row-${rowIndex}`} className='flex gap-4'>
-                  {row.map((subBlock, blockIndex) => (
-                    <div
-                      key={`${id}-${rowIndex}-${blockIndex}`}
-                      className={cn('space-y-1', subBlock.layout === 'half' ? 'flex-1' : 'w-full')}
-                    >
-                      <SubBlock
-                        blockId={id}
-                        config={subBlock}
-                        isConnecting={isConnecting}
-                        isPreview={data.isPreview || currentWorkflow.isDiffMode}
-                        subBlockValues={
-                          data.subBlockValues ||
-                          (currentWorkflow.isDiffMode && currentBlock
-                            ? (currentBlock as any).subBlocks
-                            : undefined)
-                        }
-                        disabled={!userPermissions.canEdit}
-                        fieldDiffStatus={
-                          fieldDiff?.changed_fields?.includes(subBlock.id)
-                            ? 'changed'
-                            : fieldDiff?.unchanged_fields?.includes(subBlock.id)
-                              ? 'unchanged'
-                              : undefined
-                        }
-                        allowExpandInPreview={currentWorkflow.isDiffMode}
-                        isWide={displayIsWide}
-                      />
-                    </div>
-                  ))}
-                </div>
-              ))
-            : null}
-        </div>
+        {/* Block Content - Only render if there are subblocks */}
+        {subBlockRows.length > 0 && (
+          <div
+            ref={contentRef}
+            className='cursor-pointer space-y-4 px-4 pt-3 pb-4'
+            onMouseDown={(e) => {
+              e.stopPropagation()
+            }}
+          >
+            {subBlockRows.map((row, rowIndex) => (
+              <div key={`row-${rowIndex}`} className='flex gap-4'>
+                {row.map((subBlock, blockIndex) => (
+                  <div
+                    key={`${id}-${rowIndex}-${blockIndex}`}
+                    className={cn('space-y-1', subBlock.layout === 'half' ? 'flex-1' : 'w-full')}
+                  >
+                    <SubBlock
+                      blockId={id}
+                      config={subBlock}
+                      isConnecting={isConnecting}
+                      isPreview={data.isPreview || currentWorkflow.isDiffMode}
+                      subBlockValues={
+                        data.subBlockValues ||
+                        (currentWorkflow.isDiffMode && currentBlock
+                          ? (currentBlock as any).subBlocks
+                          : undefined)
+                      }
+                      disabled={!userPermissions.canEdit}
+                      fieldDiffStatus={
+                        fieldDiff?.changed_fields?.includes(subBlock.id)
+                          ? 'changed'
+                          : fieldDiff?.unchanged_fields?.includes(subBlock.id)
+                            ? 'unchanged'
+                            : undefined
+                      }
+                      allowExpandInPreview={currentWorkflow.isDiffMode}
+                      isWide={displayIsWide}
+                    />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Output Handle */}
         {type !== 'condition' && type !== 'response' && (
@@ -1046,7 +1184,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
             />
 
             {/* Error Handle - Don't show for trigger blocks, starter blocks, or blocks in trigger mode */}
-            {config.category !== 'triggers' && type !== 'starter' && !blockTriggerMode && (
+            {config.category !== 'triggers' && type !== 'starter' && !displayTriggerMode && (
               <Handle
                 type='source'
                 position={horizontalHandles ? Position.Right : Position.Bottom}

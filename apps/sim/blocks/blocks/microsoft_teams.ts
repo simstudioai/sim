@@ -1,15 +1,18 @@
 import { MicrosoftTeamsIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { MicrosoftTeamsResponse } from '@/tools/microsoft_teams/types'
 
 export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
   type: 'microsoft_teams',
   name: 'Microsoft Teams',
   description: 'Read, write, and create messages',
+  authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Microsoft Teams into the workflow. Can read and write chat messages, and read and write channel messages. Requires OAuth. Can be used in trigger mode to trigger a workflow when a message is sent to a chat or channel.',
+    'Integrate Microsoft Teams into the workflow. Can read and write chat messages, and read and write channel messages. Can be used in trigger mode to trigger a workflow when a message is sent to a chat or channel.',
   docsLink: 'https://docs.sim.ai/tools/microsoft_teams',
   category: 'tools',
+  triggerAllowed: true,
   bgColor: '#E0E0E0',
   icon: MicrosoftTeamsIcon,
   subBlocks: [

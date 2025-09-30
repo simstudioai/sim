@@ -1,0 +1,73 @@
+---
+title: Resend
+description: Envía correos electrónicos con Resend.
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="resend"
+  color="#181C1E"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+    
+    
+    
+    viewBox='0 0 1800 1800'
+    fill='none'
+    xmlns='http://www.w3.org/2000/svg'
+  >
+    <path
+      d='M1000.46 450C1174.77 450 1278.43 553.669 1278.43 691.282C1278.43 828.896 1174.77 932.563 1000.46 932.563H912.382L1350 1350H1040.82L707.794 1033.48C683.944 1011.47 672.936 985.781 672.935 963.765C672.935 932.572 694.959 905.049 737.161 893.122L908.712 847.244C973.85 829.812 1018.81 779.353 1018.81 713.298C1018.8 632.567 952.745 585.78 871.095 585.78H450V450H1000.46Z'
+      fill='#FDFDFD'
+    />
+  </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Resend](https://resend.com/) es un servicio de correo electrónico moderno diseñado para que los desarrolladores envíen correos electrónicos transaccionales y de marketing con facilidad. Proporciona una API y un panel de control simples y confiables para gestionar la entrega de correos electrónicos, plantillas y análisis, lo que lo convierte en una opción popular para integrar funcionalidades de correo electrónico en aplicaciones y flujos de trabajo.
+
+Con Resend, puedes:
+
+- **Enviar correos electrónicos transaccionales**: Entrega restablecimientos de contraseña, notificaciones, confirmaciones y más con alta entregabilidad
+- **Gestionar plantillas**: Crear y actualizar plantillas de correo electrónico para mantener una marca y mensajes consistentes
+- **Seguir análisis**: Monitorear tasas de entrega, apertura y clics para optimizar el rendimiento de tus correos electrónicos
+- **Integrar fácilmente**: Usar una API directa y SDKs para una integración perfecta con tus aplicaciones
+- **Garantizar seguridad**: Beneficiarte de una sólida autenticación y verificación de dominio para proteger tu reputación de correo electrónico
+
+En Sim, la integración con Resend permite a tus agentes enviar correos electrónicos de forma programática como parte de tus flujos de trabajo automatizados. Esto habilita casos de uso como el envío de notificaciones, alertas o mensajes personalizados directamente desde tus agentes impulsados por Sim. Al conectar Sim con Resend, puedes automatizar tareas de comunicación, asegurando una entrega de correos electrónicos oportuna y confiable sin intervención manual. La integración aprovecha tu clave API de Resend, manteniendo tus credenciales seguras mientras habilita potentes escenarios de automatización de correos electrónicos.
+{/* MANUAL-CONTENT-END */}
+
+## Instrucciones de uso
+
+Integra Resend en el flujo de trabajo. Puede enviar correos electrónicos. Requiere clave API.
+
+## Herramientas
+
+### `resend_send`
+
+Envía un correo electrónico usando tu propia clave API de Resend y dirección de remitente
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `fromAddress` | string | Sí | Dirección de correo electrónico desde la que enviar |
+| `to` | string | Sí | Dirección de correo electrónico del destinatario |
+| `subject` | string | Sí | Asunto del correo electrónico |
+| `body` | string | Sí | Contenido del cuerpo del correo electrónico |
+| `resendApiKey` | string | Sí | Clave API de Resend para enviar correos electrónicos |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `success` | boolean | Si el correo electrónico se envió correctamente |
+| `to` | string | Dirección de correo electrónico del destinatario |
+| `subject` | string | Asunto del correo electrónico |
+| `body` | string | Contenido del cuerpo del correo electrónico |
+
+## Notas
+
+- Categoría: `tools`
+- Tipo: `resend`

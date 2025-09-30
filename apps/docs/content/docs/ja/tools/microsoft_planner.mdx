@@ -1,0 +1,173 @@
+---
+title: Microsoft Planner
+description: Microsoft Plannerでタスクを読み取り、作成する
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="microsoft_planner"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"  fill='currentColor' viewBox='-1 -1 27 27' xmlns='http://www.w3.org/2000/svg'>
+      <defs>
+        <linearGradient
+          id='paint0_linear_3984_11038'
+          x1='6.38724'
+          y1='3.74167'
+          x2='2.15779'
+          y2='12.777'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop stopColor='#8752E0' />
+          <stop offset='1' stopColor='#541278' />
+        </linearGradient>
+        <linearGradient
+          id='paint1_linear_3984_11038'
+          x1='8.38032'
+          y1='11.0696'
+          x2='4.94062'
+          y2='7.69244'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop offset='0.12172' stopColor='#3D0D59' />
+          <stop offset='1' stopColor='#7034B0' stopOpacity='0' />
+        </linearGradient>
+        <linearGradient
+          id='paint2_linear_3984_11038'
+          x1='18.3701'
+          y1='-3.33385e-05'
+          x2='9.85717'
+          y2='20.4192'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop stopColor='#DB45E0' />
+          <stop offset='1' stopColor='#6C0F71' />
+        </linearGradient>
+        <linearGradient
+          id='paint3_linear_3984_11038'
+          x1='18.3701'
+          y1='-3.33385e-05'
+          x2='9.85717'
+          y2='20.4192'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop stopColor='#DB45E0' />
+          <stop offset='0.677403' stopColor='#A829AE' />
+          <stop offset='1' stopColor='#8F28B3' />
+        </linearGradient>
+        <linearGradient
+          id='paint4_linear_3984_11038'
+          x1='18.0002'
+          y1='7.49958'
+          x2='14.0004'
+          y2='23.9988'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop stopColor='#3DCBFF' />
+          <stop offset='1' stopColor='#00479E' />
+        </linearGradient>
+        <linearGradient
+          id='paint5_linear_3984_11038'
+          x1='18.2164'
+          y1='7.92626'
+          x2='10.5237'
+          y2='22.9363'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop stopColor='#3DCBFF' />
+          <stop offset='1' stopColor='#4A40D4' />
+        </linearGradient>
+      </defs>
+      <path
+        d='M8.25809 15.7412C7.22488 16.7744 5.54971 16.7744 4.5165 15.7412L0.774909 11.9996C-0.258303 10.9664 -0.258303 9.29129 0.774908 8.25809L4.5165 4.51655C5.54971 3.48335 7.22488 3.48335 8.25809 4.51655L11.9997 8.2581C13.0329 9.29129 13.0329 10.9664 11.9997 11.9996L8.25809 15.7412Z'
+        fill='url(#paint0_linear_3984_11038)'
+      />
+      <path
+        d='M8.25809 15.7412C7.22488 16.7744 5.54971 16.7744 4.5165 15.7412L0.774909 11.9996C-0.258303 10.9664 -0.258303 9.29129 0.774908 8.25809L4.5165 4.51655C5.54971 3.48335 7.22488 3.48335 8.25809 4.51655L11.9997 8.2581C13.0329 9.29129 13.0329 10.9664 11.9997 11.9996L8.25809 15.7412Z'
+        fill='url(#paint1_linear_3984_11038)'
+      />
+      <path
+        d='M0.774857 11.9999C1.80809 13.0331 3.48331 13.0331 4.51655 11.9999L15.7417 0.774926C16.7749 -0.258304 18.4501 -0.258309 19.4834 0.774914L23.225 4.51655C24.2583 5.54977 24.2583 7.22496 23.225 8.25819L11.9999 19.4832C10.9667 20.5164 9.29146 20.5164 8.25822 19.4832L0.774857 11.9999Z'
+        fill='url(#paint2_linear_3984_11038)'
+      />
+      <path
+        d='M0.774857 11.9999C1.80809 13.0331 3.48331 13.0331 4.51655 11.9999L15.7417 0.774926C16.7749 -0.258304 18.4501 -0.258309 19.4834 0.774914L23.225 4.51655C24.2583 5.54977 24.2583 7.22496 23.225 8.25819L11.9999 19.4832C10.9667 20.5164 9.29146 20.5164 8.25822 19.4832L0.774857 11.9999Z'
+        fill='url(#paint3_linear_3984_11038)'
+      />
+      <path
+        d='M4.51642 15.7413C5.54966 16.7746 7.22487 16.7746 8.25812 15.7413L15.7415 8.25803C16.7748 7.2248 18.45 7.2248 19.4832 8.25803L23.2249 11.9997C24.2582 13.0329 24.2582 14.7081 23.2249 15.7413L15.7415 23.2246C14.7083 24.2579 13.033 24.2579 11.9998 23.2246L4.51642 15.7413Z'
+        fill='url(#paint4_linear_3984_11038)'
+      />
+      <path
+        d='M4.51642 15.7413C5.54966 16.7746 7.22487 16.7746 8.25812 15.7413L15.7415 8.25803C16.7748 7.2248 18.45 7.2248 19.4832 8.25803L23.2249 11.9997C24.2582 13.0329 24.2582 14.7081 23.2249 15.7413L15.7415 23.2246C14.7083 24.2579 13.033 24.2579 11.9998 23.2246L4.51642 15.7413Z'
+        fill='url(#paint5_linear_3984_11038)'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Microsoft Planner](https://www.microsoft.com/en-us/microsoft-365/planner)は、ボード、タスク、バケットを使用してチームが視覚的に作業を整理するのに役立つタスク管理ツールです。Microsoft 365と統合されており、チームプロジェクトの管理、責任の割り当て、進捗状況の追跡を簡単で直感的に行う方法を提供します。
+
+Microsoft Plannerでは、次のことができます：
+
+- **タスクの作成と管理**: 期日、優先順位、担当者を設定した新しいタスクを追加
+- **バケットでの整理**: チームのワークフローを反映するために、フェーズ、ステータス、カテゴリごとにタスクをグループ化
+- **プロジェクトステータスの可視化**: ボード、チャート、フィルターを使用して作業負荷を監視し、進捗状況を追跡
+- **Microsoft 365との統合**: Teams、Outlook、その他のMicrosoftツールとタスクをシームレスに接続
+
+Simでは、Microsoft Planner統合により、エージェントがワークフローの一部としてプログラムでタスクを作成、読み取り、管理することができます。エージェントは受信リクエストに基づいて新しいタスクを生成し、意思決定を促進するためにタスクの詳細を取得し、プロジェクト全体のステータスを追跡することができます—すべて人間の介入なしに。クライアントのオンボーディング、内部プロジェクトの追跡、フォローアップタスクの生成のためのワークフローを構築する場合でも、Microsoft PlannerとSimを統合することで、エージェントは作業を調整し、タスク作成を自動化し、チームの連携を維持するための構造化された方法を提供します。
+{/* MANUAL-CONTENT-END */}
+
+## 使用手順
+
+Microsoft Plannerをワークフローに統合します。タスクの読み取りと作成が可能です。OAuthが必要です。
+
+## ツール
+
+### `microsoft_planner_read_task`
+
+Microsoft Plannerからタスクを読み取る - すべてのユーザータスクまたは特定のプランからすべてのタスクを取得
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `planId` | string | いいえ | タスクを取得するプランのID（提供されない場合、すべてのユーザータスクを取得） |
+| `taskId` | string | いいえ | 取得するタスクのID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | タスクが正常に取得されたかどうか |
+| `tasks` | array | フィルタリングされたプロパティを持つタスクオブジェクトの配列 |
+| `metadata` | object | planId、userId、planUrlを含むメタデータ |
+
+### `microsoft_planner_create_task`
+
+Microsoft Plannerで新しいタスクを作成する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `planId` | string | はい | タスクが作成されるプランのID |
+| `title` | string | はい | タスクのタイトル |
+| `description` | string | いいえ | タスクの説明 |
+| `dueDateTime` | string | いいえ | タスクの期限日時（ISO 8601形式） |
+| `assigneeUserId` | string | いいえ | タスクを割り当てるユーザーID |
+| `bucketId` | string | いいえ | タスクを配置するバケットID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `success` | boolean | タスクが正常に作成されたかどうか |
+| `task` | object | すべてのプロパティを持つ作成されたタスクオブジェクト |
+| `metadata` | object | planId、taskId、taskUrlを含むメタデータ |
+
+## 注意事項
+
+- カテゴリ: `tools`
+- タイプ: `microsoft_planner`

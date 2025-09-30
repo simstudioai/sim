@@ -1,5 +1,4 @@
-import { db } from '@sim/db'
-import { userStats, workflow, workflowSchedule } from '@sim/db/schema'
+import { db, userStats, workflow, workflowSchedule } from '@sim/db'
 import { Cron } from 'croner'
 import { and, eq, lte, not, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
@@ -18,7 +17,7 @@ import {
   getSubBlockValue,
 } from '@/lib/schedules/utils'
 import { decryptSecret, generateRequestId } from '@/lib/utils'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
+import { loadDeployedWorkflowState } from '@/lib/workflows/db-helpers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
@@ -198,29 +197,14 @@ export async function GET() {
             )
 
             try {
-              // Load workflow data from normalized tables (no fallback to deprecated state column)
-              logger.debug(
-                `[${requestId}] Loading workflow ${schedule.workflowId} from normalized tables`
-              )
-              const normalizedData = await loadWorkflowFromNormalizedTables(schedule.workflowId)
+              logger.debug(`[${requestId}] Loading deployed workflow ${schedule.workflowId}`)
+              const deployedData = await loadDeployedWorkflowState(schedule.workflowId)
 
-              if (!normalizedData) {
-                logger.error(
-                  `[${requestId}] No normalized data found for scheduled workflow ${schedule.workflowId}`
-                )
-                throw new Error(
-                  `Workflow data not found in normalized tables for ${schedule.workflowId}`
-                )
-              }
-
-              // Use normalized data only
-              const blocks = normalizedData.blocks
-              const edges = normalizedData.edges
-              const loops = normalizedData.loops
-              const parallels = normalizedData.parallels
-              logger.info(
-                `[${requestId}] Loaded scheduled workflow ${schedule.workflowId} from normalized tables`
-              )
+              const blocks = deployedData.blocks
+              const edges = deployedData.edges
+              const loops = deployedData.loops
+              const parallels = deployedData.parallels
+              logger.info(`[${requestId}] Loaded deployed workflow ${schedule.workflowId}`)
 
               const mergedStates = mergeSubblockState(blocks)
 
@@ -393,6 +377,7 @@ export async function GET() {
                 contextExtensions: {
                   executionId,
                   workspaceId: workflowRecord.workspaceId || '',
+                  isDeployedContext: true,
                 },
               })
 
@@ -596,13 +581,12 @@ export async function GET() {
                 .where(eq(workflow.id, schedule.workflowId))
                 .limit(1)
 
-              if (workflowRecord) {
-                const normalizedData = await loadWorkflowFromNormalizedTables(schedule.workflowId)
-
-                if (!normalizedData) {
+              if (workflowRecord?.isDeployed) {
+                try {
+                  const deployedData = await loadDeployedWorkflowState(schedule.workflowId)
+                  nextRunAt = calculateNextRunTime(schedule, deployedData.blocks as any)
+                } catch {
                   nextRunAt = new Date(now.getTime() + 24 * 60 * 60 * 1000)
-                } else {
-                  nextRunAt = calculateNextRunTime(schedule, normalizedData.blocks)
                 }
               } else {
                 nextRunAt = new Date(now.getTime() + 24 * 60 * 60 * 1000)

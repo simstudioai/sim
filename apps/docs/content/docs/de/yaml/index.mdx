@@ -1,0 +1,159 @@
+---
+title: YAML Workflow Referenz
+description: Vollständiger Leitfaden zum Schreiben von YAML-Workflows in Sim
+---
+
+import { Card, Cards } from "fumadocs-ui/components/card";
+import { Step, Steps } from "fumadocs-ui/components/steps";
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+
+YAML-Workflows bieten eine leistungsstarke Möglichkeit, Workflow-Konfigurationen in Sim zu definieren, zu versionieren und zu teilen. Dieser Referenzleitfaden behandelt die vollständige YAML-Syntax, Block-Schemas und Best Practices für die Erstellung robuster Workflows.
+
+## Schnellstart
+
+Jeder Sim-Workflow folgt dieser grundlegenden Struktur:
+
+```yaml
+version: '1.0'
+blocks:
+  start:
+    type: starter
+    name: Start
+    inputs:
+      startWorkflow: manual
+    connections:
+      success: agent-1
+
+  agent-1:
+    type: agent
+    name: "AI Assistant"
+    inputs:
+      systemPrompt: "You are a helpful assistant."
+      userPrompt: 'Hi'
+      model: gpt-4o
+      apiKey: '{{OPENAI_API_KEY}}'
+```
+
+## Kernkonzepte
+
+<Steps>
+  <Step>
+    <strong>Versionsdeklaration</strong>: Muss genau `version: '1.0'` (mit Anführungszeichen) sein
+  </Step>
+  <Step>
+    <strong>Blockstruktur</strong>: Alle Workflow-Blöcke werden unter dem Schlüssel `blocks` definiert
+  </Step>
+  <Step>
+    <strong>Block-Referenzen</strong>: Verwenden Sie Blocknamen in Kleinbuchstaben ohne Leerzeichen (z.B. `<aiassistant.content>`)
+  </Step>
+  <Step>
+    <strong>Umgebungsvariablen</strong>: Referenzierung mit doppelten geschweiften Klammern `{{VARIABLE_NAME}}`
+  </Step>
+</Steps>
+
+## Blocktypen
+
+Sim unterstützt mehrere Kern-Blocktypen, jeder mit spezifischen YAML-Schemas:
+
+<Cards>
+  <Card title="Starter-Block" href="/yaml/blocks/starter">
+    Workflow-Einstiegspunkt mit Unterstützung für manuelle, Webhook- und geplante Trigger
+  </Card>
+  <Card title="Agent-Block" href="/yaml/blocks/agent">
+    KI-gestützte Verarbeitung mit Unterstützung für Tools und strukturierte Ausgabe
+  </Card>
+  <Card title="Function-Block" href="/yaml/blocks/function">
+    Ausführung von benutzerdefiniertem JavaScript/TypeScript-Code
+  </Card>
+  <Card title="API-Block" href="/yaml/blocks/api">
+    HTTP-Anfragen an externe Dienste
+  </Card>
+  <Card title="Condition-Block" href="/yaml/blocks/condition">
+    Bedingte Verzweigung basierend auf booleschen Ausdrücken
+  </Card>
+  <Card title="Router-Block" href="/yaml/blocks/router">
+    KI-gestützte intelligente Weiterleitung zu mehreren Pfaden
+  </Card>
+  <Card title="Loop-Block" href="/yaml/blocks/loop">
+    Iterative Verarbeitung mit for- und forEach-Schleifen
+  </Card>
+  <Card title="Parallel-Block" href="/yaml/blocks/parallel">
+    Gleichzeitige Ausführung über mehrere Instanzen
+  </Card>
+  <Card title="Webhook-Block" href="/yaml/blocks/webhook">
+    Webhook-Trigger für externe Integrationen
+  </Card>
+  <Card title="Evaluator-Block" href="/yaml/blocks/evaluator">
+    Validierung von Ausgaben anhand definierter Kriterien und Metriken
+  </Card>
+  <Card title="Workflow-Block" href="/yaml/blocks/workflow">
+    Ausführung anderer Workflows als wiederverwendbare Komponenten
+  </Card>
+  <Card title="Response-Block" href="/yaml/blocks/response">
+    Formatierung der endgültigen Workflow-Ausgabe
+  </Card>
+</Cards>
+
+## Block-Referenz-Syntax
+
+Der wichtigste Aspekt von YAML-Workflows ist das Verständnis, wie man Daten zwischen Blöcken referenziert:
+
+### Grundregeln
+
+1. **Verwende den Blocknamen** (nicht die Block-ID), umgewandelt in Kleinbuchstaben ohne Leerzeichen
+2. **Füge die entsprechende Eigenschaft hinzu** (.content für Agenten, .output für Tools)
+3. **Bei Verwendung von Chat, referenziere den Starter-Block** als `<start.input>`
+
+### Beispiele
+
+```yaml
+# Block definitions
+email-processor:
+  type: agent
+  name: "Email Agent"
+  # ... configuration
+
+data-formatter:
+  type: function
+  name: "Data Agent"
+  # ... configuration
+
+# Referencing their outputs
+next-block:
+  type: agent
+  name: "Next Step"
+  inputs:
+    userPrompt: |
+      Process this email: <emailagent.content>
+      Use this formatted data: <dataagent.output>
+      Original input: <start.input>
+```
+
+### Sonderfälle
+
+- **Schleifenvariablen**: `<loop.index>`, `<loop.currentItem>`, `<loop.items>`
+- **Parallele Variablen**: `<parallel.index>`, `<parallel.currentItem>`
+
+## Umgebungsvariablen
+
+Verwende Umgebungsvariablen für sensible Daten wie API-Schlüssel:
+
+```yaml
+inputs:
+  apiKey: '{{OPENAI_API_KEY}}'
+  database: '{{DATABASE_URL}}'
+  token: '{{SLACK_BOT_TOKEN}}'
+```
+
+## Best Practices
+
+- **Halte Blocknamen benutzerfreundlich**: "Email Processor" für die UI-Anzeige
+- **Referenziere Umgebungsvariablen**: Niemals API-Schlüssel fest codieren
+- **Strukturiere für Lesbarkeit**: Gruppiere zusammengehörige Blöcke logisch
+- **Teste schrittweise**: Baue Workflows Schritt für Schritt auf
+
+## Nächste Schritte
+
+- [Block-Referenz-Syntax](/yaml/block-reference) - Detaillierte Referenzregeln
+- [Vollständige Block-Schemas](/yaml/blocks) - Alle verfügbaren Blocktypen
+- [Workflow-Beispiele](/yaml/examples) - Praxisnahe Workflow-Muster

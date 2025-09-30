@@ -1,0 +1,107 @@
+---
+title: 接続タグ
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Video } from '@/components/ui/video'
+
+接続タグは、接続されたブロックから利用可能なデータを視覚的に表現するもので、ブロック間のデータ参照やワークフロー内の前のブロックからの出力を簡単に参照する方法を提供します。
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="connections.mp4" />
+</div>
+
+### 接続タグとは？
+
+接続タグは、ブロックが接続されたときに表示されるインタラクティブな要素です。これらは、あるブロックから別のブロックへ流れるデータを表現し、以下のことを可能にします：
+
+- ソースブロックから利用可能なデータを視覚化する
+- 宛先ブロックで特定のデータフィールドを参照する
+- ブロック間の動的なデータフローを作成する
+
+<Callout type="info">
+  接続タグを使用すると、複雑なデータ構造を覚える必要なく、前のブロックから利用可能なデータを簡単に確認し、
+  現在のブロックで使用することができます。
+</Callout>
+
+## 接続タグの使用方法
+
+ワークフローで接続タグを使用する主な方法は2つあります：
+
+<div className="my-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+  <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+    <h3 className="mb-2 text-lg font-medium">ドラッグ＆ドロップ</h3>
+    <div className="text-sm text-gray-600 dark:text-gray-400">
+      接続タグをクリックして宛先ブロックの入力フィールドにドラッグします。利用可能な値を示すドロップダウンが
+      表示されます。
+    </div>
+    <ol className="mt-2 list-decimal pl-5 text-sm text-gray-600 dark:text-gray-400">
+      <li>接続タグにカーソルを合わせると利用可能なデータが表示されます</li>
+      <li>タグをクリックして入力フィールドにドラッグします</li>
+      <li>ドロップダウンから特定のデータフィールドを選択します</li>
+      <li>参照が自動的に挿入されます</li>
+    </ol>
+  </div>
+
+  <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+    <h3 className="mb-2 text-lg font-medium">山括弧構文</h3>
+    <div className="text-sm text-gray-600 dark:text-gray-400">
+      入力フィールドに <code>&lt;&gt;</code> と入力すると、前のブロックから利用可能な接続値のドロップダウンが表示されます。
+    </div>
+    <ol className="mt-2 list-decimal pl-5 text-sm text-gray-600 dark:text-gray-400">
+      <li>接続データを使用したい入力フィールドをクリックします</li>
+      <li>
+        <code>&lt;&gt;</code> と入力して接続ドロップダウンを表示させます
+      </li>
+      <li>参照したいデータを閲覧して選択します</li>
+      <li>入力を続けるか、ドロップダウンから選択して参照を完了します</li>
+    </ol>
+  </div>
+</div>
+
+## タグの構文
+
+接続タグはデータを参照するためのシンプルな構文を使用します：
+
+```
+<blockName.path.to.data>
+```
+
+ここで：
+
+- `blockName` はソースブロックの名前
+- `path.to.data` は特定のデータフィールドへのパス
+
+例えば：
+
+- `<agent1.content>` - ID「agent1」を持つブロックからコンテンツフィールドを参照
+- `<api2.data.users[0].name>` - ID「api2」を持つブロックのデータフィールドからユーザー配列の最初のユーザーの名前を参照
+
+## 動的タグ参照
+
+接続タグは実行時に評価されるため：
+
+1. 常に最新のデータを参照します
+2. 式で使用したり、静的テキストと組み合わせたりできます
+3. 他のデータ構造内にネストできます
+
+### 例
+
+```javascript
+// Reference in text
+"The user's name is <userBlock.name>"
+
+// Reference in JSON
+{
+  "userName": "<userBlock.name>",
+  "orderTotal": <apiBlock.data.total>
+}
+
+// Reference in code
+const greeting = "Hello, <userBlock.name>!";
+const total = <apiBlock.data.total> * 1.1; // Add 10% tax
+```
+
+<Callout type="warning">
+  数値コンテキストで接続タグを使用する場合は、型変換の問題を避けるために、参照されるデータが実際に数値であることを確認してください。
+</Callout>

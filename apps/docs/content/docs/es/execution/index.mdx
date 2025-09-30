@@ -4,6 +4,7 @@ title: Ejecución
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
 
 El motor de ejecución de Sim da vida a tus flujos de trabajo procesando bloques en el orden correcto, gestionando el flujo de datos y manejando errores con elegancia, para que puedas entender exactamente cómo se ejecutan los flujos de trabajo en Sim.
 
@@ -89,6 +90,22 @@ El despliegue de chat crea una interfaz conversacional para tu flujo de trabajo:
 
 Cada método de despliegue pasa datos al bloque inicial de tu flujo de trabajo, comenzando el flujo de ejecución.
 
+## Instantáneas de despliegue
+
+Todos los puntos de entrada públicos—API, Chat, Programación, Webhook y ejecuciones manuales—ejecutan la instantánea de despliegue activa del flujo de trabajo. Publica un nuevo despliegue cada vez que cambies el lienzo para que cada disparador utilice la versión actualizada.
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/execution/deployment-versions-light.png'
+    alt='Tabla de versiones de despliegue'
+    width={500}
+    height={280}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+El modal de Despliegue mantiene un historial completo de versiones—inspecciona cualquier instantánea, compárala con tu borrador, y promueve o revierte con un clic cuando necesites restaurar una versión anterior.
+
 ## Ejecución programática
 
 Ejecuta flujos de trabajo desde tus aplicaciones usando nuestros SDK oficiales:
@@ -116,21 +133,21 @@ const result = await client.executeWorkflow('workflow-id', {
 
 ## Mejores prácticas
 
-### Diseño para fiabilidad
+### Diseña para la fiabilidad
 - Maneja los errores con elegancia mediante rutas de respaldo apropiadas
 - Usa variables de entorno para datos sensibles
-- Añade registro en bloques de Función para depuración
+- Añade registros a los bloques de Función para depuración
 
 ### Optimiza el rendimiento
 - Minimiza las llamadas a API externas cuando sea posible
 - Usa ejecución paralela para operaciones independientes
-- Almacena en caché los resultados con bloques de Memoria cuando sea apropiado
+- Almacena resultados en caché con bloques de Memoria cuando sea apropiado
 
 ### Monitorea las ejecuciones
 - Revisa los registros regularmente para entender patrones de rendimiento
-- Realiza seguimiento de costos para el uso de modelos de IA
+- Haz seguimiento de los costos por uso de modelos de IA
 - Usa instantáneas de flujo de trabajo para depurar problemas
 
 ## ¿Qué sigue?
 
-Comienza con [Conceptos básicos de ejecución](/execution/basics) para entender cómo funcionan los flujos de trabajo, luego explora [Registro](/execution/logging) para monitorear tus ejecuciones y [Cálculo de costos](/execution/costs) para optimizar tu gasto.
+Comienza con [Fundamentos de ejecución](/execution/basics) para entender cómo funcionan los flujos de trabajo, luego explora [Registro](/execution/logging) para monitorear tus ejecuciones y [Cálculo de costos](/execution/costs) para optimizar tu gasto.

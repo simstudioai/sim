@@ -1,4 +1,4 @@
-import { CheckCheck, Copy, Info } from 'lucide-react'
+import { Check, Copy, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -66,7 +66,7 @@ export function WebhookUrlField({
           disabled={isLoadingToken}
         >
           {copied === 'url' ? (
-            <CheckCheck className='h-4 w-4 text-green-500' />
+            <Check className='h-4 w-4 text-green-500' />
           ) : (
             <Copy className='h-4 w-4' />
           )}

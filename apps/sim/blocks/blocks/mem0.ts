@@ -1,13 +1,13 @@
 import { Mem0Icon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig } from '@/blocks/types'
 import type { Mem0Response } from '@/tools/mem0/types'
 
 export const Mem0Block: BlockConfig<Mem0Response> = {
   type: 'mem0',
   name: 'Mem0',
   description: 'Agent memory management',
-  longDescription:
-    'Integrate Mem0 into the workflow. Can add, search, and retrieve memories. Requires API Key.',
+  authMode: AuthMode.ApiKey,
+  longDescription: 'Integrate Mem0 into the workflow. Can add, search, and retrieve memories.',
   bgColor: '#181C1E',
   icon: Mem0Icon,
   category: 'tools',

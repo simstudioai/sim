@@ -1,13 +1,15 @@
 import { GoogleSheetsIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { GoogleSheetsResponse } from '@/tools/google_sheets/types'
 
 export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
   type: 'google_sheets',
   name: 'Google Sheets',
   description: 'Read, write, and update data',
+  authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Google Sheets into the workflow. Can read, write, append, and update data. Requires OAuth.',
+    'Integrate Google Sheets into the workflow. Can read, write, append, and update data.',
   docsLink: 'https://docs.sim.ai/tools/google_sheets',
   category: 'tools',
   bgColor: '#E0E0E0',

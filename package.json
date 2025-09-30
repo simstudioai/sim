@@ -23,7 +23,8 @@
     "check": "bunx biome check --files-ignore-unknown=true",
     "prepare": "bun husky",
     "prebuild": "bun run lint:check",
-    "type-check": "turbo run type-check"
+    "type-check": "turbo run type-check",
+    "release": "bun run scripts/create-single-release.ts"
   },
   "overrides": {
     "react": "19.1.0",
@@ -37,12 +38,9 @@
     "@linear/sdk": "40.0.0",
     "@t3-oss/env-nextjs": "0.13.4",
     "@vercel/analytics": "1.5.0",
-    "bcryptjs": "3.0.2",
     "drizzle-orm": "^0.44.5",
-    "geist": "^1.4.2",
     "mongodb": "6.19.0",
     "postgres": "^3.4.5",
-    "react-colorful": "5.6.1",
     "remark-gfm": "4.0.1",
     "socket.io-client": "4.8.1",
     "twilio": "5.9.0"
@@ -50,11 +48,11 @@
   "devDependencies": {
     "@biomejs/biome": "2.0.0-beta.5",
     "@next/env": "15.4.1",
-    "@types/bcryptjs": "3.0.0",
+    "@octokit/rest": "^21.0.0",
     "drizzle-kit": "^0.31.4",
     "husky": "9.1.7",
     "lint-staged": "16.0.0",
-    "turbo": "2.5.6"
+    "turbo": "2.5.8"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,json,css,scss}": [

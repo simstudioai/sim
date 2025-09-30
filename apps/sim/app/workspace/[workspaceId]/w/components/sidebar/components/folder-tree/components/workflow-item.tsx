@@ -193,6 +193,7 @@ export function WorkflowItem({
           href={`/workspace/${workspaceId}/w/${workflow.id}`}
           className='flex min-w-0 flex-1 items-center'
           onClick={handleClick}
+          draggable={false}
         >
           <div
             className='mr-2 flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden'

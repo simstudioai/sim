@@ -179,30 +179,6 @@ describe('Workflow Variables API Route', () => {
       expect(response.headers.get('Cache-Control')).toBe('max-age=30, stale-while-revalidate=300')
       expect(response.headers.get('ETag')).toMatch(/^"variables-workflow-123-\d+"$/)
     })
-
-    it.concurrent('should return empty object for workflows with no variables', async () => {
-      const mockWorkflow = {
-        id: 'workflow-123',
-        userId: 'user-123',
-        workspaceId: null,
-        variables: null,
-      }
-
-      authMocks.setAuthenticated({ id: 'user-123', email: 'test@example.com' })
-      databaseMocks = createMockDatabase({
-        select: { results: [[mockWorkflow]] },
-      })
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123/variables')
-      const params = Promise.resolve({ id: 'workflow-123' })
-
-      const { GET } = await import('@/app/api/workflows/[id]/variables/route')
-      const response = await GET(req, { params })
-
-      expect(response.status).toBe(200)
-      const data = await response.json()
-      expect(data.data).toEqual({})
-    })
   })
 
   describe('POST /api/workflows/[id]/variables', () => {

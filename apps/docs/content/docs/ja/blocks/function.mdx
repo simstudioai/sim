@@ -1,0 +1,156 @@
+---
+title: 関数
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+関数ブロックを使用すると、ワークフローでカスタムJavaScriptまたはTypeScriptコードを実行できます。データの変換、計算の実行、または他のブロックでは利用できないカスタムロジックの実装に使用します。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/function.png"
+    alt="コードエディタ付き関数ブロック"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+## 概要
+
+関数ブロックでは以下のことが可能です：
+
+<Steps>
+  <Step>
+    <strong>データ変換</strong>：フォーマットの変換、テキストの解析、配列とオブジェクトの操作
+  </Step>
+  <Step>
+    <strong>計算の実行</strong>：数学的演算、統計、財務計算
+  </Step>
+  <Step>
+    <strong>カスタムロジックの実装</strong>：複雑な条件分岐、ループ、アルゴリズム
+  </Step>
+  <Step>
+    <strong>外部データの処理</strong>：レスポンスの解析、リクエストのフォーマット、認証の処理
+  </Step>
+</Steps>
+
+## 動作の仕組み
+
+関数ブロックは安全で隔離された環境でコードを実行します：
+
+1. **入力の受け取り**：`input` オブジェクトを通じて前のブロックからデータにアクセス
+2. **コードの実行**：JavaScript/Pythonコードを実行 
+3. **結果の返却**：`return` を使用して次のブロックにデータを渡す
+4. **エラー処理**：組み込みのエラー処理とログ記録
+
+## リモート実行（E2B）
+
+  - **言語**：JavaScriptとPythonを隔離されたE2Bサンドボックスで実行。
+  - **有効化方法**：関数ブロックで「リモートコード実行」をトグルします。
+  - **使用タイミング**：より重いロジック、外部ライブラリ、またはPython固有のコード。
+  - **パフォーマンス**：サンドボックスの起動とネットワークオーバーヘッドにより、ローカルJSより遅い。
+  - **注意点**：ローカルで実行する場合は`E2B_API_KEY`が必要。最低レイテンシーには、ネイティブにローカルなJS（高速モード）を使用してください。
+
+## 入力と出力
+
+<Tabs items={['設定', '変数']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>コード</strong>：実行するJavaScript/Pythonコード
+      </li>
+      <li>
+        <strong>タイムアウト</strong>：最大実行時間（デフォルトは30秒）
+      </li>
+      <li>
+        <strong>入力データ</strong>：変数を通じて利用可能な接続されたすべてのブロック出力
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>function.result</strong>：関数から返された値
+      </li>
+      <li>
+        <strong>function.stdout</strong>：コードからのConsole.log()出力
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## 使用例
+
+### データ処理パイプライン
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">シナリオ: APIレスポンスを構造化データに変換する</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>APIブロックが生の顧客データを取得</li>
+    <li>ファンクションブロックがデータを処理し検証</li>
+    <li>ファンクションブロックが派生指標を計算</li>
+    <li>レスポンスブロックがフォーマットされた結果を返す</li>
+  </ol>
+</div>
+
+### ビジネスロジックの実装
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">シナリオ: ロイヤルティスコアとランクを計算する</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>エージェントが顧客の購入履歴を取得</li>
+    <li>ファンクションブロックがロイヤルティ指標を計算</li>
+    <li>ファンクションブロックが顧客ランクを決定</li>
+    <li>条件ブロックがランクレベルに基づいて振り分け</li>
+  </ol>
+</div>
+
+### データ検証とサニタイズ
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">シナリオ: ユーザー入力を検証しクリーニングする</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>フォーム送信からユーザー入力を受信</li>
+    <li>ファンクションブロックがメール形式と電話番号を検証</li>
+    <li>ファンクションブロックがデータをサニタイズし正規化</li>
+    <li>APIブロックが検証済みデータをデータベースに保存</li>
+  </ol>
+</div>
+
+### 例: ロイヤルティスコア計算機
+
+```javascript title="loyalty-calculator.js"
+// Process customer data and calculate loyalty score
+const { purchaseHistory, accountAge, supportTickets } = <agent>;
+
+// Calculate metrics
+const totalSpent = purchaseHistory.reduce((sum, purchase) => sum + purchase.amount, 0);
+const purchaseFrequency = purchaseHistory.length / (accountAge / 365);
+const ticketRatio = supportTickets.resolved / supportTickets.total;
+
+// Calculate loyalty score (0-100)
+const spendScore = Math.min(totalSpent / 1000 * 30, 30);
+const frequencyScore = Math.min(purchaseFrequency * 20, 40);
+const supportScore = ticketRatio * 30;
+
+const loyaltyScore = Math.round(spendScore + frequencyScore + supportScore);
+
+return {
+  customer: <agent.name>,
+  loyaltyScore,
+  loyaltyTier: loyaltyScore >= 80 ? "Platinum" : loyaltyScore >= 60 ? "Gold" : "Silver",
+  metrics: { spendScore, frequencyScore, supportScore }
+};
+```
+
+## ベストプラクティス
+
+- **関数を集中させる**: 保守性とデバッグを向上させるために、一つのことをうまく行う関数を書く
+- **エラーを適切に処理する**: try/catchブロックを使用して潜在的なエラーを処理し、意味のあるエラーメッセージを提供する
+- **エッジケースをテストする**: 異常な入力、null値、境界条件を正しく処理することを確認する
+- **パフォーマンスを最適化する**: 大規模データセットの計算複雑性とメモリ使用量に注意する
+- **デバッグにconsole.log()を使用する**: 標準出力を活用して関数の実行をデバッグおよび監視する

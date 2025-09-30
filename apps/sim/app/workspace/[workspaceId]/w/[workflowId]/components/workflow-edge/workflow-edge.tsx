@@ -57,11 +57,14 @@ export const WorkflowEdge = ({
     sourceHandle?: string | null,
     targetHandle?: string | null
   ): string => {
-    // The sim agent generates edge identifiers in the format: sourceId-source-targetId-target
-    return `${sourceId}-source-${targetId}-target`
+    // The diff analysis generates edge identifiers in the format: sourceId-sourceHandle-targetId-targetHandle
+    // Use actual handle names, defaulting to 'source' and 'target' if not provided
+    const actualSourceHandle = sourceHandle || 'source'
+    const actualTargetHandle = targetHandle || 'target'
+    return `${sourceId}-${actualSourceHandle}-${targetId}-${actualTargetHandle}`
   }
 
-  // Generate edge identifier using the exact same logic as the sim agent
+  // Generate edge identifier using the exact same logic as the diff engine
   const edgeIdentifier = generateEdgeIdentity(source, target, sourceHandle, targetHandle)
 
   // Debug logging to understand what's happening
@@ -117,8 +120,12 @@ export const WorkflowEdge = ({
   // Determine edge diff status
   let edgeDiffStatus: EdgeDiffStatus = null
 
+  // Check if edge is directly marked as deleted (for reconstructed edges)
+  if (data?.isDeleted) {
+    edgeDiffStatus = 'deleted'
+  }
   // Only attempt to determine diff status if all required data is available
-  if (diffAnalysis?.edge_diff && edgeIdentifier && isDiffReady) {
+  else if (diffAnalysis?.edge_diff && edgeIdentifier && isDiffReady) {
     if (isShowingDiff) {
       // In diff view, show new edges
       if (diffAnalysis.edge_diff.new_edges.includes(edgeIdentifier)) {
@@ -178,7 +185,7 @@ export const WorkflowEdge = ({
             style={{
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: 'all',
-              zIndex: 22,
+              zIndex: 100,
             }}
             onClick={(e) => {
               e.preventDefault()

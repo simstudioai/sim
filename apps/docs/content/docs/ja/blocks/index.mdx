@@ -1,0 +1,129 @@
+---
+title: ブロック
+description: AIワークフローの構成要素
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Video } from '@/components/ui/video'
+
+ブロックはAIワークフローを作成するために接続する構成要素です。AIモデルとのチャット、APIコールの実行、データ処理など、特定のタスクを処理する専門モジュールと考えてください。
+
+<div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg">
+  <Video src="connections.mp4" width={700} height={450} />
+</div>
+
+## 主要ブロックタイプ
+
+Simは、AIワークフローの基本機能を処理する7つの主要ブロックタイプを提供しています：
+
+### 処理ブロック
+- **[エージェント](/blocks/agent)** - AIモデル（OpenAI、Anthropic、Google、ローカルモデル）とチャット
+- **[ファンクション](/blocks/function)** - カスタムJavaScript/TypeScriptコードを実行
+- **[API](/blocks/api)** - HTTP要求を介して外部サービスに接続
+
+### ロジックブロック
+- **[条件](/blocks/condition)** - ブール式に基づいてワークフローパスを分岐
+- **[ルーター](/blocks/router)** - AIを使用してリクエストを異なるパスにインテリジェントにルーティング
+- **[評価者](/blocks/evaluator)** - AIを使用してコンテンツの品質を評価・採点
+
+### 出力ブロック
+- **[レスポンス](/blocks/response)** - ワークフローからの最終結果をフォーマットして返す
+
+## ブロックの仕組み
+
+各ブロックには3つの主要コンポーネントがあります：
+
+**入力**：他のブロックまたはユーザー入力からブロックに入ってくるデータ
+**設定**：ブロックの動作を制御する設定
+**出力**：他のブロックが使用するためにブロックが生成するデータ
+
+<Steps>
+  <Step>
+    <strong>入力を受け取る</strong>：ブロックは接続されたブロックまたはユーザー入力からデータを受け取ります
+  </Step>
+  <Step>
+    <strong>処理</strong>：ブロックは設定に従って入力を処理します
+  </Step>
+  <Step>
+    <strong>結果を出力</strong>：ブロックはワークフロー内の次のブロックのために出力データを生成します
+  </Step>
+</Steps>
+
+## ブロックの接続
+
+ブロックを接続することでワークフローを作成します。あるブロックの出力は、別のブロックの入力になります：
+
+- **ドラッグして接続**: 出力ポートから入力ポートへドラッグします
+- **複数の接続**: 一つの出力を複数の入力に接続できます
+- **分岐パス**: 一部のブロックは条件に基づいて異なるパスにルーティングできます
+
+<div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg">
+  <Video src="connections.mp4" width={700} height={450} />
+</div>
+
+## 一般的なパターン
+
+### 順次処理
+各ブロックが前のブロックの出力を処理するチェーン状にブロックを接続します：
+
+```
+User Input → Agent → Function → Response
+```
+
+### 条件分岐
+条件ブロックやルーターブロックを使用して異なるパスを作成します：
+
+```
+User Input → Router → Agent A (for questions)
+                   → Agent B (for commands)
+```
+
+### 品質管理
+評価ブロックを使用して出力を評価およびフィルタリングします：
+
+```
+Agent → Evaluator → Condition → Response (if good)
+                              → Agent (retry if bad)
+```
+
+## ブロックの設定
+
+各ブロックタイプには特定の設定オプションがあります：
+
+**すべてのブロック**:
+- 入力/出力の接続
+- エラー処理の動作
+- 実行タイムアウト設定
+
+**AIブロック** (エージェント、ルーター、評価者):
+- モデル選択（OpenAI、Anthropic、Google、ローカル）
+- APIキーと認証
+- 温度などのモデルパラメータ
+- システムプロンプトと指示
+
+**ロジックブロック** (条件、関数):
+- カスタム式またはコード
+- 変数参照
+- 実行環境設定
+
+**統合ブロック** (API、レスポンス):
+- エンドポイント設定
+- ヘッダーと認証
+- リクエスト/レスポンスのフォーマット
+
+<Cards>
+  <Card title="エージェントブロック" href="/blocks/agent">
+    AIモデルに接続し、インテリジェントな応答を作成する
+  </Card>
+  <Card title="関数ブロック" href="/blocks/function">
+    カスタムコードを実行してデータを処理および変換する
+  </Card>
+  <Card title="APIブロック" href="/blocks/api">
+    外部サービスやAPIと統合する
+  </Card>
+  <Card title="条件ブロック" href="/blocks/condition">
+    データ評価に基づいた分岐ロジックを作成する
+  </Card>
+</Cards>

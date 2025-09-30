@@ -1,0 +1,113 @@
+---
+title: Wissensdatenbank
+---
+
+import { Video } from '@/components/ui/video'
+import { Image } from '@/components/ui/image'
+
+Die Wissensdatenbank ermöglicht es Ihnen, Ihre Dokumente hochzuladen, zu verarbeiten und mit intelligenter Vektorsuche und Chunking zu durchsuchen. Dokumente verschiedener Typen werden automatisch verarbeitet, eingebettet und durchsuchbar gemacht. Ihre Dokumente werden intelligent in Chunks aufgeteilt, und Sie können sie mit natürlichsprachlichen Abfragen anzeigen, bearbeiten und durchsuchen.
+
+## Upload und Verarbeitung
+
+Laden Sie einfach Ihre Dokumente hoch, um zu beginnen. Sim verarbeitet sie automatisch im Hintergrund, extrahiert Text, erstellt Embeddings und teilt sie in durchsuchbare Chunks auf.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="knowledgebase-1.mp4" width={700} height={450} />
+</div>
+
+Das System übernimmt den gesamten Verarbeitungsprozess für Sie:
+
+1. **Textextraktion**: Inhalte werden aus Ihren Dokumenten mit spezialisierten Parsern für jeden Dateityp extrahiert
+2. **Intelligentes Chunking**: Dokumente werden in sinnvolle Chunks mit konfigurierbarer Größe und Überlappung aufgeteilt
+3. **Embedding-Generierung**: Vektoreinbettungen werden für semantische Suchfunktionen erstellt
+4. **Verarbeitungsstatus**: Verfolgen Sie den Fortschritt während Ihre Dokumente verarbeitet werden
+
+## Unterstützte Dateitypen
+
+Sim unterstützt PDF, Word (DOC/DOCX), Klartext (TXT), Markdown (MD), HTML, Excel (XLS/XLSX), PowerPoint (PPT/PPTX) und CSV-Dateien. Dateien können bis zu 100MB groß sein, wobei die optimale Leistung bei Dateien unter 50MB liegt. Sie können mehrere Dokumente gleichzeitig hochladen, und PDF-Dateien werden mit OCR-Verarbeitung für gescannte Dokumente unterstützt.
+
+## Anzeigen und Bearbeiten von Chunks
+
+Sobald Ihre Dokumente verarbeitet sind, können Sie die einzelnen Chunks anzeigen und bearbeiten. Dies gibt Ihnen volle Kontrolle darüber, wie Ihre Inhalte organisiert und durchsucht werden.
+
+<Image src="/static/knowledgebase/knowledgebase.png" alt="Dokumentchunk-Ansicht mit verarbeiteten Inhalten" width={800} height={500} />
+
+### Chunk-Konfiguration
+- **Standardgröße der Chunks**: 1.024 Zeichen
+- **Konfigurierbarer Bereich**: 100-4.000 Zeichen pro Chunk
+- **Intelligente Überlappung**: Standardmäßig 200 Zeichen zur Kontexterhaltung
+- **Hierarchische Aufteilung**: Respektiert Dokumentstruktur (Abschnitte, Absätze, Sätze)
+
+### Bearbeitungsfunktionen
+- **Chunk-Inhalt bearbeiten**: Textinhalt einzelner Chunks ändern
+- **Chunk-Grenzen anpassen**: Chunks bei Bedarf zusammenführen oder teilen
+- **Metadaten hinzufügen**: Chunks mit zusätzlichem Kontext anreichern
+- **Massenoperationen**: Effiziente Verwaltung mehrerer Chunks
+
+## Erweiterte PDF-Verarbeitung
+
+Für PDF-Dokumente bietet Sim erweiterte Verarbeitungsfunktionen:
+
+### OCR-Unterstützung
+Bei Konfiguration mit Azure oder [Mistral OCR](https://docs.mistral.ai/ocr/):
+- **Verarbeitung gescannter Dokumente**: Text aus bildbasierten PDFs extrahieren
+- **Umgang mit gemischten Inhalten**: Verarbeitung von PDFs mit Text und Bildern
+- **Hohe Genauigkeit**: Fortschrittliche KI-Modelle gewährleisten präzise Textextraktion
+
+## Verwendung des Wissensblocks in Workflows
+
+Sobald Ihre Dokumente verarbeitet sind, können Sie sie in Ihren KI-Workflows über den Wissensblock nutzen. Dies ermöglicht Retrieval-Augmented Generation (RAG), wodurch Ihre KI-Agenten auf Ihre Dokumentinhalte zugreifen und darüber nachdenken können, um genauere, kontextbezogene Antworten zu liefern.
+
+<Image src="/static/knowledgebase/knowledgebase-2.png" alt="Verwendung des Wissensblocks in Workflows" width={800} height={500} />
+
+### Funktionen des Wissensblocks
+- **Semantische Suche**: Relevante Inhalte mit natürlichsprachlichen Abfragen finden
+- **Kontextintegration**: Automatisches Einbinden relevanter Chunks in Agenten-Prompts
+- **Dynamischer Abruf**: Suche erfolgt in Echtzeit während der Workflow-Ausführung
+- **Relevanzbewertung**: Ergebnisse nach semantischer Ähnlichkeit geordnet
+
+### Integrationsoptionen
+- **System-Prompts**: Kontext für Ihre KI-Agenten bereitstellen
+- **Dynamischer Kontext**: Suche und Einbindung relevanter Informationen während Gesprächen
+- **Dokumentübergreifende Suche**: Abfrage über Ihre gesamte Wissensdatenbank
+- **Gefilterte Suche**: Kombination mit Tags für präzisen Inhaltsabruf
+
+## Vektorsuchtechnologie
+
+Sim verwendet Vektorsuche, die von [pgvector](https://github.com/pgvector/pgvector) unterstützt wird, um die Bedeutung und den Kontext Ihrer Inhalte zu verstehen:
+
+### Semantisches Verständnis
+- **Kontextuelle Suche**: Findet relevante Inhalte, auch wenn exakte Schlüsselwörter nicht übereinstimmen
+- **Konzeptbasierte Abfrage**: Versteht Beziehungen zwischen Ideen
+- **Mehrsprachige Unterstützung**: Funktioniert über verschiedene Sprachen hinweg
+- **Synonymerkennung**: Findet verwandte Begriffe und Konzepte
+
+### Suchfunktionen
+- **Natürlichsprachige Abfragen**: Stellen Sie Fragen in natürlicher Sprache
+- **Ähnlichkeitssuche**: Finden Sie konzeptionell ähnliche Inhalte
+- **Hybridsuche**: Kombiniert Vektor- und traditionelle Schlüsselwortsuche
+- **Konfigurierbare Ergebnisse**: Steuern Sie die Anzahl und den Relevanz-Schwellenwert der Ergebnisse
+
+## Dokumentenverwaltung
+
+### Organisationsfunktionen
+- **Massenupload**: Laden Sie mehrere Dateien gleichzeitig über die asynchrone API hoch
+- **Verarbeitungsstatus**: Echtzeit-Updates zum Dokumentenverarbeitungsprozess
+- **Suchen und Filtern**: Finden Sie Dokumente schnell in großen Sammlungen
+- **Metadaten-Tracking**: Automatische Erfassung von Dateiinformationen und Verarbeitungsdetails
+
+### Sicherheit und Datenschutz
+- **Sichere Speicherung**: Dokumente werden mit Sicherheit auf Unternehmensniveau gespeichert
+- **Zugriffskontrolle**: Workspace-basierte Berechtigungen
+- **Verarbeitungsisolierung**: Jeder Workspace hat eine isolierte Dokumentenverarbeitung
+- **Datenaufbewahrung**: Konfigurieren Sie Richtlinien zur Dokumentenaufbewahrung
+
+## Erste Schritte
+
+1. **Navigieren Sie zu Ihrer Wissensdatenbank**: Zugriff über Ihre Workspace-Seitenleiste
+2. **Dokumente hochladen**: Drag & Drop oder wählen Sie Dateien zum Hochladen aus
+3. **Verarbeitung überwachen**: Beobachten Sie, wie Dokumente verarbeitet und in Chunks aufgeteilt werden
+4. **Chunks erkunden**: Sehen und bearbeiten Sie die verarbeiteten Inhalte
+5. **Zu Workflows hinzufügen**: Verwenden Sie den Wissensblock, um ihn in Ihre KI-Agenten zu integrieren
+
+Die Wissensdatenbank verwandelt Ihre statischen Dokumente in eine intelligente, durchsuchbare Ressource, die Ihre KI-Workflows für fundiertere und kontextbezogenere Antworten nutzen können.

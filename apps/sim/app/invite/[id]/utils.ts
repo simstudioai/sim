@@ -16,6 +16,8 @@ export function getErrorMessage(reason: string): string {
       return 'Your user account could not be found. Please try logging out and logging back in.'
     case 'already-member':
       return 'You are already a member of this organization or workspace.'
+    case 'already-in-organization':
+      return 'You are already a member of an organization. Leave your current organization before accepting a new invitation.'
     case 'invalid-invitation':
       return 'This invitation is invalid or no longer exists.'
     case 'missing-invitation-id':

@@ -62,6 +62,7 @@ export function TeamManagement() {
     memberId: string
     memberName: string
     shouldReduceSeats: boolean
+    isSelfRemoval?: boolean
   }>({ open: false, memberId: '', memberName: '', shouldReduceSeats: false })
   const [orgName, setOrgName] = useState('')
   const [orgSlug, setOrgSlug] = useState('')
@@ -163,14 +164,26 @@ export function TeamManagement() {
     async (member: any) => {
       if (!session?.user || !activeOrgId) return
 
+      // The member object should have user.id - that's the actual user ID
+      if (!member.user?.id) {
+        logger.error('Member object missing user ID', { member })
+        return
+      }
+
+      const isLeavingSelf = member.user?.email === session.user.email
+      const displayName = isLeavingSelf
+        ? 'yourself'
+        : member.user?.name || member.user?.email || 'this member'
+
       setRemoveMemberDialog({
         open: true,
-        memberId: member.id,
-        memberName: member.user?.name || member.user?.email || 'this member',
+        memberId: member.user.id,
+        memberName: displayName,
         shouldReduceSeats: false,
+        isSelfRemoval: isLeavingSelf,
       })
     },
-    [session?.user?.id, activeOrgId]
+    [session?.user, activeOrgId]
   )
 
   const confirmRemoveMember = useCallback(
@@ -262,8 +275,8 @@ export function TeamManagement() {
   }
 
   return (
-    <div className='px-6 pt-4 pb-4'>
-      <div className='flex flex-col gap-6'>
+    <div className='flex h-full flex-col px-6 pt-4 pb-4'>
+      <div className='flex flex-1 flex-col gap-6 overflow-y-auto'>
         {error && (
           <Alert variant='destructive' className='rounded-[8px]'>
             <AlertTitle>Error</AlertTitle>
@@ -301,25 +314,6 @@ export function TeamManagement() {
           </div>
         )}
 
-        {/* Member Invitation Card */}
-        {adminOrOwner && (
-          <MemberInvitationCard
-            inviteEmail={inviteEmail}
-            setInviteEmail={setInviteEmail}
-            isInviting={isInviting}
-            showWorkspaceInvite={showWorkspaceInvite}
-            setShowWorkspaceInvite={setShowWorkspaceInvite}
-            selectedWorkspaces={selectedWorkspaces}
-            userWorkspaces={userWorkspaces}
-            onInviteMember={handleInviteMember}
-            onLoadUserWorkspaces={() => loadUserWorkspaces(session?.user?.id)}
-            onWorkspaceToggle={handleWorkspaceToggle}
-            inviteSuccess={inviteSuccess}
-            availableSeats={Math.max(0, (subscriptionData?.seats || 0) - usedSeats.used)}
-            maxSeats={subscriptionData?.seats || 0}
-          />
-        )}
-
         {/* Team Seats Overview */}
         {adminOrOwner && (
           <TeamSeatsOverview
@@ -342,21 +336,50 @@ export function TeamManagement() {
           onCancelInvitation={cancelInvitation}
         />
 
-        {/* Team Information Section - at bottom of modal */}
-        <div className='mt-12 border-t pt-6'>
-          <div className='space-y-3 text-xs'>
-            <div className='flex justify-between'>
-              <span className='text-muted-foreground'>Team ID:</span>
-              <span className='font-mono'>{activeOrganization.id}</span>
-            </div>
-            <div className='flex justify-between'>
-              <span className='text-muted-foreground'>Created:</span>
-              <span>{new Date(activeOrganization.createdAt).toLocaleDateString()}</span>
-            </div>
-            <div className='flex justify-between'>
-              <span className='text-muted-foreground'>Your Role:</span>
-              <span className='font-medium capitalize'>{userRole}</span>
-            </div>
+        {/* Single Organization Notice */}
+        {adminOrOwner && (
+          <div className='mt-4 rounded-lg bg-muted/50 p-3'>
+            <p className='text-muted-foreground text-xs'>
+              <span className='font-medium'>Note:</span> Users can only be part of one organization
+              at a time. They must leave their current organization before joining another.
+            </p>
+          </div>
+        )}
+
+        {/* Member Invitation Card */}
+        {adminOrOwner && (
+          <MemberInvitationCard
+            inviteEmail={inviteEmail}
+            setInviteEmail={setInviteEmail}
+            isInviting={isInviting}
+            showWorkspaceInvite={showWorkspaceInvite}
+            setShowWorkspaceInvite={setShowWorkspaceInvite}
+            selectedWorkspaces={selectedWorkspaces}
+            userWorkspaces={userWorkspaces}
+            onInviteMember={handleInviteMember}
+            onLoadUserWorkspaces={() => loadUserWorkspaces(session?.user?.id)}
+            onWorkspaceToggle={handleWorkspaceToggle}
+            inviteSuccess={inviteSuccess}
+            availableSeats={Math.max(0, (subscriptionData?.seats || 0) - usedSeats.used)}
+            maxSeats={subscriptionData?.seats || 0}
+          />
+        )}
+      </div>
+
+      {/* Team Information Section - pinned to bottom of modal */}
+      <div className='mt-6 flex-shrink-0 border-t pt-6'>
+        <div className='space-y-3 text-xs'>
+          <div className='flex justify-between'>
+            <span className='text-muted-foreground'>Team ID:</span>
+            <span className='font-mono'>{activeOrganization.id}</span>
+          </div>
+          <div className='flex justify-between'>
+            <span className='text-muted-foreground'>Created:</span>
+            <span>{new Date(activeOrganization.createdAt).toLocaleDateString()}</span>
+          </div>
+          <div className='flex justify-between'>
+            <span className='text-muted-foreground'>Your Role:</span>
+            <span className='font-medium capitalize'>{userRole}</span>
           </div>
         </div>
       </div>
@@ -365,6 +388,7 @@ export function TeamManagement() {
         open={removeMemberDialog.open}
         memberName={removeMemberDialog.memberName}
         shouldReduceSeats={removeMemberDialog.shouldReduceSeats}
+        isSelfRemoval={removeMemberDialog.isSelfRemoval}
         onOpenChange={(open: boolean) => {
           if (!open) setRemoveMemberDialog({ ...removeMemberDialog, open: false })
         }}
@@ -381,6 +405,7 @@ export function TeamManagement() {
             memberId: '',
             memberName: '',
             shouldReduceSeats: false,
+            isSelfRemoval: false,
           })
         }
       />

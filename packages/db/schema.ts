@@ -186,19 +186,11 @@ export const workflowBlocks = pgTable(
     outputs: jsonb('outputs').notNull().default('{}'),
     data: jsonb('data').default('{}'),
 
-    parentId: text('parent_id'),
-    extent: text('extent'), // 'parent' or null or 'subflow'
-
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
     workflowIdIdx: index('workflow_blocks_workflow_id_idx').on(table.workflowId),
-    parentIdIdx: index('workflow_blocks_parent_id_idx').on(table.parentId),
-    workflowParentIdx: index('workflow_blocks_workflow_parent_idx').on(
-      table.workflowId,
-      table.parentId
-    ),
     workflowTypeIdx: index('workflow_blocks_workflow_type_idx').on(table.workflowId, table.type),
   })
 )
@@ -378,6 +370,10 @@ export const settings = pgTable('settings', {
   billingUsageNotificationsEnabled: boolean('billing_usage_notifications_enabled')
     .notNull()
     .default(true),
+
+  // UI preferences
+  showFloatingControls: boolean('show_floating_controls').notNull().default(true),
+  showTrainingControls: boolean('show_training_controls').notNull().default(false),
 
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -565,6 +561,8 @@ export const userStats = pgTable('user_stats', {
   // Billing period tracking
   currentPeriodCost: decimal('current_period_cost').notNull().default('0'), // Usage in current billing period
   lastPeriodCost: decimal('last_period_cost').default('0'), // Usage from previous billing period
+  // Pro usage snapshot when joining a team (to prevent double-billing)
+  proPeriodCostSnapshot: decimal('pro_period_cost_snapshot').default('0'), // Snapshot of Pro usage when joining team
   // Copilot usage tracking
   totalCopilotCost: decimal('total_copilot_cost').notNull().default('0'),
   totalCopilotTokens: integer('total_copilot_tokens').notNull().default(0),
@@ -635,7 +633,7 @@ export const chat = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    subdomain: text('subdomain').notNull(),
+    identifier: text('identifier').notNull(),
     title: text('title').notNull(),
     description: text('description'),
     isActive: boolean('is_active').notNull().default(true),
@@ -654,8 +652,8 @@ export const chat = pgTable(
   },
   (table) => {
     return {
-      // Ensure subdomains are unique
-      subdomainIdx: uniqueIndex('subdomain_idx').on(table.subdomain),
+      // Ensure identifiers are unique
+      identifierIdx: uniqueIndex('identifier_idx').on(table.identifier),
     }
   }
 )
@@ -1402,5 +1400,30 @@ export const mcpServers = pgTable(
       table.workspaceId,
       table.deletedAt
     ),
+  })
+)
+
+// SSO Provider table
+export const ssoProvider = pgTable(
+  'sso_provider',
+  {
+    id: text('id').primaryKey(),
+    issuer: text('issuer').notNull(),
+    domain: text('domain').notNull(),
+    oidcConfig: text('oidc_config'),
+    samlConfig: text('saml_config'),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    providerId: text('provider_id').notNull(),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
+  },
+  (table) => ({
+    providerIdIdx: index('sso_provider_provider_id_idx').on(table.providerId),
+    domainIdx: index('sso_provider_domain_idx').on(table.domain),
+    userIdIdx: index('sso_provider_user_id_idx').on(table.userId),
+    organizationIdIdx: index('sso_provider_organization_id_idx').on(table.organizationId),
   })
 )

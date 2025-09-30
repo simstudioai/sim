@@ -1,0 +1,90 @@
+---
+title: S3
+description: S3-Dateien anzeigen
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="s3"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+    
+    
+    preserveAspectRatio='xMidYMid'
+    viewBox='0 0 256 310'
+    
+    xmlns='http://www.w3.org/2000/svg'
+  >
+    <path d='m20.624 53.686-20.624 10.314v181.02l20.624 10.254.124-.149v-201.297z' fill='#8c3123' />
+    <path d='m131 229-110.376 26.274v-201.588l110.376 25.701z' fill='#e05243' />
+    <path d='m81.178 187.866 46.818 5.96.294-.678.263-76.77-.557-.6-46.818 5.874z' fill='#8c3123' />
+    <path
+      d='m127.996 229.295 107.371 26.035.169-.269-.003-201.195-.17-.18-107.367 25.996z'
+      fill='#8c3123'
+    />
+    <path d='m174.827 187.866-46.831 5.96v-78.048l46.831 5.874z' fill='#e05243' />
+    <path d='m174.827 89.631-46.831 8.535-46.818-8.535 46.759-12.256z' fill='#5e1f18' />
+    <path d='m174.827 219.801-46.831-8.591-46.818 8.591 46.761 13.053z' fill='#f2b0a9' />
+    <path
+      d='m81.178 89.631 46.818-11.586.379-.117v-77.615l-.379-.313-46.818 23.413z'
+      fill='#8c3123'
+    />
+    <path d='m174.827 89.631-46.831-11.586v-78.045l46.831 23.413z' fill='#e05243' />
+    <path
+      d='m127.996 309.428-46.823-23.405v-66.217l46.823 11.582.689.783-.187 75.906z'
+      fill='#8c3123'
+    />
+    <g fill='#e05243'>
+      <path d='m127.996 309.428 46.827-23.405v-66.217l-46.827 11.582z' />
+      <path d='m235.367 53.686 20.633 10.314v181.02l-20.633 10.31z' />
+    </g>
+  </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Amazon S3](https://aws.amazon.com/s3/) ist ein hochskalierbarer, sicherer und langlebiger Cloud-Speicherdienst von Amazon Web Services. Er wurde entwickelt, um beliebige Datenmengen von überall im Web zu speichern und abzurufen, was ihn zu einer der am häufigsten genutzten Cloud-Speicherlösungen für Unternehmen aller Größen macht.
+
+Mit Amazon S3 können Sie:
+
+- **Unbegrenzt Daten speichern**: Laden Sie Dateien jeder Größe und jeden Typs mit praktisch unbegrenzter Speicherkapazität hoch
+- **Von überall zugreifen**: Rufen Sie Ihre Dateien von überall auf der Welt mit geringer Latenz ab
+- **Datenhaltbarkeit sicherstellen**: Profitieren Sie von 99,999999999% (11 Neunen) Haltbarkeit durch automatische Datenreplikation
+- **Zugriff kontrollieren**: Verwalten Sie Berechtigungen und Zugriffskontrollen mit detaillierten Sicherheitsrichtlinien
+- **Automatisch skalieren**: Bewältigen Sie unterschiedliche Arbeitslasten ohne manuelle Eingriffe oder Kapazitätsplanung
+- **Nahtlos integrieren**: Verbinden Sie sich einfach mit anderen AWS-Diensten und Anwendungen von Drittanbietern
+- **Kosten optimieren**: Wählen Sie aus mehreren Speicherklassen, um Kosten basierend auf Zugriffsmustern zu optimieren
+
+In Sim ermöglicht die S3-Integration Ihren Agenten das Abrufen und Zugreifen auf Dateien, die in Ihren Amazon S3-Buckets gespeichert sind, mithilfe sicherer vorsignierter URLs. Dies ermöglicht leistungsstarke Automatisierungsszenarien wie die Verarbeitung von Dokumenten, die Analyse gespeicherter Daten, das Abrufen von Konfigurationsdateien und den Zugriff auf Medieninhalte als Teil Ihrer Workflows. Ihre Agenten können Dateien sicher von S3 abrufen, ohne Ihre AWS-Anmeldeinformationen preiszugeben, wodurch es einfach wird, in der Cloud gespeicherte Assets in Ihre Automatisierungsprozesse einzubinden. Diese Integration überbrückt die Lücke zwischen Ihrer Cloud-Speicherung und KI-Workflows und ermöglicht einen nahtlosen Zugriff auf Ihre gespeicherten Daten unter Beibehaltung der Sicherheitsstandards durch die robusten Authentifizierungsmechanismen von AWS.
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+S3 in den Workflow integrieren. Kann vorsignierte URLs für S3-Objekte erhalten. Erfordert Zugriffsschlüssel und geheimen Zugriffsschlüssel.
+
+## Tools
+
+### `s3_get_object`
+
+Ein Objekt aus einem AWS S3-Bucket abrufen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Ja | Ihre AWS Access Key ID |
+| `secretAccessKey` | string | Ja | Ihr AWS Secret Access Key |
+| `s3Uri` | string | Ja | S3-Objekt-URL |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `url` | string | Vorsignierte URL zum Herunterladen des S3-Objekts |
+| `metadata` | object | Dateimetadaten einschließlich Typ, Größe, Name und Datum der letzten Änderung |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `s3`

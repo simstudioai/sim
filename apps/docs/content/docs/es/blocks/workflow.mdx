@@ -1,168 +1,40 @@
 ---
-title: Flujo de trabajo
+title: Bloque de flujo de trabajo
+description: Ejecuta otro flujo de trabajo dentro del flujo actual
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-El bloque de Flujo de trabajo te permite ejecutar otros flujos de trabajo como componentes reutilizables dentro de tu flujo de trabajo actual. Esto permite un diseño modular, reutilización de código y la creación de flujos de trabajo complejos anidados que pueden componerse a partir de flujos de trabajo más pequeños y enfocados.
+## Qué hace
 
-<div className="flex justify-center">
+<div className='flex justify-center my-6'>
   <Image
-    src="/static/blocks/workflow.png"
-    alt="Bloque de Flujo de trabajo"
-    width={500}
-    height={350}
-    className="my-6"
+    src='/static/blocks/workflow.png'
+    alt='Configuración del bloque de flujo de trabajo'
+    width={400}
+    height={280}
+    className='rounded-xl border border-border shadow-sm'
   />
 </div>
 
-<Callout type="info">
-  Los bloques de Flujo de trabajo permiten un diseño modular al permitirte componer flujos de trabajo complejos a partir de componentes más pequeños y reutilizables.
+Coloca un bloque de Flujo de trabajo cuando quieras llamar a un flujo de trabajo secundario como parte de un flujo más grande. El bloque ejecuta la última versión implementada de ese flujo de trabajo, espera a que termine y luego continúa con el principal.
+
+## Cómo configurarlo
+
+1. **Elige un flujo de trabajo** del menú desplegable (las auto-referencias están bloqueadas para evitar bucles).
+2. **Asigna entradas**: Si el flujo de trabajo secundario tiene un disparador de Formulario de entrada, verás cada campo y podrás conectar variables del principal. Los valores asignados son los que recibe el secundario.
+3. **Salidas**: Después de que el secundario finaliza, el bloque expone:
+   - `result` – la respuesta final del flujo de trabajo secundario
+   - `success` – si se ejecutó sin errores
+   - `error` – mensaje cuando la ejecución falla
+
+## Notas de ejecución
+
+- Los flujos de trabajo secundarios se ejecutan en el mismo contexto de espacio de trabajo, por lo que las variables de entorno y herramientas se mantienen.
+- El bloque utiliza el versionado de implementación: cualquier ejecución de API, programación, webhook, manual o chat llama a la instantánea implementada. Vuelve a implementar el secundario cuando lo cambies.
+- Si el secundario falla, el bloque genera un error a menos que lo gestiones posteriormente.
+
+<Callout>
+Mantén los flujos de trabajo secundarios enfocados. Los flujos pequeños y reutilizables facilitan su combinación sin crear anidamientos profundos.
 </Callout>
-
-## Descripción general
-
-El bloque de Flujo de trabajo sirve como puente entre flujos de trabajo, permitiéndote:
-
-<Steps>
-  <Step>
-    <strong>Reutilizar flujos de trabajo existentes</strong>: Ejecutar flujos de trabajo previamente creados como componentes dentro de nuevos flujos de trabajo
-  </Step>
-  <Step>
-    <strong>Crear diseños modulares</strong>: Desglosar procesos complejos en flujos de trabajo más pequeños y manejables
-  </Step>
-  <Step>
-    <strong>Mantener la separación de responsabilidades</strong>: Mantener diferentes lógicas de negocio aisladas en flujos de trabajo separados
-  </Step>
-  <Step>
-    <strong>Facilitar la colaboración en equipo</strong>: Compartir y reutilizar flujos de trabajo entre diferentes proyectos y miembros del equipo
-  </Step>
-</Steps>
-
-## Cómo funciona
-
-El bloque de Flujo de trabajo:
-
-1. Toma una referencia a otro flujo de trabajo en tu espacio de trabajo
-2. Pasa datos de entrada desde el flujo de trabajo actual al flujo de trabajo hijo (disponible a través de start.input)
-3. Ejecuta el flujo de trabajo hijo en un contexto aislado
-4. Devuelve el resultado al flujo de trabajo padre para su posterior procesamiento
-
-## Opciones de configuración
-
-### Selección de flujo de trabajo
-
-Elige qué flujo de trabajo ejecutar desde una lista desplegable de flujos de trabajo disponibles en tu espacio de trabajo. La lista incluye:
-
-- Todos los flujos de trabajo a los que tienes acceso en el espacio de trabajo actual
-- Flujos de trabajo compartidos contigo por otros miembros del equipo
-- Tanto flujos de trabajo habilitados como deshabilitados (aunque solo los habilitados pueden ser ejecutados)
-
-### Contexto de ejecución
-
-El flujo de trabajo secundario se ejecuta con:
-
-- Su propio contexto de ejecución aislado
-- Acceso a los mismos recursos del espacio de trabajo (claves API, variables de entorno)
-- Verificaciones adecuadas de permisos y membresía del espacio de trabajo
-- Tracespan anidado en el registro de ejecución
-
-<Callout type="warning">
-  **Detección de ciclos**: El sistema detecta y previene automáticamente dependencias circulares entre flujos de trabajo para evitar bucles infinitos.
-</Callout>
-
-## Entradas y salidas
-
-<Tabs items={['Configuration', 'Variables', 'Results']}>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Selección de flujo de trabajo</strong>: Elige qué flujo de trabajo ejecutar
-      </li>
-      <li>
-        <strong>Datos de entrada</strong>: Variable o referencia de bloque para pasar al flujo de trabajo secundario
-      </li>
-      <li>
-        <strong>Contexto de ejecución</strong>: Entorno aislado con recursos del espacio de trabajo
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>workflow.success</strong>: Booleano que indica el estado de finalización
-      </li>
-      <li>
-        <strong>workflow.childWorkflowName</strong>: Nombre del flujo de trabajo secundario ejecutado
-      </li>
-      <li>
-        <strong>workflow.result</strong>: Resultado devuelto por el flujo de trabajo secundario
-      </li>
-      <li>
-        <strong>workflow.error</strong>: Detalles del error si el flujo de trabajo falló
-      </li>
-    </ul>
-  </Tab>
-  <Tab>
-    <ul className="list-disc space-y-2 pl-6">
-      <li>
-        <strong>Respuesta del flujo de trabajo</strong>: Salida principal del flujo de trabajo secundario
-      </li>
-      <li>
-        <strong>Estado de ejecución</strong>: Estado de éxito e información de error
-      </li>
-      <li>
-        <strong>Acceso</strong>: Disponible en bloques después del flujo de trabajo
-      </li>
-    </ul>
-  </Tab>
-</Tabs>
-
-## Ejemplos de casos de uso
-
-### Incorporación modular de clientes
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Escenario: Dividir la incorporación compleja en componentes reutilizables</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>El flujo de trabajo principal recibe datos del cliente</li>
-    <li>El bloque de flujo de trabajo ejecuta el flujo de validación</li>
-    <li>El bloque de flujo de trabajo ejecuta el flujo de configuración de cuenta</li>
-    <li>El bloque de flujo de trabajo ejecuta el flujo de correo de bienvenida</li>
-  </ol>
-</div>
-
-### Arquitectura de microservicios
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Escenario: Crear flujos de trabajo de servicios independientes</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>El flujo de trabajo de procesamiento de pagos gestiona transacciones</li>
-    <li>El flujo de trabajo de gestión de inventario actualiza el stock</li>
-    <li>El flujo de trabajo de notificaciones envía confirmaciones</li>
-    <li>El flujo de trabajo principal orquesta todos los servicios</li>
-  </ol>
-</div>
-
-### Procesamiento condicional
-
-<div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Escenario: Ejecutar diferentes flujos de trabajo según condiciones</h4>
-  <ol className="list-decimal pl-5 text-sm">
-    <li>El bloque de condición evalúa el tipo de usuario</li>
-    <li>Usuarios empresariales → Flujo de trabajo de aprobación complejo</li>
-    <li>Usuarios estándar → Flujo de trabajo de aprobación simple</li>
-    <li>Usuarios gratuitos → Flujo de trabajo de procesamiento básico</li>
-  </ol>
-</div>
-
-## Mejores prácticas
-
-- **Mantén los flujos de trabajo enfocados**: Diseña flujos de trabajo secundarios para manejar tareas específicas y bien definidas con entradas y salidas claras
-- **Minimiza la profundidad de anidación**: Evita jerarquías de flujos de trabajo profundamente anidadas para mejorar la mantenibilidad y el rendimiento
-- **Maneja los errores con elegancia**: Implementa un manejo adecuado de errores para fallos en flujos de trabajo secundarios y proporciona mecanismos alternativos
-- **Prueba de forma independiente**: Asegúrate de que los flujos de trabajo secundarios puedan ser probados y validados independientemente de los flujos de trabajo principales
-- **Usa nomenclatura semántica**: Asigna a los flujos de trabajo nombres descriptivos que indiquen claramente su propósito y funcionalidad

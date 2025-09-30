@@ -2,6 +2,8 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { BlockType } from '@/executor/consts'
 import { Routing } from '@/executor/routing/routing'
 import type { BlockState, ExecutionContext } from '@/executor/types'
+import { ConnectionUtils } from '@/executor/utils/connections'
+import { VirtualBlockUtils } from '@/executor/utils/virtual-blocks'
 import type { SerializedBlock, SerializedConnection, SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('PathTracker')
@@ -38,33 +40,54 @@ export class PathTracker {
   /**
    * Updates execution paths based on newly executed blocks.
    * Handles router and condition block decisions to activate paths without deactivating others.
+   * Supports both original block IDs and virtual block IDs (for parallel execution).
    *
-   * @param executedBlockIds - IDs of blocks that were just executed
+   * @param executedBlockIds - IDs of blocks that were just executed (may include virtual IDs)
    * @param context - Current execution context
    */
   updateExecutionPaths(executedBlockIds: string[], context: ExecutionContext): void {
-    logger.info(`Updating paths for blocks: ${executedBlockIds.join(', ')}`)
-
     for (const blockId of executedBlockIds) {
-      const block = this.getBlock(blockId)
+      // Handle virtual block IDs from parallel execution
+      const originalBlockId = this.extractOriginalBlockId(blockId)
+      const block = this.getBlock(originalBlockId)
       if (!block) continue
 
+      // Set currentVirtualBlockId so decision setting uses the correct key
+      const previousVirtualBlockId = context.currentVirtualBlockId
+      if (blockId !== originalBlockId) {
+        context.currentVirtualBlockId = blockId
+      }
+
       this.updatePathForBlock(block, context)
+
+      // Restore previous virtual block ID
+      context.currentVirtualBlockId = previousVirtualBlockId
     }
+  }
+
+  /**
+   * Extract original block ID from virtual block ID.
+   * Virtual block IDs have format: originalId_parallel_parallelId_iteration_N
+   *
+   * @param blockId - Block ID (may be virtual or original)
+   * @returns Original block ID
+   */
+  private extractOriginalBlockId(blockId: string): string {
+    return VirtualBlockUtils.extractOriginalId(blockId)
   }
 
   /**
    * Get all incoming connections to a block
    */
   private getIncomingConnections(blockId: string): SerializedConnection[] {
-    return this.workflow.connections.filter((conn) => conn.target === blockId)
+    return ConnectionUtils.getIncomingConnections(blockId, this.workflow.connections)
   }
 
   /**
    * Get all outgoing connections from a block
    */
   private getOutgoingConnections(blockId: string): SerializedConnection[] {
-    return this.workflow.connections.filter((conn) => conn.source === blockId)
+    return ConnectionUtils.getOutgoingConnections(blockId, this.workflow.connections)
   }
 
   /**
@@ -169,11 +192,15 @@ export class PathTracker {
    * Update paths for router blocks
    */
   private updateRouterPaths(block: SerializedBlock, context: ExecutionContext): void {
-    const routerOutput = context.blockStates.get(block.id)?.output
+    const blockStateKey = context.currentVirtualBlockId || block.id
+    const routerOutput = context.blockStates.get(blockStateKey)?.output
     const selectedPath = routerOutput?.selectedPath?.blockId
 
     if (selectedPath) {
-      context.decisions.router.set(block.id, selectedPath)
+      const decisionKey = context.currentVirtualBlockId || block.id
+      if (!context.decisions.router.has(decisionKey)) {
+        context.decisions.router.set(decisionKey, selectedPath)
+      }
       context.activeExecutionPath.add(selectedPath)
 
       // Check if the selected target should activate downstream paths
@@ -221,12 +248,17 @@ export class PathTracker {
    * Update paths for condition blocks
    */
   private updateConditionPaths(block: SerializedBlock, context: ExecutionContext): void {
-    const conditionOutput = context.blockStates.get(block.id)?.output
+    // Read block state using the correct ID (virtual ID if in parallel execution, otherwise original ID)
+    const blockStateKey = context.currentVirtualBlockId || block.id
+    const conditionOutput = context.blockStates.get(blockStateKey)?.output
     const selectedConditionId = conditionOutput?.selectedConditionId
 
     if (!selectedConditionId) return
 
-    context.decisions.condition.set(block.id, selectedConditionId)
+    const decisionKey = context.currentVirtualBlockId || block.id
+    if (!context.decisions.condition.has(decisionKey)) {
+      context.decisions.condition.set(decisionKey, selectedConditionId)
+    }
 
     const targetConnections = this.workflow.connections.filter(
       (conn) => conn.source === block.id && conn.sourceHandle === `condition-${selectedConditionId}`
@@ -270,7 +302,9 @@ export class PathTracker {
    * Update paths for regular blocks
    */
   private updateRegularBlockPaths(block: SerializedBlock, context: ExecutionContext): void {
-    const blockState = context.blockStates.get(block.id)
+    // Read block state using the correct ID (virtual ID if in parallel execution, otherwise original ID)
+    const blockStateKey = context.currentVirtualBlockId || block.id
+    const blockState = context.blockStates.get(blockStateKey)
     const hasError = this.blockHasError(blockState)
     const outgoingConnections = this.getOutgoingConnections(block.id)
 

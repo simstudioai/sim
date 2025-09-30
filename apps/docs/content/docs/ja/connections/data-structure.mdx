@@ -1,0 +1,193 @@
+---
+title: 接続データ構造
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+ブロックを接続する際、異なるブロック出力のデータ構造を理解することが重要です。なぜなら、ソースブロックからの出力データ構造によって、宛先ブロックで利用可能な値が決まるからです。各ブロックタイプは、下流のブロックで参照できる特定の出力構造を生成します。
+
+<Callout type="info">
+  これらのデータ構造を理解することは、接続タグを効果的に使用し、ワークフローで正しいデータにアクセスするために不可欠です。
+</Callout>
+
+## ブロック出力構造
+
+ブロックタイプによって、異なる出力構造が生成されます。各ブロックタイプから期待できる出力は次のとおりです：
+
+<Tabs items={['Agent Output', 'API Output', 'Function Output', 'Evaluator Output', 'Condition Output', 'Router Output']}>
+  <Tab>
+
+    ```json
+    {
+      "content": "The generated text response",
+      "model": "gpt-4o",
+      "tokens": {
+        "prompt": 120,
+        "completion": 85,
+        "total": 205
+      },
+      "toolCalls": [...],
+      "cost": [...],
+      "usage": [...]
+    }
+    ```
+
+    ### エージェントブロックの出力フィールド
+
+    - **content**: エージェントによって生成されたメインテキスト応答
+    - **model**: 使用されたAIモデル（例：「gpt-4o」、「claude-3-opus」）
+    - **tokens**: トークン使用統計
+      - **prompt**: プロンプトのトークン数
+      - **completion**: 完了のトークン数
+      - **total**: 使用された合計トークン数
+    - **toolCalls**: エージェントによって行われたツールコールの配列（存在する場合）
+    - **cost**: 各ツールコールのコストオブジェクトの配列（存在する場合）
+    - **usage**: 応答全体のトークン使用統計
+
+  </Tab>
+  <Tab>
+
+    ```json
+    {
+      "data": "Response data",
+      "status": 200,
+      "headers": {
+        "content-type": "application/json",
+        "cache-control": "no-cache"
+      }
+    }
+    ```
+
+    ### APIブロックの出力フィールド
+
+    - **data**: APIからのレスポンスデータ（任意の型）
+    - **status**: レスポンスのHTTPステータスコード
+    - **headers**: APIから返されたHTTPヘッダー
+
+  </Tab>
+  <Tab>
+
+    ```json
+    {
+      "result": "Function return value",
+      "stdout": "Console output",
+    }
+    ```
+
+    ### 関数ブロックの出力フィールド
+
+    - **result**: 関数の戻り値（任意の型）
+    - **stdout**: 関数実行中にキャプチャされたコンソール出力
+
+  </Tab>
+  <Tab>
+
+    ```json
+    {
+      "content": "Evaluation summary",
+      "model": "gpt-5",
+      "tokens": {
+        "prompt": 120,
+        "completion": 85,
+        "total": 205
+      },
+      "metric1": 8.5,
+      "metric2": 7.2,
+      "metric3": 9.0
+    }
+    ```
+
+    ### 評価ブロックの出力フィールド
+
+    - **content**: 評価の要約
+    - **model**: 評価に使用されたAIモデル
+    - **tokens**: トークン使用統計
+    - **[metricName]**: 評価者で定義された各メトリックのスコア（動的フィールド）
+
+  </Tab>
+  <Tab>
+
+    ```json
+    {
+      "content": "Original content passed through",
+      "conditionResult": true,
+      "selectedPath": {
+        "blockId": "2acd9007-27e8-4510-a487-73d3b825e7c1",
+        "blockType": "agent",
+        "blockTitle": "Follow-up Agent"
+      },
+      "selectedConditionId": "condition-1"
+    }
+    ```
+
+    ### 条件ブロックの出力フィールド
+
+    - **content**: そのまま渡される元のコンテンツ
+    - **conditionResult**: 条件評価の真偽値結果
+    - **selectedPath**: 選択されたパスに関する情報
+      - **blockId**: 選択されたパスの次のブロックのID
+      - **blockType**: 次のブロックのタイプ
+      - **blockTitle**: 次のブロックのタイトル
+    - **selectedConditionId**: 選択された条件のID
+
+  </Tab>
+  <Tab>
+
+    ```json
+    {
+      "content": "Routing decision",
+      "model": "gpt-4o",
+      "tokens": {
+        "prompt": 120,
+        "completion": 85,
+        "total": 205
+      },
+      "selectedPath": {
+        "blockId": "2acd9007-27e8-4510-a487-73d3b825e7c1",
+        "blockType": "agent",
+        "blockTitle": "Customer Service Agent"
+      }
+    }
+    ```
+
+    ### ルーターブロックの出力フィールド
+
+    - **content**: ルーティング決定テキスト
+    - **model**: ルーティングに使用されたAIモデル
+    - **tokens**: トークン使用統計
+    - **selectedPath**: 選択されたパスに関する情報
+      - **blockId**: 選択された宛先ブロックのID
+      - **blockType**: 選択されたブロックのタイプ
+      - **blockTitle**: 選択されたブロックのタイトル
+
+  </Tab>
+</Tabs>
+
+## カスタム出力構造
+
+一部のブロックでは、その設定に基づいてカスタム出力構造を生成することがあります：
+
+1. **レスポンスフォーマットを持つエージェントブロック**: エージェントブロックでレスポンスフォーマットを使用する場合、出力構造は標準構造ではなく、定義されたスキーマに一致します。
+
+2. **関数ブロック**: `result` フィールドには、関数コードから返される任意のデータ構造が含まれます。
+
+3. **APIブロック**: `data` フィールドには、APIが返す任意の有効なJSON構造が含まれます。
+
+<Callout type="warning">
+  開発中は常にブロックの実際の出力構造を確認し、接続で正しいフィールドを参照していることを確認してください。
+</Callout>
+
+## ネストされたデータ構造
+
+多くのブロック出力にはネストされたデータ構造が含まれています。これらにはドット表記を使用して接続タグでアクセスできます：
+
+```
+<blockName.path.to.nested.data>
+```
+
+例えば：
+
+- `<agent1.tokens.total>` - エージェントブロックから合計トークン数にアクセス
+- `<api1.data.results[0].id>` - APIレスポンスの最初の結果のIDにアクセス
+- `<function1.result.calculations.total>` - 関数ブロックの結果内のネストされたフィールドにアクセス

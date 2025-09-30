@@ -1,13 +1,12 @@
+import crypto from 'crypto'
 import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
-import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
+import { validateWorkflowState } from '@/lib/workflows/validation'
 import { getAllBlocks } from '@/blocks/registry'
-import type { BlockConfig } from '@/blocks/types'
 import { resolveOutputType } from '@/blocks/utils'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
@@ -23,46 +22,26 @@ interface EditWorkflowParams {
   currentUserWorkflow?: string
 }
 
-const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
-
-async function applyOperationsToYaml(
-  currentYaml: string,
+/**
+ * Apply operations directly to the workflow JSON state
+ */
+function applyOperationsToWorkflowState(
+  workflowState: any,
   operations: EditWorkflowOperation[]
-): Promise<string> {
-  const blocks = getAllBlocks()
-  const blockRegistry = blocks.reduce(
-    (acc, block) => {
-      const blockType = (block as any).type
-      ;(acc as any)[blockType] = {
-        ...(block as any),
-        id: blockType,
-        subBlocks: (block as any).subBlocks || [],
-        outputs: (block as any).outputs || {},
-      }
-      return acc
-    },
-    {} as Record<string, BlockConfig>
-  )
+): any {
+  // Deep clone the workflow state to avoid mutations
+  const modifiedState = JSON.parse(JSON.stringify(workflowState))
 
-  const parseResponse = await fetch(`${SIM_AGENT_API_URL}/api/yaml/parse`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      yamlContent: currentYaml,
-      blockRegistry,
-      utilities: {
-        generateLoopBlocks: generateLoopBlocks.toString(),
-        generateParallelBlocks: generateParallelBlocks.toString(),
-        resolveOutputType: resolveOutputType.toString(),
-      },
-    }),
+  // Log initial state
+  const logger = createLogger('EditWorkflowServerTool')
+  logger.debug('Initial blocks before operations:', {
+    blockCount: Object.keys(modifiedState.blocks || {}).length,
+    blockTypes: Object.entries(modifiedState.blocks || {}).map(([id, block]: [string, any]) => ({
+      id,
+      type: block.type,
+      hasType: block.type !== undefined,
+    })),
   })
-  if (!parseResponse.ok) throw new Error(`Sim agent API error: ${parseResponse.statusText}`)
-  const parseResult = await parseResponse.json()
-  if (!parseResult.success || !parseResult.data || parseResult.errors?.length > 0) {
-    throw new Error(`Invalid YAML format: ${parseResult.errors?.join(', ') || 'Unknown error'}`)
-  }
-  const workflowData = parseResult.data
 
   // Reorder operations: delete -> add -> edit to ensure consistent application semantics
   const deletes = operations.filter((op) => op.operation_type === 'delete')
@@ -72,90 +51,265 @@ async function applyOperationsToYaml(
 
   for (const operation of orderedOperations) {
     const { operation_type, block_id, params } = operation
+
     switch (operation_type) {
-      case 'delete':
-        if (workflowData.blocks[block_id]) {
-          const childBlocksToRemove: string[] = []
-          Object.entries(workflowData.blocks).forEach(([childId, child]: [string, any]) => {
-            if (child.parentId === block_id) childBlocksToRemove.push(childId)
-          })
-          delete workflowData.blocks[block_id]
-          childBlocksToRemove.forEach((childId) => delete workflowData.blocks[childId])
-          const allDeleted = [block_id, ...childBlocksToRemove]
-          Object.values(workflowData.blocks).forEach((block: any) => {
-            if (!block.connections) return
-            Object.keys(block.connections).forEach((key) => {
-              const value = block.connections[key]
-              if (typeof value === 'string') {
-                if (allDeleted.includes(value)) delete block.connections[key]
-              } else if (Array.isArray(value)) {
-                block.connections[key] = value.filter((item: any) =>
-                  typeof item === 'string'
-                    ? !allDeleted.includes(item)
-                    : !allDeleted.includes(item?.block)
-                )
-                if (block.connections[key].length === 0) delete block.connections[key]
-              } else if (typeof value === 'object' && value?.block) {
-                if (allDeleted.includes(value.block)) delete block.connections[key]
+      case 'delete': {
+        if (modifiedState.blocks[block_id]) {
+          // Find all child blocks to remove
+          const blocksToRemove = new Set<string>([block_id])
+          const findChildren = (parentId: string) => {
+            Object.entries(modifiedState.blocks).forEach(([childId, child]: [string, any]) => {
+              if (child.data?.parentId === parentId) {
+                blocksToRemove.add(childId)
+                findChildren(childId)
               }
             })
-          })
+          }
+          findChildren(block_id)
+
+          // Remove blocks
+          blocksToRemove.forEach((id) => delete modifiedState.blocks[id])
+
+          // Remove edges connected to deleted blocks
+          modifiedState.edges = modifiedState.edges.filter(
+            (edge: any) => !blocksToRemove.has(edge.source) && !blocksToRemove.has(edge.target)
+          )
         }
         break
-      case 'edit':
-        if (workflowData.blocks[block_id]) {
-          const block = workflowData.blocks[block_id]
+      }
+
+      case 'edit': {
+        if (modifiedState.blocks[block_id]) {
+          const block = modifiedState.blocks[block_id]
+
+          // Ensure block has essential properties
+          if (!block.type) {
+            logger.warn(`Block ${block_id} missing type property, skipping edit`, {
+              blockKeys: Object.keys(block),
+              blockData: JSON.stringify(block),
+            })
+            break
+          }
+
+          // Update inputs (convert to subBlocks format)
           if (params?.inputs) {
-            if (!block.inputs) block.inputs = {}
-            Object.assign(block.inputs, params.inputs)
-          }
-          if (params?.connections) {
-            if (!block.connections) block.connections = {}
-            Object.entries(params.connections).forEach(([key, value]) => {
-              if (value === null) delete block.connections[key]
-              else (block.connections as any)[key] = value
+            if (!block.subBlocks) block.subBlocks = {}
+            Object.entries(params.inputs).forEach(([key, value]) => {
+              if (!block.subBlocks[key]) {
+                block.subBlocks[key] = {
+                  id: key,
+                  type: 'short-input',
+                  value: value,
+                }
+              } else {
+                block.subBlocks[key].value = value
+              }
             })
           }
-          if (params?.type) block.type = params.type
-          if (params?.name) block.name = params.name
-          if (params?.removeEdges && Array.isArray(params.removeEdges)) {
-            params.removeEdges.forEach(({ targetBlockId, sourceHandle = 'default' }) => {
-              const value = block.connections?.[sourceHandle]
-              if (typeof value === 'string') {
-                if (value === targetBlockId) delete (block.connections as any)[sourceHandle]
-              } else if (Array.isArray(value)) {
-                ;(block.connections as any)[sourceHandle] = value.filter((item: any) =>
-                  typeof item === 'string' ? item !== targetBlockId : item?.block !== targetBlockId
-                )
-                if ((block.connections as any)[sourceHandle].length === 0)
-                  delete (block.connections as any)[sourceHandle]
-              } else if (typeof value === 'object' && value?.block) {
-                if (value.block === targetBlockId) delete (block.connections as any)[sourceHandle]
+
+          // Update basic properties
+          if (params?.type !== undefined) block.type = params.type
+          if (params?.name !== undefined) block.name = params.name
+
+          // Handle trigger mode toggle
+          if (typeof params?.triggerMode === 'boolean') {
+            block.triggerMode = params.triggerMode
+
+            if (params.triggerMode === true) {
+              // Remove all incoming edges when enabling trigger mode
+              modifiedState.edges = modifiedState.edges.filter(
+                (edge: any) => edge.target !== block_id
+              )
+            }
+          }
+
+          // Handle connections update (convert to edges)
+          if (params?.connections) {
+            // Remove existing edges from this block
+            modifiedState.edges = modifiedState.edges.filter(
+              (edge: any) => edge.source !== block_id
+            )
+
+            // Add new edges based on connections
+            Object.entries(params.connections).forEach(([connectionType, targets]) => {
+              if (targets === null) return
+
+              // Map semantic connection names to actual React Flow handle IDs
+              // 'success' in YAML/connections maps to 'source' handle in React Flow
+              const mapConnectionTypeToHandle = (type: string): string => {
+                if (type === 'success') return 'source'
+                if (type === 'error') return 'error'
+                // Conditions and other types pass through as-is
+                return type
               }
+
+              const actualSourceHandle = mapConnectionTypeToHandle(connectionType)
+
+              const addEdge = (targetBlock: string, targetHandle?: string) => {
+                modifiedState.edges.push({
+                  id: crypto.randomUUID(),
+                  source: block_id,
+                  sourceHandle: actualSourceHandle,
+                  target: targetBlock,
+                  targetHandle: targetHandle || 'target',
+                  type: 'default',
+                })
+              }
+
+              if (typeof targets === 'string') {
+                addEdge(targets)
+              } else if (Array.isArray(targets)) {
+                targets.forEach((target: any) => {
+                  if (typeof target === 'string') {
+                    addEdge(target)
+                  } else if (target?.block) {
+                    addEdge(target.block, target.handle)
+                  }
+                })
+              } else if (typeof targets === 'object' && (targets as any)?.block) {
+                addEdge((targets as any).block, (targets as any).handle)
+              }
+            })
+          }
+
+          // Handle edge removal
+          if (params?.removeEdges && Array.isArray(params.removeEdges)) {
+            params.removeEdges.forEach(({ targetBlockId, sourceHandle = 'source' }) => {
+              modifiedState.edges = modifiedState.edges.filter(
+                (edge: any) =>
+                  !(
+                    edge.source === block_id &&
+                    edge.target === targetBlockId &&
+                    edge.sourceHandle === sourceHandle
+                  )
+              )
             })
           }
         }
         break
-      case 'add':
+      }
+
+      case 'add': {
         if (params?.type && params?.name) {
-          workflowData.blocks[block_id] = {
+          // Get block configuration
+          const blockConfig = getAllBlocks().find((block) => block.type === params.type)
+
+          // Create new block with proper structure
+          const newBlock: any = {
+            id: block_id,
             type: params.type,
             name: params.name,
-            inputs: params.inputs || {},
-            connections: params.connections || {},
+            position: { x: 0, y: 0 }, // Default position
+            enabled: true,
+            horizontalHandles: true,
+            isWide: false,
+            advancedMode: false,
+            height: 0,
+            triggerMode: false,
+            subBlocks: {},
+            outputs: blockConfig ? resolveOutputType(blockConfig.outputs) : {},
+            data: {},
+          }
+
+          // Add inputs as subBlocks
+          if (params.inputs) {
+            Object.entries(params.inputs).forEach(([key, value]) => {
+              newBlock.subBlocks[key] = {
+                id: key,
+                type: 'short-input',
+                value: value,
+              }
+            })
+          }
+
+          // Set up subBlocks from block configuration
+          if (blockConfig) {
+            blockConfig.subBlocks.forEach((subBlock) => {
+              if (!newBlock.subBlocks[subBlock.id]) {
+                newBlock.subBlocks[subBlock.id] = {
+                  id: subBlock.id,
+                  type: subBlock.type,
+                  value: null,
+                }
+              }
+            })
+          }
+
+          modifiedState.blocks[block_id] = newBlock
+
+          // Add connections as edges
+          if (params.connections) {
+            Object.entries(params.connections).forEach(([sourceHandle, targets]) => {
+              const addEdge = (targetBlock: string, targetHandle?: string) => {
+                modifiedState.edges.push({
+                  id: crypto.randomUUID(),
+                  source: block_id,
+                  sourceHandle: sourceHandle,
+                  target: targetBlock,
+                  targetHandle: targetHandle || 'target',
+                  type: 'default',
+                })
+              }
+
+              if (typeof targets === 'string') {
+                addEdge(targets)
+              } else if (Array.isArray(targets)) {
+                targets.forEach((target: any) => {
+                  if (typeof target === 'string') {
+                    addEdge(target)
+                  } else if (target?.block) {
+                    addEdge(target.block, target.handle)
+                  }
+                })
+              } else if (typeof targets === 'object' && (targets as any)?.block) {
+                addEdge((targets as any).block, (targets as any).handle)
+              }
+            })
           }
         }
         break
+      }
     }
   }
 
-  const { dump: yamlDump } = await import('js-yaml')
-  return yamlDump(workflowData)
+  // Regenerate loops and parallels after modifications
+  modifiedState.loops = generateLoopBlocks(modifiedState.blocks)
+  modifiedState.parallels = generateParallelBlocks(modifiedState.blocks)
+
+  // Validate all blocks have types before returning
+  const blocksWithoutType = Object.entries(modifiedState.blocks)
+    .filter(([_, block]: [string, any]) => !block.type || block.type === undefined)
+    .map(([id, block]: [string, any]) => ({ id, block }))
+
+  if (blocksWithoutType.length > 0) {
+    logger.error('Blocks without type after operations:', {
+      blocksWithoutType: blocksWithoutType.map(({ id, block }) => ({
+        id,
+        type: block.type,
+        name: block.name,
+        keys: Object.keys(block),
+      })),
+    })
+
+    // Attempt to fix by removing type-less blocks
+    blocksWithoutType.forEach(({ id }) => {
+      delete modifiedState.blocks[id]
+    })
+
+    // Remove edges connected to removed blocks
+    const removedIds = new Set(blocksWithoutType.map(({ id }) => id))
+    modifiedState.edges = modifiedState.edges.filter(
+      (edge: any) => !removedIds.has(edge.source) && !removedIds.has(edge.target)
+    )
+  }
+
+  return modifiedState
 }
 
 async function getCurrentWorkflowStateFromDb(
   workflowId: string
 ): Promise<{ workflowState: any; subBlockValues: Record<string, Record<string, any>> }> {
+  const logger = createLogger('EditWorkflowServerTool')
   const [workflowRecord] = await db
     .select()
     .from(workflowTable)
@@ -164,11 +318,34 @@ async function getCurrentWorkflowStateFromDb(
   if (!workflowRecord) throw new Error(`Workflow ${workflowId} not found in database`)
   const normalized = await loadWorkflowFromNormalizedTables(workflowId)
   if (!normalized) throw new Error('Workflow has no normalized data')
+
+  // Validate and fix blocks without types
+  const blocks = { ...normalized.blocks }
+  const invalidBlocks: string[] = []
+
+  Object.entries(blocks).forEach(([id, block]: [string, any]) => {
+    if (!block.type) {
+      logger.warn(`Block ${id} loaded without type from database`, {
+        blockKeys: Object.keys(block),
+        blockName: block.name,
+      })
+      invalidBlocks.push(id)
+    }
+  })
+
+  // Remove invalid blocks
+  invalidBlocks.forEach((id) => delete blocks[id])
+
+  // Remove edges connected to invalid blocks
+  const edges = normalized.edges.filter(
+    (edge: any) => !invalidBlocks.includes(edge.source) && !invalidBlocks.includes(edge.target)
+  )
+
   const workflowState: any = {
-    blocks: normalized.blocks,
-    edges: normalized.edges,
-    loops: normalized.loops,
-    parallels: normalized.parallels,
+    blocks,
+    edges,
+    loops: normalized.loops || {},
+    parallels: normalized.parallels || {},
   }
   const subBlockValues: Record<string, Record<string, any>> = {}
   Object.entries(normalized.blocks).forEach(([blockId, block]) => {
@@ -194,72 +371,52 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, any> = {
       hasCurrentUserWorkflow: !!currentUserWorkflow,
     })
 
-    const blocks = getAllBlocks()
-    const blockRegistry = blocks.reduce(
-      (acc, block) => {
-        const blockType = (block as any).type
-        ;(acc as any)[blockType] = {
-          ...(block as any),
-          id: blockType,
-          subBlocks: (block as any).subBlocks || [],
-          outputs: (block as any).outputs || {},
-        }
-        return acc
-      },
-      {} as Record<string, BlockConfig>
-    )
-
-    // Get current workflow as YAML via sim-agent
-    let currentYaml: string
-    {
-      // Prepare workflowState and subBlockValues
-      let workflowState: any | undefined
-      let subBlockValues: Record<string, Record<string, any>> | undefined
-      if (currentUserWorkflow) {
-        try {
-          workflowState = JSON.parse(currentUserWorkflow)
-          // Extract subBlockValues from provided state
-          subBlockValues = {}
-          Object.entries(workflowState.blocks || {}).forEach(([blockId, block]: [string, any]) => {
-            ;(subBlockValues as any)[blockId] = {}
-            Object.entries(block.subBlocks || {}).forEach(([subId, sub]: [string, any]) => {
-              if (sub?.value !== undefined) (subBlockValues as any)[blockId][subId] = sub.value
-            })
-          })
-        } catch {}
-      } else {
-        const fromDb = await getCurrentWorkflowStateFromDb(workflowId)
-        workflowState = fromDb.workflowState
-        subBlockValues = fromDb.subBlockValues
+    // Get current workflow state
+    let workflowState: any
+    if (currentUserWorkflow) {
+      try {
+        workflowState = JSON.parse(currentUserWorkflow)
+      } catch (error) {
+        logger.error('Failed to parse currentUserWorkflow', error)
+        throw new Error('Invalid currentUserWorkflow format')
       }
-
-      const resp = await fetch(`${SIM_AGENT_API_URL}/api/workflow/to-yaml`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workflowState,
-          subBlockValues,
-          blockRegistry,
-          utilities: {
-            generateLoopBlocks: generateLoopBlocks.toString(),
-            generateParallelBlocks: generateParallelBlocks.toString(),
-            resolveOutputType: resolveOutputType.toString(),
-          },
-        }),
-      })
-      if (!resp.ok) throw new Error(`Sim agent API error: ${resp.statusText}`)
-      const json = await resp.json()
-      if (!json.success || !json.yaml) throw new Error(json.error || 'Failed to generate YAML')
-      currentYaml = json.yaml
+    } else {
+      const fromDb = await getCurrentWorkflowStateFromDb(workflowId)
+      workflowState = fromDb.workflowState
     }
 
-    const modifiedYaml = await applyOperationsToYaml(currentYaml, operations)
+    // Apply operations directly to the workflow state
+    const modifiedWorkflowState = applyOperationsToWorkflowState(workflowState, operations)
 
-    logger.info('edit_workflow generated modified YAML', {
+    // Validate the workflow state
+    const validation = validateWorkflowState(modifiedWorkflowState, { sanitize: true })
+
+    if (!validation.valid) {
+      logger.error('Edited workflow state is invalid', {
+        errors: validation.errors,
+        warnings: validation.warnings,
+      })
+      throw new Error(`Invalid edited workflow: ${validation.errors.join('; ')}`)
+    }
+
+    if (validation.warnings.length > 0) {
+      logger.warn('Edited workflow validation warnings', {
+        warnings: validation.warnings,
+      })
+    }
+
+    logger.info('edit_workflow successfully applied operations', {
       operationCount: operations.length,
-      modifiedYamlLength: modifiedYaml.length,
+      blocksCount: Object.keys(modifiedWorkflowState.blocks).length,
+      edgesCount: modifiedWorkflowState.edges.length,
+      validationErrors: validation.errors.length,
+      validationWarnings: validation.warnings.length,
     })
 
-    return { success: true, yamlContent: modifiedYaml }
+    // Return the modified workflow state for the client to convert to YAML if needed
+    return {
+      success: true,
+      workflowState: validation.sanitizedState || modifiedWorkflowState,
+    }
   },
 }

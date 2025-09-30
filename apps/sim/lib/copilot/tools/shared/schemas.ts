@@ -10,8 +10,16 @@ export type ExecuteResponseSuccess = z.infer<typeof ExecuteResponseSuccessSchema
 // get_blocks_and_tools
 export const GetBlocksAndToolsInput = z.object({})
 export const GetBlocksAndToolsResult = z.object({
-  blocks: z.array(z.object({ id: z.string(), type: z.string(), name: z.string() }).passthrough()),
-  tools: z.array(z.object({ id: z.string(), type: z.string(), name: z.string() }).passthrough()),
+  blocks: z.array(
+    z
+      .object({
+        type: z.string(),
+        name: z.string(),
+        triggerAllowed: z.boolean().optional(),
+        longDescription: z.string().optional(),
+      })
+      .passthrough()
+  ),
 })
 export type GetBlocksAndToolsResultType = z.infer<typeof GetBlocksAndToolsResult>
 
@@ -20,22 +28,9 @@ export const GetBlocksMetadataInput = z.object({ blockIds: z.array(z.string()).m
 export const GetBlocksMetadataResult = z.object({ metadata: z.record(z.any()) })
 export type GetBlocksMetadataResultType = z.infer<typeof GetBlocksMetadataResult>
 
-// build_workflow
-export const BuildWorkflowInput = z.object({
-  yamlContent: z.string(),
-  description: z.string().optional(),
+// get_trigger_blocks
+export const GetTriggerBlocksInput = z.object({})
+export const GetTriggerBlocksResult = z.object({
+  triggerBlockIds: z.array(z.string()),
 })
-export const BuildWorkflowResult = z.object({
-  success: z.boolean(),
-  message: z.string(),
-  yamlContent: z.string(),
-  description: z.string().optional(),
-  workflowState: z.unknown().optional(),
-  data: z
-    .object({
-      blocksCount: z.number(),
-      edgesCount: z.number(),
-    })
-    .optional(),
-})
-export type BuildWorkflowResultType = z.infer<typeof BuildWorkflowResult>
+export type GetTriggerBlocksResultType = z.infer<typeof GetTriggerBlocksResult>

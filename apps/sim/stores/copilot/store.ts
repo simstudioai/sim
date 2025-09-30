@@ -10,6 +10,9 @@ import type {
 import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
 import { GetBlocksAndToolsClientTool } from '@/lib/copilot/tools/client/blocks/get-blocks-and-tools'
 import { GetBlocksMetadataClientTool } from '@/lib/copilot/tools/client/blocks/get-blocks-metadata'
+import { GetTriggerBlocksClientTool } from '@/lib/copilot/tools/client/blocks/get-trigger-blocks'
+import { GetExamplesRagClientTool } from '@/lib/copilot/tools/client/examples/get-examples-rag'
+import { GetTriggerExamplesClientTool } from '@/lib/copilot/tools/client/examples/get-trigger-examples'
 import { ListGDriveFilesClientTool } from '@/lib/copilot/tools/client/gdrive/list-files'
 import { ReadGDriveFileClientTool } from '@/lib/copilot/tools/client/gdrive/read-file'
 import { GDriveRequestAccessClientTool } from '@/lib/copilot/tools/client/google/gdrive-request-access'
@@ -29,7 +32,6 @@ import { createExecutionContext, getTool } from '@/lib/copilot/tools/client/regi
 import { GetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/get-environment-variables'
 import { GetOAuthCredentialsClientTool } from '@/lib/copilot/tools/client/user/get-oauth-credentials'
 import { SetEnvironmentVariablesClientTool } from '@/lib/copilot/tools/client/user/set-environment-variables'
-import { BuildWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/build-workflow'
 import { EditWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/edit-workflow'
 import { GetGlobalWorkflowVariablesClientTool } from '@/lib/copilot/tools/client/workflow/get-global-workflow-variables'
 import { GetUserWorkflowClientTool } from '@/lib/copilot/tools/client/workflow/get-user-workflow'
@@ -66,6 +68,7 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   get_workflow_console: (id) => new GetWorkflowConsoleClientTool(id),
   get_blocks_and_tools: (id) => new GetBlocksAndToolsClientTool(id),
   get_blocks_metadata: (id) => new GetBlocksMetadataClientTool(id),
+  get_trigger_blocks: (id) => new GetTriggerBlocksClientTool(id),
   search_online: (id) => new SearchOnlineClientTool(id),
   search_documentation: (id) => new SearchDocumentationClientTool(id),
   get_environment_variables: (id) => new GetEnvironmentVariablesClientTool(id),
@@ -80,12 +83,13 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   gdrive_request_access: (id) => new GDriveRequestAccessClientTool(id),
   oauth_request_access: (id) => new OAuthRequestAccessClientTool(id),
   edit_workflow: (id) => new EditWorkflowClientTool(id),
-  build_workflow: (id) => new BuildWorkflowClientTool(id),
   get_user_workflow: (id) => new GetUserWorkflowClientTool(id),
   list_user_workflows: (id) => new ListUserWorkflowsClientTool(id),
   get_workflow_from_name: (id) => new GetWorkflowFromNameClientTool(id),
   get_global_workflow_variables: (id) => new GetGlobalWorkflowVariablesClientTool(id),
   set_global_workflow_variables: (id) => new SetGlobalWorkflowVariablesClientTool(id),
+  get_trigger_examples: (id) => new GetTriggerExamplesClientTool(id),
+  get_examples_rag: (id) => new GetExamplesRagClientTool(id),
 }
 
 // Read-only static metadata for class-based tools (no instances)
@@ -94,6 +98,7 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   get_workflow_console: (GetWorkflowConsoleClientTool as any)?.metadata,
   get_blocks_and_tools: (GetBlocksAndToolsClientTool as any)?.metadata,
   get_blocks_metadata: (GetBlocksMetadataClientTool as any)?.metadata,
+  get_trigger_blocks: (GetTriggerBlocksClientTool as any)?.metadata,
   search_online: (SearchOnlineClientTool as any)?.metadata,
   search_documentation: (SearchDocumentationClientTool as any)?.metadata,
   get_environment_variables: (GetEnvironmentVariablesClientTool as any)?.metadata,
@@ -107,12 +112,13 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   mark_todo_in_progress: (MarkTodoInProgressClientTool as any)?.metadata,
   gdrive_request_access: (GDriveRequestAccessClientTool as any)?.metadata,
   edit_workflow: (EditWorkflowClientTool as any)?.metadata,
-  build_workflow: (BuildWorkflowClientTool as any)?.metadata,
   get_user_workflow: (GetUserWorkflowClientTool as any)?.metadata,
   list_user_workflows: (ListUserWorkflowsClientTool as any)?.metadata,
   get_workflow_from_name: (GetWorkflowFromNameClientTool as any)?.metadata,
   get_global_workflow_variables: (GetGlobalWorkflowVariablesClientTool as any)?.metadata,
   set_global_workflow_variables: (SetGlobalWorkflowVariablesClientTool as any)?.metadata,
+  get_trigger_examples: (GetTriggerExamplesClientTool as any)?.metadata,
+  get_examples_rag: (GetExamplesRagClientTool as any)?.metadata,
   oauth_request_access: (OAuthRequestAccessClientTool as any)?.metadata,
 }
 
@@ -1266,8 +1272,9 @@ async function* parseSSEStream(
 // Initial state (subset required for UI/streaming)
 const initialState = {
   mode: 'agent' as const,
-  agentDepth: 1 as 0 | 1 | 2 | 3,
+  selectedModel: 'claude-4.5-sonnet' as CopilotStore['selectedModel'],
   agentPrefetch: true,
+  isCollapsed: false,
   currentChat: null as CopilotChat | null,
   chats: [] as CopilotChat[],
   messages: [] as CopilotMessage[],
@@ -1322,7 +1329,7 @@ export const useCopilotStore = create<CopilotStore>()(
         ...initialState,
         workflowId,
         mode: get().mode,
-        agentDepth: get().agentDepth,
+        selectedModel: get().selectedModel,
         agentPrefetch: get().agentPrefetch,
       })
     },
@@ -1539,16 +1546,9 @@ export const useCopilotStore = create<CopilotStore>()(
       }
 
       const isFirstMessage = get().messages.length === 0 && !currentChat?.title
-      // Capture send-time meta for reliable stats
-      const sendDepth = get().agentDepth
-      const sendMaxEnabled = sendDepth >= 2 && !get().agentPrefetch
       set((state) => ({
         messages: newMessages,
         currentUserMessageId: userMessage.id,
-        messageMetaById: {
-          ...(state.messageMetaById || {}),
-          [userMessage.id]: { depth: sendDepth, maxEnabled: sendMaxEnabled },
-        },
       }))
 
       if (isFirstMessage) {
@@ -1583,7 +1583,7 @@ export const useCopilotStore = create<CopilotStore>()(
           chatId: currentChat?.id,
           workflowId,
           mode: mode === 'ask' ? 'ask' : 'agent',
-          depth: get().agentDepth,
+          model: get().selectedModel,
           prefetch: get().agentPrefetch,
           createNewChat: !currentChat,
           stream,
@@ -1616,6 +1616,11 @@ export const useCopilotStore = create<CopilotStore>()(
           } else if (result.status === 403) {
             errorContent =
               '_Provider config not allowed for non-enterprise users. Please remove the provider config and try again_'
+          } else if (result.status === 426) {
+            errorContent =
+              '_Please upgrade to the latest version of the Sim platform to continue using the copilot._'
+          } else if (result.status === 429) {
+            errorContent = '_Provider rate limit exceeded. Please try again later._'
           }
 
           const errorMessage = createErrorMessage(streamingMessage.id, errorContent)
@@ -1692,7 +1697,7 @@ export const useCopilotStore = create<CopilotStore>()(
 
     // Implicit feedback (send a continuation) - minimal
     sendImplicitFeedback: async (implicitFeedback: string) => {
-      const { workflowId, currentChat, mode, agentDepth } = get()
+      const { workflowId, currentChat, mode, selectedModel } = get()
       if (!workflowId) return
       const abortController = new AbortController()
       set({ isSendingMessage: true, error: null, abortController })
@@ -1704,7 +1709,7 @@ export const useCopilotStore = create<CopilotStore>()(
           chatId: currentChat?.id,
           workflowId,
           mode: mode === 'ask' ? 'ask' : 'agent',
-          depth: agentDepth,
+          model: selectedModel,
           prefetch: get().agentPrefetch,
           createNewChat: !currentChat,
           stream: true,
@@ -1801,7 +1806,7 @@ export const useCopilotStore = create<CopilotStore>()(
             const b = blocks[bi]
             if (b?.type === 'tool_call') {
               const tn = b.toolCall?.name
-              if (tn === 'build_workflow' || tn === 'edit_workflow') {
+              if (tn === 'edit_workflow') {
                 id = b.toolCall?.id
                 break outer
               }
@@ -1810,9 +1815,7 @@ export const useCopilotStore = create<CopilotStore>()(
         }
         // Fallback to map if not found in messages
         if (!id) {
-          const candidates = Object.values(toolCallsById).filter(
-            (t) => t.name === 'build_workflow' || t.name === 'edit_workflow'
-          )
+          const candidates = Object.values(toolCallsById).filter((t) => t.name === 'edit_workflow')
           id = candidates.length ? candidates[candidates.length - 1].id : undefined
         }
       }
@@ -2177,7 +2180,7 @@ export const useCopilotStore = create<CopilotStore>()(
     updateDiffStore: async (_yamlContent: string) => {},
     updateDiffStoreWithWorkflowState: async (_workflowState: any) => {},
 
-    setAgentDepth: (depth) => set({ agentDepth: depth }),
+    setSelectedModel: (model) => set({ selectedModel: model }),
     setAgentPrefetch: (prefetch) => set({ agentPrefetch: prefetch }),
   }))
 )

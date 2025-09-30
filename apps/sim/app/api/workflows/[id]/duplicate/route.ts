@@ -137,14 +137,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           const newBlockId = blockIdMapping.get(block.id)!
 
           // Update parent ID to point to the new parent block ID if it exists
-          let newParentId = block.parentId
-          if (block.parentId && blockIdMapping.has(block.parentId)) {
-            newParentId = blockIdMapping.get(block.parentId)!
+          const blockData =
+            block.data && typeof block.data === 'object' && !Array.isArray(block.data)
+              ? (block.data as any)
+              : {}
+          let newParentId = blockData.parentId
+          if (blockData.parentId && blockIdMapping.has(blockData.parentId)) {
+            newParentId = blockIdMapping.get(blockData.parentId)!
           }
 
           // Update data.parentId and extent if they exist in the data object
           let updatedData = block.data
-          let newExtent = block.extent
+          let newExtent = blockData.extent
           if (block.data && typeof block.data === 'object' && !Array.isArray(block.data)) {
             const dataObj = block.data as any
             if (dataObj.parentId && typeof dataObj.parentId === 'string') {

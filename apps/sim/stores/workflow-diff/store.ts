@@ -2,7 +2,8 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { getClientTool } from '@/lib/copilot/tools/client/manager'
 import { createLogger } from '@/lib/logs/console/logger'
-import { type DiffAnalysis, WorkflowDiffEngine } from '@/lib/workflows/diff'
+import { type DiffAnalysis, type WorkflowDiff, WorkflowDiffEngine } from '@/lib/workflows/diff'
+import { validateWorkflowState } from '@/lib/workflows/validation'
 import { Serializer } from '@/serializer'
 import { useWorkflowRegistry } from '../workflows/registry/store'
 import { useSubBlockStore } from '../workflows/subblock/store'
@@ -118,14 +119,26 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
         _batchedStateUpdate: batchedUpdate,
 
-        setProposedChanges: async (yamlContent: string, diffAnalysis?: DiffAnalysis) => {
+        setProposedChanges: async (
+          proposedContent: string | WorkflowState,
+          diffAnalysis?: DiffAnalysis
+        ) => {
           // PERFORMANCE OPTIMIZATION: Immediate state update to prevent UI flicker
           batchedUpdate({ isDiffReady: false, diffError: null })
 
           // Clear any existing diff state to ensure a fresh start
           diffEngine.clearDiff()
 
-          const result = await diffEngine.createDiffFromYaml(yamlContent, diffAnalysis)
+          let result: { success: boolean; diff?: WorkflowDiff; errors?: string[] }
+
+          // Handle both YAML string and direct WorkflowState object
+          if (typeof proposedContent === 'string') {
+            // Legacy YAML path (for backward compatibility)
+            result = await diffEngine.createDiffFromYaml(proposedContent, diffAnalysis)
+          } else {
+            // Direct WorkflowState path (new, more efficient)
+            result = await diffEngine.createDiffFromWorkflowState(proposedContent, diffAnalysis)
+          }
 
           if (result.success && result.diff) {
             // Validate proposed workflow using serializer round-trip to catch canvas-breaking issues
@@ -293,6 +306,36 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               return
             }
 
+            // Validate the clean state before applying
+            const validation = validateWorkflowState(cleanState, { sanitize: true })
+
+            if (!validation.valid) {
+              logger.error('Cannot accept diff - workflow state is invalid', {
+                errors: validation.errors,
+                warnings: validation.warnings,
+              })
+
+              // Show error to user
+              batchedUpdate({
+                diffError: `Cannot apply changes: ${validation.errors.join('; ')}`,
+                isDiffReady: false,
+              })
+
+              // Clear the diff to prevent further attempts
+              diffEngine.clearDiff()
+
+              throw new Error(`Invalid workflow: ${validation.errors.join('; ')}`)
+            }
+
+            // Use sanitized state if available
+            const stateToApply = validation.sanitizedState || cleanState
+
+            if (validation.warnings.length > 0) {
+              logger.warn('Workflow validation warnings during diff acceptance', {
+                warnings: validation.warnings,
+              })
+            }
+
             // Immediately flag diffAccepted on stats if we can (early upsert with minimal fields)
             try {
               const { useCopilotStore } = await import('@/stores/copilot/store')
@@ -313,19 +356,19 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
             // Update the main workflow store state
             useWorkflowStore.setState({
-              blocks: cleanState.blocks,
-              edges: cleanState.edges,
-              loops: cleanState.loops,
-              parallels: cleanState.parallels,
+              blocks: stateToApply.blocks,
+              edges: stateToApply.edges,
+              loops: stateToApply.loops,
+              parallels: stateToApply.parallels,
             })
 
             // Update the subblock store with the values from the diff workflow blocks
             const subblockValues: Record<string, Record<string, any>> = {}
 
-            Object.entries(cleanState.blocks).forEach(([blockId, block]) => {
+            Object.entries(stateToApply.blocks).forEach(([blockId, block]) => {
               subblockValues[blockId] = {}
               Object.entries(block.subBlocks || {}).forEach(([subblockId, subblock]) => {
-                subblockValues[blockId][subblockId] = (subblock as any).value
+                subblockValues[blockId][subblockId] = subblock.value
               })
             })
 
@@ -390,7 +433,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
                   for (const b of m.contentBlocks as any[]) {
                     if (b?.type === 'tool_call') {
                       const tn = b.toolCall?.name
-                      if (tn === 'build_workflow' || tn === 'edit_workflow') {
+                      if (tn === 'edit_workflow') {
                         toolCallId = b.toolCall?.id
                         break outer
                       }
@@ -400,7 +443,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
                 // Fallback to toolCallsById map if not found in messages
                 if (!toolCallId) {
                   const candidates = Object.values(toolCallsById).filter(
-                    (t: any) => t.name === 'build_workflow' || t.name === 'edit_workflow'
+                    (t: any) => t.name === 'edit_workflow'
                   ) as any[]
                   toolCallId = candidates.length ? candidates[candidates.length - 1].id : undefined
                 }
@@ -456,7 +499,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               for (const b of m.contentBlocks as any[]) {
                 if (b?.type === 'tool_call') {
                   const tn = b.toolCall?.name
-                  if (tn === 'build_workflow' || tn === 'edit_workflow') {
+                  if (tn === 'edit_workflow') {
                     toolCallId = b.toolCall?.id
                     break outer
                   }
@@ -466,7 +509,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             // Fallback to toolCallsById map if not found in messages
             if (!toolCallId) {
               const candidates = Object.values(toolCallsById).filter(
-                (t: any) => t.name === 'build_workflow' || t.name === 'edit_workflow'
+                (t: any) => t.name === 'edit_workflow'
               ) as any[]
               toolCallId = candidates.length ? candidates[candidates.length - 1].id : undefined
             }

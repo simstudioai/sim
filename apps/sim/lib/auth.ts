@@ -1,3 +1,4 @@
+import { sso } from '@better-auth/sso'
 import { stripe } from '@better-auth/stripe'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
@@ -22,6 +23,7 @@ import {
   renderPasswordResetEmail,
 } from '@/components/emails/render-email'
 import { getBaseURL } from '@/lib/auth-client'
+import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
 import { handleNewUser } from '@/lib/billing/core/usage'
 import { syncSubscriptionUsageLimits } from '@/lib/billing/organization'
@@ -32,12 +34,17 @@ import {
   handleInvoicePaymentFailed,
   handleInvoicePaymentSucceeded,
 } from '@/lib/billing/webhooks/invoices'
+import {
+  handleSubscriptionCreated,
+  handleSubscriptionDeleted,
+} from '@/lib/billing/webhooks/subscription'
 import { sendEmail } from '@/lib/email/mailer'
 import { getFromEmailAddress } from '@/lib/email/utils'
 import { quickValidateEmail } from '@/lib/email/validation'
 import { env, isTruthy } from '@/lib/env'
 import { isBillingEnabled, isEmailVerificationEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
+import { SSO_TRUSTED_PROVIDERS } from './sso/consts'
 
 const logger = createLogger('Auth')
 
@@ -135,6 +142,7 @@ export const auth = betterAuth({
       enabled: true,
       allowDifferentEmails: true,
       trustedProviders: [
+        // Standard OAuth providers
         'google',
         'github',
         'email-password',
@@ -145,6 +153,9 @@ export const auth = betterAuth({
         'microsoft',
         'slack',
         'reddit',
+
+        // Common SSO provider patterns
+        ...SSO_TRUSTED_PROVIDERS,
       ],
     },
   },
@@ -462,6 +473,22 @@ export const auth = betterAuth({
           ],
           prompt: 'consent',
           redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/google-forms`,
+        },
+
+        {
+          providerId: 'google-vault',
+          clientId: env.GOOGLE_CLIENT_ID as string,
+          clientSecret: env.GOOGLE_CLIENT_SECRET as string,
+          discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+          accessType: 'offline',
+          scopes: [
+            'https://www.googleapis.com/auth/userinfo.email',
+            'https://www.googleapis.com/auth/userinfo.profile',
+            'https://www.googleapis.com/auth/ediscovery',
+            'https://www.googleapis.com/auth/devstorage.read_only',
+          ],
+          prompt: 'consent',
+          redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/google-vault`,
         },
 
         {
@@ -1158,6 +1185,8 @@ export const auth = betterAuth({
         },
       ],
     }),
+    // Include SSO plugin when enabled
+    ...(env.SSO_ENABLED ? [sso()] : []),
     // Only include the Stripe plugin when billing is enabled
     ...(isBillingEnabled && stripeClient
       ? [
@@ -1217,25 +1246,11 @@ export const auth = betterAuth({
                   status: subscription.status,
                 })
 
-                try {
-                  await syncSubscriptionUsageLimits(subscription)
-                } catch (error) {
-                  logger.error('[onSubscriptionComplete] Failed to sync usage limits', {
-                    subscriptionId: subscription.id,
-                    referenceId: subscription.referenceId,
-                    error,
-                  })
-                }
+                await handleSubscriptionCreated(subscription)
 
-                try {
-                  const { sendPlanWelcomeEmail } = await import('@/lib/billing')
-                  await sendPlanWelcomeEmail(subscription)
-                } catch (error) {
-                  logger.error('[onSubscriptionComplete] Failed to send plan welcome email', {
-                    error,
-                    subscriptionId: subscription.id,
-                  })
-                }
+                await syncSubscriptionUsageLimits(subscription)
+
+                await sendPlanWelcomeEmail(subscription)
               },
               onSubscriptionUpdate: async ({
                 subscription,
@@ -1272,6 +1287,9 @@ export const auth = betterAuth({
                 })
 
                 try {
+                  await handleSubscriptionDeleted(subscription)
+
+                  // Reset usage limits to free tier
                   await syncSubscriptionUsageLimits(subscription)
 
                   logger.info('[onSubscriptionDeleted] Reset usage limits to free tier', {
@@ -1279,7 +1297,7 @@ export const auth = betterAuth({
                     referenceId: subscription.referenceId,
                   })
                 } catch (error) {
-                  logger.error('[onSubscriptionDeleted] Failed to reset usage limits', {
+                  logger.error('[onSubscriptionDeleted] Failed to handle subscription deletion', {
                     subscriptionId: subscription.id,
                     referenceId: subscription.referenceId,
                     error,
@@ -1311,6 +1329,7 @@ export const auth = betterAuth({
                     await handleManualEnterpriseSubscription(event)
                     break
                   }
+                  // Note: customer.subscription.deleted is handled by better-auth's onSubscriptionDeleted callback above
                   default:
                     logger.info('[onEvent] Ignoring unsupported webhook event', {
                       eventId: event.id,

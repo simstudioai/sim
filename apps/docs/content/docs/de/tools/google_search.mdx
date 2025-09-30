@@ -1,0 +1,86 @@
+---
+title: Google Suche
+description: Das Web durchsuchen
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_search"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"  xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'  >
+      <path
+        fill='#fbc02d'
+        d='M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12	s5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24s8.955,20,20,20	s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z'
+      />
+      <path
+        fill='#e53935'
+        d='M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039	l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z'
+      />
+      <path
+        fill='#4caf50'
+        d='M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36	c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z'
+      />
+      <path
+        fill='#1565c0'
+        d='M43.611,20.083L43.595,20L42,20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571	c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Search](https://www.google.com) ist die weltweit am häufigsten genutzte Suchmaschine, die Zugang zu Milliarden von Webseiten und Informationsquellen bietet. Google Search verwendet ausgeklügelte Algorithmen, um relevante Suchergebnisse basierend auf Nutzeranfragen zu liefern, was es zu einem unverzichtbaren Werkzeug für die Informationssuche im Internet macht.
+
+Erfahren Sie, wie Sie das Google Search-Tool in Sim integrieren können, um mühelos Echtzeit-Suchergebnisse in Ihren Workflows abzurufen. Dieses Tutorial führt Sie durch die Verbindung mit Google Search, die Konfiguration von Suchanfragen und die Nutzung von Live-Daten zur Verbesserung der Automatisierung. Perfekt, um Ihre Agenten mit aktuellen Informationen und intelligenterer Entscheidungsfindung auszustatten.
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/1B7hV9b5UMQ"
+  title="Verwenden Sie das Google Search-Tool in Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Mit Google Search können Sie:
+
+- **Relevante Informationen finden**: Zugriff auf Milliarden von Webseiten mit Googles leistungsstarken Suchalgorithmen
+- **Spezifische Ergebnisse erhalten**: Verwenden Sie Suchoperatoren, um Ihre Anfragen zu verfeinern und gezielt auszurichten
+- **Vielfältige Inhalte entdecken**: Finden Sie Texte, Bilder, Videos, Nachrichten und andere Inhaltstypen
+- **Auf Wissensgraphen zugreifen**: Erhalten Sie strukturierte Informationen über Personen, Orte und Dinge
+- **Suchfunktionen nutzen**: Nutzen Sie spezialisierte Suchwerkzeuge wie Taschenrechner, Einheitenumrechner und mehr
+
+In Sim ermöglicht die Google Search-Integration Ihren Agenten, das Web programmatisch zu durchsuchen und Suchergebnisse in ihre Workflows einzubinden. Dies ermöglicht leistungsstarke Automatisierungsszenarien wie Recherche, Faktenprüfung, Datensammlung und Informationssynthese. Ihre Agenten können Suchanfragen formulieren, relevante Ergebnisse abrufen und Informationen aus diesen Ergebnissen extrahieren, um Entscheidungen zu treffen oder Erkenntnisse zu gewinnen. Diese Integration überbrückt die Lücke zwischen Ihren KI-Workflows und den umfangreichen Informationen, die im Web verfügbar sind, und ermöglicht Ihren Agenten den Zugriff auf aktuelle Informationen aus dem gesamten Internet. Durch die Verbindung von Sim mit Google Search können Sie Agenten erstellen, die mit den neuesten Informationen auf dem Laufenden bleiben, Fakten überprüfen, Recherchen durchführen und Benutzern relevante Webinhalte bereitstellen - alles ohne Ihren Workflow zu verlassen.
+{/* MANUAL-CONTENT-END */}
+
+## Gebrauchsanweisung
+
+Integriert Google-Suche in den Workflow. Kann im Web suchen. Erfordert API-Schlüssel.
+
+## Tools
+
+### `google_search`
+
+Durchsuchen des Webs mit der Custom Search API
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Ja | Die auszuführende Suchanfrage |
+| `searchEngineId` | string | Ja | Custom Search Engine ID |
+| `num` | string | Nein | Anzahl der zurückzugebenden Ergebnisse \(Standard: 10, max: 10\) |
+| `apiKey` | string | Ja | Google API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `items` | array | Array von Suchergebnissen von Google |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `google_search`

@@ -1,0 +1,73 @@
+---
+title: Resend
+description: Envoyez des e-mails avec Resend.
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="resend"
+  color="#181C1E"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+    
+    
+    
+    viewBox='0 0 1800 1800'
+    fill='none'
+    xmlns='http://www.w3.org/2000/svg'
+  >
+    <path
+      d='M1000.46 450C1174.77 450 1278.43 553.669 1278.43 691.282C1278.43 828.896 1174.77 932.563 1000.46 932.563H912.382L1350 1350H1040.82L707.794 1033.48C683.944 1011.47 672.936 985.781 672.935 963.765C672.935 932.572 694.959 905.049 737.161 893.122L908.712 847.244C973.85 829.812 1018.81 779.353 1018.81 713.298C1018.8 632.567 952.745 585.78 871.095 585.78H450V450H1000.46Z'
+      fill='#FDFDFD'
+    />
+  </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Resend](https://resend.com/) est un service d'e-mail moderne conçu pour permettre aux développeurs d'envoyer facilement des e-mails transactionnels et marketing. Il fournit une API simple et fiable ainsi qu'un tableau de bord pour gérer la livraison des e-mails, les modèles et les analyses, ce qui en fait un choix populaire pour intégrer des fonctionnalités d'e-mail dans les applications et les flux de travail.
+
+Avec Resend, vous pouvez :
+
+- **Envoyer des e-mails transactionnels** : livrer des réinitialisations de mot de passe, des notifications, des confirmations et plus encore avec une haute délivrabilité
+- **Gérer des modèles** : créer et mettre à jour des modèles d'e-mail pour une image de marque et des messages cohérents
+- **Suivre les analyses** : surveiller les taux de livraison, d'ouverture et de clic pour optimiser les performances de vos e-mails
+- **Intégrer facilement** : utiliser une API simple et des SDK pour une intégration transparente avec vos applications
+- **Assurer la sécurité** : bénéficier d'une authentification robuste et d'une vérification de domaine pour protéger votre réputation en matière d'e-mail
+
+Dans Sim, l'intégration de Resend permet à vos agents d'envoyer des e-mails de manière programmatique dans le cadre de vos flux de travail automatisés. Cela permet des cas d'utilisation tels que l'envoi de notifications, d'alertes ou de messages personnalisés directement depuis vos agents alimentés par Sim. En connectant Sim à Resend, vous pouvez automatiser les tâches de communication, garantissant une livraison d'e-mails rapide et fiable sans intervention manuelle. L'intégration utilise votre clé API Resend, gardant vos identifiants sécurisés tout en permettant de puissants scénarios d'automatisation d'e-mails.
+{/* MANUAL-CONTENT-END */}
+
+## Instructions d'utilisation
+
+Intégrez Resend dans le flux de travail. Peut envoyer des emails. Nécessite une clé API.
+
+## Outils
+
+### `resend_send`
+
+Envoyer un email en utilisant votre propre clé API Resend et adresse d'expéditeur
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `fromAddress` | chaîne | Oui | Adresse email d'expédition |
+| `to` | chaîne | Oui | Adresse email du destinataire |
+| `subject` | chaîne | Oui | Objet de l'email |
+| `body` | chaîne | Oui | Contenu du corps de l'email |
+| `resendApiKey` | chaîne | Oui | Clé API Resend pour l'envoi d'emails |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | booléen | Indique si l'email a été envoyé avec succès |
+| `to` | chaîne | Adresse email du destinataire |
+| `subject` | chaîne | Objet de l'email |
+| `body` | chaîne | Contenu du corps de l'email |
+
+## Notes
+
+- Catégorie : `tools`
+- Type : `resend`

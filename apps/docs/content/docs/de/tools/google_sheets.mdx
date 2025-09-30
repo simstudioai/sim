@@ -1,0 +1,197 @@
+---
+title: Google Sheets
+description: Daten lesen, schreiben und aktualisieren
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_sheets"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns='http://www.w3.org/2000/svg'
+      viewBox='0 0 48 48'
+      
+      
+    >
+      <path
+        fill='#43a047'
+        d='M37,45H11c-1.657,0-3-1.343-3-3V6c0-1.657,1.343-3,3-3h19l10,10v29C40,43.657,38.657,45,37,45z'
+      />
+      <path fill='#c8e6c9' d='M40 13L30 13 30 3z' />
+      <path fill='#2e7d32' d='M30 13L40 23 40 13z' />
+      <path
+        fill='#e8f5e9'
+        d='M31,23H17h-2v2v2v2v2v2v2v2h18v-2v-2v-2v-2v-2v-2v-2H31z M17,25h4v2h-4V25z M17,29h4v2h-4V29z M17,33h4v2h-4V33z M31,35h-8v-2h8V35z M31,31h-8v-2h8V31z M31,27h-8v-2h8V27z'
+      />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Sheets](https://sheets.google.com) ist eine leistungsstarke cloudbasierte Tabellenkalkulationsanwendung, mit der Benutzer Tabellenkalkulationen in Echtzeit erstellen, bearbeiten und gemeinsam daran arbeiten können. Als Teil der Google-Produktivitätssuite bietet Google Sheets eine vielseitige Plattform für Datenorganisation, -analyse und -visualisierung mit robusten Formatierungs-, Formel- und Freigabefunktionen.
+
+Erfahren Sie, wie Sie das Google Sheets "Lesen"-Tool in Sim integrieren, um mühelos Daten aus Ihren Tabellenkalkulationen abzurufen und in Ihre Workflows zu integrieren. Dieses Tutorial führt Sie durch die Verbindung mit Google Sheets, die Einrichtung von Datenabfragen und die Verwendung dieser Informationen zur Automatisierung von Prozessen in Echtzeit. Perfekt für die Synchronisierung von Live-Daten mit Ihren Agenten.
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/xxP7MZRuq_0"
+  title="Verwenden des Google Sheets Lese-Tools in Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Entdecken Sie, wie Sie das Google Sheets "Schreiben"-Tool in Sim verwenden können, um automatisch Daten aus Ihren Workflows an Ihre Google Sheets zu senden. Dieses Tutorial behandelt die Einrichtung der Integration, die Konfiguration von Schreibvorgängen und die nahtlose Aktualisierung Ihrer Tabellen während der Ausführung von Workflows. Perfekt für die Führung von Echtzeit-Aufzeichnungen ohne manuelle Eingabe.
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/cO86qTj7qeY"
+  title="Verwenden des Google Sheets Schreib-Tools in Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Erfahren Sie, wie Sie das Google Sheets "Aktualisieren"-Tool in Sim nutzen können, um bestehende Einträge in Ihren Tabellenkalkulationen basierend auf der Workflow-Ausführung zu ändern. Dieses Tutorial zeigt die Einrichtung der Aktualisierungslogik, das Mapping von Datenfeldern und die sofortige Synchronisierung von Änderungen. Perfekt, um Ihre Daten aktuell und konsistent zu halten.
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/95by2fL9yn4"
+  title="Verwenden Sie das Google Sheets Update-Tool in Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Erfahren Sie, wie Sie das Google Sheets "Append"-Tool in Sim verwenden können, um mühelos neue Datenzeilen während der Workflow-Ausführung zu Ihren Tabellen hinzuzufügen. Dieses Tutorial führt Sie durch die Einrichtung der Integration, die Konfiguration von Append-Aktionen und die Sicherstellung eines reibungslosen Datenwachstums. Perfekt für die Erweiterung von Datensätzen ohne manuellen Aufwand!
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/8DgNvLBCsAo"
+  title="Verwenden Sie das Google Sheets Append-Tool in Sim"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
+
+Mit Google Sheets können Sie:
+
+- **Tabellen erstellen und bearbeiten**: Entwickeln Sie datengesteuerte Dokumente mit umfassenden Formatierungs- und Berechnungsoptionen
+- **In Echtzeit zusammenarbeiten**: Arbeiten Sie gleichzeitig mit mehreren Benutzern an derselben Tabelle
+- **Daten analysieren**: Verwenden Sie Formeln, Funktionen und Pivot-Tabellen, um Ihre Daten zu verarbeiten und zu verstehen
+- **Informationen visualisieren**: Erstellen Sie Diagramme, Grafiken und bedingte Formatierungen, um Daten visuell darzustellen
+- **Überall zugreifen**: Nutzen Sie Google Sheets geräteübergreifend mit automatischer Cloud-Synchronisierung
+- **Offline arbeiten**: Arbeiten Sie ohne Internetverbindung weiter, wobei Änderungen synchronisiert werden, sobald Sie wieder online sind
+- **Mit anderen Diensten integrieren**: Verbinden Sie mit Google Drive, Forms und Drittanbieteranwendungen
+
+In Sim ermöglicht die Google Sheets-Integration Ihren Agenten, direkt programmatisch mit Tabellendaten zu interagieren. Dies ermöglicht leistungsstarke Automatisierungsszenarien wie Datenextraktion, -analyse, -berichterstattung und -verwaltung. Ihre Agenten können bestehende Tabellen lesen, um Informationen zu extrahieren, in Tabellen schreiben, um Daten zu aktualisieren, und neue Tabellen von Grund auf erstellen. Diese Integration überbrückt die Lücke zwischen Ihren KI-Workflows und der Datenverwaltung und ermöglicht eine nahtlose Interaktion mit strukturierten Daten. Durch die Verbindung von Sim mit Google Sheets können Sie Daten-Workflows automatisieren, Berichte generieren, Erkenntnisse aus Daten gewinnen und aktuelle Informationen pflegen - alles durch Ihre intelligenten Agenten. Die Integration unterstützt verschiedene Datenformate und Bereichsspezifikationen, was sie flexibel genug macht, um unterschiedliche Datenverwaltungsanforderungen zu erfüllen, während die kollaborative und zugängliche Natur von Google Sheets erhalten bleibt.
+{/* MANUAL-CONTENT-END */}
+
+## Nutzungsanweisungen
+
+Integriert Google Sheets in den Workflow. Kann Daten lesen, schreiben, anhängen und aktualisieren. Erfordert OAuth.
+
+## Tools
+
+### `google_sheets_read`
+
+Daten aus einer Google Sheets-Tabelle lesen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Ja | Die ID der Tabelle, aus der gelesen werden soll |
+| `range` | string | Nein | Der Zellbereich, aus dem gelesen werden soll |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `data` | json | Tabellendaten einschließlich Bereich und Zellwerte |
+| `metadata` | json | Tabellenmetadaten einschließlich ID und URL |
+
+### `google_sheets_write`
+
+Daten in eine Google Sheets-Tabelle schreiben
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Ja | Die ID der Tabelle, in die geschrieben werden soll |
+| `range` | string | Nein | Der Zellbereich, in den geschrieben werden soll |
+| `values` | array | Ja | Die Daten, die in die Tabelle geschrieben werden sollen |
+| `valueInputOption` | string | Nein | Das Format der zu schreibenden Daten |
+| `includeValuesInResponse` | boolean | Nein | Ob die geschriebenen Werte in der Antwort enthalten sein sollen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `updatedRange` | string | Bereich der aktualisierten Zellen |
+| `updatedRows` | number | Anzahl der aktualisierten Zeilen |
+| `updatedColumns` | number | Anzahl der aktualisierten Spalten |
+| `updatedCells` | number | Anzahl der aktualisierten Zellen |
+| `metadata` | json | Tabellenmetadaten einschließlich ID und URL |
+
+### `google_sheets_update`
+
+Daten in einer Google Sheets-Tabelle aktualisieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Ja | Die ID der zu aktualisierenden Tabelle |
+| `range` | string | Nein | Der Bereich der zu aktualisierenden Zellen |
+| `values` | array | Ja | Die Daten, die in der Tabelle aktualisiert werden sollen |
+| `valueInputOption` | string | Nein | Das Format der zu aktualisierenden Daten |
+| `includeValuesInResponse` | boolean | Nein | Ob die aktualisierten Werte in der Antwort enthalten sein sollen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `updatedRange` | string | Bereich der aktualisierten Zellen |
+| `updatedRows` | number | Anzahl der aktualisierten Zeilen |
+| `updatedColumns` | number | Anzahl der aktualisierten Spalten |
+| `updatedCells` | number | Anzahl der aktualisierten Zellen |
+| `metadata` | json | Tabellen-Metadaten einschließlich ID und URL |
+
+### `google_sheets_append`
+
+Daten am Ende einer Google Sheets-Tabelle anhängen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `spreadsheetId` | string | Ja | Die ID der Tabelle, an die angehängt werden soll |
+| `range` | string | Nein | Der Bereich der Zellen, nach dem angehängt werden soll |
+| `values` | array | Ja | Die Daten, die an die Tabelle angehängt werden sollen |
+| `valueInputOption` | string | Nein | Das Format der anzuhängenden Daten |
+| `insertDataOption` | string | Nein | Wie die Daten eingefügt werden sollen \(OVERWRITE oder INSERT_ROWS\) |
+| `includeValuesInResponse` | boolean | Nein | Ob die angehängten Werte in der Antwort enthalten sein sollen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `tableRange` | string | Bereich der Tabelle, in dem Daten angehängt wurden |
+| `updatedRange` | string | Bereich der Zellen, die aktualisiert wurden |
+| `updatedRows` | number | Anzahl der aktualisierten Zeilen |
+| `updatedColumns` | number | Anzahl der aktualisierten Spalten |
+| `updatedCells` | number | Anzahl der aktualisierten Zellen |
+| `metadata` | json | Tabellenkalkulationsmetadaten einschließlich ID und URL |
+
+## Hinweise
+
+- Kategorie: `tools`
+- Typ: `google_sheets`

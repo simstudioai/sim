@@ -1,0 +1,52 @@
+---
+title: 触发器
+description: 启动 Sim 工作流的核心方式
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+
+## 核心触发器
+
+为每个工作流选择一个触发器以定义其启动方式：
+
+<Cards>
+  <Card title="API" href="/triggers/api">
+    将 JSON 数据映射到工作流输入的 HTTP 端点
+  </Card>
+  <Card title="Chat" href="/triggers/chat">
+    部署的聊天界面，支持流式响应
+  </Card>
+  <Card title="Input Form" href="/triggers/input-form">
+    在编辑器运行和子工作流中使用的手动输入
+  </Card>
+  <Card title="Manual" href="/triggers/manual">
+    无需额外数据的按需运行
+  </Card>
+  <Card title="Schedule" href="/triggers/schedule">
+    基于 Cron 或间隔的执行
+  </Card>
+  <Card title="Webhook" href="/triggers/webhook">
+    接收外部 Webhook 负载
+  </Card>
+</Cards>
+
+## 快速对比
+
+| 触发器 | 启动条件 |
+|---------|-----------------|
+| **API** | 经过身份验证的 HTTP POST |
+| **Chat** | 聊天部署消息 |
+| **Input Form** | 在编辑器或父工作流中手动提交 |
+| **Manual** | 编辑器中的运行按钮 |
+| **Schedule** | 在计划模式中管理的计时器 |
+| **Webhook** | 入站 HTTP 请求 |
+
+## 使用触发器
+
+1. 将触发器模块放入启动槽中。
+2. 配置任何所需的模式或认证。
+3. 将模块连接到工作流的其余部分。
+
+> 部署为每个触发器提供支持。更新工作流，重新部署，所有触发器入口点将获取新的快照。了解更多信息，请参阅[执行 → 部署快照](/execution)。
+
+旧版启动模块仍适用于现有流程，但不再出现在新构建中。

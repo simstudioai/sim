@@ -1,0 +1,153 @@
+---
+title: Ausführung
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
+
+Die Ausführungs-Engine von Sim bringt Ihre Workflows zum Leben, indem sie Blöcke in der richtigen Reihenfolge verarbeitet, den Datenfluss verwaltet und Fehler elegant behandelt, sodass Sie genau verstehen können, wie Workflows in Sim ausgeführt werden.
+
+<Callout type="info">
+  Jede Workflow-Ausführung folgt einem deterministischen Pfad, der auf Ihren Blockverbindungen und Ihrer Logik basiert, um vorhersehbare und zuverlässige Ergebnisse zu gewährleisten.
+</Callout>
+
+## Dokumentationsübersicht
+
+<Cards>
+  <Card title="Grundlagen der Ausführung" href="/execution/basics">
+    Erfahren Sie mehr über den grundlegenden Ausführungsablauf, Blocktypen und wie Daten durch Ihren
+    Workflow fließen
+  </Card>
+
+  <Card title="Protokollierung" href="/execution/logging">
+    Überwachen Sie Workflow-Ausführungen mit umfassender Protokollierung und Echtzeit-Sichtbarkeit
+  </Card>
+  
+  <Card title="Kostenberechnung" href="/execution/costs">
+    Verstehen Sie, wie die Kosten für Workflow-Ausführungen berechnet und optimiert werden
+  </Card>
+  
+  <Card title="Externe API" href="/execution/api">
+    Greifen Sie programmgesteuert über REST-API auf Ausführungsprotokolle zu und richten Sie Webhooks ein
+  </Card>
+</Cards>
+
+## Schlüsselkonzepte
+
+### Topologische Ausführung
+Blöcke werden in Abhängigkeitsreihenfolge ausgeführt, ähnlich wie eine Tabellenkalkulation Zellen neu berechnet. Die Ausführungs-Engine bestimmt automatisch, welche Blöcke basierend auf abgeschlossenen Abhängigkeiten ausgeführt werden können.
+
+### Pfadverfolgung
+Die Engine verfolgt aktiv Ausführungspfade durch Ihren Workflow. Router- und Bedingungsblöcke aktualisieren diese Pfade dynamisch und stellen sicher, dass nur relevante Blöcke ausgeführt werden.
+
+### Schichtbasierte Verarbeitung
+Anstatt Blöcke einzeln auszuführen, identifiziert die Engine Schichten von Blöcken, die parallel ausgeführt werden können, und optimiert so die Leistung für komplexe Workflows.
+
+### Ausführungskontext
+Jeder Workflow behält während der Ausführung einen umfangreichen Kontext bei, der Folgendes enthält:
+- Block-Ausgaben und -Zustände
+- Aktive Ausführungspfade
+- Verfolgung von Schleifen- und Paralleliterationen
+- Umgebungsvariablen
+- Routing-Entscheidungen
+
+## Ausführungsauslöser
+
+Workflows können über mehrere Kanäle ausgeführt werden:
+
+- **Manuell**: Testen und debuggen direkt im Editor
+- **Als API bereitstellen**: Einen HTTP-Endpunkt erstellen, der mit API-Schlüsseln gesichert ist
+- **Als Chat bereitstellen**: Eine Konversationsschnittstelle auf einer benutzerdefinierten Subdomain erstellen
+- **Webhooks**: Auf externe Ereignisse von Drittanbieterdiensten reagieren
+- **Geplant**: Nach einem wiederkehrenden Zeitplan mit Cron-Ausdrücken ausführen
+
+### Als API bereitstellen
+
+Wenn Sie einen Workflow als API bereitstellen, macht Sim Folgendes:
+- Erstellt einen eindeutigen HTTP-Endpunkt: `https://sim.ai/api/workflows/{workflowId}/execute`
+- Generiert einen API-Schlüssel zur Authentifizierung
+- Akzeptiert POST-Anfragen mit JSON-Payloads
+- Gibt Workflow-Ausführungsergebnisse als JSON zurück
+
+Beispiel für einen API-Aufruf:
+
+```bash
+curl -X POST https://sim.ai/api/workflows/your-workflow-id/execute \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"input": "your data here"}'
+```
+
+### Als Chat bereitstellen
+
+Die Chat-Bereitstellung erstellt eine Konversationsschnittstelle für Ihren Workflow:
+- Gehostet auf einer benutzerdefinierten Subdomain: `https://your-name.sim.ai`
+- Optionale Authentifizierung (öffentlich, passwortgeschützt oder E-Mail-basiert)
+- Anpassbare Benutzeroberfläche mit Ihrem Branding
+- Streaming-Antworten für Echtzeit-Interaktion
+- Perfekt für KI-Assistenten, Support-Bots oder interaktive Tools
+
+Jede Bereitstellungsmethode übergibt Daten an den Starter-Block Ihres Workflows und beginnt so den Ausführungsfluss.
+
+## Deployment-Snapshots
+
+Alle öffentlichen Einstiegspunkte—API, Chat, Zeitplan, Webhook und manuelle Ausführungen—führen den aktiven Deployment-Snapshot des Workflows aus. Veröffentliche ein neues Deployment, wann immer du die Arbeitsfläche änderst, damit jeder Trigger die aktualisierte Version verwendet.
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/execution/deployment-versions-light.png'
+    alt='Tabelle mit Deployment-Versionen'
+    width={500}
+    height={280}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+Das Deploy-Modal behält eine vollständige Versionshistorie bei—inspiziere jeden Snapshot, vergleiche ihn mit deinem Entwurf und führe Upgrades oder Rollbacks mit einem Klick durch, wenn du eine frühere Version wiederherstellen musst.
+
+## Programmatische Ausführung
+
+Führe Workflows aus deinen Anwendungen mit unseren offiziellen SDKs aus:
+
+```bash
+# TypeScript/JavaScript
+npm install simstudio-ts-sdk
+
+# Python
+pip install simstudio-sdk
+```
+
+```typescript
+// TypeScript Example
+import { SimStudioClient } from 'simstudio-ts-sdk';
+
+const client = new SimStudioClient({ 
+  apiKey: 'your-api-key' 
+});
+
+const result = await client.executeWorkflow('workflow-id', {
+  input: { message: 'Hello' }
+});
+```
+
+## Best Practices
+
+### Design für Zuverlässigkeit
+- Behandle Fehler elegant mit geeigneten Fallback-Pfaden
+- Verwende Umgebungsvariablen für sensible Daten
+- Füge Logging zu Funktionsblöcken für Debugging hinzu
+
+### Leistung optimieren
+- Minimiere externe API-Aufrufe wo möglich
+- Nutze parallele Ausführung für unabhängige Operationen
+- Cache Ergebnisse mit Memory-Blöcken, wenn angemessen
+
+### Ausführungen überwachen
+- Überprüfe Logs regelmäßig, um Leistungsmuster zu verstehen
+- Verfolge Kosten für KI-Modellnutzung
+- Verwende Workflow-Snapshots zur Fehlerbehebung
+
+## Was kommt als nächstes?
+
+Beginne mit [Ausführungsgrundlagen](/execution/basics), um zu verstehen, wie Workflows laufen, und erkunde dann [Logging](/execution/logging), um deine Ausführungen zu überwachen, sowie [Kostenberechnung](/execution/costs), um deine Ausgaben zu optimieren.

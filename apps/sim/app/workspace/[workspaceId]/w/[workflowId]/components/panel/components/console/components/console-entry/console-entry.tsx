@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { format } from 'date-fns'
 import {
   AlertCircle,
+  AlertTriangle,
   Check,
   ChevronDown,
   ChevronUp,
@@ -369,8 +370,10 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
     }
   }, [showCopySuccess])
 
-  const BlockIcon = blockConfig?.icon
-  const blockColor = blockConfig?.bgColor || '#6B7280'
+  // Special handling for serialization errors
+  const BlockIcon = entry.blockType === 'serializer' ? AlertTriangle : blockConfig?.icon
+  const blockColor =
+    entry.blockType === 'serializer' ? '#EF4444' : blockConfig?.bgColor || '#6B7280'
 
   // Handle image load error callback
   const handleImageLoadError = (hasError: boolean) => {

@@ -9,7 +9,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
 import { calculateCost } from '@/providers/utils'
 
-const logger = createLogger('billing-update-cost')
+const logger = createLogger('BillingUpdateCostAPI')
 
 const UpdateCostSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),

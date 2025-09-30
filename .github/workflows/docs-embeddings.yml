@@ -1,16 +1,13 @@
 name: Process Docs Embeddings
 
 on:
-  push:
-    branches: [main, staging]
-    paths:
-      - 'apps/docs/**'
+  workflow_call:
   workflow_dispatch: # Allow manual triggering
 
 jobs:
   process-docs-embeddings:
     name: Process Documentation Embeddings
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging'
 
     steps:

@@ -8,6 +8,22 @@ global.fetch = vi.fn(() =>
   })
 ) as any
 
+// Mock drizzle-orm sql template literal globally for tests
+vi.mock('drizzle-orm', () => ({
+  sql: vi.fn((strings, ...values) => ({
+    strings,
+    values,
+    type: 'sql',
+    _: { brand: 'SQL' },
+  })),
+  eq: vi.fn((field, value) => ({ field, value, type: 'eq' })),
+  and: vi.fn((...conditions) => ({ type: 'and', conditions })),
+  desc: vi.fn((field) => ({ field, type: 'desc' })),
+  or: vi.fn((...conditions) => ({ type: 'or', conditions })),
+  InferSelectModel: {},
+  InferInsertModel: {},
+}))
+
 vi.mock('@/lib/logs/console/logger', () => {
   const createLogger = vi.fn(() => ({
     debug: vi.fn(),

@@ -123,6 +123,11 @@ function validateBlockTypes(yamlWorkflow: YamlWorkflow): { errors: string[]; war
   const errors: string[] = []
   const warnings: string[] = []
 
+  // Precompute counts that are used in validations to avoid O(n^2) checks
+  const apiTriggerCount = Object.values(yamlWorkflow.blocks).filter(
+    (b) => b.type === 'api_trigger'
+  ).length
+
   Object.entries(yamlWorkflow.blocks).forEach(([blockId, block]) => {
     // Use shared structure validation
     const { errors: structureErrors, warnings: structureWarnings } = validateBlockStructure(
@@ -158,6 +163,11 @@ function validateBlockTypes(yamlWorkflow: YamlWorkflow): { errors: string[]; war
       })
     }
   })
+
+  // Enforce only one API trigger in YAML (single check outside the loop)
+  if (apiTriggerCount > 1) {
+    errors.push('Only one API trigger is allowed per workflow (YAML contains multiple).')
+  }
 
   return { errors, warnings }
 }
@@ -228,6 +238,7 @@ function calculateBlockPositions(
   const startX = 150
   const startY = 300
 
+  // First pass: position all blocks as if they're root level
   layers.forEach((layer, layerIndex) => {
     const layerX = startX + layerIndex * horizontalSpacing
 
@@ -235,6 +246,22 @@ function calculateBlockPositions(
       const blockY = startY + (blockIndex - layer.length / 2) * verticalSpacing
       positions[blockId] = { x: layerX, y: blockY }
     })
+  })
+
+  // Second pass: adjust positions for child blocks to be relative to their parent
+  Object.entries(yamlWorkflow.blocks).forEach(([blockId, block]) => {
+    if (block.parentId && positions[blockId] && positions[block.parentId]) {
+      // Convert absolute position to relative position within parent
+      const parentPos = positions[block.parentId]
+      const childPos = positions[blockId]
+
+      // Calculate relative position inside the parent container
+      // Start child blocks at a reasonable offset inside the parent
+      positions[blockId] = {
+        x: 50 + (childPos.x - parentPos.x) * 0.3, // Scale down and offset
+        y: 100 + (childPos.y - parentPos.y) * 0.3, // Scale down and offset
+      }
+    }
   })
 
   return positions
@@ -335,13 +362,31 @@ export function convertYamlToWorkflow(yamlWorkflow: YamlWorkflow): ImportResult 
     // Add container-specific data
     if (yamlBlock.type === 'loop' || yamlBlock.type === 'parallel') {
       // For loop/parallel blocks, map the inputs to the data field since they don't use subBlocks
-      importedBlock.data = {
-        width: 500,
-        height: 300,
-        type: 'subflowNode',
-        // Map YAML inputs to data properties for loop/parallel blocks
-        ...(yamlBlock.inputs || {}),
+      const inputs = yamlBlock.inputs || {}
+
+      // Apply defaults for loop blocks
+      if (yamlBlock.type === 'loop') {
+        importedBlock.data = {
+          width: 500,
+          height: 300,
+          type: 'subflowNode',
+          loopType: inputs.loopType || 'for',
+          count: inputs.iterations || inputs.count || 5,
+          collection: inputs.collection || '',
+          maxConcurrency: inputs.maxConcurrency || 1,
+          // Include any other inputs provided
+          ...inputs,
+        }
+      } else {
+        // Parallel blocks
+        importedBlock.data = {
+          width: 500,
+          height: 300,
+          type: 'subflowNode',
+          ...inputs,
+        }
       }
+
       // Clear inputs since they're now in data
       importedBlock.inputs = {}
     }
@@ -349,13 +394,13 @@ export function convertYamlToWorkflow(yamlWorkflow: YamlWorkflow): ImportResult 
     // Handle parent-child relationships for nested blocks
     if (yamlBlock.parentId) {
       importedBlock.parentId = yamlBlock.parentId
-      importedBlock.extent = 'parent'
+      importedBlock.extent = 'parent' // Always 'parent' when parentId exists
       // Also add to data for consistency with how the system works
       if (!importedBlock.data) {
         importedBlock.data = {}
       }
       importedBlock.data.parentId = yamlBlock.parentId
-      importedBlock.data.extent = 'parent'
+      importedBlock.data.extent = 'parent' // Always 'parent' when parentId exists
     }
 
     blocks.push(importedBlock)

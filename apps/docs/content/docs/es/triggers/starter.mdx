@@ -1,5 +1,5 @@
 ---
-title: Starter
+title: Starter (Obsoleto)
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
@@ -7,12 +7,16 @@ import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
 
+<Callout type="warning">
+El bloque Starter ha quedado obsoleto y ha sido reemplazado por Disparadores Core más especializados. Consulta la [documentación de Disparadores Core](/triggers) para conocer la nueva API y los disparadores de Chat, Formulario de entrada, Manual, Programación y Webhook.
+</Callout>
+
 El bloque Starter te permite iniciar manualmente la ejecución del flujo de trabajo con parámetros de entrada, ofreciendo dos modos de entrada: parámetros estructurados o chat conversacional.
 
 <div className="flex justify-center">
   <Image
     src="/static/starter.png"
-    alt="Bloque Starter con opciones de modo manual y modo chat"
+    alt="Bloque Starter con opciones de modo Manual y Chat"
     width={500}
     height={400}
     className="my-6"
@@ -23,7 +27,7 @@ El bloque Starter te permite iniciar manualmente la ejecución del flujo de trab
 
 Elige tu método de entrada desde el menú desplegable:
 
-<Tabs items={['Manual Mode', 'Chat Mode']}>
+<Tabs items={['Modo Manual', 'Modo Chat']}>
   <Tab>
     <div className="space-y-4">
       <ul className="list-disc space-y-1 pl-6">
@@ -35,7 +39,7 @@ Elige tu método de entrada desde el menú desplegable:
         <Video src="input-format.mp4" width={700} height={450} />
       </div>
       
-      <p className="text-sm text-gray-600">Configura parámetros de entrada que estarán disponibles al implementar como un punto final de API.</p>
+      <p className="text-sm text-gray-600">Configura parámetros de entrada que estarán disponibles al implementar como un punto de conexión API.</p>
     </div>
   </Tab>
   <Tab>
@@ -54,7 +58,7 @@ Elige tu método de entrada desde el menú desplegable:
   </Tab>
 </Tabs>
 
-## Uso de variables de chat
+## Uso de variables de Chat
 
 En el modo Chat, accede a la entrada del usuario y al contexto de la conversación a través de variables especiales:
 

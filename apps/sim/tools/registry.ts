@@ -55,6 +55,15 @@ import {
   googleSheetsUpdateTool,
   googleSheetsWriteTool,
 } from '@/tools/google_sheets'
+import {
+  createMattersExportTool,
+  createMattersHoldsTool,
+  createMattersTool,
+  downloadExportFileTool,
+  listMattersExportTool,
+  listMattersHoldsTool,
+  listMattersTool,
+} from '@/tools/google_vault'
 import { requestTool as httpRequest } from '@/tools/http'
 import { huggingfaceChatTool } from '@/tools/huggingface'
 import {
@@ -74,7 +83,6 @@ import {
 } from '@/tools/knowledge'
 import { linearCreateIssueTool, linearReadIssuesTool } from '@/tools/linear'
 import { linkupSearchTool } from '@/tools/linkup'
-import { mailSendTool } from '@/tools/mail'
 import { mem0AddMemoriesTool, mem0GetMemoriesTool, mem0SearchMemoriesTool } from '@/tools/mem0'
 import { memoryAddTool, memoryDeleteTool, memoryGetAllTool, memoryGetTool } from '@/tools/memory'
 import {
@@ -142,6 +150,7 @@ import {
 } from '@/tools/postgresql'
 import { qdrantFetchTool, qdrantSearchTool, qdrantUpsertTool } from '@/tools/qdrant'
 import { redditGetCommentsTool, redditGetPostsTool, redditHotPostsTool } from '@/tools/reddit'
+import { mailSendTool } from '@/tools/resend'
 import { s3GetObjectTool } from '@/tools/s3'
 import { searchTool as serperSearch } from '@/tools/serper'
 import {
@@ -208,7 +217,7 @@ export const tools: Record<string, ToolConfig> = {
   google_search: googleSearchTool,
   jina_read_url: readUrlTool,
   linkup_search: linkupSearchTool,
-  mail_send: mailSendTool,
+  resend_send: mailSendTool,
   sms_send: smsSendTool,
   jira_retrieve: jiraRetrieveTool,
   jira_update: jiraUpdateTool,
@@ -356,6 +365,13 @@ export const tools: Record<string, ToolConfig> = {
   wikipedia_search: wikipediaSearchTool,
   wikipedia_content: wikipediaPageContentTool,
   wikipedia_random: wikipediaRandomPageTool,
+  google_vault_create_matters_export: createMattersExportTool,
+  google_vault_list_matters_export: listMattersExportTool,
+  google_vault_create_matters_holds: createMattersHoldsTool,
+  google_vault_list_matters_holds: listMattersHoldsTool,
+  google_vault_create_matters: createMattersTool,
+  google_vault_list_matters: listMattersTool,
+  google_vault_download_export_file: downloadExportFileTool,
   qdrant_fetch_points: qdrantFetchTool,
   qdrant_search_vector: qdrantSearchTool,
   qdrant_upsert_points: qdrantUpsertTool,

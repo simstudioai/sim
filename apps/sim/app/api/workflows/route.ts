@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { workflow, workflowBlocks, workspace } from '@sim/db/schema'
+import { workflow, workspace } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -95,131 +95,30 @@ export async function POST(req: NextRequest) {
     const { name, description, color, workspaceId, folderId } = CreateWorkflowSchema.parse(body)
 
     const workflowId = crypto.randomUUID()
-    const starterId = crypto.randomUUID()
     const now = new Date()
 
     logger.info(`[${requestId}] Creating workflow ${workflowId} for user ${session.user.id}`)
 
-    await db.transaction(async (tx) => {
-      await tx.insert(workflow).values({
-        id: workflowId,
-        userId: session.user.id,
-        workspaceId: workspaceId || null,
-        folderId: folderId || null,
-        name,
-        description,
-        color,
-        lastSynced: now,
-        createdAt: now,
-        updatedAt: now,
-        isDeployed: false,
-        collaborators: [],
-        runCount: 0,
-        variables: {},
-        isPublished: false,
-        marketplaceData: null,
-      })
-
-      await tx.insert(workflowBlocks).values({
-        id: starterId,
-        workflowId: workflowId,
-        type: 'starter',
-        name: 'Start',
-        positionX: '100',
-        positionY: '100',
-        enabled: true,
-        horizontalHandles: true,
-        isWide: false,
-        advancedMode: false,
-        triggerMode: false,
-        height: '95',
-        subBlocks: {
-          startWorkflow: {
-            id: 'startWorkflow',
-            type: 'dropdown',
-            value: 'manual',
-          },
-          webhookPath: {
-            id: 'webhookPath',
-            type: 'short-input',
-            value: '',
-          },
-          webhookSecret: {
-            id: 'webhookSecret',
-            type: 'short-input',
-            value: '',
-          },
-          scheduleType: {
-            id: 'scheduleType',
-            type: 'dropdown',
-            value: 'daily',
-          },
-          minutesInterval: {
-            id: 'minutesInterval',
-            type: 'short-input',
-            value: '',
-          },
-          minutesStartingAt: {
-            id: 'minutesStartingAt',
-            type: 'short-input',
-            value: '',
-          },
-          hourlyMinute: {
-            id: 'hourlyMinute',
-            type: 'short-input',
-            value: '',
-          },
-          dailyTime: {
-            id: 'dailyTime',
-            type: 'short-input',
-            value: '',
-          },
-          weeklyDay: {
-            id: 'weeklyDay',
-            type: 'dropdown',
-            value: 'MON',
-          },
-          weeklyDayTime: {
-            id: 'weeklyDayTime',
-            type: 'short-input',
-            value: '',
-          },
-          monthlyDay: {
-            id: 'monthlyDay',
-            type: 'short-input',
-            value: '',
-          },
-          monthlyTime: {
-            id: 'monthlyTime',
-            type: 'short-input',
-            value: '',
-          },
-          cronExpression: {
-            id: 'cronExpression',
-            type: 'short-input',
-            value: '',
-          },
-          timezone: {
-            id: 'timezone',
-            type: 'dropdown',
-            value: 'UTC',
-          },
-        },
-        outputs: {
-          response: {
-            type: {
-              input: 'any',
-            },
-          },
-        },
-        createdAt: now,
-        updatedAt: now,
-      })
-
-      logger.info(
-        `[${requestId}] Successfully created workflow ${workflowId} with start block in workflow_blocks table`
-      )
+    await db.insert(workflow).values({
+      id: workflowId,
+      userId: session.user.id,
+      workspaceId: workspaceId || null,
+      folderId: folderId || null,
+      name,
+      description,
+      color,
+      lastSynced: now,
+      createdAt: now,
+      updatedAt: now,
+      isDeployed: false,
+      collaborators: [],
+      runCount: 0,
+      variables: {},
+      isPublished: false,
+      marketplaceData: null,
     })
+
+    logger.info(`[${requestId}] Successfully created empty workflow ${workflowId}`)
 
     return NextResponse.json({
       id: workflowId,

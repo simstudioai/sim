@@ -1,0 +1,52 @@
+---
+title: 入力フォームトリガー
+description: 構造化された入力スキーマを持つ手動トリガー
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+## 概要
+
+ワークフローがエディターから型付きフィールドで開始される必要がある場合は、入力フォームトリガーを使用します。実行パネルには定義したフィールドが正確に表示されるため、ワークフローは常にクリーンなデータを受け取ります。
+
+## 定義するもの
+
+入力フォーマットビルダーにフィールド（テキスト、数値、ブール値、JSONなど）を追加します。各フィールドについて：
+
+- 値はワークフロー内で `<blockName.field>` として表示されます。
+- 完全なペイロードは便宜上 `<blockName.input>` にミラーリングされます。
+
+フォームを空のままにすると、トリガーは出力を持ちません。
+
+## 手動実行
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/triggers/input-form-panel-light.png'
+    alt='入力フォーム実行パネル'
+    width={400}
+    height={250}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+エディターで実行ボタンを押すと、パネルにフォームがレンダリングされます。送信された値はトリガー出力に直接送られるため、下流のブロックは追加の解析なしにそれらを参照できます。数値は数値型に変換され、ブール値はtrue/falseになり、JSONフィールドはワークフローが処理する前に解析されます。
+
+## 子ワークフロー
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/triggers/workflow-input-mapping-light.png'
+    alt='ワークフロー入力マッピング'
+    width={400}
+    height={250}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+入力フォームトリガーはワークフローブロックも強化します。子ワークフローを埋め込むと、マッピングステップで子フォームフィールドが表示され、親から変数を接続できます。マッピングしたものは子ワークフローの入力フォーム送信になります。
+
+<Callout>
+フィールドのない簡単な実行ボタンが必要ですか？手動トリガーを使用してください。検証と予測可能な構造が必要な場合は、入力フォームを選択してください。
+</Callout>

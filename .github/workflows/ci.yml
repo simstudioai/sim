@@ -6,74 +6,53 @@ on:
   pull_request:
     branches: [main, staging]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  test:
+  test-build:
     name: Test and Build
-    runs-on: ubuntu-latest
+    uses: ./.github/workflows/test-build.yml
+    secrets: inherit
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  # Build and push images (ECR for staging, ECR + GHCR for main)
+  build-images:
+    name: Build Images
+    needs: test-build
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    uses: ./.github/workflows/images.yml
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
+  # Deploy Trigger.dev (after builds complete)
+  trigger-deploy:
+    name: Deploy Trigger.dev
+    needs: build-images
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    uses: ./.github/workflows/trigger-deploy.yml
+    secrets: inherit
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: latest
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Run tests with coverage
-        env:
-          NODE_OPTIONS: '--no-warnings'
-          NEXT_PUBLIC_APP_URL: 'https://www.sim.ai'
-          DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/simstudio'
-          ENCRYPTION_KEY: '7cf672e460e430c1fba707575c2b0e2ad5a99dddf9b7b7e3b5646e630861db1c' # dummy key for CI only
-        run: bun run test
-
-      - name: Build application
-        env:
-          NODE_OPTIONS: '--no-warnings'
-          NEXT_PUBLIC_APP_URL: 'https://www.sim.ai'
-          DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/simstudio'
-          STRIPE_SECRET_KEY: 'dummy_key_for_ci_only'
-          STRIPE_WEBHOOK_SECRET: 'dummy_secret_for_ci_only'
-          RESEND_API_KEY: 'dummy_key_for_ci_only'
-          AWS_REGION: 'us-west-2'
-          ENCRYPTION_KEY: '7cf672e460e430c1fba707575c2b0e2ad5a99dddf9b7b7e3b5646e630861db1c' # dummy key for CI only
-        run: bun run build
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          directory: ./apps/sim/coverage
-          fail_ci_if_error: false
-          verbose: true
-
+  # Run database migrations (depends on build completion and trigger deployment)
   migrations:
     name: Apply Database Migrations
-    runs-on: ubuntu-latest
+    needs: [build-images, trigger-deploy]
+    if: |
+      always() &&
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') &&
+      needs.build-images.result == 'success' &&
+      needs.trigger-deploy.result == 'success'
+    uses: ./.github/workflows/migrations.yml
+    secrets: inherit
+
+  # Process docs embeddings if needed
+  process-docs:
+    name: Process Docs
+    needs: migrations
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
-    needs: test
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun install
-
-      - name: Apply migrations
-        working-directory: ./packages/db
-        env:
-          DATABASE_URL: ${{ github.ref == 'refs/heads/main' && secrets.DATABASE_URL || secrets.STAGING_DATABASE_URL }}
-        run: bunx drizzle-kit migrate --config=./drizzle.config.ts
+    uses: ./.github/workflows/docs-embeddings.yml
+    secrets: inherit

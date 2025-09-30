@@ -1,13 +1,14 @@
 import { ConfluenceIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { AuthMode } from '@/blocks/types'
 import type { ConfluenceResponse } from '@/tools/confluence/types'
 
 export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
   type: 'confluence',
   name: 'Confluence',
   description: 'Interact with Confluence',
-  longDescription:
-    'Integrate Confluence into the workflow. Can read and update a page. Requires OAuth.',
+  authMode: AuthMode.OAuth,
+  longDescription: 'Integrate Confluence into the workflow. Can read and update a page.',
   docsLink: 'https://docs.sim.ai/tools/confluence',
   category: 'tools',
   bgColor: '#E0E0E0',

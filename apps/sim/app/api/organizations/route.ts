@@ -1,3 +1,6 @@
+import { db } from '@sim/db'
+import { member } from '@sim/db/schema'
+import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createOrganizationForTeamPlan } from '@/lib/billing/organization'
@@ -38,6 +41,23 @@ export async function POST(request: Request) {
       organizationName,
       organizationSlug,
     })
+
+    // Enforce: a user can only belong to one organization at a time
+    const existingOrgMembership = await db
+      .select({ id: member.id })
+      .from(member)
+      .where(eq(member.userId, user.id))
+      .limit(1)
+
+    if (existingOrgMembership.length > 0) {
+      return NextResponse.json(
+        {
+          error:
+            'You are already a member of an organization. Leave your current organization before creating a new one.',
+        },
+        { status: 409 }
+      )
+    }
 
     // Create organization and make user the owner/admin
     const organizationId = await createOrganizationForTeamPlan(

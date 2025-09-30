@@ -27,6 +27,10 @@
   z-index: 0 !important;
 }
 
+.workflow-container .react-flow__edge-labels {
+  z-index: 60 !important;
+}
+
 /* ==========================================================================
    LANDING LOOP ANIMATION
    ========================================================================== */

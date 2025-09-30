@@ -1,0 +1,52 @@
+---
+title: API Trigger
+description: Start a workflow from an authenticated HTTP request
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+## Overview
+
+The API trigger exposes your workflow as a secure HTTP endpoint. Send JSON data to the endpoint and your workflow processes it immediately. API calls always execute against your latest deployment.
+
+## Configure Input Format
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/triggers/api-trigger-light.png'
+    alt='API trigger input format'
+    width={400}
+    height={250}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+Add an **Input Format** field for each parameter. Runtime output keys mirror the schema and are also available under `<api.input>`.
+
+Manual runs in the editor use the `value` column so you can test without sending a request. During execution the resolver populates both `<api.userId>` and `<api.input.userId>`.
+
+## Request Example
+
+```bash
+curl -X POST \
+  https://sim.ai/api/workflows/WORKFLOW_ID/execute \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: YOUR_KEY' \
+  -d '{"userId":"demo-user","maxTokens":1024}'
+```
+
+Successful responses return the serialized execution result from the Executor. Errors surface validation, auth, or workflow failures.
+
+## Output Reference
+
+| Reference | Description |
+|-----------|-------------|
+| `<api.field>` | Field defined in the Input Format |
+| `<api.input>` | Entire structured request body |
+
+If no Input Format is defined, the executor exposes the raw JSON at `<api.input>` only.
+
+<Callout type="warning">
+A workflow can contain only one API Trigger. Publish a new deployment after changes so the endpoint stays up to date.
+</Callout>

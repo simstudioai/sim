@@ -1,0 +1,132 @@
+---
+title: Ausführungsgrundlagen
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+
+Das Verständnis der Workflow-Ausführung in Sim ist entscheidend für die Erstellung effizienter und zuverlässiger Automatisierungen. Die Ausführungs-Engine verwaltet automatisch Abhängigkeiten, Parallelität und Datenfluss, um sicherzustellen, dass Ihre Workflows reibungslos und vorhersehbar ablaufen.
+
+## Wie Workflows ausgeführt werden
+
+Die Ausführungs-Engine von Sim verarbeitet Workflows intelligent, indem sie Abhängigkeiten analysiert und Blöcke in der effizientesten Reihenfolge ausführt.
+
+### Parallele Ausführung als Standard
+
+Mehrere Blöcke werden gleichzeitig ausgeführt, wenn sie nicht voneinander abhängig sind. Diese parallele Ausführung verbessert die Leistung erheblich, ohne dass eine manuelle Konfiguration erforderlich ist.
+
+<Image
+  src="/static/execution/concurrency.png"
+  alt="Mehrere Blöcke, die nach dem Start-Block parallel ausgeführt werden"
+  width={800}
+  height={500}
+/>
+
+In diesem Beispiel werden sowohl der Kundensupport- als auch der Deep-Researcher-Agentenblock gleichzeitig nach dem Start-Block ausgeführt, was die Effizienz maximiert.
+
+### Automatische Ausgabekombination
+
+Wenn Blöcke mehrere Abhängigkeiten haben, wartet die Ausführungs-Engine automatisch auf den Abschluss aller Abhängigkeiten und stellt dann ihre kombinierten Ausgaben dem nächsten Block zur Verfügung. Keine manuelle Kombination erforderlich.
+
+<Image
+  src="/static/execution/combination.png"
+  alt="Funktionsblock, der automatisch Ausgaben von mehreren vorherigen Blöcken empfängt"
+  width={800}
+  height={500}
+/>
+
+Der Funktionsblock erhält Ausgaben von beiden Agentenblöcken, sobald diese abgeschlossen sind, sodass Sie die kombinierten Ergebnisse verarbeiten können.
+
+### Intelligentes Routing
+
+Workflows können sich in mehrere Richtungen verzweigen, indem sie Routing-Blöcke verwenden. Die Ausführungs-Engine unterstützt sowohl deterministisches Routing (mit Bedingungsblöcken) als auch KI-gesteuertes Routing (mit Router-Blöcken).
+
+<Image
+  src="/static/execution/routing.png"
+  alt="Workflow, der sowohl bedingte als auch router-basierte Verzweigungen zeigt"
+  width={800}
+  height={500}
+/>
+
+Dieser Workflow zeigt, wie die Ausführung unterschiedlichen Pfaden basierend auf Bedingungen oder KI-Entscheidungen folgen kann, wobei jeder Pfad unabhängig ausgeführt wird.
+
+## Blocktypen
+
+Sim bietet verschiedene Arten von Blöcken, die spezifische Zwecke in Ihren Workflows erfüllen:
+
+<Cards>
+  <Card title="Auslöser" href="/triggers">
+    **Starter-Blöcke** initiieren Workflows und **Webhook-Blöcke** reagieren auf externe Ereignisse. Jeder Workflow benötigt einen Auslöser, um die Ausführung zu beginnen.
+  </Card>
+  
+  <Card title="Verarbeitungsblöcke" href="/blocks">
+    **Agent-Blöcke** interagieren mit KI-Modellen, **Funktionsblöcke** führen benutzerdefinierten Code aus und **API-Blöcke** verbinden sich mit externen Diensten. Diese Blöcke transformieren und verarbeiten Ihre Daten.
+  </Card>
+  
+  <Card title="Kontrollfluss" href="/blocks">
+    **Router-Blöcke** nutzen KI, um Pfade zu wählen, **Bedingungsblöcke** verzweigen basierend auf Logik und **Schleifen-/Parallelblöcke** handhaben Iterationen und Nebenläufigkeit.
+  </Card>
+  
+  <Card title="Ausgabe & Antwort" href="/blocks">
+    **Antwortblöcke** formatieren endgültige Ausgaben für APIs und Chat-Schnittstellen und liefern strukturierte Ergebnisse aus Ihren Workflows.
+  </Card>
+</Cards>
+
+Alle Blöcke werden automatisch basierend auf ihren Abhängigkeiten ausgeführt - Sie müssen die Ausführungsreihenfolge oder das Timing nicht manuell verwalten.
+
+## Ausführungsauslöser
+
+Workflows können auf verschiedene Weise ausgelöst werden, abhängig von Ihrem Anwendungsfall:
+
+### Manuelles Testen
+Klicken Sie im Workflow-Editor auf "Ausführen", um Ihren Workflow während der Entwicklung zu testen. Perfekt für Debugging und Validierung.
+
+### Geplante Ausführung  
+Richten Sie wiederkehrende Ausführungen mit Cron-Ausdrücken ein. Ideal für regelmäßige Datenverarbeitung, Berichte oder Wartungsaufgaben.
+
+### API-Bereitstellung
+Stellen Sie Workflows als HTTP-Endpunkte bereit, die programmatisch von Ihren Anwendungen aufgerufen werden können.
+
+### Webhook-Integration
+Reagieren Sie in Echtzeit auf Ereignisse von externen Diensten wie GitHub, Stripe oder benutzerdefinierten Systemen.
+
+### Chat-Schnittstelle
+Erstellen Sie Konversationsschnittstellen, die auf benutzerdefinierten Subdomains für benutzerorientierte KI-Anwendungen gehostet werden.
+
+<Callout type="info">
+  Erfahren Sie mehr über jeden Auslösertyp im [Abschnitt Auslöser](/triggers) der Dokumentation.
+</Callout>
+
+## Ausführungsüberwachung
+
+Wenn Workflows ausgeführt werden, bietet Sim Echtzeit-Einblick in den Ausführungsprozess:
+
+- **Live-Block-Status**: Sehen Sie, welche Blöcke gerade ausgeführt werden, abgeschlossen sind oder fehlgeschlagen sind
+- **Ausführungsprotokolle**: Detaillierte Protokolle erscheinen in Echtzeit und zeigen Eingaben, Ausgaben und eventuelle Fehler
+- **Leistungskennzahlen**: Verfolgen Sie die Ausführungszeit und Kosten für jeden Block
+- **Pfadvisualisierung**: Verstehen Sie, welche Ausführungspfade durch Ihren Workflow genommen wurden
+
+<Callout type="info">
+  Alle Ausführungsdetails werden erfasst und sind auch nach Abschluss der Workflows zur Überprüfung verfügbar, was bei der Fehlerbehebung und Optimierung hilft.
+</Callout>
+
+## Wichtige Ausführungsprinzipien
+
+Das Verständnis dieser Grundprinzipien wird Ihnen helfen, bessere Workflows zu erstellen:
+
+1. **Abhängigkeitsbasierte Ausführung**: Blöcke werden nur ausgeführt, wenn alle ihre Abhängigkeiten abgeschlossen sind
+2. **Automatische Parallelisierung**: Unabhängige Blöcke laufen gleichzeitig ohne Konfiguration
+3. **Intelligenter Datenfluss**: Ausgaben fließen automatisch zu verbundenen Blöcken
+4. **Fehlerbehandlung**: Fehlgeschlagene Blöcke stoppen ihren Ausführungspfad, beeinflussen aber keine unabhängigen Pfade
+5. **Zustandspersistenz**: Alle Blockausgaben und Ausführungsdetails werden für die Fehlerbehebung gespeichert
+
+## Nächste Schritte
+
+Nachdem Sie die Grundlagen der Ausführung verstanden haben, erkunden Sie:
+- **[Blocktypen](/blocks)** - Erfahren Sie mehr über spezifische Block-Funktionen
+- **[Protokollierung](/execution/logging)** - Überwachen Sie Workflow-Ausführungen und beheben Sie Probleme
+- **[Kostenberechnung](/execution/costs)** - Verstehen und optimieren Sie Workflow-Kosten
+- **[Auslöser](/triggers)** - Richten Sie verschiedene Möglichkeiten ein, Ihre Workflows auszuführen

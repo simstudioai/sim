@@ -5,10 +5,7 @@
  */
 
 import { env } from './lib/env'
-import { isProd } from './lib/environment'
 import { createLogger } from './lib/logs/console/logger.ts'
-
-const Sentry = isProd ? require('@sentry/nextjs') : { captureRequestError: () => {} }
 
 const logger = createLogger('OtelInstrumentation')
 
@@ -50,26 +47,10 @@ async function initializeOpenTelemetry() {
     const { NodeSDK } = await import('@opentelemetry/sdk-node')
     const { resourceFromAttributes } = await import('@opentelemetry/resources')
     const { SemanticResourceAttributes } = await import('@opentelemetry/semantic-conventions')
-    const { BatchSpanProcessor } = await import('@opentelemetry/sdk-trace-node')
     const { OTLPTraceExporter } = await import('@opentelemetry/exporter-trace-otlp-http')
 
     const exporter = new OTLPTraceExporter({
       url: telemetryConfig.endpoint,
-    })
-
-    const spanProcessor = new BatchSpanProcessor(exporter, {
-      maxQueueSize:
-        telemetryConfig.batchSettings?.maxQueueSize ||
-        DEFAULT_TELEMETRY_CONFIG.batchSettings.maxQueueSize,
-      maxExportBatchSize:
-        telemetryConfig.batchSettings?.maxExportBatchSize ||
-        DEFAULT_TELEMETRY_CONFIG.batchSettings.maxExportBatchSize,
-      scheduledDelayMillis:
-        telemetryConfig.batchSettings?.scheduledDelayMillis ||
-        DEFAULT_TELEMETRY_CONFIG.batchSettings.scheduledDelayMillis,
-      exportTimeoutMillis:
-        telemetryConfig.batchSettings?.exportTimeoutMillis ||
-        DEFAULT_TELEMETRY_CONFIG.batchSettings.exportTimeoutMillis,
     })
 
     const configResource = resourceFromAttributes({
@@ -80,7 +61,7 @@ async function initializeOpenTelemetry() {
 
     const sdk = new NodeSDK({
       resource: configResource,
-      spanProcessors: [spanProcessor],
+      traceExporter: exporter,
     })
 
     sdk.start()
@@ -101,40 +82,6 @@ async function initializeOpenTelemetry() {
   }
 }
 
-async function initializeSentry() {
-  if (!isProd) return
-
-  try {
-    // Skip initialization if Sentry appears to be already configured
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore accessing internal API
-    if ((Sentry as any).Hub?.current?.getClient()) {
-      logger.debug('Sentry already initialized, skipping duplicate init')
-      return
-    }
-
-    Sentry.init({
-      dsn: env.NEXT_PUBLIC_SENTRY_DSN || undefined,
-      enabled: true,
-      environment: env.NODE_ENV || 'development',
-      tracesSampleRate: 0.2,
-      beforeSend(event: any) {
-        if (event.request && typeof event.request === 'object') {
-          ;(event.request as any).ip = null
-        }
-        return event
-      },
-    })
-
-    logger.info('Sentry initialized (server-side)')
-  } catch (error) {
-    logger.error('Failed to initialize Sentry', error as Error)
-  }
-}
-
 export async function register() {
-  await initializeSentry()
   await initializeOpenTelemetry()
 }
-
-export const onRequestError = Sentry.captureRequestError

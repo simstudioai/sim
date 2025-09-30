@@ -1,0 +1,225 @@
+---
+title: Router
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+
+Der Router-Block nutzt KI, um intelligent zu entscheiden, welchen Pfad Ihr Workflow als nächstes nehmen sollte, indem er die Workflow-Ausführung basierend auf spezifischen Bedingungen oder Logik leitet. Im Gegensatz zu Bedingungsblöcken, die einfache Regeln verwenden, können Router-Blöcke den Kontext verstehen und intelligente Routing-Entscheidungen auf Basis von Inhaltsanalysen treffen.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/router.png"
+    alt="Router-Block mit mehreren Pfaden"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Überblick
+
+Der Router-Block ermöglicht Ihnen:
+
+<Steps>
+  <Step>
+    <strong>Intelligentes Content-Routing</strong>: Nutzung von KI zum Verständnis von Absicht und Kontext
+  </Step>
+  <Step>
+    <strong>Dynamische Pfadauswahl</strong>: Routing von Workflows basierend auf unstrukturierter Inhaltsanalyse
+  </Step>
+  <Step>
+    <strong>Kontextbewusste Entscheidungen</strong>: Treffen intelligenter Routing-Entscheidungen über einfache Regeln hinaus
+  </Step>
+  <Step>
+    <strong>Multi-Pfad-Management</strong>: Verwaltung komplexer Workflows mit mehreren potenziellen Zielen
+  </Step>
+</Steps>
+
+## Router vs. Bedingungsblöcke
+
+<Accordions>
+  <Accordion title="Wann Router verwenden">
+    - KI-gestützte Inhaltsanalyse erforderlich
+    - Unstrukturierte oder variierende Inhaltstypen
+    - Absichtsbasiertes Routing (z.B. "Support-Tickets an Abteilungen weiterleiten")
+    - Kontextbewusste Entscheidungsfindung erforderlich
+  </Accordion>
+  <Accordion title="Wann Bedingung verwenden">
+    - Einfache, regelbasierte Entscheidungen
+    - Strukturierte Daten oder numerische Vergleiche
+    - Schnelles, deterministisches Routing erforderlich
+    - Boolesche Logik ausreichend
+  </Accordion>
+</Accordions>
+
+## Funktionsweise
+
+Der Router-Block:
+
+<Steps>
+  <Step>
+    <strong>Analysiert Inhalte</strong>: Verwendet ein LLM, um Eingabeinhalte und Kontext zu verstehen
+  </Step>
+  <Step>
+    <strong>Bewertet Ziele</strong>: Vergleicht Inhalte mit verfügbaren Zielblöcken
+  </Step>
+  <Step>
+    <strong>Wählt Ziel aus</strong>: Identifiziert den am besten geeigneten Pfad basierend auf der Absicht
+  </Step>
+  <Step>
+    <strong>Leitet Ausführung</strong>: Dirigiert den Workflow zum ausgewählten Block
+  </Step>
+</Steps>
+
+## Konfigurationsoptionen
+
+### Inhalt/Prompt
+
+Der Inhalt oder Prompt, den der Router analysiert, um Routing-Entscheidungen zu treffen. Dies kann sein:
+
+- Eine direkte Benutzeranfrage oder -eingabe
+- Ausgabe aus einem vorherigen Block
+- Eine vom System generierte Nachricht
+
+### Zielblöcke
+
+Die möglichen Zielblöcke, aus denen der Router auswählen kann. Der Router erkennt automatisch verbundene Blöcke, aber Sie können auch:
+
+- Die Beschreibungen der Zielblöcke anpassen, um die Routing-Genauigkeit zu verbessern
+- Routing-Kriterien für jeden Zielblock festlegen
+- Bestimmte Blöcke von der Berücksichtigung als Routing-Ziele ausschließen
+
+### Modellauswahl
+
+Wählen Sie ein KI-Modell für die Routing-Entscheidung:
+
+**OpenAI**: GPT-4o, o1, o3, o4-mini, gpt-4.1  \
+**Anthropic**: Claude 3.7 Sonnet \
+**Google**: Gemini 2.5 Pro, Gemini 2.0 Flash \
+**Andere Anbieter**: Groq, Cerebras, xAI, DeepSeek \
+**Lokale Modelle**: Jedes Modell, das auf Ollama läuft 
+
+<div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg">
+  <Video src="router-model-dropdown.mp4" width={500} height={350} />
+</div>
+
+**Empfehlung**: Verwenden Sie Modelle mit starken Reasoning-Fähigkeiten wie GPT-4o oder Claude 3.7 Sonnet für genauere Routing-Entscheidungen.
+
+### API-Schlüssel
+
+Ihr API-Schlüssel für den ausgewählten LLM-Anbieter. Dieser wird sicher gespeichert und für die Authentifizierung verwendet.
+
+### Zugriff auf Ergebnisse
+
+Nachdem ein Router eine Entscheidung getroffen hat, können Sie auf seine Ausgaben zugreifen:
+
+- **`<router.prompt>`**: Zusammenfassung des verwendeten Routing-Prompts
+- **`<router.selected_path>`**: Details zum ausgewählten Zielblock
+- **`<router.tokens>`**: Token-Nutzungsstatistiken vom LLM
+- **`<router.cost>`**: Kostenübersicht für den Routing-Aufruf (Eingabe, Ausgabe, Gesamt)
+- **`<router.model>`**: Das für die Entscheidungsfindung verwendete Modell
+
+## Erweiterte Funktionen
+
+### Benutzerdefinierte Routing-Kriterien
+
+Definieren Sie spezifische Kriterien für jeden Zielblock:
+
+```javascript
+// Example routing descriptions
+Target Block 1: "Technical support issues, API problems, integration questions"
+Target Block 2: "Billing inquiries, subscription changes, payment issues"
+Target Block 3: "General questions, feedback, feature requests"
+```
+
+## Eingaben und Ausgaben
+
+<Tabs items={['Konfiguration', 'Variablen']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Inhalt/Prompt</strong>: Zu analysierender Text für Routing-Entscheidungen
+      </li>
+      <li>
+        <strong>Zielblöcke</strong>: Verbundene Blöcke als potenzielle Ziele
+      </li>
+      <li>
+        <strong>Modell</strong>: KI-Modell für Routing-Analyse
+      </li>
+      <li>
+        <strong>API-Schlüssel</strong>: Authentifizierung für ausgewählten LLM-Anbieter
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>router.prompt</strong>: Zusammenfassung des verwendeten Routing-Prompts
+      </li>
+      <li>
+        <strong>router.selected_path</strong>: Details zum gewählten Ziel
+      </li>
+      <li>
+        <strong>router.tokens</strong>: Token-Nutzungsstatistiken
+      </li>
+      <li>
+        <strong>router.cost</strong>: Kostenübersicht für den Routing-Aufruf (Eingabe, Ausgabe, Gesamt)
+      </li>
+      <li>
+        <strong>router.model</strong>: Für die Entscheidungsfindung verwendetes Modell
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Beispielanwendungsfälle
+
+### Kundensupport-Triage
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Szenario: Support-Tickets an spezialisierte Abteilungen weiterleiten</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Benutzer reicht Supportanfrage über Formular ein</li>
+    <li>Router analysiert Ticket-Inhalt und Kontext</li>
+    <li>Technische Probleme → Engineering-Support-Mitarbeiter</li>
+    <li>Abrechnungsfragen → Finanz-Support-Mitarbeiter</li>
+  </ol>
+</div>
+
+### Inhaltsklassifizierung
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Szenario: Benutzergenerierte Inhalte klassifizieren und weiterleiten</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Benutzer reicht Inhalt oder Feedback ein</li>
+    <li>Router analysiert Inhaltstyp und Stimmung</li>
+    <li>Feature-Anfragen → Produkt-Team-Workflow</li>
+    <li>Fehlerberichte → Technischer Support-Workflow</li>
+  </ol>
+</div>
+
+### Lead-Qualifizierung
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Szenario: Leads basierend auf Qualifizierungskriterien weiterleiten</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Lead-Informationen aus Formular erfasst</li>
+    <li>Router analysiert Unternehmensgröße, Branche und Bedürfnisse</li>
+    <li>Enterprise-Leads → Vertriebsteam mit individueller Preisgestaltung</li>
+    <li>KMU-Leads → Self-Service-Onboarding-Prozess</li>
+  </ol>
+</div>
+
+## Best Practices
+
+- **Klare Zielbeschreibungen bereitstellen**: Helfen Sie dem Router zu verstehen, wann jedes Ziel mit spezifischen, detaillierten Beschreibungen ausgewählt werden soll
+- **Spezifische Routing-Kriterien verwenden**: Definieren Sie klare Bedingungen und Beispiele für jeden Pfad, um die Genauigkeit zu verbessern
+- **Fallback-Pfade implementieren**: Verbinden Sie ein Standardziel für Fälle, in denen kein spezifischer Pfad geeignet ist
+- **Mit verschiedenen Eingaben testen**: Stellen Sie sicher, dass der Router verschiedene Eingabetypen, Grenzfälle und unerwartete Inhalte verarbeiten kann
+- **Routing-Leistung überwachen**: Überprüfen Sie Routing-Entscheidungen regelmäßig und verfeinern Sie Kriterien basierend auf tatsächlichen Nutzungsmustern
+- **Geeignete Modelle auswählen**: Verwenden Sie Modelle mit starken Argumentationsfähigkeiten für komplexe Routing-Entscheidungen

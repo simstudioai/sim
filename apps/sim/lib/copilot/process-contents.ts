@@ -3,6 +3,7 @@ import { copilotChats, document, knowledgeBase, templates } from '@sim/db/schema
 import { and, eq, isNull } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
+import { sanitizeForCopilot } from '@/lib/workflows/json-sanitizer'
 import type { ChatContext } from '@/stores/copilot/types'
 
 export type AgentContextType =
@@ -260,12 +261,14 @@ async function processWorkflowFromDb(
       loops: normalized.loops || {},
       parallels: normalized.parallels || {},
     }
+    // Sanitize workflow state for copilot (remove UI-specific data like positions)
+    const sanitizedState = sanitizeForCopilot(workflowState)
     // Match get-user-workflow format: just the workflow state JSON
-    const content = JSON.stringify(workflowState, null, 2)
-    logger.info('Processed workflow context', {
+    const content = JSON.stringify(sanitizedState, null, 2)
+    logger.info('Processed sanitized workflow context', {
       workflowId,
-      blocks: Object.keys(workflowState.blocks || {}).length,
-      edges: workflowState.edges.length,
+      blocks: Object.keys(sanitizedState.blocks || {}).length,
+      edges: sanitizedState.edges.length,
     })
     // Use the provided kind for the type
     return { type: kind, tag, content }

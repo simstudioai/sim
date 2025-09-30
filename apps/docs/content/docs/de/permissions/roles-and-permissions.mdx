@@ -1,0 +1,161 @@
+---
+title: Rollen und Berechtigungen
+---
+
+import { Video } from '@/components/ui/video'
+
+Wenn Sie Teammitglieder zu Ihrer Organisation oder Ihrem Workspace einladen, müssen Sie entscheiden, welche Zugriffsebene Sie ihnen gewähren möchten. Dieser Leitfaden erklärt, was Benutzer mit jeder Berechtigungsstufe tun können, und hilft Ihnen, Teamrollen und die Zugriffsrechte jeder Berechtigungsstufe zu verstehen.
+
+## Wie man jemanden zu einem Workspace einlädt
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="invitations.mp4" width={700} height={450} />
+</div>
+
+## Berechtigungsstufen für Workspaces
+
+Beim Einladen einer Person zu einem Workspace können Sie eine von drei Berechtigungsstufen zuweisen:
+
+| Berechtigung | Was sie tun können |
+|------------|------------------|
+| **Lesen** | Workflows ansehen, Ausführungsergebnisse sehen, aber keine Änderungen vornehmen |
+| **Schreiben** | Workflows erstellen und bearbeiten, Workflows ausführen, Umgebungsvariablen verwalten |
+| **Admin** | Alles, was Schreiben kann, plus Benutzer einladen/entfernen und Workspace-Einstellungen verwalten |
+
+## Was jede Berechtigungsstufe tun kann
+
+Hier ist eine detaillierte Aufschlüsselung dessen, was Benutzer mit jeder Berechtigungsstufe tun können:
+
+### Leseberechtigung
+**Perfekt für:** Stakeholder, Beobachter oder Teammitglieder, die Einblick benötigen, aber keine Änderungen vornehmen sollten
+
+**Was sie tun können:**
+- Alle Workflows im Workspace ansehen
+- Workflow-Ausführungsergebnisse und Protokolle einsehen
+- Workflow-Konfigurationen und Einstellungen durchsuchen
+- Umgebungsvariablen anzeigen (aber nicht bearbeiten)
+
+**Was sie nicht tun können:**
+- Workflows erstellen, bearbeiten oder löschen
+- Workflows ausführen oder bereitstellen
+- Workspace-Einstellungen ändern
+- Andere Benutzer einladen
+
+### Schreibberechtigung  
+**Perfekt für:** Entwickler, Content-Ersteller oder Teammitglieder, die aktiv an Automatisierungen arbeiten
+
+**Was sie tun können:**
+- Alles, was Benutzer mit Leseberechtigung können, plus:
+- Workflows erstellen, bearbeiten und löschen
+- Workflows ausführen und bereitstellen
+- Workspace-Umgebungsvariablen hinzufügen, bearbeiten und löschen
+- Alle verfügbaren Tools und Integrationen nutzen
+- In Echtzeit bei der Workflow-Bearbeitung zusammenarbeiten
+
+**Was sie nicht können:**
+- Benutzer zum Workspace einladen oder daraus entfernen
+- Workspace-Einstellungen ändern
+- Den Workspace löschen
+
+### Admin-Berechtigung
+**Perfekt für:** Teamleiter, Projektmanager oder technische Leiter, die den Workspace verwalten müssen
+
+**Was sie können:**
+- Alles, was Benutzer mit Schreibrechten können, plus:
+- Neue Benutzer mit beliebiger Berechtigungsstufe zum Workspace einladen
+- Benutzer aus dem Workspace entfernen
+- Workspace-Einstellungen und Integrationen verwalten
+- Verbindungen zu externen Tools konfigurieren
+- Von anderen Benutzern erstellte Workflows löschen
+
+**Was sie nicht können:**
+- Den Workspace löschen (das kann nur der Workspace-Besitzer)
+- Den Workspace-Besitzer aus dem Workspace entfernen
+
+---
+
+## Workspace-Besitzer vs. Admin
+
+Jeder Workspace hat einen **Besitzer** (die Person, die ihn erstellt hat) sowie eine beliebige Anzahl von **Admins**.
+
+### Workspace-Besitzer
+- Hat alle Admin-Berechtigungen
+- Kann den Workspace löschen
+- Kann nicht aus dem Workspace entfernt werden
+- Kann die Eigentümerschaft an einen anderen Benutzer übertragen
+
+### Workspace-Admin  
+- Kann alles tun außer den Workspace löschen oder den Besitzer entfernen
+- Kann vom Besitzer oder anderen Admins aus dem Workspace entfernt werden
+
+---
+
+## Häufige Szenarien
+
+### Einen neuen Entwickler zum Team hinzufügen
+1. **Organisationsebene**: Laden Sie ihn als **Organisationsmitglied** ein
+2. **Workspace-Ebene**: Geben Sie ihm **Schreib**-Berechtigung, damit er Workflows erstellen und bearbeiten kann
+
+### Einen Projektmanager hinzufügen
+1. **Organisationsebene**: Laden Sie ihn als **Organisationsmitglied** ein
+2. **Workspace-Ebene**: Geben Sie ihm **Admin**-Berechtigung, damit er das Team verwalten und alles einsehen kann
+
+### Einen Stakeholder oder Kunden hinzufügen
+1. **Organisationsebene**: Laden Sie ihn als **Organisationsmitglied** ein
+2. **Workspace-Ebene**: Geben Sie ihm **Lese**-Berechtigung, damit er den Fortschritt sehen, aber keine Änderungen vornehmen kann
+
+---
+
+## Umgebungsvariablen
+
+Benutzer können zwei Arten von Umgebungsvariablen erstellen:
+
+### Persönliche Umgebungsvariablen
+- Nur für den einzelnen Benutzer sichtbar
+- Verfügbar in allen Workflows, die sie ausführen
+- Werden in den Benutzereinstellungen verwaltet
+
+### Workspace-Umgebungsvariablen
+- **Leserecht**: Kann Variablennamen und -werte sehen
+- **Schreib-/Administratorrecht**: Kann Variablen hinzufügen, bearbeiten und löschen
+- Verfügbar für alle Workspace-Mitglieder
+- Wenn eine persönliche Variable denselben Namen wie eine Workspace-Variable hat, hat die persönliche Variable Vorrang
+
+---
+
+## Best Practices
+
+### Mit minimalen Berechtigungen beginnen
+Geben Sie Benutzern die niedrigste Berechtigungsstufe, die sie für ihre Arbeit benötigen. Sie können die Berechtigungen später immer erhöhen.
+
+### Organisationsstruktur klug nutzen
+- Machen Sie vertrauenswürdige Teamleiter zu **Organisationsadministratoren**
+- Die meisten Teammitglieder sollten **Organisationsmitglieder** sein
+- Reservieren Sie Workspace-**Admin**-Berechtigungen für Personen, die Benutzer verwalten müssen
+
+### Berechtigungen regelmäßig überprüfen
+Überprüfen Sie regelmäßig, wer Zugriff auf was hat, besonders wenn Teammitglieder ihre Rollen wechseln oder das Unternehmen verlassen.
+
+### Sicherheit von Umgebungsvariablen
+- Verwenden Sie persönliche Umgebungsvariablen für sensible API-Schlüssel
+- Verwenden Sie Workspace-Umgebungsvariablen für gemeinsame Konfigurationen
+- Überprüfen Sie regelmäßig, wer Zugriff auf sensible Variablen hat
+
+---
+
+## Organisationsrollen
+
+Wenn Sie jemanden zu Ihrer Organisation einladen, können Sie eine von zwei Rollen zuweisen:
+
+### Organisationsadministrator
+**Was sie tun können:**
+- Teammitglieder zur Organisation einladen und entfernen
+- Neue Workspaces erstellen
+- Abrechnungs- und Abonnementeinstellungen verwalten
+- Zugriff auf alle Workspaces innerhalb der Organisation
+
+### Organisationsmitglied  
+**Was sie tun können:**
+- Zugriff auf Workspaces, zu denen sie speziell eingeladen wurden
+- Liste der Organisationsmitglieder anzeigen
+- Können keine neuen Personen einladen oder Organisationseinstellungen verwalten

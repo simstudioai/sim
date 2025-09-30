@@ -9,14 +9,12 @@ import {
 } from '@/lib/copilot/auth'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent'
+import { SIM_AGENT_API_URL_DEFAULT } from '@/lib/sim-agent/constants'
 
 const logger = createLogger('CopilotMarkToolCompleteAPI')
 
-// Sim Agent API configuration
 const SIM_AGENT_API_URL = env.SIM_AGENT_API_URL || SIM_AGENT_API_URL_DEFAULT
 
-// Schema for mark-complete request
 const MarkCompleteSchema = z.object({
   id: z.string(),
   name: z.string(),

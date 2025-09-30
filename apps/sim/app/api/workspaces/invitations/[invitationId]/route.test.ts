@@ -66,10 +66,11 @@ describe('Workspace Invitation [invitationId] API Route', () => {
         NEXT_PUBLIC_APP_URL: 'https://test.sim.ai',
         BILLING_ENABLED: false,
       },
-      isTruthy: (value: any) =>
+      isTruthy: (value: string | boolean | number | undefined) =>
         typeof value === 'string'
           ? value.toLowerCase() === 'true' || value === '1'
           : Boolean(value),
+      getEnv: (variable: string) => process.env[variable],
     }))
 
     mockTransaction = vi.fn()
@@ -388,10 +389,11 @@ describe('Workspace Invitation [invitationId] API Route', () => {
           NEXT_PUBLIC_APP_URL: 'https://test.sim.ai',
           BILLING_ENABLED: false,
         },
-        isTruthy: (value: any) =>
+        isTruthy: (value: string | boolean | number | undefined) =>
           typeof value === 'string'
             ? value.toLowerCase() === 'true' || value === '1'
             : Boolean(value),
+        getEnv: (variable: string) => process.env[variable],
       }))
       vi.doMock('@sim/db/schema', () => ({
         workspaceInvitation: { id: 'id' },

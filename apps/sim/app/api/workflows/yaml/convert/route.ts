@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
-import { simAgentClient } from '@/lib/sim-agent'
+import { simAgentClient } from '@/lib/sim-agent/client'
 import { generateRequestId } from '@/lib/utils'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
@@ -23,6 +23,37 @@ export async function POST(request: NextRequest) {
         { success: false, error: 'workflowState is required' },
         { status: 400 }
       )
+    }
+
+    // Ensure loop blocks have their data populated with defaults
+    if (workflowState.blocks) {
+      Object.entries(workflowState.blocks).forEach(([blockId, block]: [string, any]) => {
+        if (block.type === 'loop') {
+          // Ensure data field exists
+          if (!block.data) {
+            block.data = {}
+          }
+
+          // Apply defaults if not set
+          if (!block.data.loopType) {
+            block.data.loopType = 'for'
+          }
+          if (!block.data.count && block.data.count !== 0) {
+            block.data.count = 5
+          }
+          if (!block.data.collection) {
+            block.data.collection = ''
+          }
+          if (!block.data.maxConcurrency) {
+            block.data.maxConcurrency = 1
+          }
+
+          logger.debug(`[${requestId}] Applied defaults to loop block ${blockId}:`, {
+            loopType: block.data.loopType,
+            count: block.data.count,
+          })
+        }
+      })
     }
 
     // Gather block registry and utilities for sim-agent

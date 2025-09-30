@@ -1,0 +1,156 @@
+---
+title: Funktion
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Der Funktionsblock ermöglicht die Ausführung von benutzerdefiniertem JavaScript- oder TypeScript-Code in Ihren Workflows. Verwenden Sie ihn, um Daten zu transformieren, Berechnungen durchzuführen oder benutzerdefinierte Logik zu implementieren, die in anderen Blöcken nicht verfügbar ist.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/function.png"
+    alt="Funktionsblock mit Code-Editor"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+## Überblick
+
+Der Funktionsblock ermöglicht Ihnen:
+
+<Steps>
+  <Step>
+    <strong>Daten transformieren</strong>: Formate konvertieren, Text analysieren, Arrays und Objekte manipulieren
+  </Step>
+  <Step>
+    <strong>Berechnungen durchführen</strong>: Mathematische Operationen, Statistiken, Finanzberechnungen
+  </Step>
+  <Step>
+    <strong>Benutzerdefinierte Logik implementieren</strong>: Komplexe Bedingungen, Schleifen und Algorithmen
+  </Step>
+  <Step>
+    <strong>Externe Daten verarbeiten</strong>: Antworten parsen, Anfragen formatieren, Authentifizierung verwalten
+  </Step>
+</Steps>
+
+## Funktionsweise
+
+Der Funktionsblock führt Ihren Code in einer sicheren, isolierten Umgebung aus:
+
+1. **Eingabe empfangen**: Zugriff auf Daten aus vorherigen Blöcken über das `input` Objekt
+2. **Code ausführen**: Führen Sie Ihren JavaScript/Python-Code aus
+3. **Ergebnisse zurückgeben**: Verwenden Sie `return`, um Daten an den nächsten Block zu übergeben
+4. **Fehler behandeln**: Integrierte Fehlerbehandlung und Protokollierung
+
+## Remote-Ausführung (E2B)
+
+  - **Sprachen**: JavaScript und Python in einer isolierten E2B-Sandbox ausführen.
+  - **Aktivierung**: Schalten Sie “Remote Code Execution” im Funktionsblock ein.
+  - **Einsatzbereich**: Schwerere Logik, externe Bibliotheken oder Python-spezifischer Code.
+  - **Leistung**: Langsamer als lokales JS aufgrund von Sandbox-Start und Netzwerk-Overhead.
+  - **Hinweise**: Erfordert `E2B_API_KEY` bei lokaler Ausführung. Für niedrigste Latenz verwenden Sie nativ lokales JS (Fast Mode).
+
+## Eingaben und Ausgaben
+
+<Tabs items={['Configuration', 'Variables']}>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>Code</strong>: Ihr JavaScript/Python-Code zur Ausführung
+      </li>
+      <li>
+        <strong>Timeout</strong>: Maximale Ausführungszeit (standardmäßig 30 Sekunden)
+      </li>
+      <li>
+        <strong>Eingabedaten</strong>: Alle verbundenen Block-Ausgaben sind über Variablen verfügbar
+      </li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc space-y-2 pl-6">
+      <li>
+        <strong>function.result</strong>: Der von Ihrer Funktion zurückgegebene Wert
+      </li>
+      <li>
+        <strong>function.stdout</strong>: Console.log()-Ausgabe aus Ihrem Code
+      </li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Beispielanwendungsfälle
+
+### Datenverarbeitungspipeline
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Szenario: API-Antwort in strukturierte Daten umwandeln</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>API-Block ruft Rohdaten der Kunden ab</li>
+    <li>Funktionsblock verarbeitet und validiert Daten</li>
+    <li>Funktionsblock berechnet abgeleitete Metriken</li>
+    <li>Antwortblock gibt formatierte Ergebnisse zurück</li>
+  </ol>
+</div>
+
+### Implementierung von Geschäftslogik
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Szenario: Berechnung von Treuepunkten und Stufen</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Agent ruft Kaufhistorie des Kunden ab</li>
+    <li>Funktionsblock berechnet Treuemetriken</li>
+    <li>Funktionsblock bestimmt Kundenstufe</li>
+    <li>Bedingungsblock leitet basierend auf der Stufenhöhe weiter</li>
+  </ol>
+</div>
+
+### Datenvalidierung und -bereinigung
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Szenario: Benutzereingaben validieren und bereinigen</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Benutzereingabe aus Formularübermittlung erhalten</li>
+    <li>Funktionsblock validiert E-Mail-Format und Telefonnummern</li>
+    <li>Funktionsblock bereinigt und normalisiert Daten</li>
+    <li>API-Block speichert validierte Daten in der Datenbank</li>
+  </ol>
+</div>
+
+### Beispiel: Treuepunkte-Rechner
+
+```javascript title="loyalty-calculator.js"
+// Process customer data and calculate loyalty score
+const { purchaseHistory, accountAge, supportTickets } = <agent>;
+
+// Calculate metrics
+const totalSpent = purchaseHistory.reduce((sum, purchase) => sum + purchase.amount, 0);
+const purchaseFrequency = purchaseHistory.length / (accountAge / 365);
+const ticketRatio = supportTickets.resolved / supportTickets.total;
+
+// Calculate loyalty score (0-100)
+const spendScore = Math.min(totalSpent / 1000 * 30, 30);
+const frequencyScore = Math.min(purchaseFrequency * 20, 40);
+const supportScore = ticketRatio * 30;
+
+const loyaltyScore = Math.round(spendScore + frequencyScore + supportScore);
+
+return {
+  customer: <agent.name>,
+  loyaltyScore,
+  loyaltyTier: loyaltyScore >= 80 ? "Platinum" : loyaltyScore >= 60 ? "Gold" : "Silver",
+  metrics: { spendScore, frequencyScore, supportScore }
+};
+```
+
+## Best Practices
+
+- **Funktionen fokussiert halten**: Schreiben Sie Funktionen, die eine Sache gut erledigen, um die Wartbarkeit und Fehlersuche zu verbessern
+- **Fehler elegant behandeln**: Verwenden Sie try/catch-Blöcke, um potenzielle Fehler zu behandeln und aussagekräftige Fehlermeldungen bereitzustellen
+- **Grenzfälle testen**: Stellen Sie sicher, dass Ihr Code ungewöhnliche Eingaben, Null-Werte und Grenzbedingungen korrekt behandelt
+- **Auf Leistung optimieren**: Achten Sie bei großen Datensätzen auf die Berechnungskomplexität und den Speicherverbrauch
+- **console.log() zum Debuggen verwenden**: Nutzen Sie die Stdout-Ausgabe zum Debuggen und Überwachen der Funktionsausführung

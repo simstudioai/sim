@@ -1,0 +1,60 @@
+---
+title: API トリガー
+description: 認証済みHTTPリクエストからワークフローを開始する
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+
+## 概要
+
+APIトリガーは、ワークフローを安全なHTTPエンドポイントとして公開します。JSONデータをエンドポイントに送信すると、ワークフローがすぐにそれを処理します。API呼び出しは常に最新のデプロイメントに対して実行されます。
+
+## 入力フォーマットの設定
+
+<div className='flex justify-center my-6'>
+  <Image
+    src='/static/triggers/api-trigger-light.png'
+    alt='APIトリガー入力フォーマット'
+    width={400}
+    height={250}
+    className='rounded-xl border border-border shadow-sm'
+  />
+</div>
+
+各パラメータに**入力フォーマット**フィールドを追加します。実行時の出力キーはスキーマを反映し、`<api.input>`でも利用できます。
+
+```yaml
+- type: string
+  name: userId
+  value: demo-user # optional manual test value
+- type: number
+  name: maxTokens
+```
+
+エディタでの手動実行では、リクエストを送信せずにテストできるように`value`列を使用します。実行中、リゾルバは`<api.userId>`と`<api.input.userId>`の両方に値を設定します。
+
+## リクエスト例
+
+```bash
+curl -X POST \
+  https://sim.ai/api/workflows/WORKFLOW_ID/execute \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: YOUR_KEY' \
+  -d '{"userId":"demo-user","maxTokens":1024}'
+```
+
+成功したレスポンスはエグゼキュータからのシリアル化された実行結果を返します。エラーは検証、認証、またはワークフローの失敗を表示します。
+
+## 出力リファレンス
+
+| リファレンス | 説明 |
+|-----------|-------------|
+| `<api.field>` | 入力フォーマットで定義されたフィールド |
+| `<api.input>` | 構造化されたリクエスト本文全体 |
+
+入力フォーマットが定義されていない場合、エグゼキュータは生のJSONを`<api.input>`でのみ公開します。
+
+<Callout type="warning">
+ワークフローには1つのAPIトリガーしか含めることができません。変更後は新しいデプロイメントを公開して、エンドポイントを最新の状態に保ってください。
+</Callout>

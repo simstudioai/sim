@@ -1,0 +1,52 @@
+---
+title: Triggers
+description: Core ways to start Sim workflows
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+
+## Core Triggers
+
+Pick one trigger per workflow to define how it starts:
+
+<Cards>
+  <Card title="API" href="/triggers/api">
+    HTTP endpoint that maps JSON bodies into workflow inputs
+  </Card>
+  <Card title="Chat" href="/triggers/chat">
+    Deployed chat interface with streaming responses
+  </Card>
+  <Card title="Input Form" href="/triggers/input-form">
+    Typed manual input used in editor runs and child workflows
+  </Card>
+  <Card title="Manual" href="/triggers/manual">
+    On-demand runs with no additional data
+  </Card>
+  <Card title="Schedule" href="/triggers/schedule">
+    Cron or interval based execution
+  </Card>
+  <Card title="Webhook" href="/triggers/webhook">
+    Receive external webhook payloads
+  </Card>
+</Cards>
+
+## Quick Comparison
+
+| Trigger | Start condition |
+|---------|-----------------|
+| **API** | Authenticated HTTP POST |
+| **Chat** | Chat deployment message |
+| **Input Form** | On manual submit in editor or parent workflow |
+| **Manual** | Run button in editor |
+| **Schedule** | Timer managed in schedule modal |
+| **Webhook** | On inbound HTTP request |
+
+## Using Triggers
+
+1. Drop the trigger block in the start slot.
+2. Configure any required schema or auth.
+3. Connect the block to the rest of the workflow.
+
+> Deployments power every trigger. Update the workflow, redeploy, and all trigger entry points pick up the new snapshot. Learn more in [Execution → Deployment Snapshots](/execution).
+
+Legacy Starter blocks remain for existing flows but no longer appear in new builds.

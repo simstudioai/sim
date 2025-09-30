@@ -130,131 +130,143 @@ export function getToolParametersConfig(
   toolId: string,
   blockType?: string
 ): ToolWithParameters | null {
-  const toolConfig = getTool(toolId)
-  if (!toolConfig) {
-    return null
-  }
+  try {
+    const toolConfig = getTool(toolId)
+    if (!toolConfig) {
+      console.warn(`Tool not found: ${toolId}`)
+      return null
+    }
 
-  // Get block configuration for UI component information
-  let blockConfig: BlockConfig | null = null
-  if (blockType) {
-    const blockConfigs = getBlockConfigurations()
-    blockConfig = blockConfigs[blockType] || null
-  }
+    // Validate that toolConfig has required properties
+    if (!toolConfig.params || typeof toolConfig.params !== 'object') {
+      console.warn(`Tool ${toolId} has invalid params configuration`)
+      return null
+    }
 
-  // Convert tool params to our standard format with UI component info
-  const allParameters: ToolParameterConfig[] = Object.entries(toolConfig.params).map(
-    ([paramId, param]) => {
-      const toolParam: ToolParameterConfig = {
-        id: paramId,
-        type: param.type,
-        required: param.required ?? false,
-        visibility: param.visibility ?? (param.required ? 'user-or-llm' : 'user-only'),
-        description: param.description,
-        default: param.default,
-      }
+    // Get block configuration for UI component information
+    let blockConfig: BlockConfig | null = null
+    if (blockType) {
+      const blockConfigs = getBlockConfigurations()
+      blockConfig = blockConfigs[blockType] || null
+    }
 
-      // Add UI component information from block config if available
-      if (blockConfig) {
-        // For multi-operation tools, find the subblock that matches both the parameter ID
-        // and the current tool operation
-        let subBlock = blockConfig.subBlocks?.find((sb: SubBlockConfig) => {
-          if (sb.id !== paramId) return false
+    // Convert tool params to our standard format with UI component info
+    const allParameters: ToolParameterConfig[] = Object.entries(toolConfig.params).map(
+      ([paramId, param]) => {
+        const toolParam: ToolParameterConfig = {
+          id: paramId,
+          type: param.type,
+          required: param.required ?? false,
+          visibility: param.visibility ?? (param.required ? 'user-or-llm' : 'user-only'),
+          description: param.description,
+          default: param.default,
+        }
 
-          // If there's a condition, check if it matches the current tool
-          if (sb.condition && sb.condition.field === 'operation') {
-            // First try exact match with full tool ID
-            if (sb.condition.value === toolId) return true
+        // Add UI component information from block config if available
+        if (blockConfig) {
+          // For multi-operation tools, find the subblock that matches both the parameter ID
+          // and the current tool operation
+          let subBlock = blockConfig.subBlocks?.find((sb: SubBlockConfig) => {
+            if (sb.id !== paramId) return false
 
-            // Then try extracting operation from tool ID
-            // For tools like 'google_calendar_quick_add', extract 'quick_add'
-            const parts = toolId.split('_')
-            if (parts.length >= 3) {
-              // Join everything after the provider prefix (e.g., 'google_calendar_')
-              const operation = parts.slice(2).join('_')
-              if (sb.condition.value === operation) return true
+            // If there's a condition, check if it matches the current tool
+            if (sb.condition && sb.condition.field === 'operation') {
+              // First try exact match with full tool ID
+              if (sb.condition.value === toolId) return true
+
+              // Then try extracting operation from tool ID
+              // For tools like 'google_calendar_quick_add', extract 'quick_add'
+              const parts = toolId.split('_')
+              if (parts.length >= 3) {
+                // Join everything after the provider prefix (e.g., 'google_calendar_')
+                const operation = parts.slice(2).join('_')
+                if (sb.condition.value === operation) return true
+              }
+
+              // Fallback to last part only
+              const operation = parts[parts.length - 1]
+              return sb.condition.value === operation
             }
 
-            // Fallback to last part only
-            const operation = parts[parts.length - 1]
-            return sb.condition.value === operation
+            // If no condition, it's a global parameter (like apiKey)
+            return !sb.condition
+          })
+
+          // Fallback: if no operation-specific match, find any matching parameter
+          if (!subBlock) {
+            subBlock = blockConfig.subBlocks?.find((sb: SubBlockConfig) => sb.id === paramId)
           }
 
-          // If no condition, it's a global parameter (like apiKey)
-          return !sb.condition
-        })
+          // Special case: Check if this boolean parameter is part of a checkbox-list
+          if (!subBlock && param.type === 'boolean' && blockConfig) {
+            // Look for a checkbox-list that includes this parameter as an option
+            const checkboxListBlock = blockConfig.subBlocks?.find(
+              (sb: SubBlockConfig) =>
+                sb.type === 'checkbox-list' &&
+                Array.isArray(sb.options) &&
+                sb.options.some((opt: any) => opt.id === paramId)
+            )
 
-        // Fallback: if no operation-specific match, find any matching parameter
-        if (!subBlock) {
-          subBlock = blockConfig.subBlocks?.find((sb: SubBlockConfig) => sb.id === paramId)
-        }
+            if (checkboxListBlock) {
+              subBlock = checkboxListBlock
+            }
+          }
 
-        // Special case: Check if this boolean parameter is part of a checkbox-list
-        if (!subBlock && param.type === 'boolean' && blockConfig) {
-          // Look for a checkbox-list that includes this parameter as an option
-          const checkboxListBlock = blockConfig.subBlocks?.find(
-            (sb: SubBlockConfig) =>
-              sb.type === 'checkbox-list' &&
-              Array.isArray(sb.options) &&
-              sb.options.some((opt: any) => opt.id === paramId)
-          )
-
-          if (checkboxListBlock) {
-            subBlock = checkboxListBlock
+          if (subBlock) {
+            toolParam.uiComponent = {
+              type: subBlock.type,
+              options: subBlock.options,
+              placeholder: subBlock.placeholder,
+              password: subBlock.password,
+              condition: subBlock.condition,
+              title: subBlock.title,
+              layout: subBlock.layout,
+              value: subBlock.value,
+              provider: subBlock.provider,
+              serviceId: subBlock.serviceId,
+              requiredScopes: subBlock.requiredScopes,
+              mimeType: subBlock.mimeType,
+              columns: subBlock.columns,
+              min: subBlock.min,
+              max: subBlock.max,
+              step: subBlock.step,
+              integer: subBlock.integer,
+              language: subBlock.language,
+              generationType: subBlock.generationType,
+              acceptedTypes: subBlock.acceptedTypes,
+              multiple: subBlock.multiple,
+              maxSize: subBlock.maxSize,
+            }
           }
         }
 
-        if (subBlock) {
-          toolParam.uiComponent = {
-            type: subBlock.type,
-            options: subBlock.options,
-            placeholder: subBlock.placeholder,
-            password: subBlock.password,
-            condition: subBlock.condition,
-            title: subBlock.title,
-            layout: subBlock.layout,
-            value: subBlock.value,
-            provider: subBlock.provider,
-            serviceId: subBlock.serviceId,
-            requiredScopes: subBlock.requiredScopes,
-            mimeType: subBlock.mimeType,
-            columns: subBlock.columns,
-            min: subBlock.min,
-            max: subBlock.max,
-            step: subBlock.step,
-            integer: subBlock.integer,
-            language: subBlock.language,
-            generationType: subBlock.generationType,
-            acceptedTypes: subBlock.acceptedTypes,
-            multiple: subBlock.multiple,
-            maxSize: subBlock.maxSize,
-          }
-        }
+        return toolParam
       }
+    )
 
-      return toolParam
+    // Parameters that should be shown to the user for input
+    const userInputParameters = allParameters.filter(
+      (param) => param.visibility === 'user-or-llm' || param.visibility === 'user-only'
+    )
+
+    // Parameters that are required (must be filled by user or LLM)
+    const requiredParameters = allParameters.filter((param) => param.required)
+
+    // Parameters that are optional but can be provided by user
+    const optionalParameters = allParameters.filter(
+      (param) => param.visibility === 'user-only' && !param.required
+    )
+
+    return {
+      toolConfig,
+      allParameters,
+      userInputParameters,
+      requiredParameters,
+      optionalParameters,
     }
-  )
-
-  // Parameters that should be shown to the user for input
-  const userInputParameters = allParameters.filter(
-    (param) => param.visibility === 'user-or-llm' || param.visibility === 'user-only'
-  )
-
-  // Parameters that are required (must be filled by user or LLM)
-  const requiredParameters = allParameters.filter((param) => param.required)
-
-  // Parameters that are optional but can be provided by user
-  const optionalParameters = allParameters.filter(
-    (param) => param.visibility === 'user-only' && !param.required
-  )
-
-  return {
-    toolConfig,
-    allParameters,
-    userInputParameters,
-    requiredParameters,
-    optionalParameters,
+  } catch (error) {
+    console.error('Error getting tool parameters config:', error)
+    return null
   }
 }
 

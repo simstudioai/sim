@@ -1,0 +1,150 @@
+---
+title: Protokollierung
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+Sim bietet umfassende Protokollierung für alle Workflow-Ausführungen und gibt Ihnen vollständige Transparenz darüber, wie Ihre Workflows laufen, welche Daten durch sie fließen und wo möglicherweise Probleme auftreten.
+
+## Protokollierungssystem
+
+Sim bietet zwei komplementäre Protokollierungsschnittstellen, die verschiedenen Workflows und Anwendungsfällen entsprechen:
+
+### Echtzeit-Konsole
+
+Während der manuellen oder Chat-Workflow-Ausführung erscheinen Protokolle in Echtzeit im Konsolen-Panel auf der rechten Seite des Workflow-Editors:
+
+<div className="flex justify-center">
+  <Image
+    src="/static/logs/console.png"
+    alt="Echtzeit-Konsolen-Panel"
+    width={400}
+    height={300}
+    className="my-6"
+  />
+</div>
+
+Die Konsole zeigt:
+- Fortschritt der Blockausführung mit Hervorhebung des aktiven Blocks
+- Echtzeit-Ausgaben nach Abschluss der Blöcke
+- Ausführungszeit für jeden Block
+- Erfolgs-/Fehlerstatusanzeigen
+
+### Protokollseite
+
+Alle Workflow-Ausführungen – ob manuell ausgelöst, über API, Chat, Zeitplan oder Webhook – werden auf der dedizierten Protokollseite protokolliert:
+
+<div className="flex justify-center">
+  <Image
+    src="/static/logs/logs.png"
+    alt="Protokollseite"
+    width={600}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+Die Protokollseite bietet:
+- Umfassende Filterung nach Zeitraum, Status, Auslösertyp, Ordner und Workflow
+- Suchfunktion über alle Protokolle
+- Live-Modus für Echtzeit-Updates
+- 7-tägige Protokollaufbewahrung (erweiterbar für längere Aufbewahrung)
+
+## Protokolldetails-Seitenleiste
+
+Durch Klicken auf einen Protokolleintrag öffnet sich eine detaillierte Seitenleistenansicht:
+
+<div className="flex justify-center">
+  <Image
+    src="/static/logs/logs-sidebar.png"
+    alt="Protokoll-Seitenleiste mit Details"
+    width={600}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+### Block-Eingabe/Ausgabe
+
+Sehen Sie den vollständigen Datenfluss für jeden Block mit Tabs zum Umschalten zwischen:
+
+<Tabs items={['Output', 'Input']}>
+  <Tab>
+    **Output-Tab** zeigt das Ausführungsergebnis des Blocks:
+    - Strukturierte Daten mit JSON-Formatierung
+    - Markdown-Rendering für KI-generierte Inhalte
+    - Kopierschaltfläche für einfache Datenextraktion
+  </Tab>
+  
+  <Tab>
+    **Input-Tab** zeigt, was an den Block übergeben wurde:
+    - Aufgelöste Variablenwerte
+    - Referenzierte Ausgaben anderer Blöcke
+    - Verwendete Umgebungsvariablen
+    - API-Schlüssel werden aus Sicherheitsgründen automatisch unkenntlich gemacht
+  </Tab>
+</Tabs>
+
+### Ausführungszeitlinie
+
+Für Workflow-übergreifende Protokolle, sehen Sie detaillierte Ausführungsmetriken:
+- Start- und Endzeitstempel
+- Gesamtdauer des Workflows
+- Ausführungszeiten einzelner Blöcke
+- Identifikation von Leistungsengpässen
+
+## Workflow-Snapshots
+
+Für jede protokollierte Ausführung klicken Sie auf "Snapshot anzeigen", um den exakten Workflow-Zustand zum Ausführungszeitpunkt zu sehen:
+
+<div className="flex justify-center">
+  <Image
+    src="/static/logs/logs-frozen-canvas.png"
+    alt="Workflow-Snapshot"
+    width={600}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+Der Snapshot bietet:
+- Eingefrorene Arbeitsfläche, die die Workflow-Struktur zeigt
+- Block-Zustände und Verbindungen, wie sie während der Ausführung waren
+- Klicken Sie auf einen beliebigen Block, um dessen Ein- und Ausgaben zu sehen
+- Nützlich zum Debuggen von Workflows, die seitdem geändert wurden
+
+<Callout type="info">
+  Workflow-Snapshots sind nur für Ausführungen verfügbar, die nach der Einführung des erweiterten Protokollierungssystems durchgeführt wurden. Ältere migrierte Protokolle zeigen die Meldung "Protokollierter Zustand nicht gefunden".
+</Callout>
+
+## Protokollaufbewahrung
+
+- **Kostenloser Plan**: 7 Tage Protokollaufbewahrung
+- **Pro-Plan**: 30 Tage Protokollaufbewahrung
+- **Team-Plan**: 90 Tage Protokollaufbewahrung
+- **Enterprise-Plan**: Individuelle Aufbewahrungszeiträume verfügbar
+
+## Best Practices
+
+### Für die Entwicklung
+- Verwenden Sie die Echtzeit-Konsole für sofortiges Feedback während des Testens
+- Überprüfen Sie Block-Ein- und Ausgaben, um den Datenfluss zu verifizieren
+- Nutzen Sie Workflow-Snapshots, um funktionierende mit fehlerhaften Versionen zu vergleichen
+
+### Für die Produktion
+- Überwachen Sie die Protokollseite regelmäßig auf Fehler oder Leistungsprobleme
+- Richten Sie Filter ein, um sich auf bestimmte Workflows oder Zeiträume zu konzentrieren
+- Verwenden Sie den Live-Modus während kritischer Bereitstellungen, um Ausführungen in Echtzeit zu beobachten
+
+### Für das Debugging
+- Überprüfen Sie immer die Ausführungszeitlinie, um langsame Blöcke zu identifizieren
+- Vergleichen Sie Eingaben zwischen funktionierenden und fehlerhaften Ausführungen
+- Verwenden Sie Workflow-Snapshots, um den genauen Zustand zu sehen, wenn Probleme aufgetreten sind
+
+## Nächste Schritte
+
+- Erfahren Sie mehr über die [Kostenberechnung](/execution/costs), um die Preisgestaltung von Workflows zu verstehen
+- Erkunden Sie die [externe API](/execution/api) für programmatischen Zugriff auf Protokolle
+- Richten Sie [Webhook-Benachrichtigungen](/execution/api#webhook-subscriptions) für Echtzeit-Warnungen ein
