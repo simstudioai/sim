@@ -13,9 +13,7 @@ import { useOrganizationStore } from '@/stores/organization'
 
 const logger = createLogger('SSO')
 
-// Trusted SSO provider IDs that match auth.ts configuration
 const TRUSTED_SSO_PROVIDERS = [
-  // Common SSO provider patterns
   'okta',
   'okta-saml',
   'okta-prod',
@@ -137,12 +135,10 @@ export function SSO() {
         const data = await response.json()
         setProviders(data.providers || [])
 
-        // For self-hosted, check if current user owns any SSO provider
         if (!isBillingEnabled && userId) {
           const ownsProvider = data.providers.some((p: any) => p.userId === userId)
           setIsSSOProviderOwner(ownsProvider)
         } else {
-          // For hosted, ownership check not needed
           setIsSSOProviderOwner(null)
         }
       } catch (error) {
@@ -154,8 +150,6 @@ export function SSO() {
       }
     }
 
-    // For self-hosted (no billing), always fetch to check ownership
-    // For hosted, require organization + enterprise plan + owner/admin role
     const shouldFetch = !isBillingEnabled
       ? true
       : canManageSSO && activeOrganization && hasEnterprisePlan
@@ -167,7 +161,6 @@ export function SSO() {
     }
   }, [canManageSSO, activeOrganization, hasEnterprisePlan, userId, isBillingEnabled])
 
-  // For self-hosted, bypass organization/plan checks if user owns SSO providers
   if (isBillingEnabled) {
     if (!activeOrganization) {
       return (
@@ -207,8 +200,6 @@ export function SSO() {
       )
     }
   } else {
-    // Self-hosted: only show to SSO provider owners
-    // Wait for loading to complete before showing error
     if (!isLoadingProviders && isSSOProviderOwner === false && providers.length > 0) {
       return (
         <div className='flex h-full items-center justify-center p-6'>
@@ -234,7 +225,6 @@ export function SSO() {
     if (!value || !value.trim()) return ['Issuer URL is required.']
     try {
       const url = new URL(value.trim())
-      // Allow http:// for localhost development
       const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1'
       if (url.protocol !== 'https:' && !isLocalhost) {
         out.push('Issuer URL must use HTTPS.')
@@ -296,7 +286,6 @@ export function SSO() {
   const hasAnyErrors = (errs: Record<string, string[]>) =>
     Object.values(errs).some((l) => l.length > 0)
 
-  // Check if all required fields are filled
   const isFormValid = () => {
     const requiredFields = ['providerId', 'issuerUrl', 'domain']
     const hasRequiredFields = requiredFields.every((field) => {
@@ -397,13 +386,11 @@ export function SSO() {
         showAdvanced: false,
       })
 
-      // Refresh providers list
       const providersResponse = await fetch('/api/auth/sso/providers')
       if (providersResponse.ok) {
         const providersData = await providersResponse.json()
         setProviders(providersData.providers || [])
 
-        // Update ownership status for self-hosted
         if (!isBillingEnabled && userId) {
           const ownsProvider = providersData.providers.some((p: any) => p.userId === userId)
           setIsSSOProviderOwner(ownsProvider)

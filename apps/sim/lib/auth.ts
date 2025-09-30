@@ -153,7 +153,7 @@ export const auth = betterAuth({
         'slack',
         'reddit',
 
-        // Common SSO provider patterns - covers most enterprise use cases
+        // Common SSO provider patterns
         'okta',
         'okta-saml',
         'okta-prod',
@@ -1223,7 +1223,7 @@ export const auth = betterAuth({
         },
       ],
     }),
-    // SSO plugin - only include when SSO is enabled
+    // Include SSO plugin when enabled
     ...(env.SSO_ENABLED ? [sso()] : []),
     // Only include the Stripe plugin when billing is enabled
     ...(isBillingEnabled && stripeClient

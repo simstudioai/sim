@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
       providerId,
       issuer,
       domain,
-      providerType = 'oidc', // Default to OIDC
+      providerType = 'oidc',
       // OIDC specific fields
       clientId,
       clientSecret,
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       signatureAlgorithm,
       digestAlgorithm,
       identifierFormat,
-      idpMetadata, // Optional IDP metadata XML
+      idpMetadata,
       // Mapping configuration
       mapping = {
         id: 'sub',
@@ -41,7 +41,6 @@ export async function POST(request: NextRequest) {
       },
     } = body
 
-    // Validate required fields
     if (!providerId || !issuer || !domain) {
       return NextResponse.json(
         { error: 'Missing required fields: providerId, issuer, domain' },
@@ -49,7 +48,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate provider-specific required fields
     if (providerType === 'oidc') {
       if (!clientId || !clientSecret) {
         return NextResponse.json(
@@ -71,7 +69,6 @@ export async function POST(request: NextRequest) {
       headers[key] = value
     })
 
-    // Build configuration based on provider type
     const providerConfig: any = {
       providerId,
       issuer,
@@ -80,7 +77,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (providerType === 'oidc') {
-      // Build OIDC configuration with manual endpoints for Okta
       const oidcConfig: any = {
         clientId,
         clientSecret,
@@ -142,12 +138,9 @@ export async function POST(request: NextRequest) {
 
       providerConfig.oidcConfig = oidcConfig
     } else if (providerType === 'saml') {
-      // Build SAML configuration
-      // callbackUrl and spMetadata are REQUIRED by Better Auth
       const computedCallbackUrl =
         callbackUrl || `${issuer.replace('/metadata', '')}/callback/${providerId}`
 
-      // Generate SP metadata if not provided
       const spMetadataXml = `<?xml version="1.0" encoding="UTF-8"?>
 <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${issuer}">
   <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
@@ -158,15 +151,13 @@ export async function POST(request: NextRequest) {
       const samlConfig: any = {
         entryPoint,
         cert,
-        callbackUrl: computedCallbackUrl, // Required field
+        callbackUrl: computedCallbackUrl,
         spMetadata: {
-          // Required field
           metadata: spMetadataXml,
         },
-        mapping, // Add mapping to samlConfig for SAML providers
+        mapping,
       }
 
-      // Add optional SAML fields
       if (audience) samlConfig.audience = audience
       if (wantAssertionsSigned !== undefined) samlConfig.wantAssertionsSigned = wantAssertionsSigned
       if (signatureAlgorithm) samlConfig.signatureAlgorithm = signatureAlgorithm
@@ -179,7 +170,6 @@ export async function POST(request: NextRequest) {
       }
 
       providerConfig.samlConfig = samlConfig
-      // Remove top-level mapping for SAML as it should be in samlConfig
       providerConfig.mapping = undefined
     }
 

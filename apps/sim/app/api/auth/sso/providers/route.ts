@@ -8,13 +8,10 @@ const logger = createLogger('SSO-Providers')
 
 export async function GET(req: NextRequest) {
   try {
-    // For public access (login page), get all providers
-    // For authenticated access (settings), get user's providers
     const session = await auth.api.getSession({ headers: req.headers })
 
     let providers
     if (session?.user?.id) {
-      // Authenticated user - get their providers
       const results = await db
         .select({
           id: ssoProvider.id,
@@ -34,7 +31,6 @@ export async function GET(req: NextRequest) {
         providerType: provider.oidcConfig ? 'oidc' : ('saml' as 'oidc' | 'saml'),
       }))
     } else {
-      // Public access - get all providers for login use
       const results = await db
         .select({
           id: ssoProvider.id,
