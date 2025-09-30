@@ -367,11 +367,12 @@ export function EnvironmentVariables({
             onChange={(e) => updateEnvVar(originalIndex, 'key', e.target.value)}
             onPaste={(e) => handlePaste(e, originalIndex)}
             placeholder='API_KEY'
+            name={`env_variable_name_${envVar.id || originalIndex}_${Math.random()}`}
             autoComplete='off'
-            autoCorrect='off'
             autoCapitalize='off'
             spellCheck='false'
-            name={`env-var-key-${envVar.id || originalIndex}-${Math.random()}`}
+            readOnly
+            onFocus={(e) => e.target.removeAttribute('readOnly')}
             className={`h-9 rounded-[8px] border-none px-3 font-normal text-sm ring-0 ring-offset-0 placeholder:text-muted-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 ${isConflict ? 'border border-red-500 bg-[#F6D2D2] outline-none ring-0 disabled:bg-[#F6D2D2] disabled:opacity-100 dark:bg-[#442929] disabled:dark:bg-[#442929]' : 'bg-muted'}`}
           />
           <Input
@@ -379,19 +380,24 @@ export function EnvironmentVariables({
             value={envVar.value}
             onChange={(e) => updateEnvVar(originalIndex, 'value', e.target.value)}
             type={focusedValueIndex === originalIndex ? 'text' : 'password'}
-            onFocus={(e) => handleValueFocus(originalIndex, e)}
+            onFocus={(e) => {
+              if (!isConflict) {
+                e.target.removeAttribute('readOnly')
+                handleValueFocus(originalIndex, e)
+              }
+            }}
             onClick={handleValueClick}
             onBlur={() => setFocusedValueIndex(null)}
             onPaste={(e) => handlePaste(e, originalIndex)}
             placeholder={isConflict ? 'Workspace override active' : 'Enter value'}
             disabled={isConflict}
             aria-disabled={isConflict}
-            className={`allow-scroll h-9 rounded-[8px] border-none px-3 font-normal text-sm ring-0 ring-offset-0 placeholder:text-muted-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 ${isConflict ? 'cursor-not-allowed border border-red-500 bg-[#F6D2D2] outline-none ring-0 disabled:bg-[#F6D2D2] disabled:opacity-100 dark:bg-[#442929] disabled:dark:bg-[#442929]' : 'bg-muted'}`}
-            autoComplete='off'
-            autoCorrect='off'
+            name={`env_variable_value_${envVar.id || originalIndex}_${Math.random()}`}
+            autoComplete='new-password'
             autoCapitalize='off'
             spellCheck='false'
-            name={`env-var-value-${envVar.id || originalIndex}-${Math.random()}`}
+            readOnly={isConflict}
+            className={`allow-scroll h-9 rounded-[8px] border-none px-3 font-normal text-sm ring-0 ring-offset-0 placeholder:text-muted-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 ${isConflict ? 'cursor-not-allowed border border-red-500 bg-[#F6D2D2] outline-none ring-0 disabled:bg-[#F6D2D2] disabled:opacity-100 dark:bg-[#442929] disabled:dark:bg-[#442929]' : 'bg-muted'}`}
           />
           <div className='flex items-center justify-end gap-2'>
             <Tooltip>
@@ -442,6 +448,8 @@ export function EnvironmentVariables({
 
   return (
     <div className='relative flex h-full flex-col'>
+      {/* Hidden dummy input to prevent autofill */}
+      <input type='text' name='hidden' style={{ display: 'none' }} autoComplete='false' />
       {/* Fixed Header */}
       <div className='px-6 pt-4 pb-2'>
         {/* Search Input */}
@@ -454,6 +462,12 @@ export function EnvironmentVariables({
               placeholder='Search variables...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              name='env_search_field'
+              autoComplete='off'
+              autoCapitalize='off'
+              spellCheck='false'
+              readOnly
+              onFocus={(e) => e.target.removeAttribute('readOnly')}
               className='flex-1 border-0 bg-transparent px-0 font-[380] font-sans text-base text-foreground leading-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
             />
           </div>
@@ -495,11 +509,21 @@ export function EnvironmentVariables({
                             setPendingKeyValue(e.target.value)
                           }}
                           onBlur={() => handleWorkspaceKeyRename(key, value)}
+                          name={`workspace_env_key_${key}_${Math.random()}`}
+                          autoComplete='off'
+                          autoCapitalize='off'
+                          spellCheck='false'
+                          readOnly
+                          onFocus={(e) => e.target.removeAttribute('readOnly')}
                           className='h-9 rounded-[8px] border-none bg-muted px-3 text-sm'
                         />
                         <Input
                           value={value ? '•'.repeat(value.length) : ''}
                           readOnly
+                          autoComplete='off'
+                          autoCorrect='off'
+                          autoCapitalize='off'
+                          spellCheck='false'
                           className='h-9 rounded-[8px] border-none bg-muted px-3 text-sm'
                         />
                         <div className='flex justify-end'>
@@ -540,11 +564,21 @@ export function EnvironmentVariables({
                           setPendingKeyValue(e.target.value)
                         }}
                         onBlur={() => handleWorkspaceKeyRename(key, value)}
+                        name={`workspace_env_key_filtered_${key}_${Math.random()}`}
+                        autoComplete='off'
+                        autoCapitalize='off'
+                        spellCheck='false'
+                        readOnly
+                        onFocus={(e) => e.target.removeAttribute('readOnly')}
                         className='h-9 rounded-[8px] border-none bg-muted px-3 text-sm'
                       />
                       <Input
                         value={value ? '•'.repeat(value.length) : ''}
                         readOnly
+                        autoComplete='off'
+                        autoCorrect='off'
+                        autoCapitalize='off'
+                        spellCheck='false'
                         className='h-9 rounded-[8px] border-none bg-muted px-3 text-sm'
                       />
                       <div className='flex justify-end'>

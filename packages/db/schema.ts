@@ -1402,3 +1402,28 @@ export const mcpServers = pgTable(
     ),
   })
 )
+
+// SSO Provider table
+export const ssoProvider = pgTable(
+  'sso_provider',
+  {
+    id: text('id').primaryKey(),
+    issuer: text('issuer').notNull(),
+    domain: text('domain').notNull(),
+    oidcConfig: text('oidc_config'),
+    samlConfig: text('saml_config'),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    providerId: text('provider_id').notNull(),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
+  },
+  (table) => ({
+    providerIdIdx: index('sso_provider_provider_id_idx').on(table.providerId),
+    domainIdx: index('sso_provider_domain_idx').on(table.domain),
+    userIdIdx: index('sso_provider_user_id_idx').on(table.userId),
+    organizationIdIdx: index('sso_provider_organization_id_idx').on(table.organizationId),
+  })
+)

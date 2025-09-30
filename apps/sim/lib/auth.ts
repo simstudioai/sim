@@ -1,3 +1,4 @@
+import { sso } from '@better-auth/sso'
 import { stripe } from '@better-auth/stripe'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
@@ -43,6 +44,7 @@ import { quickValidateEmail } from '@/lib/email/validation'
 import { env, isTruthy } from '@/lib/env'
 import { isBillingEnabled, isEmailVerificationEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
+import { SSO_TRUSTED_PROVIDERS } from './sso/consts'
 
 const logger = createLogger('Auth')
 
@@ -140,6 +142,7 @@ export const auth = betterAuth({
       enabled: true,
       allowDifferentEmails: true,
       trustedProviders: [
+        // Standard OAuth providers
         'google',
         'github',
         'email-password',
@@ -150,6 +153,9 @@ export const auth = betterAuth({
         'microsoft',
         'slack',
         'reddit',
+
+        // Common SSO provider patterns
+        ...SSO_TRUSTED_PROVIDERS,
       ],
     },
   },
@@ -1179,6 +1185,8 @@ export const auth = betterAuth({
         },
       ],
     }),
+    // Include SSO plugin when enabled
+    ...(env.SSO_ENABLED ? [sso()] : []),
     // Only include the Stripe plugin when billing is enabled
     ...(isBillingEnabled && stripeClient
       ? [
