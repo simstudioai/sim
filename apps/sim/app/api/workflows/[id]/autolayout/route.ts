@@ -8,7 +8,10 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { generateRequestId } from '@/lib/utils'
 import { applyAutoLayout } from '@/lib/workflows/autolayout'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
+import {
+  loadWorkflowFromNormalizedTables,
+  type NormalizedWorkflowData,
+} from '@/lib/workflows/db-helpers'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,9 +39,13 @@ const AutoLayoutRequestSchema = z.object({
     })
     .optional()
     .default({}),
+  // Optional: if provided, use these blocks instead of loading from DB
+  // This allows using blocks with live measurements from the UI
+  blocks: z.record(z.any()).optional(),
+  edges: z.array(z.any()).optional(),
+  loops: z.record(z.any()).optional(),
+  parallels: z.record(z.any()).optional(),
 })
-
-type AutoLayoutRequest = z.infer<typeof AutoLayoutRequestSchema>
 
 /**
  * POST /api/workflows/[id]/autolayout
@@ -108,8 +115,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Load current workflow state
-    const currentWorkflowData = await loadWorkflowFromNormalizedTables(workflowId)
+    // Use provided blocks/edges if available (with live measurements from UI),
+    // otherwise load from database
+    let currentWorkflowData: NormalizedWorkflowData | null
+
+    if (layoutOptions.blocks && layoutOptions.edges) {
+      logger.info(`[${requestId}] Using provided blocks with live measurements`)
+      currentWorkflowData = {
+        blocks: layoutOptions.blocks,
+        edges: layoutOptions.edges,
+        loops: layoutOptions.loops || {},
+        parallels: layoutOptions.parallels || {},
+        isFromNormalizedTables: false,
+      }
+    } else {
+      logger.info(`[${requestId}] Loading blocks from database`)
+      currentWorkflowData = await loadWorkflowFromNormalizedTables(workflowId)
+    }
 
     if (!currentWorkflowData) {
       logger.error(`[${requestId}] Could not load workflow ${workflowId} for autolayout`)

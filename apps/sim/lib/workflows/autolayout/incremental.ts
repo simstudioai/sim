@@ -1,7 +1,7 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import type { AdjustmentOptions, Edge } from './types'
-import { boxesOverlap, createBoundingBox, getBlockDimensions } from './utils'
+import { boxesOverlap, createBoundingBox, getBlockMetrics } from './utils'
 
 const logger = createLogger('AutoLayout:Incremental')
 
@@ -70,8 +70,8 @@ export function adjustForNewBlock(
     })
   }
 
-  const newBlockDims = getBlockDimensions(newBlock)
-  const newBlockBox = createBoundingBox(newBlock.position, newBlockDims)
+  const newBlockMetrics = getBlockMetrics(newBlock)
+  const newBlockBox = createBoundingBox(newBlock.position, newBlockMetrics)
 
   const blocksToShift: Array<{ block: BlockState; shiftAmount: number }> = []
 
@@ -80,11 +80,11 @@ export function adjustForNewBlock(
     if (block.data?.parentId) continue
 
     if (block.position.x >= newBlock.position.x) {
-      const blockDims = getBlockDimensions(block)
-      const blockBox = createBoundingBox(block.position, blockDims)
+      const blockMetrics = getBlockMetrics(block)
+      const blockBox = createBoundingBox(block.position, blockMetrics)
 
       if (boxesOverlap(newBlockBox, blockBox, 50)) {
-        const requiredShift = newBlock.position.x + newBlockDims.width + 50 - block.position.x
+        const requiredShift = newBlock.position.x + newBlockMetrics.width + 50 - block.position.x
         if (requiredShift > 0) {
           blocksToShift.push({ block, shiftAmount: requiredShift })
         }
@@ -115,8 +115,8 @@ export function compactHorizontally(blocks: Record<string, BlockState>, edges: E
     const prevBlock = blockArray[i - 1]
     const currentBlock = blockArray[i]
 
-    const prevDims = getBlockDimensions(prevBlock)
-    const expectedX = prevBlock.position.x + prevDims.width + MIN_SPACING
+    const prevMetrics = getBlockMetrics(prevBlock)
+    const expectedX = prevBlock.position.x + prevMetrics.width + MIN_SPACING
 
     if (currentBlock.position.x > expectedX + 150) {
       const shift = currentBlock.position.x - expectedX

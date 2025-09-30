@@ -78,13 +78,19 @@ export async function applyAutoLayoutToWorkflow(
       },
     }
 
-    // Call the autolayout API route which has access to the server-side API key
+    // Call the autolayout API route, sending blocks with live measurements
     const response = await fetch(`/api/workflows/${workflowId}/autolayout`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(layoutOptions),
+      body: JSON.stringify({
+        ...layoutOptions,
+        blocks,
+        edges,
+        loops,
+        parallels,
+      }),
     })
 
     if (!response.ok) {

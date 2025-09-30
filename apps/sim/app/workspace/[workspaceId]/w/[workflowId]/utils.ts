@@ -98,18 +98,12 @@ const getBlockDimensions = (
     }
   }
 
-  if (block.type === 'workflowBlock') {
-    const nodeWidth = block.data?.width || block.width
-    const nodeHeight = block.data?.height || block.height
-
-    if (nodeWidth && nodeHeight) {
-      return { width: nodeWidth, height: nodeHeight }
-    }
-  }
-
   return {
-    width: block.isWide ? 450 : block.data?.width || block.width || 350,
-    height: Math.max(block.height || block.data?.height || 150, 100),
+    width: block.layout?.measuredWidth || (block.isWide ? 450 : block.data?.width || 350),
+    height: Math.max(
+      block.layout?.measuredHeight || block.height || block.data?.height || 150,
+      100
+    ),
   }
 }
 

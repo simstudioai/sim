@@ -185,6 +185,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               advancedMode: blockProperties?.advancedMode ?? false,
               triggerMode: blockProperties?.triggerMode ?? false,
               height: blockProperties?.height ?? 0,
+              layout: {},
               data: nodeData,
             },
           },
@@ -232,6 +233,11 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                   ...block.data,
                   width: dimensions.width,
                   height: dimensions.height,
+                },
+                layout: {
+                  ...block.layout,
+                  measuredWidth: dimensions.width,
+                  measuredHeight: dimensions.height,
                 },
               },
             },
@@ -786,20 +792,33 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         // Note: Socket.IO handles real-time sync automatically
       },
 
-      updateBlockHeight: (id: string, height: number) => {
-        set((state) => ({
-          blocks: {
-            ...state.blocks,
-            [id]: {
-              ...state.blocks[id],
-              height,
+      updateBlockLayoutMetrics: (id: string, dimensions: { width: number; height: number }) => {
+        set((state) => {
+          const block = state.blocks[id]
+          if (!block) {
+            logger.warn(`Cannot update layout metrics: Block ${id} not found in workflow store`)
+            return state
+          }
+
+          return {
+            blocks: {
+              ...state.blocks,
+              [id]: {
+                ...block,
+                height: dimensions.height,
+                layout: {
+                  ...block.layout,
+                  measuredWidth: dimensions.width,
+                  measuredHeight: dimensions.height,
+                },
+              },
             },
-          },
-          edges: [...state.edges],
-          loops: { ...state.loops },
-        }))
+            edges: [...state.edges],
+            loops: { ...state.loops },
+          }
+        })
         get().updateLastSaved()
-        // No sync needed for height changes, just visual
+        // No sync needed for layout changes, just visual
       },
 
       updateLoopCount: (loopId: string, count: number) =>

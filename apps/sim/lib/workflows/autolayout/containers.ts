@@ -3,7 +3,12 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 import { assignLayers, groupByLayer } from './layering'
 import { calculatePositions } from './positioning'
 import type { Edge, LayoutOptions } from './types'
-import { DEFAULT_CONTAINER_HEIGHT, DEFAULT_CONTAINER_WIDTH, getBlocksByParent } from './utils'
+import {
+  DEFAULT_CONTAINER_HEIGHT,
+  DEFAULT_CONTAINER_WIDTH,
+  getBlocksByParent,
+  prepareBlockMetrics,
+} from './utils'
 
 const logger = createLogger('AutoLayout:Containers')
 
@@ -45,6 +50,7 @@ export function layoutContainers(
     }
 
     const childNodes = assignLayers(childBlocks, childEdges)
+    prepareBlockMetrics(childNodes)
     const childLayers = groupByLayer(childNodes)
     calculatePositions(childLayers, containerOptions)
 
@@ -57,8 +63,8 @@ export function layoutContainers(
     for (const node of childNodes.values()) {
       minX = Math.min(minX, node.position.x)
       minY = Math.min(minY, node.position.y)
-      maxX = Math.max(maxX, node.position.x + node.dimensions.width)
-      maxY = Math.max(maxY, node.position.y + node.dimensions.height)
+      maxX = Math.max(maxX, node.position.x + node.metrics.width)
+      maxY = Math.max(maxY, node.position.y + node.metrics.height)
     }
 
     // Adjust all child positions to start at proper padding from container edges
