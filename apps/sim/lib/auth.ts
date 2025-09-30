@@ -44,6 +44,7 @@ import { quickValidateEmail } from '@/lib/email/validation'
 import { env, isTruthy } from '@/lib/env'
 import { isBillingEnabled, isEmailVerificationEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
+import { SSO_TRUSTED_PROVIDERS } from './sso/consts'
 
 const logger = createLogger('Auth')
 
@@ -154,46 +155,7 @@ export const auth = betterAuth({
         'reddit',
 
         // Common SSO provider patterns
-        'okta',
-        'okta-saml',
-        'okta-prod',
-        'okta-dev',
-        'okta-staging',
-        'okta-test',
-        'azure-ad',
-        'azure-active-directory',
-        'azure-corp',
-        'azure-enterprise',
-        'adfs',
-        'adfs-company',
-        'adfs-corp',
-        'adfs-enterprise',
-        'auth0',
-        'auth0-prod',
-        'auth0-dev',
-        'auth0-staging',
-        'onelogin',
-        'onelogin-prod',
-        'onelogin-corp',
-        'jumpcloud',
-        'jumpcloud-prod',
-        'jumpcloud-corp',
-        'ping-identity',
-        'ping-federate',
-        'pingone',
-        'shibboleth',
-        'shibboleth-idp',
-        'google-workspace',
-        'google-sso',
-        'saml',
-        'saml2',
-        'saml-sso',
-        'oidc',
-        'oidc-sso',
-        'openid-connect',
-        'custom-sso',
-        'enterprise-sso',
-        'company-sso',
+        ...SSO_TRUSTED_PROVIDERS,
       ],
     },
   },
