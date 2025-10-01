@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/select'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { McpTransport } from '@/lib/mcp/types'
+import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useMcpServerTest } from '@/hooks/use-mcp-server-test'
 import { useMcpServersStore } from '@/stores/mcp-servers/store'
 
@@ -33,6 +34,7 @@ interface McpServerModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onServerCreated?: () => void
+  blockId: string
 }
 
 interface McpServerFormData {
@@ -42,7 +44,12 @@ interface McpServerFormData {
   headers?: Record<string, string>
 }
 
-export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServerModalProps) {
+export function McpServerModal({
+  open,
+  onOpenChange,
+  onServerCreated,
+  blockId,
+}: McpServerModalProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const [formData, setFormData] = useState<McpServerFormData>({
@@ -262,6 +269,8 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
     workspaceId,
   ])
 
+  const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='sm:max-w-[600px]'>
@@ -337,7 +346,10 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
                   className='whitespace-nowrap'
                   style={{ transform: `translateX(-${urlScrollLeft}px)` }}
                 >
-                  {formatDisplayText(formData.url || '')}
+                  {formatDisplayText(formData.url || '', {
+                    accessiblePrefixes,
+                    highlightAll: !accessiblePrefixes,
+                  })}
                 </div>
               </div>
             </div>
@@ -389,7 +401,10 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
                           transform: `translateX(-${headerScrollLeft[`key-${index}`] || 0}px)`,
                         }}
                       >
-                        {formatDisplayText(key || '')}
+                        {formatDisplayText(key || '', {
+                          accessiblePrefixes,
+                          highlightAll: !accessiblePrefixes,
+                        })}
                       </div>
                     </div>
                   </div>
@@ -417,7 +432,10 @@ export function McpServerModal({ open, onOpenChange, onServerCreated }: McpServe
                           transform: `translateX(-${headerScrollLeft[`value-${index}`] || 0}px)`,
                         }}
                       >
-                        {formatDisplayText(value || '')}
+                        {formatDisplayText(value || '', {
+                          accessiblePrefixes,
+                          highlightAll: !accessiblePrefixes,
+                        })}
                       </div>
                     </div>
                   </div>

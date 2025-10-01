@@ -1356,7 +1356,7 @@ describe('InputResolver', () => {
       expect(result.code).toBe('return "Agent response"')
     })
 
-    it('should reject references to unconnected blocks', () => {
+    it('should leave references to unconnected blocks as strings', () => {
       // Create a new block that is added to the workflow but not connected to isolated-block
       workflowWithConnections.blocks.push({
         id: 'test-block',
@@ -1402,9 +1402,9 @@ describe('InputResolver', () => {
         enabled: true,
       }
 
-      expect(() => connectionResolver.resolveInputs(testBlock, contextWithConnections)).toThrow(
-        /Block "isolated-block" is not connected to this block/
-      )
+      // Should not throw - inaccessible references remain as strings
+      const result = connectionResolver.resolveInputs(testBlock, contextWithConnections)
+      expect(result.code).toBe('return <isolated-block.content>') // Reference remains as-is
     })
 
     it('should always allow references to starter block', () => {
@@ -1546,7 +1546,7 @@ describe('InputResolver', () => {
       expect(otherResult).toBe('content: Hello World')
     })
 
-    it('should provide helpful error messages for unconnected blocks', () => {
+    it('should not throw for unconnected blocks and leave references as strings', () => {
       // Create a test block in the workflow first
       workflowWithConnections.blocks.push({
         id: 'test-block-2',
@@ -1592,9 +1592,9 @@ describe('InputResolver', () => {
         enabled: true,
       }
 
-      expect(() => connectionResolver.resolveInputs(testBlock, contextWithConnections)).toThrow(
-        /Available connected blocks:.*Agent Block.*Start/
-      )
+      // Should not throw - references to nonexistent blocks remain as strings
+      const result = connectionResolver.resolveInputs(testBlock, contextWithConnections)
+      expect(result.code).toBe('return <nonexistent.value>') // Reference remains as-is
     })
 
     it('should work with block names and normalized names', () => {
@@ -1725,7 +1725,7 @@ describe('InputResolver', () => {
         extendedResolver.resolveInputs(block1, extendedContext)
       }).not.toThrow()
 
-      // Should fail for indirect connection
+      // Should not fail for indirect connection - reference remains as string
       expect(() => {
         // Add the response block to the workflow so it can be validated properly
         extendedWorkflow.blocks.push({
@@ -1748,8 +1748,9 @@ describe('InputResolver', () => {
           outputs: {},
           enabled: true,
         }
-        extendedResolver.resolveInputs(block2, extendedContext)
-      }).toThrow(/Block "agent-1" is not connected to this block/)
+        const result = extendedResolver.resolveInputs(block2, extendedContext)
+        expect(result.test).toBe('<agent-1.content>') // Reference remains as-is since agent-1 is not accessible
+      }).not.toThrow()
     })
 
     it('should handle blocks in same loop referencing each other', () => {

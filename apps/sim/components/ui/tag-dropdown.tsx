@@ -1,13 +1,12 @@
-import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
-import { BlockPathCalculator } from '@/lib/block-path-calculator'
+import { shallow } from 'zustand/shallow'
 import { extractFieldsFromSchema, parseResponseFormatSafely } from '@/lib/response-format'
 import { cn } from '@/lib/utils'
 import { getBlockOutputPaths, getBlockOutputType } from '@/lib/workflows/block-outputs'
+import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { getBlock } from '@/blocks'
 import type { BlockConfig } from '@/blocks/types'
-import { Serializer } from '@/serializer'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type { Variable } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -23,6 +22,15 @@ interface BlockTagGroup {
   blockType: string
   tags: string[]
   distance: number
+}
+
+interface NestedBlockTagGroup extends BlockTagGroup {
+  nestedTags: Array<{
+    key: string
+    display: string
+    fullTag?: string
+    children?: Array<{ key: string; display: string; fullTag: string }>
+  }>
 }
 
 interface TagDropdownProps {
@@ -68,6 +76,18 @@ const normalizeBlockName = (blockName: string): string => {
 
 const normalizeVariableName = (variableName: string): string => {
   return variableName.replace(/\s+/g, '')
+}
+
+const ensureRootTag = (tags: string[], rootTag: string): string[] => {
+  if (!rootTag) {
+    return tags
+  }
+
+  if (tags.includes(rootTag)) {
+    return tags
+  }
+
+  return [rootTag, ...tags]
 }
 
 const getSubBlockValue = (blockId: string, property: string): any => {
@@ -300,11 +320,26 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   const [parentHovered, setParentHovered] = useState<string | null>(null)
   const [submenuHovered, setSubmenuHovered] = useState(false)
 
-  const blocks = useWorkflowStore((state) => state.blocks)
-  const loops = useWorkflowStore((state) => state.loops)
-  const parallels = useWorkflowStore((state) => state.parallels)
-  const edges = useWorkflowStore((state) => state.edges)
+  const { blocks, edges, loops, parallels } = useWorkflowStore(
+    (state) => ({
+      blocks: state.blocks,
+      edges: state.edges,
+      loops: state.loops || {},
+      parallels: state.parallels || {},
+    }),
+    shallow
+  )
+
   const workflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+
+  const rawAccessiblePrefixes = useAccessibleReferencePrefixes(blockId)
+
+  const combinedAccessiblePrefixes = useMemo(() => {
+    if (!rawAccessiblePrefixes) return new Set<string>()
+    const normalized = new Set<string>(rawAccessiblePrefixes)
+    normalized.add(normalizeBlockName(blockId))
+    return normalized
+  }, [rawAccessiblePrefixes, blockId])
 
   // Subscribe to live subblock values for the active workflow to react to input format changes
   const workflowSubBlockValues = useSubBlockStore((state) =>
@@ -325,7 +360,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   )
 
   const getVariablesByWorkflowId = useVariablesStore((state) => state.getVariablesByWorkflowId)
-  const variables = useVariablesStore((state) => state.variables)
   const workflowVariables = workflowId ? getVariablesByWorkflowId(workflowId) : []
 
   const searchTerm = useMemo(() => {
@@ -336,8 +370,12 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
   const {
     tags,
-    variableInfoMap = {},
-    blockTagGroups = [],
+    variableInfoMap,
+    blockTagGroups: computedBlockTagGroups,
+  }: {
+    tags: string[]
+    variableInfoMap: Record<string, { type: string; id: string }>
+    blockTagGroups: BlockTagGroup[]
   } = useMemo(() => {
     if (activeSourceBlockId) {
       const sourceBlock = blocks[activeSourceBlockId]
@@ -481,6 +519,12 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         }
       }
 
+      blockTags = ensureRootTag(blockTags, normalizedBlockName)
+      const shouldShowRootTag = sourceBlock.type === 'generic_webhook'
+      if (!shouldShowRootTag) {
+        blockTags = blockTags.filter((tag) => tag !== normalizedBlockName)
+      }
+
       const blockTagGroups: BlockTagGroup[] = [
         {
           blockName,
@@ -507,18 +551,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       }
     }
 
-    const serializer = new Serializer()
-    const serializedWorkflow = serializer.serializeWorkflow(blocks, edges, loops, parallels)
-
-    const accessibleBlockIds = BlockPathCalculator.findAllPathNodes(
-      serializedWorkflow.connections,
-      blockId
-    )
-
     const starterBlock = Object.values(blocks).find((block) => block.type === 'starter')
-    if (starterBlock && !accessibleBlockIds.includes(starterBlock.id)) {
-      accessibleBlockIds.push(starterBlock.id)
-    }
 
     const blockDistances: Record<string, number> = {}
     if (starterBlock) {
@@ -623,6 +656,10 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     const blockTagGroups: BlockTagGroup[] = []
     const allBlockTags: string[] = []
 
+    // Use the combinedAccessiblePrefixes to iterate through accessible blocks
+    const accessibleBlockIds = combinedAccessiblePrefixes
+      ? Array.from(combinedAccessiblePrefixes)
+      : []
     for (const accessibleBlockId of accessibleBlockIds) {
       const accessibleBlock = blocks[accessibleBlockId]
       if (!accessibleBlock) continue
@@ -648,7 +685,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           const normalizedBlockName = normalizeBlockName(blockName)
 
           const outputPaths = generateOutputPaths(mockConfig.outputs)
-          const blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+          let blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+          blockTags = ensureRootTag(blockTags, normalizedBlockName)
 
           blockTagGroups.push({
             blockName,
@@ -750,6 +788,12 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         }
       }
 
+      blockTags = ensureRootTag(blockTags, normalizedBlockName)
+      const shouldShowRootTag = accessibleBlock.type === 'generic_webhook'
+      if (!shouldShowRootTag) {
+        blockTags = blockTags.filter((tag) => tag !== normalizedBlockName)
+      }
+
       blockTagGroups.push({
         blockName,
         blockId: accessibleBlockId,
@@ -781,51 +825,54 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     }
 
     return {
-      tags: [...variableTags, ...contextualTags, ...allBlockTags],
+      tags: [...allBlockTags, ...variableTags, ...contextualTags],
       variableInfoMap,
       blockTagGroups: finalBlockTagGroups,
     }
   }, [
+    activeSourceBlockId,
+    combinedAccessiblePrefixes,
+    blockId,
     blocks,
     edges,
+    getMergedSubBlocks,
     loops,
     parallels,
-    blockId,
-    activeSourceBlockId,
     workflowVariables,
-    workflowSubBlockValues,
-    getMergedSubBlocks,
+    workflowId,
   ])
 
   const filteredTags = useMemo(() => {
     if (!searchTerm) return tags
-    return tags.filter((tag: string) => tag.toLowerCase().includes(searchTerm))
+    return tags.filter((tag) => tag.toLowerCase().includes(searchTerm))
   }, [tags, searchTerm])
 
   const { variableTags, filteredBlockTagGroups } = useMemo(() => {
     const varTags: string[] = []
 
-    filteredTags.forEach((tag) => {
+    filteredTags.forEach((tag: string) => {
       if (tag.startsWith(TAG_PREFIXES.VARIABLE)) {
         varTags.push(tag)
       }
     })
 
-    const filteredBlockTagGroups = blockTagGroups
-      .map((group) => ({
+    const filteredBlockTagGroups = computedBlockTagGroups
+      .map((group: BlockTagGroup) => ({
         ...group,
-        tags: group.tags.filter((tag) => !searchTerm || tag.toLowerCase().includes(searchTerm)),
+        tags: group.tags.filter(
+          (tag: string) => !searchTerm || tag.toLowerCase().includes(searchTerm)
+        ),
       }))
-      .filter((group) => group.tags.length > 0)
+      .filter((group: BlockTagGroup) => group.tags.length > 0)
 
     return {
       variableTags: varTags,
       filteredBlockTagGroups,
     }
-  }, [filteredTags, blockTagGroups, searchTerm])
+  }, [filteredTags, computedBlockTagGroups, searchTerm])
 
-  const nestedBlockTagGroups = useMemo(() => {
-    return filteredBlockTagGroups.map((group) => {
+  const nestedBlockTagGroups: NestedBlockTagGroup[] = useMemo(() => {
+    return filteredBlockTagGroups.map((group: BlockTagGroup) => {
       const nestedTags: Array<{
         key: string
         display: string
@@ -839,7 +886,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       > = {}
       const directTags: Array<{ key: string; display: string; fullTag: string }> = []
 
-      group.tags.forEach((tag) => {
+      group.tags.forEach((tag: string) => {
         const tagParts = tag.split('.')
         if (tagParts.length >= 3) {
           const parent = tagParts[1]
@@ -899,8 +946,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
     visualTags.push(...variableTags)
 
-    nestedBlockTagGroups.forEach((group) => {
-      group.nestedTags.forEach((nestedTag) => {
+    nestedBlockTagGroups.forEach((group: NestedBlockTagGroup) => {
+      group.nestedTags.forEach((nestedTag: any) => {
         if (nestedTag.children && nestedTag.children.length > 0) {
           const firstChild = nestedTag.children[0]
           if (firstChild.fullTag) {
@@ -952,8 +999,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
       if (tag.startsWith(TAG_PREFIXES.VARIABLE)) {
         const variableName = tag.substring(TAG_PREFIXES.VARIABLE.length)
-        const variableObj = Object.values(variables).find(
-          (v) => v.name.replace(/\s+/g, '') === variableName
+        const variableObj = workflowVariables.find(
+          (v: Variable) => v.name.replace(/\s+/g, '') === variableName
         )
 
         if (variableObj) {
@@ -985,7 +1032,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       onSelect(newValue)
       onClose?.()
     },
-    [inputValue, cursorPosition, variables, onSelect, onClose]
+    [inputValue, cursorPosition, workflowVariables, onSelect, onClose]
   )
 
   useEffect(() => setSelectedIndex(0), [searchTerm])
@@ -1030,7 +1077,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           if (selectedIndex < 0 || selectedIndex >= orderedTags.length) return null
           const selectedTag = orderedTags[selectedIndex]
           for (let gi = 0; gi < nestedBlockTagGroups.length; gi++) {
-            const group = nestedBlockTagGroups[gi]
+            const group = nestedBlockTagGroups[gi]!
             for (let ni = 0; ni < group.nestedTags.length; ni++) {
               const nestedTag = group.nestedTags[ni]
               if (nestedTag.children && nestedTag.children.length > 0) {
@@ -1051,16 +1098,16 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             return
           }
 
-          const currentGroup = nestedBlockTagGroups.find((group) => {
+          const currentGroup = nestedBlockTagGroups.find((group: NestedBlockTagGroup) => {
             return group.nestedTags.some(
-              (tag, index) =>
+              (tag: any, index: number) =>
                 `${group.blockId}-${tag.key}` === currentHovered.tag &&
                 index === currentHovered.index
             )
           })
 
           const currentNestedTag = currentGroup?.nestedTags.find(
-            (tag, index) =>
+            (tag: any, index: number) =>
               `${currentGroup.blockId}-${tag.key}` === currentHovered.tag &&
               index === currentHovered.index
           )
@@ -1089,8 +1136,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
               e.preventDefault()
               e.stopPropagation()
               if (submenuIndex >= 0 && submenuIndex < children.length) {
-                const selectedChild = children[submenuIndex]
-                handleTagSelect(selectedChild.fullTag, currentGroup)
+                const selectedChild = children[submenuIndex] as any
+                handleTagSelect(selectedChild.fullTag, currentGroup as BlockTagGroup | undefined)
               }
               break
             case 'Escape':
@@ -1324,7 +1371,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             {nestedBlockTagGroups.length > 0 && (
               <>
                 {variableTags.length > 0 && <div className='my-0' />}
-                {nestedBlockTagGroups.map((group) => {
+                {nestedBlockTagGroups.map((group: NestedBlockTagGroup) => {
                   const blockConfig = getBlock(group.blockType)
                   let blockColor = blockConfig?.bgColor || BLOCK_COLORS.DEFAULT
 
@@ -1340,7 +1387,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                         {group.blockName}
                       </div>
                       <div>
-                        {group.nestedTags.map((nestedTag, index) => {
+                        {group.nestedTags.map((nestedTag: any, index: number) => {
                           const tagIndex = nestedTag.fullTag
                             ? (tagIndexMap.get(nestedTag.fullTag) ?? -1)
                             : -1
@@ -1505,7 +1552,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                                   }}
                                 >
                                   <div className='py-1'>
-                                    {nestedTag.children!.map((child, childIndex) => {
+                                    {nestedTag.children!.map((child: any, childIndex: number) => {
                                       const isKeyboardSelected =
                                         inSubmenu && submenuIndex === childIndex
                                       const isSelected = isKeyboardSelected

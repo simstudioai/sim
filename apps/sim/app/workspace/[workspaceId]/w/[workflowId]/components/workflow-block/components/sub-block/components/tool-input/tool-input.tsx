@@ -1977,6 +1977,7 @@ export function ToolInput({
           // Refresh MCP tools when a new server is created
           refreshTools(true)
         }}
+        blockId={blockId}
       />
     </div>
   )

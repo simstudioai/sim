@@ -10,6 +10,7 @@ import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
+import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useTagSelection } from '@/hooks/use-tag-selection'
 
@@ -60,6 +61,7 @@ export function ComboBox({
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
 
   const emitTagSelection = useTagSelection(blockId, subBlockId)
+  const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
   const inputRef = useRef<HTMLInputElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
@@ -432,7 +434,10 @@ export function ComboBox({
           style={{ right: '42px' }}
         >
           <div className='w-full truncate text-foreground' style={{ scrollbarWidth: 'none' }}>
-            {formatDisplayText(displayValue)}
+            {formatDisplayText(displayValue, {
+              accessiblePrefixes,
+              highlightAll: !accessiblePrefixes,
+            })}
           </div>
         </div>
         {/* Chevron button */}
