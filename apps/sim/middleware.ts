@@ -147,6 +147,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  if (url.pathname.startsWith('/chat/')) {
+    return NextResponse.next()
+  }
+
   if (url.pathname.startsWith('/workspace')) {
     if (!hasActiveSession) {
       return NextResponse.redirect(new URL('/login', request.url))
