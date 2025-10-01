@@ -13,9 +13,6 @@ jobs:
       cancel-in-progress: false
     env:
       TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
-    permissions:
-      id-token: write
-      contents: read
 
     steps:
       - name: Checkout code
@@ -34,44 +31,12 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ github.ref == 'refs/heads/main' && secrets.AWS_REGION || secrets.STAGING_AWS_REGION }}
-
       - name: Deploy to Trigger.dev (Staging)
         if: github.ref == 'refs/heads/staging'
-        id: deploy-staging
         working-directory: ./apps/sim
-        env:
-          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
-        run: |
-          npx --yes trigger.dev@4.0.4 deploy -e staging --skip-promotion
-
-      - name: Store Staging version in Parameter Store
-        if: github.ref == 'refs/heads/staging'
-        run: |
-          aws ssm put-parameter \
-            --name "${{ secrets.TRIGGER_VERSION_SECRET_MANAGER_STAGING }}" \
-            --value "${{ steps.deploy-staging.outputs.deploymentVersion }}" \
-            --type "String" \
-            --overwrite
+        run: npx --yes trigger.dev@4.0.4 deploy -e staging
 
       - name: Deploy to Trigger.dev (Production)
         if: github.ref == 'refs/heads/main'
-        id: deploy-production
         working-directory: ./apps/sim
-        env:
-          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
-        run: |
-          npx --yes trigger.dev@4.0.4 deploy --skip-promotion
-
-      - name: Store Production version in Parameter Store
-        if: github.ref == 'refs/heads/main'
-        run: |
-          aws ssm put-parameter \
-            --name "${{ secrets.TRIGGER_VERSION_SECRET_MANAGER_PROD }}" \
-            --value "${{ steps.deploy-production.outputs.deploymentVersion }}" \
-            --type "String" \
-            --overwrite
+        run: npx --yes trigger.dev@4.0.4 deploy

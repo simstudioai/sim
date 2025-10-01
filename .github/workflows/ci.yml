@@ -16,21 +16,10 @@ jobs:
     uses: ./.github/workflows/test-build.yml
     secrets: inherit
 
-  # Deploy Trigger.dev FIRST (right after test-build, before images)
-  trigger-deploy:
-    name: Deploy Trigger.dev
-    needs: test-build
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
-    uses: ./.github/workflows/trigger-deploy.yml
-    secrets: inherit
-    permissions:
-      id-token: write
-      contents: read
-
   # Build AMD64 images and push to ECR immediately (+ GHCR for main)
   build-amd64:
     name: Build AMD64
-    needs: trigger-deploy
+    needs: test-build
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
@@ -122,7 +111,7 @@ jobs:
   # Build ARM64 images for GHCR (main branch only, runs in parallel)
   build-ghcr-arm64:
     name: Build ARM64 (GHCR Only)
-    needs: trigger-deploy
+    needs: test-build
     runs-on: linux-arm64-8-core
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
@@ -209,7 +198,15 @@ jobs:
             "${IMAGE_BASE}:${{ github.sha }}-arm64"
           docker manifest push "${IMAGE_BASE}:${{ github.sha }}"
 
-  # Process docs embeddings (only needs ECR images from build-amd64)
+  # Deploy Trigger.dev (after ECR images are pushed, runs in parallel with process-docs)
+  trigger-deploy:
+    name: Deploy Trigger.dev
+    needs: build-amd64
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    uses: ./.github/workflows/trigger-deploy.yml
+    secrets: inherit
+
+  # Process docs embeddings (after ECR images are pushed, runs in parallel with trigger-deploy)
   process-docs:
     name: Process Docs
     needs: build-amd64
