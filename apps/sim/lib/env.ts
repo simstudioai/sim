@@ -36,7 +36,6 @@ export const env = createEnv({
 
 
     // Database & Storage
-    POSTGRES_URL:                          z.string().url().optional(),            // Alternative PostgreSQL connection string
     REDIS_URL:                             z.string().url().optional(),            // Redis connection string for caching/sessions
 
     // Payment & Billing
@@ -99,7 +98,6 @@ export const env = createEnv({
 
     // Infrastructure & Deployment
     NEXT_RUNTIME:                          z.string().optional(),                  // Next.js runtime environment
-    VERCEL_ENV:                            z.string().optional(),                  // Vercel deployment environment
     DOCKER_BUILD:                          z.boolean().optional(),                 // Flag indicating Docker build environment
 
     // Background Jobs & Scheduling
@@ -244,7 +242,6 @@ export const env = createEnv({
   client: {
     // Core Application URLs - Required for frontend functionality
     NEXT_PUBLIC_APP_URL:                   z.string().url(),                       // Base URL of the application (e.g., https://app.sim.ai)
-    NEXT_PUBLIC_VERCEL_URL:                z.string().optional(),                  // Vercel deployment URL for preview/production
 
     // Client-side Services
     NEXT_PUBLIC_SOCKET_URL:                z.string().url().optional(),            // WebSocket server URL for real-time features
@@ -296,7 +293,6 @@ export const env = createEnv({
 
   experimental__runtimeEnv: {
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
-    NEXT_PUBLIC_VERCEL_URL: process.env.NEXT_PUBLIC_VERCEL_URL,
     NEXT_PUBLIC_BLOB_BASE_URL: process.env.NEXT_PUBLIC_BLOB_BASE_URL,
     NEXT_PUBLIC_BILLING_ENABLED: process.env.NEXT_PUBLIC_BILLING_ENABLED,
     NEXT_PUBLIC_GOOGLE_CLIENT_ID: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,

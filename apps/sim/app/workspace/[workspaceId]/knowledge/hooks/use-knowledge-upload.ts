@@ -89,7 +89,6 @@ const UPLOAD_CONFIG = {
   RETRY_DELAY: 2000, // Initial retry delay in ms (2 seconds)
   RETRY_MULTIPLIER: 2, // Standard exponential backoff (2s, 4s, 8s)
   CHUNK_SIZE: 5 * 1024 * 1024,
-  VERCEL_MAX_BODY_SIZE: 4.5 * 1024 * 1024, // Vercel's 4.5MB limit
   DIRECT_UPLOAD_THRESHOLD: 4 * 1024 * 1024, // Files > 4MB must use presigned URLs
   LARGE_FILE_THRESHOLD: 50 * 1024 * 1024, // Files > 50MB need multipart upload
   UPLOAD_TIMEOUT: 60000, // 60 second timeout per upload

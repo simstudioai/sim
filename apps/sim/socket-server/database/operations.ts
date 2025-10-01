@@ -9,8 +9,7 @@ import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 
 const logger = createLogger('SocketDatabase')
 
-// Create dedicated database connection for socket server with optimized settings
-const connectionString = env.POSTGRES_URL ?? env.DATABASE_URL
+const connectionString = env.DATABASE_URL
 const socketDb = drizzle(
   postgres(connectionString, {
     prepare: false,
