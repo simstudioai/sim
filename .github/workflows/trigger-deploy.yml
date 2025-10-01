@@ -32,11 +32,11 @@ jobs:
         run: bun install
 
       - name: Deploy to Trigger.dev (Staging)
-        if: github.ref == 'refs/heads/staging'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
         working-directory: ./apps/sim
         run: npx --yes trigger.dev@4.0.4 deploy -e staging
 
       - name: Deploy to Trigger.dev (Production)
-        if: github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         working-directory: ./apps/sim
         run: npx --yes trigger.dev@4.0.4 deploy
