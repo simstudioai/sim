@@ -6,7 +6,7 @@ import { isProd } from '@/lib/environment'
  * @returns The base URL string (e.g., 'http://localhost:3000' or 'https://example.com')
  */
 export function getBaseUrl(): string {
-  if (typeof window !== 'undefined') {
+  if (typeof window !== 'undefined' && window.location?.origin) {
     return window.location.origin
   }
 
