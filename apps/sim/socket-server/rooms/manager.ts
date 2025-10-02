@@ -15,6 +15,7 @@ const db = drizzle(
     connect_timeout: 20,
     max: 5,
     onnotice: () => {},
+    ssl: 'require',
   }),
   { schema }
 )
