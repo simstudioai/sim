@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
     const conditions = buildLogFilters(filters)
     const orderBy = getOrderBy(params.order)
 
-    // Build and execute query
+    // Build and execute query - optimized to filter workspace during join
     const baseQuery = db
       .select({
         id: workflowExecutionLogs.id,
@@ -124,7 +124,13 @@ export async function GET(request: NextRequest) {
         workflowDescription: workflow.description,
       })
       .from(workflowExecutionLogs)
-      .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+      .innerJoin(
+        workflow,
+        and(
+          eq(workflowExecutionLogs.workflowId, workflow.id),
+          eq(workflow.workspaceId, params.workspaceId) // Filter workspace during join!
+        )
+      )
       .innerJoin(
         permissions,
         and(

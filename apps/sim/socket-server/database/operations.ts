@@ -168,24 +168,8 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
   try {
     const { operation: op, target, payload, timestamp, userId } = operation
 
-    // Log high-frequency operations for monitoring
-    if (op === 'update-position' && Math.random() < 0.01) {
-      // Log 1% of position updates
-      logger.debug('Socket DB operation sample:', {
-        operation: op,
-        target,
-        workflowId: `${workflowId.substring(0, 8)}...`,
-      })
-    }
-
     await db.transaction(async (tx) => {
-      // Update the workflow's last modified timestamp first
-      await tx
-        .update(workflow)
-        .set({ updatedAt: new Date(timestamp) })
-        .where(eq(workflow.id, workflowId))
-
-      // Handle different operation types within the transaction
+      // Handle different operation types within the transaction first
       switch (target) {
         case 'block':
           await handleBlockOperationTx(tx, workflowId, op, payload, userId)
@@ -201,6 +185,13 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
           break
         default:
           throw new Error(`Unknown operation target: ${target}`)
+      }
+
+      if (op !== 'update-position') {
+        await tx
+          .update(workflow)
+          .set({ updatedAt: new Date(timestamp) })
+          .where(eq(workflow.id, workflowId))
       }
     })
 
