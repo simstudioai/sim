@@ -237,7 +237,6 @@ describe('Copilot Checkpoints Revert API Route', () => {
           parallels: {},
           isDeployed: true,
           deploymentStatuses: { production: 'deployed' },
-          hasActiveWebhook: false,
         },
       }
 
@@ -287,7 +286,6 @@ describe('Copilot Checkpoints Revert API Route', () => {
             parallels: {},
             isDeployed: true,
             deploymentStatuses: { production: 'deployed' },
-            hasActiveWebhook: false,
             lastSaved: 1640995200000,
           },
         },
@@ -309,7 +307,6 @@ describe('Copilot Checkpoints Revert API Route', () => {
             parallels: {},
             isDeployed: true,
             deploymentStatuses: { production: 'deployed' },
-            hasActiveWebhook: false,
             lastSaved: 1640995200000,
           }),
         }
@@ -445,7 +442,6 @@ describe('Copilot Checkpoints Revert API Route', () => {
         parallels: {},
         isDeployed: false,
         deploymentStatuses: {},
-        hasActiveWebhook: false,
         lastSaved: 1640995200000,
       })
     })
@@ -722,7 +718,6 @@ describe('Copilot Checkpoints Revert API Route', () => {
             production: 'deployed',
             staging: 'pending',
           },
-          hasActiveWebhook: true,
           deployedAt: '2024-01-01T10:00:00.000Z',
         },
       }
@@ -769,7 +764,6 @@ describe('Copilot Checkpoints Revert API Route', () => {
           production: 'deployed',
           staging: 'pending',
         },
-        hasActiveWebhook: true,
         deployedAt: '2024-01-01T10:00:00.000Z',
         lastSaved: 1640995200000,
       })

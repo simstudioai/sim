@@ -19,7 +19,6 @@ export interface CurrentWorkflow {
   deployedAt?: Date
   deploymentStatuses?: Record<string, DeploymentStatus>
   needsRedeployment?: boolean
-  hasActiveWebhook?: boolean
 
   // Mode information
   isDiffMode: boolean
@@ -66,7 +65,6 @@ export function useCurrentWorkflow(): CurrentWorkflow {
       deployedAt: activeWorkflow.deployedAt,
       deploymentStatuses: activeWorkflow.deploymentStatuses,
       needsRedeployment: activeWorkflow.needsRedeployment,
-      hasActiveWebhook: activeWorkflow.hasActiveWebhook,
 
       // Mode information - update to reflect ready state
       isDiffMode: shouldUseDiff,

@@ -133,7 +133,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         state: {
           // Default values for expected properties
           deploymentStatuses: {},
-          hasActiveWebhook: false,
           // Data from normalized tables
           blocks: normalizedData.blocks,
           edges: normalizedData.edges,

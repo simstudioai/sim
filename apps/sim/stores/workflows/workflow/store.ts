@@ -38,7 +38,6 @@ const initialState = {
   // New field for per-workflow deployment tracking
   deploymentStatuses: {},
   needsRedeployment: false,
-  hasActiveWebhook: false,
   history: {
     past: [],
     present: {
@@ -475,7 +474,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           lastSaved: Date.now(),
           isDeployed: false,
           isPublished: false,
-          hasActiveWebhook: false,
         }
         set(newState)
         // Note: Socket.IO handles real-time sync automatically
@@ -500,7 +498,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           deployedAt: state.deployedAt,
           deploymentStatuses: state.deploymentStatuses,
           needsRedeployment: state.needsRedeployment,
-          hasActiveWebhook: state.hasActiveWebhook,
         }
       },
 
@@ -902,15 +899,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }))
       },
 
-      setWebhookStatus: (hasActiveWebhook: boolean) => {
-        // Only update if the status has changed to avoid unnecessary rerenders
-        if (get().hasActiveWebhook !== hasActiveWebhook) {
-          set({ hasActiveWebhook })
-          get().updateLastSaved()
-          // Note: Socket.IO handles real-time sync automatically
-        }
-      },
-
       revertToDeployedState: async (deployedState: WorkflowState) => {
         const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
 
@@ -931,7 +919,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           parallels: deployedState.parallels || {},
           isDeployed: true,
           needsRedeployment: false,
-          hasActiveWebhook: false, // Reset webhook status
           // Keep existing deployment statuses and update for the active workflow if needed
           deploymentStatuses: {
             ...get().deploymentStatuses,
@@ -965,14 +952,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             [activeWorkflowId]: values,
           },
         })
-
-        // Check if there's an active webhook in the deployed state
-        const starterBlock = Object.values(deployedState.blocks).find(
-          (block) => block.type === 'starter'
-        )
-        if (starterBlock && starterBlock.subBlocks?.startWorkflow?.value === 'webhook') {
-          set({ hasActiveWebhook: true })
-        }
 
         pushHistory(set, get, newState, 'Reverted to deployed state')
         get().updateLastSaved()

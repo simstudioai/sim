@@ -86,7 +86,6 @@ export function DiffControls() {
         lastSaved: rawState.lastSaved || Date.now(),
         isDeployed: rawState.isDeployed || false,
         deploymentStatuses: rawState.deploymentStatuses || {},
-        hasActiveWebhook: rawState.hasActiveWebhook || false,
         // Only include deployedAt if it's a valid date, never include null/undefined
         ...(rawState.deployedAt && rawState.deployedAt instanceof Date
           ? { deployedAt: rawState.deployedAt }

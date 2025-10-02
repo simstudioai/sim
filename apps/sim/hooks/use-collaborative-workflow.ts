@@ -479,7 +479,6 @@ export function useCollaborativeWorkflow() {
                   isDeployed: workflowData.state.isDeployed || false,
                   deployedAt: workflowData.state.deployedAt,
                   lastSaved: workflowData.state.lastSaved || Date.now(),
-                  hasActiveWebhook: workflowData.state.hasActiveWebhook || false,
                   deploymentStatuses: workflowData.state.deploymentStatuses || {},
                 })
 

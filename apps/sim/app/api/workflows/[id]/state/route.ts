@@ -89,13 +89,6 @@ const ParallelSchema = z.object({
   parallelType: z.enum(['count', 'collection']).optional(),
 })
 
-const DeploymentStatusSchema = z.object({
-  id: z.string(),
-  status: z.enum(['deploying', 'deployed', 'failed', 'stopping', 'stopped']),
-  deployedAt: z.date().optional(),
-  error: z.string().optional(),
-})
-
 const WorkflowStateSchema = z.object({
   blocks: z.record(BlockStateSchema),
   edges: z.array(EdgeSchema),
@@ -103,9 +96,7 @@ const WorkflowStateSchema = z.object({
   parallels: z.record(ParallelSchema).optional(),
   lastSaved: z.number().optional(),
   isDeployed: z.boolean().optional(),
-  deployedAt: z.date().optional(),
-  deploymentStatuses: z.record(DeploymentStatusSchema).optional(),
-  hasActiveWebhook: z.boolean().optional(),
+  deployedAt: z.coerce.date().optional(),
 })
 
 /**
@@ -204,8 +195,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       lastSaved: state.lastSaved || Date.now(),
       isDeployed: state.isDeployed || false,
       deployedAt: state.deployedAt,
-      deploymentStatuses: state.deploymentStatuses || {},
-      hasActiveWebhook: state.hasActiveWebhook || false,
     }
 
     const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowState as any)

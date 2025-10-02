@@ -365,6 +365,5 @@ export function mergeWithUIState(
     isDeployed: fullState.isDeployed,
     deployedAt: fullState.deployedAt,
     deploymentStatuses: fullState.deploymentStatuses,
-    hasActiveWebhook: fullState.hasActiveWebhook,
   }
 }

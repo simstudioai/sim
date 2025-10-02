@@ -133,7 +133,6 @@ export async function getWorkflowState(workflowId: string) {
       const finalState = {
         // Default values for expected properties
         deploymentStatuses: {},
-        hasActiveWebhook: false,
         // Data from normalized tables
         blocks: normalizedData.blocks,
         edges: normalizedData.edges,

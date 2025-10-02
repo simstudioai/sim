@@ -382,7 +382,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             isDeployed: workflowState.isDeployed ?? false,
             deployedAt: workflowState.deployedAt,
             deploymentStatuses: workflowState.deploymentStatuses || {},
-            hasActiveWebhook: workflowState.hasActiveWebhook ?? false,
           })
 
           // Replace subblock store values for this workflow

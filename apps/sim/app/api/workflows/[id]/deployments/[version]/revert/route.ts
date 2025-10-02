@@ -76,7 +76,6 @@ export async function POST(
       isDeployed: true,
       deployedAt: new Date(),
       deploymentStatuses: deployedState.deploymentStatuses || {},
-      hasActiveWebhook: deployedState.hasActiveWebhook || false,
     })
 
     if (!saveResult.success) {

@@ -89,7 +89,6 @@ export async function GET(request: NextRequest) {
       // Use normalized table data - construct state from normalized tables
       workflowState = {
         deploymentStatuses: {},
-        hasActiveWebhook: false,
         blocks: normalizedData.blocks,
         edges: normalizedData.edges,
         loops: normalizedData.loops,

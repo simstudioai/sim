@@ -154,7 +154,6 @@ export interface WorkflowState {
   // New field for per-workflow deployment status
   deploymentStatuses?: Record<string, DeploymentStatus>
   needsRedeployment?: boolean
-  hasActiveWebhook?: boolean
   // Drag state for undo/redo
   dragStartPosition?: DragStartPosition | null
 }
@@ -214,7 +213,6 @@ export interface WorkflowActions {
   generateLoopBlocks: () => Record<string, Loop>
   generateParallelBlocks: () => Record<string, Parallel>
   setNeedsRedeploymentFlag: (needsRedeployment: boolean) => void
-  setWebhookStatus: (hasActiveWebhook: boolean) => void
   revertToDeployedState: (deployedState: WorkflowState) => void
   toggleBlockAdvancedMode: (id: string) => void
   toggleBlockTriggerMode: (id: string) => void
