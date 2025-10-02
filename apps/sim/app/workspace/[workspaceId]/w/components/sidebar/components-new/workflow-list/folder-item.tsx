@@ -65,7 +65,7 @@ export function FolderItem({ folder, level, onDragOver, onDragLeave, onDrop }: F
     <div className='mb-[2px]' onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
       <div
         className={clsx(
-          'flex h-[25px] cursor-pointer items-center rounded-[8px] text-small',
+          'flex h-[25px] cursor-pointer items-center rounded-[8px] text-[14px]',
           isDragging ? 'opacity-50' : ''
         )}
         onClick={handleClick}

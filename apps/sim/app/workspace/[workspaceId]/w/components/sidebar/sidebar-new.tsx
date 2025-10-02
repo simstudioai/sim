@@ -571,7 +571,7 @@ export function SidebarNew() {
           <div className='mt-[14px] flex items-center'>
             <Button
               variant='3d'
-              className='w-full gap-[12px] rounded-[8px] text-small'
+              className='w-full gap-[12px] rounded-[8px] py-[5px] text-small'
               onClick={() => handleCreateWorkflow()}
               disabled={isCreatingWorkflow}
             >
