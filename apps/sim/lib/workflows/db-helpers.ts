@@ -150,12 +150,7 @@ export async function loadWorkflowFromNormalizedTables(
     })
 
     // Sanitize any invalid custom tools in agent blocks to prevent client crashes
-    const { blocks: sanitizedBlocks, warnings } = sanitizeAgentToolsInBlocks(blocksMap)
-    if (warnings.length > 0) {
-      logger.warn(`Sanitized workflow ${workflowId} tools with ${warnings.length} warning(s)`, {
-        warnings,
-      })
-    }
+    const { blocks: sanitizedBlocks } = sanitizeAgentToolsInBlocks(blocksMap)
 
     // Convert edges to the expected format
     const edgesArray: Edge[] = edges.map((edge) => ({
