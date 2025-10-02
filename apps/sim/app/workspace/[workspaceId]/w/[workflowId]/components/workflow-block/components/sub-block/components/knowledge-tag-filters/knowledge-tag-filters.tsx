@@ -7,6 +7,7 @@ import { formatDisplayText } from '@/components/ui/formatted-text'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
+import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
 import { useTagSelection } from '@/hooks/use-tag-selection'
@@ -54,6 +55,9 @@ export function KnowledgeTagFilters({
 
   // Use KB tag definitions hook to get available tags
   const { tagDefinitions, isLoading } = useKnowledgeBaseTagDefinitions(knowledgeBaseId)
+
+  // Get accessible prefixes for variable highlighting
+  const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
   // State for managing tag dropdown
   const [activeTagDropdown, setActiveTagDropdown] = useState<{
@@ -314,7 +318,12 @@ export function KnowledgeTagFilters({
             className='w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
           />
           <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
-            <div className='whitespace-pre'>{formatDisplayText(cellValue)}</div>
+            <div className='whitespace-pre'>
+              {formatDisplayText(cellValue, {
+                accessiblePrefixes,
+                highlightAll: !accessiblePrefixes,
+              })}
+            </div>
           </div>
         </div>
       </td>

@@ -10,6 +10,7 @@ import {
   queueWebhookExecution,
   verifyProviderAuth,
 } from '@/lib/webhooks/processor'
+import { blockExistsInDeployment } from '@/lib/workflows/db-helpers'
 
 const logger = createLogger('WebhookTriggerAPI')
 
@@ -60,6 +61,16 @@ export async function POST(
   const usageLimitError = await checkUsageLimits(foundWorkflow, foundWebhook, requestId, false)
   if (usageLimitError) {
     return usageLimitError
+  }
+
+  if (foundWebhook.blockId) {
+    const blockExists = await blockExistsInDeployment(foundWorkflow.id, foundWebhook.blockId)
+    if (!blockExists) {
+      logger.warn(
+        `[${requestId}] Trigger block ${foundWebhook.blockId} not found in deployment for workflow ${foundWorkflow.id}`
+      )
+      return new NextResponse('Trigger block not deployed', { status: 404 })
+    }
   }
 
   return queueWebhookExecution(foundWebhook, foundWorkflow, body, request, {

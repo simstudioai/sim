@@ -172,44 +172,18 @@ Agent 模块通过统一的推理接口支持多个 LLM 提供商。可用模型
 - 读取对话历史以获取上下文
 - 在代理运行后附加其回复
 
-```yaml
-# 1) Add latest user message
-- Memory (operation: add)
-  id: chat
-  role: user
-  content: {{input}}
-
-# 2) Load conversation history
-- Memory (operation: get)
-  id: chat
-
-# 3) Run the agent with prior messages available
-- Agent
-  System Prompt: ...
-  User Prompt: |
-    Use the conversation so far:
-    {{memory_get.memories}}
-    Current user message: {{input}}
-
-# 4) Store the agent reply
-- Memory (operation: add)
-  id: chat
-  role: assistant
-  content: {{agent.content}}
-```
-
-有关详细信息，请参阅 `Memory` 块参考：[工具/内存](/tools/memory)。
+有关详细信息，请参阅 [`Memory`](/tools/memory) 块引用。
 
 ## 输入和输出
 
-<Tabs items={['配置', '变量', '结果']}>
+<Tabs items={['Configuration', 'Variables', 'Results']}>
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
         <strong>系统提示</strong>：定义代理行为和角色的指令
       </li>
       <li>
-        <strong>用户提示</strong>：要处理的输入文本或数据
+        <strong>用户提示</strong>：需要处理的输入文本或数据
       </li>
       <li>
         <strong>模型</strong>：AI 模型选择（OpenAI、Anthropic、Google 等）
@@ -218,7 +192,7 @@ Agent 模块通过统一的推理接口支持多个 LLM 提供商。可用模型
         <strong>温度</strong>：响应随机性控制（0-2）
       </li>
       <li>
-        <strong>工具</strong>：可用于函数调用的工具数组
+        <strong>工具</strong>：可用工具数组，用于功能调用
       </li>
       <li>
         <strong>响应格式</strong>：用于结构化输出的 JSON Schema
@@ -234,10 +208,10 @@ Agent 模块通过统一的推理接口支持多个 LLM 提供商。可用模型
         <strong>agent.tokens</strong>：令牌使用统计对象
       </li>
       <li>
-        <strong>agent.tool_calls</strong>：工具执行详细信息数组
+        <strong>agent.tool_calls</strong>：工具执行详情数组
       </li>
       <li>
-        <strong>agent.cost</strong>：API 调用的估计成本（如果可用）
+        <strong>agent.cost</strong>：估算的 API 调用成本（如果可用）
       </li>
     </ul>
   </Tab>
@@ -247,7 +221,7 @@ Agent 模块通过统一的推理接口支持多个 LLM 提供商。可用模型
         <strong>内容</strong>：代理的主要响应输出
       </li>
       <li>
-        <strong>元数据</strong>：使用统计信息和执行详细信息
+        <strong>元数据</strong>：使用统计和执行详情
       </li>
       <li>
         <strong>访问</strong>：在代理之后的块中可用
@@ -261,9 +235,9 @@ Agent 模块通过统一的推理接口支持多个 LLM 提供商。可用模型
 ### 客户支持自动化
 
 <div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">场景：通过数据库访问处理客户咨询</h4>
+  <h4 className="font-medium">场景：通过数据库访问处理客户查询</h4>
   <ol className="list-decimal pl-5 text-sm">
-    <li>用户通过 API 模块提交支持工单</li>
+    <li>用户通过 API 块提交支持工单</li>
     <li>代理在 Postgres 中检查订单/订阅，并在知识库中搜索指导</li>
     <li>如果需要升级，代理会创建一个包含相关上下文的 Linear 问题</li>
     <li>代理起草一封清晰的电子邮件回复</li>
@@ -277,10 +251,10 @@ Agent 模块通过统一的推理接口支持多个 LLM 提供商。可用模型
 <div className="mb-4 rounded-md border p-4">
   <h4 className="font-medium">场景：使用不同的 AI 模型分析内容</h4>
   <ol className="list-decimal pl-5 text-sm">
-    <li>功能模块处理上传的文档</li>
+    <li>功能块处理上传的文档</li>
     <li>使用 GPT-4o 的代理执行技术分析</li>
     <li>使用 Claude 的代理分析情感和语气</li>
-    <li>功能模块结合结果生成最终报告</li>
+    <li>功能块结合结果生成最终报告</li>
   </ol>
 </div>
 
@@ -298,6 +272,6 @@ Agent 模块通过统一的推理接口支持多个 LLM 提供商。可用模型
 
 ## 最佳实践
 
-- **在系统提示中具体说明**：清晰定义代理的角色、语气和限制。您的指令越具体，代理就越能更好地实现其预期目的。
-- **选择合适的温度设置**：当准确性很重要时，使用较低的温度设置（0-0.3）；当需要更具创意或多样化的响应时，增加温度（0.7-2.0）。
-- **有效利用工具**：集成与代理目的互补并增强其能力的工具。选择性地提供工具，以避免让代理不堪重负。对于重叠较少的任务，使用另一个代理模块以获得最佳结果。
+- **在系统提示中具体说明**：清晰定义代理的角色、语气和限制。您的指令越具体，代理越能更好地完成其预期目的。
+- **选择合适的温度设置**：当准确性很重要时，使用较低的温度设置（0-0.3）；当需要更具创意或多样化的响应时，可将温度提高（0.7-2.0）。
+- **有效利用工具**：集成与代理目的互补并增强其能力的工具。选择性地提供工具，以避免让代理不堪重负。对于重叠较少的任务，使用另一个代理块以获得最佳效果。

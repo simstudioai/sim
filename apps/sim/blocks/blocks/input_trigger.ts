@@ -7,6 +7,7 @@ const InputTriggerIcon = (props: SVGProps<SVGSVGElement>) => createElement(FormI
 
 export const InputTriggerBlock: BlockConfig = {
   type: 'input_trigger',
+  triggerAllowed: true,
   name: 'Input Form',
   description: 'Start workflow manually with a defined input schema',
   longDescription:

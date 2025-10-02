@@ -7,6 +7,7 @@ const ManualTriggerIcon = (props: SVGProps<SVGSVGElement>) => createElement(Play
 
 export const ManualTriggerBlock: BlockConfig = {
   type: 'manual_trigger',
+  triggerAllowed: true,
   name: 'Manual',
   description: 'Start workflow manually from the editor',
   longDescription:

@@ -36,10 +36,34 @@ export interface NormalizedWorkflowData {
   isFromNormalizedTables: boolean // Flag to indicate source (true = normalized tables, false = deployed state)
 }
 
-/**
- * Load deployed workflow state for execution
- * Returns deployed state if available, otherwise throws error
- */
+export async function blockExistsInDeployment(
+  workflowId: string,
+  blockId: string
+): Promise<boolean> {
+  try {
+    const [result] = await db
+      .select({ state: workflowDeploymentVersion.state })
+      .from(workflowDeploymentVersion)
+      .where(
+        and(
+          eq(workflowDeploymentVersion.workflowId, workflowId),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
+      .limit(1)
+
+    if (!result?.state) {
+      return false
+    }
+
+    const state = result.state as WorkflowState
+    return !!state.blocks?.[blockId]
+  } catch (error) {
+    logger.error(`Error checking block ${blockId} in deployment for workflow ${workflowId}:`, error)
+    return false
+  }
+}
+
 export async function loadDeployedWorkflowState(
   workflowId: string
 ): Promise<NormalizedWorkflowData> {

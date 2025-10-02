@@ -11,6 +11,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
+import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useTagSelection } from '@/hooks/use-tag-selection'
@@ -345,6 +346,8 @@ export function ShortInput({
     }
   }
 
+  const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
+
   return (
     <>
       <WandPromptBar
@@ -417,7 +420,10 @@ export function ShortInput({
           >
             {password && !isFocused
               ? '•'.repeat(value?.toString().length ?? 0)
-              : formatDisplayText(value?.toString() ?? '')}
+              : formatDisplayText(value?.toString() ?? '', {
+                  accessiblePrefixes,
+                  highlightAll: !accessiblePrefixes,
+                })}
           </div>
         </div>
 

@@ -26,7 +26,7 @@ export function calculatePositions(
 
     // Calculate total height needed for this layer
     const totalHeight = nodesInLayer.reduce(
-      (sum, node, idx) => sum + node.dimensions.height + (idx > 0 ? verticalSpacing : 0),
+      (sum, node, idx) => sum + node.metrics.height + (idx > 0 ? verticalSpacing : 0),
       0
     )
 
@@ -55,7 +55,7 @@ export function calculatePositions(
         y: yOffset,
       }
 
-      yOffset += node.dimensions.height + verticalSpacing
+      yOffset += node.metrics.height + verticalSpacing
     }
   }
 
@@ -83,8 +83,8 @@ function resolveOverlaps(nodes: GraphNode[], verticalSpacing: number): void {
         const node1 = sortedNodes[i]
         const node2 = sortedNodes[j]
 
-        const box1 = createBoundingBox(node1.position, node1.dimensions)
-        const box2 = createBoundingBox(node2.position, node2.dimensions)
+        const box1 = createBoundingBox(node1.position, node1.metrics)
+        const box2 = createBoundingBox(node2.position, node2.metrics)
 
         // Check for overlap with margin
         if (boxesOverlap(box1, box2, 30)) {
@@ -92,11 +92,11 @@ function resolveOverlaps(nodes: GraphNode[], verticalSpacing: number): void {
 
           // If in same layer, shift vertically
           if (node1.layer === node2.layer) {
-            const totalHeight = node1.dimensions.height + node2.dimensions.height + verticalSpacing
+            const totalHeight = node1.metrics.height + node2.metrics.height + verticalSpacing
             const midpoint = (node1.position.y + node2.position.y) / 2
 
-            node1.position.y = midpoint - node1.dimensions.height / 2 - verticalSpacing / 2
-            node2.position.y = midpoint + node2.dimensions.height / 2 + verticalSpacing / 2
+            node1.position.y = midpoint - node1.metrics.height / 2 - verticalSpacing / 2
+            node2.position.y = midpoint + node2.metrics.height / 2 + verticalSpacing / 2
           } else {
             // Different layers - shift the later one down
             const requiredSpace = box1.y + box1.height + verticalSpacing

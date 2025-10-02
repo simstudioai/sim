@@ -35,9 +35,15 @@ export interface Parallel {
   parallelType?: 'count' | 'collection'
 }
 
-export interface BlockDimensions {
+export interface BlockMetrics {
   width: number
   height: number
+  minWidth: number
+  minHeight: number
+  paddingTop: number
+  paddingBottom: number
+  paddingLeft: number
+  paddingRight: number
 }
 
 export interface BoundingBox {
@@ -55,7 +61,7 @@ export interface LayerInfo {
 export interface GraphNode {
   id: string
   block: BlockState
-  dimensions: BlockDimensions
+  metrics: BlockMetrics
   incoming: Set<string>
   outgoing: Set<string>
   layer: number

@@ -148,6 +148,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   )
   const storeIsWide = useWorkflowStore((state) => state.blocks[id]?.isWide ?? false)
   const storeBlockHeight = useWorkflowStore((state) => state.blocks[id]?.height ?? 0)
+  const storeBlockLayout = useWorkflowStore((state) => state.blocks[id]?.layout)
   const storeBlockAdvancedMode = useWorkflowStore(
     (state) => state.blocks[id]?.advancedMode ?? false
   )
@@ -167,6 +168,10 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const blockHeight = currentWorkflow.isDiffMode
     ? (currentWorkflow.blocks[id]?.height ?? 0)
     : storeBlockHeight
+
+  const blockWidth = currentWorkflow.isDiffMode
+    ? (currentWorkflow.blocks[id]?.layout?.measuredWidth ?? 0)
+    : (storeBlockLayout?.measuredWidth ?? 0)
 
   // Get per-block webhook status by checking if webhook is configured
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
@@ -240,7 +245,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   }, [id, collaborativeSetSubblockValue])
 
   // Workflow store actions
-  const updateBlockHeight = useWorkflowStore((state) => state.updateBlockHeight)
+  const updateBlockLayoutMetrics = useWorkflowStore((state) => state.updateBlockLayoutMetrics)
 
   // Execution store
   const isActiveBlock = useExecutionStore((state) => state.activeBlockIds.has(id))
@@ -419,9 +424,9 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     if (!contentRef.current) return
 
     let rafId: number
-    const debouncedUpdate = debounce((height: number) => {
-      if (height !== blockHeight) {
-        updateBlockHeight(id, height)
+    const debouncedUpdate = debounce((dimensions: { width: number; height: number }) => {
+      if (dimensions.height !== blockHeight || dimensions.width !== blockWidth) {
+        updateBlockLayoutMetrics(id, dimensions)
         updateNodeInternals(id)
       }
     }, 100)
@@ -435,9 +440,10 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
       // Schedule the update on the next animation frame
       rafId = requestAnimationFrame(() => {
         for (const entry of entries) {
-          const height =
-            entry.borderBoxSize[0]?.blockSize ?? entry.target.getBoundingClientRect().height
-          debouncedUpdate(height)
+          const rect = entry.target.getBoundingClientRect()
+          const height = entry.borderBoxSize[0]?.blockSize ?? rect.height
+          const width = entry.borderBoxSize[0]?.inlineSize ?? rect.width
+          debouncedUpdate({ width, height })
         }
       })
     })
@@ -450,7 +456,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         cancelAnimationFrame(rafId)
       }
     }
-  }, [id, blockHeight, updateBlockHeight, updateNodeInternals, lastUpdate])
+  }, [id, blockHeight, blockWidth, updateBlockLayoutMetrics, updateNodeInternals, lastUpdate])
 
   // SubBlock layout management
   function groupSubBlocks(subBlocks: SubBlockConfig[], blockId: string) {

@@ -14,19 +14,7 @@ import { isBillingEnabled } from '@/lib/environment'
 import { SessionContext, type SessionHookResult } from '@/lib/session/session-context'
 
 export function getBaseURL() {
-  let baseURL
-
-  if (env.VERCEL_ENV === 'preview') {
-    baseURL = `https://${getEnv('NEXT_PUBLIC_VERCEL_URL')}`
-  } else if (env.VERCEL_ENV === 'development') {
-    baseURL = `https://${getEnv('NEXT_PUBLIC_VERCEL_URL')}`
-  } else if (env.VERCEL_ENV === 'production') {
-    baseURL = env.BETTER_AUTH_URL || getEnv('NEXT_PUBLIC_APP_URL')
-  } else if (env.NODE_ENV === 'development') {
-    baseURL = getEnv('NEXT_PUBLIC_APP_URL') || env.BETTER_AUTH_URL || 'http://localhost:3000'
-  }
-
-  return baseURL
+  return getEnv('NEXT_PUBLIC_APP_URL') || 'http://localhost:3000'
 }
 
 export const client = createAuthClient({

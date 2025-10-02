@@ -134,9 +134,9 @@ const logger = {
 }
 
 // Get database URL from environment
-const CONNECTION_STRING = process.env.POSTGRES_URL ?? process.env.DATABASE_URL
+const CONNECTION_STRING = process.env.DATABASE_URL
 if (!CONNECTION_STRING) {
-  console.error('❌ POSTGRES_URL or DATABASE_URL environment variable is required')
+  console.error('❌ DATABASE_URL environment variable is required')
   process.exit(1)
 }
 

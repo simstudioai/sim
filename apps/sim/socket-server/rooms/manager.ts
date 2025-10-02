@@ -7,8 +7,7 @@ import type { Server } from 'socket.io'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 
-// Create dedicated database connection for room manager
-const connectionString = env.POSTGRES_URL ?? env.DATABASE_URL
+const connectionString = env.DATABASE_URL
 const db = drizzle(
   postgres(connectionString, {
     prepare: false,

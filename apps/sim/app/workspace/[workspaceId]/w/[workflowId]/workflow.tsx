@@ -781,7 +781,7 @@ const WorkflowContent = React.memo(() => {
 
       // Create the trigger block at the center of the viewport
       const centerPosition = project({ x: window.innerWidth / 2, y: window.innerHeight / 2 })
-      const id = `${triggerId}_${Date.now()}`
+      const id = crypto.randomUUID()
 
       // Add the trigger block with trigger mode if specified
       addBlock(

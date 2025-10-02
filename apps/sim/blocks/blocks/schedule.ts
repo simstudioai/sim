@@ -7,6 +7,7 @@ const ScheduleIcon = (props: SVGProps<SVGSVGElement>) => createElement(Clock, pr
 
 export const ScheduleBlock: BlockConfig = {
   type: 'schedule',
+  triggerAllowed: true,
   name: 'Schedule',
   description: 'Trigger workflow execution on a schedule',
   longDescription:

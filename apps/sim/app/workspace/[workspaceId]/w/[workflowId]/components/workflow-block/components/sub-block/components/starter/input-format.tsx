@@ -22,6 +22,7 @@ import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
+import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 
 interface Field {
   id: string
@@ -80,6 +81,7 @@ export function FieldFormat({
   const [cursorPosition, setCursorPosition] = useState(0)
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null)
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
+  const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
@@ -471,7 +473,10 @@ export function FieldFormat({
                                 style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
                               >
                                 {formatDisplayText(
-                                  (localValues[field.id] ?? field.value ?? '')?.toString()
+                                  (localValues[field.id] ?? field.value ?? '')?.toString(),
+                                  accessiblePrefixes
+                                    ? { accessiblePrefixes }
+                                    : { highlightAll: true }
                                 )}
                               </div>
                             </div>
