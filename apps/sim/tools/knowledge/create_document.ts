@@ -82,9 +82,6 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
       if (documentName.length > 255) {
         throw new Error('Document name must be 255 characters or less')
       }
-      if (/[<>:"/\\|?*]/.test(documentName)) {
-        throw new Error('Document name contains invalid characters. Avoid: < > : " / \\ | ? *')
-      }
       if (!textContent || textContent.length < 1) {
         throw new Error('Document content cannot be empty')
       }
