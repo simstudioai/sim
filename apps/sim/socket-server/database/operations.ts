@@ -18,6 +18,7 @@ const socketDb = drizzle(
     max: 25,
     onnotice: () => {},
     debug: false,
+    ssl: 'require',
   }),
   { schema }
 )

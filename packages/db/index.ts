@@ -16,6 +16,7 @@ const postgresClient = postgres(connectionString, {
   connect_timeout: 30,
   max: 80,
   onnotice: () => {},
+  ssl: 'require',
 })
 
 const drizzleClient = drizzle(postgresClient, { schema })

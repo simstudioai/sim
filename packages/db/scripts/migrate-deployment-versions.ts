@@ -123,6 +123,7 @@ const postgresClient = postgres(CONNECTION_STRING, {
   connect_timeout: 30,
   max: 10,
   onnotice: () => {},
+  ssl: 'require',
 })
 const db = drizzle(postgresClient)
 
