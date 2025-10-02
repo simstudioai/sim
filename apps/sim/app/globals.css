@@ -3,6 +3,27 @@
 @tailwind utilities;
 
 /* ==========================================================================
+   SIDEBAR WIDTH PERSISTENCE
+   ========================================================================== */
+/**
+ * CSS-based sidebar width to prevent SSR hydration mismatches.
+ *
+ * How it works:
+ * 1. Default width set here in CSS (232px)
+ * 2. Blocking script in layout.tsx updates this before React hydrates
+ * 3. Store updates this variable when user resizes
+ *
+ * This approach ensures server and client always render identical HTML.
+ */
+:root {
+  --sidebar-width: 232px;
+}
+
+.sidebar-container {
+  width: var(--sidebar-width);
+}
+
+/* ==========================================================================
    WORKFLOW COMPONENT Z-INDEX FIXES
    ========================================================================== */
 .workflow-container .react-flow__edges {
@@ -110,7 +131,6 @@
 
     /* Workflow Properties */
     --workflow-background: 0 0% 100%;
-    --workflow-dots: 0 0% 94.5%;
     --card-background: 0 0% 99.2%;
     --card-border: 0 0% 89.8%;
     --card-text: 0 0% 3.9%;
@@ -179,8 +199,7 @@
     --scrollbar-thumb-hover: 0 0% 40%;
 
     /* Workflow Properties */
-    --workflow-background: 0 0% 3.9%;
-    --workflow-dots: 0 0% 7.5%;
+    --workflow-background: 0 0% 10.6%;
     --card-background: 0 0% 9.0%;
     --card-border: 0 0% 22.7%;
     --card-text: 0 0% 98%;
@@ -215,7 +234,7 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
     overscroll-behavior-x: none;
     overscroll-behavior-y: none;
     min-height: 100vh;
@@ -223,6 +242,8 @@
     scrollbar-gutter: stable;
     /* Improve animation performance */
     text-rendering: optimizeSpeed;
+    /* Default text styles */
+    letter-spacing: 0.28px;
   }
 
   /* Global Scrollbar Styling */
@@ -249,17 +270,6 @@
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
   }
-}
-
-/* ==========================================================================
-   TYPOGRAPHY
-   ========================================================================== */
-.font-geist-sans {
-  font-family: var(--font-geist-sans);
-}
-
-.font-geist-mono {
-  font-family: var(--font-geist-mono);
 }
 
 /* ==========================================================================
