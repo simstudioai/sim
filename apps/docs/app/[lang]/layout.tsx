@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { defineI18nUI } from 'fumadocs-ui/i18n'
 import { DocsLayout } from 'fumadocs-ui/layouts/docs'
-import { RootProvider } from 'fumadocs-ui/provider'
+import { RootProvider } from 'fumadocs-ui/provider/next'
 import { ExternalLink, GithubIcon } from 'lucide-react'
 import { Inter } from 'next/font/google'
 import Image from 'next/image'
