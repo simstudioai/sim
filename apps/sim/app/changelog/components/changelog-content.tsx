@@ -1,6 +1,6 @@
 import { BookOpen, Github, Rss } from 'lucide-react'
 import Link from 'next/link'
-import { inter } from '@/app/fonts/inter'
+import { inter } from '@/app/fonts/inter/inter'
 import { soehne } from '@/app/fonts/soehne/soehne'
 import ChangelogList from './timeline-list'
 

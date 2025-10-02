@@ -250,7 +250,7 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
         return (
           <div className='my-6 w-0 min-w-full rounded-md bg-gray-900 text-sm dark:bg-black'>
             <div className='flex items-center justify-between border-gray-700 border-b px-4 py-1.5 dark:border-gray-800'>
-              <span className='font-geist-sans text-gray-400 text-xs'>{language}</span>
+              <span className='font-sans text-gray-400 text-xs'>{language}</span>
               <button
                 onClick={handleCopy}
                 className='text-muted-foreground transition-colors hover:text-gray-300'

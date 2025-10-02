@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { GithubIcon } from '@/components/icons'
 import { useBrandConfig } from '@/lib/branding/branding'
-import { inter } from '@/app/fonts/inter'
+import { inter } from '@/app/fonts/inter/inter'
 
 interface ChatHeaderProps {
   chatConfig: {

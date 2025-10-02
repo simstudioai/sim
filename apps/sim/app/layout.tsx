@@ -8,6 +8,7 @@ import { PostHogProvider } from '@/lib/posthog/provider'
 import '@/app/globals.css'
 
 import { SessionProvider } from '@/lib/session/session-context'
+import { season } from '@/app/fonts/season/season'
 import { ThemeProvider } from '@/app/theme-provider'
 import { ZoomPrevention } from '@/app/zoom-prevention'
 
@@ -86,9 +87,31 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name='format-detection' content='telephone=no' />
         <meta httpEquiv='x-ua-compatible' content='ie=edge' />
 
+        {/* Blocking script to prevent sidebar width flash on page load */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var stored = localStorage.getItem('sidebar-state');
+                  if (stored) {
+                    var parsed = JSON.parse(stored);
+                    var width = parsed?.state?.sidebarWidth;
+                    if (width >= 232 && width <= 400) {
+                      document.documentElement.style.setProperty('--sidebar-width', width + 'px');
+                    }
+                  }
+                } catch (e) {
+                  // Fallback handled by CSS default
+                }
+              })();
+            `,
+          }}
+        />
+
         <PublicEnvScript />
       </head>
-      <body suppressHydrationWarning>
+      <body className={`${season.variable} font-season`} suppressHydrationWarning>
         <PostHogProvider>
           <ThemeProvider>
             <SessionProvider>
