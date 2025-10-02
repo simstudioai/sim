@@ -10,13 +10,20 @@ if (!connectionString) {
   throw new Error('Missing DATABASE_URL environment variable')
 }
 
+function isTruthy(value: string | undefined): boolean {
+  if (!value) return false
+  return value.toLowerCase() === 'true' || value === '1'
+}
+
+const useSSL = process.env.DATABASE_SSL === undefined ? false : isTruthy(process.env.DATABASE_SSL)
+
 const postgresClient = postgres(connectionString, {
   prepare: false,
   idle_timeout: 20,
   connect_timeout: 30,
   max: 80,
   onnotice: () => {},
-  ssl: 'require',
+  ssl: useSSL ? 'require' : false,
 })
 
 const drizzleClient = drizzle(postgresClient, { schema })

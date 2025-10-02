@@ -4,10 +4,12 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import type { Server } from 'socket.io'
-import { env } from '@/lib/env'
+import { env, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const connectionString = env.DATABASE_URL
+const useSSL = env.DATABASE_SSL === undefined ? false : isTruthy(env.DATABASE_SSL)
+
 const db = drizzle(
   postgres(connectionString, {
     prepare: false,
@@ -15,7 +17,7 @@ const db = drizzle(
     connect_timeout: 20,
     max: 5,
     onnotice: () => {},
-    ssl: 'require',
+    ssl: useSSL ? 'require' : false,
   }),
   { schema }
 )
