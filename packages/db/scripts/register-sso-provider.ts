@@ -140,14 +140,20 @@ if (!CONNECTION_STRING) {
   process.exit(1)
 }
 
-// Initialize database connection (following migration script pattern)
+function isTruthy(value: string | undefined): boolean {
+  if (!value) return false
+  return value.toLowerCase() === 'true' || value === '1'
+}
+
+const useSSL = process.env.DATABASE_SSL === undefined ? false : isTruthy(process.env.DATABASE_SSL)
+
 const postgresClient = postgres(CONNECTION_STRING, {
   prepare: false,
   idle_timeout: 20,
   connect_timeout: 30,
   max: 10,
   onnotice: () => {},
-  ssl: 'require',
+  ssl: useSSL ? 'require' : false,
 })
 const db = drizzle(postgresClient)
 

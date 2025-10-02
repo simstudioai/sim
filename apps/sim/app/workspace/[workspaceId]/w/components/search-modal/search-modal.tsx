@@ -19,10 +19,6 @@ import { Dialog, DialogOverlay, DialogPortal, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input'
 import { useBrandConfig } from '@/lib/branding/branding'
 import { cn } from '@/lib/utils'
-import {
-  TemplateCard,
-  TemplateCardSkeleton,
-} from '@/app/workspace/[workspaceId]/templates/components/template-card'
 import { getKeyboardShortcutText } from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
 import { getAllBlocks } from '@/blocks'
 import { type NavigationSection, useSearchNavigation } from './hooks/use-search-navigation'
@@ -30,26 +26,10 @@ import { type NavigationSection, useSearchNavigation } from './hooks/use-search-
 interface SearchModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  templates?: TemplateData[]
   workflows?: WorkflowItem[]
   workspaces?: WorkspaceItem[]
-  loading?: boolean
+  knowledgeBases?: KnowledgeBaseItem[]
   isOnWorkflowPage?: boolean
-}
-
-interface TemplateData {
-  id: string
-  title: string
-  description: string
-  author: string
-  usageCount: string
-  stars: number
-  icon: string
-  iconColor: string
-  state?: {
-    blocks?: Record<string, { type: string; name?: string }>
-  }
-  isStarred?: boolean
 }
 
 interface WorkflowItem {
@@ -93,6 +73,14 @@ interface PageItem {
   shortcut?: string
 }
 
+interface KnowledgeBaseItem {
+  id: string
+  name: string
+  description?: string
+  href: string
+  isCurrent?: boolean
+}
+
 interface DocItem {
   id: string
   name: string
@@ -104,10 +92,9 @@ interface DocItem {
 export function SearchModal({
   open,
   onOpenChange,
-  templates = [],
   workflows = [],
   workspaces = [],
-  loading = false,
+  knowledgeBases = [],
   isOnWorkflowPage = false,
 }: SearchModalProps) {
   const [searchQuery, setSearchQuery] = useState('')
@@ -116,14 +103,6 @@ export function SearchModal({
   const workspaceId = params.workspaceId as string
   const brand = useBrandConfig()
 
-  // Local state for templates to handle star changes
-  const [localTemplates, setLocalTemplates] = useState<TemplateData[]>(templates)
-
-  // Update local templates when props change
-  useEffect(() => {
-    setLocalTemplates(templates)
-  }, [templates])
-
   // Get all available blocks - only when on workflow page
   const blocks = useMemo(() => {
     if (!isOnWorkflowPage) return []
@@ -131,10 +110,7 @@ export function SearchModal({
     const allBlocks = getAllBlocks()
     const regularBlocks = allBlocks
       .filter(
-        (block) =>
-          block.type !== 'starter' &&
-          !block.hideFromToolbar &&
-          (block.category === 'blocks' || block.category === 'triggers')
+        (block) => block.type !== 'starter' && !block.hideFromToolbar && block.category === 'blocks'
       )
       .map(
         (block): BlockItem => ({
@@ -169,6 +145,30 @@ export function SearchModal({
     ]
 
     return [...regularBlocks, ...specialBlocks].sort((a, b) => a.name.localeCompare(b.name))
+  }, [isOnWorkflowPage])
+
+  // Get all available triggers - only when on workflow page
+  const triggers = useMemo(() => {
+    if (!isOnWorkflowPage) return []
+
+    const allBlocks = getAllBlocks()
+    return allBlocks
+      .filter(
+        (block) =>
+          block.type !== 'starter' && !block.hideFromToolbar && block.category === 'triggers'
+      )
+      .map(
+        (block): BlockItem => ({
+          id: block.type,
+          name: block.name,
+          description: block.description || '',
+          longDescription: block.longDescription,
+          icon: block.icon,
+          bgColor: block.bgColor || '#6B7280',
+          type: block.type,
+        })
+      )
+      .sort((a, b) => a.name.localeCompare(b.name))
   }, [isOnWorkflowPage])
 
   // Get all available tools - only when on workflow page
@@ -252,23 +252,17 @@ export function SearchModal({
     return blocks.filter((block) => block.name.toLowerCase().includes(query))
   }, [blocks, searchQuery])
 
+  const filteredTriggers = useMemo(() => {
+    if (!searchQuery.trim()) return triggers
+    const query = searchQuery.toLowerCase()
+    return triggers.filter((trigger) => trigger.name.toLowerCase().includes(query))
+  }, [triggers, searchQuery])
+
   const filteredTools = useMemo(() => {
     if (!searchQuery.trim()) return tools
     const query = searchQuery.toLowerCase()
     return tools.filter((tool) => tool.name.toLowerCase().includes(query))
   }, [tools, searchQuery])
-
-  const filteredTemplates = useMemo(() => {
-    if (!searchQuery.trim()) return localTemplates.slice(0, 8)
-    const query = searchQuery.toLowerCase()
-    return localTemplates
-      .filter(
-        (template) =>
-          template.title.toLowerCase().includes(query) ||
-          template.description.toLowerCase().includes(query)
-      )
-      .slice(0, 8)
-  }, [localTemplates, searchQuery])
 
   const filteredWorkflows = useMemo(() => {
     if (!searchQuery.trim()) return workflows
@@ -281,6 +275,14 @@ export function SearchModal({
     const query = searchQuery.toLowerCase()
     return workspaces.filter((workspace) => workspace.name.toLowerCase().includes(query))
   }, [workspaces, searchQuery])
+
+  const filteredKnowledgeBases = useMemo(() => {
+    if (!searchQuery.trim()) return knowledgeBases
+    const query = searchQuery.toLowerCase()
+    return knowledgeBases.filter(
+      (kb) => kb.name.toLowerCase().includes(query) || kb.description?.toLowerCase().includes(query)
+    )
+  }, [knowledgeBases, searchQuery])
 
   const filteredPages = useMemo(() => {
     if (!searchQuery.trim()) return pages
@@ -308,6 +310,16 @@ export function SearchModal({
       })
     }
 
+    if (filteredTriggers.length > 0) {
+      sections.push({
+        id: 'triggers',
+        name: 'Triggers',
+        type: 'grid',
+        items: filteredTriggers,
+        gridCols: filteredTriggers.length, // Single row - all items in one row
+      })
+    }
+
     if (filteredTools.length > 0) {
       sections.push({
         id: 'tools',
@@ -318,20 +330,11 @@ export function SearchModal({
       })
     }
 
-    if (filteredTemplates.length > 0) {
-      sections.push({
-        id: 'templates',
-        name: 'Templates',
-        type: 'grid',
-        items: filteredTemplates,
-        gridCols: filteredTemplates.length, // Single row - all templates in one row
-      })
-    }
-
     // Combine all list items into one section
     const listItems = [
       ...filteredWorkspaces.map((item) => ({ type: 'workspace', data: item })),
       ...filteredWorkflows.map((item) => ({ type: 'workflow', data: item })),
+      ...filteredKnowledgeBases.map((item) => ({ type: 'knowledgebase', data: item })),
       ...filteredPages.map((item) => ({ type: 'page', data: item })),
       ...filteredDocs.map((item) => ({ type: 'doc', data: item })),
     ]
@@ -348,10 +351,11 @@ export function SearchModal({
     return sections
   }, [
     filteredBlocks,
+    filteredTriggers,
     filteredTools,
-    filteredTemplates,
     filteredWorkspaces,
     filteredWorkflows,
+    filteredKnowledgeBases,
     filteredPages,
     filteredDocs,
   ])
@@ -463,23 +467,6 @@ export function SearchModal({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [open, handlePageClick, workspaceId])
 
-  // Handle template usage callback (closes modal after template is used)
-  const handleTemplateUsed = useCallback(() => {
-    onOpenChange(false)
-  }, [onOpenChange])
-
-  // Handle star change callback from template card
-  const handleStarChange = useCallback(
-    (templateId: string, isStarred: boolean, newStarCount: number) => {
-      setLocalTemplates((prevTemplates) =>
-        prevTemplates.map((template) =>
-          template.id === templateId ? { ...template, isStarred, stars: newStarCount } : template
-        )
-      )
-    },
-    []
-  )
-
   // Handle item selection based on current item
   const handleItemSelection = useCallback(() => {
     const current = getCurrentItem()
@@ -487,11 +474,8 @@ export function SearchModal({
 
     const { section, item } = current
 
-    if (section.id === 'blocks' || section.id === 'tools') {
+    if (section.id === 'blocks' || section.id === 'triggers' || section.id === 'tools') {
       handleBlockClick(item.type)
-    } else if (section.id === 'templates') {
-      // Templates don't have direct selection, but we close the modal
-      onOpenChange(false)
     } else if (section.id === 'list') {
       switch (item.type) {
         case 'workspace':
@@ -502,6 +486,13 @@ export function SearchModal({
           }
           break
         case 'workflow':
+          if (item.data.isCurrent) {
+            onOpenChange(false)
+          } else {
+            handleNavigationClick(item.data.href)
+          }
+          break
+        case 'knowledgebase':
           if (item.data.isCurrent) {
             onOpenChange(false)
           } else {
@@ -569,15 +560,6 @@ export function SearchModal({
     },
     [getCurrentItem]
   )
-
-  // Render skeleton cards for loading state
-  const renderSkeletonCards = () => {
-    return Array.from({ length: 8 }).map((_, index) => (
-      <div key={`skeleton-${index}`} className='w-80 flex-shrink-0'>
-        <TemplateCardSkeleton />
-      </div>
-    ))
-  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -654,6 +636,52 @@ export function SearchModal({
                 </div>
               )}
 
+              {/* Triggers Section */}
+              {filteredTriggers.length > 0 && (
+                <div>
+                  <h3 className='mb-3 ml-6 font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
+                    Triggers
+                  </h3>
+                  <div
+                    ref={(el) => {
+                      if (el) scrollRefs.current.set('triggers', el)
+                    }}
+                    className='scrollbar-none flex gap-2 overflow-x-auto px-6 pb-1'
+                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                  >
+                    {filteredTriggers.map((trigger, index) => (
+                      <button
+                        key={trigger.id}
+                        onClick={() => handleBlockClick(trigger.type)}
+                        data-nav-item={`triggers-${index}`}
+                        className={`flex h-auto w-[180px] flex-shrink-0 cursor-pointer flex-col items-start gap-2 rounded-[8px] border p-3 transition-all duration-200 ${
+                          isItemSelected('triggers', index)
+                            ? 'border-border bg-secondary/80'
+                            : 'border-border/40 bg-background/60 hover:border-border hover:bg-secondary/80'
+                        }`}
+                      >
+                        <div className='flex items-center gap-2'>
+                          <div
+                            className='flex h-5 w-5 items-center justify-center rounded-[4px]'
+                            style={{ backgroundColor: trigger.bgColor }}
+                          >
+                            <trigger.icon className='!h-3.5 !w-3.5 text-white' />
+                          </div>
+                          <span className='font-medium font-sans text-foreground text-sm leading-none tracking-normal'>
+                            {trigger.name}
+                          </span>
+                        </div>
+                        {(trigger.longDescription || trigger.description) && (
+                          <p className='line-clamp-2 text-left text-muted-foreground text-xs'>
+                            {trigger.longDescription || trigger.description}
+                          </p>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Tools Section */}
               {filteredTools.length > 0 && (
                 <div>
@@ -696,49 +724,6 @@ export function SearchModal({
                         )}
                       </button>
                     ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Templates Section */}
-              {(loading || filteredTemplates.length > 0) && (
-                <div>
-                  <h3 className='mb-3 ml-6 font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
-                    Templates
-                  </h3>
-                  <div
-                    ref={(el) => {
-                      if (el) scrollRefs.current.set('templates', el)
-                    }}
-                    className='scrollbar-none flex gap-4 overflow-x-auto pr-6 pb-1 pl-6'
-                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-                  >
-                    {loading
-                      ? renderSkeletonCards()
-                      : filteredTemplates.map((template, index) => (
-                          <div
-                            key={template.id}
-                            data-nav-item={`templates-${index}`}
-                            className={`w-80 flex-shrink-0 rounded-lg transition-all duration-200 ${
-                              isItemSelected('templates', index) ? 'opacity-75' : 'opacity-100'
-                            }`}
-                          >
-                            <TemplateCard
-                              id={template.id}
-                              title={template.title}
-                              description={template.description}
-                              author={template.author}
-                              usageCount={template.usageCount}
-                              stars={template.stars}
-                              icon={template.icon}
-                              iconColor={template.iconColor}
-                              state={template.state}
-                              isStarred={template.isStarred}
-                              onTemplateUsed={handleTemplateUsed}
-                              onStarChange={handleStarChange}
-                            />
-                          </div>
-                        ))}
                   </div>
                 </div>
               )}
@@ -826,6 +811,43 @@ export function SearchModal({
                     </div>
                   )}
 
+                  {/* Knowledge Bases */}
+                  {filteredKnowledgeBases.length > 0 && (
+                    <div className='mb-6'>
+                      <h3 className='mb-3 ml-6 font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
+                        Knowledge Bases
+                      </h3>
+                      <div className='space-y-1 px-6'>
+                        {filteredKnowledgeBases.map((kb, kbIndex) => {
+                          const globalIndex =
+                            filteredWorkspaces.length + filteredWorkflows.length + kbIndex
+                          return (
+                            <button
+                              key={kb.id}
+                              onClick={() =>
+                                kb.isCurrent ? onOpenChange(false) : handleNavigationClick(kb.href)
+                              }
+                              data-nav-item={`list-${globalIndex}`}
+                              className={`flex h-10 w-full items-center gap-3 rounded-[8px] px-3 py-2 transition-colors focus:outline-none ${
+                                isItemSelected('list', globalIndex)
+                                  ? 'bg-accent text-accent-foreground'
+                                  : 'hover:bg-accent/60 focus:bg-accent/60'
+                              }`}
+                            >
+                              <div className='flex h-5 w-5 items-center justify-center'>
+                                <LibraryBig className='h-4 w-4 text-muted-foreground' />
+                              </div>
+                              <span className='flex-1 text-left font-normal font-sans text-muted-foreground text-sm leading-none tracking-normal'>
+                                {kb.name}
+                                {kb.isCurrent && ' (current)'}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Pages */}
                   {filteredPages.length > 0 && (
                     <div className='mb-6'>
@@ -835,7 +857,10 @@ export function SearchModal({
                       <div className='space-y-1 px-6'>
                         {filteredPages.map((page, pageIndex) => {
                           const globalIndex =
-                            filteredWorkspaces.length + filteredWorkflows.length + pageIndex
+                            filteredWorkspaces.length +
+                            filteredWorkflows.length +
+                            filteredKnowledgeBases.length +
+                            pageIndex
                           return (
                             <button
                               key={page.id}
@@ -872,6 +897,7 @@ export function SearchModal({
                           const globalIndex =
                             filteredWorkspaces.length +
                             filteredWorkflows.length +
+                            filteredKnowledgeBases.length +
                             filteredPages.length +
                             docIndex
                           return (
@@ -902,14 +928,14 @@ export function SearchModal({
 
               {/* Empty state */}
               {searchQuery &&
-                !loading &&
                 filteredWorkflows.length === 0 &&
                 filteredWorkspaces.length === 0 &&
+                filteredKnowledgeBases.length === 0 &&
                 filteredPages.length === 0 &&
                 filteredDocs.length === 0 &&
                 filteredBlocks.length === 0 &&
-                filteredTools.length === 0 &&
-                filteredTemplates.length === 0 && (
+                filteredTriggers.length === 0 &&
+                filteredTools.length === 0 && (
                   <div className='ml-6 py-12 text-center'>
                     <p className='text-muted-foreground'>No results found for "{searchQuery}"</p>
                   </div>

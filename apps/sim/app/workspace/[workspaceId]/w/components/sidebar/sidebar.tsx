@@ -32,6 +32,7 @@ import {
   getKeyboardShortcutText,
   useGlobalShortcuts,
 } from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
+import { useKnowledgeBasesList } from '@/hooks/use-knowledge'
 import { useSubscriptionStore } from '@/stores/subscription/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -114,6 +115,9 @@ export function Sidebar() {
   // Template data for search modal
   const [templates, setTemplates] = useState<TemplateData[]>([])
   const [isTemplatesLoading, setIsTemplatesLoading] = useState(false)
+
+  // Knowledge bases for search modal
+  const { knowledgeBases } = useKnowledgeBasesList(workspaceId)
 
   // Refs
   const workflowScrollAreaRef = useRef<HTMLDivElement | null>(null)
@@ -726,6 +730,17 @@ export function Sidebar() {
     }))
   }, [workspaces, workspaceId])
 
+  // Prepare knowledge bases for search modal
+  const searchKnowledgeBases = useMemo(() => {
+    return knowledgeBases.map((kb) => ({
+      id: kb.id,
+      name: kb.name,
+      description: kb.description,
+      href: `/workspace/${workspaceId}/knowledge/${kb.id}`,
+      isCurrent: knowledgeBaseId === kb.id,
+    }))
+  }, [knowledgeBases, workspaceId, knowledgeBaseId])
+
   // Create workflow handler
   const handleCreateWorkflow = async (folderId?: string): Promise<string> => {
     if (isCreatingWorkflow) {
@@ -1035,10 +1050,9 @@ export function Sidebar() {
       <SearchModal
         open={showSearchModal}
         onOpenChange={setShowSearchModal}
-        templates={templates}
         workflows={searchWorkflows}
         workspaces={searchWorkspaces}
-        loading={isTemplatesLoading}
+        knowledgeBases={searchKnowledgeBases}
         isOnWorkflowPage={isOnWorkflowPage}
       />
     </>

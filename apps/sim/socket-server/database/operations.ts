@@ -3,13 +3,15 @@ import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/
 import { and, eq, or, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
-import { env } from '@/lib/env'
+import { env, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 
 const logger = createLogger('SocketDatabase')
 
 const connectionString = env.DATABASE_URL
+const useSSL = env.DATABASE_SSL === undefined ? false : isTruthy(env.DATABASE_SSL)
+
 const socketDb = drizzle(
   postgres(connectionString, {
     prepare: false,
@@ -18,7 +20,7 @@ const socketDb = drizzle(
     max: 25,
     onnotice: () => {},
     debug: false,
-    ssl: 'require',
+    ssl: useSSL ? 'require' : false,
   }),
   { schema }
 )
