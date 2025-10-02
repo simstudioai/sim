@@ -239,7 +239,6 @@ const nextConfig: NextConfig = {
     return redirects
   },
   async rewrites() {
-    // Only enable PostHog reverse proxy if PostHog is enabled (defaults to disabled)
     if (!isTruthy(env.POSTHOG_ENABLED)) {
       return []
     }

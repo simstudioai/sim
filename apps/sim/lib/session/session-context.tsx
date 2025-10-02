@@ -54,20 +54,22 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [loadSession])
 
   useEffect(() => {
-    if (isPending || !posthog.__loaded) {
+    if (isPending || typeof posthog.identify !== 'function') {
       return
     }
 
-    if (data?.user) {
-      posthog.identify(data.user.id, {
-        email: data.user.email,
-        name: data.user.name,
-        email_verified: data.user.emailVerified,
-        created_at: data.user.createdAt,
-      })
-    } else {
-      posthog.reset()
-    }
+    try {
+      if (data?.user) {
+        posthog.identify(data.user.id, {
+          email: data.user.email,
+          name: data.user.name,
+          email_verified: data.user.emailVerified,
+          created_at: data.user.createdAt,
+        })
+      } else {
+        posthog.reset()
+      }
+    } catch {}
   }, [data, isPending])
 
   const value = useMemo<SessionHookResult>(
