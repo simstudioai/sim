@@ -76,6 +76,8 @@ export async function GET() {
           telemetryEnabled: userSettings.telemetryEnabled,
           emailPreferences: userSettings.emailPreferences ?? {},
           billingUsageNotificationsEnabled: userSettings.billingUsageNotificationsEnabled ?? true,
+          showFloatingControls: userSettings.showFloatingControls ?? true,
+          showTrainingControls: userSettings.showTrainingControls ?? false,
         },
       },
       { status: 200 }

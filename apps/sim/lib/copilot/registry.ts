@@ -262,6 +262,14 @@ const ExecutionEntry = z.object({
   totalTokens: z.number().nullable(),
   blockExecutions: z.array(z.any()), // can be detailed per need
   output: z.any().optional(),
+  errorMessage: z.string().optional(),
+  errorBlock: z
+    .object({
+      blockId: z.string().optional(),
+      blockName: z.string().optional(),
+      blockType: z.string().optional(),
+    })
+    .optional(),
 })
 
 export const ToolResultSchemas = {

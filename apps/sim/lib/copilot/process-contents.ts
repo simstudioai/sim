@@ -268,7 +268,6 @@ async function processWorkflowFromDb(
     logger.info('Processed sanitized workflow context', {
       workflowId,
       blocks: Object.keys(sanitizedState.blocks || {}).length,
-      edges: sanitizedState.edges.length,
     })
     // Use the provided kind for the type
     return { type: kind, tag, content }

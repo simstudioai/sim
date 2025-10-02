@@ -43,6 +43,12 @@ interface ExecutionEntry {
   totalTokens: number | null
   blockExecutions: BlockExecution[]
   output?: any
+  errorMessage?: string
+  errorBlock?: {
+    blockId?: string
+    blockName?: string
+    blockType?: string
+  }
 }
 
 function extractBlockExecutionsFromTraceSpans(traceSpans: any[]): BlockExecution[] {
@@ -72,6 +78,140 @@ function extractBlockExecutionsFromTraceSpans(traceSpans: any[]): BlockExecution
 
   traceSpans.forEach(processSpan)
   return blockExecutions
+}
+
+function normalizeErrorMessage(errorValue: unknown): string | undefined {
+  if (!errorValue) return undefined
+  if (typeof errorValue === 'string') return errorValue
+  if (errorValue instanceof Error) return errorValue.message
+  if (typeof errorValue === 'object') {
+    try {
+      return JSON.stringify(errorValue)
+    } catch {}
+  }
+  try {
+    return String(errorValue)
+  } catch {
+    return undefined
+  }
+}
+
+function extractErrorFromExecutionData(executionData: any): ExecutionEntry['errorBlock'] & {
+  message?: string
+} {
+  if (!executionData) return {}
+
+  const errorDetails = executionData.errorDetails
+  if (errorDetails) {
+    const message = normalizeErrorMessage(errorDetails.error || errorDetails.message)
+    if (message) {
+      return {
+        message,
+        blockId: errorDetails.blockId,
+        blockName: errorDetails.blockName,
+        blockType: errorDetails.blockType,
+      }
+    }
+  }
+
+  const finalOutputError = normalizeErrorMessage(executionData.finalOutput?.error)
+  if (finalOutputError) {
+    return {
+      message: finalOutputError,
+      blockName: 'Workflow',
+    }
+  }
+
+  const genericError = normalizeErrorMessage(executionData.error)
+  if (genericError) {
+    return {
+      message: genericError,
+      blockName: 'Workflow',
+    }
+  }
+
+  return {}
+}
+
+function extractErrorFromTraceSpans(traceSpans: any[]): ExecutionEntry['errorBlock'] & {
+  message?: string
+} {
+  if (!Array.isArray(traceSpans) || traceSpans.length === 0) return {}
+
+  const queue = [...traceSpans]
+  while (queue.length > 0) {
+    const span = queue.shift()
+    if (!span || typeof span !== 'object') continue
+
+    const message =
+      normalizeErrorMessage(span.output?.error) ||
+      normalizeErrorMessage(span.error) ||
+      normalizeErrorMessage(span.output?.message) ||
+      normalizeErrorMessage(span.message)
+
+    const status = span.status
+    if (status === 'error' || message) {
+      return {
+        message,
+        blockId: span.blockId,
+        blockName: span.blockName || span.name || (span.blockId ? undefined : 'Workflow'),
+        blockType: span.blockType || span.type,
+      }
+    }
+
+    if (Array.isArray(span.children)) {
+      queue.push(...span.children)
+    }
+  }
+
+  return {}
+}
+
+function deriveExecutionErrorSummary(params: {
+  blockExecutions: BlockExecution[]
+  traceSpans: any[]
+  executionData: any
+}): { message?: string; block?: ExecutionEntry['errorBlock'] } {
+  const { blockExecutions, traceSpans, executionData } = params
+
+  const blockError = blockExecutions.find((block) => block.status === 'error' && block.errorMessage)
+  if (blockError) {
+    return {
+      message: blockError.errorMessage,
+      block: {
+        blockId: blockError.blockId,
+        blockName: blockError.blockName,
+        blockType: blockError.blockType,
+      },
+    }
+  }
+
+  const executionDataError = extractErrorFromExecutionData(executionData)
+  if (executionDataError.message) {
+    return {
+      message: executionDataError.message,
+      block: {
+        blockId: executionDataError.blockId,
+        blockName:
+          executionDataError.blockName || (executionDataError.blockId ? undefined : 'Workflow'),
+        blockType: executionDataError.blockType,
+      },
+    }
+  }
+
+  const traceError = extractErrorFromTraceSpans(traceSpans)
+  if (traceError.message) {
+    return {
+      message: traceError.message,
+      block: {
+        blockId: traceError.blockId,
+        blockName: traceError.blockName || (traceError.blockId ? undefined : 'Workflow'),
+        blockType: traceError.blockType,
+      },
+    }
+  }
+
+  return {}
 }
 
 export const getWorkflowConsoleServerTool: BaseServerTool<GetWorkflowConsoleArgs, any> = {
@@ -108,7 +248,8 @@ export const getWorkflowConsoleServerTool: BaseServerTool<GetWorkflowConsoleArgs
       .limit(limit)
 
     const formattedEntries: ExecutionEntry[] = executionLogs.map((log) => {
-      const traceSpans = (log.executionData as any)?.traceSpans || []
+      const executionData = log.executionData as any
+      const traceSpans = executionData?.traceSpans || []
       const blockExecutions = includeDetails ? extractBlockExecutionsFromTraceSpans(traceSpans) : []
 
       let finalOutput: any
@@ -125,6 +266,12 @@ export const getWorkflowConsoleServerTool: BaseServerTool<GetWorkflowConsoleArgs
         if (outputBlock) finalOutput = outputBlock.outputData
       }
 
+      const { message: errorMessage, block: errorBlock } = deriveExecutionErrorSummary({
+        blockExecutions,
+        traceSpans,
+        executionData,
+      })
+
       return {
         id: log.id,
         executionId: log.executionId,
@@ -137,6 +284,8 @@ export const getWorkflowConsoleServerTool: BaseServerTool<GetWorkflowConsoleArgs
         totalTokens: (log.cost as any)?.tokens?.total ?? null,
         blockExecutions,
         output: finalOutput,
+        errorMessage: errorMessage,
+        errorBlock: errorBlock,
       }
     })
 

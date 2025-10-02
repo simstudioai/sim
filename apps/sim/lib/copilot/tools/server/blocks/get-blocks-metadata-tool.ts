@@ -77,13 +77,13 @@ export interface CopilotBlockMetadata {
   name: string
   description: string
   bestPractices?: string
-  commonParameters: CopilotSubblockMetadata[]
-  inputs?: Record<string, any>
+  inputSchema: CopilotSubblockMetadata[]
+  inputDefinitions?: Record<string, any>
   triggerAllowed?: boolean
   authType?: 'OAuth' | 'API Key' | 'Bot Token'
   tools: CopilotToolMetadata[]
   triggers: CopilotTriggerMetadata[]
-  operationParameters: Record<string, CopilotSubblockMetadata[]>
+  operationInputSchema: Record<string, CopilotSubblockMetadata[]>
   operations?: Record<
     string,
     {
@@ -92,7 +92,7 @@ export interface CopilotBlockMetadata {
       description?: string
       inputs?: Record<string, any>
       outputs?: Record<string, any>
-      parameters?: CopilotSubblockMetadata[]
+      inputSchema?: CopilotSubblockMetadata[]
     }
   >
   yamlDocumentation?: string
@@ -125,11 +125,11 @@ export const getBlocksMetadataServerTool: BaseServerTool<
           id: specialBlock.id,
           name: specialBlock.name,
           description: specialBlock.description || '',
-          commonParameters: commonParameters,
-          inputs: specialBlock.inputs || {},
+          inputSchema: commonParameters,
+          inputDefinitions: specialBlock.inputs || {},
           tools: [],
           triggers: [],
-          operationParameters,
+          operationInputSchema: operationParameters,
         }
         ;(metadata as any).subBlocks = undefined
       } else {
@@ -192,7 +192,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
             description: toolCfg?.description || undefined,
             inputs: { ...filteredToolParams, ...(operationInputs[opId] || {}) },
             outputs: toolOutputs,
-            parameters: operationParameters[opId] || [],
+            inputSchema: operationParameters[opId] || [],
           }
         }
 
@@ -201,13 +201,13 @@ export const getBlocksMetadataServerTool: BaseServerTool<
           name: blockConfig.name || blockId,
           description: blockConfig.longDescription || blockConfig.description || '',
           bestPractices: blockConfig.bestPractices,
-          commonParameters: commonParameters,
-          inputs: blockInputs,
+          inputSchema: commonParameters,
+          inputDefinitions: blockInputs,
           triggerAllowed: !!blockConfig.triggerAllowed,
           authType: resolveAuthType(blockConfig.authMode),
           tools,
           triggers,
-          operationParameters,
+          operationInputSchema: operationParameters,
           operations,
         }
       }
@@ -420,7 +420,7 @@ function splitParametersByOperation(
         operationParameters[key].push(processed)
       }
     } else {
-      // Override description from blockInputs if available (by id or canonicalParamId)
+      // Override description from inputDefinitions if available (by id or canonicalParamId)
       if (blockInputsForDescriptions) {
         const candidates = [sb.id, sb.canonicalParamId].filter(Boolean)
         for (const key of candidates) {
