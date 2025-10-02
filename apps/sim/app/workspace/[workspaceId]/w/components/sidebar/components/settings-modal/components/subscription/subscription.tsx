@@ -21,6 +21,7 @@ import {
   getVisiblePlans,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/subscription/subscription-permissions'
 import { useOrganizationStore } from '@/stores/organization'
+import { useGeneralStore } from '@/stores/settings/general/store'
 import { useSubscriptionStore } from '@/stores/subscription/store'
 
 const CONSTANTS = {
@@ -531,32 +532,14 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
 }
 
 function BillingUsageNotificationsToggle() {
-  const [enabled, setEnabled] = useState<boolean | null>(null)
+  const isLoading = useGeneralStore((s) => s.isBillingUsageNotificationsLoading)
+  const enabled = useGeneralStore((s) => s.isBillingUsageNotificationsEnabled)
+  const setEnabled = useGeneralStore((s) => s.setBillingUsageNotificationsEnabled)
+  const loadSettings = useGeneralStore((s) => s.loadSettings)
 
   useEffect(() => {
-    let isMounted = true
-    const load = async () => {
-      const res = await fetch('/api/users/me/settings')
-      const json = await res.json()
-      const current = json?.data?.billingUsageNotificationsEnabled
-      if (isMounted) setEnabled(current !== false)
-    }
-    load()
-    return () => {
-      isMounted = false
-    }
-  }, [])
-
-  const update = async (next: boolean) => {
-    setEnabled(next)
-    await fetch('/api/users/me/settings', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ billingUsageNotificationsEnabled: next }),
-    })
-  }
-
-  if (enabled === null) return null
+    void loadSettings()
+  }, [loadSettings])
 
   return (
     <div className='mt-4 flex items-center justify-between'>
@@ -564,7 +547,13 @@ function BillingUsageNotificationsToggle() {
         <span className='font-medium text-sm'>Usage notifications</span>
         <span className='text-muted-foreground text-xs'>Email me when I reach 80% usage</span>
       </div>
-      <Switch checked={enabled} onCheckedChange={(v: boolean) => update(v)} />
+      <Switch
+        checked={!!enabled}
+        disabled={isLoading}
+        onCheckedChange={(v: boolean) => {
+          void setEnabled(v)
+        }}
+      />
     </div>
   )
 }

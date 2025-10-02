@@ -1,17 +1,44 @@
+import type { ConnectionOptions } from 'node:tls'
 import * as schema from '@sim/db'
 import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db'
 import { and, eq, or, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
-import { env, isTruthy } from '@/lib/env'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 
 const logger = createLogger('SocketDatabase')
 
 const connectionString = env.DATABASE_URL
-const useSSL = env.DATABASE_SSL === undefined ? false : isTruthy(env.DATABASE_SSL)
 
+const getSSLConfig = () => {
+  const sslMode = env.DATABASE_SSL
+
+  if (!sslMode) return undefined
+  if (sslMode === 'disable') return false
+  if (sslMode === 'prefer') return 'prefer'
+
+  const sslConfig: ConnectionOptions = {}
+
+  if (sslMode === 'require') {
+    sslConfig.rejectUnauthorized = false
+  } else if (sslMode === 'verify-ca' || sslMode === 'verify-full') {
+    sslConfig.rejectUnauthorized = true
+    if (env.DATABASE_SSL_CA) {
+      try {
+        const ca = Buffer.from(env.DATABASE_SSL_CA, 'base64').toString('utf-8')
+        sslConfig.ca = ca
+      } catch (error) {
+        logger.error('Failed to parse DATABASE_SSL_CA:', error)
+      }
+    }
+  }
+
+  return sslConfig
+}
+
+const sslConfig = getSSLConfig()
 const socketDb = drizzle(
   postgres(connectionString, {
     prepare: false,
@@ -20,7 +47,7 @@ const socketDb = drizzle(
     max: 25,
     onnotice: () => {},
     debug: false,
-    ssl: useSSL ? 'require' : false,
+    ...(sslConfig !== undefined && { ssl: sslConfig }),
   }),
   { schema }
 )
@@ -169,7 +196,7 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
     const { operation: op, target, payload, timestamp, userId } = operation
 
     await db.transaction(async (tx) => {
-      // Handle different operation types within the transaction first
+      // Handle different operation types within the transaction
       switch (target) {
         case 'block':
           await handleBlockOperationTx(tx, workflowId, op, payload, userId)

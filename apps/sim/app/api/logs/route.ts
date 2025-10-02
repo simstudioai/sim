@@ -94,8 +94,6 @@ export async function GET(request: NextRequest) {
               workflowUpdatedAt: workflow.updatedAt,
             }
 
-      // Optimized query: Start by filtering workflows in the workspace with user permissions
-      // This ensures we scan only relevant logs instead of the entire table
       const baseQuery = db
         .select(selectColumns)
         .from(workflowExecutionLogs)
@@ -103,7 +101,7 @@ export async function GET(request: NextRequest) {
           workflow,
           and(
             eq(workflowExecutionLogs.workflowId, workflow.id),
-            eq(workflow.workspaceId, params.workspaceId) // Filter workspace during join!
+            eq(workflow.workspaceId, params.workspaceId)
           )
         )
         .innerJoin(
@@ -184,7 +182,7 @@ export async function GET(request: NextRequest) {
         .limit(params.limit)
         .offset(params.offset)
 
-      // Get total count for pagination using the same optimized join structure
+      // Get total count for pagination using the same join structure
       const countQuery = db
         .select({ count: sql<number>`count(*)` })
         .from(workflowExecutionLogs)
@@ -192,7 +190,7 @@ export async function GET(request: NextRequest) {
           workflow,
           and(
             eq(workflowExecutionLogs.workflowId, workflow.id),
-            eq(workflow.workspaceId, params.workspaceId) // Same optimization
+            eq(workflow.workspaceId, params.workspaceId)
           )
         )
         .innerJoin(
