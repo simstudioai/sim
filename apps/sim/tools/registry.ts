@@ -188,6 +188,12 @@ import {
   wealthboxWriteNoteTool,
   wealthboxWriteTaskTool,
 } from '@/tools/wealthbox'
+import {
+  webexListRoomsTool,
+  webexListMessagesTool,
+  webexCreateMessageTool,
+  webexEditMessageTool,
+} from '@/tools/webex'
 import { whatsappSendMessageTool } from '@/tools/whatsapp'
 import {
   wikipediaPageContentTool,
@@ -361,6 +367,10 @@ export const tools: Record<string, ToolConfig> = {
   wealthbox_write_task: wealthboxWriteTaskTool,
   wealthbox_read_note: wealthboxReadNoteTool,
   wealthbox_write_note: wealthboxWriteNoteTool,
+  webex_list_rooms: webexListRoomsTool,
+  webex_list_messages: webexListMessagesTool,
+  webex_create_message: webexCreateMessageTool,
+  webex_edit_message: webexEditMessageTool,
   wikipedia_summary: wikipediaPageSummaryTool,
   wikipedia_search: wikipediaSearchTool,
   wikipedia_content: wikipediaPageContentTool,
