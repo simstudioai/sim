@@ -10,7 +10,7 @@ export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUplo
   oauth: {
     required: true,
     provider: 'google-drive',
-    additionalScopes: ['https://www.googleapis.com/auth/drive.file'],
+    additionalScopes: ['https://www.googleapis.com/auth/drive.readonly'],
   },
 
   params: {
