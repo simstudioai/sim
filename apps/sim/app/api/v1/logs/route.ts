@@ -124,7 +124,13 @@ export async function GET(request: NextRequest) {
         workflowDescription: workflow.description,
       })
       .from(workflowExecutionLogs)
-      .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+      .innerJoin(
+        workflow,
+        and(
+          eq(workflowExecutionLogs.workflowId, workflow.id),
+          eq(workflow.workspaceId, params.workspaceId)
+        )
+      )
       .innerJoin(
         permissions,
         and(

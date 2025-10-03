@@ -214,7 +214,6 @@ const mockWorkflowState: WorkflowState = {
   lastSaved: Date.now(),
   isDeployed: false,
   deploymentStatuses: {},
-  hasActiveWebhook: false,
 }
 
 describe('Database Helpers', () => {
@@ -452,11 +451,6 @@ describe('Database Helpers', () => {
       )
 
       expect(result.success).toBe(true)
-      expect(result.jsonBlob).toBeDefined()
-      expect(result.jsonBlob.blocks).toEqual(mockWorkflowState.blocks)
-      expect(result.jsonBlob.edges).toEqual(mockWorkflowState.edges)
-      expect(result.jsonBlob.loops).toEqual(mockWorkflowState.loops)
-      expect(result.jsonBlob.parallels).toEqual(mockWorkflowState.parallels)
 
       // Verify transaction was called
       expect(mockTransaction).toHaveBeenCalledTimes(1)
@@ -471,7 +465,6 @@ describe('Database Helpers', () => {
         lastSaved: Date.now(),
         isDeployed: false,
         deploymentStatuses: {},
-        hasActiveWebhook: false,
       }
 
       const mockTransaction = vi.fn().mockImplementation(async (callback) => {
@@ -494,10 +487,6 @@ describe('Database Helpers', () => {
       )
 
       expect(result.success).toBe(true)
-      expect(result.jsonBlob.blocks).toEqual({})
-      expect(result.jsonBlob.edges).toEqual([])
-      expect(result.jsonBlob.loops).toEqual({})
-      expect(result.jsonBlob.parallels).toEqual({})
     })
 
     it('should return error when transaction fails', async () => {
@@ -650,7 +639,6 @@ describe('Database Helpers', () => {
       lastSaved: Date.now(),
       isDeployed: false,
       deploymentStatuses: {},
-      hasActiveWebhook: false,
     }
 
     it('should successfully migrate workflow from JSON to normalized tables', async () => {
@@ -737,7 +725,6 @@ describe('Database Helpers', () => {
         lastSaved: Date.now(),
         isDeployed: false,
         deploymentStatuses: {},
-        hasActiveWebhook: false,
       }
 
       // Create 1000 blocks
@@ -782,8 +769,6 @@ describe('Database Helpers', () => {
       )
 
       expect(result.success).toBe(true)
-      expect(Object.keys(result.jsonBlob.blocks)).toHaveLength(1000)
-      expect(result.jsonBlob.edges).toHaveLength(999)
     })
   })
 
@@ -1020,7 +1005,6 @@ describe('Database Helpers', () => {
         loops: {},
         parallels: {},
         deploymentStatuses: {},
-        hasActiveWebhook: false,
       }
 
       // Mock the transaction for save operation
@@ -1057,10 +1041,6 @@ describe('Database Helpers', () => {
         workflowState
       )
       expect(saveResult.success).toBe(true)
-
-      // Step 6: Verify the JSON blob also preserves advancedMode
-      expect(saveResult.jsonBlob?.blocks['agent-original'].advancedMode).toBe(true)
-      expect(saveResult.jsonBlob?.blocks['agent-duplicate'].advancedMode).toBe(true)
 
       // Verify the database insert was called with the correct values
       expect(mockTransaction).toHaveBeenCalled()
@@ -1161,7 +1141,6 @@ describe('Database Helpers', () => {
         loops: {},
         parallels: {},
         deploymentStatuses: {},
-        hasActiveWebhook: false,
       }
 
       // Mock successful save

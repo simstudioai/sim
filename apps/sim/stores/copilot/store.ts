@@ -1953,7 +1953,6 @@ export const useCopilotStore = create<CopilotStore>()(
             isDeployed: !!reverted.isDeployed,
             ...(reverted.deployedAt ? { deployedAt: new Date(reverted.deployedAt) } : {}),
             deploymentStatuses: reverted.deploymentStatuses || {},
-            hasActiveWebhook: !!reverted.hasActiveWebhook,
           })
 
           // Extract and apply subblock values

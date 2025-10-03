@@ -204,16 +204,19 @@ export async function applyAutoLayoutAndUpdateStore(
       useWorkflowStore.getState().updateLastSaved()
 
       // Clean up the workflow state for API validation
+      // Destructure out UI-only fields that shouldn't be persisted
+      const { deploymentStatuses, needsRedeployment, dragStartPosition, ...stateToSave } =
+        newWorkflowState
+
       const cleanedWorkflowState = {
-        ...newWorkflowState,
+        ...stateToSave,
         // Convert null dates to undefined (since they're optional)
-        deployedAt: newWorkflowState.deployedAt ? new Date(newWorkflowState.deployedAt) : undefined,
+        deployedAt: stateToSave.deployedAt ? new Date(stateToSave.deployedAt) : undefined,
         // Ensure other optional fields are properly handled
-        loops: newWorkflowState.loops || {},
-        parallels: newWorkflowState.parallels || {},
-        deploymentStatuses: newWorkflowState.deploymentStatuses || {},
+        loops: stateToSave.loops || {},
+        parallels: stateToSave.parallels || {},
         // Sanitize edges: remove null/empty handle fields to satisfy schema (optional strings)
-        edges: (newWorkflowState.edges || []).map((edge: any) => {
+        edges: (stateToSave.edges || []).map((edge: any) => {
           const { sourceHandle, targetHandle, ...rest } = edge || {}
           const sanitized: any = { ...rest }
           if (typeof sourceHandle === 'string' && sourceHandle.length > 0) {

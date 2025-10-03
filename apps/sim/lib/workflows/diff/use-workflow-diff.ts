@@ -68,7 +68,6 @@ export function useWorkflowDiff(): UseWorkflowDiffReturn {
         isDeployed: currentState.isDeployed,
         deployedAt: currentState.deployedAt,
         deploymentStatuses: { ...currentState.deploymentStatuses },
-        hasActiveWebhook: currentState.hasActiveWebhook,
       },
       subblockValues: JSON.parse(JSON.stringify(currentSubblockValues)), // Deep copy
       timestamp: Date.now(),
@@ -107,7 +106,6 @@ export function useWorkflowDiff(): UseWorkflowDiffReturn {
         isDeployed: backup.workflowState.isDeployed,
         deployedAt: backup.workflowState.deployedAt,
         deploymentStatuses: backup.workflowState.deploymentStatuses,
-        hasActiveWebhook: backup.workflowState.hasActiveWebhook,
       })
 
       // Restore subblock values

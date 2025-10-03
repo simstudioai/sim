@@ -73,7 +73,6 @@ export async function POST(request: NextRequest) {
       parallels: checkpointState?.parallels || {},
       isDeployed: checkpointState?.isDeployed || false,
       deploymentStatuses: checkpointState?.deploymentStatuses || {},
-      hasActiveWebhook: checkpointState?.hasActiveWebhook || false,
       lastSaved: Date.now(),
       // Only include deployedAt if it's a valid date string that can be converted
       ...(checkpointState?.deployedAt &&

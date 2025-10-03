@@ -18,6 +18,8 @@ import { getEnv, isTruthy } from '@/lib/env'
 import { isHosted } from '@/lib/environment'
 import { cn } from '@/lib/utils'
 import { useOrganizationStore } from '@/stores/organization'
+import { useGeneralStore } from '@/stores/settings/general/store'
+import { useSubscriptionStore } from '@/stores/subscription/store'
 
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
@@ -200,6 +202,21 @@ export function SettingsNavigation({
         {navigationItems.map((item) => (
           <div key={item.id} className='mb-1'>
             <button
+              onMouseEnter={() => {
+                switch (item.id) {
+                  case 'general':
+                    useGeneralStore.getState().loadSettings()
+                    break
+                  case 'subscription':
+                    useSubscriptionStore.getState().loadData()
+                    break
+                  case 'team':
+                    useOrganizationStore.getState().loadData()
+                    break
+                  default:
+                    break
+                }
+              }}
               onClick={() => onSectionChange(item.id)}
               className={cn(
                 'group flex h-9 w-full cursor-pointer items-center rounded-[8px] px-2 py-2 font-medium font-sans text-sm transition-colors',

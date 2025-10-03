@@ -11,7 +11,7 @@ import { resolveOutputType } from '@/blocks/utils'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
 interface EditWorkflowOperation {
-  operation_type: 'add' | 'edit' | 'delete'
+  operation_type: 'add' | 'edit' | 'delete' | 'insert_into_subflow' | 'extract_from_subflow'
   block_id: string
   params?: Record<string, any>
 }
@@ -20,6 +20,78 @@ interface EditWorkflowParams {
   operations: EditWorkflowOperation[]
   workflowId: string
   currentUserWorkflow?: string
+}
+
+/**
+ * Helper to create a block state from operation params
+ */
+function createBlockFromParams(blockId: string, params: any, parentId?: string): any {
+  const blockConfig = getAllBlocks().find((b) => b.type === params.type)
+
+  const blockState: any = {
+    id: blockId,
+    type: params.type,
+    name: params.name,
+    position: { x: 0, y: 0 },
+    enabled: params.enabled !== undefined ? params.enabled : true,
+    horizontalHandles: true,
+    isWide: false,
+    advancedMode: params.advancedMode || false,
+    height: 0,
+    triggerMode: params.triggerMode || false,
+    subBlocks: {},
+    outputs: params.outputs || (blockConfig ? resolveOutputType(blockConfig.outputs) : {}),
+    data: parentId ? { parentId, extent: 'parent' as const } : {},
+  }
+
+  // Add inputs as subBlocks
+  if (params.inputs) {
+    Object.entries(params.inputs).forEach(([key, value]) => {
+      blockState.subBlocks[key] = {
+        id: key,
+        type: 'short-input',
+        value: value,
+      }
+    })
+  }
+
+  // Set up subBlocks from block configuration
+  if (blockConfig) {
+    blockConfig.subBlocks.forEach((subBlock) => {
+      if (!blockState.subBlocks[subBlock.id]) {
+        blockState.subBlocks[subBlock.id] = {
+          id: subBlock.id,
+          type: subBlock.type,
+          value: null,
+        }
+      }
+    })
+  }
+
+  return blockState
+}
+
+/**
+ * Helper to add connections as edges for a block
+ */
+function addConnectionsAsEdges(
+  modifiedState: any,
+  blockId: string,
+  connections: Record<string, any>
+): void {
+  Object.entries(connections).forEach(([sourceHandle, targets]) => {
+    const targetArray = Array.isArray(targets) ? targets : [targets]
+    targetArray.forEach((targetId: string) => {
+      modifiedState.edges.push({
+        id: crypto.randomUUID(),
+        source: blockId,
+        sourceHandle,
+        target: targetId,
+        targetHandle: 'target',
+        type: 'default',
+      })
+    })
+  })
 }
 
 /**
@@ -43,11 +115,19 @@ function applyOperationsToWorkflowState(
     })),
   })
 
-  // Reorder operations: delete -> add -> edit to ensure consistent application semantics
+  // Reorder operations: delete -> extract -> add -> insert -> edit
   const deletes = operations.filter((op) => op.operation_type === 'delete')
+  const extracts = operations.filter((op) => op.operation_type === 'extract_from_subflow')
   const adds = operations.filter((op) => op.operation_type === 'add')
+  const inserts = operations.filter((op) => op.operation_type === 'insert_into_subflow')
   const edits = operations.filter((op) => op.operation_type === 'edit')
-  const orderedOperations: EditWorkflowOperation[] = [...deletes, ...adds, ...edits]
+  const orderedOperations: EditWorkflowOperation[] = [
+    ...deletes,
+    ...extracts,
+    ...adds,
+    ...inserts,
+    ...edits,
+  ]
 
   for (const operation of orderedOperations) {
     const { operation_type, block_id, params } = operation
@@ -105,6 +185,23 @@ function applyOperationsToWorkflowState(
                 block.subBlocks[key].value = value
               }
             })
+
+            // Update loop/parallel configuration in block.data
+            if (block.type === 'loop') {
+              block.data = block.data || {}
+              if (params.inputs.loopType !== undefined) block.data.loopType = params.inputs.loopType
+              if (params.inputs.iterations !== undefined)
+                block.data.count = params.inputs.iterations
+              if (params.inputs.collection !== undefined)
+                block.data.collection = params.inputs.collection
+            } else if (block.type === 'parallel') {
+              block.data = block.data || {}
+              if (params.inputs.parallelType !== undefined)
+                block.data.parallelType = params.inputs.parallelType
+              if (params.inputs.count !== undefined) block.data.count = params.inputs.count
+              if (params.inputs.collection !== undefined)
+                block.data.collection = params.inputs.collection
+            }
           }
 
           // Update basic properties
@@ -120,6 +217,50 @@ function applyOperationsToWorkflowState(
               modifiedState.edges = modifiedState.edges.filter(
                 (edge: any) => edge.target !== block_id
               )
+            }
+          }
+
+          // Handle advanced mode toggle
+          if (typeof params?.advancedMode === 'boolean') {
+            block.advancedMode = params.advancedMode
+          }
+
+          // Handle nested nodes update (for loops/parallels)
+          if (params?.nestedNodes) {
+            // Remove all existing child blocks
+            const existingChildren = Object.keys(modifiedState.blocks).filter(
+              (id) => modifiedState.blocks[id].data?.parentId === block_id
+            )
+            existingChildren.forEach((childId) => delete modifiedState.blocks[childId])
+
+            // Remove edges to/from removed children
+            modifiedState.edges = modifiedState.edges.filter(
+              (edge: any) =>
+                !existingChildren.includes(edge.source) && !existingChildren.includes(edge.target)
+            )
+
+            // Add new nested blocks
+            Object.entries(params.nestedNodes).forEach(([childId, childBlock]: [string, any]) => {
+              const childBlockState = createBlockFromParams(childId, childBlock, block_id)
+              modifiedState.blocks[childId] = childBlockState
+
+              // Add connections for child block
+              if (childBlock.connections) {
+                addConnectionsAsEdges(modifiedState, childId, childBlock.connections)
+              }
+            })
+
+            // Update loop/parallel configuration based on type
+            if (block.type === 'loop') {
+              block.data = block.data || {}
+              if (params.inputs?.loopType) block.data.loopType = params.inputs.loopType
+              if (params.inputs?.iterations) block.data.count = params.inputs.iterations
+              if (params.inputs?.collection) block.data.collection = params.inputs.collection
+            } else if (block.type === 'parallel') {
+              block.data = block.data || {}
+              if (params.inputs?.parallelType) block.data.parallelType = params.inputs.parallelType
+              if (params.inputs?.count) block.data.count = params.inputs.count
+              if (params.inputs?.collection) block.data.collection = params.inputs.collection
             }
           }
 
@@ -191,82 +332,135 @@ function applyOperationsToWorkflowState(
 
       case 'add': {
         if (params?.type && params?.name) {
-          // Get block configuration
-          const blockConfig = getAllBlocks().find((block) => block.type === params.type)
-
           // Create new block with proper structure
-          const newBlock: any = {
-            id: block_id,
-            type: params.type,
-            name: params.name,
-            position: { x: 0, y: 0 }, // Default position
-            enabled: true,
-            horizontalHandles: true,
-            isWide: false,
-            advancedMode: false,
-            height: 0,
-            triggerMode: false,
-            subBlocks: {},
-            outputs: blockConfig ? resolveOutputType(blockConfig.outputs) : {},
-            data: {},
-          }
+          const newBlock = createBlockFromParams(block_id, params)
 
-          // Add inputs as subBlocks
-          if (params.inputs) {
-            Object.entries(params.inputs).forEach(([key, value]) => {
-              newBlock.subBlocks[key] = {
-                id: key,
-                type: 'short-input',
-                value: value,
+          // Handle nested nodes (for loops/parallels created from scratch)
+          if (params.nestedNodes) {
+            Object.entries(params.nestedNodes).forEach(([childId, childBlock]: [string, any]) => {
+              const childBlockState = createBlockFromParams(childId, childBlock, block_id)
+              modifiedState.blocks[childId] = childBlockState
+
+              if (childBlock.connections) {
+                addConnectionsAsEdges(modifiedState, childId, childBlock.connections)
               }
             })
-          }
 
-          // Set up subBlocks from block configuration
-          if (blockConfig) {
-            blockConfig.subBlocks.forEach((subBlock) => {
-              if (!newBlock.subBlocks[subBlock.id]) {
-                newBlock.subBlocks[subBlock.id] = {
-                  id: subBlock.id,
-                  type: subBlock.type,
-                  value: null,
-                }
+            // Set loop/parallel data on parent block
+            if (params.type === 'loop') {
+              newBlock.data = {
+                ...newBlock.data,
+                loopType: params.inputs?.loopType || 'for',
+                ...(params.inputs?.collection && { collection: params.inputs.collection }),
+                ...(params.inputs?.iterations && { count: params.inputs.iterations }),
               }
-            })
+            } else if (params.type === 'parallel') {
+              newBlock.data = {
+                ...newBlock.data,
+                parallelType: params.inputs?.parallelType || 'count',
+                ...(params.inputs?.collection && { collection: params.inputs.collection }),
+                ...(params.inputs?.count && { count: params.inputs.count }),
+              }
+            }
           }
 
           modifiedState.blocks[block_id] = newBlock
 
           // Add connections as edges
           if (params.connections) {
-            Object.entries(params.connections).forEach(([sourceHandle, targets]) => {
-              const addEdge = (targetBlock: string, targetHandle?: string) => {
-                modifiedState.edges.push({
-                  id: crypto.randomUUID(),
-                  source: block_id,
-                  sourceHandle: sourceHandle,
-                  target: targetBlock,
-                  targetHandle: targetHandle || 'target',
-                  type: 'default',
-                })
-              }
+            addConnectionsAsEdges(modifiedState, block_id, params.connections)
+          }
+        }
+        break
+      }
 
-              if (typeof targets === 'string') {
-                addEdge(targets)
-              } else if (Array.isArray(targets)) {
-                targets.forEach((target: any) => {
-                  if (typeof target === 'string') {
-                    addEdge(target)
-                  } else if (target?.block) {
-                    addEdge(target.block, target.handle)
-                  }
-                })
-              } else if (typeof targets === 'object' && (targets as any)?.block) {
-                addEdge((targets as any).block, (targets as any).handle)
+      case 'insert_into_subflow': {
+        const subflowId = params?.subflowId
+        if (!subflowId || !params?.type || !params?.name) {
+          logger.warn('Missing required params for insert_into_subflow', { block_id, params })
+          break
+        }
+
+        const subflowBlock = modifiedState.blocks[subflowId]
+        if (!subflowBlock || (subflowBlock.type !== 'loop' && subflowBlock.type !== 'parallel')) {
+          logger.warn('Subflow block not found or invalid type', {
+            subflowId,
+            type: subflowBlock?.type,
+          })
+          break
+        }
+
+        // Get block configuration
+        const blockConfig = getAllBlocks().find((block) => block.type === params.type)
+
+        // Check if block already exists (moving into subflow) or is new
+        const existingBlock = modifiedState.blocks[block_id]
+
+        if (existingBlock) {
+          // Moving existing block into subflow - just update parent
+          existingBlock.data = {
+            ...existingBlock.data,
+            parentId: subflowId,
+            extent: 'parent' as const,
+          }
+
+          // Update inputs if provided
+          if (params.inputs) {
+            Object.entries(params.inputs).forEach(([key, value]) => {
+              if (!existingBlock.subBlocks[key]) {
+                existingBlock.subBlocks[key] = { id: key, type: 'short-input', value }
+              } else {
+                existingBlock.subBlocks[key].value = value
               }
             })
           }
+        } else {
+          // Create new block as child of subflow
+          const newBlock = createBlockFromParams(block_id, params, subflowId)
+          modifiedState.blocks[block_id] = newBlock
         }
+
+        // Add/update connections as edges
+        if (params.connections) {
+          // Remove existing edges from this block
+          modifiedState.edges = modifiedState.edges.filter((edge: any) => edge.source !== block_id)
+
+          // Add new connections
+          addConnectionsAsEdges(modifiedState, block_id, params.connections)
+        }
+        break
+      }
+
+      case 'extract_from_subflow': {
+        const subflowId = params?.subflowId
+        if (!subflowId) {
+          logger.warn('Missing subflowId for extract_from_subflow', { block_id })
+          break
+        }
+
+        const block = modifiedState.blocks[block_id]
+        if (!block) {
+          logger.warn('Block not found for extraction', { block_id })
+          break
+        }
+
+        // Verify it's actually a child of this subflow
+        if (block.data?.parentId !== subflowId) {
+          logger.warn('Block is not a child of specified subflow', {
+            block_id,
+            actualParent: block.data?.parentId,
+            specifiedParent: subflowId,
+          })
+        }
+
+        // Remove parent relationship
+        if (block.data) {
+          block.data.parentId = undefined
+          block.data.extent = undefined
+        }
+
+        // Note: We keep the block and its edges, just remove parent relationship
+        // The block becomes a root-level block
         break
       }
     }

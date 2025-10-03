@@ -17,6 +17,8 @@ export const env = createEnv({
   server: {
     // Core Database & Authentication
     DATABASE_URL:                          z.string().url(),                       // Primary database connection string
+    DATABASE_SSL:                          z.enum(['disable', 'prefer', 'require', 'verify-ca', 'verify-full']).optional(), // PostgreSQL SSL mode
+    DATABASE_SSL_CA:                       z.string().optional(),                  // Base64-encoded CA certificate for SSL verification
     BETTER_AUTH_URL:                       z.string().url(),                       // Base URL for Better Auth service
     BETTER_AUTH_SECRET:                    z.string().min(32),                     // Secret key for Better Auth JWT signing
     DISABLE_REGISTRATION:                  z.boolean().optional(),                 // Flag to disable new user registration
@@ -90,6 +92,7 @@ export const env = createEnv({
     TELEMETRY_ENDPOINT:                    z.string().url().optional(),            // Custom telemetry/analytics endpoint
     COST_MULTIPLIER:                       z.number().optional(),                  // Multiplier for cost calculations
     LOG_LEVEL:                             z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR']).optional(), // Minimum log level to display (defaults to ERROR in production, DEBUG in development)
+    POSTHOG_ENABLED:                       z.boolean().optional(),                 // Enable PostHog analytics and session recording
 
     // External Services
     BROWSERBASE_API_KEY:                   z.string().min(1).optional(),           // Browserbase API key for browser automation
@@ -258,6 +261,8 @@ export const env = createEnv({
     // Analytics & Tracking
     NEXT_PUBLIC_GOOGLE_API_KEY:            z.string().optional(),                  // Google API key for client-side API calls
     NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER:     z.string().optional(),                  // Google project number for Drive picker
+    NEXT_PUBLIC_POSTHOG_ENABLED:           z.boolean().optional(),                 // Enable PostHog analytics (client-side)
+    NEXT_PUBLIC_POSTHOG_KEY:               z.string().optional(),                  // PostHog project API key
 
     // UI Branding & Whitelabeling
     NEXT_PUBLIC_BRAND_NAME:                z.string().optional(),                  // Custom brand name (defaults to "Sim")
@@ -317,6 +322,8 @@ export const env = createEnv({
     NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: process.env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED,
     NEXT_PUBLIC_E2B_ENABLED: process.env.NEXT_PUBLIC_E2B_ENABLED,
     NEXT_PUBLIC_COPILOT_TRAINING_ENABLED: process.env.NEXT_PUBLIC_COPILOT_TRAINING_ENABLED,
+    NEXT_PUBLIC_POSTHOG_ENABLED: process.env.NEXT_PUBLIC_POSTHOG_ENABLED,
+    NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY,
     NODE_ENV: process.env.NODE_ENV,
     NEXT_TELEMETRY_DISABLED: process.env.NEXT_TELEMETRY_DISABLED,
   },

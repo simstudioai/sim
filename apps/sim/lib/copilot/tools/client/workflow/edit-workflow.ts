@@ -98,7 +98,35 @@ export class EditWorkflowClientTool extends BaseClientTool {
 
       // Prepare currentUserWorkflow JSON from stores to preserve block IDs
       let currentUserWorkflow = args?.currentUserWorkflow
-      if (!currentUserWorkflow) {
+      const diffStoreState = useWorkflowDiffStore.getState()
+      let usedDiffWorkflow = false
+
+      if (!currentUserWorkflow && diffStoreState.isDiffReady && diffStoreState.diffWorkflow) {
+        try {
+          const diffWorkflow = diffStoreState.diffWorkflow
+          const normalizedDiffWorkflow = {
+            ...diffWorkflow,
+            blocks: diffWorkflow.blocks || {},
+            edges: diffWorkflow.edges || [],
+            loops: diffWorkflow.loops || {},
+            parallels: diffWorkflow.parallels || {},
+          }
+          currentUserWorkflow = JSON.stringify(normalizedDiffWorkflow)
+          usedDiffWorkflow = true
+          logger.info('Using diff workflow state as base for edit_workflow operations', {
+            toolCallId: this.toolCallId,
+            blocksCount: Object.keys(normalizedDiffWorkflow.blocks).length,
+            edgesCount: normalizedDiffWorkflow.edges.length,
+          })
+        } catch (e) {
+          logger.warn(
+            'Failed to serialize diff workflow state; falling back to active workflow',
+            e as any
+          )
+        }
+      }
+
+      if (!currentUserWorkflow && !usedDiffWorkflow) {
         try {
           const workflowStore = useWorkflowStore.getState()
           const fullState = workflowStore.getWorkflowState()

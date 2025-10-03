@@ -97,7 +97,13 @@ export async function GET(request: NextRequest) {
       const baseQuery = db
         .select(selectColumns)
         .from(workflowExecutionLogs)
-        .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+        .innerJoin(
+          workflow,
+          and(
+            eq(workflowExecutionLogs.workflowId, workflow.id),
+            eq(workflow.workspaceId, params.workspaceId)
+          )
+        )
         .innerJoin(
           permissions,
           and(
@@ -107,8 +113,8 @@ export async function GET(request: NextRequest) {
           )
         )
 
-      // Build conditions for the joined query
-      let conditions: SQL | undefined = eq(workflow.workspaceId, params.workspaceId)
+      // Build additional conditions for the query
+      let conditions: SQL | undefined
 
       // Filter by level
       if (params.level && params.level !== 'all') {
@@ -180,7 +186,13 @@ export async function GET(request: NextRequest) {
       const countQuery = db
         .select({ count: sql<number>`count(*)` })
         .from(workflowExecutionLogs)
-        .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+        .innerJoin(
+          workflow,
+          and(
+            eq(workflowExecutionLogs.workflowId, workflow.id),
+            eq(workflow.workspaceId, params.workspaceId)
+          )
+        )
         .innerJoin(
           permissions,
           and(
