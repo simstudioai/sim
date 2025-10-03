@@ -1,4 +1,3 @@
-import type { ConnectionOptions } from 'node:tls'
 import * as schema from '@sim/db'
 import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db'
 import { and, eq, or, sql } from 'drizzle-orm'
@@ -11,34 +10,6 @@ import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 const logger = createLogger('SocketDatabase')
 
 const connectionString = env.DATABASE_URL
-
-const getSSLConfig = () => {
-  const sslMode = env.DATABASE_SSL
-
-  if (!sslMode) return undefined
-  if (sslMode === 'disable') return false
-  if (sslMode === 'prefer') return 'prefer'
-
-  const sslConfig: ConnectionOptions = {}
-
-  if (sslMode === 'require') {
-    sslConfig.rejectUnauthorized = false
-  } else if (sslMode === 'verify-ca' || sslMode === 'verify-full') {
-    sslConfig.rejectUnauthorized = true
-    if (env.DATABASE_SSL_CA) {
-      try {
-        const ca = Buffer.from(env.DATABASE_SSL_CA, 'base64').toString('utf-8')
-        sslConfig.ca = ca
-      } catch (error) {
-        logger.error('Failed to parse DATABASE_SSL_CA:', error)
-      }
-    }
-  }
-
-  return sslConfig
-}
-
-const sslConfig = getSSLConfig()
 const socketDb = drizzle(
   postgres(connectionString, {
     prepare: false,
@@ -47,7 +18,6 @@ const socketDb = drizzle(
     max: 25,
     onnotice: () => {},
     debug: false,
-    ...(sslConfig !== undefined && { ssl: sslConfig }),
   }),
   { schema }
 )
@@ -162,6 +132,7 @@ export async function getWorkflowState(workflowId: string) {
       const finalState = {
         // Default values for expected properties
         deploymentStatuses: {},
+        hasActiveWebhook: false,
         // Data from normalized tables
         blocks: normalizedData.blocks,
         edges: normalizedData.edges,
@@ -195,7 +166,23 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
   try {
     const { operation: op, target, payload, timestamp, userId } = operation
 
+    // Log high-frequency operations for monitoring
+    if (op === 'update-position' && Math.random() < 0.01) {
+      // Log 1% of position updates
+      logger.debug('Socket DB operation sample:', {
+        operation: op,
+        target,
+        workflowId: `${workflowId.substring(0, 8)}...`,
+      })
+    }
+
     await db.transaction(async (tx) => {
+      // Update the workflow's last modified timestamp first
+      await tx
+        .update(workflow)
+        .set({ updatedAt: new Date(timestamp) })
+        .where(eq(workflow.id, workflowId))
+
       // Handle different operation types within the transaction
       switch (target) {
         case 'block':
@@ -212,13 +199,6 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
           break
         default:
           throw new Error(`Unknown operation target: ${target}`)
-      }
-
-      if (op !== 'update-position') {
-        await tx
-          .update(workflow)
-          .set({ updatedAt: new Date(timestamp) })
-          .where(eq(workflow.id, workflowId))
       }
     })
 
