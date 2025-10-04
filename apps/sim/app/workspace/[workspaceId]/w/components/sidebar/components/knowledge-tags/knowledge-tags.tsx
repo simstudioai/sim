@@ -17,9 +17,16 @@ import {
   SelectValue,
 } from '@/components/ui'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { MAX_TAG_SLOTS, TAG_SLOTS, type TagSlot } from '@/lib/knowledge/consts'
+import {
+  FIELD_TYPE_METADATA,
+  MAX_TAG_SLOTS,
+  SUPPORTED_FIELD_TYPES,
+  TAG_SLOTS,
+  type TagSlot,
+} from '@/lib/knowledge/consts'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { DocumentTag } from '@/app/workspace/[workspaceId]/knowledge/components/document-tag-entry/document-tag-entry'
+import { TypedTagInput } from '@/app/workspace/[workspaceId]/knowledge/components/tag-input/typed-tag-input'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   type TagDefinition,
@@ -36,7 +43,6 @@ interface KnowledgeTagsProps {
   documentId: string
 }
 
-// Predetermined colors for each tag slot
 const TAG_SLOT_COLORS = [
   'var(--brand-primary-hex)', // Purple
   '#FF6B35', // Orange
@@ -77,8 +83,15 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
     fieldType: 'text',
     value: '',
   })
+  const [isValueValid, setIsValueValid] = useState(true)
 
-  // Function to build document tags from data and definitions
+  const fieldTypes = SUPPORTED_FIELD_TYPES.map((fieldType) => ({
+    value: fieldType,
+    label: FIELD_TYPE_METADATA[fieldType].label,
+    description: FIELD_TYPE_METADATA[fieldType].description,
+    placeholder: FIELD_TYPE_METADATA[fieldType].placeholder,
+  }))
+
   const buildDocumentTags = useCallback(
     (docData: DocumentData, definitions: TagDefinition[], currentTags?: DocumentTag[]) => {
       const tags: DocumentTag[] = []
@@ -89,7 +102,6 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
         const definition = definitions.find((def) => def.tagSlot === slot)
         const currentTag = currentTags?.find((tag) => tag.slot === slot)
 
-        // Only include tag if the document has a value AND a corresponding KB tag definition exists
         if (value?.trim() && definition) {
           tags.push({
             slot,
@@ -105,35 +117,28 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
     []
   )
 
-  // Handle tag updates (local state only, no API calls)
   const handleTagsChange = useCallback((newTags: DocumentTag[]) => {
-    // Only update local state, don't save to API
     setDocumentTags(newTags)
   }, [])
 
-  // Handle saving document tag values to the API
   const handleSaveDocumentTags = useCallback(
     async (tagsToSave: DocumentTag[]) => {
       if (!documentData) return
 
       try {
-        // Convert DocumentTag array to tag data for API
         const tagData: Record<string, string> = {}
         const tagSlots = TAG_SLOTS
 
-        // Clear all tags first
         tagSlots.forEach((slot) => {
           tagData[slot] = ''
         })
 
-        // Set values from tagsToSave
         tagsToSave.forEach((tag) => {
           if (tag.value.trim()) {
             tagData[tag.slot] = tag.value.trim()
           }
         })
 
-        // Update document via API
         const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}`, {
           method: 'PUT',
           headers: {
@@ -146,11 +151,9 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
           throw new Error('Failed to update document tags')
         }
 
-        // Update the document in the store and local state
         updateDocumentInStore(knowledgeBaseId, documentId, tagData)
         setDocumentData((prev) => (prev ? { ...prev, ...tagData } : null))
 
-        // Refresh tag definitions to update the display
         await fetchTagDefinitions()
       } catch (error) {
         logger.error('Error updating document tags:', error)
@@ -454,7 +457,11 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
 
   // Check if save should be enabled
   const canSave =
-    editForm.displayName.trim() && editForm.value.trim() && !nameConflict && hasChanges()
+    editForm.displayName.trim() &&
+    editForm.value.trim() &&
+    !nameConflict &&
+    hasChanges() &&
+    isValueValid
 
   return (
     <div className='h-full w-full overflow-hidden'>
@@ -482,19 +489,25 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
                             />
                             <div className='truncate font-medium'>{tag.displayName}</div>
                           </div>
-                          {userPermissions.canEdit && (
-                            <Button
-                              variant='ghost'
-                              size='sm'
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleRemoveTag(index)
-                              }}
-                              className='h-6 w-6 p-0 text-muted-foreground hover:text-red-600'
-                            >
-                              <X className='h-3 w-3' />
-                            </Button>
-                          )}
+                          <div className='ml-2 flex items-center gap-2'>
+                            <span className='rounded-md bg-secondary/60 px-2 py-0.5 text-[11px] text-muted-foreground'>
+                              {fieldTypes.find((ft) => ft.value === tag.fieldType)?.label ||
+                                tag.fieldType}
+                            </span>
+                            {userPermissions.canEdit && (
+                              <Button
+                                variant='ghost'
+                                size='sm'
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleRemoveTag(index)
+                                }}
+                                className='h-6 w-6 p-0 text-muted-foreground hover:text-red-600'
+                              >
+                                <X className='h-3 w-3' />
+                              </Button>
+                            )}
+                          </div>
                         </div>
 
                         {/* Show edit form when this tag is being edited */}
@@ -509,7 +522,7 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
                                     setEditForm({ ...editForm, displayName: e.target.value })
                                   }
                                   placeholder='Enter tag name'
-                                  className='h-8 min-w-0 flex-1 rounded-md text-sm'
+                                  className='h-8 min-w-0 flex-1 rounded-[10px] border-[#E5E5E5] bg-[#FFFFFF] text-sm dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
                                   onKeyDown={(e) => {
                                     if (e.key === 'Enter' && canSave) {
                                       e.preventDefault()
@@ -569,26 +582,35 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
                                 onValueChange={(value) =>
                                   setEditForm({ ...editForm, fieldType: value })
                                 }
-                                disabled={editingTagIndex !== null} // Disable in edit mode
+                                disabled={
+                                  editingTagIndex !== null || // Disable in edit mode
+                                  kbTagDefinitions.some(
+                                    (def) =>
+                                      def.displayName.toLowerCase() ===
+                                      editForm.displayName.toLowerCase()
+                                  )
+                                } // Also disable when using existing definition
                               >
-                                <SelectTrigger className='h-8 w-full text-sm'>
-                                  <SelectValue />
+                                <SelectTrigger className='h-8 w-full justify-between rounded-[10px] border-[#E5E5E5] bg-[#FFFFFF] text-sm dark:border-[#414141] dark:bg-[var(--surface-elevated)]'>
+                                  <SelectValue placeholder='Select type' />
                                 </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value='text'>Text</SelectItem>
+                                <SelectContent className='rounded-lg border-[#E5E5E5] bg-[#FFFFFF] dark:border-[#414141] dark:bg-[var(--surface-elevated)]'>
+                                  {fieldTypes.map((fieldType) => (
+                                    <SelectItem
+                                      key={fieldType.value}
+                                      value={fieldType.value}
+                                      className='text-sm'
+                                    >
+                                      {fieldType.label}
+                                    </SelectItem>
+                                  ))}
                                 </SelectContent>
                               </Select>
                             </div>
 
                             <div className='space-y-1.5'>
                               <Label className='font-medium text-xs'>Value</Label>
-                              <Input
-                                value={editForm.value}
-                                onChange={(e) =>
-                                  setEditForm({ ...editForm, value: e.target.value })
-                                }
-                                placeholder='Enter tag value'
-                                className='h-8 w-full rounded-md text-sm'
+                              <div
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter' && canSave) {
                                     e.preventDefault()
@@ -599,7 +621,20 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
                                     cancelEditing()
                                   }
                                 }}
-                              />
+                              >
+                                <TypedTagInput
+                                  fieldType={editForm.fieldType}
+                                  value={editForm.value}
+                                  onChange={(value) => setEditForm({ ...editForm, value })}
+                                  placeholder={
+                                    fieldTypes.find((ft) => ft.value === editForm.fieldType)
+                                      ?.placeholder || 'Enter tag value'
+                                  }
+                                  showInlineError={true}
+                                  onValidityChange={(valid) => setIsValueValid(valid)}
+                                  className='h-8 rounded-[10px] border-[#E5E5E5] bg-[#FFFFFF] text-sm dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
+                                />
+                              </div>
                             </div>
 
                             <div className='pt-1'>
@@ -664,7 +699,7 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
                         value={editForm.displayName}
                         onChange={(e) => setEditForm({ ...editForm, displayName: e.target.value })}
                         placeholder='Enter tag name'
-                        className='h-8 min-w-0 flex-1 rounded-md text-sm'
+                        className='h-8 min-w-0 flex-1 rounded-[10px] border-[#E5E5E5] bg-[#FFFFFF] text-sm dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && canSave) {
                             e.preventDefault()
@@ -722,23 +757,31 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
                     <Select
                       value={editForm.fieldType}
                       onValueChange={(value) => setEditForm({ ...editForm, fieldType: value })}
+                      disabled={kbTagDefinitions.some(
+                        (def) =>
+                          def.displayName.toLowerCase() === editForm.displayName.toLowerCase()
+                      )}
                     >
-                      <SelectTrigger className='h-8 w-full text-sm'>
-                        <SelectValue />
+                      <SelectTrigger className='h-8 w-full justify-between rounded-[10px] border-[#E5E5E5] bg-[#FFFFFF] text-sm dark:border-[#414141] dark:bg-[var(--surface-elevated)]'>
+                        <SelectValue placeholder='Select type' />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value='text'>Text</SelectItem>
+                      <SelectContent className='rounded-lg border-[#E5E5E5] bg-[#FFFFFF] dark:border-[#414141] dark:bg-[var(--surface-elevated)]'>
+                        {fieldTypes.map((fieldType) => (
+                          <SelectItem
+                            key={fieldType.value}
+                            value={fieldType.value}
+                            className='text-sm'
+                          >
+                            {fieldType.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className='space-y-1.5'>
                     <Label className='font-medium text-xs'>Value</Label>
-                    <Input
-                      value={editForm.value}
-                      onChange={(e) => setEditForm({ ...editForm, value: e.target.value })}
-                      placeholder='Enter tag value'
-                      className='h-8 w-full rounded-md text-sm'
+                    <div
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && canSave) {
                           e.preventDefault()
@@ -749,7 +792,20 @@ export function KnowledgeTags({ knowledgeBaseId, documentId }: KnowledgeTagsProp
                           cancelEditing()
                         }
                       }}
-                    />
+                    >
+                      <TypedTagInput
+                        fieldType={editForm.fieldType}
+                        value={editForm.value}
+                        onChange={(value) => setEditForm({ ...editForm, value })}
+                        placeholder={
+                          fieldTypes.find((ft) => ft.value === editForm.fieldType)?.placeholder ||
+                          'Enter tag value'
+                        }
+                        showInlineError={true}
+                        onValidityChange={(valid) => setIsValueValid(valid)}
+                        className='h-8 rounded-[10px] border-[#E5E5E5] bg-[#FFFFFF] text-sm dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
+                      />
+                    </div>
                   </div>
 
                   {/* Warning when at max slots */}

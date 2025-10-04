@@ -1,14 +1,15 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { Calendar, Hash, Plus, ToggleLeft, Trash2, Type as TypeIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatDisplayText } from '@/components/ui/formatted-text'
 import { Input } from '@/components/ui/input'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
-import { MAX_TAG_SLOTS } from '@/lib/knowledge/consts'
+import { FIELD_TYPE_METADATA, MAX_TAG_SLOTS, SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/consts'
 import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
+import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
 import { useTagSelection } from '@/hooks/use-tag-selection'
@@ -50,12 +51,15 @@ export function DocumentTagEntry({
 
   const emitTagSelection = useTagSelection(blockId, subBlock.id)
 
-  // State for dropdown visibility - one for each row
+  const fieldTypes = SUPPORTED_FIELD_TYPES.map((fieldType) => ({
+    value: fieldType,
+    label: FIELD_TYPE_METADATA[fieldType].label,
+    description: FIELD_TYPE_METADATA[fieldType].description,
+  }))
+
   const [dropdownStates, setDropdownStates] = useState<Record<number, boolean>>({})
-  // State for type dropdown visibility - one for each row
   const [typeDropdownStates, setTypeDropdownStates] = useState<Record<number, boolean>>({})
 
-  // State for managing tag dropdown
   const [activeTagDropdown, setActiveTagDropdown] = useState<{
     rowIndex: number
     showTags: boolean
@@ -64,12 +68,12 @@ export function DocumentTagEntry({
     element?: HTMLElement | null
   } | null>(null)
 
-  // Use preview value when in preview mode, otherwise use store value
+  // Get accessible prefixes for tag dropdown
+  const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
+
   const currentValue = isPreview ? previewValue : storeValue
 
-  // Transform stored JSON string to table format for display
   const rows = useMemo(() => {
-    // If we have stored data, use it
     if (currentValue) {
       try {
         const tagData = JSON.parse(currentValue)
@@ -83,12 +87,9 @@ export function DocumentTagEntry({
             },
           }))
         }
-      } catch {
-        // If parsing fails, fall through to default
-      }
+      } catch {}
     }
 
-    // Default: just one empty row
     return [
       {
         id: 'empty-row-0',
@@ -249,8 +250,8 @@ export function DocumentTagEntry({
   const renderHeader = () => (
     <thead>
       <tr className='border-b'>
-        <th className='w-2/5 border-r px-4 py-2 text-center font-medium text-sm'>Tag Name</th>
-        <th className='w-1/5 border-r px-4 py-2 text-center font-medium text-sm'>Type</th>
+        <th className='w-[35%] border-r px-4 py-2 text-center font-medium text-sm'>Tag Name</th>
+        <th className='w-[65px] border-r px-4 py-2 text-center font-medium text-sm'>Type</th>
         <th className='px-4 py-2 text-center font-medium text-sm'>Value</th>
       </tr>
     </thead>
@@ -265,19 +266,22 @@ export function DocumentTagEntry({
       setDropdownStates((prev) => ({ ...prev, [rowIndex]: show }))
     }
 
+    // Pre-compute matches for current input
+    const matchedDefinitions = availableTagDefinitions.filter((tagDef) =>
+      tagDef.displayName.toLowerCase().includes(cellValue.toLowerCase())
+    )
+
     const handleDropdownClick = (e: React.MouseEvent) => {
       e.preventDefault()
       e.stopPropagation()
       if (!disabled && !isConnecting) {
-        if (!showDropdown) {
-          setShowDropdown(true)
-        }
+        setShowDropdown(!showDropdown || matchedDefinitions.length > 0)
       }
     }
 
     const handleFocus = () => {
       if (!disabled && !isConnecting) {
-        setShowDropdown(true)
+        setShowDropdown(matchedDefinitions.length > 0)
       }
     }
 
@@ -303,30 +307,26 @@ export function DocumentTagEntry({
           <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
             <div className='whitespace-pre'>{formatDisplayText(cellValue)}</div>
           </div>
-          {showDropdown && availableTagDefinitions.length > 0 && (
+          {showDropdown && matchedDefinitions.length > 0 && (
             <div className='absolute top-full left-0 z-[100] mt-1 w-full'>
               <div className='allow-scroll fade-in-0 zoom-in-95 animate-in rounded-md border bg-popover text-popover-foreground shadow-lg'>
                 <div
                   className='allow-scroll max-h-48 overflow-y-auto p-1'
                   style={{ scrollbarWidth: 'thin' }}
                 >
-                  {availableTagDefinitions
-                    .filter((tagDef) =>
-                      tagDef.displayName.toLowerCase().includes(cellValue.toLowerCase())
-                    )
-                    .map((tagDef) => (
-                      <div
-                        key={tagDef.id}
-                        className='relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground'
-                        onMouseDown={(e) => {
-                          e.preventDefault()
-                          handleCellChange(rowIndex, 'tagName', tagDef.displayName)
-                          setShowDropdown(false)
-                        }}
-                      >
-                        <span className='flex-1 truncate'>{tagDef.displayName}</span>
-                      </div>
-                    ))}
+                  {matchedDefinitions.map((tagDef) => (
+                    <div
+                      key={tagDef.id}
+                      className='relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground'
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        handleCellChange(rowIndex, 'tagName', tagDef.displayName)
+                        setShowDropdown(false)
+                      }}
+                    >
+                      <span className='flex-1'>{tagDef.displayName}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -373,7 +373,14 @@ export function DocumentTagEntry({
       setTimeout(() => setShowTypeDropdown(false), 150)
     }
 
-    const typeOptions = [{ value: 'text', label: 'Text' }]
+    const typeOptions = fieldTypes.map((ft) => ({ value: ft.value, label: ft.label }))
+
+    const TYPE_ICONS: Record<string, React.ReactNode> = {
+      text: <TypeIcon className='h-4 w-4 text-muted-foreground' />,
+      number: <Hash className='h-4 w-4 text-muted-foreground' />,
+      date: <Calendar className='h-4 w-4 text-muted-foreground' />,
+      boolean: <ToggleLeft className='h-4 w-4 text-muted-foreground' />,
+    }
 
     return (
       <td className='border-r p-1'>
@@ -387,14 +394,19 @@ export function DocumentTagEntry({
             onFocus={handleTypeFocus}
             onBlur={handleTypeBlur}
           />
-          <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
-            <div className='whitespace-pre text-muted-foreground'>
-              {formatDisplayText(cellValue)}
+          <div className='pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden bg-transparent px-3 text-sm'>
+            <div className='flex items-center justify-center rounded-md bg-secondary/60 px-2 py-1'>
+              {TYPE_ICONS[cellValue] || TYPE_ICONS.text}
+              <span className='sr-only'>
+                {formatDisplayText(
+                  fieldTypes.find((ft) => ft.value === cellValue)?.label || cellValue
+                )}
+              </span>
             </div>
           </div>
           {showTypeDropdown && !isReadOnly && (
             <div className='absolute top-full left-0 z-[100] mt-1 w-full'>
-              <div className='allow-scroll fade-in-0 zoom-in-95 animate-in rounded-md border bg-popover text-popover-foreground shadow-lg'>
+              <div className='allow-scroll fade-in-0 zoom-in-95 min-w-[160px] animate-in rounded-md border bg-popover text-popover-foreground shadow-lg'>
                 <div
                   className='allow-scroll max-h-48 overflow-y-auto p-1'
                   style={{ scrollbarWidth: 'thin' }}
@@ -409,7 +421,10 @@ export function DocumentTagEntry({
                         setShowTypeDropdown(false)
                       }}
                     >
-                      <span className='flex-1 truncate'>{option.label}</span>
+                      <div className='flex items-center gap-2'>
+                        {TYPE_ICONS[option.value]}
+                        <span>{option.label}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -423,9 +438,11 @@ export function DocumentTagEntry({
 
   const renderValueCell = (row: DocumentTagRow, rowIndex: number) => {
     const cellValue = row.cells.value || ''
+    const fieldType = row.cells.type || 'text'
 
+    // All types use Input with TagDropdown support
     return (
-      <td className='p-1'>
+      <td className='p-1 pr-12'>
         <div className='relative w-full'>
           <Input
             value={cellValue}
@@ -466,10 +483,21 @@ export function DocumentTagEntry({
               }
             }}
             disabled={disabled || isConnecting}
+            placeholder={
+              FIELD_TYPE_METADATA[fieldType as keyof typeof FIELD_TYPE_METADATA]?.placeholder ||
+              'Enter value'
+            }
+            type={fieldType === 'number' ? 'text' : 'text'}
+            inputMode={fieldType === 'number' ? 'numeric' : undefined}
             className='w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
           />
           <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
-            <div className='whitespace-pre'>{formatDisplayText(cellValue)}</div>
+            <div className='whitespace-pre'>
+              {formatDisplayText(cellValue, {
+                accessiblePrefixes,
+                highlightAll: !accessiblePrefixes,
+              })}
+            </div>
           </div>
         </div>
       </td>

@@ -4,10 +4,10 @@ import { useState } from 'react'
 import { ChevronDown, ChevronRight, Plus, Settings, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { TAG_SLOTS, type TagSlot } from '@/lib/knowledge/consts'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
+import { TypedTagInput } from './typed-tag-input'
 
 export type TagData = {
   [K in TagSlot]?: string
@@ -40,7 +40,7 @@ export function TagInput({
   const [showAllTags, setShowAllTags] = useState(false)
 
   // Use custom tag definitions if available
-  const { getTagLabel } = useKnowledgeBaseTagDefinitions(knowledgeBaseId)
+  const { getTagLabel, getTagDefinition } = useKnowledgeBaseTagDefinitions(knowledgeBaseId)
 
   const handleTagChange = (tagKey: keyof TagData, value: string) => {
     onTagsChange({
@@ -113,36 +113,40 @@ export function TagInput({
             </div>
 
             <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
-              {visibleTags.map(({ key, label, placeholder }) => (
-                <div key={key} className='space-y-1'>
-                  <Label htmlFor={key} className='text-muted-foreground text-xs'>
-                    {label}
-                  </Label>
-                  <div className='relative'>
-                    <Input
-                      id={key}
-                      type='text'
-                      value={tags[key] || ''}
-                      onChange={(e) => handleTagChange(key, e.target.value)}
-                      placeholder={placeholder}
-                      disabled={disabled}
-                      className='pr-8 text-sm'
-                    />
-                    {tags[key] && (
-                      <Button
-                        type='button'
-                        variant='ghost'
-                        size='sm'
-                        onClick={() => clearTag(key)}
+              {visibleTags.map(({ key, label, placeholder }) => {
+                const tagDefinition = getTagDefinition(key)
+                const fieldType = tagDefinition?.fieldType || 'text'
+
+                return (
+                  <div key={key} className='space-y-1'>
+                    <Label htmlFor={key} className='text-muted-foreground text-xs'>
+                      {label}
+                    </Label>
+                    <div className='relative'>
+                      <TypedTagInput
+                        fieldType={fieldType}
+                        value={tags[key] || ''}
+                        onChange={(value) => handleTagChange(key, value)}
+                        placeholder={placeholder}
                         disabled={disabled}
-                        className='-translate-y-1/2 absolute top-1/2 right-1 h-6 w-6 p-0 hover:bg-muted'
-                      >
-                        <X className='h-3 w-3' />
-                      </Button>
-                    )}
+                        className='pr-8'
+                      />
+                      {tags[key] && (
+                        <Button
+                          type='button'
+                          variant='ghost'
+                          size='sm'
+                          onClick={() => clearTag(key)}
+                          disabled={disabled}
+                          className='-translate-y-1/2 absolute top-1/2 right-1 h-6 w-6 p-0 hover:bg-muted'
+                        >
+                          <X className='h-3 w-3' />
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
 
             {showAllTags && (
