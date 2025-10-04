@@ -283,24 +283,45 @@ export class WorkflowDiffEngine {
         hasDiffAnalysis: !!diffAnalysis,
       })
 
-      // Get current workflow state for comparison
+      // Get baseline for comparison
+      // If we already have a diff, use it as baseline (editing on top of diff)
+      // Otherwise use the current workflow state
       const { useWorkflowStore } = await import('@/stores/workflows/workflow/store')
       const currentWorkflowState = useWorkflowStore.getState().getWorkflowState()
 
+      // Check if we're editing on top of an existing diff
+      const baselineForComparison = this.currentDiff?.proposedState || currentWorkflowState
+      const isEditingOnTopOfDiff = !!this.currentDiff
+
+      if (isEditingOnTopOfDiff) {
+        logger.info('Editing on top of existing diff - using diff as baseline for comparison', {
+          diffBlockCount: Object.keys(this.currentDiff!.proposedState.blocks).length,
+        })
+      }
+
       // Merge subblock values from subblock store to ensure manual edits are included
-      let mergedBaseline: WorkflowState = currentWorkflowState
-      try {
-        mergedBaseline = {
-          ...currentWorkflowState,
-          blocks: mergeSubblockState(currentWorkflowState.blocks),
+      let mergedBaseline: WorkflowState = baselineForComparison
+
+      // Only merge subblock values if we're comparing against original workflow
+      // If editing on top of diff, use the diff state as-is
+      if (!isEditingOnTopOfDiff) {
+        try {
+          mergedBaseline = {
+            ...baselineForComparison,
+            blocks: mergeSubblockState(baselineForComparison.blocks),
+          }
+          logger.info('Merged subblock values into baseline for diff creation', {
+            blockCount: Object.keys(mergedBaseline.blocks || {}).length,
+          })
+        } catch (mergeError) {
+          logger.warn('Failed to merge subblock values into baseline; proceeding with raw state', {
+            error: mergeError instanceof Error ? mergeError.message : String(mergeError),
+          })
         }
-        logger.info('Merged subblock values into baseline for diff creation', {
-          blockCount: Object.keys(mergedBaseline.blocks || {}).length,
-        })
-      } catch (mergeError) {
-        logger.warn('Failed to merge subblock values into baseline; proceeding with raw state', {
-          error: mergeError instanceof Error ? mergeError.message : String(mergeError),
-        })
+      } else {
+        logger.info(
+          'Using diff state as baseline without merging subblocks (editing on top of diff)'
+        )
       }
 
       // Build a map of existing blocks by type:name for matching
@@ -407,44 +428,127 @@ export class WorkflowDiffEngine {
         finalProposedState.parallels = generateParallelBlocks(finalProposedState.blocks)
       }
 
+      // Transfer block heights from baseline workflow for better measurements in diff view
+      // If editing on top of diff, this transfers from the diff (which already has good heights)
+      // Otherwise transfers from original workflow
+      logger.info('Transferring block heights from baseline workflow', {
+        isEditingOnTopOfDiff,
+        baselineBlockCount: Object.keys(mergedBaseline.blocks).length,
+      })
+      try {
+        const { transferBlockHeights } = await import('@/lib/workflows/autolayout')
+        transferBlockHeights(mergedBaseline.blocks, finalBlocks)
+      } catch (error) {
+        logger.warn('Failed to transfer block heights', {
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+
       // Apply autolayout to the proposed state
       logger.info('Applying autolayout to proposed workflow state')
       try {
-        const { applyAutoLayout: applyNativeAutoLayout } = await import(
-          '@/lib/workflows/autolayout'
-        )
+        // Compute diff analysis if not already provided to determine changed blocks
+        let tempComputed = diffAnalysis
+        if (!tempComputed) {
+          const currentIds = new Set(Object.keys(mergedBaseline.blocks))
+          const newBlocks: string[] = []
+          const editedBlocks: string[] = []
 
-        const autoLayoutOptions = {
-          horizontalSpacing: 550,
-          verticalSpacing: 200,
-          padding: {
-            x: 150,
-            y: 150,
-          },
-          alignment: 'center' as const,
+          for (const [id, block] of Object.entries(finalBlocks)) {
+            if (!currentIds.has(id)) {
+              newBlocks.push(id)
+            } else {
+              const currentBlock = mergedBaseline.blocks[id]
+              if (hasBlockChanged(currentBlock, block)) {
+                editedBlocks.push(id)
+              }
+            }
+          }
+
+          tempComputed = { new_blocks: newBlocks, edited_blocks: editedBlocks, deleted_blocks: [] }
         }
 
-        const layoutResult = applyNativeAutoLayout(
-          finalBlocks,
-          finalProposedState.edges,
-          finalProposedState.loops || {},
-          finalProposedState.parallels || {},
-          autoLayoutOptions
-        )
+        const changedBlockIds = [
+          ...(tempComputed.new_blocks || []),
+          ...(tempComputed.edited_blocks || []),
+        ]
 
-        if (layoutResult.success && layoutResult.blocks) {
-          Object.entries(layoutResult.blocks).forEach(([id, layoutBlock]) => {
+        const totalBlocks = Object.keys(finalBlocks).length
+        const unchangedBlocks = totalBlocks - changedBlockIds.length
+
+        // Use targeted layout for any copilot edit UNLESS it built 100% of blocks from scratch
+        // This preserves positions of existing blocks for incremental changes
+        if (changedBlockIds.length > 0 && unchangedBlocks > 0) {
+          // Use targeted layout - preserves positions of unchanged blocks
+          logger.info('Using targeted layout for copilot edits (has unchanged blocks)', {
+            changedBlocks: changedBlockIds.length,
+            unchangedBlocks: unchangedBlocks,
+            totalBlocks: totalBlocks,
+            percentChanged: Math.round((changedBlockIds.length / totalBlocks) * 100),
+          })
+
+          const { applyTargetedLayout } = await import('@/lib/workflows/autolayout')
+
+          const layoutedBlocks = applyTargetedLayout(finalBlocks, finalProposedState.edges, {
+            changedBlockIds,
+            preserveUnchangedPositions: true,
+            horizontalSpacing: 550,
+            verticalSpacing: 200,
+          })
+
+          Object.entries(layoutedBlocks).forEach(([id, layoutBlock]) => {
             if (finalBlocks[id]) {
               finalBlocks[id].position = layoutBlock.position
             }
           })
-          logger.info('Successfully applied autolayout to proposed state', {
-            blocksLayouted: Object.keys(layoutResult.blocks).length,
+
+          logger.info('Successfully applied targeted layout to proposed state', {
+            blocksLayouted: Object.keys(layoutedBlocks).length,
+            changedBlocks: changedBlockIds.length,
           })
         } else {
-          logger.warn('Autolayout failed, using default positions', {
-            error: layoutResult.error,
+          // Use full autolayout only when copilot built 100% of the workflow from scratch
+          logger.info('Using full autolayout (copilot built 100% of workflow)', {
+            totalBlocks: totalBlocks,
+            allBlocksAreNew: changedBlockIds.length === totalBlocks,
           })
+
+          const { applyAutoLayout: applyNativeAutoLayout } = await import(
+            '@/lib/workflows/autolayout'
+          )
+
+          const autoLayoutOptions = {
+            horizontalSpacing: 550,
+            verticalSpacing: 200,
+            padding: {
+              x: 150,
+              y: 150,
+            },
+            alignment: 'center' as const,
+          }
+
+          const layoutResult = applyNativeAutoLayout(
+            finalBlocks,
+            finalProposedState.edges,
+            finalProposedState.loops || {},
+            finalProposedState.parallels || {},
+            autoLayoutOptions
+          )
+
+          if (layoutResult.success && layoutResult.blocks) {
+            Object.entries(layoutResult.blocks).forEach(([id, layoutBlock]) => {
+              if (finalBlocks[id]) {
+                finalBlocks[id].position = layoutBlock.position
+              }
+            })
+            logger.info('Successfully applied full autolayout to proposed state', {
+              blocksLayouted: Object.keys(layoutResult.blocks).length,
+            })
+          } else {
+            logger.warn('Autolayout failed, using default positions', {
+              error: layoutResult.error,
+            })
+          }
         }
       } catch (layoutError) {
         logger.warn('Error applying autolayout, using default positions', {
