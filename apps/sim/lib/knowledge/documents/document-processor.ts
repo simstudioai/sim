@@ -1,6 +1,6 @@
+import { type Chunk, JsonYamlChunker, StructuredDataChunker, TextChunker } from '@/lib/chunkers'
 import { env } from '@/lib/env'
 import { parseBuffer, parseFile } from '@/lib/file-parsers'
-import { type Chunk, TextChunker } from '@/lib/knowledge/documents/chunker'
 import { retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
@@ -15,8 +15,8 @@ import { mistralParserTool } from '@/tools/mistral/parser'
 const logger = createLogger('DocumentProcessor')
 
 const TIMEOUTS = {
-  FILE_DOWNLOAD: 60000,
-  MISTRAL_OCR_API: 90000,
+  FILE_DOWNLOAD: 180000,
+  MISTRAL_OCR_API: 120000,
 } as const
 
 type OCRResult = {
@@ -97,8 +97,32 @@ export async function processDocument(
     const { content, processingMethod } = parseResult
     const cloudUrl = 'cloudUrl' in parseResult ? parseResult.cloudUrl : undefined
 
-    const chunker = new TextChunker({ chunkSize, overlap: chunkOverlap, minChunkSize })
-    const chunks = await chunker.chunk(content)
+    let chunks: Chunk[]
+    const metadata = 'metadata' in parseResult ? parseResult.metadata : {}
+
+    const isJsonYaml =
+      metadata.type === 'json' ||
+      metadata.type === 'yaml' ||
+      mimeType.includes('json') ||
+      mimeType.includes('yaml')
+
+    if (isJsonYaml && JsonYamlChunker.isStructuredData(content)) {
+      logger.info('Using JSON/YAML chunker for structured data')
+      chunks = await JsonYamlChunker.chunkJsonYaml(content, {
+        chunkSize,
+        minChunkSize,
+      })
+    } else if (StructuredDataChunker.isStructuredData(content, mimeType)) {
+      logger.info('Using structured data chunker for spreadsheet/CSV content')
+      chunks = await StructuredDataChunker.chunkStructuredData(content, {
+        headers: metadata.headers,
+        totalRows: metadata.totalRows || metadata.rowCount,
+        sheetName: metadata.sheetNames?.[0],
+      })
+    } else {
+      const chunker = new TextChunker({ chunkSize, overlap: chunkOverlap, minChunkSize })
+      chunks = await chunker.chunk(content)
+    }
 
     const characterCount = content.length
     const tokenCount = chunks.reduce((sum, chunk) => sum + chunk.tokenCount, 0)
@@ -132,22 +156,23 @@ async function parseDocument(
   content: string
   processingMethod: 'file-parser' | 'mistral-ocr'
   cloudUrl?: string
+  metadata?: any
 }> {
   const isPDF = mimeType === 'application/pdf'
   const hasAzureMistralOCR =
     env.OCR_AZURE_API_KEY && env.OCR_AZURE_ENDPOINT && env.OCR_AZURE_MODEL_NAME
   const hasMistralOCR = env.MISTRAL_API_KEY
 
-  // Check Azure Mistral OCR configuration
+  if (isPDF && (hasAzureMistralOCR || hasMistralOCR)) {
+    if (hasAzureMistralOCR) {
+      logger.info(`Using Azure Mistral OCR: ${filename}`)
+      return parseWithAzureMistralOCR(fileUrl, filename, mimeType)
+    }
 
-  if (isPDF && hasAzureMistralOCR) {
-    logger.info(`Using Azure Mistral OCR: ${filename}`)
-    return parseWithAzureMistralOCR(fileUrl, filename, mimeType)
-  }
-
-  if (isPDF && hasMistralOCR) {
-    logger.info(`Using Mistral OCR: ${filename}`)
-    return parseWithMistralOCR(fileUrl, filename, mimeType)
+    if (hasMistralOCR) {
+      logger.info(`Using Mistral OCR: ${filename}`)
+      return parseWithMistralOCR(fileUrl, filename, mimeType)
+    }
   }
 
   logger.info(`Using file parser: ${filename}`)
@@ -200,9 +225,7 @@ async function downloadFileWithTimeout(fileUrl: string): Promise<Buffer> {
 }
 
 async function downloadFileForBase64(fileUrl: string): Promise<Buffer> {
-  // Handle different URL types for Azure Mistral OCR base64 requirement
   if (fileUrl.startsWith('data:')) {
-    // Extract base64 data from data URI
     const [, base64Data] = fileUrl.split(',')
     if (!base64Data) {
       throw new Error('Invalid data URI format')
@@ -210,10 +233,8 @@ async function downloadFileForBase64(fileUrl: string): Promise<Buffer> {
     return Buffer.from(base64Data, 'base64')
   }
   if (fileUrl.startsWith('http')) {
-    // Download from HTTP(S) URL
     return downloadFileWithTimeout(fileUrl)
   }
-  // Local file - read it
   const fs = await import('fs/promises')
   return fs.readFile(fileUrl)
 }
@@ -315,7 +336,6 @@ async function parseWithAzureMistralOCR(fileUrl: string, filename: string, mimeT
     'Azure Mistral OCR'
   )
 
-  // Azure Mistral OCR accepts data URIs with base64 content
   const fileBuffer = await downloadFileForBase64(fileUrl)
   const base64Data = fileBuffer.toString('base64')
   const dataUri = `data:${mimeType};base64,${base64Data}`
@@ -409,21 +429,25 @@ async function parseWithMistralOCR(fileUrl: string, filename: string, mimeType: 
 async function parseWithFileParser(fileUrl: string, filename: string, mimeType: string) {
   try {
     let content: string
+    let metadata: any = {}
 
     if (fileUrl.startsWith('data:')) {
       content = await parseDataURI(fileUrl, filename, mimeType)
     } else if (fileUrl.startsWith('http')) {
-      content = await parseHttpFile(fileUrl, filename)
+      const result = await parseHttpFile(fileUrl, filename)
+      content = result.content
+      metadata = result.metadata || {}
     } else {
       const result = await parseFile(fileUrl)
       content = result.content
+      metadata = result.metadata || {}
     }
 
     if (!content.trim()) {
       throw new Error('File parser returned empty content')
     }
 
-    return { content, processingMethod: 'file-parser' as const, cloudUrl: undefined }
+    return { content, processingMethod: 'file-parser' as const, cloudUrl: undefined, metadata }
   } catch (error) {
     logger.error(`File parser failed for ${filename}:`, error)
     throw error
@@ -448,7 +472,10 @@ async function parseDataURI(fileUrl: string, filename: string, mimeType: string)
   return result.content
 }
 
-async function parseHttpFile(fileUrl: string, filename: string): Promise<string> {
+async function parseHttpFile(
+  fileUrl: string,
+  filename: string
+): Promise<{ content: string; metadata?: any }> {
   const buffer = await downloadFileWithTimeout(fileUrl)
 
   const extension = filename.split('.').pop()?.toLowerCase()
@@ -457,5 +484,5 @@ async function parseHttpFile(fileUrl: string, filename: string): Promise<string>
   }
 
   const result = await parseBuffer(buffer, extension)
-  return result.content
+  return result
 }

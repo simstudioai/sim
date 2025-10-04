@@ -17,8 +17,6 @@ export const env = createEnv({
   server: {
     // Core Database & Authentication
     DATABASE_URL:                          z.string().url(),                       // Primary database connection string
-    DATABASE_SSL:                          z.enum(['disable', 'prefer', 'require', 'verify-ca', 'verify-full']).optional(), // PostgreSQL SSL mode
-    DATABASE_SSL_CA:                       z.string().optional(),                  // Base64-encoded CA certificate for SSL verification
     BETTER_AUTH_URL:                       z.string().url(),                       // Base URL for Better Auth service
     BETTER_AUTH_SECRET:                    z.string().min(32),                     // Secret key for Better Auth JWT signing
     DISABLE_REGISTRATION:                  z.boolean().optional(),                 // Flag to disable new user registration
@@ -35,7 +33,6 @@ export const env = createEnv({
     SIM_AGENT_API_URL:                     z.string().url().optional(),            // URL for internal sim agent API
     AGENT_INDEXER_URL:                     z.string().url().optional(),            // URL for agent training data indexer
     AGENT_INDEXER_API_KEY:                 z.string().min(1).optional(),           // API key for agent indexer authentication
-
 
     // Database & Storage
     REDIS_URL:                             z.string().url().optional(),            // Redis connection string for caching/sessions

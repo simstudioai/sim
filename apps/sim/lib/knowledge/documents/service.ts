@@ -17,9 +17,17 @@ import type { DocumentSortField, SortOrder } from './types'
 const logger = createLogger('DocumentService')
 
 const TIMEOUTS = {
-  OVERALL_PROCESSING: (env.KB_CONFIG_MAX_DURATION || 300) * 1000,
+  OVERALL_PROCESSING: (env.KB_CONFIG_MAX_DURATION || 600) * 1000, // Increased to 10 minutes to match Trigger's timeout
   EMBEDDINGS_API: (env.KB_CONFIG_MAX_TIMEOUT || 10000) * 18,
 } as const
+
+// Configuration for handling large documents
+const LARGE_DOC_CONFIG = {
+  MAX_CHUNKS_PER_BATCH: 500, // Insert embeddings in batches of 500
+  MAX_EMBEDDING_BATCH: 50, // Generate embeddings in batches of 50
+  MAX_FILE_SIZE: 100 * 1024 * 1024, // 100MB max file size
+  MAX_CHUNKS_PER_DOCUMENT: 100000, // Maximum chunks allowed per document
+}
 
 /**
  * Create a timeout wrapper for async operations
@@ -448,14 +456,38 @@ export async function processDocumentAsync(
           processingOptions.minCharactersPerChunk || 1
         )
 
+        if (processed.chunks.length > LARGE_DOC_CONFIG.MAX_CHUNKS_PER_DOCUMENT) {
+          throw new Error(
+            `Document has ${processed.chunks.length.toLocaleString()} chunks, exceeding maximum of ${LARGE_DOC_CONFIG.MAX_CHUNKS_PER_DOCUMENT.toLocaleString()}. ` +
+              `This document is unusually large and may need to be split into multiple files or preprocessed to reduce content.`
+          )
+        }
+
         const now = new Date()
 
         logger.info(
           `[${documentId}] Document parsed successfully, generating embeddings for ${processed.chunks.length} chunks`
         )
 
+        // Generate embeddings in batches for large documents
         const chunkTexts = processed.chunks.map((chunk) => chunk.text)
-        const embeddings = chunkTexts.length > 0 ? await generateEmbeddings(chunkTexts) : []
+        const embeddings: number[][] = []
+
+        if (chunkTexts.length > 0) {
+          const batchSize = LARGE_DOC_CONFIG.MAX_EMBEDDING_BATCH
+          const totalBatches = Math.ceil(chunkTexts.length / batchSize)
+
+          logger.info(`[${documentId}] Generating embeddings in ${totalBatches} batches`)
+
+          for (let i = 0; i < chunkTexts.length; i += batchSize) {
+            const batch = chunkTexts.slice(i, i + batchSize)
+            const batchNum = Math.floor(i / batchSize) + 1
+
+            logger.info(`[${documentId}] Processing embedding batch ${batchNum}/${totalBatches}`)
+            const batchEmbeddings = await generateEmbeddings(batch)
+            embeddings.push(...batchEmbeddings)
+          }
+        }
 
         logger.info(`[${documentId}] Embeddings generated, fetching document tags`)
 
@@ -503,8 +535,24 @@ export async function processDocumentAsync(
         }))
 
         await db.transaction(async (tx) => {
+          // Insert embeddings in batches for large documents
           if (embeddingRecords.length > 0) {
-            await tx.insert(embedding).values(embeddingRecords)
+            const batchSize = LARGE_DOC_CONFIG.MAX_CHUNKS_PER_BATCH
+            const totalBatches = Math.ceil(embeddingRecords.length / batchSize)
+
+            logger.info(
+              `[${documentId}] Inserting ${embeddingRecords.length} embeddings in ${totalBatches} batches`
+            )
+
+            for (let i = 0; i < embeddingRecords.length; i += batchSize) {
+              const batch = embeddingRecords.slice(i, i + batchSize)
+              const batchNum = Math.floor(i / batchSize) + 1
+
+              await tx.insert(embedding).values(batch)
+              logger.info(
+                `[${documentId}] Inserted batch ${batchNum}/${totalBatches} (${batch.length} records)`
+              )
+            }
           }
 
           await tx

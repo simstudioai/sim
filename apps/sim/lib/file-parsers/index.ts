@@ -27,8 +27,9 @@ function getParserInstances(): Record<string, FileParser> {
       try {
         const { CsvParser } = require('@/lib/file-parsers/csv-parser')
         parserInstances.csv = new CsvParser()
+        logger.info('Loaded streaming CSV parser with csv-parse library')
       } catch (error) {
-        logger.error('Failed to load CSV parser:', error)
+        logger.error('Failed to load streaming CSV parser:', error)
       }
 
       try {
@@ -63,6 +64,7 @@ function getParserInstances(): Record<string, FileParser> {
         const { XlsxParser } = require('@/lib/file-parsers/xlsx-parser')
         parserInstances.xlsx = new XlsxParser()
         parserInstances.xls = new XlsxParser()
+        logger.info('Loaded XLSX parser')
       } catch (error) {
         logger.error('Failed to load XLSX parser:', error)
       }
@@ -81,6 +83,32 @@ function getParserInstances(): Record<string, FileParser> {
         parserInstances.htm = new HtmlParser()
       } catch (error) {
         logger.error('Failed to load HTML parser:', error)
+      }
+
+      try {
+        const { parseJSON, parseJSONBuffer } = require('@/lib/file-parsers/json-parser')
+        parserInstances.json = {
+          parseFile: parseJSON,
+          parseBuffer: parseJSONBuffer,
+        }
+        logger.info('Loaded JSON parser')
+      } catch (error) {
+        logger.error('Failed to load JSON parser:', error)
+      }
+
+      try {
+        const { parseYAML, parseYAMLBuffer } = require('@/lib/file-parsers/yaml-parser')
+        parserInstances.yaml = {
+          parseFile: parseYAML,
+          parseBuffer: parseYAMLBuffer,
+        }
+        parserInstances.yml = {
+          parseFile: parseYAML,
+          parseBuffer: parseYAMLBuffer,
+        }
+        logger.info('Loaded YAML parser')
+      } catch (error) {
+        logger.error('Failed to load YAML parser:', error)
       }
     } catch (error) {
       logger.error('Error loading file parsers:', error)
