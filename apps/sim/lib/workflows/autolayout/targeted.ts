@@ -257,6 +257,11 @@ function updateContainerDimensions(
       width: DEFAULT_CONTAINER_WIDTH,
       height: DEFAULT_CONTAINER_HEIGHT,
     }
+    parentBlock.layout = {
+      ...parentBlock.layout,
+      measuredWidth: DEFAULT_CONTAINER_WIDTH,
+      measuredHeight: DEFAULT_CONTAINER_HEIGHT,
+    }
     return
   }
 
@@ -289,6 +294,12 @@ function updateContainerDimensions(
     ...parentBlock.data,
     width: Math.max(calculatedWidth, DEFAULT_CONTAINER_WIDTH),
     height: Math.max(calculatedHeight, DEFAULT_CONTAINER_HEIGHT),
+  }
+
+  parentBlock.layout = {
+    ...parentBlock.layout,
+    measuredWidth: parentBlock.data.width,
+    measuredHeight: parentBlock.data.height,
   }
 }
 
