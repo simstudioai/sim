@@ -33,7 +33,13 @@ export class JsonYamlChunker {
       JSON.parse(content)
       return true
     } catch {
-      return false
+      try {
+        const yaml = require('js-yaml')
+        yaml.load(content)
+        return true
+      } catch {
+        return false
+      }
     }
   }
 
@@ -45,7 +51,6 @@ export class JsonYamlChunker {
       const data = JSON.parse(content)
       return this.chunkStructuredData(data)
     } catch (error) {
-      // If parsing fails, fall back to text chunking
       return this.chunkAsText(content)
     }
   }
@@ -56,17 +61,14 @@ export class JsonYamlChunker {
   private chunkStructuredData(data: any, path: string[] = []): Chunk[] {
     const chunks: Chunk[] = []
 
-    // Handle arrays
     if (Array.isArray(data)) {
       return this.chunkArray(data, path)
     }
 
-    // Handle objects
     if (typeof data === 'object' && data !== null) {
       return this.chunkObject(data, path)
     }
 
-    // Handle primitive values
     const content = JSON.stringify(data, null, 2)
     const tokenCount = getTokenCount(content)
 
@@ -92,7 +94,6 @@ export class JsonYamlChunker {
     let currentBatch: any[] = []
     let currentTokens = 0
 
-    // Add array context
     const contextHeader = path.length > 0 ? `// ${path.join('.')}\n` : ''
 
     for (let i = 0; i < arr.length; i++) {
@@ -100,14 +101,13 @@ export class JsonYamlChunker {
       const itemStr = JSON.stringify(item, null, 2)
       const itemTokens = getTokenCount(itemStr)
 
-      // If single item is too large, chunk it separately
       if (itemTokens > this.chunkSize) {
         // Save current batch if it has items
         if (currentBatch.length > 0) {
           const batchContent = contextHeader + JSON.stringify(currentBatch, null, 2)
           chunks.push({
             text: batchContent,
-            tokenCount: currentTokens,
+            tokenCount: getTokenCount(batchContent),
             metadata: {
               startIndex: i - currentBatch.length,
               endIndex: i - 1,
@@ -117,7 +117,6 @@ export class JsonYamlChunker {
           currentTokens = 0
         }
 
-        // Chunk the large item separately
         if (typeof item === 'object' && item !== null) {
           const subChunks = this.chunkStructuredData(item, [...path, `[${i}]`])
           chunks.push(...subChunks)
@@ -132,7 +131,6 @@ export class JsonYamlChunker {
           })
         }
       } else if (currentTokens + itemTokens > this.chunkSize && currentBatch.length > 0) {
-        // Save current batch and start new one
         const batchContent = contextHeader + JSON.stringify(currentBatch, null, 2)
         chunks.push({
           text: batchContent,
@@ -145,13 +143,11 @@ export class JsonYamlChunker {
         currentBatch = [item]
         currentTokens = itemTokens
       } else {
-        // Add to current batch
         currentBatch.push(item)
         currentTokens += itemTokens
       }
     }
 
-    // Save remaining batch
     if (currentBatch.length > 0) {
       const batchContent = contextHeader + JSON.stringify(currentBatch, null, 2)
       chunks.push({
@@ -174,7 +170,6 @@ export class JsonYamlChunker {
     const chunks: Chunk[] = []
     const entries = Object.entries(obj)
 
-    // Try to keep the object together if it's small enough
     const fullContent = JSON.stringify(obj, null, 2)
     const fullTokens = getTokenCount(fullContent)
 
@@ -190,7 +185,6 @@ export class JsonYamlChunker {
       return chunks
     }
 
-    // Object is too large, split by keys
     let currentObj: Record<string, any> = {}
     let currentTokens = 0
     let currentKeys: string[] = []
@@ -199,7 +193,6 @@ export class JsonYamlChunker {
       const valueStr = JSON.stringify({ [key]: value }, null, 2)
       const valueTokens = getTokenCount(valueStr)
 
-      // If single property is too large, chunk it separately
       if (valueTokens > this.chunkSize) {
         // Save current object if it has properties
         if (Object.keys(currentObj).length > 0) {
@@ -217,7 +210,6 @@ export class JsonYamlChunker {
           currentKeys = []
         }
 
-        // Chunk the large property value separately
         if (typeof value === 'object' && value !== null) {
           const subChunks = this.chunkStructuredData(value, [...path, key])
           chunks.push(...subChunks)
@@ -235,7 +227,6 @@ export class JsonYamlChunker {
         currentTokens + valueTokens > this.chunkSize &&
         Object.keys(currentObj).length > 0
       ) {
-        // Save current object and start new one
         const objContent = JSON.stringify(currentObj, null, 2)
         chunks.push({
           text: objContent,
@@ -249,14 +240,12 @@ export class JsonYamlChunker {
         currentTokens = valueTokens
         currentKeys = [key]
       } else {
-        // Add to current object
         currentObj[key] = value
         currentTokens += valueTokens
         currentKeys.push(key)
       }
     }
 
-    // Save remaining object
     if (Object.keys(currentObj).length > 0) {
       const objContent = JSON.stringify(currentObj, null, 2)
       chunks.push({
@@ -273,7 +262,7 @@ export class JsonYamlChunker {
   }
 
   /**
-   * Fall back to text chunking if JSON parsing fails
+   * Fall back to text chunking if JSON parsing fails.
    */
   private async chunkAsText(content: string): Promise<Chunk[]> {
     const chunks: Chunk[] = []
@@ -286,7 +275,6 @@ export class JsonYamlChunker {
       const lineTokens = getTokenCount(line)
 
       if (currentTokens + lineTokens > this.chunkSize && currentChunk) {
-        // Save current chunk
         chunks.push({
           text: currentChunk,
           tokenCount: currentTokens,
@@ -296,18 +284,15 @@ export class JsonYamlChunker {
           },
         })
 
-        // Start new chunk
         startIndex += currentChunk.length + 1
         currentChunk = line
         currentTokens = lineTokens
       } else {
-        // Add to current chunk
         currentChunk = currentChunk ? `${currentChunk}\n${line}` : line
         currentTokens += lineTokens
       }
     }
 
-    // Save remaining chunk
     if (currentChunk && currentTokens >= this.minChunkSize) {
       chunks.push({
         text: currentChunk,
@@ -323,7 +308,7 @@ export class JsonYamlChunker {
   }
 
   /**
-   * Static method for chunking JSON/YAML data with default options
+   * Static method for chunking JSON/YAML data with default options.
    */
   static async chunkJsonYaml(content: string, options: ChunkerOptions = {}): Promise<Chunk[]> {
     const chunker = new JsonYamlChunker(options)

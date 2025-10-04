@@ -30,7 +30,6 @@ function getParserInstances(): Record<string, FileParser> {
         logger.info('Loaded streaming CSV parser with csv-parse library')
       } catch (error) {
         logger.error('Failed to load streaming CSV parser:', error)
-        throw new Error('CSV parser initialization failed. Please ensure csv-parse is installed.')
       }
 
       try {

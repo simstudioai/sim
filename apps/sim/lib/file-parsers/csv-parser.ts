@@ -1,4 +1,4 @@
-import { createReadStream } from 'fs'
+import { createReadStream, existsSync } from 'fs'
 import { Readable } from 'stream'
 import { type Options, parse } from 'csv-parse'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
@@ -20,7 +20,6 @@ export class CsvParser implements FileParser {
       throw new Error('No file path provided')
     }
 
-    const { existsSync } = await import('fs')
     if (!existsSync(filePath)) {
       throw new Error(`File not found: ${filePath}`)
     }

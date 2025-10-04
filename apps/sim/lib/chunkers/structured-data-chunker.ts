@@ -53,6 +53,7 @@ export class StructuredDataChunker {
     let currentChunkRows: string[] = []
     let currentTokenEstimate = 0
     const headerTokens = StructuredDataChunker.estimateTokens(headerLine)
+    let chunkStartRow = dataStartIndex
 
     for (let i = dataStartIndex; i < lines.length; i++) {
       const row = lines[i]
@@ -76,11 +77,12 @@ export class StructuredDataChunker {
           currentChunkRows,
           options.sheetName
         )
-        chunks.push(StructuredDataChunker.createChunk(chunkContent, chunks.length))
+        chunks.push(StructuredDataChunker.createChunk(chunkContent, chunkStartRow, i - 1))
 
         // Reset for next chunk
         currentChunkRows = []
         currentTokenEstimate = 0
+        chunkStartRow = i
       }
 
       currentChunkRows.push(row)
@@ -94,7 +96,7 @@ export class StructuredDataChunker {
         currentChunkRows,
         options.sheetName
       )
-      chunks.push(StructuredDataChunker.createChunk(chunkContent, chunks.length))
+      chunks.push(StructuredDataChunker.createChunk(chunkContent, chunkStartRow, lines.length - 1))
     }
 
     console.log(`Created ${chunks.length} chunks from ${lines.length} rows of structured data`)
@@ -129,17 +131,17 @@ export class StructuredDataChunker {
   }
 
   /**
-   * Create a chunk object
+   * Create a chunk object with actual row indices
    */
-  private static createChunk(content: string, index: number): Chunk {
+  private static createChunk(content: string, startRow: number, endRow: number): Chunk {
     const tokenCount = StructuredDataChunker.estimateTokens(content)
 
     return {
       text: content,
       tokenCount,
       metadata: {
-        startIndex: index * STRUCTURED_CHUNKING_CONFIG.TARGET_CHUNK_SIZE,
-        endIndex: (index + 1) * STRUCTURED_CHUNKING_CONFIG.TARGET_CHUNK_SIZE,
+        startIndex: startRow,
+        endIndex: endRow,
       },
     }
   }

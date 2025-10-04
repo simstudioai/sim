@@ -229,19 +229,6 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
         }
       }
 
-      // Log the request (with sensitive data redacted)
-      logger.info('Mistral OCR request:', {
-        url: url.toString(),
-        hasApiKey: !!params.apiKey,
-        model: requestBody.model,
-        options: {
-          includesImages: requestBody.include_image_base64 ?? 'not specified',
-          pages: requestBody.pages ?? 'all pages',
-          imageLimit: requestBody.image_limit ?? 'no limit',
-          imageMinSize: requestBody.image_min_size ?? 'no minimum',
-        },
-      })
-
       return requestBody
     },
   },
