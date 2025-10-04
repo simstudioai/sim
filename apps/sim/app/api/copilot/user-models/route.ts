@@ -1,9 +1,9 @@
-import { type NextRequest, NextResponse } from 'next/server'
-import { db } from '@/../../packages/db'
-import { settings } from '@/../../packages/db/schema'
 import { eq } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { db } from '@/../../packages/db'
+import { settings } from '@/../../packages/db/schema'
 
 const logger = createLogger('CopilotUserModelsAPI')
 
@@ -14,7 +14,7 @@ const DEFAULT_ENABLED_MODELS: Record<string, boolean> = {
   'gpt-5': true,
   'gpt-5-medium': true,
   'gpt-5-high': false,
-  'o3': true,
+  o3: true,
   'claude-4-sonnet': true,
   'claude-4.5-sonnet': true,
   'claude-4.1-opus': true,
@@ -40,18 +40,18 @@ export async function GET(request: NextRequest) {
 
     if (userSettings) {
       const userModelsMap = (userSettings.copilotEnabledModels as Record<string, boolean>) || {}
-      
+
       // Merge: start with defaults, then override with user's existing preferences
       const mergedModels = { ...DEFAULT_ENABLED_MODELS }
       for (const [modelId, enabled] of Object.entries(userModelsMap)) {
         mergedModels[modelId] = enabled
       }
-      
+
       // If we added any new models, update the database
       const hasNewModels = Object.keys(DEFAULT_ENABLED_MODELS).some(
-        key => !(key in userModelsMap)
+        (key) => !(key in userModelsMap)
       )
-      
+
       if (hasNewModels) {
         await db
           .update(settings)
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
           })
           .where(eq(settings.userId, userId))
       }
-      
+
       return NextResponse.json({
         enabledModels: mergedModels,
       })
@@ -99,18 +99,11 @@ export async function PUT(request: NextRequest) {
     const body = await request.json()
 
     if (!body.enabledModels || typeof body.enabledModels !== 'object') {
-      return NextResponse.json(
-        { error: 'enabledModels must be an object' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'enabledModels must be an object' }, { status: 400 })
     }
 
     // Check if settings record exists
-    const [existing] = await db
-      .select()
-      .from(settings)
-      .where(eq(settings.userId, userId))
-      .limit(1)
+    const [existing] = await db.select().from(settings).where(eq(settings.userId, userId)).limit(1)
 
     if (existing) {
       // Update existing record

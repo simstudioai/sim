@@ -59,7 +59,7 @@ export function getBlockOutputs(
 
       if (Array.isArray(inputFormatValue)) {
         inputFormatValue.forEach((field: { name?: string; type?: string }) => {
-          if (field && field.name && field.name.trim() !== '') {
+          if (field?.name && field.name.trim() !== '') {
             outputs[field.name] = {
               type: (field.type || 'any') as any,
               description: `Field from input format`,
@@ -93,7 +93,7 @@ export function getBlockOutputs(
 
         // Add each field from inputFormat as an output at root level
         inputFormatValue.forEach((field: { name?: string; type?: string }) => {
-          if (field && field.name && field.name.trim() !== '') {
+          if (field?.name && field.name.trim() !== '') {
             outputs[field.name] = {
               type: (field.type || 'any') as any,
               description: `Field from input format`,

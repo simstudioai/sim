@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, Copy, Plus, Brain, BrainCircuit, Zap } from 'lucide-react'
+import { Brain, BrainCircuit, Check, Copy, Plus, Zap } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,8 +13,8 @@ import {
   Skeleton,
   Switch,
 } from '@/components/ui'
-import { createLogger } from '@/lib/logs/console/logger'
 import { isHosted } from '@/lib/environment'
+import { createLogger } from '@/lib/logs/console/logger'
 import { useCopilotStore } from '@/stores/copilot/store'
 
 const logger = createLogger('CopilotSettings')
@@ -61,7 +61,7 @@ const DEFAULT_ENABLED_MODELS: Record<string, boolean> = {
   'gpt-5': true,
   'gpt-5-medium': true,
   'gpt-5-high': false,
-  'o3': true,
+  o3: true,
   'claude-4-sonnet': true,
   'claude-4.5-sonnet': true,
   'claude-4.1-opus': true,
@@ -84,7 +84,7 @@ export function Copilot() {
   const [enabledModelsMap, setEnabledModelsMap] = useState<Record<string, boolean>>({})
   const [isModelsLoading, setIsModelsLoading] = useState(true)
   const hasFetchedModels = useRef(false)
-  
+
   const { setEnabledModels: setStoreEnabledModels } = useCopilotStore()
 
   // Create flow state
@@ -114,16 +114,16 @@ export function Copilot() {
   const fetchEnabledModels = useCallback(async () => {
     if (hasFetchedModels.current) return
     hasFetchedModels.current = true
-    
+
     try {
       setIsModelsLoading(true)
       const res = await fetch('/api/copilot/user-models')
       if (!res.ok) throw new Error(`Failed to fetch: ${res.status}`)
       const data = await res.json()
       const modelsMap = data.enabledModels || DEFAULT_ENABLED_MODELS
-      
+
       setEnabledModelsMap(modelsMap)
-      
+
       // Convert to array for store (API already merged with defaults)
       const enabledArray = Object.entries(modelsMap)
         .filter(([_, enabled]) => enabled)
@@ -132,7 +132,9 @@ export function Copilot() {
     } catch (error) {
       logger.error('Failed to fetch enabled models', { error })
       setEnabledModelsMap(DEFAULT_ENABLED_MODELS)
-      setStoreEnabledModels(Object.keys(DEFAULT_ENABLED_MODELS).filter(key => DEFAULT_ENABLED_MODELS[key]))
+      setStoreEnabledModels(
+        Object.keys(DEFAULT_ENABLED_MODELS).filter((key) => DEFAULT_ENABLED_MODELS[key])
+      )
     } finally {
       setIsModelsLoading(false)
     }
@@ -198,7 +200,7 @@ export function Copilot() {
   const toggleModel = async (modelValue: string, enabled: boolean) => {
     const newModelsMap = { ...enabledModelsMap, [modelValue]: enabled }
     setEnabledModelsMap(newModelsMap)
-    
+
     // Convert to array for store
     const enabledArray = Object.entries(newModelsMap)
       .filter(([_, isEnabled]) => isEnabled)
@@ -268,9 +270,14 @@ export function Copilot() {
                 </div>
               ) : (
                 keys.map((k) => (
-                  <div key={k.id} className='flex items-center justify-between gap-4 rounded-lg border bg-muted/30 px-3 py-2'>
-                    <div className='flex items-center gap-3 min-w-0'>
-                      <code className='font-mono text-foreground text-xs truncate'>{k.displayKey}</code>
+                  <div
+                    key={k.id}
+                    className='flex items-center justify-between gap-4 rounded-lg border bg-muted/30 px-3 py-2'
+                  >
+                    <div className='flex min-w-0 items-center gap-3'>
+                      <code className='truncate font-mono text-foreground text-xs'>
+                        {k.displayKey}
+                      </code>
                     </div>
 
                     <Button
@@ -295,89 +302,89 @@ export function Copilot() {
       {/* Scrollable Content - Models Section */}
       <div className='scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent flex-1 overflow-y-auto px-6 py-4'>
         <div className='space-y-3'>
-            {/* Models Header */}
-            <div>
-              <h3 className='font-semibold text-foreground text-sm'>Models</h3>
-              <div className='text-muted-foreground text-xs'>
-                {isModelsLoading ? (
-                  <Skeleton className='mt-0.5 h-3 w-32' />
-                ) : (
-                  <span>
-                    {enabledCount} of {totalCount} enabled
-                  </span>
-                )}
+          {/* Models Header */}
+          <div>
+            <h3 className='font-semibold text-foreground text-sm'>Models</h3>
+            <div className='text-muted-foreground text-xs'>
+              {isModelsLoading ? (
+                <Skeleton className='mt-0.5 h-3 w-32' />
+              ) : (
+                <span>
+                  {enabledCount} of {totalCount} enabled
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Models List */}
+          {isModelsLoading ? (
+            <div className='space-y-2'>
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className='flex items-center justify-between py-1.5'>
+                  <Skeleton className='h-4 w-32' />
+                  <Skeleton className='h-5 w-9 rounded-full' />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className='space-y-4'>
+              {/* OpenAI Models */}
+              <div>
+                <div className='mb-2 px-2 font-medium text-[10px] text-muted-foreground uppercase'>
+                  OpenAI
+                </div>
+                <div className='space-y-1'>
+                  {OPENAI_MODELS.map((model) => {
+                    const isEnabled = enabledModelsMap[model.value] ?? false
+                    return (
+                      <div
+                        key={model.value}
+                        className='-mx-2 flex items-center justify-between rounded px-2 py-1.5 hover:bg-muted/50'
+                      >
+                        <div className='flex items-center gap-2'>
+                          {getModelIcon(model.icon)}
+                          <span className='text-foreground text-sm'>{model.label}</span>
+                        </div>
+                        <Switch
+                          checked={isEnabled}
+                          onCheckedChange={(checked) => toggleModel(model.value, checked)}
+                          className='scale-90'
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Anthropic Models */}
+              <div>
+                <div className='mb-2 px-2 font-medium text-[10px] text-muted-foreground uppercase'>
+                  Anthropic
+                </div>
+                <div className='space-y-1'>
+                  {ANTHROPIC_MODELS.map((model) => {
+                    const isEnabled = enabledModelsMap[model.value] ?? false
+                    return (
+                      <div
+                        key={model.value}
+                        className='-mx-2 flex items-center justify-between rounded px-2 py-1.5 hover:bg-muted/50'
+                      >
+                        <div className='flex items-center gap-2'>
+                          {getModelIcon(model.icon)}
+                          <span className='text-foreground text-sm'>{model.label}</span>
+                        </div>
+                        <Switch
+                          checked={isEnabled}
+                          onCheckedChange={(checked) => toggleModel(model.value, checked)}
+                          className='scale-90'
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             </div>
-
-            {/* Models List */}
-            {isModelsLoading ? (
-              <div className='space-y-2'>
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className='flex items-center justify-between py-1.5'>
-                    <Skeleton className='h-4 w-32' />
-                    <Skeleton className='h-5 w-9 rounded-full' />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className='space-y-4'>
-                {/* OpenAI Models */}
-                <div>
-                  <div className='mb-2 px-2 font-medium text-[10px] text-muted-foreground uppercase'>
-                    OpenAI
-                  </div>
-                  <div className='space-y-1'>
-                    {OPENAI_MODELS.map((model) => {
-                      const isEnabled = enabledModelsMap[model.value] ?? false
-                      return (
-                        <div
-                          key={model.value}
-                          className='flex items-center justify-between py-1.5 hover:bg-muted/50 rounded px-2 -mx-2'
-                        >
-                          <div className='flex items-center gap-2'>
-                            {getModelIcon(model.icon)}
-                            <span className='text-foreground text-sm'>{model.label}</span>
-                          </div>
-                          <Switch
-                            checked={isEnabled}
-                            onCheckedChange={(checked) => toggleModel(model.value, checked)}
-                            className='scale-90'
-                          />
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* Anthropic Models */}
-                <div>
-                  <div className='mb-2 px-2 font-medium text-[10px] text-muted-foreground uppercase'>
-                    Anthropic
-                  </div>
-                  <div className='space-y-1'>
-                    {ANTHROPIC_MODELS.map((model) => {
-                      const isEnabled = enabledModelsMap[model.value] ?? false
-                      return (
-                        <div
-                          key={model.value}
-                          className='flex items-center justify-between py-1.5 hover:bg-muted/50 rounded px-2 -mx-2'
-                        >
-                          <div className='flex items-center gap-2'>
-                            {getModelIcon(model.icon)}
-                            <span className='text-foreground text-sm'>{model.label}</span>
-                          </div>
-                          <Switch
-                            checked={isEnabled}
-                            onCheckedChange={(checked) => toggleModel(model.value, checked)}
-                            className='scale-90'
-                          />
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
+          )}
         </div>
       </div>
 

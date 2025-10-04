@@ -42,7 +42,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  Switch,
   Textarea,
   Tooltip,
   TooltipContent,
@@ -50,12 +49,12 @@ import {
   TooltipTrigger,
 } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
+import { isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useCopilotStore } from '@/stores/copilot/store'
 import type { ChatContext } from '@/stores/copilot/types'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { isHosted } from '@/lib/environment'
 
 const logger = createLogger('CopilotUserInput')
 
@@ -241,7 +240,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         }
         const data = await res.json()
         const modelsMap = data.enabledModels || {}
-        
+
         // Convert to array for store (API already merged with defaults)
         const enabledArray = Object.entries(modelsMap)
           .filter(([_, enabled]) => enabled)
@@ -1822,9 +1821,10 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     ] as const
 
     // Filter models based on user preferences (only for hosted)
-    const modelOptions = isHosted && enabledModels !== null
-      ? allModelOptions.filter((model) => enabledModels.includes(model.value))
-      : allModelOptions
+    const modelOptions =
+      isHosted && enabledModels !== null
+        ? allModelOptions.filter((model) => enabledModels.includes(model.value))
+        : allModelOptions
 
     const getCollapsedModeLabel = () => {
       const model = modelOptions.find((m) => m.value === selectedModel)
@@ -1833,11 +1833,17 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     const getModelIcon = () => {
       // Only Brain and BrainCircuit models show purple when agentPrefetch is false
-      const isBrainModel = ['gpt-5', 'gpt-5-medium', 'claude-4-sonnet', 'claude-4.5-sonnet'].includes(selectedModel)
+      const isBrainModel = [
+        'gpt-5',
+        'gpt-5-medium',
+        'claude-4-sonnet',
+        'claude-4.5-sonnet',
+      ].includes(selectedModel)
       const isBrainCircuitModel = ['gpt-5-high', 'o3', 'claude-4.1-opus'].includes(selectedModel)
-      const colorClass = (isBrainModel || isBrainCircuitModel) && !agentPrefetch
-        ? 'text-[var(--brand-primary-hover-hex)]'
-        : 'text-muted-foreground'
+      const colorClass =
+        (isBrainModel || isBrainCircuitModel) && !agentPrefetch
+          ? 'text-[var(--brand-primary-hover-hex)]'
+          : 'text-muted-foreground'
 
       // Match the dropdown icon logic exactly
       if (isBrainCircuitModel) {
@@ -3168,176 +3174,183 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                   </TooltipProvider>
                 </DropdownMenuContent>
               </DropdownMenu>
-              {
-                (() => {
-                  const isBrainModel = ['gpt-5', 'gpt-5-medium', 'claude-4-sonnet', 'claude-4.5-sonnet'].includes(selectedModel)
-                  const isBrainCircuitModel = ['gpt-5-high', 'o3', 'claude-4.1-opus'].includes(selectedModel)
-                  const showPurple = (isBrainModel || isBrainCircuitModel) && !agentPrefetch
-                  
-                  return (
-                    <DropdownMenu onOpenChange={(open) => {
+              {(() => {
+                const isBrainModel = [
+                  'gpt-5',
+                  'gpt-5-medium',
+                  'claude-4-sonnet',
+                  'claude-4.5-sonnet',
+                ].includes(selectedModel)
+                const isBrainCircuitModel = ['gpt-5-high', 'o3', 'claude-4.1-opus'].includes(
+                  selectedModel
+                )
+                const showPurple = (isBrainModel || isBrainCircuitModel) && !agentPrefetch
+
+                return (
+                  <DropdownMenu
+                    onOpenChange={(open) => {
                       if (open) {
                         fetchEnabledModelsOnce()
                       }
-                    }}>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          className={cn(
-                            'flex h-6 items-center gap-1.5 rounded-full border px-2 py-1 font-medium text-xs focus-visible:ring-0 focus-visible:ring-offset-0',
-                            showPurple
-                              ? 'border-[var(--brand-primary-hover-hex)] text-[var(--brand-primary-hover-hex)] hover:bg-[color-mix(in_srgb,var(--brand-primary-hover-hex)_8%,transparent)] hover:text-[var(--brand-primary-hover-hex)]'
-                              : 'border-border text-foreground'
-                          )}
-                          title='Choose mode'
-                        >
-                          {getModelIcon()}
-                          <span className={cn(panelWidth < 360 ? 'max-w-[72px] truncate' : '')}>
-                            {getCollapsedModeLabel()}
-                            {agentPrefetch &&
-                              !['gpt-4o', 'gpt-4.1', 'gpt-5-fast'].includes(selectedModel) && (
-                                <span className='ml-1 font-semibold'>Lite</span>
-                              )}
-                          </span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                  <DropdownMenuContent align='start' side='top' className='max-h-[400px] p-0'>
-                    <TooltipProvider delayDuration={100} skipDelayDuration={0}>
-                      <div className='w-[220px]'>
-                        <div className='max-h-[280px] overflow-y-auto p-2'>
-                          <div>
-                            <div className='mb-1'>
-                              <span className='font-medium text-xs'>Model</span>
-                            </div>
-                            <div className='space-y-2'>
-                              {/* Helper function to get icon for a model */}
-                              {(() => {
-                                const getModelIcon = (modelValue: string) => {
-                                  if (
-                                    ['gpt-5-high', 'o3', 'claude-4.1-opus'].includes(modelValue)
-                                  ) {
-                                    return (
-                                      <BrainCircuit className='h-3 w-3 text-muted-foreground' />
-                                    )
+                    }}
+                  >
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        className={cn(
+                          'flex h-6 items-center gap-1.5 rounded-full border px-2 py-1 font-medium text-xs focus-visible:ring-0 focus-visible:ring-offset-0',
+                          showPurple
+                            ? 'border-[var(--brand-primary-hover-hex)] text-[var(--brand-primary-hover-hex)] hover:bg-[color-mix(in_srgb,var(--brand-primary-hover-hex)_8%,transparent)] hover:text-[var(--brand-primary-hover-hex)]'
+                            : 'border-border text-foreground'
+                        )}
+                        title='Choose mode'
+                      >
+                        {getModelIcon()}
+                        <span className={cn(panelWidth < 360 ? 'max-w-[72px] truncate' : '')}>
+                          {getCollapsedModeLabel()}
+                          {agentPrefetch &&
+                            !['gpt-4o', 'gpt-4.1', 'gpt-5-fast'].includes(selectedModel) && (
+                              <span className='ml-1 font-semibold'>Lite</span>
+                            )}
+                        </span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align='start' side='top' className='max-h-[400px] p-0'>
+                      <TooltipProvider delayDuration={100} skipDelayDuration={0}>
+                        <div className='w-[220px]'>
+                          <div className='max-h-[280px] overflow-y-auto p-2'>
+                            <div>
+                              <div className='mb-1'>
+                                <span className='font-medium text-xs'>Model</span>
+                              </div>
+                              <div className='space-y-2'>
+                                {/* Helper function to get icon for a model */}
+                                {(() => {
+                                  const getModelIcon = (modelValue: string) => {
+                                    if (
+                                      ['gpt-5-high', 'o3', 'claude-4.1-opus'].includes(modelValue)
+                                    ) {
+                                      return (
+                                        <BrainCircuit className='h-3 w-3 text-muted-foreground' />
+                                      )
+                                    }
+                                    if (
+                                      [
+                                        'gpt-5',
+                                        'gpt-5-medium',
+                                        'claude-4-sonnet',
+                                        'claude-4.5-sonnet',
+                                      ].includes(modelValue)
+                                    ) {
+                                      return <Brain className='h-3 w-3 text-muted-foreground' />
+                                    }
+                                    if (['gpt-4o', 'gpt-4.1', 'gpt-5-fast'].includes(modelValue)) {
+                                      return <Zap className='h-3 w-3 text-muted-foreground' />
+                                    }
+                                    return <div className='h-3 w-3' />
                                   }
-                                  if (
-                                    [
-                                      'gpt-5',
-                                      'gpt-5-medium',
-                                      'claude-4-sonnet',
-                                      'claude-4.5-sonnet',
-                                    ].includes(modelValue)
-                                  ) {
-                                    return <Brain className='h-3 w-3 text-muted-foreground' />
-                                  }
-                                  if (['gpt-4o', 'gpt-4.1', 'gpt-5-fast'].includes(modelValue)) {
-                                    return <Zap className='h-3 w-3 text-muted-foreground' />
-                                  }
-                                  return <div className='h-3 w-3' />
-                                }
 
-                                const renderModelOption = (
-                                  option: (typeof modelOptions)[number]
-                                ) => (
-                                  <DropdownMenuItem
-                                    key={option.value}
-                                    onSelect={() => {
-                                      setSelectedModel(option.value)
-                                      // Automatically turn off Lite mode for fast models (Zap icon)
-                                      if (
-                                        ['gpt-4o', 'gpt-4.1', 'gpt-5-fast'].includes(
-                                          option.value
-                                        ) &&
-                                        agentPrefetch
-                                      ) {
-                                        setAgentPrefetch(false)
-                                      }
-                                    }}
-                                    className={cn(
-                                      'flex h-7 items-center gap-1.5 px-2 py-1 text-left text-xs',
-                                      selectedModel === option.value ? 'bg-muted/50' : ''
-                                    )}
-                                  >
-                                    {getModelIcon(option.value)}
-                                    <span>{option.label}</span>
-                                  </DropdownMenuItem>
-                                )
+                                  const renderModelOption = (
+                                    option: (typeof modelOptions)[number]
+                                  ) => (
+                                    <DropdownMenuItem
+                                      key={option.value}
+                                      onSelect={() => {
+                                        setSelectedModel(option.value)
+                                        // Automatically turn off Lite mode for fast models (Zap icon)
+                                        if (
+                                          ['gpt-4o', 'gpt-4.1', 'gpt-5-fast'].includes(
+                                            option.value
+                                          ) &&
+                                          agentPrefetch
+                                        ) {
+                                          setAgentPrefetch(false)
+                                        }
+                                      }}
+                                      className={cn(
+                                        'flex h-7 items-center gap-1.5 px-2 py-1 text-left text-xs',
+                                        selectedModel === option.value ? 'bg-muted/50' : ''
+                                      )}
+                                    >
+                                      {getModelIcon(option.value)}
+                                      <span>{option.label}</span>
+                                    </DropdownMenuItem>
+                                  )
 
-                                return (
-                                  <>
-                                    {/* OpenAI Models */}
-                                    <div>
-                                      <div className='px-2 py-1 font-medium text-[10px] text-muted-foreground uppercase'>
-                                        OpenAI
-                                      </div>
-                                      <div className='space-y-0.5'>
-                                        {modelOptions
-                                          .filter((option) =>
-                                            [
-                                              'gpt-5-fast',
-                                              'gpt-5',
-                                              'gpt-5-medium',
-                                              'gpt-5-high',
-                                              'gpt-4o',
-                                              'gpt-4.1',
-                                              'o3',
-                                            ].includes(option.value)
-                                          )
-                                          .map(renderModelOption)}
-                                      </div>
-                                    </div>
-
-                                    {/* Anthropic Models */}
-                                    <div>
-                                      <div className='px-2 py-1 font-medium text-[10px] text-muted-foreground uppercase'>
-                                        Anthropic
-                                      </div>
-                                      <div className='space-y-0.5'>
-                                        {modelOptions
-                                          .filter((option) =>
-                                            [
-                                              'claude-4-sonnet',
-                                              'claude-4.5-sonnet',
-                                              'claude-4.1-opus',
-                                            ].includes(option.value)
-                                          )
-                                          .map(renderModelOption)}
-                                      </div>
-                                    </div>
-
-                                    {/* More Models Button (only for hosted) */}
-                                    {isHosted && (
-                                      <div className='border-t pt-1 mt-1'>
-                                        <button
-                                          type='button'
-                                          onClick={() => {
-                                            // Dispatch event to open settings modal on copilot tab
-                                            window.dispatchEvent(
-                                              new CustomEvent('open-settings', {
-                                                detail: { tab: 'copilot' },
-                                              })
+                                  return (
+                                    <>
+                                      {/* OpenAI Models */}
+                                      <div>
+                                        <div className='px-2 py-1 font-medium text-[10px] text-muted-foreground uppercase'>
+                                          OpenAI
+                                        </div>
+                                        <div className='space-y-0.5'>
+                                          {modelOptions
+                                            .filter((option) =>
+                                              [
+                                                'gpt-5-fast',
+                                                'gpt-5',
+                                                'gpt-5-medium',
+                                                'gpt-5-high',
+                                                'gpt-4o',
+                                                'gpt-4.1',
+                                                'o3',
+                                              ].includes(option.value)
                                             )
-                                          }}
-                                          className='w-full rounded-sm px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted/50 transition-colors'
-                                        >
-                                          More Models...
-                                        </button>
+                                            .map(renderModelOption)}
+                                        </div>
                                       </div>
-                                    )}
-                                  </>
-                                )
-                              })()}
+
+                                      {/* Anthropic Models */}
+                                      <div>
+                                        <div className='px-2 py-1 font-medium text-[10px] text-muted-foreground uppercase'>
+                                          Anthropic
+                                        </div>
+                                        <div className='space-y-0.5'>
+                                          {modelOptions
+                                            .filter((option) =>
+                                              [
+                                                'claude-4-sonnet',
+                                                'claude-4.5-sonnet',
+                                                'claude-4.1-opus',
+                                              ].includes(option.value)
+                                            )
+                                            .map(renderModelOption)}
+                                        </div>
+                                      </div>
+
+                                      {/* More Models Button (only for hosted) */}
+                                      {isHosted && (
+                                        <div className='mt-1 border-t pt-1'>
+                                          <button
+                                            type='button'
+                                            onClick={() => {
+                                              // Dispatch event to open settings modal on copilot tab
+                                              window.dispatchEvent(
+                                                new CustomEvent('open-settings', {
+                                                  detail: { tab: 'copilot' },
+                                                })
+                                              )
+                                            }}
+                                            className='w-full rounded-sm px-2 py-1.5 text-left text-muted-foreground text-xs transition-colors hover:bg-muted/50'
+                                          >
+                                            More Models...
+                                          </button>
+                                        </div>
+                                      )}
+                                    </>
+                                  )
+                                })()}
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    </TooltipProvider>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                  )
-                })()
-              }
+                      </TooltipProvider>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )
+              })()}
               <Button
                 variant='ghost'
                 size='icon'

@@ -21,7 +21,7 @@ export const isTest = env.NODE_ENV === 'test'
 /**
  * Is this the hosted version of the application
  */
-export const isHosted = 
+export const isHosted =
   getEnv('NEXT_PUBLIC_APP_URL') === 'https://www.sim.ai' ||
   getEnv('NEXT_PUBLIC_APP_URL') === 'https://www.staging.sim.ai'
 
