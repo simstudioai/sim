@@ -14,13 +14,19 @@ export class GetOperationsExamplesClientTool extends BaseClientTool {
 
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
-      [ClientToolCallState.generating]: { text: 'Selecting an operation', icon: Loader2 },
-      [ClientToolCallState.pending]: { text: 'Selecting an operation', icon: Loader2 },
-      [ClientToolCallState.executing]: { text: 'Selecting an operation', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Selected an operation', icon: Zap },
-      [ClientToolCallState.error]: { text: 'Failed to select an operation', icon: XCircle },
-      [ClientToolCallState.aborted]: { text: 'Aborted selecting an operation', icon: MinusCircle },
-      [ClientToolCallState.rejected]: { text: 'Skipped selecting an operation', icon: MinusCircle },
+      [ClientToolCallState.generating]: { text: 'Designing workflow component', icon: Loader2 },
+      [ClientToolCallState.pending]: { text: 'Designing workflow component', icon: Loader2 },
+      [ClientToolCallState.executing]: { text: 'Designing workflow component', icon: Loader2 },
+      [ClientToolCallState.success]: { text: 'Designed workflow component', icon: Zap },
+      [ClientToolCallState.error]: { text: 'Failed to design workflow component', icon: XCircle },
+      [ClientToolCallState.aborted]: {
+        text: 'Aborted designing workflow component',
+        icon: MinusCircle,
+      },
+      [ClientToolCallState.rejected]: {
+        text: 'Skipped designing workflow component',
+        icon: MinusCircle,
+      },
     },
     interrupt: undefined,
   }
