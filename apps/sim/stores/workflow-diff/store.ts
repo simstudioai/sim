@@ -60,8 +60,8 @@ interface WorkflowDiffState {
 }
 
 interface WorkflowDiffActions {
-  setProposedChanges: (yamlContent: string, diffAnalysis?: DiffAnalysis) => Promise<void>
-  mergeProposedChanges: (yamlContent: string, diffAnalysis?: DiffAnalysis) => Promise<void>
+  setProposedChanges: (jsonContent: string, diffAnalysis?: DiffAnalysis) => Promise<void>
+  mergeProposedChanges: (jsonContent: string, diffAnalysis?: DiffAnalysis) => Promise<void>
   clearDiff: () => void
   getCurrentWorkflowForCanvas: () => WorkflowState
   toggleDiffView: () => void
@@ -131,10 +131,10 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
           let result: { success: boolean; diff?: WorkflowDiff; errors?: string[] }
 
-          // Handle both YAML string and direct WorkflowState object
+          // Handle both JSON string and direct WorkflowState object
           if (typeof proposedContent === 'string') {
-            // Legacy YAML path (for backward compatibility)
-            result = await diffEngine.createDiffFromYaml(proposedContent, diffAnalysis)
+            // JSON string path (for backward compatibility)
+            result = await diffEngine.createDiff(proposedContent, diffAnalysis)
           } else {
             // Direct WorkflowState path (new, more efficient)
             result = await diffEngine.createDiffFromWorkflowState(proposedContent, diffAnalysis)
@@ -214,13 +214,13 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           }
         },
 
-        mergeProposedChanges: async (yamlContent: string, diffAnalysis?: DiffAnalysis) => {
-          logger.info('Merging proposed changes via YAML')
+        mergeProposedChanges: async (jsonContent: string, diffAnalysis?: DiffAnalysis) => {
+          logger.info('Merging proposed changes from workflow state')
 
           // First, set isDiffReady to false to prevent premature rendering
           batchedUpdate({ isDiffReady: false, diffError: null })
 
-          const result = await diffEngine.mergeDiffFromYaml(yamlContent, diffAnalysis)
+          const result = await diffEngine.mergeDiff(jsonContent, diffAnalysis)
 
           if (result.success && result.diff) {
             // Validate proposed workflow using serializer round-trip to catch canvas-breaking issues

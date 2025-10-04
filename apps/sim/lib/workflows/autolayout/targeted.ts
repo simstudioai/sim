@@ -8,6 +8,7 @@ import {
   DEFAULT_CONTAINER_WIDTH,
   getBlockMetrics,
   getBlocksByParent,
+  isContainerType,
   prepareBlockMetrics,
 } from './utils'
 
@@ -70,10 +71,17 @@ function layoutGroup(
 
   const parentBlock = parentId ? blocks[parentId] : undefined
 
-  const requestedLayout = childIds.filter((id) => changedSet.has(id))
+  const requestedLayout = childIds.filter((id) => {
+    const block = blocks[id]
+    if (!block) return false
+    // Never reposition containers, only update their dimensions
+    if (isContainerType(block.type)) return false
+    return changedSet.has(id)
+  })
   const missingPositions = childIds.filter((id) => {
     const block = blocks[id]
     if (!block) return false
+    // Containers with missing positions should still get positioned
     return !hasPosition(block)
   })
   const needsLayoutSet = new Set([...requestedLayout, ...missingPositions])
