@@ -4,6 +4,9 @@ import { assignLayers, groupByLayer } from './layering'
 import { calculatePositions } from './positioning'
 import type { Edge, LayoutOptions } from './types'
 import {
+  CONTAINER_PADDING,
+  CONTAINER_PADDING_X,
+  CONTAINER_PADDING_Y,
   DEFAULT_CONTAINER_HEIGHT,
   DEFAULT_CONTAINER_WIDTH,
   getBlocksByParent,
@@ -11,10 +14,6 @@ import {
 } from './utils'
 
 const logger = createLogger('AutoLayout:Containers')
-
-const CONTAINER_PADDING = 150
-const CONTAINER_HORIZONTAL_PADDING = 180
-const CONTAINER_VERTICAL_PADDING = 100
 
 export function layoutContainers(
   blocks: Record<string, BlockState>,
@@ -26,7 +25,7 @@ export function layoutContainers(
   const containerOptions: LayoutOptions = {
     horizontalSpacing: options.horizontalSpacing ? options.horizontalSpacing * 0.85 : 400,
     verticalSpacing: options.verticalSpacing ? options.verticalSpacing : 200,
-    padding: { x: CONTAINER_HORIZONTAL_PADDING, y: CONTAINER_VERTICAL_PADDING },
+    padding: { x: CONTAINER_PADDING_X, y: CONTAINER_PADDING_Y },
     alignment: options.alignment,
   }
 
@@ -68,8 +67,8 @@ export function layoutContainers(
     }
 
     // Adjust all child positions to start at proper padding from container edges
-    const xOffset = CONTAINER_HORIZONTAL_PADDING - minX
-    const yOffset = CONTAINER_VERTICAL_PADDING - minY
+    const xOffset = CONTAINER_PADDING_X - minX
+    const yOffset = CONTAINER_PADDING_Y - minY
 
     for (const node of childNodes.values()) {
       childBlocks[node.id].position = {

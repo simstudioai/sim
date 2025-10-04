@@ -4,20 +4,20 @@ import { assignLayers, groupByLayer } from './layering'
 import { calculatePositions } from './positioning'
 import type { Edge, LayoutOptions } from './types'
 import {
+  CONTAINER_PADDING,
+  CONTAINER_PADDING_X,
+  CONTAINER_PADDING_Y,
   DEFAULT_CONTAINER_HEIGHT,
   DEFAULT_CONTAINER_WIDTH,
   getBlockMetrics,
   getBlocksByParent,
   isContainerType,
   prepareBlockMetrics,
+  ROOT_PADDING_X,
+  ROOT_PADDING_Y,
 } from './utils'
 
 const logger = createLogger('AutoLayout:Targeted')
-
-const ROOT_PADDING_X = 150
-const ROOT_PADDING_Y = 150
-const CONTAINER_PADDING_X = 180
-const CONTAINER_PADDING_Y = 100
 
 export interface TargetedLayoutOptions extends LayoutOptions {
   changedBlockIds: string[]
@@ -219,7 +219,6 @@ function computeLayoutPositions(
   }
 
   if (parentBlock) {
-    const CONTAINER_PADDING = 150
     const calculatedWidth = maxX - minX + CONTAINER_PADDING * 2
     const calculatedHeight = maxY - minY + CONTAINER_PADDING * 2
 
@@ -286,7 +285,6 @@ function updateContainerDimensions(
   }
 
   // Match the regular autolayout's dimension calculation
-  const CONTAINER_PADDING = 150
   const calculatedWidth = maxX - minX + CONTAINER_PADDING * 2
   const calculatedHeight = maxY - minY + CONTAINER_PADDING * 2
 
