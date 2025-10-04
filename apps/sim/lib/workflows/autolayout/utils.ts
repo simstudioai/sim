@@ -9,6 +9,12 @@ export const DEFAULT_CONTAINER_WIDTH = 500
 export const DEFAULT_CONTAINER_HEIGHT = 300
 const DEFAULT_PADDING = 40
 
+export const CONTAINER_PADDING = 150
+export const CONTAINER_PADDING_X = 180
+export const CONTAINER_PADDING_Y = 100
+export const ROOT_PADDING_X = 150
+export const ROOT_PADDING_Y = 150
+
 function resolveNumeric(value: number | undefined, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
 }

@@ -7,6 +7,206 @@ import type { BlockWithDiff } from './types'
 
 const logger = createLogger('WorkflowDiffEngine')
 
+type ParentIdentifier = string | null
+
+function getParentId(block?: BlockState): ParentIdentifier {
+  return block?.data?.parentId ?? null
+}
+
+function buildEdgeKey(edge: Edge): string {
+  const sourceHandle = edge.sourceHandle ?? ''
+  const targetHandle = edge.targetHandle ?? ''
+  const edgeType = edge.type ?? ''
+  return `${edge.source}|${sourceHandle}->${edge.target}|${targetHandle}|${edgeType}`
+}
+
+function groupBlocksByParent(blocks: Record<string, BlockState>): {
+  root: string[]
+  children: Map<string, string[]>
+} {
+  const root: string[] = []
+  const children = new Map<string, string[]>()
+
+  for (const [id, block] of Object.entries(blocks)) {
+    const parentId = getParentId(block)
+
+    if (!parentId) {
+      root.push(id)
+      continue
+    }
+
+    if (!children.has(parentId)) {
+      children.set(parentId, [])
+    }
+
+    children.get(parentId)!.push(id)
+  }
+
+  return { root, children }
+}
+
+function buildAdjacency(edges: Edge[]): Map<string, Set<string>> {
+  const adjacency = new Map<string, Set<string>>()
+
+  for (const edge of edges) {
+    if (!adjacency.has(edge.source)) {
+      adjacency.set(edge.source, new Set())
+    }
+    adjacency.get(edge.source)!.add(edge.target)
+  }
+
+  return adjacency
+}
+
+function expandImpactedBlocks(
+  seeds: Set<string>,
+  proposedBlocks: Record<string, BlockState>,
+  adjacency: Map<string, Set<string>>
+): Set<string> {
+  const impacted = new Set<string>()
+
+  // Only expand to direct downstream neighbors (targets of impacted blocks)
+  // This ensures we make space for new/moved blocks without relocating unaffected ones
+  for (const seed of seeds) {
+    if (!proposedBlocks[seed]) continue
+    impacted.add(seed)
+
+    const seedBlock = proposedBlocks[seed]
+    const seedParent = getParentId(seedBlock)
+    const neighbors = adjacency.get(seed)
+
+    if (neighbors) {
+      for (const next of neighbors) {
+        const nextBlock = proposedBlocks[next]
+        if (!nextBlock) continue
+        // Only expand within same parent
+        if (getParentId(nextBlock) !== seedParent) continue
+        impacted.add(next)
+      }
+    }
+  }
+
+  return impacted
+}
+
+function computeStructuralLayoutImpact(params: {
+  baselineBlocks: Record<string, BlockState>
+  baselineEdges: Edge[]
+  proposedBlocks: Record<string, BlockState>
+  proposedEdges: Edge[]
+}): {
+  impactedBlockIds: Set<string>
+  parentsToRelayout: Set<ParentIdentifier>
+} {
+  const { baselineBlocks, baselineEdges, proposedBlocks, proposedEdges } = params
+  const impactedBlocks = new Set<string>()
+  const parentsToRelayout = new Set<ParentIdentifier>()
+
+  const baselineIds = new Set(Object.keys(baselineBlocks))
+  const proposedIds = new Set(Object.keys(proposedBlocks))
+
+  for (const id of proposedIds) {
+    if (!baselineIds.has(id)) {
+      impactedBlocks.add(id)
+      parentsToRelayout.add(getParentId(proposedBlocks[id]))
+    }
+  }
+
+  for (const id of baselineIds) {
+    if (!proposedIds.has(id)) {
+      parentsToRelayout.add(getParentId(baselineBlocks[id]))
+    }
+  }
+
+  for (const id of proposedIds) {
+    if (!baselineIds.has(id)) {
+      continue
+    }
+
+    const baselineBlock = baselineBlocks[id]
+    const proposedBlock = proposedBlocks[id]
+
+    const baselineParent = getParentId(baselineBlock)
+    const proposedParent = getParentId(proposedBlock)
+
+    if (baselineParent !== proposedParent) {
+      impactedBlocks.add(id)
+      parentsToRelayout.add(baselineParent)
+      parentsToRelayout.add(proposedParent)
+    }
+  }
+
+  const baselineEdgeMap = new Map<string, Edge>()
+  for (const edge of baselineEdges) {
+    baselineEdgeMap.set(buildEdgeKey(edge), edge)
+  }
+
+  const proposedEdgeMap = new Map<string, Edge>()
+  for (const edge of proposedEdges) {
+    proposedEdgeMap.set(buildEdgeKey(edge), edge)
+  }
+
+  for (const [key, edge] of proposedEdgeMap) {
+    if (baselineEdgeMap.has(key)) {
+      continue
+    }
+
+    if (proposedBlocks[edge.source]) {
+      impactedBlocks.add(edge.source)
+    }
+    if (proposedBlocks[edge.target]) {
+      impactedBlocks.add(edge.target)
+    }
+  }
+
+  for (const [key, edge] of baselineEdgeMap) {
+    if (proposedEdgeMap.has(key)) {
+      continue
+    }
+
+    if (proposedBlocks[edge.source]) {
+      impactedBlocks.add(edge.source)
+    }
+    if (proposedBlocks[edge.target]) {
+      impactedBlocks.add(edge.target)
+    }
+
+    parentsToRelayout.add(getParentId(baselineBlocks[edge.source]))
+    parentsToRelayout.add(getParentId(baselineBlocks[edge.target]))
+  }
+
+  const adjacency = buildAdjacency(proposedEdges)
+
+  const seedBlocks = new Set<string>()
+  for (const id of impactedBlocks) {
+    if (proposedBlocks[id]) {
+      seedBlocks.add(id)
+    }
+  }
+
+  const expandedImpacts = expandImpactedBlocks(seedBlocks, proposedBlocks, adjacency)
+
+  // Add parent containers to impacted set so their updated dimensions get transferred
+  const parentsWithImpactedChildren = new Set<string>()
+  for (const blockId of expandedImpacts) {
+    const block = proposedBlocks[blockId]
+    if (!block) continue
+    const parentId = getParentId(block)
+    if (parentId && proposedBlocks[parentId]) {
+      parentsWithImpactedChildren.add(parentId)
+    }
+  }
+
+  for (const parentId of parentsWithImpactedChildren) {
+    expandedImpacts.add(parentId)
+  }
+
+  return {
+    impactedBlockIds: expandedImpacts,
+    parentsToRelayout,
+  }
+}
+
 // Helper function to check if a block has changed
 function hasBlockChanged(currentBlock: BlockState, proposedBlock: BlockState): boolean {
   // Compare key fields that indicate a change
@@ -122,12 +322,12 @@ export class WorkflowDiffEngine {
   private currentDiff: WorkflowDiff | undefined = undefined
 
   /**
-   * Create a diff from YAML content
+   * Create a diff from workflow state
    */
-  async createDiffFromYaml(yamlContent: string, diffAnalysis?: DiffAnalysis): Promise<DiffResult> {
+  async createDiff(jsonContent: string, diffAnalysis?: DiffAnalysis): Promise<DiffResult> {
     try {
-      logger.info('WorkflowDiffEngine.createDiffFromYaml called with:', {
-        yamlContentLength: yamlContent.length,
+      logger.info('WorkflowDiffEngine.createDiff called with:', {
+        jsonContentLength: jsonContent.length,
         diffAnalysis: diffAnalysis,
         diffAnalysisType: typeof diffAnalysis,
         diffAnalysisUndefined: diffAnalysis === undefined,
@@ -163,7 +363,7 @@ export class WorkflowDiffEngine {
 
       // Call the API route to create the diff
       const body: any = {
-        yamlContent,
+        jsonContent,
         currentWorkflowState: mergedBaseline,
       }
 
@@ -211,7 +411,7 @@ export class WorkflowDiffEngine {
 
       const result = await response.json()
 
-      logger.info('WorkflowDiffEngine.createDiffFromYaml response:', {
+      logger.info('WorkflowDiffEngine.createDiff response:', {
         success: result.success,
         hasDiff: !!result.diff,
         errors: result.errors,
@@ -283,24 +483,45 @@ export class WorkflowDiffEngine {
         hasDiffAnalysis: !!diffAnalysis,
       })
 
-      // Get current workflow state for comparison
+      // Get baseline for comparison
+      // If we already have a diff, use it as baseline (editing on top of diff)
+      // Otherwise use the current workflow state
       const { useWorkflowStore } = await import('@/stores/workflows/workflow/store')
       const currentWorkflowState = useWorkflowStore.getState().getWorkflowState()
 
+      // Check if we're editing on top of an existing diff
+      const baselineForComparison = this.currentDiff?.proposedState || currentWorkflowState
+      const isEditingOnTopOfDiff = !!this.currentDiff
+
+      if (isEditingOnTopOfDiff) {
+        logger.info('Editing on top of existing diff - using diff as baseline for comparison', {
+          diffBlockCount: Object.keys(this.currentDiff!.proposedState.blocks).length,
+        })
+      }
+
       // Merge subblock values from subblock store to ensure manual edits are included
-      let mergedBaseline: WorkflowState = currentWorkflowState
-      try {
-        mergedBaseline = {
-          ...currentWorkflowState,
-          blocks: mergeSubblockState(currentWorkflowState.blocks),
+      let mergedBaseline: WorkflowState = baselineForComparison
+
+      // Only merge subblock values if we're comparing against original workflow
+      // If editing on top of diff, use the diff state as-is
+      if (!isEditingOnTopOfDiff) {
+        try {
+          mergedBaseline = {
+            ...baselineForComparison,
+            blocks: mergeSubblockState(baselineForComparison.blocks),
+          }
+          logger.info('Merged subblock values into baseline for diff creation', {
+            blockCount: Object.keys(mergedBaseline.blocks || {}).length,
+          })
+        } catch (mergeError) {
+          logger.warn('Failed to merge subblock values into baseline; proceeding with raw state', {
+            error: mergeError instanceof Error ? mergeError.message : String(mergeError),
+          })
         }
-        logger.info('Merged subblock values into baseline for diff creation', {
-          blockCount: Object.keys(mergedBaseline.blocks || {}).length,
-        })
-      } catch (mergeError) {
-        logger.warn('Failed to merge subblock values into baseline; proceeding with raw state', {
-          error: mergeError instanceof Error ? mergeError.message : String(mergeError),
-        })
+      } else {
+        logger.info(
+          'Using diff state as baseline without merging subblocks (editing on top of diff)'
+        )
       }
 
       // Build a map of existing blocks by type:name for matching
@@ -407,44 +628,153 @@ export class WorkflowDiffEngine {
         finalProposedState.parallels = generateParallelBlocks(finalProposedState.blocks)
       }
 
+      // Transfer block heights from baseline workflow for better measurements in diff view
+      // If editing on top of diff, this transfers from the diff (which already has good heights)
+      // Otherwise transfers from original workflow
+      logger.info('Transferring block heights from baseline workflow', {
+        isEditingOnTopOfDiff,
+        baselineBlockCount: Object.keys(mergedBaseline.blocks).length,
+      })
+      try {
+        const { transferBlockHeights } = await import('@/lib/workflows/autolayout')
+        transferBlockHeights(mergedBaseline.blocks, finalBlocks)
+      } catch (error) {
+        logger.warn('Failed to transfer block heights', {
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+
       // Apply autolayout to the proposed state
       logger.info('Applying autolayout to proposed workflow state')
       try {
-        const { applyAutoLayout: applyNativeAutoLayout } = await import(
-          '@/lib/workflows/autolayout'
-        )
+        // Compute diff analysis if not already provided to determine changed blocks
+        let tempComputed = diffAnalysis
+        if (!tempComputed) {
+          const currentIds = new Set(Object.keys(mergedBaseline.blocks))
+          const newBlocks: string[] = []
+          const editedBlocks: string[] = []
 
-        const autoLayoutOptions = {
-          horizontalSpacing: 550,
-          verticalSpacing: 200,
-          padding: {
-            x: 150,
-            y: 150,
-          },
-          alignment: 'center' as const,
+          for (const [id, block] of Object.entries(finalBlocks)) {
+            if (!currentIds.has(id)) {
+              newBlocks.push(id)
+            } else {
+              const currentBlock = mergedBaseline.blocks[id]
+              if (hasBlockChanged(currentBlock, block)) {
+                editedBlocks.push(id)
+              }
+            }
+          }
+
+          tempComputed = { new_blocks: newBlocks, edited_blocks: editedBlocks, deleted_blocks: [] }
         }
 
-        const layoutResult = applyNativeAutoLayout(
-          finalBlocks,
-          finalProposedState.edges,
-          finalProposedState.loops || {},
-          finalProposedState.parallels || {},
-          autoLayoutOptions
-        )
+        const { impactedBlockIds } = computeStructuralLayoutImpact({
+          baselineBlocks: mergedBaseline.blocks,
+          baselineEdges: mergedBaseline.edges as Edge[],
+          proposedBlocks: finalBlocks,
+          proposedEdges: finalEdges,
+        })
 
-        if (layoutResult.success && layoutResult.blocks) {
-          Object.entries(layoutResult.blocks).forEach(([id, layoutBlock]) => {
+        const impactedBlockArray = Array.from(impactedBlockIds)
+        const totalBlocks = Object.keys(finalBlocks).length
+        const unchangedBlocks = totalBlocks - impactedBlockArray.length
+
+        if (impactedBlockArray.length === 0) {
+          logger.info('No structural changes detected; skipping autolayout', {
+            totalBlocks,
+          })
+        } else if (unchangedBlocks > 0) {
+          // Use targeted layout - preserves positions of unchanged blocks
+          logger.info('Using targeted layout for copilot edits (has unchanged blocks)', {
+            changedBlocks: impactedBlockArray.length,
+            unchangedBlocks: unchangedBlocks,
+            totalBlocks: totalBlocks,
+            percentChanged: Math.round((impactedBlockArray.length / totalBlocks) * 100),
+          })
+
+          const { applyTargetedLayout } = await import('@/lib/workflows/autolayout')
+
+          const layoutedBlocks = applyTargetedLayout(finalBlocks, finalProposedState.edges, {
+            changedBlockIds: impactedBlockArray,
+            horizontalSpacing: 550,
+            verticalSpacing: 200,
+          })
+
+          Object.entries(layoutedBlocks).forEach(([id, layoutBlock]) => {
             if (finalBlocks[id]) {
               finalBlocks[id].position = layoutBlock.position
+
+              if (layoutBlock.data) {
+                finalBlocks[id].data = {
+                  ...finalBlocks[id].data,
+                  ...layoutBlock.data,
+                }
+              }
+
+              if (layoutBlock.layout) {
+                finalBlocks[id].layout = {
+                  ...finalBlocks[id].layout,
+                  ...layoutBlock.layout,
+                }
+              }
+
+              if (typeof layoutBlock.height === 'number') {
+                finalBlocks[id].height = layoutBlock.height
+              }
+
+              if (typeof layoutBlock.isWide === 'boolean') {
+                finalBlocks[id].isWide = layoutBlock.isWide
+              }
             }
           })
-          logger.info('Successfully applied autolayout to proposed state', {
-            blocksLayouted: Object.keys(layoutResult.blocks).length,
+
+          logger.info('Successfully applied targeted layout to proposed state', {
+            blocksLayouted: Object.keys(layoutedBlocks).length,
+            changedBlocks: impactedBlockArray.length,
           })
         } else {
-          logger.warn('Autolayout failed, using default positions', {
-            error: layoutResult.error,
+          // Use full autolayout only when copilot built 100% of the workflow from scratch
+          logger.info('Using full autolayout (copilot built 100% of workflow)', {
+            totalBlocks: totalBlocks,
+            allBlocksAreNew: impactedBlockArray.length === totalBlocks,
           })
+
+          const { applyAutoLayout: applyNativeAutoLayout } = await import(
+            '@/lib/workflows/autolayout'
+          )
+
+          const autoLayoutOptions = {
+            horizontalSpacing: 550,
+            verticalSpacing: 200,
+            padding: {
+              x: 150,
+              y: 150,
+            },
+            alignment: 'center' as const,
+          }
+
+          const layoutResult = applyNativeAutoLayout(
+            finalBlocks,
+            finalProposedState.edges,
+            finalProposedState.loops || {},
+            finalProposedState.parallels || {},
+            autoLayoutOptions
+          )
+
+          if (layoutResult.success && layoutResult.blocks) {
+            Object.entries(layoutResult.blocks).forEach(([id, layoutBlock]) => {
+              if (finalBlocks[id]) {
+                finalBlocks[id].position = layoutBlock.position
+              }
+            })
+            logger.info('Successfully applied full autolayout to proposed state', {
+              blocksLayouted: Object.keys(layoutResult.blocks).length,
+            })
+          } else {
+            logger.warn('Autolayout failed, using default positions', {
+              error: layoutResult.error,
+            })
+          }
         }
       } catch (layoutError) {
         logger.warn('Error applying autolayout, using default positions', {
@@ -622,23 +952,23 @@ export class WorkflowDiffEngine {
   }
 
   /**
-   * Merge new YAML content into existing diff
+   * Merge new workflow state into existing diff
    * Used for cumulative updates within the same message
    */
-  async mergeDiffFromYaml(yamlContent: string, diffAnalysis?: DiffAnalysis): Promise<DiffResult> {
+  async mergeDiff(jsonContent: string, diffAnalysis?: DiffAnalysis): Promise<DiffResult> {
     try {
-      logger.info('Merging diff from YAML content')
+      logger.info('Merging diff from workflow state')
 
       // If no existing diff, create a new one
       if (!this.currentDiff) {
         logger.info('No existing diff, creating new diff')
-        return this.createDiffFromYaml(yamlContent, diffAnalysis)
+        return this.createDiff(jsonContent, diffAnalysis)
       }
 
       // Call the API route to merge the diff
       const body: any = {
         existingDiff: this.currentDiff,
-        yamlContent,
+        jsonContent,
       }
 
       if (diffAnalysis !== undefined && diffAnalysis !== null) {
