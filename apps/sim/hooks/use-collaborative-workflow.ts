@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import type { Edge } from 'reactflow'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getBlockOutputs } from '@/lib/workflows/block-outputs'
 import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
 import { useSocket } from '@/contexts/socket-context'
@@ -761,7 +762,11 @@ export function useCollaborativeWorkflow() {
         })
       }
 
-      const outputs = resolveOutputType(blockConfig.outputs)
+      // Get outputs based on trigger mode
+      const isTriggerMode = triggerMode || false
+      const outputs = isTriggerMode
+        ? getBlockOutputs(type, subBlocks, isTriggerMode)
+        : resolveOutputType(blockConfig.outputs)
 
       const completeBlockData = {
         id,
@@ -775,7 +780,7 @@ export function useCollaborativeWorkflow() {
         horizontalHandles: true,
         isWide: false,
         advancedMode: false,
-        triggerMode: triggerMode || false,
+        triggerMode: isTriggerMode,
         height: 0, // Default height, will be set by the UI
         parentId,
         extent,

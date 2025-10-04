@@ -174,6 +174,17 @@ export function computeEditSequence(
     if (!(blockId in startFlattened)) {
       const { block, parentId } = endFlattened[blockId]
       if (parentId) {
+        // Check if this block will be included in parent's nestedNodes
+        const parentData = endFlattened[parentId]
+        const parentIsNew = parentData && !(parentId in startFlattened)
+        const parentHasNestedNodes = parentData?.block?.nestedNodes?.[blockId]
+
+        // Skip if parent is new and will include this block in nestedNodes
+        if (parentIsNew && parentHasNestedNodes) {
+          // Parent's 'add' operation will include this child, skip separate operation
+          continue
+        }
+
         // Block was added inside a subflow - include full block state
         const addParams: EditOperation['params'] = {
           subflowId: parentId,
@@ -181,8 +192,14 @@ export function computeEditSequence(
           name: block.name,
           outputs: block.outputs,
           enabled: block.enabled !== undefined ? block.enabled : true,
-          ...(block?.triggerMode !== undefined && { triggerMode: Boolean(block.triggerMode) }),
-          ...(block?.advancedMode !== undefined && { advancedMode: Boolean(block.advancedMode) }),
+        }
+
+        // Only include triggerMode/advancedMode if true
+        if (block?.triggerMode === true) {
+          addParams.triggerMode = true
+        }
+        if (block?.advancedMode === true) {
+          addParams.advancedMode = true
         }
 
         // Add inputs if present
@@ -208,8 +225,14 @@ export function computeEditSequence(
         const addParams: EditOperation['params'] = {
           type: block.type,
           name: block.name,
-          ...(block?.triggerMode !== undefined && { triggerMode: Boolean(block.triggerMode) }),
-          ...(block?.advancedMode !== undefined && { advancedMode: Boolean(block.advancedMode) }),
+        }
+
+        if (block?.triggerMode === true) {
+          addParams.triggerMode = true
+        }
+
+        if (block?.advancedMode === true) {
+          addParams.advancedMode = true
         }
 
         // Add inputs if present
@@ -224,10 +247,18 @@ export function computeEditSequence(
           addParams.connections = connections
         }
 
-        // Add nested nodes if present (for loops/parallels created from scratch)
+        // Add nested nodes if present AND all children are new
+        // This creates the loop/parallel with children in one operation
+        // If some children already exist, they'll have separate insert_into_subflow operations
         if (block.nestedNodes && Object.keys(block.nestedNodes).length > 0) {
-          addParams.nestedNodes = block.nestedNodes
-          subflowsChanged++
+          const allChildrenNew = Object.keys(block.nestedNodes).every(
+            (childId) => !(childId in startFlattened)
+          )
+
+          if (allChildrenNew) {
+            addParams.nestedNodes = block.nestedNodes
+            subflowsChanged++
+          }
         }
 
         operations.push({
@@ -266,12 +297,14 @@ export function computeEditSequence(
             name: endBlock.name,
             outputs: endBlock.outputs,
             enabled: endBlock.enabled !== undefined ? endBlock.enabled : true,
-            ...(endBlock?.triggerMode !== undefined && {
-              triggerMode: Boolean(endBlock.triggerMode),
-            }),
-            ...(endBlock?.advancedMode !== undefined && {
-              advancedMode: Boolean(endBlock.advancedMode),
-            }),
+          }
+
+          // Only include triggerMode/advancedMode if true
+          if (endBlock?.triggerMode === true) {
+            addParams.triggerMode = true
+          }
+          if (endBlock?.advancedMode === true) {
+            addParams.advancedMode = true
           }
 
           const inputs = extractInputValues(endBlock)
@@ -436,12 +469,13 @@ function computeBlockChanges(
     hasChanges = true
   }
 
-  // Check input value changes
+  // Check input value changes - only include changed fields
   const startInputs = extractInputValues(startBlock)
   const endInputs = extractInputValues(endBlock)
 
-  if (JSON.stringify(startInputs) !== JSON.stringify(endInputs)) {
-    changes.inputs = endInputs
+  const changedInputs = computeInputDelta(startInputs, endInputs)
+  if (Object.keys(changedInputs).length > 0) {
+    changes.inputs = changedInputs
     hasChanges = true
   }
 
@@ -455,6 +489,28 @@ function computeBlockChanges(
   }
 
   return hasChanges ? changes : null
+}
+
+/**
+ * Compute delta between two input objects
+ * Only returns fields that actually changed or were added
+ */
+function computeInputDelta(
+  startInputs: Record<string, any>,
+  endInputs: Record<string, any>
+): Record<string, any> {
+  const delta: Record<string, any> = {}
+
+  for (const key in endInputs) {
+    if (
+      !(key in startInputs) ||
+      JSON.stringify(startInputs[key]) !== JSON.stringify(endInputs[key])
+    ) {
+      delta[key] = endInputs[key]
+    }
+  }
+
+  return delta
 }
 
 /**

@@ -12,6 +12,7 @@ import { GetBlocksAndToolsClientTool } from '@/lib/copilot/tools/client/blocks/g
 import { GetBlocksMetadataClientTool } from '@/lib/copilot/tools/client/blocks/get-blocks-metadata'
 import { GetTriggerBlocksClientTool } from '@/lib/copilot/tools/client/blocks/get-trigger-blocks'
 import { GetExamplesRagClientTool } from '@/lib/copilot/tools/client/examples/get-examples-rag'
+import { GetOperationsExamplesClientTool } from '@/lib/copilot/tools/client/examples/get-operations-examples'
 import { GetTriggerExamplesClientTool } from '@/lib/copilot/tools/client/examples/get-trigger-examples'
 import { ListGDriveFilesClientTool } from '@/lib/copilot/tools/client/gdrive/list-files'
 import { ReadGDriveFileClientTool } from '@/lib/copilot/tools/client/gdrive/read-file'
@@ -90,6 +91,7 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   set_global_workflow_variables: (id) => new SetGlobalWorkflowVariablesClientTool(id),
   get_trigger_examples: (id) => new GetTriggerExamplesClientTool(id),
   get_examples_rag: (id) => new GetExamplesRagClientTool(id),
+  get_operations_examples: (id) => new GetOperationsExamplesClientTool(id),
 }
 
 // Read-only static metadata for class-based tools (no instances)
@@ -120,6 +122,7 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   get_trigger_examples: (GetTriggerExamplesClientTool as any)?.metadata,
   get_examples_rag: (GetExamplesRagClientTool as any)?.metadata,
   oauth_request_access: (OAuthRequestAccessClientTool as any)?.metadata,
+  get_operations_examples: (GetOperationsExamplesClientTool as any)?.metadata,
 }
 
 function ensureClientToolInstance(toolName: string | undefined, toolCallId: string | undefined) {
@@ -1273,7 +1276,8 @@ async function* parseSSEStream(
 const initialState = {
   mode: 'agent' as const,
   selectedModel: 'claude-4.5-sonnet' as CopilotStore['selectedModel'],
-  agentPrefetch: true,
+  agentPrefetch: false,
+  enabledModels: null as string[] | null, // Null means not loaded yet, empty array means all disabled
   isCollapsed: false,
   currentChat: null as CopilotChat | null,
   chats: [] as CopilotChat[],
@@ -2181,6 +2185,7 @@ export const useCopilotStore = create<CopilotStore>()(
 
     setSelectedModel: (model) => set({ selectedModel: model }),
     setAgentPrefetch: (prefetch) => set({ agentPrefetch: prefetch }),
+    setEnabledModels: (models) => set({ enabledModels: models }),
   }))
 )
 

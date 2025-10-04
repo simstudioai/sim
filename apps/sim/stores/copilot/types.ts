@@ -80,6 +80,7 @@ export interface CopilotState {
     | 'claude-4.5-sonnet'
     | 'claude-4.1-opus'
   agentPrefetch: boolean
+  enabledModels: string[] | null // Null means not loaded yet, array of model IDs when loaded
   isCollapsed: boolean
 
   currentChat: CopilotChat | null
@@ -129,6 +130,7 @@ export interface CopilotActions {
   setMode: (mode: CopilotMode) => void
   setSelectedModel: (model: CopilotStore['selectedModel']) => void
   setAgentPrefetch: (prefetch: boolean) => void
+  setEnabledModels: (models: string[] | null) => void
 
   setWorkflowId: (workflowId: string | null) => Promise<void>
   validateCurrentChat: () => boolean

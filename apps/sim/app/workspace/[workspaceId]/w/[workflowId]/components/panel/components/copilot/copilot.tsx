@@ -440,6 +440,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                 onModeChange={setMode}
                 value={inputValue}
                 onChange={setInputValue}
+                panelWidth={panelWidth}
               />
             )}
           </>

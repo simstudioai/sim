@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Check, Copy, Plus, Search } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Brain, BrainCircuit, Check, Copy, Plus, Zap } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -10,11 +10,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   Button,
-  Input,
-  Label,
   Skeleton,
+  Switch,
 } from '@/components/ui'
+import { isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useCopilotStore } from '@/stores/copilot/store'
 
 const logger = createLogger('CopilotSettings')
 
@@ -23,25 +24,77 @@ interface CopilotKey {
   displayKey: string
 }
 
+interface ModelOption {
+  value: string
+  label: string
+  icon: 'brain' | 'brainCircuit' | 'zap'
+}
+
+const OPENAI_MODELS: ModelOption[] = [
+  // Zap models first
+  { value: 'gpt-4o', label: 'gpt-4o', icon: 'zap' },
+  { value: 'gpt-4.1', label: 'gpt-4.1', icon: 'zap' },
+  { value: 'gpt-5-fast', label: 'gpt-5-fast', icon: 'zap' },
+  // Brain models
+  { value: 'gpt-5', label: 'gpt-5', icon: 'brain' },
+  { value: 'gpt-5-medium', label: 'gpt-5-medium', icon: 'brain' },
+  // BrainCircuit models
+  { value: 'gpt-5-high', label: 'gpt-5-high', icon: 'brainCircuit' },
+  { value: 'o3', label: 'o3', icon: 'brainCircuit' },
+]
+
+const ANTHROPIC_MODELS: ModelOption[] = [
+  // Brain models
+  { value: 'claude-4-sonnet', label: 'claude-4-sonnet', icon: 'brain' },
+  { value: 'claude-4.5-sonnet', label: 'claude-4.5-sonnet', icon: 'brain' },
+  // BrainCircuit models
+  { value: 'claude-4.1-opus', label: 'claude-4.1-opus', icon: 'brainCircuit' },
+]
+
+const ALL_MODELS: ModelOption[] = [...OPENAI_MODELS, ...ANTHROPIC_MODELS]
+
+// Default enabled/disabled state for all models
+const DEFAULT_ENABLED_MODELS: Record<string, boolean> = {
+  'gpt-4o': false,
+  'gpt-4.1': false,
+  'gpt-5-fast': false,
+  'gpt-5': true,
+  'gpt-5-medium': true,
+  'gpt-5-high': false,
+  o3: true,
+  'claude-4-sonnet': true,
+  'claude-4.5-sonnet': true,
+  'claude-4.1-opus': true,
+}
+
+const getModelIcon = (iconType: 'brain' | 'brainCircuit' | 'zap') => {
+  switch (iconType) {
+    case 'brainCircuit':
+      return <BrainCircuit className='h-3.5 w-3.5 text-muted-foreground' />
+    case 'brain':
+      return <Brain className='h-3.5 w-3.5 text-muted-foreground' />
+    case 'zap':
+      return <Zap className='h-3.5 w-3.5 text-muted-foreground' />
+  }
+}
+
 export function Copilot() {
   const [keys, setKeys] = useState<CopilotKey[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState('')
+  const [enabledModelsMap, setEnabledModelsMap] = useState<Record<string, boolean>>({})
+  const [isModelsLoading, setIsModelsLoading] = useState(true)
+  const hasFetchedModels = useRef(false)
+
+  const { setEnabledModels: setStoreEnabledModels } = useCopilotStore()
 
   // Create flow state
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
   const [newKey, setNewKey] = useState<string | null>(null)
-  const [isCreatingKey] = useState(false)
   const [newKeyCopySuccess, setNewKeyCopySuccess] = useState(false)
 
   // Delete flow state
   const [deleteKey, setDeleteKey] = useState<CopilotKey | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-
-  // Filter keys based on search term (by masked display value)
-  const filteredKeys = keys.filter((key) =>
-    key.displayKey.toLowerCase().includes(searchTerm.toLowerCase())
-  )
 
   const fetchKeys = useCallback(async () => {
     try {
@@ -58,9 +111,41 @@ export function Copilot() {
     }
   }, [])
 
+  const fetchEnabledModels = useCallback(async () => {
+    if (hasFetchedModels.current) return
+    hasFetchedModels.current = true
+
+    try {
+      setIsModelsLoading(true)
+      const res = await fetch('/api/copilot/user-models')
+      if (!res.ok) throw new Error(`Failed to fetch: ${res.status}`)
+      const data = await res.json()
+      const modelsMap = data.enabledModels || DEFAULT_ENABLED_MODELS
+
+      setEnabledModelsMap(modelsMap)
+
+      // Convert to array for store (API already merged with defaults)
+      const enabledArray = Object.entries(modelsMap)
+        .filter(([_, enabled]) => enabled)
+        .map(([modelId]) => modelId)
+      setStoreEnabledModels(enabledArray)
+    } catch (error) {
+      logger.error('Failed to fetch enabled models', { error })
+      setEnabledModelsMap(DEFAULT_ENABLED_MODELS)
+      setStoreEnabledModels(
+        Object.keys(DEFAULT_ENABLED_MODELS).filter((key) => DEFAULT_ENABLED_MODELS[key])
+      )
+    } finally {
+      setIsModelsLoading(false)
+    }
+  }, [setStoreEnabledModels])
+
   useEffect(() => {
-    fetchKeys()
-  }, [fetchKeys])
+    if (isHosted) {
+      fetchKeys()
+    }
+    fetchEnabledModels()
+  }, [])
 
   const onGenerate = async () => {
     try {
@@ -102,63 +187,97 @@ export function Copilot() {
     }
   }
 
-  const onCopy = async (value: string, keyId?: string) => {
+  const onCopy = async (value: string) => {
     try {
       await navigator.clipboard.writeText(value)
-      if (!keyId) {
-        setNewKeyCopySuccess(true)
-        setTimeout(() => setNewKeyCopySuccess(false), 1500)
-      }
+      setNewKeyCopySuccess(true)
+      setTimeout(() => setNewKeyCopySuccess(false), 1500)
     } catch (error) {
       logger.error('Copy failed', { error })
     }
   }
 
+  const toggleModel = async (modelValue: string, enabled: boolean) => {
+    const newModelsMap = { ...enabledModelsMap, [modelValue]: enabled }
+    setEnabledModelsMap(newModelsMap)
+
+    // Convert to array for store
+    const enabledArray = Object.entries(newModelsMap)
+      .filter(([_, isEnabled]) => isEnabled)
+      .map(([modelId]) => modelId)
+    setStoreEnabledModels(enabledArray)
+
+    try {
+      const res = await fetch('/api/copilot/user-models', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabledModels: newModelsMap }),
+      })
+
+      if (!res.ok) {
+        throw new Error('Failed to update models')
+      }
+    } catch (error) {
+      logger.error('Failed to update enabled models', { error })
+      // Revert on error
+      setEnabledModelsMap(enabledModelsMap)
+      const revertedArray = Object.entries(enabledModelsMap)
+        .filter(([_, isEnabled]) => isEnabled)
+        .map(([modelId]) => modelId)
+      setStoreEnabledModels(revertedArray)
+    }
+  }
+
+  const enabledCount = Object.values(enabledModelsMap).filter(Boolean).length
+  const totalCount = ALL_MODELS.length
+
   return (
     <div className='relative flex h-full flex-col'>
-      {/* Fixed Header */}
-      <div className='px-6 pt-4 pb-2'>
-        {/* Search Input */}
-        {isLoading ? (
-          <Skeleton className='h-9 w-56 rounded-lg' />
-        ) : (
-          <div className='flex h-9 w-56 items-center gap-2 rounded-lg border bg-transparent pr-2 pl-3'>
-            <Search className='h-4 w-4 flex-shrink-0 text-muted-foreground' strokeWidth={2} />
-            <Input
-              placeholder='Search API keys...'
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className='flex-1 border-0 bg-transparent px-0 font-[380] font-sans text-base text-foreground leading-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
-            />
-          </div>
-        )}
-      </div>
+      {/* Sticky Header with API Keys (only for hosted) */}
+      {isHosted && (
+        <div className='sticky top-0 z-10 border-b bg-background px-6 py-4'>
+          <div className='space-y-3'>
+            {/* API Keys Header */}
+            <div className='flex items-center justify-between'>
+              <div>
+                <h3 className='font-semibold text-foreground text-sm'>API Keys</h3>
+                <p className='text-muted-foreground text-xs'>
+                  Generate keys for programmatic access
+                </p>
+              </div>
+              <Button
+                onClick={onGenerate}
+                variant='ghost'
+                size='sm'
+                className='h-8 rounded-[8px] border bg-background px-3 shadow-xs hover:bg-muted focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                disabled={isLoading}
+              >
+                <Plus className='h-3.5 w-3.5 stroke-[2px]' />
+                Create
+              </Button>
+            </div>
 
-      {/* Scrollable Content */}
-      <div className='scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'>
-        <div className='h-full space-y-2 py-2'>
-          {isLoading ? (
+            {/* API Keys List */}
             <div className='space-y-2'>
-              <CopilotKeySkeleton />
-              <CopilotKeySkeleton />
-              <CopilotKeySkeleton />
-            </div>
-          ) : keys.length === 0 ? (
-            <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
-              Click "Generate Key" below to get started
-            </div>
-          ) : (
-            <div className='space-y-2'>
-              {filteredKeys.map((k) => (
-                <div key={k.id} className='flex flex-col gap-2'>
-                  <Label className='font-normal text-muted-foreground text-xs uppercase'>
-                    Copilot API Key
-                  </Label>
-                  <div className='flex items-center justify-between gap-4'>
-                    <div className='flex items-center gap-3'>
-                      <div className='flex h-8 items-center rounded-[8px] bg-muted px-3'>
-                        <code className='font-mono text-foreground text-xs'>{k.displayKey}</code>
-                      </div>
+              {isLoading ? (
+                <>
+                  <CopilotKeySkeleton />
+                  <CopilotKeySkeleton />
+                </>
+              ) : keys.length === 0 ? (
+                <div className='py-3 text-center text-muted-foreground text-xs'>
+                  No API keys yet
+                </div>
+              ) : (
+                keys.map((k) => (
+                  <div
+                    key={k.id}
+                    className='flex items-center justify-between gap-4 rounded-lg border bg-muted/30 px-3 py-2'
+                  >
+                    <div className='flex min-w-0 items-center gap-3'>
+                      <code className='truncate font-mono text-foreground text-xs'>
+                        {k.displayKey}
+                      </code>
                     </div>
 
                     <Button
@@ -168,44 +287,103 @@ export function Copilot() {
                         setDeleteKey(k)
                         setShowDeleteDialog(true)
                       }}
-                      className='h-8 text-muted-foreground hover:text-foreground'
+                      className='h-7 flex-shrink-0 text-muted-foreground text-xs hover:text-foreground'
                     >
                       Delete
                     </Button>
                   </div>
-                </div>
-              ))}
-              {/* Show message when search has no results but there are keys */}
-              {searchTerm.trim() && filteredKeys.length === 0 && keys.length > 0 && (
-                <div className='py-8 text-center text-muted-foreground text-sm'>
-                  No API keys found matching "{searchTerm}"
-                </div>
+                ))
               )}
             </div>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Footer */}
-      <div className='bg-background'>
-        <div className='flex w-full items-center justify-between px-6 py-4'>
-          {isLoading ? (
-            <>
-              <Skeleton className='h-9 w-[117px] rounded-[8px]' />
-              <div className='w-[108px]' />
-            </>
+      {/* Scrollable Content - Models Section */}
+      <div className='scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent flex-1 overflow-y-auto px-6 py-4'>
+        <div className='space-y-3'>
+          {/* Models Header */}
+          <div>
+            <h3 className='font-semibold text-foreground text-sm'>Models</h3>
+            <div className='text-muted-foreground text-xs'>
+              {isModelsLoading ? (
+                <Skeleton className='mt-0.5 h-3 w-32' />
+              ) : (
+                <span>
+                  {enabledCount} of {totalCount} enabled
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Models List */}
+          {isModelsLoading ? (
+            <div className='space-y-2'>
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className='flex items-center justify-between py-1.5'>
+                  <Skeleton className='h-4 w-32' />
+                  <Skeleton className='h-5 w-9 rounded-full' />
+                </div>
+              ))}
+            </div>
           ) : (
-            <>
-              <Button
-                onClick={onGenerate}
-                variant='ghost'
-                className='h-9 rounded-[8px] border bg-background px-3 shadow-xs hover:bg-muted focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
-                disabled={isLoading}
-              >
-                <Plus className='h-4 w-4 stroke-[2px]' />
-                Create Key
-              </Button>
-            </>
+            <div className='space-y-4'>
+              {/* OpenAI Models */}
+              <div>
+                <div className='mb-2 px-2 font-medium text-[10px] text-muted-foreground uppercase'>
+                  OpenAI
+                </div>
+                <div className='space-y-1'>
+                  {OPENAI_MODELS.map((model) => {
+                    const isEnabled = enabledModelsMap[model.value] ?? false
+                    return (
+                      <div
+                        key={model.value}
+                        className='-mx-2 flex items-center justify-between rounded px-2 py-1.5 hover:bg-muted/50'
+                      >
+                        <div className='flex items-center gap-2'>
+                          {getModelIcon(model.icon)}
+                          <span className='text-foreground text-sm'>{model.label}</span>
+                        </div>
+                        <Switch
+                          checked={isEnabled}
+                          onCheckedChange={(checked) => toggleModel(model.value, checked)}
+                          className='scale-90'
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Anthropic Models */}
+              <div>
+                <div className='mb-2 px-2 font-medium text-[10px] text-muted-foreground uppercase'>
+                  Anthropic
+                </div>
+                <div className='space-y-1'>
+                  {ANTHROPIC_MODELS.map((model) => {
+                    const isEnabled = enabledModelsMap[model.value] ?? false
+                    return (
+                      <div
+                        key={model.value}
+                        className='-mx-2 flex items-center justify-between rounded px-2 py-1.5 hover:bg-muted/50'
+                      >
+                        <div className='flex items-center gap-2'>
+                          {getModelIcon(model.icon)}
+                          <span className='text-foreground text-sm'>{model.label}</span>
+                        </div>
+                        <Switch
+                          checked={isEnabled}
+                          onCheckedChange={(checked) => toggleModel(model.value, checked)}
+                          className='scale-90'
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -292,15 +470,9 @@ export function Copilot() {
 
 function CopilotKeySkeleton() {
   return (
-    <div className='flex flex-col gap-2'>
-      <Skeleton className='h-4 w-32' />
-      <div className='flex items-center justify-between gap-4'>
-        <div className='flex items-center gap-3'>
-          <Skeleton className='h-8 w-20 rounded-[8px]' />
-          <Skeleton className='h-4 w-24' />
-        </div>
-        <Skeleton className='h-8 w-16' />
-      </div>
+    <div className='flex items-center justify-between gap-4 rounded-lg border bg-muted/30 px-3 py-2'>
+      <Skeleton className='h-4 w-48' />
+      <Skeleton className='h-7 w-14' />
     </div>
   )
 }
