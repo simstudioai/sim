@@ -233,7 +233,7 @@ describe('Copilot Chat API Route', () => {
             model: 'claude-4.5-sonnet',
             mode: 'agent',
             messageId: 'mock-uuid-1234-5678',
-            version: '1.0.0',
+            version: '1.0.1',
             chatId: 'chat-123',
           }),
         })
@@ -303,7 +303,7 @@ describe('Copilot Chat API Route', () => {
             model: 'claude-4.5-sonnet',
             mode: 'agent',
             messageId: 'mock-uuid-1234-5678',
-            version: '1.0.0',
+            version: '1.0.1',
             chatId: 'chat-123',
           }),
         })
@@ -361,7 +361,7 @@ describe('Copilot Chat API Route', () => {
             model: 'claude-4.5-sonnet',
             mode: 'agent',
             messageId: 'mock-uuid-1234-5678',
-            version: '1.0.0',
+            version: '1.0.1',
             chatId: 'chat-123',
           }),
         })
@@ -453,7 +453,7 @@ describe('Copilot Chat API Route', () => {
             model: 'claude-4.5-sonnet',
             mode: 'ask',
             messageId: 'mock-uuid-1234-5678',
-            version: '1.0.0',
+            version: '1.0.1',
             chatId: 'chat-123',
           }),
         })
