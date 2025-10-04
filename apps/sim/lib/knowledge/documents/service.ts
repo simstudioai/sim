@@ -27,12 +27,6 @@ const LARGE_DOC_CONFIG = {
   MAX_EMBEDDING_BATCH: 50, // Generate embeddings in batches of 50
   MAX_FILE_SIZE: 100 * 1024 * 1024, // 100MB max file size
   MAX_CHUNKS_PER_DOCUMENT: 100000, // Maximum chunks allowed per document
-  // Note: 100k chunks is a practical limit based on:
-  // - OpenAI rate limits: 350k tokens/min (~50 embeddings/batch = 2000 API calls = ~40 min for 100k chunks)
-  // - Memory usage: ~1.5GB RAM for 100k embeddings (1536 dimensions each)
-  // - Database performance: 200 batch inserts of 500 records each
-  // - Most documents: Even large spreadsheets rarely exceed 50k meaningful chunks
-  // This limit prevents runaway processing while supporting enterprise-scale documents
 }
 
 /**
@@ -462,7 +456,6 @@ export async function processDocumentAsync(
           processingOptions.minCharactersPerChunk || 1
         )
 
-        // Check chunk count limit for large documents
         if (processed.chunks.length > LARGE_DOC_CONFIG.MAX_CHUNKS_PER_DOCUMENT) {
           throw new Error(
             `Document has ${processed.chunks.length.toLocaleString()} chunks, exceeding maximum of ${LARGE_DOC_CONFIG.MAX_CHUNKS_PER_DOCUMENT.toLocaleString()}. ` +
