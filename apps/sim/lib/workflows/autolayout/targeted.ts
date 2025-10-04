@@ -111,12 +111,12 @@ function layoutGroup(
       offsetX = oldPos.x - newPos.x
       offsetY = oldPos.y - newPos.y
     }
-  } else if (parentBlock) {
-    offsetX = parentBlock.position.x + CONTAINER_PADDING_X - bounds.minX
-    offsetY = parentBlock.position.y + CONTAINER_PADDING_Y - bounds.minY
   } else {
-    offsetX = ROOT_PADDING_X - bounds.minX
-    offsetY = ROOT_PADDING_Y - bounds.minY
+    // No anchor - positions from calculatePositions are already correct relative to padding
+    // Container positions are parent-relative, root positions are absolute
+    // The normalization in computeLayoutPositions already handled the padding offset
+    offsetX = 0
+    offsetY = 0
   }
 
   for (const id of needsLayout) {
@@ -158,18 +158,41 @@ function computeLayoutPositions(
   const nodes = assignLayers(subsetBlocks, subsetEdges)
   prepareBlockMetrics(nodes)
 
-  calculatePositions(groupByLayer(nodes), {
-    horizontalSpacing,
-    verticalSpacing,
-    padding: parentBlock
-      ? { x: CONTAINER_PADDING_X, y: CONTAINER_PADDING_Y }
-      : { x: ROOT_PADDING_X, y: ROOT_PADDING_Y },
-    alignment: 'center',
-  })
+  const layoutOptions: LayoutOptions = parentBlock
+    ? {
+        horizontalSpacing: horizontalSpacing * 0.85,
+        verticalSpacing,
+        padding: { x: CONTAINER_PADDING_X, y: CONTAINER_PADDING_Y },
+        alignment: 'center',
+      }
+    : {
+        horizontalSpacing,
+        verticalSpacing,
+        padding: { x: ROOT_PADDING_X, y: ROOT_PADDING_Y },
+        alignment: 'center',
+      }
+
+  calculatePositions(groupByLayer(nodes), layoutOptions)
+
+  // Now normalize positions to start from 0,0 relative to the container/root
+  let minX = Number.POSITIVE_INFINITY
+  let minY = Number.POSITIVE_INFINITY
+
+  for (const node of nodes.values()) {
+    minX = Math.min(minX, node.position.x)
+    minY = Math.min(minY, node.position.y)
+  }
+
+  // Adjust all positions to be relative to the padding offset
+  const xOffset = (parentBlock ? CONTAINER_PADDING_X : ROOT_PADDING_X) - minX
+  const yOffset = (parentBlock ? CONTAINER_PADDING_Y : ROOT_PADDING_Y) - minY
 
   const positions = new Map<string, { x: number; y: number }>()
   for (const node of nodes.values()) {
-    positions.set(node.id, { ...node.position })
+    positions.set(node.id, {
+      x: node.position.x + xOffset,
+      y: node.position.y + yOffset,
+    })
   }
 
   return positions
