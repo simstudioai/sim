@@ -491,7 +491,6 @@ export class WorkflowDiffEngine {
 
           const layoutedBlocks = applyTargetedLayout(finalBlocks, finalProposedState.edges, {
             changedBlockIds,
-            preserveUnchangedPositions: true,
             horizontalSpacing: 550,
             verticalSpacing: 200,
           })
@@ -499,6 +498,28 @@ export class WorkflowDiffEngine {
           Object.entries(layoutedBlocks).forEach(([id, layoutBlock]) => {
             if (finalBlocks[id]) {
               finalBlocks[id].position = layoutBlock.position
+
+              if (layoutBlock.data) {
+                finalBlocks[id].data = {
+                  ...finalBlocks[id].data,
+                  ...layoutBlock.data,
+                }
+              }
+
+              if (layoutBlock.layout) {
+                finalBlocks[id].layout = {
+                  ...finalBlocks[id].layout,
+                  ...layoutBlock.layout,
+                }
+              }
+
+              if (typeof layoutBlock.height === 'number') {
+                finalBlocks[id].height = layoutBlock.height
+              }
+
+              if (typeof layoutBlock.isWide === 'boolean') {
+                finalBlocks[id].isWide = layoutBlock.isWide
+              }
             }
           })
 

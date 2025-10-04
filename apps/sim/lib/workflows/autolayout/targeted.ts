@@ -70,13 +70,24 @@ function layoutGroup(
 
   const parentBlock = parentId ? blocks[parentId] : undefined
 
-  const needsLayout = childIds.filter((id) => {
+  const requestedLayout = childIds.filter((id) => changedSet.has(id))
+  const missingPositions = childIds.filter((id) => {
     const block = blocks[id]
     if (!block) return false
-    return changedSet.has(id) || !hasPosition(block)
+    return !hasPosition(block)
   })
+  const needsLayoutSet = new Set([...requestedLayout, ...missingPositions])
+  const needsLayout = Array.from(needsLayoutSet)
 
-  if (needsLayout.length === 0) return
+  if (parentBlock) {
+    updateContainerDimensions(parentBlock, childIds, blocks)
+  }
+
+  // Always update container dimensions even if no blocks need repositioning
+  // This ensures containers resize properly when children are added/removed
+  if (needsLayout.length === 0) {
+    return
+  }
 
   const oldPositions = new Map<string, { x: number; y: number }>()
 
@@ -95,9 +106,13 @@ function layoutGroup(
     verticalSpacing
   )
 
-  if (layoutPositions.size === 0) return
-
-  const bounds = getBounds(layoutPositions)
+  if (layoutPositions.size === 0) {
+    // No layout positions computed, but still update container dimensions
+    if (parentBlock) {
+      updateContainerDimensions(parentBlock, childIds, blocks)
+    }
+    return
+  }
 
   let offsetX = 0
   let offsetY = 0
@@ -127,10 +142,6 @@ function layoutGroup(
       x: newPos.x + offsetX,
       y: newPos.y + offsetY,
     }
-  }
-
-  if (parentBlock) {
-    updateContainerDimensions(parentBlock, childIds, blocks)
   }
 }
 
@@ -177,10 +188,14 @@ function computeLayoutPositions(
   // Now normalize positions to start from 0,0 relative to the container/root
   let minX = Number.POSITIVE_INFINITY
   let minY = Number.POSITIVE_INFINITY
+  let maxX = Number.NEGATIVE_INFINITY
+  let maxY = Number.NEGATIVE_INFINITY
 
   for (const node of nodes.values()) {
     minX = Math.min(minX, node.position.x)
     minY = Math.min(minY, node.position.y)
+    maxX = Math.max(maxX, node.position.x + node.metrics.width)
+    maxY = Math.max(maxY, node.position.y + node.metrics.height)
   }
 
   // Adjust all positions to be relative to the padding offset
@@ -193,6 +208,18 @@ function computeLayoutPositions(
       x: node.position.x + xOffset,
       y: node.position.y + yOffset,
     })
+  }
+
+  if (parentBlock) {
+    const CONTAINER_PADDING = 150
+    const calculatedWidth = maxX - minX + CONTAINER_PADDING * 2
+    const calculatedHeight = maxY - minY + CONTAINER_PADDING * 2
+
+    parentBlock.data = {
+      ...parentBlock.data,
+      width: Math.max(calculatedWidth, DEFAULT_CONTAINER_WIDTH),
+      height: Math.max(calculatedHeight, DEFAULT_CONTAINER_HEIGHT),
+    }
   }
 
   return positions
@@ -215,6 +242,16 @@ function updateContainerDimensions(
   childIds: string[],
   blocks: Record<string, BlockState>
 ): void {
+  if (childIds.length === 0) {
+    // No children - use minimum dimensions
+    parentBlock.data = {
+      ...parentBlock.data,
+      width: DEFAULT_CONTAINER_WIDTH,
+      height: DEFAULT_CONTAINER_HEIGHT,
+    }
+    return
+  }
+
   let minX = Number.POSITIVE_INFINITY
   let minY = Number.POSITIVE_INFINITY
   let maxX = Number.NEGATIVE_INFINITY
@@ -235,16 +272,22 @@ function updateContainerDimensions(
     return
   }
 
+  // Match the regular autolayout's dimension calculation
+  const CONTAINER_PADDING = 150
+  const calculatedWidth = maxX - minX + CONTAINER_PADDING * 2
+  const calculatedHeight = maxY - minY + CONTAINER_PADDING * 2
+
   parentBlock.data = {
     ...parentBlock.data,
-    width: Math.max(maxX - minX + CONTAINER_PADDING_X * 2, DEFAULT_CONTAINER_WIDTH),
-    height: Math.max(maxY - minY + CONTAINER_PADDING_Y * 2, DEFAULT_CONTAINER_HEIGHT),
+    width: Math.max(calculatedWidth, DEFAULT_CONTAINER_WIDTH),
+    height: Math.max(calculatedHeight, DEFAULT_CONTAINER_HEIGHT),
   }
 }
 
 function hasPosition(block: BlockState): boolean {
   if (!block.position) return false
-  return Math.abs(block.position.x) > 1 || Math.abs(block.position.y) > 1
+  const { x, y } = block.position
+  return Number.isFinite(x) && Number.isFinite(y)
 }
 
 /**
