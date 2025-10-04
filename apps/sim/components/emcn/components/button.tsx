@@ -7,8 +7,11 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'rounded',
+        default:
+          'text-[#939393]  hover:text-[#E6E6E6] dark:text-[#939393] dark:hover:text-[#E6E6E6]',
         '3d': 'dark:text-[#AEAEAE] border-t border-l border-r dark:border-[#303030] shadow-[0_2px_0_0] dark:shadow-[#303030] hover:shadow-[0_4px_0_0] transition-all hover:-translate-y-0.5 hover:dark:text-[#E6E6E6]',
+        outline:
+          'border border-[#727272] text-[#939393] bg-[#303030] hover:bg-[#3D3D3D] dark:border-[#727272] dark:text-[#939393] dark:bg-[#303030] dark:hover:bg-[#3D3D3D] dark:hover:text-[#E6E6E6]',
       },
     },
     defaultVariants: {

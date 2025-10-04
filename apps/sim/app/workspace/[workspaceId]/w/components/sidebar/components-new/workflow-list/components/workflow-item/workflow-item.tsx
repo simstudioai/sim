@@ -17,15 +17,14 @@ export function WorkflowItem({ workflow, active, level }: WorkflowItemProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const [isDragging, setIsDragging] = useState(false)
-  const dragStartedRef = useRef(false)
+  const shouldPreventClickRef = useRef(false)
   const { selectedWorkflows, selectOnly, toggleWorkflowSelection } = useFolderStore()
   const isSelected = selectedWorkflows.has(workflow.id)
 
   const handleClick = (e: React.MouseEvent) => {
-    // Don't propagate click to parent elements
     e.stopPropagation()
 
-    if (isDragging) {
+    if (shouldPreventClickRef.current) {
       e.preventDefault()
       return
     }
@@ -41,7 +40,7 @@ export function WorkflowItem({ workflow, active, level }: WorkflowItemProps) {
   }
 
   const handleDragStart = (e: React.DragEvent) => {
-    dragStartedRef.current = true
+    shouldPreventClickRef.current = true
     setIsDragging(true)
 
     let workflowIds: string[]
@@ -58,7 +57,7 @@ export function WorkflowItem({ workflow, active, level }: WorkflowItemProps) {
   const handleDragEnd = () => {
     setIsDragging(false)
     requestAnimationFrame(() => {
-      dragStartedRef.current = false
+      shouldPreventClickRef.current = false
     })
   }
 

@@ -1,12 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { Badge, Button, ChevronDown, PanelLeft } from '@/components/emcn'
+import { Badge, ChevronDown, PanelLeft } from '@/components/emcn'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
-import { generateWorkspaceName } from '@/lib/naming'
+import { generateFolderName, generateWorkspaceName } from '@/lib/naming'
+import { useFolderStore } from '@/stores/folders/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -68,6 +69,8 @@ export function SidebarNew() {
 
   // Add state to prevent multiple simultaneous workflow creations
   const [isCreatingWorkflow, setIsCreatingWorkflow] = useState(false)
+  // Add state to prevent multiple simultaneous folder creations
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false)
   // Add state to prevent multiple simultaneous workspace creations (for future use)
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -81,6 +84,9 @@ export function SidebarNew() {
     switchToWorkspace,
     createWorkflow,
   } = useWorkflowRegistry()
+
+  // Get folder store
+  const { createFolder } = useFolderStore()
 
   // Filter and sort workflows
   const regularWorkflows = Object.values(workflows)
@@ -483,7 +489,7 @@ export function SidebarNew() {
     if (isResizing) {
       document.addEventListener('mousemove', handleMouseMove)
       document.addEventListener('mouseup', handleMouseUp)
-      document.body.style.cursor = 'col-resize'
+      document.body.style.cursor = 'ew-resize'
       document.body.style.userSelect = 'none'
     } else {
       document.removeEventListener('mousemove', handleMouseMove)
@@ -503,37 +509,54 @@ export function SidebarNew() {
   /**
    * Create workflow handler - creates workflow and navigates to it
    */
-  const handleCreateWorkflow = useCallback(
-    async (folderId?: string) => {
-      if (isCreatingWorkflow) {
-        logger.info('Workflow creation already in progress, ignoring request')
-        return
+  const handleCreateWorkflow = useCallback(async () => {
+    if (isCreatingWorkflow) {
+      logger.info('Workflow creation already in progress, ignoring request')
+      return
+    }
+
+    try {
+      setIsCreatingWorkflow(true)
+
+      // Clear workflow diff store when creating a new workflow
+      const { clearDiff } = useWorkflowDiffStore.getState()
+      clearDiff()
+
+      const workflowId = await createWorkflow({
+        workspaceId: workspaceId || undefined,
+      })
+
+      // Navigate to the newly created workflow
+      if (workflowId) {
+        router.push(`/workspace/${workspaceId}/w/${workflowId}`)
       }
+    } catch (error) {
+      logger.error('Error creating workflow:', error)
+    } finally {
+      setIsCreatingWorkflow(false)
+    }
+  }, [isCreatingWorkflow, createWorkflow, workspaceId, router])
 
-      try {
-        setIsCreatingWorkflow(true)
+  /**
+   * Create folder handler - creates folder with auto-generated name
+   */
+  const handleCreateFolder = useCallback(async () => {
+    if (isCreatingFolder || !workspaceId) {
+      logger.info('Folder creation already in progress or no workspaceId available')
+      return
+    }
 
-        // Clear workflow diff store when creating a new workflow
-        const { clearDiff } = useWorkflowDiffStore.getState()
-        clearDiff()
-
-        const workflowId = await createWorkflow({
-          workspaceId: workspaceId || undefined,
-          folderId: folderId || undefined,
-        })
-
-        // Navigate to the newly created workflow
-        if (workflowId) {
-          router.push(`/workspace/${workspaceId}/w/${workflowId}`)
-        }
-      } catch (error) {
-        logger.error('Error creating workflow:', error)
-      } finally {
-        setIsCreatingWorkflow(false)
-      }
-    },
-    [isCreatingWorkflow, createWorkflow, workspaceId, router]
-  )
+    try {
+      setIsCreatingFolder(true)
+      const folderName = await generateFolderName(workspaceId)
+      await createFolder({ name: folderName, workspaceId })
+      logger.info(`Created folder: ${folderName}`)
+    } catch (error) {
+      logger.error('Failed to create folder:', { error })
+    } finally {
+      setIsCreatingFolder(false)
+    }
+  }, [createFolder, workspaceId, isCreatingFolder])
 
   return (
     <>
@@ -568,7 +591,7 @@ export function SidebarNew() {
           </div>
 
           {/* Add */}
-          <div className='mt-[14px] flex items-center'>
+          {/* <div className='mt-[14px] flex items-center'>
             <Button
               variant='3d'
               className='w-full gap-[12px] rounded-[8px] py-[5px] text-small'
@@ -578,11 +601,29 @@ export function SidebarNew() {
               <Plus className='h-[14px] w-[14px]' />
               Add Workflow
             </Button>
+          </div> */}
+
+          {/* Search */}
+          <div className='mt-[14px] flex cursor-pointer items-center justify-between rounded-[8px] bg-[#272727] px-[8px] py-[7px] dark:bg-[#272727]'>
+            <div className='flex items-center gap-[6px]'>
+              <Search className='h-[16px] w-[16px] text-[#7D7D7D] dark:text-[#7D7D7D]' />
+              <p className='translate-y-[0.25px] font-medium text-[#B1B1B1] text-small dark:text-[#B1B1B1]'>
+                Search
+              </p>
+            </div>
+            <p className='font-medium text-[#7D7D7D] text-small dark:text-[#7D7D7D]'>⌘ + K</p>
           </div>
 
           {/* Workflows */}
           <div className='mt-[14px]'>
-            <WorkflowList regularWorkflows={regularWorkflows} isLoading={isLoading} />
+            <WorkflowList
+              regularWorkflows={regularWorkflows}
+              isLoading={isLoading}
+              onCreateWorkflow={handleCreateWorkflow}
+              onCreateFolder={handleCreateFolder}
+              isCreatingWorkflow={isCreatingWorkflow}
+              isCreatingFolder={isCreatingFolder}
+            />
           </div>
         </div>
       </aside>

@@ -1,21 +1,31 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useParams, usePathname } from 'next/navigation'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import clsx from 'clsx'
+import { ArrowDown, Plus } from 'lucide-react'
+import { useParams, usePathname, useRouter } from 'next/navigation'
+import { Button } from '@/components/emcn/components/button'
+import { FolderPlus } from '@/components/emcn/icons'
 import { createLogger } from '@/lib/logs/console/logger'
 import { type FolderTreeNode, useFolderStore } from '@/stores/folders/store'
+import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
+import { parseWorkflowJson } from '@/stores/workflows/json/importer'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
-import { FolderItem } from './folder-item'
-import { WorkflowItem } from './workflow-item'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import { FolderItem } from './components/folder-item/folder-item'
+import { WorkflowItem } from './components/workflow-item/workflow-item'
+import { useDragDrop } from './utils/use-drag-drop'
 
 const logger = createLogger('WorkflowList')
 
 const TREE_SPACING = {
   INDENT_PER_LEVEL: 20,
-  VERTICAL_LINE_LEFT_OFFSET: 4, // Position line at the folder's chevron
+  VERTICAL_LINE_LEFT_OFFSET: 4,
   ITEM_GAP: 4,
-  MAX_NESTING_LEVELS: 2,
+  ITEM_HEIGHT: 25,
 } as const
 
 const TREE_STYLES = {
@@ -25,28 +35,40 @@ const TREE_STYLES = {
 interface WorkflowListProps {
   regularWorkflows: WorkflowMetadata[]
   isLoading?: boolean
+  onCreateWorkflow: () => void
+  onCreateFolder: () => void
+  isCreatingWorkflow?: boolean
+  isCreatingFolder?: boolean
 }
 
-export function WorkflowList({ regularWorkflows, isLoading = false }: WorkflowListProps) {
+export function WorkflowList({
+  regularWorkflows,
+  isLoading = false,
+  onCreateWorkflow,
+  onCreateFolder,
+  isCreatingWorkflow = false,
+  isCreatingFolder = false,
+}: WorkflowListProps) {
   const pathname = usePathname()
   const params = useParams()
+  const router = useRouter()
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string
 
-  const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null)
-  const [rootDragOver, setRootDragOver] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const {
     getFolderTree,
     expandedFolders,
     fetchFolders,
     isLoading: foldersLoading,
-    updateFolderAPI,
     getFolderPath,
     setExpanded,
   } = useFolderStore()
 
-  const { updateWorkflow } = useWorkflowRegistry()
+  const { createWorkflow } = useWorkflowRegistry()
+  const { createFolderDragHandlers, createRootDragHandlers } = useDragDrop()
 
   const folderTree = workspaceId ? getFolderTree(workspaceId) : []
 
@@ -75,102 +97,162 @@ export function WorkflowList({ regularWorkflows, isLoading = false }: WorkflowLi
     [pathname, workspaceId]
   )
 
+  /**
+   * Auto-expand folders to show the active workflow
+   */
   useEffect(() => {
     if (!activeWorkflowFolderId) return
     const folderPath = getFolderPath(activeWorkflowFolderId)
-    folderPath.forEach((folder) => {
-      if (!expandedFolders.has(folder.id)) {
-        setExpanded(folder.id, true)
-      }
-    })
-  }, [activeWorkflowFolderId, getFolderPath, setExpanded]) // Remove expandedFolders from dependencies
+    for (const folder of folderPath) {
+      setExpanded(folder.id, true)
+    }
+  }, [activeWorkflowFolderId, getFolderPath, setExpanded])
 
+  /**
+   * Fetch folders when workspace changes
+   */
   useEffect(() => {
     if (workspaceId) {
       fetchFolders(workspaceId)
     }
   }, [workspaceId, fetchFolders])
 
-  const handleWorkflowDrop = useCallback(
-    async (workflowIds: string[], targetFolderId: string | null) => {
-      try {
-        for (const workflowId of workflowIds) {
-          await updateWorkflow(workflowId, { folderId: targetFolderId })
-        }
-        logger.info(`Moved ${workflowIds.length} workflow(s)`)
-      } catch (error) {
-        logger.error('Failed to move workflows:', error)
-      }
-    },
-    [updateWorkflow]
-  )
-
-  const handleFolderMove = useCallback(
-    async (draggedFolderId: string, targetFolderId: string | null) => {
-      try {
-        const folderStore = useFolderStore.getState()
-        const draggedFolderPath = folderStore.getFolderPath(draggedFolderId)
-
-        if (
-          targetFolderId &&
-          draggedFolderPath.some((ancestor) => ancestor.id === targetFolderId)
-        ) {
-          logger.info('Cannot move folder into its own descendant')
-          return
-        }
-
-        const targetFolderPath = targetFolderId ? folderStore.getFolderPath(targetFolderId) : []
-        if (targetFolderPath.length >= TREE_SPACING.MAX_NESTING_LEVELS) {
-          logger.info(`Maximum ${TREE_SPACING.MAX_NESTING_LEVELS} levels of nesting allowed`)
-          return
-        }
-
-        await updateFolderAPI(draggedFolderId, { parentId: targetFolderId })
-        logger.info(`Moved folder to ${targetFolderId ? `folder ${targetFolderId}` : 'root'}`)
-      } catch (error) {
-        logger.error('Failed to move folder:', error)
-      }
-    },
-    [updateFolderAPI]
-  )
-
-  const handleFolderDrop = useCallback(
-    async (e: React.DragEvent, targetFolderId: string | null) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setDragOverFolderId(null)
-      setRootDragOver(false)
-
-      const workflowIdsData = e.dataTransfer.getData('workflow-ids')
-      if (workflowIdsData) {
-        const workflowIds = JSON.parse(workflowIdsData) as string[]
-        await handleWorkflowDrop(workflowIds, targetFolderId)
+  /**
+   * Handle direct import of workflow JSON
+   */
+  const handleDirectImport = useCallback(
+    async (content: string, filename?: string) => {
+      if (!content.trim()) {
+        logger.error('JSON content is required')
         return
       }
 
-      const folderIdData = e.dataTransfer.getData('folder-id')
-      if (folderIdData && targetFolderId !== folderIdData) {
-        await handleFolderMove(folderIdData, targetFolderId)
+      setIsImporting(true)
+
+      try {
+        // First validate the JSON without importing
+        const { data: workflowData, errors: parseErrors } = parseWorkflowJson(content)
+
+        if (!workflowData || parseErrors.length > 0) {
+          logger.error('Failed to parse JSON:', { errors: parseErrors })
+          return
+        }
+
+        // Generate workflow name from filename or fallback to time-based name
+        const getWorkflowName = () => {
+          if (filename) {
+            // Remove file extension and use the filename
+            const nameWithoutExtension = filename.replace(/\.json$/i, '')
+            return (
+              nameWithoutExtension.trim() || `Imported Workflow - ${new Date().toLocaleString()}`
+            )
+          }
+          return `Imported Workflow - ${new Date().toLocaleString()}`
+        }
+
+        // Clear workflow diff store when creating a new workflow from import
+        const { clearDiff } = useWorkflowDiffStore.getState()
+        clearDiff()
+
+        // Create a new workflow
+        const newWorkflowId = await createWorkflow({
+          name: getWorkflowName(),
+          description: 'Workflow imported from JSON',
+          workspaceId,
+        })
+
+        // Set the workflow as active in the registry to prevent reload
+        useWorkflowRegistry.setState({ activeWorkflowId: newWorkflowId })
+
+        // Cast the workflow data to WorkflowState type
+        const typedWorkflowData = workflowData as unknown as WorkflowState
+
+        // Set the workflow state immediately (optimistic update)
+        useWorkflowStore.setState({
+          blocks: typedWorkflowData.blocks,
+          edges: typedWorkflowData.edges,
+          loops: typedWorkflowData.loops,
+          parallels: typedWorkflowData.parallels,
+          lastSaved: Date.now(),
+        })
+
+        // Initialize subblock store with the imported blocks
+        useSubBlockStore.getState().initializeFromWorkflow(newWorkflowId, typedWorkflowData.blocks)
+
+        // Set subblock values if they exist in the imported data
+        const subBlockStore = useSubBlockStore.getState()
+        for (const [blockId, block] of Object.entries(typedWorkflowData.blocks)) {
+          if (block.subBlocks) {
+            for (const [subBlockId, subBlock] of Object.entries(block.subBlocks)) {
+              if (subBlock.value !== null && subBlock.value !== undefined) {
+                subBlockStore.setValue(blockId, subBlockId, subBlock.value)
+              }
+            }
+          }
+        }
+
+        // Navigate to the new workflow after setting state
+        router.push(`/workspace/${workspaceId}/w/${newWorkflowId}`)
+
+        logger.info('Workflow imported successfully from JSON')
+
+        // Persist to database in the background
+        fetch(`/api/workflows/${newWorkflowId}/state`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(workflowData),
+        })
+          .then((response) => {
+            if (!response.ok) {
+              logger.error('Failed to persist imported workflow to database')
+            } else {
+              logger.info('Imported workflow persisted to database')
+            }
+          })
+          .catch((error) => {
+            logger.error('Failed to persist imported workflow:', error)
+          })
+      } catch (error) {
+        logger.error('Failed to import workflow:', { error })
+      } finally {
+        setIsImporting(false)
       }
     },
-    [handleWorkflowDrop, handleFolderMove]
+    [createWorkflow, workspaceId, router]
   )
 
-  const handleFolderDragEvents = useCallback(
-    (folderId: string) => ({
-      onDragOver: (e: React.DragEvent) => {
-        e.preventDefault()
-        e.stopPropagation()
-        setDragOverFolderId(folderId)
-      },
-      onDragLeave: (e: React.DragEvent) => {
-        e.preventDefault()
-        e.stopPropagation()
-        setDragOverFolderId(null)
-      },
-      onDrop: (e: React.DragEvent) => handleFolderDrop(e, folderId),
-    }),
-    [handleFolderDrop]
+  /**
+   * Handle import workflow button click
+   */
+  const handleImportWorkflow = useCallback(() => {
+    fileInputRef.current?.click()
+  }, [])
+
+  /**
+   * Handle file selection and read
+   */
+  const handleFileChange = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0]
+      if (!file) return
+
+      try {
+        const content = await file.text()
+
+        // Import directly with filename
+        await handleDirectImport(content, file.name)
+      } catch (error) {
+        logger.error('Failed to read file:', { error })
+      }
+
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    },
+    [handleDirectImport]
   )
 
   const renderWorkflowItem = useCallback(
@@ -188,33 +270,23 @@ export function WorkflowList({ regularWorkflows, isLoading = false }: WorkflowLi
     [isWorkflowActive]
   )
 
-  const renderChildFolder = useCallback(
-    (
-      childFolder: FolderTreeNode,
-      level: number,
-      renderFolderSectionFn: (folder: FolderTreeNode, level: number) => React.ReactNode
-    ) => (
-      <div key={childFolder.id} className='relative'>
-        {renderFolderSectionFn(childFolder, level)}
-      </div>
-    ),
-    []
-  )
-
   const calculateVerticalLineHeight = useCallback((workflowCount: number, folderCount: number) => {
-    // Calculate total height based on number of items
-    // Each item is 25px tall with 4px gap
-    const itemHeight = 25
-    const gap = TREE_SPACING.ITEM_GAP
-    const totalItems = workflowCount + folderCount
+    // If there are workflows, line extends only to the bottom of the last workflow
+    if (workflowCount > 0) {
+      // Account for: all workflows + gaps between workflows (no extra margin)
+      const totalHeight =
+        workflowCount * TREE_SPACING.ITEM_HEIGHT + (workflowCount - 1) * TREE_SPACING.ITEM_GAP
+      return `${totalHeight}px`
+    }
 
-    if (totalItems === 0) return '0px'
+    // If no workflows but there are child folders, extend to folders
+    if (folderCount > 0) {
+      const totalHeight =
+        folderCount * TREE_SPACING.ITEM_HEIGHT + (folderCount - 1) * TREE_SPACING.ITEM_GAP
+      return `${totalHeight}px`
+    }
 
-    // Height = (items * height) + ((items - 1) * gap)
-    // This gives us the exact height to the bottom of the last item
-    const totalHeight = totalItems * itemHeight + (totalItems - 1) * gap
-
-    return `${totalHeight}px`
+    return '0px'
   }, [])
 
   const renderFolderSection = useCallback(
@@ -226,7 +298,7 @@ export function WorkflowList({ regularWorkflows, isLoading = false }: WorkflowLi
       return (
         <div key={folder.id}>
           <div style={{ paddingLeft: `${level * TREE_SPACING.INDENT_PER_LEVEL}px` }}>
-            <FolderItem folder={folder} level={level} {...handleFolderDragEvents(folder.id)} />
+            <FolderItem folder={folder} level={level} {...createFolderDragHandlers(folder.id)} />
           </div>
 
           {isExpanded && hasChildren && (
@@ -246,15 +318,23 @@ export function WorkflowList({ regularWorkflows, isLoading = false }: WorkflowLi
                 }}
               />
 
-              <div className='space-y-[4px]'>
-                {workflowsInFolder.map((workflow) => renderWorkflowItem(workflow, level + 1))}
-              </div>
+              {workflowsInFolder.length > 0 && (
+                <div className='mt-[2px] space-y-[4px]'>
+                  {workflowsInFolder.map((workflow: WorkflowMetadata) =>
+                    renderWorkflowItem(workflow, level + 1)
+                  )}
+                </div>
+              )}
 
               {folder.children.length > 0 && (
-                <div className='space-y-[4px]'>
-                  {folder.children.map((childFolder) =>
-                    renderChildFolder(childFolder, level + 1, renderFolderSection)
-                  )}
+                <div
+                  className={clsx('space-y-[4px]', workflowsInFolder.length > 0 ? 'mt-[2px]' : '')}
+                >
+                  {folder.children.map((childFolder) => (
+                    <div key={childFolder.id} className='relative'>
+                      {renderFolderSection(childFolder, level + 1)}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -265,38 +345,56 @@ export function WorkflowList({ regularWorkflows, isLoading = false }: WorkflowLi
     [
       workflowsByFolder,
       expandedFolders,
-      handleFolderDragEvents,
+      createFolderDragHandlers,
       calculateVerticalLineHeight,
       renderWorkflowItem,
-      renderChildFolder,
     ]
   )
 
-  const handleRootDragEvents = useMemo(
-    () => ({
-      onDragOver: (e: React.DragEvent) => {
-        e.preventDefault()
-        setRootDragOver(true)
-      },
-      onDragLeave: (e: React.DragEvent) => {
-        e.preventDefault()
-        setRootDragOver(false)
-      },
-      onDrop: (e: React.DragEvent) => handleFolderDrop(e, null),
-    }),
-    [handleFolderDrop]
-  )
-
+  const handleRootDragEvents = createRootDragHandlers()
   const rootWorkflows = workflowsByFolder.root || []
 
   return (
     <div className='flex flex-col space-y-[4px]'>
+      <div className='flex items-center justify-between px-[5px]'>
+        <div className='font-medium text-[#AEAEAE] text-small dark:text-[#AEAEAE]'>Workflows</div>
+        <div className='flex items-center justify-center gap-[10px]'>
+          <Button
+            variant='default'
+            className='translate-y-[-0.25px] p-[1px]'
+            onClick={handleImportWorkflow}
+            disabled={isImporting}
+            title={isImporting ? 'Importing workflow...' : 'Import workflow from JSON'}
+          >
+            <ArrowDown className='h-[14px] w-[14px]' />
+          </Button>
+          <Button
+            variant='default'
+            className='mr-[1px] translate-y-[-0.25px] p-[1px]'
+            onClick={onCreateFolder}
+            disabled={isCreatingFolder}
+            title={isCreatingFolder ? 'Creating folder...' : 'Create new folder'}
+          >
+            <FolderPlus className='h-[14px] w-[14px]' />
+          </Button>
+          <Button
+            variant='outline'
+            className='translate-y-[-0.25px] p-[1px]'
+            onClick={onCreateWorkflow}
+            disabled={isCreatingWorkflow}
+            title={isCreatingWorkflow ? 'Creating workflow...' : 'Create new workflow'}
+          >
+            <Plus className='h-[14px] w-[14px]' />
+          </Button>
+        </div>
+      </div>
+
       <div className='space-y-[4px]'>
         {folderTree.map((folder) => renderFolderSection(folder, 0))}
       </div>
 
       <div className='min-h-[25px] space-y-[4px]' {...handleRootDragEvents}>
-        {rootWorkflows.map((workflow) => (
+        {rootWorkflows.map((workflow: WorkflowMetadata) => (
           <WorkflowItem
             key={workflow.id}
             workflow={workflow}
@@ -305,6 +403,14 @@ export function WorkflowList({ regularWorkflows, isLoading = false }: WorkflowLi
           />
         ))}
       </div>
+
+      <input
+        ref={fileInputRef}
+        type='file'
+        accept='.json'
+        style={{ display: 'none' }}
+        onChange={handleFileChange}
+      />
     </div>
   )
 }

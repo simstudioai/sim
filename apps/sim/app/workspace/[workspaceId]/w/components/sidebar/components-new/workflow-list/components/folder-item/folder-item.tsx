@@ -17,7 +17,7 @@ export function FolderItem({ folder, level, onDragOver, onDragLeave, onDrop }: F
   const { expandedFolders, toggleExpanded } = useFolderStore()
   const isExpanded = expandedFolders.has(folder.id)
   const [isDragging, setIsDragging] = useState(false)
-  const dragStartedRef = useRef(false)
+  const shouldPreventClickRef = useRef(false)
 
   const handleToggleExpanded = useCallback(() => {
     toggleExpanded(folder.id)
@@ -27,7 +27,7 @@ export function FolderItem({ folder, level, onDragOver, onDragLeave, onDrop }: F
     (e: React.MouseEvent) => {
       e.stopPropagation()
 
-      if (dragStartedRef.current) {
+      if (shouldPreventClickRef.current) {
         e.preventDefault()
         return
       }
@@ -36,39 +36,44 @@ export function FolderItem({ folder, level, onDragOver, onDragLeave, onDrop }: F
     [handleToggleExpanded]
   )
 
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        handleToggleExpanded()
+      }
+    },
+    [handleToggleExpanded]
+  )
+
   const handleDragStart = (e: React.DragEvent) => {
-    dragStartedRef.current = true
+    shouldPreventClickRef.current = true
     setIsDragging(true)
 
     e.dataTransfer.setData('folder-id', folder.id)
     e.dataTransfer.effectAllowed = 'move'
-
-    // Set global drag state for validation in other components
-    if (typeof window !== 'undefined') {
-      ;(window as any).currentDragFolderId = folder.id
-    }
   }
 
   const handleDragEnd = () => {
     setIsDragging(false)
     requestAnimationFrame(() => {
-      dragStartedRef.current = false
+      shouldPreventClickRef.current = false
     })
-
-    // Clear global drag state
-    if (typeof window !== 'undefined') {
-      ;(window as any).currentDragFolderId = null
-    }
   }
 
   return (
-    <div className='mb-[2px]' onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
+    <div onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
       <div
+        role='button'
+        tabIndex={0}
+        aria-expanded={isExpanded}
+        aria-label={`${folder.name} folder, ${isExpanded ? 'expanded' : 'collapsed'}`}
         className={clsx(
           'flex h-[25px] cursor-pointer items-center rounded-[8px] text-[14px]',
           isDragging ? 'opacity-50' : ''
         )}
         onClick={handleClick}
+        onKeyDown={handleKeyDown}
         draggable
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
@@ -78,11 +83,18 @@ export function FolderItem({ folder, level, onDragOver, onDragLeave, onDrop }: F
             'mr-[8px] h-[10px] w-[10px] flex-shrink-0 text-[#787878] transition-all dark:text-[#787878]',
             isExpanded ? 'rotate-90' : ''
           )}
+          aria-hidden='true'
         />
         {isExpanded ? (
-          <FolderOpen className='mr-[10px] h-[16px] w-[16px] flex-shrink-0 text-[#787878] dark:text-[#787878]' />
+          <FolderOpen
+            className='mr-[10px] h-[16px] w-[16px] flex-shrink-0 text-[#787878] dark:text-[#787878]'
+            aria-hidden='true'
+          />
         ) : (
-          <Folder className='mr-[10px] h-[16px] w-[16px] flex-shrink-0 text-[#787878] dark:text-[#787878]' />
+          <Folder
+            className='mr-[10px] h-[16px] w-[16px] flex-shrink-0 text-[#787878] dark:text-[#787878]'
+            aria-hidden='true'
+          />
         )}
         <span className='truncate font-medium text-[#AEAEAE] dark:text-[#AEAEAE]'>
           {folder.name}
