@@ -20,11 +20,11 @@ export class PlanClientTool extends BaseClientTool {
 
   static readonly metadata: BaseClientToolMetadata = {
     displayNames: {
-      [ClientToolCallState.generating]: { text: 'Crafting an approach', icon: Loader2 },
-      [ClientToolCallState.pending]: { text: 'Crafting an approach', icon: Loader2 },
-      [ClientToolCallState.executing]: { text: 'Crafting an approach', icon: Loader2 },
-      [ClientToolCallState.success]: { text: 'Crafted an approach', icon: ListTodo },
-      [ClientToolCallState.error]: { text: 'Failed to craft an approach', icon: X },
+      [ClientToolCallState.generating]: { text: 'Planning', icon: Loader2 },
+      [ClientToolCallState.pending]: { text: 'Planning', icon: Loader2 },
+      [ClientToolCallState.executing]: { text: 'Planning an approach', icon: Loader2 },
+      [ClientToolCallState.success]: { text: 'Finished planning', icon: ListTodo },
+      [ClientToolCallState.error]: { text: 'Failed to plan', icon: X },
       [ClientToolCallState.aborted]: { text: 'Aborted planning', icon: XCircle },
       [ClientToolCallState.rejected]: { text: 'Skipped planning approach', icon: XCircle },
     },
