@@ -1,4 +1,3 @@
-import type { ConnectionOptions } from 'node:tls'
 import * as schema from '@sim/db/schema'
 import { workflowBlocks, workflowEdges } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
@@ -9,34 +8,6 @@ import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const connectionString = env.DATABASE_URL
-
-const getSSLConfig = () => {
-  const sslMode = env.DATABASE_SSL
-
-  if (!sslMode) return undefined
-  if (sslMode === 'disable') return false
-  if (sslMode === 'prefer') return 'prefer'
-
-  const sslConfig: ConnectionOptions = {}
-
-  if (sslMode === 'require') {
-    sslConfig.rejectUnauthorized = false
-  } else if (sslMode === 'verify-ca' || sslMode === 'verify-full') {
-    sslConfig.rejectUnauthorized = true
-    if (env.DATABASE_SSL_CA) {
-      try {
-        const ca = Buffer.from(env.DATABASE_SSL_CA, 'base64').toString('utf-8')
-        sslConfig.ca = ca
-      } catch (error) {
-        console.error('Failed to parse DATABASE_SSL_CA:', error)
-      }
-    }
-  }
-
-  return sslConfig
-}
-
-const sslConfig = getSSLConfig()
 const db = drizzle(
   postgres(connectionString, {
     prepare: false,
@@ -44,7 +15,6 @@ const db = drizzle(
     connect_timeout: 20,
     max: 5,
     onnotice: () => {},
-    ...(sslConfig !== undefined && { ssl: sslConfig }),
   }),
   { schema }
 )

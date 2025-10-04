@@ -32,7 +32,6 @@
  *   SSO_SAML_WANT_ASSERTIONS_SIGNED=true (optional, defaults to false)
  */
 
-import type { ConnectionOptions } from 'node:tls'
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
@@ -135,50 +134,19 @@ const logger = {
 }
 
 // Get database URL from environment
-const CONNECTION_STRING = process.env.DATABASE_URL
+const CONNECTION_STRING = process.env.POSTGRES_URL ?? process.env.DATABASE_URL
 if (!CONNECTION_STRING) {
-  console.error('❌ DATABASE_URL environment variable is required')
+  console.error('❌ POSTGRES_URL or DATABASE_URL environment variable is required')
   process.exit(1)
 }
 
-const getSSLConfig = () => {
-  const sslMode = process.env.DATABASE_SSL?.toLowerCase()
-
-  if (!sslMode) return undefined
-  if (sslMode === 'disable') return false
-  if (sslMode === 'prefer') return 'prefer'
-
-  const sslConfig: ConnectionOptions = {}
-
-  if (sslMode === 'require') {
-    sslConfig.rejectUnauthorized = false
-  } else if (sslMode === 'verify-ca' || sslMode === 'verify-full') {
-    sslConfig.rejectUnauthorized = true
-    if (process.env.DATABASE_SSL_CA) {
-      try {
-        const ca = Buffer.from(process.env.DATABASE_SSL_CA, 'base64').toString('utf-8')
-        sslConfig.ca = ca
-      } catch (error) {
-        console.error('Failed to parse DATABASE_SSL_CA:', error)
-      }
-    }
-  } else {
-    throw new Error(
-      `Invalid DATABASE_SSL mode: ${sslMode}. Must be one of: disable, prefer, require, verify-ca, verify-full`
-    )
-  }
-
-  return sslConfig
-}
-
-const sslConfig = getSSLConfig()
+// Initialize database connection (following migration script pattern)
 const postgresClient = postgres(CONNECTION_STRING, {
   prepare: false,
   idle_timeout: 20,
   connect_timeout: 30,
   max: 10,
   onnotice: () => {},
-  ...(sslConfig !== undefined && { ssl: sslConfig }),
 })
 const db = drizzle(postgresClient)
 
