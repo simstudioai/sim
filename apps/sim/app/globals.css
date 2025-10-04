@@ -234,7 +234,7 @@
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background text-foreground;
     overscroll-behavior-x: none;
     overscroll-behavior-y: none;
     min-height: 100vh;
@@ -244,6 +244,10 @@
     text-rendering: optimizeSpeed;
     /* Default text styles */
     letter-spacing: 0.28px;
+  }
+
+  .dark body {
+    @apply antialiased;
   }
 
   /* Global Scrollbar Styling */
