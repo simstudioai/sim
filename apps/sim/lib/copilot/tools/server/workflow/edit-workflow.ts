@@ -24,6 +24,97 @@ interface EditWorkflowParams {
 }
 
 /**
+ * Topologically sort insert operations to ensure parents are created before children
+ * Returns sorted array where parent inserts always come before child inserts
+ */
+function topologicalSortInserts(
+  inserts: EditWorkflowOperation[],
+  adds: EditWorkflowOperation[]
+): EditWorkflowOperation[] {
+  if (inserts.length === 0) return []
+
+  // Build a map of blockId -> operation for quick lookup
+  const insertMap = new Map<string, EditWorkflowOperation>()
+  inserts.forEach((op) => insertMap.set(op.block_id, op))
+
+  // Build a set of blocks being added (potential parents)
+  const addedBlocks = new Set(adds.map((op) => op.block_id))
+
+  // Build dependency graph: block -> blocks that depend on it
+  const dependents = new Map<string, Set<string>>()
+  const dependencies = new Map<string, Set<string>>()
+
+  inserts.forEach((op) => {
+    const blockId = op.block_id
+    const parentId = op.params?.subflowId
+
+    dependencies.set(blockId, new Set())
+
+    if (parentId) {
+      // Track dependency if parent is being inserted OR being added
+      // This ensures children wait for parents regardless of operation type
+      const parentBeingCreated = insertMap.has(parentId) || addedBlocks.has(parentId)
+
+      if (parentBeingCreated) {
+        // Only add dependency if parent is also being inserted (not added)
+        // Because adds run before inserts, added parents are already created
+        if (insertMap.has(parentId)) {
+          dependencies.get(blockId)!.add(parentId)
+          if (!dependents.has(parentId)) {
+            dependents.set(parentId, new Set())
+          }
+          dependents.get(parentId)!.add(blockId)
+        }
+      }
+    }
+  })
+
+  // Topological sort using Kahn's algorithm
+  const sorted: EditWorkflowOperation[] = []
+  const queue: string[] = []
+
+  // Start with nodes that have no dependencies (or depend only on added blocks)
+  inserts.forEach((op) => {
+    const deps = dependencies.get(op.block_id)!
+    if (deps.size === 0) {
+      queue.push(op.block_id)
+    }
+  })
+
+  while (queue.length > 0) {
+    const blockId = queue.shift()!
+    const op = insertMap.get(blockId)
+    if (op) {
+      sorted.push(op)
+    }
+
+    // Remove this node from dependencies of others
+    const children = dependents.get(blockId)
+    if (children) {
+      children.forEach((childId) => {
+        const childDeps = dependencies.get(childId)!
+        childDeps.delete(blockId)
+        if (childDeps.size === 0) {
+          queue.push(childId)
+        }
+      })
+    }
+  }
+
+  // If sorted length doesn't match input, there's a cycle (shouldn't happen with valid operations)
+  // Just append remaining operations
+  if (sorted.length < inserts.length) {
+    inserts.forEach((op) => {
+      if (!sorted.includes(op)) {
+        sorted.push(op)
+      }
+    })
+  }
+
+  return sorted
+}
+
+/**
  * Helper to create a block state from operation params
  */
 function createBlockFromParams(blockId: string, params: any, parentId?: string): any {
@@ -231,13 +322,13 @@ function applyOperationsToWorkflowState(
 
   // Log initial state
   const logger = createLogger('EditWorkflowServerTool')
-  logger.debug('Initial blocks before operations:', {
-    blockCount: Object.keys(modifiedState.blocks || {}).length,
-    blockTypes: Object.entries(modifiedState.blocks || {}).map(([id, block]: [string, any]) => ({
-      id,
-      type: block.type,
-      hasType: block.type !== undefined,
-    })),
+  logger.info('Applying operations to workflow:', {
+    totalOperations: operations.length,
+    operationTypes: operations.reduce((acc: any, op) => {
+      acc[op.operation_type] = (acc[op.operation_type] || 0) + 1
+      return acc
+    }, {}),
+    initialBlockCount: Object.keys(modifiedState.blocks || {}).length,
   })
 
   // Reorder operations: delete -> extract -> add -> insert -> edit
@@ -246,16 +337,33 @@ function applyOperationsToWorkflowState(
   const adds = operations.filter((op) => op.operation_type === 'add')
   const inserts = operations.filter((op) => op.operation_type === 'insert_into_subflow')
   const edits = operations.filter((op) => op.operation_type === 'edit')
+
+  // Sort insert operations to ensure parents are inserted before children
+  // This handles cases where a loop/parallel is being added along with its children
+  const sortedInserts = topologicalSortInserts(inserts, adds)
+
   const orderedOperations: EditWorkflowOperation[] = [
     ...deletes,
     ...extracts,
     ...adds,
-    ...inserts,
+    ...sortedInserts,
     ...edits,
   ]
 
+  logger.info('Operations after reordering:', {
+    order: orderedOperations.map(
+      (op) =>
+        `${op.operation_type}:${op.block_id}${op.params?.subflowId ? `(parent:${op.params.subflowId})` : ''}`
+    ),
+  })
+
   for (const operation of orderedOperations) {
     const { operation_type, block_id, params } = operation
+
+    logger.debug(`Executing operation: ${operation_type} for block ${block_id}`, {
+      params: params ? Object.keys(params) : [],
+      currentBlockCount: Object.keys(modifiedState.blocks).length,
+    })
 
     switch (operation_type) {
       case 'delete': {
@@ -480,18 +588,8 @@ function applyOperationsToWorkflowState(
           // Create new block with proper structure
           const newBlock = createBlockFromParams(block_id, params)
 
-          // Handle nested nodes (for loops/parallels created from scratch)
+          // Set loop/parallel data on parent block BEFORE adding to blocks
           if (params.nestedNodes) {
-            Object.entries(params.nestedNodes).forEach(([childId, childBlock]: [string, any]) => {
-              const childBlockState = createBlockFromParams(childId, childBlock, block_id)
-              modifiedState.blocks[childId] = childBlockState
-
-              if (childBlock.connections) {
-                addConnectionsAsEdges(modifiedState, childId, childBlock.connections)
-              }
-            })
-
-            // Set loop/parallel data on parent block
             if (params.type === 'loop') {
               newBlock.data = {
                 ...newBlock.data,
@@ -509,7 +607,21 @@ function applyOperationsToWorkflowState(
             }
           }
 
+          // Add parent block FIRST before adding children
+          // This ensures children can reference valid parentId
           modifiedState.blocks[block_id] = newBlock
+
+          // Handle nested nodes (for loops/parallels created from scratch)
+          if (params.nestedNodes) {
+            Object.entries(params.nestedNodes).forEach(([childId, childBlock]: [string, any]) => {
+              const childBlockState = createBlockFromParams(childId, childBlock, block_id)
+              modifiedState.blocks[childId] = childBlockState
+
+              if (childBlock.connections) {
+                addConnectionsAsEdges(modifiedState, childId, childBlock.connections)
+              }
+            })
+          }
 
           // Add connections as edges
           if (params.connections) {
@@ -522,15 +634,28 @@ function applyOperationsToWorkflowState(
       case 'insert_into_subflow': {
         const subflowId = params?.subflowId
         if (!subflowId || !params?.type || !params?.name) {
-          logger.warn('Missing required params for insert_into_subflow', { block_id, params })
+          logger.error('Missing required params for insert_into_subflow', { block_id, params })
           break
         }
 
         const subflowBlock = modifiedState.blocks[subflowId]
-        if (!subflowBlock || (subflowBlock.type !== 'loop' && subflowBlock.type !== 'parallel')) {
-          logger.warn('Subflow block not found or invalid type', {
+        if (!subflowBlock) {
+          logger.error('Subflow block not found - parent must be created first', {
             subflowId,
-            type: subflowBlock?.type,
+            block_id,
+            existingBlocks: Object.keys(modifiedState.blocks),
+            operationType: 'insert_into_subflow',
+          })
+          // This is a critical error - the operation ordering is wrong
+          // Skip this operation but don't break the entire workflow
+          break
+        }
+
+        if (subflowBlock.type !== 'loop' && subflowBlock.type !== 'parallel') {
+          logger.error('Subflow block has invalid type', {
+            subflowId,
+            type: subflowBlock.type,
+            block_id,
           })
           break
         }

@@ -349,6 +349,14 @@ export class WorkflowDiffEngine {
               id: finalId,
             }
 
+        // Update parentId in data if it exists and has been remapped
+        if (finalBlock.data?.parentId && idMap[finalBlock.data.parentId]) {
+          finalBlock.data = {
+            ...finalBlock.data,
+            parentId: idMap[finalBlock.data.parentId],
+          }
+        }
+
         finalBlocks[finalId] = finalBlock
       }
 

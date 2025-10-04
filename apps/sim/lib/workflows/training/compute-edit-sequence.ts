@@ -174,6 +174,17 @@ export function computeEditSequence(
     if (!(blockId in startFlattened)) {
       const { block, parentId } = endFlattened[blockId]
       if (parentId) {
+        // Check if this block will be included in parent's nestedNodes
+        const parentData = endFlattened[parentId]
+        const parentIsNew = parentData && !(parentId in startFlattened)
+        const parentHasNestedNodes = parentData?.block?.nestedNodes?.[blockId]
+
+        // Skip if parent is new and will include this block in nestedNodes
+        if (parentIsNew && parentHasNestedNodes) {
+          // Parent's 'add' operation will include this child, skip separate operation
+          continue
+        }
+
         // Block was added inside a subflow - include full block state
         const addParams: EditOperation['params'] = {
           subflowId: parentId,
@@ -236,10 +247,18 @@ export function computeEditSequence(
           addParams.connections = connections
         }
 
-        // Add nested nodes if present (for loops/parallels created from scratch)
+        // Add nested nodes if present AND all children are new
+        // This creates the loop/parallel with children in one operation
+        // If some children already exist, they'll have separate insert_into_subflow operations
         if (block.nestedNodes && Object.keys(block.nestedNodes).length > 0) {
-          addParams.nestedNodes = block.nestedNodes
-          subflowsChanged++
+          const allChildrenNew = Object.keys(block.nestedNodes).every(
+            (childId) => !(childId in startFlattened)
+          )
+
+          if (allChildrenNew) {
+            addParams.nestedNodes = block.nestedNodes
+            subflowsChanged++
+          }
         }
 
         operations.push({
