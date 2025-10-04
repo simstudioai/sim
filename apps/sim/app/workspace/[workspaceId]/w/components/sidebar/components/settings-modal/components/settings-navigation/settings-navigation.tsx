@@ -96,7 +96,7 @@ const allNavigationItems: NavigationItem[] = [
   },
   {
     id: 'copilot',
-    label: 'Copilot Keys',
+    label: 'Copilot',
     icon: Bot,
   },
   {
@@ -163,9 +163,6 @@ export function SettingsNavigation({
   }, [userId, isHosted])
 
   const navigationItems = allNavigationItems.filter((item) => {
-    if (item.id === 'copilot' && !isHosted) {
-      return false
-    }
     if (item.hideWhenBillingDisabled && !isBillingEnabled) {
       return false
     }

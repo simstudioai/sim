@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui'
 import { getEnv, isTruthy } from '@/lib/env'
-import { isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   Account,
@@ -181,7 +180,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                 <SSO />
               </div>
             )}
-            {isHosted && activeSection === 'copilot' && (
+            {activeSection === 'copilot' && (
               <div className='h-full'>
                 <Copilot />
               </div>

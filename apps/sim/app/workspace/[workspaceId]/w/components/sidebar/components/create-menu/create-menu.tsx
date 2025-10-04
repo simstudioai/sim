@@ -155,60 +155,30 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
           workspaceId,
         })
 
-        // Load the imported workflow state into stores immediately (optimistic update)
-        const { useWorkflowStore } = await import('@/stores/workflows/workflow/store')
-        const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
-
-        // Set the workflow as active in the registry to prevent reload
-        useWorkflowRegistry.setState({ activeWorkflowId: newWorkflowId })
-
-        // Set the workflow state immediately
-        useWorkflowStore.setState({
-          blocks: workflowData.blocks || {},
-          edges: workflowData.edges || [],
-          loops: workflowData.loops || {},
-          parallels: workflowData.parallels || {},
-          lastSaved: Date.now(),
-        })
-
-        // Initialize subblock store with the imported blocks
-        useSubBlockStore.getState().initializeFromWorkflow(newWorkflowId, workflowData.blocks || {})
-
-        // Also set subblock values if they exist in the imported data
-        const subBlockStore = useSubBlockStore.getState()
-        Object.entries(workflowData.blocks).forEach(([blockId, block]: [string, any]) => {
-          if (block.subBlocks) {
-            Object.entries(block.subBlocks).forEach(([subBlockId, subBlock]: [string, any]) => {
-              if (subBlock.value !== null && subBlock.value !== undefined) {
-                subBlockStore.setValue(blockId, subBlockId, subBlock.value)
-              }
-            })
-          }
-        })
-
-        // Navigate to the new workflow after setting state
-        router.push(`/workspace/${workspaceId}/w/${newWorkflowId}`)
-
-        logger.info('Workflow imported successfully from JSON')
-
-        // Save to database in the background (fire and forget)
-        fetch(`/api/workflows/${newWorkflowId}/state`, {
+        // Save workflow state to database first
+        const response = await fetch(`/api/workflows/${newWorkflowId}/state`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(workflowData),
         })
-          .then((response) => {
-            if (!response.ok) {
-              logger.error('Failed to persist imported workflow to database')
-            } else {
-              logger.info('Imported workflow persisted to database')
-            }
-          })
-          .catch((error) => {
-            logger.error('Failed to persist imported workflow:', error)
-          })
+
+        if (!response.ok) {
+          logger.error('Failed to persist imported workflow to database')
+          throw new Error('Failed to save workflow')
+        }
+
+        logger.info('Imported workflow persisted to database')
+
+        // Pre-load the workflow state before navigating
+        const { setActiveWorkflow } = useWorkflowRegistry.getState()
+        await setActiveWorkflow(newWorkflowId)
+
+        // Navigate to the new workflow (replace to avoid history entry)
+        router.replace(`/workspace/${workspaceId}/w/${newWorkflowId}`)
+
+        logger.info('Workflow imported successfully from JSON')
       } catch (error) {
         logger.error('Failed to import workflow:', { error })
       } finally {

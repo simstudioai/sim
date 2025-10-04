@@ -158,7 +158,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
         // Check file type
         if (!ACCEPTED_FILE_TYPES.includes(file.type)) {
           setFileError(
-            `File ${file.name} has an unsupported format. Please use PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, or HTML.`
+            `File ${file.name} has an unsupported format. Please use PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSON, YAML, or YML.`
           )
           hasError = true
           continue
@@ -501,8 +501,8 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                                 : 'Drop files here or click to browse'}
                             </p>
                             <p className='text-muted-foreground text-xs'>
-                              Supports PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML (max
-                              100MB each)
+                              Supports PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML,
+                              JSON, YAML, YML (max 100MB each)
                             </p>
                           </div>
                         </div>

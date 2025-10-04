@@ -137,15 +137,29 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
 
 /**
  * Handle invoice payment failed webhook
- * This is triggered when a user's payment fails for a usage billing invoice
+ * This is triggered when a user's payment fails for any invoice (subscription or overage)
  */
 export async function handleInvoicePaymentFailed(event: Stripe.Event) {
   try {
     const invoice = event.data.object as Stripe.Invoice
 
-    // Check if this is an overage billing invoice
-    if (invoice.metadata?.type !== 'overage_billing') {
-      logger.info('Ignoring non-overage billing invoice payment failure', { invoiceId: invoice.id })
+    const isOverageInvoice = invoice.metadata?.type === 'overage_billing'
+    let stripeSubscriptionId: string | undefined
+
+    if (isOverageInvoice) {
+      // Overage invoices store subscription ID in metadata
+      stripeSubscriptionId = invoice.metadata?.subscriptionId as string | undefined
+    } else {
+      // Regular subscription invoices have it in parent.subscription_details
+      const subscription = invoice.parent?.subscription_details?.subscription
+      stripeSubscriptionId = typeof subscription === 'string' ? subscription : subscription?.id
+    }
+
+    if (!stripeSubscriptionId) {
+      logger.info('No subscription found on invoice; skipping payment failed handler', {
+        invoiceId: invoice.id,
+        isOverageInvoice,
+      })
       return
     }
 
@@ -154,7 +168,7 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
     const billingPeriod = invoice.metadata?.billingPeriod || 'unknown'
     const attemptCount = invoice.attempt_count || 1
 
-    logger.warn('Overage billing invoice payment failed', {
+    logger.warn('Invoice payment failed', {
       invoiceId: invoice.id,
       customerId,
       failedAmount,
@@ -162,47 +176,59 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
       attemptCount,
       customerEmail: invoice.customer_email,
       hostedInvoiceUrl: invoice.hosted_invoice_url,
+      isOverageInvoice,
+      invoiceType: isOverageInvoice ? 'overage' : 'subscription',
     })
 
-    // Implement dunning management logic here
-    // For example: suspend service after multiple failures, notify admins, etc.
+    // Block users after first payment failure
     if (attemptCount >= 1) {
-      logger.error('Multiple payment failures for overage billing', {
+      logger.error('Payment failure - blocking users', {
         invoiceId: invoice.id,
         customerId,
         attemptCount,
+        isOverageInvoice,
+        stripeSubscriptionId,
       })
-      // Block all users under this customer (org members or individual)
-      // Overage invoices are manual invoices without parent.subscription_details
-      // We store the subscription ID in metadata when creating them
-      const stripeSubscriptionId = invoice.metadata?.subscriptionId as string | undefined
-      if (stripeSubscriptionId) {
-        const records = await db
-          .select()
-          .from(subscriptionTable)
-          .where(eq(subscriptionTable.stripeSubscriptionId, stripeSubscriptionId))
-          .limit(1)
 
-        if (records.length > 0) {
-          const sub = records[0]
-          if (sub.plan === 'team' || sub.plan === 'enterprise') {
-            const members = await db
-              .select({ userId: member.userId })
-              .from(member)
-              .where(eq(member.organizationId, sub.referenceId))
-            for (const m of members) {
-              await db
-                .update(userStats)
-                .set({ billingBlocked: true })
-                .where(eq(userStats.userId, m.userId))
-            }
-          } else {
+      const records = await db
+        .select()
+        .from(subscriptionTable)
+        .where(eq(subscriptionTable.stripeSubscriptionId, stripeSubscriptionId))
+        .limit(1)
+
+      if (records.length > 0) {
+        const sub = records[0]
+        if (sub.plan === 'team' || sub.plan === 'enterprise') {
+          const members = await db
+            .select({ userId: member.userId })
+            .from(member)
+            .where(eq(member.organizationId, sub.referenceId))
+          for (const m of members) {
             await db
               .update(userStats)
               .set({ billingBlocked: true })
-              .where(eq(userStats.userId, sub.referenceId))
+              .where(eq(userStats.userId, m.userId))
           }
+          logger.info('Blocked team/enterprise members due to payment failure', {
+            organizationId: sub.referenceId,
+            memberCount: members.length,
+            isOverageInvoice,
+          })
+        } else {
+          await db
+            .update(userStats)
+            .set({ billingBlocked: true })
+            .where(eq(userStats.userId, sub.referenceId))
+          logger.info('Blocked user due to payment failure', {
+            userId: sub.referenceId,
+            isOverageInvoice,
+          })
         }
+      } else {
+        logger.warn('Subscription not found in database for failed payment', {
+          stripeSubscriptionId,
+          invoiceId: invoice.id,
+        })
       }
     }
   } catch (error) {

@@ -114,7 +114,8 @@ export async function generateEmbeddings(
 
   logger.info(`Using ${config.useAzure ? 'Azure OpenAI' : 'OpenAI'} for embeddings generation`)
 
-  const batchSize = 100
+  // Reduced batch size to prevent API timeouts and improve reliability
+  const batchSize = 50 // Reduced from 100 to prevent issues with large documents
   const allEmbeddings: number[][] = []
 
   for (let i = 0; i < texts.length; i += batchSize) {
@@ -125,6 +126,11 @@ export async function generateEmbeddings(
     logger.info(
       `Generated embeddings for batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(texts.length / batchSize)}`
     )
+
+    // Add small delay between batches to avoid rate limiting
+    if (i + batchSize < texts.length) {
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
   }
 
   return allEmbeddings

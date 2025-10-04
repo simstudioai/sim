@@ -15,6 +15,9 @@ export const SUPPORTED_DOCUMENT_EXTENSIONS = [
   'pptx',
   'html',
   'htm',
+  'json',
+  'yaml',
+  'yml',
 ] as const
 
 export type SupportedDocumentExtension = (typeof SUPPORTED_DOCUMENT_EXTENSIONS)[number]
@@ -46,6 +49,9 @@ export const SUPPORTED_MIME_TYPES: Record<SupportedDocumentExtension, string[]> 
   ],
   html: ['text/html', 'application/xhtml+xml'],
   htm: ['text/html', 'application/xhtml+xml'],
+  json: ['application/json', 'text/json', 'application/x-json'],
+  yaml: ['text/yaml', 'text/x-yaml', 'application/yaml', 'application/x-yaml'],
+  yml: ['text/yaml', 'text/x-yaml', 'application/yaml', 'application/x-yaml'],
 }
 
 export const ACCEPTED_FILE_TYPES = Object.values(SUPPORTED_MIME_TYPES).flat()

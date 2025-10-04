@@ -7,6 +7,7 @@ import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { generateRequestId } from '@/lib/utils'
+import { extractAndPersistCustomTools } from '@/lib/workflows/custom-tools-persistence'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/db-helpers'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/validation'
 
@@ -205,6 +206,21 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         { error: 'Failed to save workflow state', details: saveResult.error },
         { status: 500 }
       )
+    }
+
+    // Extract and persist custom tools to database
+    try {
+      const { saved, errors } = await extractAndPersistCustomTools(workflowState, userId)
+
+      if (saved > 0) {
+        logger.info(`[${requestId}] Persisted ${saved} custom tool(s) to database`, { workflowId })
+      }
+
+      if (errors.length > 0) {
+        logger.warn(`[${requestId}] Some custom tools failed to persist`, { errors, workflowId })
+      }
+    } catch (error) {
+      logger.error(`[${requestId}] Failed to persist custom tools`, { error, workflowId })
     }
 
     // Update workflow's lastSynced timestamp

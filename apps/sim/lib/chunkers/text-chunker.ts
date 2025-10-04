@@ -1,28 +1,4 @@
-export interface ChunkMetadata {
-  startIndex: number
-  endIndex: number
-  tokenCount: number
-}
-
-export interface TextChunk {
-  text: string
-  metadata: ChunkMetadata
-}
-
-export interface ChunkerOptions {
-  chunkSize?: number
-  minChunkSize?: number
-  overlap?: number
-}
-
-export interface Chunk {
-  text: string
-  tokenCount: number
-  metadata: {
-    startIndex: number
-    endIndex: number
-  }
-}
+import type { Chunk, ChunkerOptions } from './types'
 
 /**
  * Lightweight text chunker optimized for RAG applications

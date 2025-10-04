@@ -2,6 +2,7 @@ import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getBlockOutputs } from '@/lib/workflows/block-outputs'
 import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
 import {
@@ -166,7 +167,11 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           }
         })
 
-        const outputs = resolveOutputType(blockConfig.outputs)
+        // Get outputs based on trigger mode
+        const triggerMode = blockProperties?.triggerMode ?? false
+        const outputs = triggerMode
+          ? getBlockOutputs(type, subBlocks, triggerMode)
+          : resolveOutputType(blockConfig.outputs)
 
         const newState = {
           blocks: {
@@ -182,7 +187,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               horizontalHandles: blockProperties?.horizontalHandles ?? true,
               isWide: blockProperties?.isWide ?? false,
               advancedMode: blockProperties?.advancedMode ?? false,
-              triggerMode: blockProperties?.triggerMode ?? false,
+              triggerMode: triggerMode,
               height: blockProperties?.height ?? 0,
               layout: {},
               data: nodeData,

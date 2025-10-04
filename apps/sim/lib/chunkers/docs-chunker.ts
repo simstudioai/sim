@@ -1,10 +1,17 @@
 import fs from 'fs/promises'
 import path from 'path'
 import { generateEmbeddings } from '@/lib/embeddings/utils'
-import { isDev } from '@/lib/environment'
-import { TextChunker } from '@/lib/knowledge/documents/chunker'
-import type { DocChunk, DocsChunkerOptions, HeaderInfo } from '@/lib/knowledge/documents/types'
 import { createLogger } from '@/lib/logs/console/logger'
+import { TextChunker } from './text-chunker'
+import type { DocChunk, DocsChunkerOptions } from './types'
+
+interface HeaderInfo {
+  level: number
+  text: string
+  slug?: string
+  anchor?: string
+  position?: number
+}
 
 interface Frontmatter {
   title?: string
@@ -29,7 +36,7 @@ export class DocsChunker {
       overlap: options.overlap ?? 50,
     })
     // Use localhost docs in development, production docs otherwise
-    this.baseUrl = options.baseUrl ?? (isDev ? 'http://localhost:3001' : 'https://docs.sim.ai')
+    this.baseUrl = options.baseUrl ?? 'https://docs.sim.ai'
   }
 
   /**
@@ -108,9 +115,7 @@ export class DocsChunker {
         metadata: {
           startIndex: chunkStart,
           endIndex: chunkEnd,
-          hasFrontmatter: i === 0 && content.startsWith('---'),
-          documentTitle: frontmatter.title,
-          documentDescription: frontmatter.description,
+          title: frontmatter.title,
         },
       }
 
@@ -200,7 +205,7 @@ export class DocsChunker {
     let relevantHeader: HeaderInfo | null = null
 
     for (const header of headers) {
-      if (header.position <= position) {
+      if (header.position !== undefined && header.position <= position) {
         relevantHeader = header
       } else {
         break
@@ -286,227 +291,11 @@ export class DocsChunker {
   }
 
   /**
-   * Split content by headers to respect document structure
-   */
-  private splitByHeaders(
-    content: string
-  ): Array<{ header: string | null; content: string; level: number }> {
-    const lines = content.split('\n')
-    const sections: Array<{ header: string | null; content: string; level: number }> = []
-
-    let currentHeader: string | null = null
-    let currentLevel = 0
-    let currentContent: string[] = []
-
-    for (const line of lines) {
-      const headerMatch = line.match(/^(#{1,3})\s+(.+)$/) // Only split on H1-H3, not H4-H6
-
-      if (headerMatch) {
-        // Save previous section
-        if (currentContent.length > 0) {
-          sections.push({
-            header: currentHeader,
-            content: currentContent.join('\n').trim(),
-            level: currentLevel,
-          })
-        }
-
-        // Start new section
-        currentHeader = line
-        currentLevel = headerMatch[1].length
-        currentContent = []
-      } else {
-        currentContent.push(line)
-      }
-    }
-
-    // Add final section
-    if (currentContent.length > 0) {
-      sections.push({
-        header: currentHeader,
-        content: currentContent.join('\n').trim(),
-        level: currentLevel,
-      })
-    }
-
-    return sections.filter((section) => section.content.trim().length > 0)
-  }
-
-  /**
    * Estimate token count (rough approximation)
    */
   private estimateTokens(text: string): number {
     // Rough approximation: 1 token ≈ 4 characters
     return Math.ceil(text.length / 4)
-  }
-
-  /**
-   * Merge small adjacent chunks to reach target size
-   */
-  private mergeSmallChunks(chunks: string[]): string[] {
-    const merged: string[] = []
-    let currentChunk = ''
-
-    for (const chunk of chunks) {
-      const currentTokens = this.estimateTokens(currentChunk)
-      const chunkTokens = this.estimateTokens(chunk)
-
-      // If adding this chunk would exceed target size, save current and start new
-      if (currentTokens > 0 && currentTokens + chunkTokens > 500) {
-        if (currentChunk.trim()) {
-          merged.push(currentChunk.trim())
-        }
-        currentChunk = chunk
-      } else {
-        // Merge with current chunk
-        currentChunk = currentChunk ? `${currentChunk}\n\n${chunk}` : chunk
-      }
-    }
-
-    // Add final chunk
-    if (currentChunk.trim()) {
-      merged.push(currentChunk.trim())
-    }
-
-    return merged
-  }
-
-  /**
-   * Chunk a section while preserving tables and structure
-   */
-  private async chunkSection(section: {
-    header: string | null
-    content: string
-    level: number
-  }): Promise<string[]> {
-    const content = section.content
-    const header = section.header
-
-    // Check if content contains tables
-    const hasTable = this.containsTable(content)
-
-    if (hasTable) {
-      // Split by tables and handle each part
-      return this.splitContentWithTables(content, header)
-    }
-    // Regular chunking for text-only content
-    const chunks = await this.textChunker.chunk(content)
-    return chunks.map((chunk, index) => {
-      // Add header to first chunk only
-      if (index === 0 && header) {
-        return `${header}\n\n${chunk.text}`.trim()
-      }
-      return chunk.text
-    })
-  }
-
-  /**
-   * Check if content contains markdown tables
-   */
-  private containsTable(content: string): boolean {
-    const lines = content.split('\n')
-    return lines.some((line, index) => {
-      if (line.includes('|') && line.split('|').length >= 3) {
-        const nextLine = lines[index + 1]
-        return nextLine?.includes('|') && nextLine.includes('-')
-      }
-      return false
-    })
-  }
-
-  /**
-   * Split content that contains tables, keeping tables intact
-   */
-  private splitContentWithTables(content: string, header: string | null): string[] {
-    const lines = content.split('\n')
-    const chunks: string[] = []
-    let currentChunk: string[] = []
-    let inTable = false
-    let tableLines: string[] = []
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i]
-
-      // Detect table start
-      if (line.includes('|') && line.split('|').length >= 3 && !inTable) {
-        const nextLine = lines[i + 1]
-        if (nextLine?.includes('|') && nextLine.includes('-')) {
-          inTable = true
-
-          // Save current chunk if it has content
-          if (currentChunk.length > 0 && currentChunk.join('\n').trim().length > 50) {
-            const chunkText = currentChunk.join('\n').trim()
-            const withHeader =
-              chunks.length === 0 && header ? `${header}\n\n${chunkText}` : chunkText
-            chunks.push(withHeader)
-            currentChunk = []
-          }
-
-          tableLines = [line]
-          continue
-        }
-      }
-
-      if (inTable) {
-        tableLines.push(line)
-
-        // Detect table end
-        if (!line.includes('|') || line.trim() === '') {
-          inTable = false
-
-          // Save table as its own chunk
-          const tableText = tableLines
-            .filter((l) => l.trim())
-            .join('\n')
-            .trim()
-          if (tableText.length > 0) {
-            const withHeader =
-              chunks.length === 0 && header ? `${header}\n\n${tableText}` : tableText
-            chunks.push(withHeader)
-          }
-
-          tableLines = []
-
-          // Start new chunk if current line has content
-          if (line.trim() !== '') {
-            currentChunk = [line]
-          }
-        }
-      } else {
-        currentChunk.push(line)
-
-        // If chunk is getting large, save it
-        if (this.estimateTokens(currentChunk.join('\n')) > 250) {
-          const chunkText = currentChunk.join('\n').trim()
-          if (chunkText.length > 50) {
-            const withHeader =
-              chunks.length === 0 && header ? `${header}\n\n${chunkText}` : chunkText
-            chunks.push(withHeader)
-          }
-          currentChunk = []
-        }
-      }
-    }
-
-    // Handle remaining content
-    if (inTable && tableLines.length > 0) {
-      const tableText = tableLines
-        .filter((l) => l.trim())
-        .join('\n')
-        .trim()
-      if (tableText.length > 0) {
-        const withHeader = chunks.length === 0 && header ? `${header}\n\n${tableText}` : tableText
-        chunks.push(withHeader)
-      }
-    } else if (currentChunk.length > 0) {
-      const chunkText = currentChunk.join('\n').trim()
-      if (chunkText.length > 50) {
-        const withHeader = chunks.length === 0 && header ? `${header}\n\n${chunkText}` : chunkText
-        chunks.push(withHeader)
-      }
-    }
-
-    return chunks.filter((chunk) => chunk.trim().length > 50)
   }
 
   /**

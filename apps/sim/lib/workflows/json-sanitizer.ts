@@ -18,7 +18,7 @@ export interface CopilotWorkflowState {
 export interface CopilotBlockState {
   type: string
   name: string
-  inputs?: Record<string, string | number | string[][]>
+  inputs?: Record<string, string | number | string[][] | object>
   outputs: BlockState['outputs']
   connections?: Record<string, string | string[]>
   nestedNodes?: Record<string, CopilotBlockState>
@@ -84,16 +84,126 @@ function isSensitiveSubBlock(key: string, subBlock: BlockState['subBlocks'][stri
 }
 
 /**
+ * Sanitize condition blocks by removing UI-specific metadata
+ * Returns cleaned JSON string (not parsed array)
+ */
+function sanitizeConditions(conditionsJson: string): string {
+  try {
+    const conditions = JSON.parse(conditionsJson)
+    if (!Array.isArray(conditions)) return conditionsJson
+
+    // Keep only id, title, and value - remove UI state
+    const cleaned = conditions.map((cond: any) => ({
+      id: cond.id,
+      title: cond.title,
+      value: cond.value || '',
+    }))
+
+    return JSON.stringify(cleaned)
+  } catch {
+    return conditionsJson
+  }
+}
+
+/**
+ * Sanitize tools array by removing UI state and redundant fields
+ */
+function sanitizeTools(tools: any[]): any[] {
+  return tools.map((tool) => {
+    if (tool.type === 'custom-tool') {
+      const sanitized: any = {
+        type: tool.type,
+        title: tool.title,
+        toolId: tool.toolId,
+        usageControl: tool.usageControl,
+      }
+
+      if (tool.schema?.function) {
+        sanitized.schema = {
+          function: {
+            description: tool.schema.function.description,
+            parameters: tool.schema.function.parameters,
+          },
+        }
+      }
+
+      if (tool.code) {
+        sanitized.code = tool.code
+      }
+
+      return sanitized
+    }
+
+    const { isExpanded, ...cleanTool } = tool
+    return cleanTool
+  })
+}
+
+/**
  * Sanitize subblocks by removing null values, secrets, and simplifying structure
  * Maps each subblock key directly to its value instead of the full object
+ * Note: responseFormat is kept as an object for better copilot understanding
  */
 function sanitizeSubBlocks(
   subBlocks: BlockState['subBlocks']
-): Record<string, string | number | string[][]> {
-  const sanitized: Record<string, string | number | string[][]> = {}
+): Record<string, string | number | string[][] | object> {
+  const sanitized: Record<string, string | number | string[][] | object> = {}
 
   Object.entries(subBlocks).forEach(([key, subBlock]) => {
-    // Skip null/undefined values
+    // Special handling for responseFormat - process BEFORE null check
+    // so we can detect when it's added/removed
+    if (key === 'responseFormat') {
+      try {
+        // Handle null/undefined - skip if no value
+        if (subBlock.value === null || subBlock.value === undefined) {
+          return
+        }
+
+        let obj = subBlock.value
+
+        // Handle string values - parse them first
+        if (typeof subBlock.value === 'string') {
+          const trimmed = subBlock.value.trim()
+          if (!trimmed) {
+            // Empty string - skip this field
+            return
+          }
+          obj = JSON.parse(trimmed)
+        }
+
+        // Handle object values - normalize keys and keep as object for copilot
+        if (obj && typeof obj === 'object') {
+          // Sort keys recursively for consistent comparison
+          const sortKeys = (item: any): any => {
+            if (Array.isArray(item)) {
+              return item.map(sortKeys)
+            }
+            if (item !== null && typeof item === 'object') {
+              return Object.keys(item)
+                .sort()
+                .reduce((result: any, key: string) => {
+                  result[key] = sortKeys(item[key])
+                  return result
+                }, {})
+            }
+            return item
+          }
+
+          // Keep as object (not stringified) for better copilot understanding
+          const normalized = sortKeys(obj)
+          sanitized[key] = normalized
+          return
+        }
+
+        // If we get here, obj is not an object (maybe null or primitive) - skip it
+        return
+      } catch (error) {
+        // Invalid JSON - skip this field to avoid crashes
+        return
+      }
+    }
+
+    // Skip null/undefined values for other fields
     if (subBlock.value === null || subBlock.value === undefined) {
       return
     }
@@ -112,34 +222,22 @@ function sanitizeSubBlocks(
       return
     }
 
-    // For non-sensitive, non-null values, include them
+    // Special handling for condition-input type - clean UI metadata
+    if (subBlock.type === 'condition-input' && typeof subBlock.value === 'string') {
+      const cleanedConditions: string = sanitizeConditions(subBlock.value)
+      sanitized[key] = cleanedConditions
+      return
+    }
+
+    if (key === 'tools' && Array.isArray(subBlock.value)) {
+      sanitized[key] = sanitizeTools(subBlock.value)
+      return
+    }
+
     sanitized[key] = subBlock.value
   })
 
   return sanitized
-}
-
-/**
- * Reconstruct full subBlock structure from simplified copilot format
- * Uses existing block structure as template for id and type fields
- */
-function reconstructSubBlocks(
-  simplifiedSubBlocks: Record<string, string | number | string[][]>,
-  existingSubBlocks?: BlockState['subBlocks']
-): BlockState['subBlocks'] {
-  const reconstructed: BlockState['subBlocks'] = {}
-
-  Object.entries(simplifiedSubBlocks).forEach(([key, value]) => {
-    const existingSubBlock = existingSubBlocks?.[key]
-
-    reconstructed[key] = {
-      id: existingSubBlock?.id || key,
-      type: existingSubBlock?.type || 'short-input',
-      value,
-    }
-  })
-
-  return reconstructed
 }
 
 /**
@@ -198,14 +296,16 @@ export function sanitizeForCopilot(state: WorkflowState): CopilotWorkflowState {
     const connections = extractConnectionsForBlock(blockId, state.edges)
 
     // For loop/parallel blocks, extract config from block.data instead of subBlocks
-    let inputs: Record<string, string | number | string[][]> = {}
+    let inputs: Record<string, string | number | string[][] | object>
 
     if (block.type === 'loop' || block.type === 'parallel') {
       // Extract configuration from block.data
-      if (block.data?.loopType) inputs.loopType = block.data.loopType
-      if (block.data?.count !== undefined) inputs.iterations = block.data.count
-      if (block.data?.collection !== undefined) inputs.collection = block.data.collection
-      if (block.data?.parallelType) inputs.parallelType = block.data.parallelType
+      const loopInputs: Record<string, string | number | string[][] | object> = {}
+      if (block.data?.loopType) loopInputs.loopType = block.data.loopType
+      if (block.data?.count !== undefined) loopInputs.iterations = block.data.count
+      if (block.data?.collection !== undefined) loopInputs.collection = block.data.collection
+      if (block.data?.parallelType) loopInputs.parallelType = block.data.parallelType
+      inputs = loopInputs
     } else {
       // For regular blocks, sanitize subBlocks
       inputs = sanitizeSubBlocks(block.subBlocks)
@@ -277,14 +377,10 @@ export function sanitizeForExport(state: WorkflowState): ExportWorkflowState {
   Object.values(clonedState.blocks).forEach((block: any) => {
     if (block.subBlocks) {
       Object.entries(block.subBlocks).forEach(([key, subBlock]: [string, any]) => {
-        // Clear OAuth credentials and API keys using regex patterns
+        // Clear OAuth credentials and API keys based on field name only
         if (
           /credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i.test(key) ||
-          /credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i.test(
-            subBlock.type || ''
-          ) ||
-          (typeof subBlock.value === 'string' &&
-            /credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i.test(subBlock.value))
+          subBlock.type === 'oauth-input'
         ) {
           subBlock.value = ''
         }
