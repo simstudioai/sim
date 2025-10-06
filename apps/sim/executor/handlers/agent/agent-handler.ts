@@ -382,6 +382,10 @@ export class AgentBlockHandler implements BlockHandler {
     const hasOutgoingConnections = context.edges?.some((edge) => edge.source === block.id) ?? false
     const shouldUseStreaming = Boolean(context.stream) && isBlockSelectedForOutput
 
+    logger.info(
+      `[Agent Block ${block.id}] Streaming config - context.stream=${context.stream}, isBlockSelectedForOutput=${isBlockSelectedForOutput}, shouldUseStreaming=${shouldUseStreaming}, selectedOutputIds=${JSON.stringify(context.selectedOutputIds)}`
+    )
+
     if (shouldUseStreaming) {
       logger.info(`Block ${block.id} will use streaming response`)
     }

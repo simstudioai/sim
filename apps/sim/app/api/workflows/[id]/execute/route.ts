@@ -299,14 +299,21 @@ export async function executeWorkflow(
     // - 'chat': For chat deployments (looks for chat_trigger block)
     // - 'api': For direct API execution (looks for api_trigger block)
     // streamConfig is passed from POST handler when using streaming/chat
-    const executionTriggerType = streamConfig?.workflowTriggerType || 'api'
-    const startBlock = TriggerUtils.findStartBlock(mergedStates, executionTriggerType, false)
+    const preferredTriggerType = streamConfig?.workflowTriggerType || 'api'
+    let startBlock = TriggerUtils.findStartBlock(mergedStates, preferredTriggerType, false)
+
+    // If no trigger found and we were looking for API trigger, try chat trigger as fallback
+    if (!startBlock && preferredTriggerType === 'api') {
+      logger.debug(`[${requestId}] No API trigger found, trying chat trigger as fallback`)
+      startBlock = TriggerUtils.findStartBlock(mergedStates, 'chat', false)
+      if (startBlock) {
+        logger.debug(`[${requestId}] Using chat trigger for API execution`)
+      }
+    }
 
     if (!startBlock) {
       const errorMsg =
-        executionTriggerType === 'chat'
-          ? 'No chat trigger configured for this workflow. Add a Chat Trigger block.'
-          : 'No API trigger configured for this workflow. Add an API Trigger block or use a Start block in API mode.'
+        'No trigger block configured for this workflow. Add an API Trigger or Chat Trigger block.'
       logger.error(`[${requestId}] ${errorMsg}`)
       throw new Error(errorMsg)
     }
