@@ -6,7 +6,6 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
 import {
   addCorsHeaders,
-  executeWorkflowForChat,
   setChatAuthCookie,
   validateAuthToken,
   validateChatAuth,
@@ -14,6 +13,9 @@ import {
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('ChatIdentifierAPI')
+
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
 // This endpoint handles chat interactions via the identifier
 export async function POST(
@@ -106,11 +108,38 @@ export async function POST(
     }
 
     try {
-      // Execute workflow with structured input (input + conversationId for context)
-      const result = await executeWorkflowForChat(deployment.id, input, conversationId)
+      // Transform outputConfigs to selectedOutputIds format
+      const selectedOutputIds: string[] = []
+      if (deployment.outputConfigs && Array.isArray(deployment.outputConfigs)) {
+        for (const config of deployment.outputConfigs) {
+          const outputId = config.path
+            ? `${config.blockId}_${config.path}`
+            : `${config.blockId}.content`
+          selectedOutputIds.push(outputId)
+        }
+      }
 
-      // The result is always a ReadableStream that we can pipe to the client
-      const streamResponse = new NextResponse(result, {
+      logger.debug(`[${requestId}] Using ${selectedOutputIds.length} selected outputs for chat`)
+
+      // Use shared streaming response creator
+      const { createStreamingResponse } = await import('@/lib/workflows/streaming')
+      const { createSecureFilteredResult } = await import('@/app/api/workflows/[id]/execute/route')
+
+      const stream = await createStreamingResponse({
+        requestId,
+        workflow: { id: deployment.workflowId, userId: deployment.userId, isDeployed: true },
+        input: { input, conversationId }, // Format for chat_trigger
+        executingUserId: deployment.userId, // Use workflow owner's ID for chat deployments
+        streamConfig: {
+          selectedOutputIds,
+          isSecureMode: true,
+          workflowTriggerType: 'chat',
+        },
+        createFilteredResult: createSecureFilteredResult,
+      })
+
+      // Return streaming response to client
+      const streamResponse = new NextResponse(stream, {
         status: 200,
         headers: {
           'Content-Type': 'text/event-stream',

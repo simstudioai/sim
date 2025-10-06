@@ -2,13 +2,8 @@ import { db } from '@sim/db'
 import { chat, workflow } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { v4 as uuidv4 } from 'uuid'
-import { checkServerSideUsageLimits } from '@/lib/billing'
 import { isDev } from '@/lib/environment'
-import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
-import { LoggingSession } from '@/lib/logs/execution/logging-session'
-import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { hasAdminPermission } from '@/lib/permissions/utils'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import { decryptSecret, generateRequestId } from '@/lib/utils'
@@ -283,28 +278,19 @@ export async function validateChatAuth(
 }
 
 /**
- * Executes a workflow for a chat request and returns the formatted output.
- *
- * When workflows reference <start.input>, they receive the input directly.
- * The conversationId is available at <start.conversationId> for maintaining chat context.
- *
- * @param chatId - Chat deployment identifier
- * @param input - User's chat input
- * @param conversationId - Optional ID for maintaining conversation context
- * @returns Workflow execution result formatted for the chat interface
+ * @deprecated This function has been replaced by the unified workflow execution API.
+ * Chat deployments now use /api/workflows/[id]/execute with internal authentication.
+ * This function is kept for reference but should not be used.
  */
 export async function executeWorkflowForChat(
   chatId: string,
   input: string,
   conversationId?: string
 ): Promise<any> {
-  const requestId = generateRequestId()
-
-  logger.debug(
-    `[${requestId}] Executing workflow for chat: ${chatId}${
-      conversationId ? `, conversationId: ${conversationId}` : ''
-    }`
+  throw new Error(
+    'executeWorkflowForChat is deprecated. Use the unified /api/workflows/[id]/execute API instead.'
   )
+<<<<<<< HEAD
 
   // Find the chat deployment
   const deploymentResult = await db
@@ -847,4 +833,6 @@ export async function executeWorkflowForChat(
   })
 
   return stream
+=======
+>>>>>>> 25e250b4 (feat(chat-stream): updated workflow id execute route to support streaming via API)
 }

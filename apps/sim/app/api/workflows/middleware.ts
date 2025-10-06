@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server'
 import { authenticateApiKey } from '@/lib/api-key/auth'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getWorkflowById } from '@/lib/workflows/utils'
 
@@ -35,6 +36,13 @@ export async function validateWorkflowAccess(
             status: 403,
           },
         }
+      }
+
+      // Check for internal secret first (for chat deployments and other internal calls)
+      const internalSecret = request.headers.get('X-Internal-Secret')
+      if (internalSecret === env.INTERNAL_API_SECRET) {
+        logger.debug('Internal authentication successful')
+        return { workflow }
       }
 
       // API key authentication

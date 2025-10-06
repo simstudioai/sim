@@ -9,6 +9,7 @@ import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-ke
 import { getSession } from '@/lib/auth'
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { env } from '@/lib/env'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -55,6 +56,18 @@ function createFilteredResult(result: any) {
   }
 }
 
+// Utility function to create a secure filtered result for streaming (removes ALL sensitive data)
+// This is used for chat deployments and other public-facing streaming responses
+export function createSecureFilteredResult(result: any) {
+  // Only return success status and safe output fields
+  // Completely removes: logs, metadata, workflowConnections, block inputs, internal state
+  return {
+    success: result.success,
+    output: result.output || {},
+    error: result.error,
+  }
+}
+
 // Custom error class for usage limit exceeded
 class UsageLimitError extends Error {
   statusCode: number
@@ -64,11 +77,18 @@ class UsageLimitError extends Error {
   }
 }
 
-async function executeWorkflow(
+export async function executeWorkflow(
   workflow: any,
   requestId: string,
-  input: any | undefined,
-  actorUserId: string
+  input?: any,
+  actorUserId: string,
+  streamConfig?: {
+    enabled: boolean
+    selectedOutputIds?: string[]
+    isSecureMode?: boolean // When true, filter out all sensitive data
+    workflowTriggerType?: 'api' | 'chat' // Which trigger block type to look for (default: 'api')
+    onStream?: (streamingExec: any) => Promise<void> // Callback for streaming agent responses
+  }
 ): Promise<any> {
   const workflowId = workflow.id
   const executionId = uuidv4()
@@ -275,15 +295,20 @@ async function executeWorkflow(
       true // Enable validation during execution
     )
 
-    // Determine API trigger start block
-    // Direct API execution ONLY works with API trigger blocks (or legacy starter in api/run mode)
-    const startBlock = TriggerUtils.findStartBlock(mergedStates, 'api', false) // isChildWorkflow = false
+    // Determine trigger start block based on execution type
+    // - 'chat': For chat deployments (looks for chat_trigger block)
+    // - 'api': For direct API execution (looks for api_trigger block)
+    // streamConfig is passed from POST handler when using streaming/chat
+    const executionTriggerType = streamConfig?.workflowTriggerType || 'api'
+    const startBlock = TriggerUtils.findStartBlock(mergedStates, executionTriggerType, false)
 
     if (!startBlock) {
-      logger.error(`[${requestId}] No API trigger configured for this workflow`)
-      throw new Error(
-        'No API trigger configured for this workflow. Add an API Trigger block or use a Start block in API mode.'
-      )
+      const errorMsg =
+        executionTriggerType === 'chat'
+          ? 'No chat trigger configured for this workflow. Add a Chat Trigger block.'
+          : 'No API trigger configured for this workflow. Add an API Trigger block or use a Start block in API mode.'
+      logger.error(`[${requestId}] ${errorMsg}`)
+      throw new Error(errorMsg)
     }
 
     const startBlockId = startBlock.blockId
@@ -301,38 +326,49 @@ async function executeWorkflow(
       }
     }
 
+    // Build context extensions
+    const contextExtensions: any = {
+      executionId,
+      workspaceId: workflow.workspaceId,
+      isDeployedContext: true,
+    }
+
+    // Add streaming configuration if enabled
+    if (streamConfig?.enabled) {
+      contextExtensions.stream = true
+      contextExtensions.selectedOutputIds = streamConfig.selectedOutputIds || []
+      contextExtensions.edges = edges.map((e: any) => ({
+        source: e.source,
+        target: e.target,
+      }))
+      contextExtensions.onStream = streamConfig.onStream
+    }
+
     const executor = new Executor({
       workflow: serializedWorkflow,
       currentBlockStates: processedBlockStates,
       envVarValues: decryptedEnvVars,
       workflowInput: processedInput,
       workflowVariables,
-      contextExtensions: {
-        executionId,
-        workspaceId: workflow.workspaceId,
-        isDeployedContext: true,
-      },
+      contextExtensions,
     })
 
     // Set up logging on the executor
     loggingSession.setupExecutor(executor)
 
-    const result = await executor.execute(workflowId, startBlockId)
-
-    // Check if we got a StreamingExecution result (with stream + execution properties)
-    // For API routes, we only care about the ExecutionResult part, not the stream
-    const executionResult = 'stream' in result && 'execution' in result ? result.execution : result
+    // Execute workflow (will always return ExecutionResult since we don't use onStream)
+    const result = (await executor.execute(workflowId, startBlockId)) as ExecutionResult
 
     logger.info(`[${requestId}] Workflow execution completed: ${workflowId}`, {
-      success: executionResult.success,
-      executionTime: executionResult.metadata?.duration,
+      success: result.success,
+      executionTime: result.metadata?.duration,
     })
 
     // Build trace spans from execution result (works for both success and failure)
-    const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
+    const { traceSpans, totalDuration } = buildTraceSpans(result)
 
     // Update workflow run counts if execution was successful
-    if (executionResult.success) {
+    if (result.success) {
       await updateWorkflowRunCounts(workflowId)
 
       // Track API call in user stats
@@ -348,11 +384,12 @@ async function executeWorkflow(
     await loggingSession.safeComplete({
       endedAt: new Date().toISOString(),
       totalDurationMs: totalDuration || 0,
-      finalOutput: executionResult.output || {},
+      finalOutput: result.output || {},
       traceSpans: (traceSpans || []) as any,
     })
 
-    return executionResult
+    // For non-streaming, return the execution result
+    return result
   } catch (error: any) {
     logger.error(`[${requestId}] Workflow execution failed: ${workflowId}`, error)
 
@@ -507,24 +544,49 @@ export async function POST(
     const executionMode = request.headers.get('X-Execution-Mode')
     const isAsync = executionMode === 'async'
 
-    // Parse request body
+    // Parse request body first to check for internal parameters
     const body = await request.text()
     logger.info(`[${requestId}] ${body ? 'Request body provided' : 'No request body provided'}`)
 
-    let input = {}
+    let parsedBody: any = {}
     if (body) {
       try {
-        input = JSON.parse(body)
+        parsedBody = JSON.parse(body)
       } catch (error) {
         logger.error(`[${requestId}] Failed to parse request body as JSON`, error)
         return createErrorResponse('Invalid JSON in request body', 400)
       }
     }
 
-    logger.info(`[${requestId}] Input passed to workflow:`, input)
+    logger.info(`[${requestId}] Input passed to workflow:`, parsedBody)
+
+    // Check internal secret for secure mode
+    const internalSecret = request.headers.get('X-Internal-Secret')
+    const isSecureMode = internalSecret === env.INTERNAL_API_SECRET
+
+    // Check if streaming is requested (from headers OR body for internal calls)
+    const streamResponse =
+      request.headers.get('X-Stream-Response') === 'true' || parsedBody.streamResponse === true
+
+    // Get selected outputs (from headers OR body for internal calls)
+    const selectedOutputsHeader = request.headers.get('X-Selected-Outputs')
+    const selectedOutputIds =
+      parsedBody.selectedOutputIds ||
+      (selectedOutputsHeader ? JSON.parse(selectedOutputsHeader) : undefined)
+
+    // Get workflow trigger type (from body for internal calls, or infer from secure mode)
+    const workflowTriggerType =
+      parsedBody.workflowTriggerType || (isSecureMode && streamResponse ? 'chat' : 'api')
+
+    // Get isSecureMode from body or infer from internal secret
+    const finalIsSecureMode =
+      parsedBody.isSecureMode !== undefined ? parsedBody.isSecureMode : isSecureMode
+
+    // Extract input from body (might be nested for chat triggers)
+    const input = parsedBody.input !== undefined ? parsedBody.input : parsedBody
 
     // Get authenticated user and determine trigger type
-    let authenticatedUserId: string | null = null
+    let authenticatedUserId: string
     let triggerType: TriggerType = 'manual'
 
     const session = await getSession()
@@ -541,11 +603,24 @@ export async function POST(
       triggerType = 'api'
       if (auth.keyId) {
         void updateApiKeyLastUsed(auth.keyId).catch(() => {})
+    // For internal calls (chat deployments), use the workflow owner's ID
+    if (finalIsSecureMode) {
+      authenticatedUserId = validation.workflow.userId
+      triggerType = 'manual' // Chat deployments use manual trigger type (no rate limit)
+    } else {
+      const session = await getSession()
+      if (session?.user?.id) {
+        authenticatedUserId = session.user.id
+        triggerType = 'manual' // UI session (not rate limited)
+      } else {
+        const apiKeyHeader = request.headers.get('X-API-Key')
+        if (apiKeyHeader) {
+          authenticatedUserId = validation.workflow.userId
+          triggerType = 'api'
+        } else {
+          return createErrorResponse('Authentication required', 401)
+        }
       }
-    }
-
-    if (!authenticatedUserId) {
-      return createErrorResponse('Authentication required', 401)
     }
 
     // Get user subscription (checks both personal and org subscriptions)
@@ -631,13 +706,152 @@ export async function POST(
         )
       }
 
+      // Handle streaming response - wrap execution in SSE stream
+      if (streamResponse) {
+        logger.debug(`[${requestId}] Creating streaming response for workflow ${workflowId}`)
+
+        // Use shared streaming response creator
+        const { createStreamingResponse } = await import('@/lib/workflows/streaming')
+
+        // Determine which filter function to use based on security mode
+        const filterFunction = finalIsSecureMode ? createSecureFilteredResult : createFilteredResult
+
+        const stream = await createStreamingResponse({
+          requestId,
+          workflow: validation.workflow,
+          input,
+          executingUserId: authenticatedUserId,
+          streamConfig: {
+            selectedOutputIds,
+            isSecureMode: finalIsSecureMode,
+            workflowTriggerType,
+          },
+          createFilteredResult: filterFunction,
+        })
+
+        logger.debug(`[${requestId}] Returning streaming response to client`)
+        return new NextResponse(stream, {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            Connection: 'keep-alive',
+            'X-Accel-Buffering': 'no',
+          },
+        })
+      }
+
+      // Non-streaming execution
       const result = await executeWorkflow(
         validation.workflow,
         requestId,
         input,
-        authenticatedUserId
+        authenticatedUserId,
+        undefined
       )
 
+      // Handle non-streaming response (legacy - this code path probably has issues now)
+      if ('stream' in result && 'execution' in result) {
+        // Import necessary types and utilities
+        const { processStreamingBlockLogs } = await import('@/lib/tokenization')
+        const encoder = new TextEncoder()
+
+        // Create SSE stream
+        const stream = new ReadableStream({
+          async start(controller) {
+            try {
+              const streamedContent = new Map<string, string>()
+
+              // Set up stream reader
+              const reader = result.stream.getReader()
+
+              try {
+                while (true) {
+                  const { done, value } = await reader.read()
+                  if (done) break
+
+                  const chunk = new TextDecoder().decode(value)
+                  const lines = chunk.split('\n\n')
+
+                  for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                      try {
+                        const json = JSON.parse(line.substring(6))
+                        const { blockId, chunk: contentChunk } = json
+
+                        if (blockId && contentChunk) {
+                          streamedContent.set(
+                            blockId,
+                            (streamedContent.get(blockId) || '') + contentChunk
+                          )
+                        }
+
+                        // Forward the chunk to client
+                        controller.enqueue(encoder.encode(`${line}\n\n`))
+                      } catch (parseError) {
+                        logger.error('Error parsing stream data:', parseError)
+                      }
+                    }
+                  }
+                }
+              } catch (streamError) {
+                logger.error('Error reading stream:', streamError)
+              }
+
+              // Process execution result
+              const executionResult = result.execution
+              if (executionResult?.logs) {
+                // Update streamed content in logs
+                executionResult.logs.forEach((log: any) => {
+                  if (streamedContent.has(log.blockId)) {
+                    const content = streamedContent.get(log.blockId)
+                    if (log.output && content) {
+                      log.output.content = content
+                    }
+                  }
+                })
+
+                // Process tokenization
+                processStreamingBlockLogs(executionResult.logs, streamedContent)
+              }
+
+              // Send final event with filtered data
+              const finalData = finalIsSecureMode
+                ? createSecureFilteredResult(executionResult)
+                : createFilteredResult(executionResult)
+
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify({ event: 'final', data: finalData })}\n\n`)
+              )
+
+              controller.close()
+            } catch (error: any) {
+              logger.error(`[${requestId}] Stream error:`, error)
+              controller.enqueue(
+                encoder.encode(
+                  `data: ${JSON.stringify({
+                    event: 'error',
+                    error: error.message || 'Stream processing error',
+                  })}\n\n`
+                )
+              )
+              controller.close()
+            }
+          },
+        })
+
+        return new NextResponse(stream, {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            Connection: 'keep-alive',
+            'X-Accel-Buffering': 'no',
+          },
+        })
+      }
+
+      // Non-streaming response
       const hasResponseBlock = workflowHasResponseBlock(result)
       if (hasResponseBlock) {
         return createHttpResponseFromBlock(result)
