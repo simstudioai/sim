@@ -239,10 +239,6 @@ const nextConfig: NextConfig = {
     return redirects
   },
   async rewrites() {
-    if (!isTruthy(env.POSTHOG_ENABLED)) {
-      return []
-    }
-
     return [
       {
         source: '/ingest/static/:path*',
