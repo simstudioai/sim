@@ -581,6 +581,9 @@ export async function POST(
       parsedBody.selectedOutputIds ||
       (selectedOutputsHeader ? JSON.parse(selectedOutputsHeader) : undefined)
 
+    // Get stream format (default to 'sse', or 'text' for plain text streaming)
+    const streamFormat: 'sse' | 'text' = parsedBody.streamFormat || 'sse'
+
     // Get workflow trigger type (from body for internal calls, or infer from secure mode)
     const workflowTriggerType =
       parsedBody.workflowTriggerType || (isSecureMode && streamResponse ? 'chat' : 'api')
@@ -732,15 +735,21 @@ export async function POST(
             selectedOutputIds,
             isSecureMode: finalIsSecureMode,
             workflowTriggerType,
+            streamFormat,
           },
           createFilteredResult: filterFunction,
         })
 
-        logger.debug(`[${requestId}] Returning streaming response to client`)
+        logger.debug(
+          `[${requestId}] Returning streaming response to client (format: ${streamFormat})`
+        )
+        // Set Content-Type based on format
+        const contentType =
+          streamFormat === 'text' ? 'text/plain; charset=utf-8' : 'text/event-stream'
         return new NextResponse(stream, {
           status: 200,
           headers: {
-            'Content-Type': 'text/event-stream',
+            'Content-Type': contentType,
             'Cache-Control': 'no-cache',
             Connection: 'keep-alive',
             'X-Accel-Buffering': 'no',

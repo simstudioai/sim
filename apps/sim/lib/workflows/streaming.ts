@@ -12,6 +12,7 @@ export interface StreamingConfig {
   selectedOutputIds?: string[]
   isSecureMode?: boolean
   workflowTriggerType?: 'api' | 'chat'
+  streamFormat?: 'sse' | 'text' // 'sse' = JSON-wrapped SSE (default), 'text' = plain text only
   onStream?: (streamingExec: any) => Promise<void>
 }
 
@@ -38,11 +39,14 @@ export async function createStreamingResponse(
   const { processStreamingBlockLogs } = await import('@/lib/tokenization')
 
   const encoder = new TextEncoder()
+  const streamFormat = streamConfig.streamFormat || 'sse' // Default to SSE JSON format
 
   return new ReadableStream({
     async start(controller) {
       try {
-        logger.debug(`[${requestId}] Stream started, setting up onStream callback`)
+        logger.debug(
+          `[${requestId}] Stream started with format: ${streamFormat}, setting up onStream callback`
+        )
         const streamedContent = new Map<string, string>()
 
         // Set up onStream callback to forward agent streams
@@ -66,19 +70,28 @@ export async function createStreamingResponse(
               // Decode the raw text chunk from the agent
               const textChunk = decoder.decode(value, { stream: true })
 
-              // Accumulate for final event
+              // Accumulate for logs/output
               streamedContent.set(blockId, (streamedContent.get(blockId) || '') + textChunk)
 
-              // Format as SSE and forward to client
-              const sseData = {
-                blockId,
-                chunk: textChunk,
+              // Format based on streamFormat
+              if (streamFormat === 'text') {
+                // Plain text streaming - just send raw text
+                controller.enqueue(encoder.encode(textChunk))
+                logger.debug(
+                  `[${requestId}] Forwarded plain text chunk ${chunkCount} (${textChunk.length} chars) to client`
+                )
+              } else {
+                // SSE JSON format - wrap in JSON with blockId
+                const sseData = {
+                  blockId,
+                  chunk: textChunk,
+                }
+                const sseMessage = `data: ${JSON.stringify(sseData)}\n\n`
+                controller.enqueue(encoder.encode(sseMessage))
+                logger.debug(
+                  `[${requestId}] Forwarded SSE chunk ${chunkCount} (${textChunk.length} chars) to client`
+                )
               }
-              const sseMessage = `data: ${JSON.stringify(sseData)}\n\n`
-              controller.enqueue(encoder.encode(sseMessage))
-              logger.debug(
-                `[${requestId}] Forwarded chunk ${chunkCount} (${textChunk.length} chars) to client`
-              )
             }
           } catch (streamError) {
             logger.error(`[${requestId}] Error reading agent stream:`, streamError)
@@ -111,11 +124,17 @@ export async function createStreamingResponse(
           processStreamingBlockLogs(result.logs, streamedContent)
         }
 
-        // Send final event with filtered data
-        const finalData = createFilteredResult(result)
-        const finalEvent = `data: ${JSON.stringify({ event: 'final', data: finalData })}\n\n`
-        logger.debug(`[${requestId}] Sending final event, size: ${finalEvent.length} bytes`)
-        controller.enqueue(encoder.encode(finalEvent))
+        // Send final event based on format
+        if (streamFormat === 'text') {
+          // Plain text format - no final event, just close
+          logger.debug(`[${requestId}] Plain text streaming complete, closing without final event`)
+        } else {
+          // SSE format - send final event with filtered data
+          const finalData = createFilteredResult(result)
+          const finalEvent = `data: ${JSON.stringify({ event: 'final', data: finalData })}\n\n`
+          logger.debug(`[${requestId}] Sending final event, size: ${finalEvent.length} bytes`)
+          controller.enqueue(encoder.encode(finalEvent))
+        }
 
         logger.debug(`[${requestId}] Closing stream`)
         controller.close()
