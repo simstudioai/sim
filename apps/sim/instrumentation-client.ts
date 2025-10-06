@@ -5,35 +5,7 @@
  * It respects the user's telemetry preferences stored in localStorage.
  *
  */
-import posthog from 'posthog-js'
-import { env, isTruthy } from './lib/env'
-
-// Initialize PostHog only if explicitly enabled
-if (isTruthy(process.env.NEXT_PUBLIC_POSTHOG_ENABLED) && process.env.NEXT_PUBLIC_POSTHOG_KEY) {
-  posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY!, {
-    api_host: '/ingest',
-    ui_host: 'https://us.posthog.com',
-    defaults: '2025-05-24',
-    person_profiles: 'identified_only',
-    capture_pageview: true,
-    capture_pageleave: true,
-    capture_performance: true,
-    session_recording: {
-      maskAllInputs: false,
-      maskInputOptions: {
-        password: true,
-        email: false,
-      },
-      recordCrossOriginIframes: false,
-      recordHeaders: true,
-      recordBody: true,
-    },
-    autocapture: true,
-    capture_dead_clicks: true,
-    persistence: 'localStorage+cookie',
-    enable_heatmaps: true,
-  })
-}
+import { env } from './lib/env'
 
 if (typeof window !== 'undefined') {
   const TELEMETRY_STATUS_KEY = 'simstudio-telemetry-status'
