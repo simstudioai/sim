@@ -8,7 +8,7 @@ export default function BuildingLayout({ children }: { children: React.ReactNode
     <>
       <Nav hideAuthButtons={false} variant='landing' />
       <main className='relative'>{children}</main>
-      <Footer />
+      <Footer fullWidth={true} />
     </>
   )
 }
