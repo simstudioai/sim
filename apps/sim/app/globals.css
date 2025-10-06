@@ -17,10 +17,33 @@
  */
 :root {
   --sidebar-width: 232px;
+  --triggers-height: 200px;
+  --blocks-height: 200px;
 }
 
 .sidebar-container {
   width: var(--sidebar-width);
+}
+
+.triggers-container {
+  height: var(--triggers-height);
+}
+
+.blocks-container {
+  height: var(--blocks-height);
+}
+
+/* Scrollable area constraints for sidebar panels */
+.workflows-section {
+  padding-bottom: var(--triggers-height);
+}
+
+.triggers-scrollable {
+  max-height: calc(var(--triggers-height) - 28px - var(--blocks-height));
+}
+
+.blocks-scrollable {
+  max-height: calc(var(--blocks-height) - 28px);
 }
 
 /* ==========================================================================
@@ -233,6 +256,10 @@
     overscroll-behavior-x: none;
   }
 
+  *:focus {
+    outline: none;
+  }
+
   body {
     @apply bg-background text-foreground;
     overscroll-behavior-x: none;
@@ -267,6 +294,15 @@
 
   ::-webkit-scrollbar-thumb:hover {
     background-color: hsl(var(--muted-foreground) / 0.3);
+  }
+
+  /* Dark Mode Sidebar Scrollbar - Match search div background */
+  .dark .sidebar-container ::-webkit-scrollbar-track {
+    background: #272727;
+  }
+
+  .dark .sidebar-container {
+    scrollbar-color: hsl(var(--muted-foreground) / 0.3) #272727;
   }
 
   /* For Firefox */

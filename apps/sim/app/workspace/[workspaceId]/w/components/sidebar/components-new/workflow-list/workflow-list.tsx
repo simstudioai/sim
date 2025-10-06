@@ -1,11 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import clsx from 'clsx'
-import { ArrowDown, Plus } from 'lucide-react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
-import { Button } from '@/components/emcn/components/button'
-import { FolderPlus } from '@/components/emcn/icons'
 import { createLogger } from '@/lib/logs/console/logger'
 import { type FolderTreeNode, useFolderStore } from '@/stores/folders/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
@@ -21,6 +18,9 @@ import { useDragDrop } from './utils/use-drag-drop'
 
 const logger = createLogger('WorkflowList')
 
+/**
+ * Constants for tree layout and styling
+ */
 const TREE_SPACING = {
   INDENT_PER_LEVEL: 20,
   VERTICAL_LINE_LEFT_OFFSET: 4,
@@ -35,28 +35,23 @@ const TREE_STYLES = {
 interface WorkflowListProps {
   regularWorkflows: WorkflowMetadata[]
   isLoading?: boolean
-  onCreateWorkflow: () => void
-  onCreateFolder: () => void
-  isCreatingWorkflow?: boolean
-  isCreatingFolder?: boolean
+  isImporting: boolean
+  setIsImporting: (value: boolean) => void
+  fileInputRef: React.RefObject<HTMLInputElement | null>
 }
 
 export function WorkflowList({
   regularWorkflows,
   isLoading = false,
-  onCreateWorkflow,
-  onCreateFolder,
-  isCreatingWorkflow = false,
-  isCreatingFolder = false,
+  isImporting,
+  setIsImporting,
+  fileInputRef,
 }: WorkflowListProps) {
   const pathname = usePathname()
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string
-
-  const [isImporting, setIsImporting] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const {
     getFolderTree,
@@ -67,7 +62,6 @@ export function WorkflowList({
     setExpanded,
   } = useFolderStore()
 
-  const { createWorkflow } = useWorkflowRegistry()
   const { createFolderDragHandlers, createRootDragHandlers } = useDragDrop()
 
   const folderTree = workspaceId ? getFolderTree(workspaceId) : []
@@ -77,6 +71,8 @@ export function WorkflowList({
     const activeWorkflow = regularWorkflows.find((workflow) => workflow.id === workflowId)
     return activeWorkflow?.folderId || null
   }, [workflowId, regularWorkflows, isLoading, foldersLoading])
+
+  const { createWorkflow } = useWorkflowRegistry()
 
   const workflowsByFolder = useMemo(
     () =>
@@ -220,7 +216,7 @@ export function WorkflowList({
         setIsImporting(false)
       }
     },
-    [createWorkflow, workspaceId, router]
+    [createWorkflow, workspaceId, router, setIsImporting]
   )
 
   /**
@@ -228,7 +224,7 @@ export function WorkflowList({
    */
   const handleImportWorkflow = useCallback(() => {
     fileInputRef.current?.click()
-  }, [])
+  }, [fileInputRef])
 
   /**
    * Handle file selection and read
@@ -252,7 +248,7 @@ export function WorkflowList({
         fileInputRef.current.value = ''
       }
     },
-    [handleDirectImport]
+    [handleDirectImport, fileInputRef]
   )
 
   const renderWorkflowItem = useCallback(
@@ -303,20 +299,22 @@ export function WorkflowList({
 
           {isExpanded && hasChildren && (
             <div className='relative'>
-              {/* Vertical line from folder bottom extending through all children */}
-              <div
-                className='pointer-events-none absolute'
-                style={{
-                  left: `${level * TREE_SPACING.INDENT_PER_LEVEL + TREE_SPACING.VERTICAL_LINE_LEFT_OFFSET}px`,
-                  top: '0px', // Start immediately after folder item
-                  width: '1px',
-                  height: calculateVerticalLineHeight(
-                    workflowsInFolder.length,
-                    folder.children.length
-                  ),
-                  background: TREE_STYLES.LINE_COLOR,
-                }}
-              />
+              {/* Vertical line from folder bottom extending through all children - only shown if folder has workflows */}
+              {workflowsInFolder.length > 0 && (
+                <div
+                  className='pointer-events-none absolute'
+                  style={{
+                    left: `${level * TREE_SPACING.INDENT_PER_LEVEL + TREE_SPACING.VERTICAL_LINE_LEFT_OFFSET}px`,
+                    top: '0px', // Start immediately after folder item
+                    width: '1px',
+                    height: calculateVerticalLineHeight(
+                      workflowsInFolder.length,
+                      folder.children.length
+                    ),
+                    background: TREE_STYLES.LINE_COLOR,
+                  }}
+                />
+              )}
 
               {workflowsInFolder.length > 0 && (
                 <div className='mt-[2px] space-y-[4px]'>
@@ -355,40 +353,7 @@ export function WorkflowList({
   const rootWorkflows = workflowsByFolder.root || []
 
   return (
-    <div className='flex flex-col space-y-[4px]'>
-      <div className='flex items-center justify-between px-[5px]'>
-        <div className='font-medium text-[#AEAEAE] text-small dark:text-[#AEAEAE]'>Workflows</div>
-        <div className='flex items-center justify-center gap-[10px]'>
-          <Button
-            variant='default'
-            className='translate-y-[-0.25px] p-[1px]'
-            onClick={handleImportWorkflow}
-            disabled={isImporting}
-            title={isImporting ? 'Importing workflow...' : 'Import workflow from JSON'}
-          >
-            <ArrowDown className='h-[14px] w-[14px]' />
-          </Button>
-          <Button
-            variant='default'
-            className='mr-[1px] translate-y-[-0.25px] p-[1px]'
-            onClick={onCreateFolder}
-            disabled={isCreatingFolder}
-            title={isCreatingFolder ? 'Creating folder...' : 'Create new folder'}
-          >
-            <FolderPlus className='h-[14px] w-[14px]' />
-          </Button>
-          <Button
-            variant='outline'
-            className='translate-y-[-0.25px] p-[1px]'
-            onClick={onCreateWorkflow}
-            disabled={isCreatingWorkflow}
-            title={isCreatingWorkflow ? 'Creating workflow...' : 'Create new workflow'}
-          >
-            <Plus className='h-[14px] w-[14px]' />
-          </Button>
-        </div>
-      </div>
-
+    <div className='flex flex-col space-y-[4px] pb-[8px]'>
       <div className='space-y-[4px]'>
         {folderTree.map((folder) => renderFolderSection(folder, 0))}
       </div>

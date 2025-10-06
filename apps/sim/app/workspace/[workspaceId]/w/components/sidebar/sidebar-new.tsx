@@ -1,9 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Search } from 'lucide-react'
+import { ArrowDown, Plus, Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { Badge, ChevronDown, PanelLeft } from '@/components/emcn'
+import { Button } from '@/components/emcn/components/button'
+import { FolderPlus } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateFolderName, generateWorkspaceName } from '@/lib/naming'
@@ -11,6 +13,8 @@ import { useFolderStore } from '@/stores/folders/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { Blocks } from './components-new/blocks/blocks'
+import { Triggers } from './components-new/triggers/triggers'
 import { WorkflowList } from './components-new/workflow-list/workflow-list'
 
 const logger = createLogger('SidebarNew')
@@ -25,18 +29,18 @@ interface Workspace {
 }
 
 /**
- * Constants
+ * Constants for sidebar sizing
  */
 const MIN_WIDTH = 232
 const MAX_WIDTH = 400
 
 /**
- * Sidebar component with resizable width that persists across page refreshes.
+ * Sidebar component with resizable width and panel heights that persist across page refreshes.
  *
  * Uses a CSS-based approach to prevent hydration mismatches:
- * 1. Width is controlled by CSS variable (--sidebar-width) not inline styles
- * 2. Blocking script in layout.tsx sets CSS variable before React hydrates
- * 3. Store updates CSS variable when width changes
+ * 1. Dimensions are controlled by CSS variables (--sidebar-width, --triggers-height, --blocks-height)
+ * 2. Blocking script in layout.tsx sets CSS variables before React hydrates
+ * 3. Store updates CSS variables when dimensions change
  *
  * This ensures server and client render identical HTML, preventing hydration errors.
  */
@@ -75,6 +79,8 @@ export function SidebarNew() {
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isLeaving, setIsLeaving] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Get workflow data
   const {
@@ -103,13 +109,6 @@ export function SidebarNew() {
   activeWorkspaceRef.current = activeWorkspace
 
   /**
-   * Trigger store rehydration to sync persisted width with CSS variable
-   */
-  useEffect(() => {
-    useSidebarStore.persist.rehydrate()
-  }, [])
-
-  /**
    * Refresh workspace list without validation logic - used for non-current workspace operations
    */
   const refreshWorkspaceList = useCallback(async () => {
@@ -123,7 +122,7 @@ export function SidebarNew() {
         setWorkspaces(fetchedWorkspaces)
 
         // Only update activeWorkspace if it still exists in the fetched workspaces
-        // Use current state to avoid dependency on activeWorkspace
+        // Use functional update to avoid dependency on activeWorkspace
         setActiveWorkspace((currentActive) => {
           if (!currentActive) {
             return currentActive
@@ -146,10 +145,11 @@ export function SidebarNew() {
     } finally {
       setIsWorkspacesLoading(false)
     }
-  }, []) // Remove activeWorkspace dependency
+  }, [])
 
   /**
    * Fetch workspaces for the current user with full validation and URL handling
+   * Uses refs for workspaceId and router to avoid unnecessary recreations
    */
   const fetchWorkspaces = useCallback(async () => {
     setIsWorkspacesLoading(true)
@@ -174,7 +174,7 @@ export function SidebarNew() {
           } else {
             logger.warn(`Workspace ${currentWorkspaceId} not found in user's workspaces`)
 
-            // Fallback to first workspace if current not found - FIX: Update URL to match
+            // Fallback to first workspace if current not found
             if (fetchedWorkspaces.length > 0) {
               const fallbackWorkspace = fetchedWorkspaces[0]
               setActiveWorkspace(fallbackWorkspace)
@@ -193,7 +193,7 @@ export function SidebarNew() {
     } finally {
       setIsWorkspacesLoading(false)
     }
-  }, []) // Remove workspaceId and router dependencies
+  }, [])
 
   /**
    * Update workspace name both in API and local state
@@ -232,6 +232,7 @@ export function SidebarNew() {
 
   /**
    * Switch to a different workspace
+   * Uses refs for activeWorkspace and router to avoid unnecessary recreations
    */
   const switchWorkspace = useCallback(
     async (workspace: Workspace) => {
@@ -249,7 +250,7 @@ export function SidebarNew() {
         logger.error('Error switching workspace:', error)
       }
     },
-    [switchToWorkspace] // Removed activeWorkspace and router dependencies
+    [switchToWorkspace]
   )
 
   /**
@@ -421,13 +422,16 @@ export function SidebarNew() {
     [fetchWorkspaces, refreshWorkspaceList, workspaces, switchWorkspace, sessionData?.user?.id]
   )
 
-  // Initialize workspace data on mount (uses full validation with URL handling)
+  /**
+   * Initialize workspace data on mount (uses full validation with URL handling)
+   * fetchWorkspaces is stable (empty deps array), so it's safe to call without including it
+   */
   useEffect(() => {
     if (sessionData?.user?.id && !isInitializedRef.current) {
       isInitializedRef.current = true
       fetchWorkspaces()
     }
-  }, [sessionData?.user?.id]) // Removed fetchWorkspaces dependency
+  }, [sessionData?.user?.id, fetchWorkspaces])
 
   /**
    * Validate workspace exists before making API calls
@@ -441,7 +445,9 @@ export function SidebarNew() {
     }
   }, [])
 
-  // Load workflows for the current workspace when workspaceId changes
+  /**
+   * Load workflows for the current workspace when workspaceId changes
+   */
   useEffect(() => {
     if (workspaceId) {
       // Validate workspace exists before loading workflows
@@ -454,29 +460,7 @@ export function SidebarNew() {
         }
       })
     }
-  }, [workspaceId, loadWorkflows]) // Removed isWorkspaceValid and fetchWorkspaces dependencies
-
-  /**
-   * Handles mouse move during resize
-   */
-  const handleMouseMove = useCallback(
-    (e: MouseEvent) => {
-      if (!isResizing) return
-
-      const newWidth = e.clientX
-      if (newWidth >= MIN_WIDTH && newWidth <= MAX_WIDTH) {
-        setSidebarWidth(newWidth)
-      }
-    },
-    [isResizing, setSidebarWidth]
-  )
-
-  /**
-   * Handles mouse up to stop resizing
-   */
-  const handleMouseUp = useCallback(() => {
-    setIsResizing(false)
-  }, [])
+  }, [workspaceId, loadWorkflows, isWorkspaceValid, fetchWorkspaces])
 
   /**
    * Handles mouse down on resize handle
@@ -485,18 +469,28 @@ export function SidebarNew() {
     setIsResizing(true)
   }, [])
 
+  /**
+   * Setup resize event listeners and body styles when resizing
+   * Cleanup is handled automatically by the effect's return function
+   */
   useEffect(() => {
-    if (isResizing) {
-      document.addEventListener('mousemove', handleMouseMove)
-      document.addEventListener('mouseup', handleMouseUp)
-      document.body.style.cursor = 'ew-resize'
-      document.body.style.userSelect = 'none'
-    } else {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
+    if (!isResizing) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = e.clientX
+      if (newWidth >= MIN_WIDTH && newWidth <= MAX_WIDTH) {
+        setSidebarWidth(newWidth)
+      }
     }
+
+    const handleMouseUp = () => {
+      setIsResizing(false)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    document.body.style.cursor = 'ew-resize'
+    document.body.style.userSelect = 'none'
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove)
@@ -504,7 +498,7 @@ export function SidebarNew() {
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
     }
-  }, [isResizing, handleMouseMove, handleMouseUp])
+  }, [isResizing, setSidebarWidth])
 
   /**
    * Create workflow handler - creates workflow and navigates to it
@@ -558,6 +552,13 @@ export function SidebarNew() {
     }
   }, [createFolder, workspaceId, isCreatingFolder])
 
+  /**
+   * Handle import workflow button click
+   */
+  const handleImportWorkflow = useCallback(() => {
+    fileInputRef.current?.click()
+  }, [])
+
   return (
     <>
       <aside
@@ -565,9 +566,9 @@ export function SidebarNew() {
         className='sidebar-container fixed inset-y-0 left-0 z-10 overflow-hidden dark:bg-[#1E1E1E]'
         aria-label='Workspace sidebar'
       >
-        <div className='h-full border-r px-[8px] pt-[14px] pb-[10px] dark:border-[#2C2C2C]'>
+        <div className='flex h-full flex-col border-r pt-[14px] dark:border-[#2C2C2C]'>
           {/* Header */}
-          <div className='flex items-center justify-between gap-[8px] px-[8px]'>
+          <div className='flex flex-shrink-0 items-center justify-between gap-[8px] px-[14px]'>
             {/* Workspace Name */}
             <div className='flex min-w-0 items-center gap-[8px]'>
               <h2
@@ -604,7 +605,7 @@ export function SidebarNew() {
           </div> */}
 
           {/* Search */}
-          <div className='mt-[14px] flex cursor-pointer items-center justify-between rounded-[8px] bg-[#272727] px-[8px] py-[7px] dark:bg-[#272727]'>
+          <div className='mx-[8px] mt-[14px] flex flex-shrink-0 cursor-pointer items-center justify-between rounded-[8px] bg-[#272727] px-[6px] py-[7px] dark:bg-[#272727]'>
             <div className='flex items-center gap-[6px]'>
               <Search className='h-[16px] w-[16px] text-[#7D7D7D] dark:text-[#7D7D7D]' />
               <p className='translate-y-[0.25px] font-medium text-[#B1B1B1] text-small dark:text-[#B1B1B1]'>
@@ -615,15 +616,59 @@ export function SidebarNew() {
           </div>
 
           {/* Workflows */}
-          <div className='mt-[14px]'>
-            <WorkflowList
-              regularWorkflows={regularWorkflows}
-              isLoading={isLoading}
-              onCreateWorkflow={handleCreateWorkflow}
-              onCreateFolder={handleCreateFolder}
-              isCreatingWorkflow={isCreatingWorkflow}
-              isCreatingFolder={isCreatingFolder}
-            />
+          <div className='workflows-section relative mt-[14px] flex flex-1 flex-col overflow-hidden'>
+            {/* Header - Always visible */}
+            <div className='flex flex-shrink-0 flex-col space-y-[4px] px-[14px]'>
+              <div className='flex items-center justify-between'>
+                <div className='font-medium text-[#AEAEAE] text-small dark:text-[#AEAEAE]'>
+                  Workflows
+                </div>
+                <div className='flex items-center justify-center gap-[10px]'>
+                  <Button
+                    variant='default'
+                    className='translate-y-[-0.25px] p-[1px]'
+                    onClick={handleImportWorkflow}
+                    disabled={isImporting}
+                    title={isImporting ? 'Importing workflow...' : 'Import workflow from JSON'}
+                  >
+                    <ArrowDown className='h-[14px] w-[14px]' />
+                  </Button>
+                  <Button
+                    variant='default'
+                    className='mr-[1px] translate-y-[-0.25px] p-[1px]'
+                    onClick={handleCreateFolder}
+                    disabled={isCreatingFolder}
+                    title={isCreatingFolder ? 'Creating folder...' : 'Create new folder'}
+                  >
+                    <FolderPlus className='h-[14px] w-[14px]' />
+                  </Button>
+                  <Button
+                    variant='outline'
+                    className='translate-y-[-0.25px] p-[1px]'
+                    onClick={handleCreateWorkflow}
+                    disabled={isCreatingWorkflow}
+                    title={isCreatingWorkflow ? 'Creating workflow...' : 'Create new workflow'}
+                  >
+                    <Plus className='h-[14px] w-[14px]' />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Scrollable workflow list */}
+            <div className='mt-[4px] flex-1 overflow-y-auto overflow-x-hidden px-[8px]'>
+              <WorkflowList
+                regularWorkflows={regularWorkflows}
+                isLoading={isLoading}
+                isImporting={isImporting}
+                setIsImporting={setIsImporting}
+                fileInputRef={fileInputRef}
+              />
+            </div>
+
+            {/* Triggers and Blocks sections - absolutely positioned overlays */}
+            <Triggers disabled={isLoading} />
+            <Blocks disabled={isLoading} />
           </div>
         </div>
       </aside>

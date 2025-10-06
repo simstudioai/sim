@@ -87,7 +87,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name='format-detection' content='telephone=no' />
         <meta httpEquiv='x-ua-compatible' content='ie=edge' />
 
-        {/* Blocking script to prevent sidebar width flash on page load */}
+        {/* Blocking script to prevent sidebar dimensions flash on page load */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -96,13 +96,31 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   var stored = localStorage.getItem('sidebar-state');
                   if (stored) {
                     var parsed = JSON.parse(stored);
-                    var width = parsed?.state?.sidebarWidth;
+                    var state = parsed?.state;
+                    
+                    // Set sidebar width
+                    var width = state?.sidebarWidth;
                     if (width >= 232 && width <= 400) {
                       document.documentElement.style.setProperty('--sidebar-width', width + 'px');
                     }
+                    
+                    // Set triggers height with constraint validation
+                    var triggersHeight = state?.triggersHeight;
+                    var blocksHeight = state?.blocksHeight;
+                    
+                    if (blocksHeight !== undefined && blocksHeight >= 28 && blocksHeight <= 500) {
+                      document.documentElement.style.setProperty('--blocks-height', blocksHeight + 'px');
+                    }
+                    
+                    if (triggersHeight !== undefined && triggersHeight >= 28 && triggersHeight <= 500) {
+                      // Ensure triggers height respects blocks constraint
+                      var minTriggersHeight = (blocksHeight || 200) + 28;
+                      var validTriggersHeight = Math.max(triggersHeight, minTriggersHeight);
+                      document.documentElement.style.setProperty('--triggers-height', validTriggersHeight + 'px');
+                    }
                   }
                 } catch (e) {
-                  // Fallback handled by CSS default
+                  // Fallback handled by CSS defaults
                 }
               })();
             `,

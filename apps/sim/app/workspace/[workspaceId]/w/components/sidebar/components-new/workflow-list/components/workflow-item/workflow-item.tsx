@@ -65,7 +65,7 @@ export function WorkflowItem({ workflow, active, level }: WorkflowItemProps) {
     <Link
       href={`/workspace/${workspaceId}/w/${workflow.id}`}
       className={clsx(
-        'group flex h-[25px] items-center gap-[8px] rounded-[8px] px-[5px] text-[14px]',
+        'group flex h-[25px] items-center gap-[8px] rounded-[8px] px-[5.5px] text-[14px]',
         active ? 'bg-[#2C2C2C] dark:bg-[#2C2C2C]' : 'hover:bg-[#2C2C2C] dark:hover:bg-[#2C2C2C]',
         isSelected && selectedWorkflows.size > 1 && !active ? 'bg-[#2C2C2C] dark:bg-[#2C2C2C]' : '',
         isDragging ? 'opacity-50' : ''

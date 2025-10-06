@@ -5,8 +5,6 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('WorkflowList:DragDrop')
 
-const MAX_NESTING_LEVELS = 2
-
 /**
  * Custom hook for handling drag and drop operations for workflows and folders
  */
@@ -49,13 +47,6 @@ export function useDragDrop() {
           draggedFolderPath.some((ancestor) => ancestor.id === targetFolderId)
         ) {
           logger.info('Cannot move folder into its own descendant')
-          return
-        }
-
-        // Validate nesting level
-        const targetFolderPath = targetFolderId ? folderStore.getFolderPath(targetFolderId) : []
-        if (targetFolderPath.length >= MAX_NESTING_LEVELS) {
-          logger.info(`Maximum ${MAX_NESTING_LEVELS} levels of nesting allowed`)
           return
         }
 
