@@ -19,7 +19,8 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
     pathname.startsWith('/invite') ||
     pathname.startsWith('/verify') ||
     pathname.startsWith('/changelog') ||
-    pathname.startsWith('/chat')
+    pathname.startsWith('/chat') ||
+    pathname.startsWith('/building')
       ? 'light'
       : undefined
 
