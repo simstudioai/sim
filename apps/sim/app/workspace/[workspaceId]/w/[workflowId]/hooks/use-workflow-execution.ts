@@ -44,6 +44,56 @@ interface DebugValidationResult {
   error?: string
 }
 
+const WORKFLOW_EXECUTION_FAILURE_MESSAGE = 'Workflow execution failed'
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function sanitizeMessage(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  if (!trimmed || trimmed === 'undefined (undefined)') return undefined
+  return trimmed
+}
+
+function normalizeErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    const message = sanitizeMessage(error.message)
+    if (message) return message
+  } else if (typeof error === 'string') {
+    const message = sanitizeMessage(error)
+    if (message) return message
+  }
+
+  if (isRecord(error)) {
+    const directMessage = sanitizeMessage(error.message)
+    if (directMessage) return directMessage
+
+    const nestedError = error.error
+    if (isRecord(nestedError)) {
+      const nestedMessage = sanitizeMessage(nestedError.message)
+      if (nestedMessage) return nestedMessage
+    } else {
+      const nestedMessage = sanitizeMessage(nestedError)
+      if (nestedMessage) return nestedMessage
+    }
+  }
+
+  return WORKFLOW_EXECUTION_FAILURE_MESSAGE
+}
+
+function isExecutionResult(value: unknown): value is ExecutionResult {
+  if (!isRecord(value)) return false
+  return typeof value.success === 'boolean' && isRecord(value.output)
+}
+
+function extractExecutionResult(error: unknown): ExecutionResult | null {
+  if (!isRecord(error)) return null
+  const candidate = error.executionResult
+  return isExecutionResult(candidate) ? candidate : null
+}
+
 export function useWorkflowExecution() {
   const currentWorkflow = useCurrentWorkflow()
   const { activeWorkflowId, workflows } = useWorkflowRegistry()
@@ -862,74 +912,56 @@ export function useWorkflowExecution() {
     return newExecutor.execute(activeWorkflowId || '', startBlockId)
   }
 
-  const handleExecutionError = (error: any, options?: { executionId?: string }) => {
-    let errorMessage = 'Unknown error'
-    if (error instanceof Error) {
-      errorMessage = error.message || `Error: ${String(error)}`
-    } else if (typeof error === 'string') {
-      errorMessage = error
-    } else if (error && typeof error === 'object') {
-      if (
-        error.message === 'undefined (undefined)' ||
-        (error.error &&
-          typeof error.error === 'object' &&
-          error.error.message === 'undefined (undefined)')
-      ) {
-        errorMessage = 'API request failed - no specific error details available'
-      } else if (error.message) {
-        errorMessage = error.message
-      } else if (error.error && typeof error.error === 'string') {
-        errorMessage = error.error
-      } else if (error.error && typeof error.error === 'object' && error.error.message) {
-        errorMessage = error.error.message
-      } else {
-        try {
-          errorMessage = `Error details: ${JSON.stringify(error)}`
-        } catch {
-          errorMessage = 'Error occurred but details could not be displayed'
-        }
+  const handleExecutionError = (error: unknown, options?: { executionId?: string }) => {
+    const normalizedMessage = normalizeErrorMessage(error)
+    const executionResultFromError = extractExecutionResult(error)
+
+    let errorResult: ExecutionResult
+
+    if (executionResultFromError) {
+      const logs = Array.isArray(executionResultFromError.logs) ? executionResultFromError.logs : []
+
+      errorResult = {
+        ...executionResultFromError,
+        success: false,
+        error: executionResultFromError.error ?? normalizedMessage,
+        logs,
       }
-    }
+    } else {
+      if (!executor) {
+        try {
+          let blockId = 'serialization'
+          let blockName = 'Workflow'
+          let blockType = 'serializer'
+          if (error instanceof WorkflowValidationError) {
+            blockId = error.blockId || blockId
+            blockName = error.blockName || blockName
+            blockType = error.blockType || blockType
+          }
 
-    if (errorMessage === 'undefined (undefined)') {
-      errorMessage = 'API request failed - no specific error details available'
-    }
+          useConsoleStore.getState().addConsole({
+            input: {},
+            output: {},
+            success: false,
+            error: normalizedMessage,
+            durationMs: 0,
+            startedAt: new Date().toISOString(),
+            endedAt: new Date().toISOString(),
+            workflowId: activeWorkflowId || '',
+            blockId,
+            executionId: options?.executionId,
+            blockName,
+            blockType,
+          })
+        } catch {}
+      }
 
-    // If we failed before creating an executor (e.g., serializer validation), add a console entry
-    if (!executor) {
-      try {
-        // Prefer attributing to specific subflow if we have a structured error
-        let blockId = 'serialization'
-        let blockName = 'Workflow'
-        let blockType = 'serializer'
-        if (error instanceof WorkflowValidationError) {
-          blockId = error.blockId || blockId
-          blockName = error.blockName || blockName
-          blockType = error.blockType || blockType
-        }
-
-        useConsoleStore.getState().addConsole({
-          input: {},
-          output: {},
-          success: false,
-          error: errorMessage,
-          durationMs: 0,
-          startedAt: new Date().toISOString(),
-          endedAt: new Date().toISOString(),
-          workflowId: activeWorkflowId || '',
-          blockId,
-          executionId: options?.executionId,
-          blockName,
-          blockType,
-        })
-      } catch {}
-    }
-
-    const errorResult: ExecutionResult = {
-      success: false,
-      output: {},
-      error: errorMessage,
-      logs: [],
+      errorResult = {
+        success: false,
+        output: {},
+        error: normalizedMessage,
+        logs: [],
+      }
     }
 
     setExecutionResult(errorResult)
@@ -937,16 +969,14 @@ export function useWorkflowExecution() {
     setIsDebugging(false)
     setActiveBlocks(new Set())
 
-    let notificationMessage = 'Workflow execution failed'
-    if (error?.request?.url) {
-      if (error.request.url && error.request.url.trim() !== '') {
-        notificationMessage += `: Request to ${error.request.url} failed`
-        if (error.status) {
-          notificationMessage += ` (Status: ${error.status})`
-        }
+    let notificationMessage = WORKFLOW_EXECUTION_FAILURE_MESSAGE
+    if (isRecord(error) && isRecord(error.request) && sanitizeMessage(error.request.url)) {
+      notificationMessage += `: Request to ${(error.request.url as string).trim()} failed`
+      if ('status' in error && typeof error.status === 'number') {
+        notificationMessage += ` (Status: ${error.status})`
       }
-    } else {
-      notificationMessage += `: ${errorMessage}`
+    } else if (sanitizeMessage(errorResult.error)) {
+      notificationMessage += `: ${errorResult.error}`
     }
 
     return errorResult

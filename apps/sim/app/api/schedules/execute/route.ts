@@ -446,6 +446,7 @@ export async function GET() {
                     message: `Schedule execution failed before workflow started: ${earlyError.message}`,
                     stackTrace: earlyError.stack,
                   },
+                  traceSpans: [],
                 })
               } catch (loggingError) {
                 logger.error(
@@ -565,6 +566,7 @@ export async function GET() {
                   message: `Schedule execution failed: ${error.message}`,
                   stackTrace: error.stack,
                 },
+                traceSpans: [],
               })
             } catch (loggingError) {
               logger.error(

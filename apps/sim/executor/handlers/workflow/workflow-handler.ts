@@ -1,16 +1,28 @@
 import { generateInternalToken } from '@/lib/auth/internal'
 import { createLogger } from '@/lib/logs/console/logger'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import type { TraceSpan } from '@/lib/logs/types'
 import { getBaseUrl } from '@/lib/urls/utils'
 import type { BlockOutput } from '@/blocks/types'
 import { Executor } from '@/executor'
 import { BlockType } from '@/executor/consts'
-import type { BlockHandler, ExecutionContext, StreamingExecution } from '@/executor/types'
+import type {
+  BlockHandler,
+  ExecutionContext,
+  ExecutionResult,
+  StreamingExecution,
+} from '@/executor/types'
 import { Serializer } from '@/serializer'
 import type { SerializedBlock } from '@/serializer/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('WorkflowBlockHandler')
+
+type WorkflowTraceSpan = TraceSpan & {
+  metadata?: Record<string, unknown>
+  children?: WorkflowTraceSpan[]
+  output?: (Record<string, unknown> & { childTraceSpans?: WorkflowTraceSpan[] }) | null
+}
 
 // Maximum allowed depth for nested workflow executions
 const MAX_WORKFLOW_DEPTH = 10
@@ -125,13 +137,19 @@ export class WorkflowBlockHandler implements BlockHandler {
       // Use the actual child workflow ID for authentication, not the execution ID
       // This ensures knowledge base and other API calls can properly authenticate
       const result = await subExecutor.execute(workflowId)
+      const executionResult = this.toExecutionResult(result)
       const duration = performance.now() - startTime
 
       logger.info(`Child workflow ${childWorkflowName} completed in ${Math.round(duration)}ms`)
 
-      const childTraceSpans = this.captureChildWorkflowLogs(result, childWorkflowName, context)
+      const childTraceSpans = this.captureChildWorkflowLogs(
+        executionResult,
+        childWorkflowName,
+        context
+      )
+
       const mappedResult = this.mapChildOutputToParent(
-        result,
+        executionResult,
         workflowId,
         childWorkflowName,
         duration,
@@ -146,6 +164,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         // Attach trace spans and name for higher-level logging to consume
         errorWithSpans.childTraceSpans = childTraceSpans
         errorWithSpans.childWorkflowName = childWorkflowName
+        errorWithSpans.executionResult = executionResult
         throw errorWithSpans
       }
 
@@ -162,7 +181,19 @@ export class WorkflowBlockHandler implements BlockHandler {
         throw error // Re-throw as-is to avoid duplication
       }
 
-      throw new Error(`Error in child workflow "${childWorkflowName}": ${originalError}`)
+      const wrappedError = new Error(
+        `Error in child workflow "${childWorkflowName}": ${originalError}`
+      ) as any
+      if (error.childTraceSpans) {
+        wrappedError.childTraceSpans = error.childTraceSpans
+      }
+      if (error.childWorkflowName) {
+        wrappedError.childWorkflowName = error.childWorkflowName
+      }
+      if (error.executionResult) {
+        wrappedError.executionResult = error.executionResult
+      }
+      throw wrappedError
     }
   }
 
@@ -318,10 +349,10 @@ export class WorkflowBlockHandler implements BlockHandler {
    * Captures and transforms child workflow logs into trace spans
    */
   private captureChildWorkflowLogs(
-    childResult: any,
+    childResult: ExecutionResult,
     childWorkflowName: string,
     parentContext: ExecutionContext
-  ): any[] {
+  ): WorkflowTraceSpan[] {
     try {
       if (!childResult.logs || !Array.isArray(childResult.logs)) {
         return []
@@ -333,9 +364,15 @@ export class WorkflowBlockHandler implements BlockHandler {
         return []
       }
 
-      const transformedSpans = traceSpans.map((span: any) => {
-        return this.transformSpanForChildWorkflow(span, childWorkflowName)
-      })
+      const processedSpans = this.processChildWorkflowSpans(traceSpans)
+
+      if (processedSpans.length === 0) {
+        return []
+      }
+
+      const transformedSpans = processedSpans.map((span) =>
+        this.transformSpanForChildWorkflow(span, childWorkflowName)
+      )
 
       return transformedSpans
     } catch (error) {
@@ -347,31 +384,101 @@ export class WorkflowBlockHandler implements BlockHandler {
   /**
    * Transforms trace span for child workflow context
    */
-  private transformSpanForChildWorkflow(span: any, childWorkflowName: string): any {
-    const transformedSpan = {
+  private transformSpanForChildWorkflow(
+    span: WorkflowTraceSpan,
+    childWorkflowName: string
+  ): WorkflowTraceSpan {
+    const metadata: Record<string, unknown> = {
+      ...(span.metadata ?? {}),
+      isFromChildWorkflow: true,
+      childWorkflowName,
+    }
+
+    const transformedChildren = Array.isArray(span.children)
+      ? span.children.map((childSpan) =>
+          this.transformSpanForChildWorkflow(childSpan, childWorkflowName)
+        )
+      : undefined
+
+    return {
       ...span,
       name: this.cleanChildSpanName(span.name, childWorkflowName),
-      metadata: {
-        ...span.metadata,
-        isFromChildWorkflow: true,
-        childWorkflowName,
-      },
+      metadata,
+      ...(transformedChildren ? { children: transformedChildren } : {}),
     }
+  }
 
-    if (span.children && Array.isArray(span.children)) {
-      transformedSpan.children = span.children.map((childSpan: any) =>
-        this.transformSpanForChildWorkflow(childSpan, childWorkflowName)
-      )
-    }
+  private processChildWorkflowSpans(spans: TraceSpan[]): WorkflowTraceSpan[] {
+    const processed: WorkflowTraceSpan[] = []
 
-    if (span.output?.childTraceSpans) {
-      transformedSpan.output = {
-        ...transformedSpan.output,
-        childTraceSpans: span.output.childTraceSpans,
+    spans.forEach((span) => {
+      if (this.isSyntheticWorkflowWrapper(span)) {
+        if (span.children && Array.isArray(span.children)) {
+          processed.push(...this.processChildWorkflowSpans(span.children))
+        }
+        return
       }
-    }
 
-    return transformedSpan
+      const workflowSpan: WorkflowTraceSpan = {
+        ...span,
+      }
+
+      if (Array.isArray(workflowSpan.children)) {
+        workflowSpan.children = this.processChildWorkflowSpans(workflowSpan.children as TraceSpan[])
+      }
+
+      processed.push(workflowSpan)
+    })
+
+    return processed
+  }
+
+  private flattenChildWorkflowSpans(spans: TraceSpan[]): WorkflowTraceSpan[] {
+    const flattened: WorkflowTraceSpan[] = []
+
+    spans.forEach((span) => {
+      if (this.isSyntheticWorkflowWrapper(span)) {
+        if (span.children && Array.isArray(span.children)) {
+          flattened.push(...this.flattenChildWorkflowSpans(span.children))
+        }
+        return
+      }
+
+      const workflowSpan: WorkflowTraceSpan = {
+        ...span,
+      }
+
+      if (Array.isArray(workflowSpan.children)) {
+        const childSpans = workflowSpan.children as TraceSpan[]
+        workflowSpan.children = this.flattenChildWorkflowSpans(childSpans)
+      }
+
+      if (workflowSpan.output && typeof workflowSpan.output === 'object') {
+        const { childTraceSpans: nestedChildSpans, ...outputRest } = workflowSpan.output as {
+          childTraceSpans?: TraceSpan[]
+        } & Record<string, unknown>
+
+        if (Array.isArray(nestedChildSpans) && nestedChildSpans.length > 0) {
+          const flattenedNestedChildren = this.flattenChildWorkflowSpans(nestedChildSpans)
+          workflowSpan.children = [...(workflowSpan.children || []), ...flattenedNestedChildren]
+        }
+
+        workflowSpan.output = outputRest
+      }
+
+      flattened.push(workflowSpan)
+    })
+
+    return flattened
+  }
+
+  private toExecutionResult(result: ExecutionResult | StreamingExecution): ExecutionResult {
+    return 'execution' in result ? result.execution : result
+  }
+
+  private isSyntheticWorkflowWrapper(span: TraceSpan | undefined): boolean {
+    if (!span || span.type !== 'workflow') return false
+    return !span.blockId
   }
 
   /**
@@ -403,11 +510,11 @@ export class WorkflowBlockHandler implements BlockHandler {
    * Maps child workflow output to parent block output
    */
   private mapChildOutputToParent(
-    childResult: any,
+    childResult: ExecutionResult,
     childWorkflowId: string,
     childWorkflowName: string,
     duration: number,
-    childTraceSpans?: any[]
+    childTraceSpans?: WorkflowTraceSpan[]
   ): BlockOutput {
     const success = childResult.success !== false
     if (!success) {

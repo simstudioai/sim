@@ -192,6 +192,9 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
       stack: error.stack,
     })
 
+    const executionResult = error?.executionResult || { success: false, output: {}, logs: [] }
+    const { traceSpans } = buildTraceSpans(executionResult)
+
     await loggingSession.safeCompleteWithError({
       endedAt: new Date().toISOString(),
       totalDurationMs: 0,
@@ -199,6 +202,7 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
         message: error.message || 'Workflow execution failed',
         stackTrace: error.stack,
       },
+      traceSpans,
     })
 
     throw error

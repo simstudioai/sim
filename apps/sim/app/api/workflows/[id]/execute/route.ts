@@ -23,6 +23,7 @@ import {
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { Executor } from '@/executor'
+import type { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import { RateLimitError, RateLimiter, type TriggerType } from '@/services/queue'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
@@ -354,6 +355,13 @@ async function executeWorkflow(
   } catch (error: any) {
     logger.error(`[${requestId}] Workflow execution failed: ${workflowId}`, error)
 
+    const executionResultForError = (error?.executionResult as ExecutionResult | undefined) || {
+      success: false,
+      output: {},
+      logs: [],
+    }
+    const { traceSpans } = buildTraceSpans(executionResultForError)
+
     await loggingSession.safeCompleteWithError({
       endedAt: new Date().toISOString(),
       totalDurationMs: 0,
@@ -361,6 +369,7 @@ async function executeWorkflow(
         message: error.message || 'Workflow execution failed',
         stackTrace: error.stack,
       },
+      traceSpans,
     })
 
     throw error
