@@ -6,13 +6,14 @@
  *
  */
 import posthog from 'posthog-js'
-import { env, getEnv, isTruthy } from './lib/env'
+import { env, isTruthy } from './lib/env'
 
 // Initialize PostHog only if explicitly enabled
-if (isTruthy(getEnv('NEXT_PUBLIC_POSTHOG_ENABLED')) && getEnv('NEXT_PUBLIC_POSTHOG_KEY')) {
-  posthog.init(getEnv('NEXT_PUBLIC_POSTHOG_KEY')!, {
+if (isTruthy(process.env.NEXT_PUBLIC_POSTHOG_ENABLED) && process.env.NEXT_PUBLIC_POSTHOG_KEY) {
+  posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY!, {
     api_host: '/ingest',
     ui_host: 'https://us.posthog.com',
+    defaults: '2025-05-24',
     person_profiles: 'identified_only',
     capture_pageview: true,
     capture_pageleave: true,
