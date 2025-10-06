@@ -265,9 +265,8 @@ async function handleS3PresignedUrl(
       )
     }
 
-    // For chat images, knowledge base files, and profile pictures, use direct URLs since they need to be accessible by external services
     const finalPath =
-      uploadType === 'chat' || uploadType === 'knowledge-base' || uploadType === 'profile-pictures'
+      uploadType === 'chat' || uploadType === 'profile-pictures'
         ? `https://${config.bucket}.s3.${config.region}.amazonaws.com/${uniqueKey}`
         : `/api/files/serve/s3/${encodeURIComponent(uniqueKey)}`
 
