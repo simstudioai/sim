@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { soehne } from '@/app/fonts/soehne/soehne'
 
 /**
@@ -139,27 +140,32 @@ export default function OpenAiN8nSim() {
                 OpenAI AgentKit vs n8n vs Sim: AI Agent Workflow Builder Comparison
               </h1>
               <div className='mt-4 hidden items-center justify-end gap-2 sm:flex'>
-                <Image
-                  src='/building/openai-vs-n8n-vs-sim/emir-karabeg.png'
-                  alt='Emir Karabeg'
-                  width={24}
-                  height={24}
-                  className='rounded-full'
-                />
-                <p className='text-[14px] text-gray-600 leading-[1.5] sm:text-[16px]'>
-                  Written by{' '}
-                  <a
-                    href='https://x.com/karabegemir'
-                    target='_blank'
-                    rel='noopener noreferrer author'
-                    className='text-gray-600 hover:text-gray-900'
-                    itemProp='author'
-                    itemScope
-                    itemType='https://schema.org/Person'
-                  >
-                    <span itemProp='name'>Emir Karabeg</span>
-                  </a>
-                </p>
+                <a
+                  href='https://x.com/karabegemir'
+                  target='_blank'
+                  rel='noopener noreferrer author'
+                  aria-label='@karabegemir on X'
+                  className='block'
+                >
+                  <Avatar className='size-6'>
+                    <AvatarImage
+                      src='/building/openai-vs-n8n-vs-sim/emir-karabeg.png'
+                      alt='Emir Karabeg'
+                    />
+                    <AvatarFallback>EK</AvatarFallback>
+                  </Avatar>
+                </a>
+                <a
+                  href='https://x.com/karabegemir'
+                  target='_blank'
+                  rel='noopener noreferrer author'
+                  className='text-[14px] text-gray-600 leading-[1.5] hover:text-gray-900 sm:text-[16px]'
+                  itemProp='author'
+                  itemScope
+                  itemType='https://schema.org/Person'
+                >
+                  <span itemProp='name'>Emir Karabeg</span>
+                </a>
               </div>
             </div>
           </div>
@@ -180,24 +186,29 @@ export default function OpenAiN8nSim() {
               </time>
               <meta itemProp='dateModified' content='2025-10-06T00:00:00.000Z' />
               <div className='flex items-center gap-2 sm:hidden'>
-                <Image
-                  src='/building/openai-vs-n8n-vs-sim/emir-karabeg.png'
-                  alt='Emir Karabeg'
-                  width={24}
-                  height={24}
-                  className='rounded-full'
-                />
-                <p className='text-[14px] text-gray-600 leading-[1.5]'>
-                  Written by{' '}
-                  <a
-                    href='https://x.com/karabegemir'
-                    target='_blank'
-                    rel='noopener noreferrer author'
-                    className='text-gray-600 hover:text-gray-900'
-                  >
-                    Emir Karabeg
-                  </a>
-                </p>
+                <a
+                  href='https://x.com/karabegemir'
+                  target='_blank'
+                  rel='noopener noreferrer author'
+                  aria-label='@karabegemir on X'
+                  className='block'
+                >
+                  <Avatar className='size-6'>
+                    <AvatarImage
+                      src='/building/openai-vs-n8n-vs-sim/emir-karabeg.png'
+                      alt='Emir Karabeg'
+                    />
+                    <AvatarFallback>EK</AvatarFallback>
+                  </Avatar>
+                </a>
+                <a
+                  href='https://x.com/karabegemir'
+                  target='_blank'
+                  rel='noopener noreferrer author'
+                  className='text-[14px] text-gray-600 leading-[1.5] hover:text-gray-900'
+                >
+                  Emir Karabeg
+                </a>
               </div>
             </div>
 
