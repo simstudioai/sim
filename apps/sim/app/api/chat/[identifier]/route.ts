@@ -128,12 +128,13 @@ export async function POST(
       const stream = await createStreamingResponse({
         requestId,
         workflow: { id: deployment.workflowId, userId: deployment.userId, isDeployed: true },
-        input: { input, conversationId }, // Format for chat_trigger
+        input: { input, conversationId }, // Chat trigger expects these at top level
         executingUserId: deployment.userId, // Use workflow owner's ID for chat deployments
         streamConfig: {
           selectedOutputIds,
           isSecureMode: true,
           workflowTriggerType: 'chat',
+          streamFormat: 'sse', // Chat deployments use SSE format for structured responses
         },
         createFilteredResult: createSecureFilteredResult,
       })

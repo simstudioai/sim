@@ -300,20 +300,13 @@ export async function executeWorkflow(
     // - 'api': For direct API execution (looks for api_trigger block)
     // streamConfig is passed from POST handler when using streaming/chat
     const preferredTriggerType = streamConfig?.workflowTriggerType || 'api'
-    let startBlock = TriggerUtils.findStartBlock(mergedStates, preferredTriggerType, false)
-
-    // If no trigger found and we were looking for API trigger, try chat trigger as fallback
-    if (!startBlock && preferredTriggerType === 'api') {
-      logger.debug(`[${requestId}] No API trigger found, trying chat trigger as fallback`)
-      startBlock = TriggerUtils.findStartBlock(mergedStates, 'chat', false)
-      if (startBlock) {
-        logger.debug(`[${requestId}] Using chat trigger for API execution`)
-      }
-    }
+    const startBlock = TriggerUtils.findStartBlock(mergedStates, preferredTriggerType, false)
 
     if (!startBlock) {
       const errorMsg =
-        'No trigger block configured for this workflow. Add an API Trigger or Chat Trigger block.'
+        preferredTriggerType === 'api'
+          ? 'No API trigger block found. Add an API Trigger block to this workflow.'
+          : 'No trigger block configured for this workflow.'
       logger.error(`[${requestId}] ${errorMsg}`)
       throw new Error(errorMsg)
     }
@@ -581,8 +574,8 @@ export async function POST(
       parsedBody.selectedOutputIds ||
       (selectedOutputsHeader ? JSON.parse(selectedOutputsHeader) : undefined)
 
-    // Get stream format (default to 'sse', or 'text' for plain text streaming)
-    const streamFormat: 'sse' | 'text' = parsedBody.streamFormat || 'sse'
+    // Get stream format (default to 'text', or 'sse' for JSON-wrapped SSE streaming)
+    const streamFormat: 'text' | 'sse' = parsedBody.streamFormat || 'text'
 
     // Get workflow trigger type (from body for internal calls, or infer from secure mode)
     const workflowTriggerType =
@@ -856,10 +849,13 @@ export async function POST(
           },
         })
 
+        // Set Content-Type based on format
+        const contentType =
+          streamFormat === 'sse' ? 'text/event-stream' : 'text/plain; charset=utf-8'
         return new NextResponse(stream, {
           status: 200,
           headers: {
-            'Content-Type': 'text/event-stream',
+            'Content-Type': contentType,
             'Cache-Control': 'no-cache',
             Connection: 'keep-alive',
             'X-Accel-Buffering': 'no',

@@ -12,7 +12,7 @@ export interface StreamingConfig {
   selectedOutputIds?: string[]
   isSecureMode?: boolean
   workflowTriggerType?: 'api' | 'chat'
-  streamFormat?: 'sse' | 'text' // 'sse' = JSON-wrapped SSE (default), 'text' = plain text only
+  streamFormat?: 'text' | 'sse' // 'text' = plain text (default), 'sse' = JSON-wrapped SSE
   onStream?: (streamingExec: any) => Promise<void>
 }
 
@@ -39,7 +39,7 @@ export async function createStreamingResponse(
   const { processStreamingBlockLogs } = await import('@/lib/tokenization')
 
   const encoder = new TextEncoder()
-  const streamFormat = streamConfig.streamFormat || 'sse' // Default to SSE JSON format
+  const streamFormat = streamConfig.streamFormat || 'text' // Default to plain text format
 
   return new ReadableStream({
     async start(controller) {
@@ -70,16 +70,13 @@ export async function createStreamingResponse(
               // Decode the raw text chunk from the agent
               const textChunk = decoder.decode(value, { stream: true })
 
-              // Accumulate for logs/output
+              // Accumulate for final event
               streamedContent.set(blockId, (streamedContent.get(blockId) || '') + textChunk)
 
               // Format based on streamFormat
               if (streamFormat === 'text') {
                 // Plain text streaming - just send raw text
                 controller.enqueue(encoder.encode(textChunk))
-                logger.debug(
-                  `[${requestId}] Forwarded plain text chunk ${chunkCount} (${textChunk.length} chars) to client`
-                )
               } else {
                 // SSE JSON format - wrap in JSON with blockId
                 const sseData = {
@@ -88,9 +85,6 @@ export async function createStreamingResponse(
                 }
                 const sseMessage = `data: ${JSON.stringify(sseData)}\n\n`
                 controller.enqueue(encoder.encode(sseMessage))
-                logger.debug(
-                  `[${requestId}] Forwarded SSE chunk ${chunkCount} (${textChunk.length} chars) to client`
-                )
               }
             }
           } catch (streamError) {
