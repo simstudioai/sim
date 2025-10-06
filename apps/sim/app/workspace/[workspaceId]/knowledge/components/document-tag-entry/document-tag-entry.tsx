@@ -25,11 +25,17 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui'
-import { MAX_TAG_SLOTS, type TagSlot } from '@/lib/knowledge/consts'
+import {
+  FIELD_TYPE_METADATA,
+  MAX_TAG_SLOTS,
+  SUPPORTED_FIELD_TYPES,
+  type TagSlot,
+} from '@/lib/knowledge/consts'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
 import { useNextAvailableSlot } from '@/hooks/use-next-available-slot'
 import { type TagDefinitionInput, useTagDefinitions } from '@/hooks/use-tag-definitions'
+import { TypedTagInput } from '../tag-input/typed-tag-input'
 
 const logger = createLogger('DocumentTagEntry')
 
@@ -66,7 +72,13 @@ export function DocumentTagEntry({
   const { saveTagDefinitions } = documentTagHook
   const { tagDefinitions: kbTagDefinitions, fetchTagDefinitions: refreshTagDefinitions } = kbTagHook
 
-  // Modal state for tag editing
+  const fieldTypes = SUPPORTED_FIELD_TYPES.map((fieldType) => ({
+    value: fieldType,
+    label: FIELD_TYPE_METADATA[fieldType].label,
+    description: FIELD_TYPE_METADATA[fieldType].description,
+    placeholder: FIELD_TYPE_METADATA[fieldType].placeholder,
+  }))
+
   const [editingTagIndex, setEditingTagIndex] = useState<number | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [editForm, setEditForm] = useState({
@@ -74,23 +86,19 @@ export function DocumentTagEntry({
     fieldType: 'text',
     value: '',
   })
+  const [isValueValid, setIsValueValid] = useState(true)
 
   const handleRemoveTag = async (index: number) => {
     const updatedTags = tags.filter((_, i) => i !== index)
     onTagsChange(updatedTags)
 
-    // Persist the changes if onSave is provided
     if (onSave) {
       try {
         await onSave(updatedTags)
-      } catch (error) {
-        // Handle error silently - the UI will show the optimistic update
-        // but the user can retry if needed
-      }
+      } catch (error) {}
     }
   }
 
-  // Open modal to edit tag
   const openTagModal = (index: number) => {
     const tag = tags[index]
     setEditingTagIndex(index)
@@ -102,7 +110,6 @@ export function DocumentTagEntry({
     setModalOpen(true)
   }
 
-  // Open modal to create new tag
   const openNewTagModal = () => {
     setEditingTagIndex(null)
     setEditForm({
@@ -113,7 +120,6 @@ export function DocumentTagEntry({
     setModalOpen(true)
   }
 
-  // Save tag from modal
   const saveTagFromModal = async () => {
     if (!editForm.displayName.trim() || !editForm.value.trim()) return
 
@@ -363,16 +369,23 @@ export function DocumentTagEntry({
                   value={editForm.displayName}
                   onChange={(e) => setEditForm({ ...editForm, displayName: e.target.value })}
                   placeholder='Enter tag name'
-                  className='flex-1'
+                  className='h-8 w-full rounded-[10px] border-[#E5E5E5] bg-[#FFFFFF] text-sm dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
                 />
                 {editingTagIndex === null && availableDefinitions.length > 0 && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant='outline' size='sm'>
+                      <Button
+                        variant='outline'
+                        size='sm'
+                        className='h-8 rounded-[10px] border-[#E5E5E5] bg-[#FFFFFF] dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
+                      >
                         <ChevronDown className='h-4 w-4' />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align='end'>
+                    <DropdownMenuContent
+                      align='end'
+                      className='w-[240px] rounded-lg border-[#E5E5E5] bg-[#FFFFFF] p-0 shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
+                    >
                       {availableDefinitions.map((def) => (
                         <DropdownMenuItem
                           key={def.id}
@@ -383,8 +396,13 @@ export function DocumentTagEntry({
                               fieldType: def.fieldType,
                             })
                           }
+                          className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
                         >
-                          {def.displayName}
+                          <span className='truncate'>{def.displayName}</span>
+                          <span className='ml-2 shrink-0 text-muted-foreground text-xs'>
+                            {fieldTypes.find((ft) => ft.value === def.fieldType)?.label ||
+                              def.fieldType}
+                          </span>
                         </DropdownMenuItem>
                       ))}
                     </DropdownMenuContent>
@@ -399,13 +417,23 @@ export function DocumentTagEntry({
               <Select
                 value={editForm.fieldType}
                 onValueChange={(value) => setEditForm({ ...editForm, fieldType: value })}
-                disabled={editingTagIndex !== null} // Disable in edit mode
+                disabled={
+                  editingTagIndex !== null ||
+                  (editingTagIndex === null &&
+                    kbTagDefinitions.some(
+                      (def) => def.displayName.toLowerCase() === editForm.displayName.toLowerCase()
+                    ))
+                }
               >
-                <SelectTrigger>
-                  <SelectValue />
+                <SelectTrigger className='h-8 w-full justify-between rounded-[10px] border-[#E5E5E5] bg-[#FFFFFF] text-sm dark:border-[#414141] dark:bg-[var(--surface-elevated)]'>
+                  <SelectValue placeholder='Select type' />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value='text'>Text</SelectItem>
+                <SelectContent className='rounded-lg border-[#E5E5E5] bg-[#FFFFFF] dark:border-[#414141] dark:bg-[var(--surface-elevated)]'>
+                  {fieldTypes.map((fieldType) => (
+                    <SelectItem key={fieldType.value} value={fieldType.value} className='text-sm'>
+                      {fieldType.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -413,11 +441,16 @@ export function DocumentTagEntry({
             {/* Tag Value */}
             <div className='space-y-2'>
               <Label htmlFor='tag-value'>Value</Label>
-              <Input
-                id='tag-value'
+              <TypedTagInput
+                fieldType={editForm.fieldType}
                 value={editForm.value}
-                onChange={(e) => setEditForm({ ...editForm, value: e.target.value })}
-                placeholder='Enter tag value'
+                onChange={(value) => setEditForm({ ...editForm, value })}
+                placeholder={
+                  fieldTypes.find((ft) => ft.value === editForm.fieldType)?.placeholder ||
+                  'Enter tag value'
+                }
+                showInlineError={true}
+                onValidityChange={(valid) => setIsValueValid(valid)}
               />
             </div>
           </div>
@@ -442,20 +475,17 @@ export function DocumentTagEntry({
             <Button
               onClick={saveTagFromModal}
               disabled={(() => {
-                if (!editForm.displayName.trim()) return true
+                if (!editForm.displayName.trim() || !editForm.value.trim() || !isValueValid)
+                  return true
 
-                // In edit mode, always allow
                 if (editingTagIndex !== null) return false
 
-                // In create mode, check if we're creating a new definition at max slots
                 const existingDefinition = kbTagDefinitions.find(
                   (def) => def.displayName.toLowerCase() === editForm.displayName.toLowerCase()
                 )
 
-                // If using existing definition, allow
                 if (existingDefinition) return false
 
-                // If creating new definition and at max slots, disable
                 return kbTagDefinitions.length >= MAX_TAG_SLOTS
               })()}
             >

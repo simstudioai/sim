@@ -1,12 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { Calendar, Hash, Plus, ToggleLeft, Trash2, Type as TypeIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatDisplayText } from '@/components/ui/formatted-text'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
+import { FIELD_TYPE_METADATA } from '@/lib/knowledge/consts'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
@@ -191,7 +192,8 @@ export function KnowledgeTagFilters({
   const renderHeader = () => (
     <thead>
       <tr className='border-b'>
-        <th className='w-2/5 border-r px-4 py-2 text-center font-medium text-sm'>Tag Name</th>
+        <th className='w-[35%] border-r px-4 py-2 text-center font-medium text-sm'>Tag Name</th>
+        <th className='w-[65px] border-r px-4 py-2 text-center font-medium text-sm'>Type</th>
         <th className='px-4 py-2 text-center font-medium text-sm'>Value</th>
       </tr>
     </thead>
@@ -270,11 +272,51 @@ export function KnowledgeTagFilters({
     )
   }
 
-  const renderValueCell = (row: TagFilterRow, rowIndex: number) => {
-    const cellValue = row.cells.value || ''
+  const FIELD_TYPE_LABELS: Record<string, string> = {
+    text: 'Text',
+    number: 'Number',
+    date: 'Date',
+    boolean: 'Boolean',
+  }
+
+  const FIELD_TYPE_ICONS: Record<string, React.ReactNode> = {
+    text: <TypeIcon className='h-4 w-4 text-muted-foreground' />,
+    number: <Hash className='h-4 w-4 text-muted-foreground' />,
+    date: <Calendar className='h-4 w-4 text-muted-foreground' />,
+    boolean: <ToggleLeft className='h-4 w-4 text-muted-foreground' />,
+  }
+
+  const renderTypeCell = (row: TagFilterRow) => {
+    const tagName = row.cells.tagName || ''
+    const def = tagDefinitions.find((d) => d.displayName.toLowerCase() === tagName.toLowerCase())
+    const typeKey = def?.fieldType
+    const label = typeKey ? FIELD_TYPE_LABELS[typeKey] || typeKey : ''
 
     return (
-      <td className='p-1'>
+      <td className='border-r p-1'>
+        <div className='flex h-8 w-full items-center justify-center'>
+          {typeKey ? (
+            <div className='flex items-center justify-center rounded-md bg-secondary/60 px-2 py-1'>
+              {FIELD_TYPE_ICONS[typeKey]}
+              <span className='sr-only'>{label}</span>
+            </div>
+          ) : (
+            <div className='text-muted-foreground text-xs'>—</div>
+          )}
+        </div>
+      </td>
+    )
+  }
+
+  const renderValueCell = (row: TagFilterRow, rowIndex: number) => {
+    const cellValue = row.cells.value || ''
+    const tagName = row.cells.tagName || ''
+    const def = tagDefinitions.find((d) => d.displayName.toLowerCase() === tagName.toLowerCase())
+    const fieldType = def?.fieldType || 'text'
+
+    // All types use Input with TagDropdown support
+    return (
+      <td className='p-1 pr-12'>
         <div className='relative w-full'>
           <Input
             value={cellValue}
@@ -315,6 +357,12 @@ export function KnowledgeTagFilters({
               }
             }}
             disabled={disabled || isConnecting}
+            placeholder={
+              FIELD_TYPE_METADATA[fieldType as keyof typeof FIELD_TYPE_METADATA]?.placeholder ||
+              'Enter value'
+            }
+            type={fieldType === 'number' ? 'text' : 'text'}
+            inputMode={fieldType === 'number' ? 'numeric' : undefined}
             className='w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
           />
           <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
@@ -360,6 +408,7 @@ export function KnowledgeTagFilters({
             {rows.map((row, rowIndex) => (
               <tr key={row.id} className='group relative border-t'>
                 {renderTagNameCell(row, rowIndex)}
+                {renderTypeCell(row)}
                 {renderValueCell(row, rowIndex)}
                 {renderDeleteButton(rowIndex)}
               </tr>

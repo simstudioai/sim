@@ -322,7 +322,7 @@ export function Document({
           <div className='font-mono text-sm'>{chunk.chunkIndex}</div>
         </td>
         <td className='px-4 py-3'>
-          <div className='text-sm' title={chunk.content}>
+          <div className='whitespace-normal break-all text-sm' title={chunk.content}>
             <SearchHighlight text={truncateContent(chunk.content)} searchQuery={searchQuery} />
           </div>
         </td>
