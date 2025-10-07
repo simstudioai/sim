@@ -190,7 +190,7 @@ export function ExampleCommand({
                       variant='outline'
                       size='sm'
                       className='h-6 min-w-[140px] justify-between px-2 py-1 text-xs'
-                      disabled={mode === 'sync'}
+                      disabled={mode === 'sync' || mode === 'stream'}
                     >
                       <span className='truncate'>{getExampleTitle()}</span>
                       <ChevronDown className='ml-1 h-3 w-3 flex-shrink-0' />

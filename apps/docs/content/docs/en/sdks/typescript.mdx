@@ -874,11 +874,13 @@ function StreamingWorkflow() {
     setLoading(true);
     setOutput('');
 
+    // IMPORTANT: Make this API call from your backend server, not the browser
+    // Never expose your API key in client-side code
     const response = await fetch('https://sim.ai/api/workflows/WORKFLOW_ID/execute', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': process.env.SIM_API_KEY!
+        'X-API-Key': process.env.SIM_API_KEY! // Server-side environment variable only
       },
       body: JSON.stringify({
         message: 'Generate a story',

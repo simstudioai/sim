@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import type { NextRequest } from 'next/server'
 import { authenticateApiKey } from '@/lib/api-key/auth'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
@@ -38,14 +39,19 @@ export async function validateWorkflowAccess(
         }
       }
 
-      // Check for internal secret first (for chat deployments and other internal calls)
       const internalSecret = request.headers.get('X-Internal-Secret')
-      if (internalSecret === env.INTERNAL_API_SECRET) {
-        logger.debug('Internal authentication successful')
-        return { workflow }
+      if (internalSecret && env.INTERNAL_API_SECRET) {
+        const secretBuffer = Buffer.from(internalSecret)
+        const expectedBuffer = Buffer.from(env.INTERNAL_API_SECRET)
+        if (
+          secretBuffer.length === expectedBuffer.length &&
+          crypto.timingSafeEqual(secretBuffer, expectedBuffer)
+        ) {
+          logger.debug('Internal authentication successful')
+          return { workflow }
+        }
       }
 
-      // API key authentication
       let apiKeyHeader = null
       for (const [key, value] of request.headers.entries()) {
         if (key.toLowerCase() === 'x-api-key' && value) {

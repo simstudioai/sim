@@ -90,18 +90,7 @@ export function extractFieldValues(
     const path = extractPathFromOutputId(outputId, blockIdForOutput)
 
     if (path) {
-      const pathParts = path.split('.')
-      let current = parsedContent
-
-      for (const part of pathParts) {
-        if (current && typeof current === 'object' && part in current) {
-          current = current[part]
-        } else {
-          current = undefined
-          break
-        }
-      }
-
+      const current = traverseObjectPathInternal(parsedContent, path)
       if (current !== undefined) {
         extractedValues[path] = current
       }
@@ -185,15 +174,15 @@ export function getSelectedFieldNames(selectedOutputs: string[], blockId: string
 }
 
 /**
- * Traverses an object path safely, returning undefined if any part doesn't exist
+ * Internal helper to traverse an object path without parsing
  * @param obj The object to traverse
  * @param path The dot-separated path (e.g., "result.data.value")
  * @returns The value at the path, or undefined if path doesn't exist
  */
-export function traverseObjectPath(obj: any, path: string): any {
+function traverseObjectPathInternal(obj: any, path: string): any {
   if (!path) return obj
 
-  let current = parseOutputContentSafely(obj)
+  let current = obj
   const parts = path.split('.')
 
   for (const part of parts) {
@@ -205,4 +194,16 @@ export function traverseObjectPath(obj: any, path: string): any {
   }
 
   return current
+}
+
+/**
+ * Traverses an object path safely, returning undefined if any part doesn't exist
+ * Automatically handles parsing of output content if needed
+ * @param obj The object to traverse (may contain unparsed content)
+ * @param path The dot-separated path (e.g., "result.data.value")
+ * @returns The value at the path, or undefined if path doesn't exist
+ */
+export function traverseObjectPath(obj: any, path: string): any {
+  const parsed = parseOutputContentSafely(obj)
+  return traverseObjectPathInternal(parsed, path)
 }

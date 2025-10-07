@@ -8,7 +8,10 @@ export interface StreamingConfig {
   selectedOutputs?: string[]
   isSecureMode?: boolean
   workflowTriggerType?: 'api' | 'chat'
-  onStream?: (streamingExec: any) => Promise<void>
+  onStream?: (streamingExec: {
+    stream: ReadableStream
+    execution?: { blockId?: string }
+  }) => Promise<void>
 }
 
 export interface StreamingResponseOptions {
@@ -40,7 +43,10 @@ export async function createStreamingResponse(
           processedOutputs.add(blockId)
         }
 
-        const onStreamCallback = async (streamingExec: any) => {
+        const onStreamCallback = async (streamingExec: {
+          stream: ReadableStream
+          execution?: { blockId?: string }
+        }) => {
           const blockId = streamingExec.execution?.blockId || 'unknown'
           const reader = streamingExec.stream.getReader()
           const decoder = new TextDecoder()
@@ -63,6 +69,13 @@ export async function createStreamingResponse(
             }
           } catch (streamError) {
             logger.error(`[${requestId}] Error reading agent stream:`, streamError)
+            controller.enqueue(
+              encodeSSE({
+                event: 'stream_error',
+                blockId,
+                error: streamError instanceof Error ? streamError.message : 'Stream reading error',
+              })
+            )
           }
         }
 
@@ -100,11 +113,14 @@ export async function createStreamingResponse(
         })
 
         if (result.logs && streamedContent.size > 0) {
-          result.logs.forEach((log: any) => {
+          result.logs = result.logs.map((log: any) => {
             if (streamedContent.has(log.blockId)) {
               const content = streamedContent.get(log.blockId)
-              if (log.output && content) log.output.content = content
+              if (log.output && content) {
+                return { ...log, output: { ...log.output, content } }
+              }
             }
+            return log
           })
 
           const { processStreamingBlockLogs } = await import('@/lib/tokenization')

@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { db } from '@sim/db'
 import { userStats } from '@sim/db/schema'
 import { tasks } from '@trigger.dev/sdk'
@@ -600,30 +601,38 @@ export async function POST(
 
     logger.info(`[${requestId}] Input passed to workflow:`, parsedBody)
 
-    // Check internal secret for secure mode
-    const internalSecret = request.headers.get('X-Internal-Secret')
-    const isSecureMode = internalSecret === env.INTERNAL_API_SECRET
+    const extractExecutionParams = (req: NextRequest, body: any) => {
+      const internalSecret = req.headers.get('X-Internal-Secret')
+      let isInternalCall = false
+      if (internalSecret && env.INTERNAL_API_SECRET) {
+        const secretBuffer = Buffer.from(internalSecret)
+        const expectedBuffer = Buffer.from(env.INTERNAL_API_SECRET)
+        isInternalCall =
+          secretBuffer.length === expectedBuffer.length &&
+          crypto.timingSafeEqual(secretBuffer, expectedBuffer)
+      }
 
-    // Check if streaming is requested (from headers OR body for internal calls)
-    const streamResponse =
-      request.headers.get('X-Stream-Response') === 'true' || parsedBody.stream === true
+      return {
+        isSecureMode: body.isSecureMode !== undefined ? body.isSecureMode : isInternalCall,
+        streamResponse: req.headers.get('X-Stream-Response') === 'true' || body.stream === true,
+        selectedOutputs:
+          body.selectedOutputs ||
+          (req.headers.get('X-Selected-Outputs')
+            ? JSON.parse(req.headers.get('X-Selected-Outputs')!)
+            : undefined),
+        workflowTriggerType:
+          body.workflowTriggerType || (isInternalCall && body.stream ? 'chat' : 'api'),
+        input: body.input !== undefined ? body.input : body,
+      }
+    }
 
-    // Get selected outputs (from headers OR body for internal calls)
-    const selectedOutputsHeader = request.headers.get('X-Selected-Outputs')
-    const selectedOutputs =
-      parsedBody.selectedOutputs ||
-      (selectedOutputsHeader ? JSON.parse(selectedOutputsHeader) : undefined)
-
-    // Get workflow trigger type (from body for internal calls, or infer from secure mode)
-    const workflowTriggerType =
-      parsedBody.workflowTriggerType || (isSecureMode && streamResponse ? 'chat' : 'api')
-
-    // Get isSecureMode from body or infer from internal secret
-    const finalIsSecureMode =
-      parsedBody.isSecureMode !== undefined ? parsedBody.isSecureMode : isSecureMode
-
-    // Extract input from body (might be nested for chat triggers)
-    const input = parsedBody.input !== undefined ? parsedBody.input : parsedBody
+    const {
+      isSecureMode: finalIsSecureMode,
+      streamResponse,
+      selectedOutputs,
+      workflowTriggerType,
+      input,
+    } = extractExecutionParams(request as NextRequest, parsedBody)
 
     // Get authenticated user and determine trigger type
     let authenticatedUserId: string

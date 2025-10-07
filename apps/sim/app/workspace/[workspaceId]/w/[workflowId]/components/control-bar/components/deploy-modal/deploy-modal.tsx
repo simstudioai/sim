@@ -266,7 +266,7 @@ export function DeployModal({
 
         const data = await response.json()
         const endpoint = `${getEnv('NEXT_PUBLIC_APP_URL')}/api/workflows/${workflowId}/execute`
-        const inputFormatExample = getInputFormatExample(true) // Include streaming params based on UI state
+        const inputFormatExample = getInputFormatExample(selectedStreamingOutputs.length > 0) // Include streaming params only if outputs selected
 
         setDeploymentInfo({
           isDeployed: data.isDeployed,
@@ -322,7 +322,7 @@ export function DeployModal({
         useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
       }
       const endpoint = `${getEnv('NEXT_PUBLIC_APP_URL')}/api/workflows/${workflowId}/execute`
-      const inputFormatExample = getInputFormatExample(true) // Include streaming params in example
+      const inputFormatExample = getInputFormatExample(selectedStreamingOutputs.length > 0) // Include streaming params only if outputs selected
 
       const newDeploymentInfo = {
         isDeployed: true,

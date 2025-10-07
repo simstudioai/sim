@@ -258,11 +258,12 @@ def test_execute_with_retry_retries_on_rate_limit(mock_sleep, mock_post):
         "error": "Rate limit exceeded",
         "code": "RATE_LIMIT_EXCEEDED"
     }
+    import time
     rate_limit_response.headers.get.side_effect = lambda h: {
         'retry-after': '1',
         'x-ratelimit-limit': '100',
         'x-ratelimit-remaining': '0',
-        'x-ratelimit-reset': str(int(__import__('time').time()) + 60)
+        'x-ratelimit-reset': str(int(time.time()) + 60)
     }.get(h)
 
     success_response = Mock()

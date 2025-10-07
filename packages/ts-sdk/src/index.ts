@@ -225,9 +225,9 @@ export class SimStudioClient {
     workflowId: string,
     options: ExecutionOptions = {}
   ): Promise<WorkflowExecutionResult> {
-    // For now, the API is synchronous, so we just execute directly
-    // In the future, if async execution is added, this method can be enhanced
-    return this.executeWorkflow(workflowId, options)
+    // Ensure sync mode by explicitly setting async to false
+    const syncOptions = { ...options, async: false }
+    return this.executeWorkflow(workflowId, syncOptions) as Promise<WorkflowExecutionResult>
   }
 
   /**

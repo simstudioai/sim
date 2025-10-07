@@ -15,6 +15,11 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'api.stability.ai',
       },
+      // Vercel Blob Storage (allow any project-specific public blob hostname)
+      {
+        protocol: 'https',
+        hostname: '*.public.blob.vercel-storage.com',
+      },
       // Azure Blob Storage
       {
         protocol: 'https',
