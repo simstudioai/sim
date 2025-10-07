@@ -2,19 +2,32 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 /**
- * Constants for panel sizing
+ * Default height for panel content when expanded (in pixels)
  */
 const DEFAULT_HEIGHT = 200
+
+/**
+ * Minimum height for a collapsed panel (in pixels)
+ */
 const MIN_HEIGHT = 28
+
+/**
+ * Height of the panel header (in pixels)
+ */
 const HEADER_HEIGHT = 28
 
 /**
- * Panel type configuration
+ * Type representing the available panel types in the sidebar
  */
 type PanelType = 'triggers' | 'blocks'
 
+/**
+ * Props for the usePanelResize hook
+ */
 interface UsePanelResizeProps {
+  /** Type of panel to resize (triggers or blocks) */
   panelType: PanelType
+  /** Reference to the container element for boundary calculations */
   containerRef: React.RefObject<HTMLDivElement | null>
 }
 
@@ -23,7 +36,13 @@ interface UsePanelResizeProps {
  * Provides unified logic for both panels with proper constraint handling.
  *
  * @param props - Configuration object containing panel type and container ref
- * @returns Panel resize state and handlers
+ * @param props.panelType - Type of panel to resize (triggers or blocks)
+ * @param props.containerRef - Reference to the container element for boundary calculations
+ * @returns Object containing panel state and handlers
+ * @returns currentHeight - Current height of the panel in pixels
+ * @returns isResizing - Boolean indicating if the panel is currently being resized
+ * @returns handleMouseDown - Handler for mouse down events on the resize handle
+ * @returns handleToggle - Handler to toggle panel between collapsed and expanded states
  */
 export function usePanelResize({ panelType, containerRef }: UsePanelResizeProps) {
   const { triggersHeight, blocksHeight, setTriggersHeight, setBlocksHeight } = useSidebarStore()
@@ -34,12 +53,11 @@ export function usePanelResize({ panelType, containerRef }: UsePanelResizeProps)
 
   // Get current panel's height and setter based on type
   const currentHeight = panelType === 'triggers' ? triggersHeight : blocksHeight
-  const setCurrentHeight = panelType === 'triggers' ? setTriggersHeight : setBlocksHeight
-  const otherHeight = panelType === 'triggers' ? blocksHeight : triggersHeight
-  const setOtherHeight = panelType === 'triggers' ? setBlocksHeight : setTriggersHeight
 
   /**
-   * Handles mouse down on resize handle
+   * Handles mouse down event on the resize handle to initiate panel resizing
+   *
+   * @param e - The React mouse event from the resize handle
    */
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -56,7 +74,12 @@ export function usePanelResize({ panelType, containerRef }: UsePanelResizeProps)
   )
 
   /**
-   * Handle toggle collapse/expand
+   * Toggles the panel between collapsed and expanded states
+   *
+   * @remarks
+   * Handles complex logic for both triggers and blocks panels, ensuring proper
+   * constraints are maintained between the two panels. When collapsing/expanding,
+   * it respects minimum heights and parent container boundaries.
    */
   const handleToggle = useCallback(() => {
     if (panelType === 'triggers') {
@@ -110,13 +133,33 @@ export function usePanelResize({ panelType, containerRef }: UsePanelResizeProps)
         setBlocksHeight(desiredBlocksHeight)
       } else {
         // Collapsing blocks
+
+        // Check if triggers is currently collapsed on top of blocks
+        // When triggers is collapsed, its height = blocksHeight + HEADER_HEIGHT
+        const expectedCollapsedTriggersHeight = blocksHeight + HEADER_HEIGHT
+        const isTriggersCollapsedOnTop =
+          Math.abs(triggersHeight - expectedCollapsedTriggersHeight) <= 2
+
+        // IMPORTANT: Set blocks first, then triggers
+        // The store enforces: triggersHeight >= blocksHeight + HEADER_HEIGHT
+        // So we must reduce blocks first to allow triggers to be reduced
         setBlocksHeight(MIN_HEIGHT)
+
+        // If triggers is collapsed on top of blocks, collapse it too
+        if (isTriggersCollapsedOnTop) {
+          setTriggersHeight(MIN_HEIGHT)
+        }
       }
     }
   }, [panelType, triggersHeight, blocksHeight, setTriggersHeight, setBlocksHeight, containerRef])
 
   /**
-   * Setup resize event listeners and body styles when resizing
+   * Sets up resize event listeners and body styles during resize operations
+   *
+   * @remarks
+   * This effect manages mouse move and mouse up events during resize, applies
+   * appropriate cursor styles, and handles complex panel constraint logic including
+   * parent container boundaries and interdependent panel heights.
    */
   useEffect(() => {
     if (!isResizing || !containerRef.current) return
