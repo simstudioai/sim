@@ -96,7 +96,12 @@ export async function createStreamingResponse(
 
           for (const outputId of matchingOutputs) {
             const path = extractPathFromOutputId(outputId, blockId)
-            const outputValue = traverseObjectPath(output, path)
+
+            // Response blocks have their data nested under 'response'
+            let outputValue = traverseObjectPath(output, path)
+            if (outputValue === undefined && output.response) {
+              outputValue = traverseObjectPath(output.response, path)
+            }
 
             if (outputValue !== undefined) {
               const formattedOutput =
@@ -150,7 +155,11 @@ export async function createStreamingResponse(
             if (result.logs) {
               const blockLog = result.logs.find((log: any) => log.blockId === blockId)
               if (blockLog?.output) {
-                const value = traverseObjectPath(blockLog.output, path)
+                // Response blocks have their data nested under 'response'
+                let value = traverseObjectPath(blockLog.output, path)
+                if (value === undefined && blockLog.output.response) {
+                  value = traverseObjectPath(blockLog.output.response, path)
+                }
                 if (value !== undefined) {
                   // Store it in a structured way
                   if (!minimalResult.output[blockId]) {
