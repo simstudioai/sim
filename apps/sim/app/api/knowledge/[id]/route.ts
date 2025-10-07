@@ -103,6 +103,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         {
           name: validatedData.name,
           description: validatedData.description,
+          workspaceId: validatedData.workspaceId,
           chunkingConfig: validatedData.chunkingConfig,
         },
         requestId

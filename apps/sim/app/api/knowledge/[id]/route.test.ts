@@ -234,6 +234,7 @@ describe('Knowledge Base By ID API Route', () => {
         {
           name: validUpdateData.name,
           description: validUpdateData.description,
+          workspaceId: undefined,
           chunkingConfig: undefined,
         },
         expect.any(String)

@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useKnowledgeStore } from '@/stores/knowledge/store'
 
 const logger = createLogger('WorkspaceSelector')
 
@@ -33,6 +34,7 @@ export function WorkspaceSelector({
   onWorkspaceChange,
   disabled = false,
 }: WorkspaceSelectorProps) {
+  const { updateKnowledgeBase } = useKnowledgeStore()
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
@@ -95,6 +97,11 @@ export function WorkspaceSelector({
 
       if (result.success) {
         logger.info(`Knowledge base workspace updated: ${knowledgeBaseId} -> ${workspaceId}`)
+
+        // Update the store immediately to reflect the change without page reload
+        updateKnowledgeBase(knowledgeBaseId, { workspaceId: workspaceId || undefined })
+
+        // Notify parent component of the change
         onWorkspaceChange?.(workspaceId)
       } else {
         throw new Error(result.error || 'Failed to update workspace')

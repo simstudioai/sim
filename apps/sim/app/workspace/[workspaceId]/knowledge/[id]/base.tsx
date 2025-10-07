@@ -698,10 +698,6 @@ export function KnowledgeBase({
         options={{
           knowledgeBaseId: id,
           currentWorkspaceId: knowledgeBase?.workspaceId || null,
-          onWorkspaceChange: () => {
-            // Refresh the page to reflect the workspace change
-            window.location.reload()
-          },
           onDeleteKnowledgeBase: () => setShowDeleteDialog(true),
         }}
       />
