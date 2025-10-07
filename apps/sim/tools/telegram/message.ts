@@ -1,10 +1,17 @@
-import type { TelegramMessageParams, TelegramMessageResponse } from '@/tools/telegram/types'
+import type {
+  TelegramMessage,
+  TelegramSendMessageParams,
+  TelegramSendMessageResponse,
+} from '@/tools/telegram/types'
 import { convertMarkdownToHTML } from '@/tools/telegram/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const telegramMessageTool: ToolConfig<TelegramMessageParams, TelegramMessageResponse> = {
-  id: 'telegram_message',
-  name: 'Telegram Message',
+export const telegramSendMessageTool: ToolConfig<
+  TelegramSendMessageParams,
+  TelegramSendMessageResponse
+> = {
+  id: 'telegram_send_message',
+  name: 'Telegram Send Message',
   description:
     'Send messages to Telegram channels or users through the Telegram Bot API. Enables direct communication and notifications with message tracking and chat confirmation.',
   version: '1.0.0',
@@ -31,13 +38,13 @@ export const telegramMessageTool: ToolConfig<TelegramMessageParams, TelegramMess
   },
 
   request: {
-    url: (params: TelegramMessageParams) =>
+    url: (params: TelegramSendMessageParams) =>
       `https://api.telegram.org/bot${params.botToken}/sendMessage`,
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',
     }),
-    body: (params: TelegramMessageParams) => ({
+    body: (params: TelegramSendMessageParams) => ({
       chat_id: params.chatId,
       text: convertMarkdownToHTML(params.text),
       parse_mode: 'HTML',
@@ -46,18 +53,68 @@ export const telegramMessageTool: ToolConfig<TelegramMessageParams, TelegramMess
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+    const result = data.result as TelegramMessage
+
     return {
-      success: true,
-      output: data.result,
+      success: data.ok,
+      output: {
+        message: data.ok ? 'Message sent successfully' : 'Failed to send message',
+        data: result,
+      },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Telegram message send success status' },
-    messageId: { type: 'number', description: 'Unique Telegram message identifier' },
-    chatId: { type: 'string', description: 'Target chat ID where message was sent' },
-    text: { type: 'string', description: 'Text content of the sent message' },
-    timestamp: { type: 'number', description: 'Unix timestamp when message was sent' },
-    from: { type: 'object', description: 'Information about the bot that sent the message' },
+    message: { type: 'string', description: 'Success or error message' },
+    data: {
+      type: 'object',
+      description: 'Telegram message data',
+      properties: {
+        message_id: {
+          type: 'number',
+          description: 'Unique Telegram message identifier',
+        },
+        from: {
+          type: 'object',
+          description: 'Chat information',
+          properties: {
+            id: { type: 'number', description: 'Chat ID' },
+            is_bot: {
+              type: 'string',
+              description: 'Type of chat (private, group, supergroup, channel)',
+            },
+            first_name: {
+              type: 'string',
+              description: 'Chat username (if available)',
+            },
+            username: {
+              type: 'string',
+              description: 'Chat title (for groups and channels)',
+            },
+          },
+        },
+        chat: {
+          type: 'object',
+          description: 'Information about the bot that sent the message',
+          properties: {
+            id: { type: 'number', description: 'Bot user ID' },
+            first_name: { type: 'string', description: 'Bot first name' },
+            username: { type: 'string', description: 'Bot username' },
+            type: {
+              type: 'string',
+              description: 'chat type private or channel',
+            },
+          },
+        },
+        date: {
+          type: 'number',
+          description: 'Unix timestamp when message was sent',
+        },
+        text: {
+          type: 'string',
+          description: 'Text content of the sent message',
+        },
+      },
+    },
   },
 }
