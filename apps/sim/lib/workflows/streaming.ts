@@ -29,7 +29,10 @@ export async function createStreamingResponse(
   const { requestId, workflow, input, executingUserId, streamConfig, createFilteredResult } =
     options
 
-  const { executeWorkflow } = await import('@/app/api/workflows/[id]/execute/route')
+  const { executeWorkflow, createFilteredResult: defaultFilteredResult } = await import(
+    '@/app/api/workflows/[id]/execute/route'
+  )
+  const filterResultFn = createFilteredResult || defaultFilteredResult
 
   return new ReadableStream({
     async start(controller) {
@@ -127,7 +130,43 @@ export async function createStreamingResponse(
           processStreamingBlockLogs(result.logs, streamedContent)
         }
 
-        controller.enqueue(encodeSSE({ event: 'final', data: createFilteredResult(result) }))
+        // Create a minimal result with only selected outputs
+        const minimalResult = {
+          success: result.success,
+          error: result.error,
+          output: {} as any,
+        }
+
+        // If there are selected outputs, only include those specific fields
+        if (streamConfig.selectedOutputs?.length && result.output) {
+          const { extractBlockIdFromOutputId, extractPathFromOutputId, traverseObjectPath } =
+            await import('@/lib/response-format')
+
+          for (const outputId of streamConfig.selectedOutputs) {
+            const blockId = extractBlockIdFromOutputId(outputId)
+            const path = extractPathFromOutputId(outputId, blockId)
+
+            // Find the output value from the result
+            if (result.logs) {
+              const blockLog = result.logs.find((log: any) => log.blockId === blockId)
+              if (blockLog?.output) {
+                const value = traverseObjectPath(blockLog.output, path)
+                if (value !== undefined) {
+                  // Store it in a structured way
+                  if (!minimalResult.output[blockId]) {
+                    minimalResult.output[blockId] = {}
+                  }
+                  minimalResult.output[blockId][path] = value
+                }
+              }
+            }
+          }
+        } else if (!streamConfig.selectedOutputs?.length) {
+          // No selected outputs means include the full output (but still filtered)
+          minimalResult.output = result.output
+        }
+
+        controller.enqueue(encodeSSE({ event: 'final', data: minimalResult }))
         controller.enqueue(encodeSSE('[DONE]'))
         controller.close()
       } catch (error: any) {

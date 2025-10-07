@@ -40,7 +40,7 @@ const EnvVarsSchema = z.record(z.string())
 
 const runningExecutions = new Set<string>()
 
-function createFilteredResult(result: any) {
+export function createFilteredResult(result: any) {
   return {
     ...result,
     logs: undefined,
@@ -50,13 +50,6 @@ function createFilteredResult(result: any) {
           workflowConnections: undefined,
         }
       : undefined,
-  }
-}
-
-export function createSecureFilteredResult(result: any) {
-  return {
-    success: result.success,
-    error: result.error,
   }
 }
 
@@ -759,9 +752,6 @@ export async function POST(
         const { createStreamingResponse } = await import('@/lib/workflows/streaming')
         const { SSE_HEADERS } = await import('@/lib/utils')
 
-        // Determine which filter function to use based on security mode
-        const filterFunction = finalIsSecureMode ? createSecureFilteredResult : createFilteredResult
-
         const stream = await createStreamingResponse({
           requestId,
           workflow: validation.workflow,
@@ -772,7 +762,7 @@ export async function POST(
             isSecureMode: finalIsSecureMode,
             workflowTriggerType,
           },
-          createFilteredResult: filterFunction,
+          createFilteredResult,
         })
 
         return new NextResponse(stream, {
