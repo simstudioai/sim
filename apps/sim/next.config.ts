@@ -1,5 +1,5 @@
 import type { NextConfig } from 'next'
-import { env, isTruthy } from './lib/env'
+import { env, getEnv, isTruthy } from './lib/env'
 import { isDev, isHosted } from './lib/environment'
 import { getMainCSPPolicy, getWorkflowExecutionCSPPolicy } from './lib/security/csp'
 
@@ -15,7 +15,7 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'api.stability.ai',
       },
-      // Vercel Blob Storage (allow any project-specific public blob hostname)
+      // Vercel Blob Storage
       {
         protocol: 'https',
         hostname: '*.public.blob.vercel-storage.com',
@@ -25,7 +25,7 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: '*.blob.core.windows.net',
       },
-      // AWS S3 - various regions and bucket configurations
+      // AWS S3
       {
         protocol: 'https',
         hostname: '*.s3.amazonaws.com',
@@ -39,22 +39,22 @@ const nextConfig: NextConfig = {
         hostname: 'lh3.googleusercontent.com',
       },
       // Custom domain for file storage if configured
-      ...(env.NEXT_PUBLIC_BLOB_BASE_URL
+      ...(getEnv('NEXT_PUBLIC_BLOB_BASE_URL')
         ? [
             {
               protocol: 'https' as const,
-              hostname: new URL(env.NEXT_PUBLIC_BLOB_BASE_URL).hostname,
+              hostname: new URL(getEnv('NEXT_PUBLIC_BLOB_BASE_URL')!).hostname,
             },
           ]
         : []),
       // Brand logo domain if configured
-      ...(env.NEXT_PUBLIC_BRAND_LOGO_URL
+      ...(getEnv('NEXT_PUBLIC_BRAND_LOGO_URL')
         ? (() => {
             try {
               return [
                 {
                   protocol: 'https' as const,
-                  hostname: new URL(env.NEXT_PUBLIC_BRAND_LOGO_URL).hostname,
+                  hostname: new URL(getEnv('NEXT_PUBLIC_BRAND_LOGO_URL')!).hostname,
                 },
               ]
             } catch {
@@ -63,13 +63,13 @@ const nextConfig: NextConfig = {
           })()
         : []),
       // Brand favicon domain if configured
-      ...(env.NEXT_PUBLIC_BRAND_FAVICON_URL
+      ...(getEnv('NEXT_PUBLIC_BRAND_FAVICON_URL')
         ? (() => {
             try {
               return [
                 {
                   protocol: 'https' as const,
-                  hostname: new URL(env.NEXT_PUBLIC_BRAND_FAVICON_URL).hostname,
+                  hostname: new URL(getEnv('NEXT_PUBLIC_BRAND_FAVICON_URL')!).hostname,
                 },
               ]
             } catch {
