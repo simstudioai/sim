@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import { db } from '@sim/db'
 import { userStats } from '@sim/db/schema'
 import { tasks } from '@trigger.dev/sdk'
@@ -596,14 +595,7 @@ export async function POST(
 
     const extractExecutionParams = (req: NextRequest, body: any) => {
       const internalSecret = req.headers.get('X-Internal-Secret')
-      let isInternalCall = false
-      if (internalSecret && env.INTERNAL_API_SECRET) {
-        const secretBuffer = Buffer.from(internalSecret)
-        const expectedBuffer = Buffer.from(env.INTERNAL_API_SECRET)
-        isInternalCall =
-          secretBuffer.length === expectedBuffer.length &&
-          crypto.timingSafeEqual(secretBuffer, expectedBuffer)
-      }
+      const isInternalCall = internalSecret === env.INTERNAL_API_SECRET
 
       return {
         isSecureMode: body.isSecureMode !== undefined ? body.isSecureMode : isInternalCall,
