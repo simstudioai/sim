@@ -37,6 +37,7 @@ export interface SessionErrorCompleteParams {
     message?: string
     stackTrace?: string
   }
+  traceSpans?: TraceSpan[]
 }
 
 export class LoggingSession {
@@ -131,7 +132,7 @@ export class LoggingSession {
 
   async completeWithError(params: SessionErrorCompleteParams = {}): Promise<void> {
     try {
-      const { endedAt, totalDurationMs, error } = params
+      const { endedAt, totalDurationMs, error, traceSpans } = params
 
       const endTime = endedAt ? new Date(endedAt) : new Date()
       const durationMs = typeof totalDurationMs === 'number' ? totalDurationMs : 0
@@ -151,19 +152,19 @@ export class LoggingSession {
 
       const message = error?.message || 'Execution failed before starting blocks'
 
-      const syntheticErrorSpan: TraceSpan[] = [
-        {
-          id: 'pre-execution-validation',
-          name: 'Workflow Error',
-          type: 'validation',
-          duration: Math.max(1, durationMs),
-          startTime: startTime.toISOString(),
-          endTime: endTime.toISOString(),
-          status: 'error',
-          children: [],
-          output: { error: message },
-        },
-      ]
+      const hasProvidedSpans = Array.isArray(traceSpans) && traceSpans.length > 0
+
+      const errorSpan: TraceSpan = {
+        id: 'workflow-error-root',
+        name: 'Workflow Error',
+        type: 'workflow',
+        duration: Math.max(1, durationMs),
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
+        status: 'error',
+        ...(hasProvidedSpans ? {} : { children: [] }),
+        output: { error: message },
+      }
 
       await executionLogger.completeWorkflowExecution({
         executionId: this.executionId,
@@ -171,7 +172,7 @@ export class LoggingSession {
         totalDurationMs: Math.max(1, durationMs),
         costSummary,
         finalOutput: { error: message },
-        traceSpans: syntheticErrorSpan,
+        traceSpans: hasProvidedSpans ? traceSpans : [errorSpan],
       })
 
       if (this.requestId) {

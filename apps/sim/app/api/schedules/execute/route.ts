@@ -4,6 +4,7 @@ import { and, eq, lte, not, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
+import { getApiKeyOwnerUserId } from '@/lib/api-key/service'
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
@@ -17,7 +18,7 @@ import {
   getSubBlockValue,
 } from '@/lib/schedules/utils'
 import { decryptSecret, generateRequestId } from '@/lib/utils'
-import { loadDeployedWorkflowState } from '@/lib/workflows/db-helpers'
+import { blockExistsInDeployment, loadDeployedWorkflowState } from '@/lib/workflows/db-helpers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
@@ -106,12 +107,22 @@ export async function GET() {
           continue
         }
 
+        const actorUserId = await getApiKeyOwnerUserId(workflowRecord.pinnedApiKeyId)
+
+        if (!actorUserId) {
+          logger.warn(
+            `[${requestId}] Skipping schedule ${schedule.id}: pinned API key required to attribute usage.`
+          )
+          runningExecutions.delete(schedule.workflowId)
+          continue
+        }
+
         // Check rate limits for scheduled execution (checks both personal and org subscriptions)
-        const userSubscription = await getHighestPrioritySubscription(workflowRecord.userId)
+        const userSubscription = await getHighestPrioritySubscription(actorUserId)
 
         const rateLimiter = new RateLimiter()
         const rateLimitCheck = await rateLimiter.checkRateLimitWithSubscription(
-          workflowRecord.userId,
+          actorUserId,
           userSubscription,
           'schedule',
           false // schedules are always sync
@@ -149,7 +160,7 @@ export async function GET() {
           continue
         }
 
-        const usageCheck = await checkServerSideUsageLimits(workflowRecord.userId)
+        const usageCheck = await checkServerSideUsageLimits(actorUserId)
         if (usageCheck.isExceeded) {
           logger.warn(
             `[${requestId}] User ${workflowRecord.userId} has exceeded usage limits. Skipping scheduled execution.`,
@@ -159,26 +170,19 @@ export async function GET() {
               workflowId: schedule.workflowId,
             }
           )
-
-          // Error logging handled by logging session
-
-          const retryDelay = 24 * 60 * 60 * 1000 // 24 hour delay for exceeded limits
-          const nextRetryAt = new Date(now.getTime() + retryDelay)
-
           try {
+            const deployedData = await loadDeployedWorkflowState(schedule.workflowId)
+            const nextRunAt = calculateNextRunTime(schedule, deployedData.blocks as any)
             await db
               .update(workflowSchedule)
-              .set({
-                updatedAt: now,
-                nextRunAt: nextRetryAt,
-              })
+              .set({ updatedAt: now, nextRunAt })
               .where(eq(workflowSchedule.id, schedule.id))
-
-            logger.debug(`[${requestId}] Updated next retry time due to usage limits`)
-          } catch (updateError) {
-            logger.error(`[${requestId}] Error updating schedule for usage limits:`, updateError)
+          } catch (calcErr) {
+            logger.warn(
+              `[${requestId}] Unable to calculate nextRunAt while skipping schedule ${schedule.id}`,
+              calcErr
+            )
           }
-
           runningExecutions.delete(schedule.workflowId)
           continue
         }
@@ -206,11 +210,25 @@ export async function GET() {
               const parallels = deployedData.parallels
               logger.info(`[${requestId}] Loaded deployed workflow ${schedule.workflowId}`)
 
+              // Validate that the schedule's trigger block exists in the deployed state
+              if (schedule.blockId) {
+                const blockExists = await blockExistsInDeployment(
+                  schedule.workflowId,
+                  schedule.blockId
+                )
+                if (!blockExists) {
+                  logger.warn(
+                    `[${requestId}] Schedule trigger block ${schedule.blockId} not found in deployed workflow ${schedule.workflowId}. Skipping execution.`
+                  )
+                  return { skip: true, blocks: {} as Record<string, BlockState> }
+                }
+              }
+
               const mergedStates = mergeSubblockState(blocks)
 
               // Retrieve environment variables with workspace precedence
               const { personalEncrypted, workspaceEncrypted } = await getPersonalAndWorkspaceEnv(
-                workflowRecord.userId,
+                actorUserId,
                 workflowRecord.workspaceId || undefined
               )
               const variables = EnvVarsSchema.parse({
@@ -355,7 +373,6 @@ export async function GET() {
               )
 
               const input = {
-                workflowId: schedule.workflowId,
                 _context: {
                   workflowId: schedule.workflowId,
                 },
@@ -363,7 +380,7 @@ export async function GET() {
 
               // Start logging with environment variables
               await loggingSession.safeStart({
-                userId: workflowRecord.userId,
+                userId: actorUserId,
                 workspaceId: workflowRecord.workspaceId || '',
                 variables: variables || {},
               })
@@ -407,7 +424,7 @@ export async function GET() {
                       totalScheduledExecutions: sql`total_scheduled_executions + 1`,
                       lastActive: now,
                     })
-                    .where(eq(userStats.userId, workflowRecord.userId))
+                    .where(eq(userStats.userId, actorUserId))
 
                   logger.debug(`[${requestId}] Updated user stats for scheduled execution`)
                 } catch (statsError) {
@@ -446,6 +463,7 @@ export async function GET() {
                     message: `Schedule execution failed before workflow started: ${earlyError.message}`,
                     stackTrace: earlyError.stack,
                   },
+                  traceSpans: [],
                 })
               } catch (loggingError) {
                 logger.error(
@@ -458,6 +476,12 @@ export async function GET() {
               throw earlyError
             }
           })()
+
+          // Check if execution was skipped (e.g., trigger block not found)
+          if ('skip' in executionSuccess && executionSuccess.skip) {
+            runningExecutions.delete(schedule.workflowId)
+            continue
+          }
 
           if (executionSuccess.success) {
             logger.info(`[${requestId}] Workflow ${schedule.workflowId} executed successfully`)
@@ -565,6 +589,7 @@ export async function GET() {
                   message: `Schedule execution failed: ${error.message}`,
                   stackTrace: error.stack,
                 },
+                traceSpans: [],
               })
             } catch (loggingError) {
               logger.error(

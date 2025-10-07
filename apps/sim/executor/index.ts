@@ -3,7 +3,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import type { TraceSpan } from '@/lib/logs/types'
 import { getBlock } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
-import { BlockType } from '@/executor/consts'
+import { BlockType, isWorkflowBlockType } from '@/executor/consts'
 import {
   AgentBlockHandler,
   ApiBlockHandler,
@@ -2182,7 +2182,7 @@ export class Executor {
         new Date(blockLog.endedAt).getTime() - new Date(blockLog.startedAt).getTime()
 
       // If this error came from a child workflow execution, persist its trace spans on the log
-      if (block.metadata?.id === BlockType.WORKFLOW) {
+      if (isWorkflowBlockType(block.metadata?.id)) {
         this.attachChildWorkflowSpansToLog(blockLog, error)
       }
 
@@ -2272,7 +2272,7 @@ export class Executor {
       }
 
       // Preserve child workflow spans on the block state so downstream logging can render them
-      if (block.metadata?.id === BlockType.WORKFLOW) {
+      if (isWorkflowBlockType(block.metadata?.id)) {
         this.attachChildWorkflowSpansToOutput(errorOutput, error)
       }
 
@@ -2283,7 +2283,42 @@ export class Executor {
         executionTime: blockLog.durationMs,
       })
 
-      // If there are error paths to follow, return error output instead of throwing
+      const failureEndTime = context.metadata.endTime ?? new Date().toISOString()
+      if (!context.metadata.endTime) {
+        context.metadata.endTime = failureEndTime
+      }
+      const failureDuration = context.metadata.startTime
+        ? Math.max(
+            0,
+            new Date(failureEndTime).getTime() - new Date(context.metadata.startTime).getTime()
+          )
+        : (context.metadata.duration ?? 0)
+      context.metadata.duration = failureDuration
+
+      const failureMetadata = {
+        ...context.metadata,
+        endTime: failureEndTime,
+        duration: failureDuration,
+        workflowConnections: this.actualWorkflow.connections.map((conn) => ({
+          source: conn.source,
+          target: conn.target,
+        })),
+      }
+
+      const upstreamExecutionResult = (error as { executionResult?: ExecutionResult } | null)
+        ?.executionResult
+      const executionResultPayload: ExecutionResult = {
+        success: false,
+        output: upstreamExecutionResult?.output ?? errorOutput,
+        error: upstreamExecutionResult?.error ?? this.extractErrorMessage(error),
+        logs: [...context.blockLogs],
+        metadata: {
+          ...failureMetadata,
+          ...(upstreamExecutionResult?.metadata ?? {}),
+          workflowConnections: failureMetadata.workflowConnections,
+        },
+      }
+
       if (hasErrorPath) {
         // Return the error output to allow execution to continue along error path
         return errorOutput
@@ -2316,7 +2351,17 @@ export class Executor {
         errorMessage: this.extractErrorMessage(error),
       })
 
-      throw new Error(errorMessage)
+      const executionError = new Error(errorMessage)
+      ;(executionError as any).executionResult = executionResultPayload
+      if (Array.isArray((error as { childTraceSpans?: TraceSpan[] } | null)?.childTraceSpans)) {
+        ;(executionError as any).childTraceSpans = (
+          error as { childTraceSpans?: TraceSpan[] }
+        ).childTraceSpans
+        ;(executionError as any).childWorkflowName = (
+          error as { childWorkflowName?: string }
+        ).childWorkflowName
+      }
+      throw executionError
     }
   }
 
@@ -2329,11 +2374,12 @@ export class Executor {
       error as { childTraceSpans?: TraceSpan[]; childWorkflowName?: string } | null | undefined
     )?.childTraceSpans
     if (Array.isArray(spans) && spans.length > 0) {
+      const childWorkflowName = (error as { childWorkflowName?: string } | null | undefined)
+        ?.childWorkflowName
       blockLog.output = {
         ...(blockLog.output || {}),
         childTraceSpans: spans,
-        childWorkflowName: (error as { childWorkflowName?: string } | null | undefined)
-          ?.childWorkflowName,
+        childWorkflowName,
       }
     }
   }
@@ -2516,7 +2562,7 @@ export class Executor {
    * Preserves child workflow trace spans for proper nesting
    */
   private integrateChildWorkflowLogs(block: SerializedBlock, output: NormalizedBlockOutput): void {
-    if (block.metadata?.id !== BlockType.WORKFLOW) {
+    if (!isWorkflowBlockType(block.metadata?.id)) {
       return
     }
 

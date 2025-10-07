@@ -13,6 +13,67 @@ import {
 import { cn, redactApiKeys } from '@/lib/utils'
 import type { TraceSpan } from '@/stores/logs/filters/types'
 
+function getSpanKey(span: TraceSpan): string {
+  if (span.id) {
+    return span.id
+  }
+
+  const name = span.name || 'span'
+  const start = span.startTime || 'unknown-start'
+  const end = span.endTime || 'unknown-end'
+
+  return `${name}|${start}|${end}`
+}
+
+function mergeTraceSpanChildren(...groups: TraceSpan[][]): TraceSpan[] {
+  const merged: TraceSpan[] = []
+  const seen = new Set<string>()
+
+  groups.forEach((group) => {
+    group.forEach((child) => {
+      const key = getSpanKey(child)
+      if (seen.has(key)) {
+        return
+      }
+      seen.add(key)
+      merged.push(child)
+    })
+  })
+
+  return merged
+}
+
+function normalizeChildWorkflowSpan(span: TraceSpan): TraceSpan {
+  const enrichedSpan: TraceSpan = { ...span }
+
+  if (enrichedSpan.output && typeof enrichedSpan.output === 'object') {
+    enrichedSpan.output = { ...enrichedSpan.output }
+  }
+
+  const normalizedChildren = Array.isArray(span.children)
+    ? span.children.map((childSpan) => normalizeChildWorkflowSpan(childSpan))
+    : []
+
+  const outputChildSpans = Array.isArray(span.output?.childTraceSpans)
+    ? (span.output!.childTraceSpans as TraceSpan[]).map((childSpan) =>
+        normalizeChildWorkflowSpan(childSpan)
+      )
+    : []
+
+  const mergedChildren = mergeTraceSpanChildren(normalizedChildren, outputChildSpans)
+
+  if (enrichedSpan.output && 'childTraceSpans' in enrichedSpan.output) {
+    const { childTraceSpans, ...cleanOutput } = enrichedSpan.output as {
+      childTraceSpans?: TraceSpan[]
+    } & Record<string, unknown>
+    enrichedSpan.output = cleanOutput
+  }
+
+  enrichedSpan.children = mergedChildren.length > 0 ? mergedChildren : undefined
+
+  return enrichedSpan
+}
+
 interface TraceSpansDisplayProps {
   traceSpans?: TraceSpan[]
   totalDuration?: number
@@ -310,22 +371,23 @@ export function TraceSpansDisplay({
       </div>
       <div className='w-full overflow-hidden rounded-md border shadow-sm'>
         {traceSpans.map((span, index) => {
+          const normalizedSpan = normalizeChildWorkflowSpan(span)
           const hasSubItems = Boolean(
-            (span.children && span.children.length > 0) ||
-              (span.toolCalls && span.toolCalls.length > 0) ||
-              span.input ||
-              span.output
+            (normalizedSpan.children && normalizedSpan.children.length > 0) ||
+              (normalizedSpan.toolCalls && normalizedSpan.toolCalls.length > 0) ||
+              normalizedSpan.input ||
+              normalizedSpan.output
           )
           return (
             <TraceSpanItem
               key={index}
-              span={span}
+              span={normalizedSpan}
               depth={0}
               totalDuration={
                 actualTotalDuration !== undefined ? actualTotalDuration : totalDuration
               }
               isLast={index === traceSpans.length - 1}
-              parentStartTime={new Date(span.startTime).getTime()}
+              parentStartTime={new Date(normalizedSpan.startTime).getTime()}
               workflowStartTime={workflowStartTime}
               onToggle={handleSpanToggle}
               expandedSpans={expandedSpans}
@@ -612,17 +674,19 @@ function TraceSpanItem({
           {hasChildren && (
             <div>
               {span.children?.map((childSpan, index) => {
+                const enrichedChildSpan = normalizeChildWorkflowSpan(childSpan)
+
                 const childHasSubItems = Boolean(
-                  (childSpan.children && childSpan.children.length > 0) ||
-                    (childSpan.toolCalls && childSpan.toolCalls.length > 0) ||
-                    childSpan.input ||
-                    childSpan.output
+                  (enrichedChildSpan.children && enrichedChildSpan.children.length > 0) ||
+                    (enrichedChildSpan.toolCalls && enrichedChildSpan.toolCalls.length > 0) ||
+                    enrichedChildSpan.input ||
+                    enrichedChildSpan.output
                 )
 
                 return (
                   <TraceSpanItem
                     key={index}
-                    span={childSpan}
+                    span={enrichedChildSpan}
                     depth={depth + 1}
                     totalDuration={totalDuration}
                     isLast={index === (span.children?.length || 0) - 1}

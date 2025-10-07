@@ -403,7 +403,10 @@ export function mockExecutionDependencies() {
       provider: 'provider',
       providerConfig: 'providerConfig',
     },
-    workflow: { id: 'id', userId: 'userId' },
+    workflow: {
+      id: 'id',
+      userId: 'userId',
+    },
     workflowSchedule: {
       id: 'id',
       workflowId: 'workflowId',

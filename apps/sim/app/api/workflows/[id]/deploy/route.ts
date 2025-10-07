@@ -293,6 +293,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
+    // Attribution: this route is UI-only; require session user as actor
+    const actorUserId: string | null = session?.user?.id ?? null
+    if (!actorUserId) {
+      logger.warn(`[${requestId}] Unable to resolve actor user for workflow deployment: ${id}`)
+      return createErrorResponse('Unable to determine deploying user', 400)
+    }
+
     await db.transaction(async (tx) => {
       const [{ maxVersion }] = await tx
         .select({ maxVersion: sql`COALESCE(MAX("version"), 0)` })
@@ -318,7 +325,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         state: currentState,
         isActive: true,
         createdAt: deployedAt,
-        createdBy: userId,
+        createdBy: actorUserId,
       })
 
       const updateData: Record<string, unknown> = {
