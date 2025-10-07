@@ -387,7 +387,7 @@ Maneja diferentes tipos de errores que pueden ocurrir durante la ejecución del 
 from simstudio import SimStudioClient, SimStudioError
 import os
 
-client = SimStudioClient(api_key=os.getenv("SIM_API_KEY")
+client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
 
 def execute_with_error_handling():
     try:
@@ -433,7 +433,7 @@ Ejecuta múltiples flujos de trabajo de manera eficiente:
 from simstudio import SimStudioClient
 import os
 
-client = SimStudioClient(api_key=os.getenv("SIM_API_KEY")   
+client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))   
 
 def execute_workflows_batch(workflow_data_pairs):
     """Execute multiple workflows with different input data."""
