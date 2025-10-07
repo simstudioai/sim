@@ -214,6 +214,9 @@ export class Serializer {
       if (block.triggerMode === true || isTriggerCategory) {
         params.triggerMode = true
       }
+      if (block.advancedMode === true) {
+        params.advancedMode = true
+      }
     } catch (_) {
       // no-op: conservative, avoid blocking serialization if blockConfig is unexpected
     }
@@ -676,6 +679,8 @@ export class Serializer {
       triggerMode:
         serializedBlock.config?.params?.triggerMode === true ||
         serializedBlock.metadata?.category === 'triggers',
+      // Restore advanced mode from serialized params
+      advancedMode: serializedBlock.config?.params?.advancedMode === true,
     }
   }
 }
