@@ -230,7 +230,7 @@ class SimStudioError extends Error {
 import { SimStudioClient } from 'simstudio-ts-sdk';
 
 const client = new SimStudioClient({
-  apiKey: process.env.SIMSTUDIO_API_KEY!
+  apiKey: process.env.SIM_API_KEY!
 });
 
 async function runWorkflow() {
@@ -271,7 +271,7 @@ Behandeln Sie verschiedene Fehlertypen, die während der Workflow-Ausführung au
 import { SimStudioClient, SimStudioError } from 'simstudio-ts-sdk';
 
 const client = new SimStudioClient({
-  apiKey: process.env.SIMSTUDIO_API_KEY!
+  apiKey: process.env.SIM_API_KEY!
 });
 
 async function executeWithErrorHandling() {
@@ -315,14 +315,14 @@ Konfigurieren Sie den Client mit Umgebungsvariablen:
     import { SimStudioClient } from 'simstudio-ts-sdk';
 
     // Development configuration
-    const apiKey = process.env.SIMSTUDIO_API_KEY;
+    const apiKey = process.env.SIM_API_KEY;
     if (!apiKey) {
-      throw new Error('SIMSTUDIO_API_KEY environment variable is required');
+      throw new Error('SIM_API_KEY environment variable is required');
     }
 
     const client = new SimStudioClient({
       apiKey,
-      baseUrl: process.env.SIMSTUDIO_BASE_URL // optional
+      baseUrl: process.env.SIM_BASE_URL // optional
     });
     ```
 
@@ -333,14 +333,14 @@ Konfigurieren Sie den Client mit Umgebungsvariablen:
     import { SimStudioClient } from 'simstudio-ts-sdk';
 
     // Production configuration with validation
-    const apiKey = process.env.SIMSTUDIO_API_KEY;
+    const apiKey = process.env.SIM_API_KEY;
     if (!apiKey) {
-      throw new Error('SIMSTUDIO_API_KEY environment variable is required');
+      throw new Error('SIM_API_KEY environment variable is required');
     }
 
     const client = new SimStudioClient({
       apiKey,
-      baseUrl: process.env.SIMSTUDIO_BASE_URL || 'https://sim.ai'
+      baseUrl: process.env.SIM_BASE_URL || 'https://sim.ai'
     });
     ```
 
@@ -357,7 +357,7 @@ import { SimStudioClient } from 'simstudio-ts-sdk';
 
 const app = express();
 const client = new SimStudioClient({
-  apiKey: process.env.SIMSTUDIO_API_KEY!
+  apiKey: process.env.SIM_API_KEY!
 });
 
 app.use(express.json());
@@ -399,7 +399,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { SimStudioClient } from 'simstudio-ts-sdk';
 
 const client = new SimStudioClient({
-  apiKey: process.env.SIMSTUDIO_API_KEY!
+  apiKey: process.env.SIM_API_KEY!
 });
 
 export default async function handler(
@@ -476,7 +476,7 @@ import { useState, useCallback } from 'react';
 import { SimStudioClient, WorkflowExecutionResult } from 'simstudio-ts-sdk';
 
 const client = new SimStudioClient({
-  apiKey: process.env.NEXT_PUBLIC_SIMSTUDIO_API_KEY!
+  apiKey: process.env.NEXT_PUBLIC_SIM_API_KEY!
 });
 
 interface UseWorkflowResult {
@@ -588,7 +588,7 @@ import {
 
 // Type-safe client initialization
 const client: SimStudioClient = new SimStudioClient({
-  apiKey: process.env.SIMSTUDIO_API_KEY!
+  apiKey: process.env.SIM_API_KEY!
 });
 
 // Type-safe workflow execution

@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server'
 import { authenticateApiKey } from '@/lib/api-key/auth'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getWorkflowById } from '@/lib/workflows/utils'
 
@@ -37,7 +38,11 @@ export async function validateWorkflowAccess(
         }
       }
 
-      // API key authentication
+      const internalSecret = request.headers.get('X-Internal-Secret')
+      if (internalSecret === env.INTERNAL_API_SECRET) {
+        return { workflow }
+      }
+
       let apiKeyHeader = null
       for (const [key, value] of request.headers.entries()) {
         if (key.toLowerCase() === 'x-api-key' && value) {

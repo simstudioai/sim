@@ -11,11 +11,11 @@ export class StreamingResponseFormatProcessor implements ResponseFormatStreamPro
   processStream(
     originalStream: ReadableStream,
     blockId: string,
-    selectedOutputIds: string[],
+    selectedOutputs: string[],
     responseFormat?: any
   ): ReadableStream {
     // Check if this block has response format selected outputs
-    const hasResponseFormatSelection = selectedOutputIds.some((outputId) => {
+    const hasResponseFormatSelection = selectedOutputs.some((outputId) => {
       const blockIdForOutput = outputId.includes('_')
         ? outputId.split('_')[0]
         : outputId.split('.')[0]
@@ -28,7 +28,7 @@ export class StreamingResponseFormatProcessor implements ResponseFormatStreamPro
     }
 
     // Get the selected field names for this block
-    const selectedFields = selectedOutputIds
+    const selectedFields = selectedOutputs
       .filter((outputId) => {
         const blockIdForOutput = outputId.includes('_')
           ? outputId.split('_')[0]

@@ -106,17 +106,22 @@ export function DeployedWorkflowModal({
           selectedVersionLabel={selectedVersionLabel}
         />
 
-        <div className='mt-6 flex justify-between'>
+        <div className='mt-1 flex justify-between'>
           <div className='flex items-center gap-2'>
-            {onActivateVersion && (
-              <Button
-                onClick={onActivateVersion}
-                disabled={isSelectedVersionActive || !!isActivating}
-                variant={isSelectedVersionActive ? 'secondary' : 'default'}
-              >
-                {isSelectedVersionActive ? 'Active' : isActivating ? 'Activating…' : 'Activate'}
-              </Button>
-            )}
+            {onActivateVersion &&
+              (isSelectedVersionActive ? (
+                <div className='inline-flex items-center gap-2 rounded-md bg-emerald-500/10 px-2.5 py-1 font-medium text-emerald-600 text-xs dark:text-emerald-400'>
+                  <span className='relative flex h-2 w-2 items-center justify-center'>
+                    <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75' />
+                    <span className='relative inline-flex h-2 w-2 rounded-full bg-emerald-500' />
+                  </span>
+                  Active
+                </div>
+              ) : (
+                <Button onClick={onActivateVersion} disabled={!!isActivating}>
+                  {isActivating ? 'Activating…' : 'Activate'}
+                </Button>
+              ))}
           </div>
 
           <div className='flex items-center gap-2'>

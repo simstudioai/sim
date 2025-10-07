@@ -30,9 +30,10 @@ interface ExecutorOptions {
   workflowVariables?: Record<string, any>
   contextExtensions?: {
     stream?: boolean
-    selectedOutputIds?: string[]
+    selectedOutputs?: string[]
     edges?: Array<{ source: string; target: string }>
     onStream?: (streamingExecution: StreamingExecution) => Promise<void>
+    onBlockComplete?: (blockId: string, output: any) => Promise<void>
     executionId?: string
     workspaceId?: string
   }
@@ -323,7 +324,7 @@ export function useWorkflowExecution() {
       if (isChatExecution) {
         const stream = new ReadableStream({
           async start(controller) {
-            const encoder = new TextEncoder()
+            const { encodeSSE } = await import('@/lib/utils')
             const executionId = uuidv4()
             const streamedContent = new Map<string, string>()
             const streamReadingPromises: Promise<void>[] = []
@@ -410,6 +411,8 @@ export function useWorkflowExecution() {
                 if (!streamingExecution.stream) return
                 const reader = streamingExecution.stream.getReader()
                 const blockId = (streamingExecution.execution as any)?.blockId
+                let isFirstChunk = true
+
                 if (blockId) {
                   streamedContent.set(blockId, '')
                 }
@@ -423,14 +426,17 @@ export function useWorkflowExecution() {
                     if (blockId) {
                       streamedContent.set(blockId, (streamedContent.get(blockId) || '') + chunk)
                     }
-                    controller.enqueue(
-                      encoder.encode(
-                        `data: ${JSON.stringify({
-                          blockId,
-                          chunk,
-                        })}\n\n`
-                      )
-                    )
+
+                    // Add separator before first chunk if this isn't the first block
+                    let chunkToSend = chunk
+                    if (isFirstChunk && streamedContent.size > 1) {
+                      chunkToSend = `\n\n${chunk}`
+                      isFirstChunk = false
+                    } else if (isFirstChunk) {
+                      isFirstChunk = false
+                    }
+
+                    controller.enqueue(encodeSSE({ blockId, chunk: chunkToSend }))
                   }
                 } catch (error) {
                   logger.error('Error reading from stream:', error)
@@ -440,8 +446,58 @@ export function useWorkflowExecution() {
               streamReadingPromises.push(promise)
             }
 
+            // Handle non-streaming blocks (like Function blocks)
+            const onBlockComplete = async (blockId: string, output: any) => {
+              // Get selected outputs from chat store
+              const chatStore = await import('@/stores/panel/chat/store').then(
+                (mod) => mod.useChatStore
+              )
+              const selectedOutputs = chatStore
+                .getState()
+                .getSelectedWorkflowOutput(activeWorkflowId)
+
+              if (!selectedOutputs?.length) return
+
+              const { extractBlockIdFromOutputId, extractPathFromOutputId, traverseObjectPath } =
+                await import('@/lib/response-format')
+
+              // Check if this block's output is selected
+              const matchingOutputs = selectedOutputs.filter(
+                (outputId) => extractBlockIdFromOutputId(outputId) === blockId
+              )
+
+              if (!matchingOutputs.length) return
+
+              // Process each selected output from this block
+              for (const outputId of matchingOutputs) {
+                const path = extractPathFromOutputId(outputId, blockId)
+                const outputValue = traverseObjectPath(output, path)
+
+                if (outputValue !== undefined) {
+                  const formattedOutput =
+                    typeof outputValue === 'string'
+                      ? outputValue
+                      : JSON.stringify(outputValue, null, 2)
+
+                  // Add separator if this isn't the first output
+                  const separator = streamedContent.size > 0 ? '\n\n' : ''
+
+                  // Send the non-streaming block output as a chunk
+                  controller.enqueue(encodeSSE({ blockId, chunk: separator + formattedOutput }))
+
+                  // Track that we've sent output for this block
+                  streamedContent.set(blockId, formattedOutput)
+                }
+              }
+            }
+
             try {
-              const result = await executeWorkflow(workflowInput, onStream, executionId)
+              const result = await executeWorkflow(
+                workflowInput,
+                onStream,
+                executionId,
+                onBlockComplete
+              )
 
               // Check if execution was cancelled
               if (
@@ -450,11 +506,7 @@ export function useWorkflowExecution() {
                 !result.success &&
                 result.error === 'Workflow execution was cancelled'
               ) {
-                controller.enqueue(
-                  encoder.encode(
-                    `data: ${JSON.stringify({ event: 'cancelled', data: result })}\n\n`
-                  )
-                )
+                controller.enqueue(encodeSSE({ event: 'cancelled', data: result }))
                 return
               }
 
@@ -489,9 +541,8 @@ export function useWorkflowExecution() {
                   logger.info(`Processed ${processedCount} blocks for streaming tokenization`)
                 }
 
-                controller.enqueue(
-                  encoder.encode(`data: ${JSON.stringify({ event: 'final', data: result })}\n\n`)
-                )
+                const { encodeSSE } = await import('@/lib/utils')
+                controller.enqueue(encodeSSE({ event: 'final', data: result }))
                 persistLogs(executionId, result).catch((err) =>
                   logger.error('Error persisting logs:', err)
                 )
@@ -511,9 +562,8 @@ export function useWorkflowExecution() {
               }
 
               // Send the error as final event so downstream handlers can treat it uniformly
-              controller.enqueue(
-                encoder.encode(`data: ${JSON.stringify({ event: 'final', data: errorResult })}\n\n`)
-              )
+              const { encodeSSE } = await import('@/lib/utils')
+              controller.enqueue(encodeSSE({ event: 'final', data: errorResult }))
 
               // Persist the error to logs so it shows up in the logs page
               persistLogs(executionId, errorResult).catch((err) =>
@@ -589,7 +639,8 @@ export function useWorkflowExecution() {
   const executeWorkflow = async (
     workflowInput?: any,
     onStream?: (se: StreamingExecution) => Promise<void>,
-    executionId?: string
+    executionId?: string,
+    onBlockComplete?: (blockId: string, output: any) => Promise<void>
   ): Promise<ExecutionResult | StreamingExecution> => {
     // Use currentWorkflow but check if we're in diff mode
     const { blocks: workflowBlocks, edges: workflowEdges } = currentWorkflow
@@ -714,11 +765,11 @@ export function useWorkflowExecution() {
     )
 
     // If this is a chat execution, get the selected outputs
-    let selectedOutputIds: string[] | undefined
+    let selectedOutputs: string[] | undefined
     if (isExecutingFromChat && activeWorkflowId) {
       // Get selected outputs from chat store
       const chatStore = await import('@/stores/panel/chat/store').then((mod) => mod.useChatStore)
-      selectedOutputIds = chatStore.getState().getSelectedWorkflowOutput(activeWorkflowId)
+      selectedOutputs = chatStore.getState().getSelectedWorkflowOutput(activeWorkflowId)
     }
 
     // Helper to extract test values from inputFormat subblock
@@ -893,12 +944,13 @@ export function useWorkflowExecution() {
       workflowVariables,
       contextExtensions: {
         stream: isExecutingFromChat,
-        selectedOutputIds,
+        selectedOutputs,
         edges: workflow.connections.map((conn) => ({
           source: conn.source,
           target: conn.target,
         })),
         onStream,
+        onBlockComplete,
         executionId,
         workspaceId,
       },

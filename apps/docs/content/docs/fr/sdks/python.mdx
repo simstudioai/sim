@@ -214,7 +214,7 @@ class SimStudioError(Exception):
 import os
 from simstudio import SimStudioClient
 
-client = SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY"))
+client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
 
 def run_workflow():
     try:
@@ -252,7 +252,7 @@ Gérez différents types d'erreurs qui peuvent survenir pendant l'exécution du 
 from simstudio import SimStudioClient, SimStudioError
 import os
 
-client = SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY"))
+client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
 
 def execute_with_error_handling():
     try:
@@ -284,7 +284,7 @@ from simstudio import SimStudioClient
 import os
 
 # Using context manager to automatically close the session
-with SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY")) as client:
+with SimStudioClient(api_key=os.getenv("SIM_API_KEY")) as client:
     result = client.execute_workflow("workflow-id")
     print("Result:", result)
 # Session is automatically closed here
@@ -298,7 +298,7 @@ Exécutez plusieurs flux de travail efficacement :
 from simstudio import SimStudioClient
 import os
 
-client = SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY"))
+client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
 
 def execute_workflows_batch(workflow_data_pairs):
     """Execute multiple workflows with different input data."""
@@ -352,8 +352,8 @@ Configurez le client en utilisant des variables d'environnement :
 
     # Development configuration
     client = SimStudioClient(
-        api_key=os.getenv("SIMSTUDIO_API_KEY"),
-        base_url=os.getenv("SIMSTUDIO_BASE_URL", "https://sim.ai")
+        api_key=os.getenv("SIM_API_KEY"),
+        base_url=os.getenv("SIM_BASE_URL", "https://sim.ai")
     )
     ```
 
@@ -365,13 +365,13 @@ Configurez le client en utilisant des variables d'environnement :
     from simstudio import SimStudioClient
 
     # Production configuration with error handling
-    api_key = os.getenv("SIMSTUDIO_API_KEY")
+    api_key = os.getenv("SIM_API_KEY")
     if not api_key:
-        raise ValueError("SIMSTUDIO_API_KEY environment variable is required")
+        raise ValueError("SIM_API_KEY environment variable is required")
 
     client = SimStudioClient(
         api_key=api_key,
-        base_url=os.getenv("SIMSTUDIO_BASE_URL", "https://sim.ai")
+        base_url=os.getenv("SIM_BASE_URL", "https://sim.ai")
     )
     ```
 

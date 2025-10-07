@@ -29,6 +29,57 @@ export interface WorkflowStatus {
 export interface ExecutionOptions {
   input?: any
   timeout?: number
+  stream?: boolean
+  selectedOutputs?: string[]
+  async?: boolean
+}
+
+export interface AsyncExecutionResult {
+  success: boolean
+  taskId: string
+  status: 'queued'
+  createdAt: string
+  links: {
+    status: string
+  }
+}
+
+export interface RateLimitInfo {
+  limit: number
+  remaining: number
+  reset: number
+  retryAfter?: number
+}
+
+export interface RetryOptions {
+  maxRetries?: number
+  initialDelay?: number
+  maxDelay?: number
+  backoffMultiplier?: number
+}
+
+export interface UsageLimits {
+  success: boolean
+  rateLimit: {
+    sync: {
+      isLimited: boolean
+      limit: number
+      remaining: number
+      resetAt: string
+    }
+    async: {
+      isLimited: boolean
+      limit: number
+      remaining: number
+      resetAt: string
+    }
+    authType: string
+  }
+  usage: {
+    currentPeriodCost: number
+    limit: number
+    plan: string
+  }
 }
 
 export class SimStudioError extends Error {
@@ -46,6 +97,7 @@ export class SimStudioError extends Error {
 export class SimStudioClient {
   private apiKey: string
   private baseUrl: string
+  private rateLimitInfo: RateLimitInfo | null = null
 
   constructor(config: SimStudioConfig) {
     this.apiKey = config.apiKey
@@ -54,13 +106,14 @@ export class SimStudioClient {
 
   /**
    * Execute a workflow with optional input data
+   * If async is true, returns immediately with a task ID
    */
   async executeWorkflow(
     workflowId: string,
     options: ExecutionOptions = {}
-  ): Promise<WorkflowExecutionResult> {
+  ): Promise<WorkflowExecutionResult | AsyncExecutionResult> {
     const url = `${this.baseUrl}/api/workflows/${workflowId}/execute`
-    const { input, timeout = 30000 } = options
+    const { input, timeout = 30000, stream, selectedOutputs, async } = options
 
     try {
       // Create a timeout promise
@@ -68,16 +121,44 @@ export class SimStudioClient {
         setTimeout(() => reject(new Error('TIMEOUT')), timeout)
       })
 
+      // Build request body - spread input at root level, then add API control parameters
+      const body: any = input !== undefined ? { ...input } : {}
+      if (stream !== undefined) {
+        body.stream = stream
+      }
+      if (selectedOutputs !== undefined) {
+        body.selectedOutputs = selectedOutputs
+      }
+
+      // Build headers - async execution uses X-Execution-Mode header
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'X-API-Key': this.apiKey,
+      }
+      if (async) {
+        headers['X-Execution-Mode'] = 'async'
+      }
+
       const fetchPromise = fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': this.apiKey,
-        },
-        body: JSON.stringify(input || {}),
+        headers,
+        body: JSON.stringify(body),
       })
 
       const response = await Promise.race([fetchPromise, timeoutPromise])
+
+      // Extract rate limit headers
+      this.updateRateLimitInfo(response)
+
+      // Handle rate limiting with retry
+      if (response.status === 429) {
+        const retryAfter = this.rateLimitInfo?.retryAfter || 1000
+        throw new SimStudioError(
+          `Rate limit exceeded. Retry after ${retryAfter}ms`,
+          'RATE_LIMIT_EXCEEDED',
+          429
+        )
+      }
 
       if (!response.ok) {
         const errorData = (await response.json().catch(() => ({}))) as unknown as any
@@ -89,7 +170,7 @@ export class SimStudioClient {
       }
 
       const result = await response.json()
-      return result as WorkflowExecutionResult
+      return result as WorkflowExecutionResult | AsyncExecutionResult
     } catch (error: any) {
       if (error instanceof SimStudioError) {
         throw error
@@ -144,9 +225,9 @@ export class SimStudioClient {
     workflowId: string,
     options: ExecutionOptions = {}
   ): Promise<WorkflowExecutionResult> {
-    // For now, the API is synchronous, so we just execute directly
-    // In the future, if async execution is added, this method can be enhanced
-    return this.executeWorkflow(workflowId, options)
+    // Ensure sync mode by explicitly setting async to false
+    const syncOptions = { ...options, async: false }
+    return this.executeWorkflow(workflowId, syncOptions) as Promise<WorkflowExecutionResult>
   }
 
   /**
@@ -173,6 +254,158 @@ export class SimStudioClient {
    */
   setBaseUrl(baseUrl: string): void {
     this.baseUrl = baseUrl.replace(/\/+$/, '')
+  }
+
+  /**
+   * Get the status of an async job
+   * @param taskId The task ID returned from async execution
+   */
+  async getJobStatus(taskId: string): Promise<any> {
+    const url = `${this.baseUrl}/api/jobs/${taskId}`
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'X-API-Key': this.apiKey,
+        },
+      })
+
+      this.updateRateLimitInfo(response)
+
+      if (!response.ok) {
+        const errorData = (await response.json().catch(() => ({}))) as unknown as any
+        throw new SimStudioError(
+          errorData.error || `HTTP ${response.status}: ${response.statusText}`,
+          errorData.code,
+          response.status
+        )
+      }
+
+      const result = await response.json()
+      return result
+    } catch (error: any) {
+      if (error instanceof SimStudioError) {
+        throw error
+      }
+
+      throw new SimStudioError(error?.message || 'Failed to get job status', 'STATUS_ERROR')
+    }
+  }
+
+  /**
+   * Execute workflow with automatic retry on rate limit
+   */
+  async executeWithRetry(
+    workflowId: string,
+    options: ExecutionOptions = {},
+    retryOptions: RetryOptions = {}
+  ): Promise<WorkflowExecutionResult | AsyncExecutionResult> {
+    const {
+      maxRetries = 3,
+      initialDelay = 1000,
+      maxDelay = 30000,
+      backoffMultiplier = 2,
+    } = retryOptions
+
+    let lastError: SimStudioError | null = null
+    let delay = initialDelay
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        return await this.executeWorkflow(workflowId, options)
+      } catch (error: any) {
+        if (!(error instanceof SimStudioError) || error.code !== 'RATE_LIMIT_EXCEEDED') {
+          throw error
+        }
+
+        lastError = error
+
+        // Don't retry after last attempt
+        if (attempt === maxRetries) {
+          break
+        }
+
+        // Use retry-after if provided, otherwise use exponential backoff
+        const waitTime =
+          error.status === 429 && this.rateLimitInfo?.retryAfter
+            ? this.rateLimitInfo.retryAfter
+            : Math.min(delay, maxDelay)
+
+        // Add jitter (±25%)
+        const jitter = waitTime * (0.75 + Math.random() * 0.5)
+
+        await new Promise((resolve) => setTimeout(resolve, jitter))
+
+        // Exponential backoff for next attempt
+        delay *= backoffMultiplier
+      }
+    }
+
+    throw lastError || new SimStudioError('Max retries exceeded', 'MAX_RETRIES_EXCEEDED')
+  }
+
+  /**
+   * Get current rate limit information
+   */
+  getRateLimitInfo(): RateLimitInfo | null {
+    return this.rateLimitInfo
+  }
+
+  /**
+   * Update rate limit info from response headers
+   * @private
+   */
+  private updateRateLimitInfo(response: any): void {
+    const limit = response.headers.get('x-ratelimit-limit')
+    const remaining = response.headers.get('x-ratelimit-remaining')
+    const reset = response.headers.get('x-ratelimit-reset')
+    const retryAfter = response.headers.get('retry-after')
+
+    if (limit || remaining || reset) {
+      this.rateLimitInfo = {
+        limit: limit ? Number.parseInt(limit, 10) : 0,
+        remaining: remaining ? Number.parseInt(remaining, 10) : 0,
+        reset: reset ? Number.parseInt(reset, 10) : 0,
+        retryAfter: retryAfter ? Number.parseInt(retryAfter, 10) * 1000 : undefined,
+      }
+    }
+  }
+
+  /**
+   * Get current usage limits and quota information
+   */
+  async getUsageLimits(): Promise<UsageLimits> {
+    const url = `${this.baseUrl}/api/users/me/usage-limits`
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'X-API-Key': this.apiKey,
+        },
+      })
+
+      this.updateRateLimitInfo(response)
+
+      if (!response.ok) {
+        const errorData = (await response.json().catch(() => ({}))) as unknown as any
+        throw new SimStudioError(
+          errorData.error || `HTTP ${response.status}: ${response.statusText}`,
+          errorData.code,
+          response.status
+        )
+      }
+
+      const result = await response.json()
+      return result as UsageLimits
+    } catch (error: any) {
+      if (error instanceof SimStudioError) {
+        throw error
+      }
+
+      throw new SimStudioError(error?.message || 'Failed to get usage limits', 'USAGE_ERROR')
+    }
   }
 }
 

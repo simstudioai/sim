@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Eye, Maximize2, Minimize2, X } from 'lucide-react'
+import { Maximize2, Minimize2, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -45,7 +45,6 @@ export function FrozenCanvasModal({
         {/* Header */}
         <DialogHeader className='flex flex-row items-center justify-between border-b bg-background p-4'>
           <div className='flex items-center gap-3'>
-            <Eye className='h-5 w-5 text-blue-500 dark:text-blue-400' />
             <div>
               <DialogTitle className='font-semibold text-foreground text-lg'>
                 Logged Workflow State
@@ -83,14 +82,15 @@ export function FrozenCanvasModal({
             traceSpans={traceSpans}
             height='100%'
             width='100%'
+            // Ensure preview leaves padding at edges so nodes don't touch header
           />
         </div>
 
         {/* Footer with instructions */}
         <div className='border-t bg-background px-6 py-3'>
           <div className='text-muted-foreground text-sm'>
-            💡 Click on blocks to see their input and output data at execution time. This canvas
-            shows the exact state of the workflow when this execution was captured.
+            Click on blocks to see their input and output data at execution time. This canvas shows
+            the exact state of the workflow when this execution was captured.
           </div>
         </div>
       </DialogContent>

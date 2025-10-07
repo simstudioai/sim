@@ -179,7 +179,7 @@ class SimStudioError extends Error {
 import { SimStudioClient } from 'simstudio-ts-sdk';
 
 const client = new SimStudioClient({
-  apiKey: process.env.SIMSTUDIO_API_KEY!
+  apiKey: process.env.SIM_API_KEY!
 });
 
 async function runWorkflow() {
@@ -218,7 +218,7 @@ runWorkflow();
 import { SimStudioClient, SimStudioError } from 'simstudio-ts-sdk';
 
 const client = new SimStudioClient({
-  apiKey: process.env.SIMSTUDIO_API_KEY!
+  apiKey: process.env.SIM_API_KEY!
 });
 
 async function executeWithErrorHandling() {
@@ -256,8 +256,8 @@ async function executeWithErrorHandling() {
 ```typescript
 // Using environment variables
 const client = new SimStudioClient({
-  apiKey: process.env.SIMSTUDIO_API_KEY!,
-  baseUrl: process.env.SIMSTUDIO_BASE_URL // optional
+  apiKey: process.env.SIM_API_KEY!,
+  baseUrl: process.env.SIM_BASE_URL // optional
 });
 ```
 

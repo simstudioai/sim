@@ -75,12 +75,12 @@ export function parseResponseFormatSafely(responseFormatValue: any, blockId: str
  */
 export function extractFieldValues(
   parsedContent: any,
-  selectedOutputIds: string[],
+  selectedOutputs: string[],
   blockId: string
 ): Record<string, any> {
   const extractedValues: Record<string, any> = {}
 
-  for (const outputId of selectedOutputIds) {
+  for (const outputId of selectedOutputs) {
     const blockIdForOutput = extractBlockIdFromOutputId(outputId)
 
     if (blockIdForOutput !== blockId) {
@@ -90,18 +90,7 @@ export function extractFieldValues(
     const path = extractPathFromOutputId(outputId, blockIdForOutput)
 
     if (path) {
-      const pathParts = path.split('.')
-      let current = parsedContent
-
-      for (const part of pathParts) {
-        if (current && typeof current === 'object' && part in current) {
-          current = current[part]
-        } else {
-          current = undefined
-          break
-        }
-      }
-
+      const current = traverseObjectPathInternal(parsedContent, path)
       if (current !== undefined) {
         extractedValues[path] = current
       }
@@ -165,8 +154,8 @@ export function parseOutputContentSafely(output: any): any {
 /**
  * Check if a set of output IDs contains response format selections for a specific block
  */
-export function hasResponseFormatSelection(selectedOutputIds: string[], blockId: string): boolean {
-  return selectedOutputIds.some((outputId) => {
+export function hasResponseFormatSelection(selectedOutputs: string[], blockId: string): boolean {
+  return selectedOutputs.some((outputId) => {
     const blockIdForOutput = extractBlockIdFromOutputId(outputId)
     return blockIdForOutput === blockId && outputId.includes('_')
   })
@@ -175,11 +164,46 @@ export function hasResponseFormatSelection(selectedOutputIds: string[], blockId:
 /**
  * Get selected field names for a specific block from output IDs
  */
-export function getSelectedFieldNames(selectedOutputIds: string[], blockId: string): string[] {
-  return selectedOutputIds
+export function getSelectedFieldNames(selectedOutputs: string[], blockId: string): string[] {
+  return selectedOutputs
     .filter((outputId) => {
       const blockIdForOutput = extractBlockIdFromOutputId(outputId)
       return blockIdForOutput === blockId && outputId.includes('_')
     })
     .map((outputId) => extractPathFromOutputId(outputId, blockId))
+}
+
+/**
+ * Internal helper to traverse an object path without parsing
+ * @param obj The object to traverse
+ * @param path The dot-separated path (e.g., "result.data.value")
+ * @returns The value at the path, or undefined if path doesn't exist
+ */
+function traverseObjectPathInternal(obj: any, path: string): any {
+  if (!path) return obj
+
+  let current = obj
+  const parts = path.split('.')
+
+  for (const part of parts) {
+    if (current?.[part] !== undefined) {
+      current = current[part]
+    } else {
+      return undefined
+    }
+  }
+
+  return current
+}
+
+/**
+ * Traverses an object path safely, returning undefined if any part doesn't exist
+ * Automatically handles parsing of output content if needed
+ * @param obj The object to traverse (may contain unparsed content)
+ * @param path The dot-separated path (e.g., "result.data.value")
+ * @returns The value at the path, or undefined if path doesn't exist
+ */
+export function traverseObjectPath(obj: any, path: string): any {
+  const parsed = parseOutputContentSafely(obj)
+  return traverseObjectPathInternal(parsed, path)
 }

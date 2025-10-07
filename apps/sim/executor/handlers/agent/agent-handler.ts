@@ -371,7 +371,7 @@ export class AgentBlockHandler implements BlockHandler {
 
   private getStreamingConfig(block: SerializedBlock, context: ExecutionContext): StreamingConfig {
     const isBlockSelectedForOutput =
-      context.selectedOutputIds?.some((outputId) => {
+      context.selectedOutputs?.some((outputId) => {
         if (outputId === block.id) return true
         const firstUnderscoreIndex = outputId.indexOf('_')
         return (
@@ -381,10 +381,6 @@ export class AgentBlockHandler implements BlockHandler {
 
     const hasOutgoingConnections = context.edges?.some((edge) => edge.source === block.id) ?? false
     const shouldUseStreaming = Boolean(context.stream) && isBlockSelectedForOutput
-
-    if (shouldUseStreaming) {
-      logger.info(`Block ${block.id} will use streaming response`)
-    }
 
     return { shouldUseStreaming, isBlockSelectedForOutput, hasOutgoingConnections }
   }

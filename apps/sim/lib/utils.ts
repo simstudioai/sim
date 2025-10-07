@@ -375,6 +375,25 @@ export function isValidName(name: string): boolean {
   return /^[a-zA-Z0-9_\s]*$/.test(name)
 }
 
+export const SSE_HEADERS = {
+  'Content-Type': 'text/event-stream',
+  'Cache-Control': 'no-cache',
+  Connection: 'keep-alive',
+  'X-Accel-Buffering': 'no',
+} as const
+
+/**
+ * Encodes data as a Server-Sent Events (SSE) message.
+ * Formats the data as a JSON string prefixed with "data:" and suffixed with two newlines,
+ * then encodes it as a Uint8Array for streaming.
+ *
+ * @param data - The data to encode and send via SSE
+ * @returns The encoded SSE message as a Uint8Array
+ */
+export function encodeSSE(data: any): Uint8Array {
+  return new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`)
+}
+
 /**
  * Gets a list of invalid characters in a name
  *
@@ -384,19 +403,6 @@ export function isValidName(name: string): boolean {
 export function getInvalidCharacters(name: string): string[] {
   const invalidChars = name.match(/[^a-zA-Z0-9_\s]/g)
   return invalidChars ? [...new Set(invalidChars)] : []
-}
-
-/**
- * Get the full URL for an asset stored in Vercel Blob or local fallback
- * - If CDN is configured (NEXT_PUBLIC_BLOB_BASE_URL), uses CDN URL
- * - Otherwise falls back to local static assets served from root path
- */
-export function getAssetUrl(filename: string) {
-  const cdnBaseUrl = env.NEXT_PUBLIC_BLOB_BASE_URL
-  if (cdnBaseUrl) {
-    return `${cdnBaseUrl}/${filename}`
-  }
-  return `/${filename}`
 }
 
 /**
