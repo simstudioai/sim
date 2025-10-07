@@ -5,6 +5,7 @@ import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
+import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { getSession } from '@/lib/auth'
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
@@ -66,8 +67,8 @@ class UsageLimitError extends Error {
 async function executeWorkflow(
   workflow: any,
   requestId: string,
-  input?: any,
-  executingUserId?: string
+  input: any | undefined,
+  actorUserId: string
 ): Promise<any> {
   const workflowId = workflow.id
   const executionId = uuidv4()
@@ -86,8 +87,8 @@ async function executeWorkflow(
 
   // Rate limiting is now handled before entering the sync queue
 
-  // Check if the user has exceeded their usage limits
-  const usageCheck = await checkServerSideUsageLimits(workflow.userId)
+  // Check if the actor has exceeded their usage limits
+  const usageCheck = await checkServerSideUsageLimits(actorUserId)
   if (usageCheck.isExceeded) {
     logger.warn(`[${requestId}] User ${workflow.userId} has exceeded usage limits`, {
       currentUsage: usageCheck.currentUsage,
@@ -133,13 +134,13 @@ async function executeWorkflow(
 
     // Load personal (for the executing user) and workspace env (workspace overrides personal)
     const { personalEncrypted, workspaceEncrypted } = await getPersonalAndWorkspaceEnv(
-      executingUserId || workflow.userId,
+      actorUserId,
       workflow.workspaceId || undefined
     )
     const variables = EnvVarsSchema.parse({ ...personalEncrypted, ...workspaceEncrypted })
 
     await loggingSession.safeStart({
-      userId: executingUserId || workflow.userId,
+      userId: actorUserId,
       workspaceId: workflow.workspaceId,
       variables,
     })
@@ -341,7 +342,7 @@ async function executeWorkflow(
           totalApiCalls: sql`total_api_calls + 1`,
           lastActive: sql`now()`,
         })
-        .where(eq(userStats.userId, workflow.userId))
+        .where(eq(userStats.userId, actorUserId))
     }
 
     await loggingSession.safeComplete({
@@ -405,19 +406,30 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // Synchronous execution
     try {
-      // Check rate limits BEFORE entering queue for GET requests
-      if (triggerType === 'api') {
-        // Get user subscription (checks both personal and org subscriptions)
-        const userSubscription = await getHighestPrioritySubscription(validation.workflow.userId)
+      // Resolve actor user id
+      let actorUserId: string | null = null
+      if (triggerType === 'manual') {
+        actorUserId = session!.user!.id
+      } else {
+        const apiKeyHeader = request.headers.get('X-API-Key')
+        const auth = apiKeyHeader ? await authenticateApiKeyFromHeader(apiKeyHeader) : null
+        if (!auth?.success || !auth.userId) {
+          return createErrorResponse('Unauthorized', 401)
+        }
+        actorUserId = auth.userId
+        if (auth.keyId) {
+          void updateApiKeyLastUsed(auth.keyId).catch(() => {})
+        }
 
+        // Check rate limits BEFORE entering execution for API requests
+        const userSubscription = await getHighestPrioritySubscription(actorUserId)
         const rateLimiter = new RateLimiter()
         const rateLimitCheck = await rateLimiter.checkRateLimitWithSubscription(
-          validation.workflow.userId,
+          actorUserId,
           userSubscription,
-          triggerType,
-          false // isAsync = false for sync calls
+          'api',
+          false
         )
-
         if (!rateLimitCheck.allowed) {
           throw new RateLimitError(
             `Rate limit exceeded. You have ${rateLimitCheck.remaining} requests remaining. Resets at ${rateLimitCheck.resetAt.toISOString()}`
@@ -429,8 +441,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         validation.workflow,
         requestId,
         undefined,
-        // Executing user (manual run): if session present, use that user for fallback
-        (await getSession())?.user?.id || undefined
+        actorUserId as string
       )
 
       // Check if the workflow execution contains a response block output
@@ -517,14 +528,19 @@ export async function POST(
     let triggerType: TriggerType = 'manual'
 
     const session = await getSession()
-    if (session?.user?.id) {
+    const apiKeyHeader = request.headers.get('X-API-Key')
+    if (session?.user?.id && !apiKeyHeader) {
       authenticatedUserId = session.user.id
-      triggerType = 'manual' // UI session (not rate limited)
-    } else {
-      const apiKeyHeader = request.headers.get('X-API-Key')
-      if (apiKeyHeader) {
-        authenticatedUserId = validation.workflow.userId
-        triggerType = 'api'
+      triggerType = 'manual'
+    } else if (apiKeyHeader) {
+      const auth = await authenticateApiKeyFromHeader(apiKeyHeader)
+      if (!auth.success || !auth.userId) {
+        return createErrorResponse('Unauthorized', 401)
+      }
+      authenticatedUserId = auth.userId
+      triggerType = 'api'
+      if (auth.keyId) {
+        void updateApiKeyLastUsed(auth.keyId).catch(() => {})
       }
     }
 

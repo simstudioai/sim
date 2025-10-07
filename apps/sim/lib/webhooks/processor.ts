@@ -2,6 +2,7 @@ import { db, webhook, workflow } from '@sim/db'
 import { tasks } from '@trigger.dev/sdk'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { getApiKeyOwnerUserId } from '@/lib/api-key/service'
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { env, isTruthy } from '@/lib/env'
@@ -268,18 +269,25 @@ export async function checkRateLimits(
   requestId: string
 ): Promise<NextResponse | null> {
   try {
-    const userSubscription = await getHighestPrioritySubscription(foundWorkflow.userId)
+    const actorUserId = await getApiKeyOwnerUserId(foundWorkflow.pinnedApiKeyId)
+
+    if (!actorUserId) {
+      logger.warn(`[${requestId}] Webhook requires pinned API key to attribute usage`)
+      return NextResponse.json({ message: 'Pinned API key required' }, { status: 200 })
+    }
+
+    const userSubscription = await getHighestPrioritySubscription(actorUserId)
 
     const rateLimiter = new RateLimiter()
     const rateLimitCheck = await rateLimiter.checkRateLimitWithSubscription(
-      foundWorkflow.userId,
+      actorUserId,
       userSubscription,
       'webhook',
       true
     )
 
     if (!rateLimitCheck.allowed) {
-      logger.warn(`[${requestId}] Rate limit exceeded for webhook user ${foundWorkflow.userId}`, {
+      logger.warn(`[${requestId}] Rate limit exceeded for webhook user ${actorUserId}`, {
         provider: foundWebhook.provider,
         remaining: rateLimitCheck.remaining,
         resetAt: rateLimitCheck.resetAt,
@@ -319,10 +327,17 @@ export async function checkUsageLimits(
   }
 
   try {
-    const usageCheck = await checkServerSideUsageLimits(foundWorkflow.userId)
+    const actorUserId = await getApiKeyOwnerUserId(foundWorkflow.pinnedApiKeyId)
+
+    if (!actorUserId) {
+      logger.warn(`[${requestId}] Webhook requires pinned API key to attribute usage`)
+      return NextResponse.json({ message: 'Pinned API key required' }, { status: 200 })
+    }
+
+    const usageCheck = await checkServerSideUsageLimits(actorUserId)
     if (usageCheck.isExceeded) {
       logger.warn(
-        `[${requestId}] User ${foundWorkflow.userId} has exceeded usage limits. Skipping webhook execution.`,
+        `[${requestId}] User ${actorUserId} has exceeded usage limits. Skipping webhook execution.`,
         {
           currentUsage: usageCheck.currentUsage,
           limit: usageCheck.limit,
@@ -361,10 +376,16 @@ export async function queueWebhookExecution(
   options: WebhookProcessorOptions
 ): Promise<NextResponse> {
   try {
+    const actorUserId = await getApiKeyOwnerUserId(foundWorkflow.pinnedApiKeyId)
+    if (!actorUserId) {
+      logger.warn(`[${options.requestId}] Webhook requires pinned API key to attribute usage`)
+      return NextResponse.json({ message: 'Pinned API key required' }, { status: 200 })
+    }
+
     const payload = {
       webhookId: foundWebhook.id,
       workflowId: foundWorkflow.id,
-      userId: foundWorkflow.userId,
+      userId: actorUserId,
       provider: foundWebhook.provider,
       body,
       headers: Object.fromEntries(request.headers.entries()),
