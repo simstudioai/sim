@@ -102,6 +102,7 @@ describe('Webhook Trigger API Route', () => {
     globalMockData.webhooks.length = 0
     globalMockData.workflows.length = 0
     globalMockData.schedules.length = 0
+    globalMockData.apiKeys.length = 0
 
     mockExecutionDependencies()
     mockTriggerDevSdk()
@@ -222,7 +223,9 @@ describe('Webhook Trigger API Route', () => {
       globalMockData.workflows.push({
         id: 'test-workflow-id',
         userId: 'test-user-id',
+        pinnedApiKeyId: 'test-pinned-api-key-id',
       })
+      globalMockData.apiKeys.push({ id: 'test-pinned-api-key-id', userId: 'test-user-id' })
 
       const req = createMockRequest('POST', { event: 'test', id: 'test-123' })
       const params = Promise.resolve({ path: 'test-path' })
@@ -250,7 +253,12 @@ describe('Webhook Trigger API Route', () => {
         providerConfig: { requireAuth: true, token: 'test-token-123' },
         workflowId: 'test-workflow-id',
       })
-      globalMockData.workflows.push({ id: 'test-workflow-id', userId: 'test-user-id' })
+      globalMockData.workflows.push({
+        id: 'test-workflow-id',
+        userId: 'test-user-id',
+        pinnedApiKeyId: 'test-pinned-api-key-id',
+      })
+      globalMockData.apiKeys.push({ id: 'test-pinned-api-key-id', userId: 'test-user-id' })
 
       const headers = {
         'Content-Type': 'application/json',
@@ -281,7 +289,12 @@ describe('Webhook Trigger API Route', () => {
         },
         workflowId: 'test-workflow-id',
       })
-      globalMockData.workflows.push({ id: 'test-workflow-id', userId: 'test-user-id' })
+      globalMockData.workflows.push({
+        id: 'test-workflow-id',
+        userId: 'test-user-id',
+        pinnedApiKeyId: 'test-pinned-api-key-id',
+      })
+      globalMockData.apiKeys.push({ id: 'test-pinned-api-key-id', userId: 'test-user-id' })
 
       const headers = {
         'Content-Type': 'application/json',
@@ -308,7 +321,11 @@ describe('Webhook Trigger API Route', () => {
         providerConfig: { requireAuth: true, token: 'case-test-token' },
         workflowId: 'test-workflow-id',
       })
-      globalMockData.workflows.push({ id: 'test-workflow-id', userId: 'test-user-id' })
+      globalMockData.workflows.push({
+        id: 'test-workflow-id',
+        userId: 'test-user-id',
+        pinnedApiKeyId: 'test-pinned-api-key-id',
+      })
 
       vi.doMock('@trigger.dev/sdk', () => ({
         tasks: {
@@ -354,7 +371,11 @@ describe('Webhook Trigger API Route', () => {
         },
         workflowId: 'test-workflow-id',
       })
-      globalMockData.workflows.push({ id: 'test-workflow-id', userId: 'test-user-id' })
+      globalMockData.workflows.push({
+        id: 'test-workflow-id',
+        userId: 'test-user-id',
+        pinnedApiKeyId: 'test-pinned-api-key-id',
+      })
 
       vi.doMock('@trigger.dev/sdk', () => ({
         tasks: {
@@ -391,7 +412,11 @@ describe('Webhook Trigger API Route', () => {
         providerConfig: { requireAuth: true, token: 'correct-token' },
         workflowId: 'test-workflow-id',
       })
-      globalMockData.workflows.push({ id: 'test-workflow-id', userId: 'test-user-id' })
+      globalMockData.workflows.push({
+        id: 'test-workflow-id',
+        userId: 'test-user-id',
+        pinnedApiKeyId: 'test-pinned-api-key-id',
+      })
 
       const headers = {
         'Content-Type': 'application/json',
@@ -424,7 +449,11 @@ describe('Webhook Trigger API Route', () => {
         },
         workflowId: 'test-workflow-id',
       })
-      globalMockData.workflows.push({ id: 'test-workflow-id', userId: 'test-user-id' })
+      globalMockData.workflows.push({
+        id: 'test-workflow-id',
+        userId: 'test-user-id',
+        pinnedApiKeyId: 'test-pinned-api-key-id',
+      })
 
       const headers = {
         'Content-Type': 'application/json',
@@ -453,7 +482,11 @@ describe('Webhook Trigger API Route', () => {
         providerConfig: { requireAuth: true, token: 'required-token' },
         workflowId: 'test-workflow-id',
       })
-      globalMockData.workflows.push({ id: 'test-workflow-id', userId: 'test-user-id' })
+      globalMockData.workflows.push({
+        id: 'test-workflow-id',
+        userId: 'test-user-id',
+        pinnedApiKeyId: 'test-pinned-api-key-id',
+      })
 
       const req = createMockRequest('POST', { event: 'no.auth.test' })
       const params = Promise.resolve({ path: 'test-path' })
@@ -482,7 +515,11 @@ describe('Webhook Trigger API Route', () => {
         },
         workflowId: 'test-workflow-id',
       })
-      globalMockData.workflows.push({ id: 'test-workflow-id', userId: 'test-user-id' })
+      globalMockData.workflows.push({
+        id: 'test-workflow-id',
+        userId: 'test-user-id',
+        pinnedApiKeyId: 'test-pinned-api-key-id',
+      })
 
       const headers = {
         'Content-Type': 'application/json',
@@ -515,7 +552,11 @@ describe('Webhook Trigger API Route', () => {
         },
         workflowId: 'test-workflow-id',
       })
-      globalMockData.workflows.push({ id: 'test-workflow-id', userId: 'test-user-id' })
+      globalMockData.workflows.push({
+        id: 'test-workflow-id',
+        userId: 'test-user-id',
+        pinnedApiKeyId: 'test-pinned-api-key-id',
+      })
 
       const headers = {
         'Content-Type': 'application/json',
