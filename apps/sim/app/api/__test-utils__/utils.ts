@@ -148,41 +148,12 @@ export const sampleWorkflowState = {
 }
 
 // Global mock data that can be configured by tests
-export interface MockWorkflow {
-  id: string
-  userId: string
-  pinnedApiKeyId?: string | null
-  [key: string]: any
-}
-
 export const globalMockData = {
   webhooks: [] as any[],
-  workflows: [] as MockWorkflow[],
+  workflows: [] as any[],
   schedules: [] as any[],
-  apiKeys: [] as { id: string; userId: string }[],
   shouldThrowError: false,
   errorMessage: 'Database error',
-}
-
-export const mockWebhookTable = {
-  id: 'id',
-  path: 'path',
-  workflowId: 'workflowId',
-  isActive: 'isActive',
-  provider: 'provider',
-  providerConfig: 'providerConfig',
-  pinnedApiKeyId: 'pinnedApiKeyId',
-}
-
-export const mockWorkflowTable = {
-  id: 'id',
-  userId: 'userId',
-  pinnedApiKeyId: 'pinnedApiKeyId',
-}
-
-export const mockApiKeyTable = {
-  id: 'id',
-  userId: 'userId',
 }
 
 export const mockDb = {
@@ -191,65 +162,46 @@ export const mockDb = {
       throw new Error(globalMockData.errorMessage)
     }
     return {
-      from: vi.fn().mockImplementation((table) => {
-        const tableName = typeof table === 'string' ? table : (table?.id ?? '')
-
-        if (table === mockApiKeyTable || tableName === 'apiKey') {
-          return {
-            where: vi.fn().mockImplementation(() => ({
-              limit: vi.fn().mockImplementation(() => {
-                if (globalMockData.apiKeys.length > 0) {
-                  return globalMockData.apiKeys
-                }
-                return []
-              }),
-            })),
-          }
-        }
-
-        return {
-          innerJoin: vi.fn().mockImplementation(() => ({
-            where: vi.fn().mockImplementation(() => ({
-              limit: vi.fn().mockImplementation(() => {
-                // Return webhook/workflow join data if available
-                if (globalMockData.webhooks.length > 0) {
-                  return [
-                    {
-                      webhook: globalMockData.webhooks[0],
-                      workflow: globalMockData.workflows[0] || {
-                        id: 'test-workflow',
-                        userId: 'test-user',
-                        pinnedApiKeyId: null,
-                      },
-                    },
-                  ]
-                }
-                return []
-              }),
-            })),
-          })),
+      from: vi.fn().mockImplementation(() => ({
+        innerJoin: vi.fn().mockImplementation(() => ({
           where: vi.fn().mockImplementation(() => ({
             limit: vi.fn().mockImplementation(() => {
-              // Return schedules if available
-              if (globalMockData.schedules.length > 0) {
-                return globalMockData.schedules
+              // Return webhook/workflow join data if available
+              if (globalMockData.webhooks.length > 0) {
+                return [
+                  {
+                    webhook: globalMockData.webhooks[0],
+                    workflow: globalMockData.workflows[0] || {
+                      id: 'test-workflow',
+                      userId: 'test-user',
+                    },
+                  },
+                ]
               }
-              // Return simple workflow data
-              if (globalMockData.workflows.length > 0) {
-                return globalMockData.workflows
-              }
-              return [
-                {
-                  id: 'workflow-id',
-                  userId: 'user-id',
-                  pinnedApiKeyId: null,
-                  state: sampleWorkflowState,
-                },
-              ]
+              return []
             }),
           })),
-        }
-      }),
+        })),
+        where: vi.fn().mockImplementation(() => ({
+          limit: vi.fn().mockImplementation(() => {
+            // Return schedules if available
+            if (globalMockData.schedules.length > 0) {
+              return globalMockData.schedules
+            }
+            // Return simple workflow data
+            if (globalMockData.workflows.length > 0) {
+              return globalMockData.workflows
+            }
+            return [
+              {
+                id: 'workflow-id',
+                userId: 'user-id',
+                state: sampleWorkflowState,
+              },
+            ]
+          }),
+        })),
+      })),
     }
   }),
   update: vi.fn().mockImplementation(() => ({
@@ -441,11 +393,20 @@ export function mockExecutionDependencies() {
   }))
 
   vi.mock('@sim/db', () => ({
-    apiKey: mockApiKeyTable,
     db: mockDb,
     // Add common schema exports that tests might need
-    webhook: mockWebhookTable,
-    workflow: mockWorkflowTable,
+    webhook: {
+      id: 'id',
+      path: 'path',
+      workflowId: 'workflowId',
+      isActive: 'isActive',
+      provider: 'provider',
+      providerConfig: 'providerConfig',
+    },
+    workflow: {
+      id: 'id',
+      userId: 'userId',
+    },
     workflowSchedule: {
       id: 'id',
       workflowId: 'workflowId',
