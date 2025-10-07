@@ -5,20 +5,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { hasAdminPermission } from '@/lib/permissions/utils'
-import { processStreamingBlockLogs } from '@/lib/tokenization'
-import { decryptSecret, generateRequestId } from '@/lib/utils'
-import { TriggerUtils } from '@/lib/workflows/triggers'
-import { CHAT_ERROR_MESSAGES } from '@/app/chat/constants'
-import { getBlock } from '@/blocks'
-import { Executor } from '@/executor'
-import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
-import { Serializer } from '@/serializer'
-import { mergeSubblockState } from '@/stores/workflows/server-utils'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
-
-declare global {
-  var __chatStreamProcessingTasks: Promise<{ success: boolean; error?: any }>[] | undefined
-}
+import { decryptSecret } from '@/lib/utils'
 
 const logger = createLogger('ChatAuthUtils')
 

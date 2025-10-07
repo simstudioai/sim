@@ -122,7 +122,7 @@ function resolveOutputIds(
 export async function executeWorkflow(
   workflow: any,
   requestId: string,
-  input?: any,
+  input: any | undefined,
   actorUserId: string,
   streamConfig?: {
     enabled: boolean
@@ -638,37 +638,29 @@ export async function POST(
     let authenticatedUserId: string
     let triggerType: TriggerType = 'manual'
 
-    const session = await getSession()
-    const apiKeyHeader = request.headers.get('X-API-Key')
-    if (session?.user?.id && !apiKeyHeader) {
-      authenticatedUserId = session.user.id
-      triggerType = 'manual'
-    } else if (apiKeyHeader) {
-      const auth = await authenticateApiKeyFromHeader(apiKeyHeader)
-      if (!auth.success || !auth.userId) {
-        return createErrorResponse('Unauthorized', 401)
-      }
-      authenticatedUserId = auth.userId
-      triggerType = 'api'
-      if (auth.keyId) {
-        void updateApiKeyLastUsed(auth.keyId).catch(() => {})
     // For internal calls (chat deployments), use the workflow owner's ID
     if (finalIsSecureMode) {
       authenticatedUserId = validation.workflow.userId
       triggerType = 'manual' // Chat deployments use manual trigger type (no rate limit)
     } else {
       const session = await getSession()
-      if (session?.user?.id) {
+      const apiKeyHeader = request.headers.get('X-API-Key')
+
+      if (session?.user?.id && !apiKeyHeader) {
         authenticatedUserId = session.user.id
-        triggerType = 'manual' // UI session (not rate limited)
-      } else {
-        const apiKeyHeader = request.headers.get('X-API-Key')
-        if (apiKeyHeader) {
-          authenticatedUserId = validation.workflow.userId
-          triggerType = 'api'
-        } else {
-          return createErrorResponse('Authentication required', 401)
+        triggerType = 'manual'
+      } else if (apiKeyHeader) {
+        const auth = await authenticateApiKeyFromHeader(apiKeyHeader)
+        if (!auth.success || !auth.userId) {
+          return createErrorResponse('Unauthorized', 401)
         }
+        authenticatedUserId = auth.userId
+        triggerType = 'api'
+        if (auth.keyId) {
+          void updateApiKeyLastUsed(auth.keyId).catch(() => {})
+        }
+      } else {
+        return createErrorResponse('Authentication required', 401)
       }
     }
 
