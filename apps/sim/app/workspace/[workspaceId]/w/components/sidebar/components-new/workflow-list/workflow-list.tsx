@@ -12,9 +12,9 @@ import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import { useDragDrop } from '../../hooks/use-drag-drop'
 import { FolderItem } from './components/folder-item/folder-item'
 import { WorkflowItem } from './components/workflow-item/workflow-item'
-import { useDragDrop } from './utils/use-drag-drop'
 
 const logger = createLogger('WorkflowList')
 
