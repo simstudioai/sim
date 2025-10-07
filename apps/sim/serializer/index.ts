@@ -675,11 +675,9 @@ export class Serializer {
       subBlocks,
       outputs: serializedBlock.outputs,
       enabled: true,
-      // Restore trigger mode from serialized params; treat trigger category as triggers as well
       triggerMode:
         serializedBlock.config?.params?.triggerMode === true ||
         serializedBlock.metadata?.category === 'triggers',
-      // Restore advanced mode from serialized params
       advancedMode: serializedBlock.config?.params?.advancedMode === true,
     }
   }
