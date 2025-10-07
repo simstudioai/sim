@@ -13,7 +13,7 @@ import {
 } from '@react-email/components'
 import { format } from 'date-fns'
 import { getBrandConfig } from '@/lib/branding/branding'
-import { env } from '@/lib/env'
+import { getEnv } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { baseStyles } from './base-styles'
 import EmailFooter from './footer'
@@ -26,7 +26,7 @@ interface InvitationEmailProps {
   updatedDate?: Date
 }
 
-const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
+const baseUrl = getEnv('NEXT_PUBLIC_APP_URL') || 'https://sim.ai'
 
 const logger = createLogger('InvitationEmail')
 

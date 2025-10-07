@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import { getBrandConfig } from '@/lib/branding/branding'
 import { env } from '@/lib/env'
-import { getAssetUrl } from '@/lib/utils'
 
 /**
  * Generate dynamic metadata based on brand configuration
@@ -70,7 +69,7 @@ export function generateBrandedMetadata(override: Partial<Metadata> = {}): Metad
       siteName: brand.name,
       images: [
         {
-          url: brand.logoUrl || getAssetUrl('social/facebook.png'),
+          url: brand.logoUrl || '/social/facebook.png',
           width: 1200,
           height: 630,
           alt: brand.name,
@@ -81,7 +80,7 @@ export function generateBrandedMetadata(override: Partial<Metadata> = {}): Metad
       card: 'summary_large_image',
       title: defaultTitle,
       description: summaryFull,
-      images: [brand.logoUrl || getAssetUrl('social/twitter.png')],
+      images: [brand.logoUrl || '/social/twitter.png'],
       creator: '@simstudioai',
       site: '@simstudioai',
     },

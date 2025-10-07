@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { getVideoUrl } from '@/lib/utils'
+import { getAssetUrl } from '@/lib/utils'
 
 interface LightboxProps {
   isOpen: boolean
@@ -60,7 +60,7 @@ export function Lightbox({ isOpen, onClose, src, alt, type }: LightboxProps) {
           />
         ) : (
           <video
-            src={getVideoUrl(src)}
+            src={getAssetUrl(src)}
             autoPlay
             loop
             muted

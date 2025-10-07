@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
-import { getAssetUrl } from '@/lib/utils'
 import { inter } from '@/app/fonts/inter'
 
 interface Testimonial {
@@ -14,7 +13,6 @@ interface Testimonial {
   profileImage: string
 }
 
-// Import all testimonials
 const allTestimonials: Testimonial[] = [
   {
     text: "🚨 BREAKING: This startup just dropped the fastest way to build AI agents.\n\nThis Figma-like canvas to build agents will blow your mind.\n\nHere's why this is the best tool for building AI agents:",
@@ -22,7 +20,7 @@ const allTestimonials: Testimonial[] = [
     username: '@hasantoxr',
     viewCount: '515k',
     tweetUrl: 'https://x.com/hasantoxr/status/1912909502036525271',
-    profileImage: getAssetUrl('twitter/hasan.jpg'),
+    profileImage: '/twitter/hasan.jpg',
   },
   {
     text: "Drag-and-drop AI workflows for devs who'd rather build agents than babysit them.",
@@ -30,7 +28,7 @@ const allTestimonials: Testimonial[] = [
     username: '@GithubProjects',
     viewCount: '90.4k',
     tweetUrl: 'https://x.com/GithubProjects/status/1906383555707490499',
-    profileImage: getAssetUrl('twitter/github-projects.jpg'),
+    profileImage: '/twitter/github-projects.jpg',
   },
   {
     text: "🚨 BREAKING: This startup just dropped the fastest way to build AI agents.\n\nThis Figma-like canvas to build agents will blow your mind.\n\nHere's why this is the best tool for building AI agents:",
@@ -38,7 +36,7 @@ const allTestimonials: Testimonial[] = [
     username: '@lazukars',
     viewCount: '47.4k',
     tweetUrl: 'https://x.com/lazukars/status/1913136390503600575',
-    profileImage: getAssetUrl('twitter/lazukars.png'),
+    profileImage: '/twitter/lazukars.png',
   },
   {
     text: 'omfggggg this is the zapier of agent building\n\ni always believed that building agents and using ai should not be limited to technical people. i think this solves just that\n\nthe fact that this is also open source makes me so optimistic about the future of building with ai :)))\n\ncongrats @karabegemir & @typingwala !!!',
@@ -46,7 +44,7 @@ const allTestimonials: Testimonial[] = [
     username: '@nizzyabi',
     viewCount: '6,269',
     tweetUrl: 'https://x.com/nizzyabi/status/1907864421227180368',
-    profileImage: getAssetUrl('twitter/nizzy.jpg'),
+    profileImage: '/twitter/nizzy.jpg',
   },
   {
     text: 'A very good looking agent workflow builder 🔥 and open source!',
@@ -54,7 +52,7 @@ const allTestimonials: Testimonial[] = [
     username: '@xyflowdev',
     viewCount: '3,246',
     tweetUrl: 'https://x.com/xyflowdev/status/1909501499719438670',
-    profileImage: getAssetUrl('twitter/xyflow.jpg'),
+    profileImage: '/twitter/xyflow.jpg',
   },
   {
     text: "One of the best products I've seen in the space, and the hustle and grind I've seen from @karabegemir and @typingwala is insane. Sim is positioned to build something game-changing, and there's no better team for the job.\n\nCongrats on the launch 🚀 🎊 great things ahead!",
@@ -62,7 +60,7 @@ const allTestimonials: Testimonial[] = [
     username: '@firestorm776',
     viewCount: '1,256',
     tweetUrl: 'https://x.com/firestorm776/status/1907896097735061598',
-    profileImage: getAssetUrl('twitter/samarth.jpg'),
+    profileImage: '/twitter/samarth.jpg',
   },
   {
     text: 'lfgg got access to @simstudioai via @zerodotemail 😎',
@@ -70,7 +68,7 @@ const allTestimonials: Testimonial[] = [
     username: '@nizzyabi',
     viewCount: '1,762',
     tweetUrl: 'https://x.com/nizzyabi/status/1910482357821595944',
-    profileImage: getAssetUrl('twitter/nizzy.jpg'),
+    profileImage: '/twitter/nizzy.jpg',
   },
   {
     text: 'Feels like we\'re finally getting a "Photoshop moment" for AI devs—visual, intuitive, and fast enough to keep up with ideas mid-flow.',
@@ -78,7 +76,7 @@ const allTestimonials: Testimonial[] = [
     username: '@syamrajk',
     viewCount: '2,784',
     tweetUrl: 'https://x.com/syamrajk/status/1912911980110946491',
-    profileImage: getAssetUrl('twitter/syamrajk.jpg'),
+    profileImage: '/twitter/syamrajk.jpg',
   },
   {
     text: 'The use cases are endless. Great work @simstudioai',
@@ -86,7 +84,7 @@ const allTestimonials: Testimonial[] = [
     username: '@daniel_zkim',
     viewCount: '103',
     tweetUrl: 'https://x.com/daniel_zkim/status/1907891273664782708',
-    profileImage: getAssetUrl('twitter/daniel.jpg'),
+    profileImage: '/twitter/daniel.jpg',
   },
 ]
 
@@ -95,11 +93,9 @@ export default function Testimonials() {
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
 
-  // Create an extended array for smooth infinite scrolling
   const extendedTestimonials = [...allTestimonials, ...allTestimonials]
 
   useEffect(() => {
-    // Set up automatic sliding every 3 seconds
     const interval = setInterval(() => {
       if (!isPaused) {
         setIsTransitioning(true)
@@ -110,17 +106,15 @@ export default function Testimonials() {
     return () => clearInterval(interval)
   }, [isPaused])
 
-  // Reset position when reaching the end for infinite loop
   useEffect(() => {
     if (currentIndex >= allTestimonials.length) {
       setTimeout(() => {
         setIsTransitioning(false)
         setCurrentIndex(0)
-      }, 500) // Match transition duration
+      }, 500)
     }
   }, [currentIndex])
 
-  // Calculate the transform value
   const getTransformValue = () => {
     // Each card unit (card + separator) takes exactly 25% width
     return `translateX(-${currentIndex * 25}%)`
