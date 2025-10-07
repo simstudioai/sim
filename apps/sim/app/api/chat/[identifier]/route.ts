@@ -119,7 +119,8 @@ export async function POST(
         }
       }
 
-      const { createStreamingResponse, SSE_HEADERS } = await import('@/lib/workflows/streaming')
+      const { createStreamingResponse } = await import('@/lib/workflows/streaming')
+      const { SSE_HEADERS } = await import('@/lib/utils')
       const { createSecureFilteredResult } = await import('@/app/api/workflows/[id]/execute/route')
 
       const stream = await createStreamingResponse({

@@ -33,6 +33,7 @@ interface ExecutorOptions {
     selectedOutputs?: string[]
     edges?: Array<{ source: string; target: string }>
     onStream?: (streamingExecution: StreamingExecution) => Promise<void>
+    onBlockComplete?: (blockId: string, output: any) => Promise<void>
     executionId?: string
     workspaceId?: string
   }
@@ -323,7 +324,7 @@ export function useWorkflowExecution() {
       if (isChatExecution) {
         const stream = new ReadableStream({
           async start(controller) {
-            const encoder = new TextEncoder()
+            const { encodeSSE } = await import('@/lib/utils')
             const executionId = uuidv4()
             const streamedContent = new Map<string, string>()
             const streamReadingPromises: Promise<void>[] = []
@@ -435,14 +436,7 @@ export function useWorkflowExecution() {
                       isFirstChunk = false
                     }
 
-                    controller.enqueue(
-                      encoder.encode(
-                        `data: ${JSON.stringify({
-                          blockId,
-                          chunk: chunkToSend,
-                        })}\n\n`
-                      )
-                    )
+                    controller.enqueue(encodeSSE({ blockId, chunk: chunkToSend }))
                   }
                 } catch (error) {
                   logger.error('Error reading from stream:', error)
@@ -464,11 +458,8 @@ export function useWorkflowExecution() {
 
               if (!selectedOutputs?.length) return
 
-              const {
-                extractBlockIdFromOutputId,
-                extractPathFromOutputId,
-                parseOutputContentSafely,
-              } = await import('@/lib/response-format')
+              const { extractBlockIdFromOutputId, extractPathFromOutputId, traverseObjectPath } =
+                await import('@/lib/response-format')
 
               // Check if this block's output is selected
               const matchingOutputs = selectedOutputs.filter(
@@ -480,20 +471,7 @@ export function useWorkflowExecution() {
               // Process each selected output from this block
               for (const outputId of matchingOutputs) {
                 const path = extractPathFromOutputId(outputId, blockId)
-                let outputValue: any = output
-
-                if (path) {
-                  outputValue = parseOutputContentSafely(outputValue)
-                  const pathParts = path.split('.')
-                  for (const part of pathParts) {
-                    if (outputValue?.[part] !== undefined) {
-                      outputValue = outputValue[part]
-                    } else {
-                      outputValue = undefined
-                      break
-                    }
-                  }
-                }
+                const outputValue = traverseObjectPath(output, path)
 
                 if (outputValue !== undefined) {
                   const formattedOutput =
@@ -505,14 +483,7 @@ export function useWorkflowExecution() {
                   const separator = streamedContent.size > 0 ? '\n\n' : ''
 
                   // Send the non-streaming block output as a chunk
-                  controller.enqueue(
-                    encoder.encode(
-                      `data: ${JSON.stringify({
-                        blockId,
-                        chunk: separator + formattedOutput,
-                      })}\n\n`
-                    )
-                  )
+                  controller.enqueue(encodeSSE({ blockId, chunk: separator + formattedOutput }))
 
                   // Track that we've sent output for this block
                   streamedContent.set(blockId, formattedOutput)
@@ -535,11 +506,7 @@ export function useWorkflowExecution() {
                 !result.success &&
                 result.error === 'Workflow execution was cancelled'
               ) {
-                controller.enqueue(
-                  encoder.encode(
-                    `data: ${JSON.stringify({ event: 'cancelled', data: result })}\n\n`
-                  )
-                )
+                controller.enqueue(encodeSSE({ event: 'cancelled', data: result }))
                 return
               }
 
@@ -574,9 +541,8 @@ export function useWorkflowExecution() {
                   logger.info(`Processed ${processedCount} blocks for streaming tokenization`)
                 }
 
-                controller.enqueue(
-                  encoder.encode(`data: ${JSON.stringify({ event: 'final', data: result })}\n\n`)
-                )
+                const { encodeSSE } = await import('@/lib/utils')
+                controller.enqueue(encodeSSE({ event: 'final', data: result }))
                 persistLogs(executionId, result).catch((err) =>
                   logger.error('Error persisting logs:', err)
                 )
@@ -596,9 +562,8 @@ export function useWorkflowExecution() {
               }
 
               // Send the error as final event so downstream handlers can treat it uniformly
-              controller.enqueue(
-                encoder.encode(`data: ${JSON.stringify({ event: 'final', data: errorResult })}\n\n`)
-              )
+              const { encodeSSE } = await import('@/lib/utils')
+              controller.enqueue(encodeSSE({ event: 'final', data: errorResult }))
 
               // Persist the error to logs so it shows up in the logs page
               persistLogs(executionId, errorResult).catch((err) =>

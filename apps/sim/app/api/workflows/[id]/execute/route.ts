@@ -755,7 +755,8 @@ export async function POST(
           : selectedOutputs
 
         // Use shared streaming response creator
-        const { createStreamingResponse, SSE_HEADERS } = await import('@/lib/workflows/streaming')
+        const { createStreamingResponse } = await import('@/lib/workflows/streaming')
+        const { SSE_HEADERS } = await import('@/lib/utils')
 
         // Determine which filter function to use based on security mode
         const filterFunction = finalIsSecureMode ? createSecureFilteredResult : createFilteredResult

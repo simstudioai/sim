@@ -1,18 +1,8 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import { encodeSSE } from '@/lib/utils'
 import type { ExecutionResult } from '@/executor/types'
 
 const logger = createLogger('WorkflowStreaming')
-
-export const SSE_HEADERS = {
-  'Content-Type': 'text/event-stream',
-  'Cache-Control': 'no-cache',
-  Connection: 'keep-alive',
-  'X-Accel-Buffering': 'no',
-} as const
-
-function encodeSSE(data: any): Uint8Array {
-  return new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`)
-}
 
 export interface StreamingConfig {
   selectedOutputs?: string[]
@@ -79,7 +69,7 @@ export async function createStreamingResponse(
         const onBlockCompleteCallback = async (blockId: string, output: any) => {
           if (!streamConfig.selectedOutputs?.length) return
 
-          const { extractBlockIdFromOutputId, extractPathFromOutputId, parseOutputContentSafely } =
+          const { extractBlockIdFromOutputId, extractPathFromOutputId, traverseObjectPath } =
             await import('@/lib/response-format')
 
           const matchingOutputs = streamConfig.selectedOutputs.filter(
@@ -90,19 +80,7 @@ export async function createStreamingResponse(
 
           for (const outputId of matchingOutputs) {
             const path = extractPathFromOutputId(outputId, blockId)
-            let outputValue: any = output
-
-            if (path) {
-              outputValue = parseOutputContentSafely(outputValue)
-              for (const part of path.split('.')) {
-                if (outputValue?.[part] !== undefined) {
-                  outputValue = outputValue[part]
-                } else {
-                  outputValue = undefined
-                  break
-                }
-              }
-            }
+            const outputValue = traverseObjectPath(output, path)
 
             if (outputValue !== undefined) {
               const formattedOutput =

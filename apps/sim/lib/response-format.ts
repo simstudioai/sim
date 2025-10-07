@@ -183,3 +183,26 @@ export function getSelectedFieldNames(selectedOutputs: string[], blockId: string
     })
     .map((outputId) => extractPathFromOutputId(outputId, blockId))
 }
+
+/**
+ * Traverses an object path safely, returning undefined if any part doesn't exist
+ * @param obj The object to traverse
+ * @param path The dot-separated path (e.g., "result.data.value")
+ * @returns The value at the path, or undefined if path doesn't exist
+ */
+export function traverseObjectPath(obj: any, path: string): any {
+  if (!path) return obj
+
+  let current = parseOutputContentSafely(obj)
+  const parts = path.split('.')
+
+  for (const part of parts) {
+    if (current?.[part] !== undefined) {
+      current = current[part]
+    } else {
+      return undefined
+    }
+  }
+
+  return current
+}
