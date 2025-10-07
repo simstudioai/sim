@@ -96,7 +96,7 @@ export function Triggers({ disabled = false }: TriggersProps) {
         onMouseDown={handleMouseDown}
       />
       <div
-        className='flex-shrink-0 cursor-pointer px-[14px] pt-[3px] pb-[5px]'
+        className='flex-shrink-0 cursor-pointer px-[10px] pt-[3px] pb-[5px]'
         onClick={handleToggle}
       >
         <div className='font-medium text-[#AEAEAE] text-small dark:text-[#AEAEAE]'>Triggers</div>
