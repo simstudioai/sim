@@ -17,7 +17,7 @@ import {
   getSubBlockValue,
 } from '@/lib/schedules/utils'
 import { decryptSecret, generateRequestId } from '@/lib/utils'
-import { loadDeployedWorkflowState } from '@/lib/workflows/db-helpers'
+import { blockExistsInDeployment, loadDeployedWorkflowState } from '@/lib/workflows/db-helpers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
@@ -206,6 +206,20 @@ export async function GET() {
               const parallels = deployedData.parallels
               logger.info(`[${requestId}] Loaded deployed workflow ${schedule.workflowId}`)
 
+              // Validate that the schedule's trigger block exists in the deployed state
+              if (schedule.blockId) {
+                const blockExists = await blockExistsInDeployment(
+                  schedule.workflowId,
+                  schedule.blockId
+                )
+                if (!blockExists) {
+                  logger.warn(
+                    `[${requestId}] Schedule trigger block ${schedule.blockId} not found in deployed workflow ${schedule.workflowId}. Skipping execution.`
+                  )
+                  return { skip: true, blocks: {} as Record<string, BlockState> }
+                }
+              }
+
               const mergedStates = mergeSubblockState(blocks)
 
               // Retrieve environment variables with workspace precedence
@@ -355,7 +369,6 @@ export async function GET() {
               )
 
               const input = {
-                workflowId: schedule.workflowId,
                 _context: {
                   workflowId: schedule.workflowId,
                 },
@@ -459,6 +472,12 @@ export async function GET() {
               throw earlyError
             }
           })()
+
+          // Check if execution was skipped (e.g., trigger block not found)
+          if ('skip' in executionSuccess && executionSuccess.skip) {
+            runningExecutions.delete(schedule.workflowId)
+            continue
+          }
 
           if (executionSuccess.success) {
             logger.info(`[${requestId}] Workflow ${schedule.workflowId} executed successfully`)
