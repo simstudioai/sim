@@ -38,14 +38,92 @@ curl -X POST \
 
 Erfolgreiche Antworten geben das serialisierte Ausführungsergebnis vom Executor zurück. Fehler zeigen Validierungs-, Authentifizierungs- oder Workflow-Fehler an.
 
-## Ausgabe-Referenz
+## Streaming-Antworten
+
+Aktivieren Sie Echtzeit-Streaming, um Workflow-Ausgaben zu erhalten, während sie zeichen-für-zeichen generiert werden. Dies ist nützlich, um KI-Antworten progressiv für Benutzer anzuzeigen.
+
+### Anfrageparameter
+
+Fügen Sie diese Parameter hinzu, um Streaming zu aktivieren:
+
+- `stream` - Auf `true` setzen, um Server-Sent Events (SSE) Streaming zu aktivieren
+- `selectedOutputs` - Array von Block-Ausgaben zum Streamen (z.B. `["agent1.content"]`)
+
+### Block-Ausgabeformat
+
+Verwenden Sie das `blockName.attribute` Format, um anzugeben, welche Block-Ausgaben gestreamt werden sollen:
+- Format: `"blockName.attribute"` (z.B. Wenn Sie den Inhalt des Agent 1-Blocks streamen möchten, würden Sie `"agent1.content"` verwenden)
+- Blocknamen sind nicht case-sensitive und Leerzeichen werden ignoriert
+
+### Beispielanfrage
+
+```bash
+curl -X POST \
+  https://sim.ai/api/workflows/WORKFLOW_ID/execute \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: YOUR_KEY' \
+  -d '{
+    "message": "Count to five",
+    "stream": true,
+    "selectedOutputs": ["agent1.content"]
+  }'
+```
+
+### Antwortformat
+
+Streaming-Antworten verwenden das Server-Sent Events (SSE) Format:
+
+```
+data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":"One"}
+
+data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":", two"}
+
+data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":", three"}
+
+data: {"event":"done","success":true,"output":{},"metadata":{"duration":610}}
+
+data: [DONE]
+```
+
+Jedes Ereignis enthält:
+- **Streaming-Chunks**: `{"blockId": "...", "chunk": "text"}` - Echtzeit-Text während er generiert wird
+- **Abschlussereignis**: `{"event": "done", ...}` - Ausführungsmetadaten und vollständige Ergebnisse
+- **Terminator**: `[DONE]` - Signalisiert das Ende des Streams
+
+### Streaming mehrerer Blöcke
+
+Wenn `selectedOutputs` mehrere Blöcke enthält, zeigt jeder Chunk an, welcher Block ihn erzeugt hat:
+
+```bash
+curl -X POST \
+  https://sim.ai/api/workflows/WORKFLOW_ID/execute \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: YOUR_KEY' \
+  -d '{
+    "message": "Process this request",
+    "stream": true,
+    "selectedOutputs": ["agent1.content", "agent2.content"]
+  }'
+```
+
+Das Feld `blockId` in jedem Chunk ermöglicht es Ihnen, die Ausgabe zum richtigen UI-Element zu leiten:
+
+```
+data: {"blockId":"agent1-uuid","chunk":"Processing..."}
+
+data: {"blockId":"agent2-uuid","chunk":"Analyzing..."}
+
+data: {"blockId":"agent1-uuid","chunk":" complete"}
+```
+
+## Ausgabereferenz
 
 | Referenz | Beschreibung |
 |-----------|-------------|
 | `<api.field>` | Im Eingabeformat definiertes Feld |
 | `<api.input>` | Gesamter strukturierter Anfragekörper |
 
-Wenn kein Eingabeformat definiert ist, stellt der Executor das rohe JSON nur unter `<api.input>` bereit.
+Wenn kein Eingabeformat definiert ist, stellt der Executor das rohe JSON nur unter `<api.input>` zur Verfügung.
 
 <Callout type="warning">
 Ein Workflow kann nur einen API-Trigger enthalten. Veröffentlichen Sie nach Änderungen eine neue Bereitstellung, damit der Endpunkt aktuell bleibt.

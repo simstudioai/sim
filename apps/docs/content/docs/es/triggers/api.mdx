@@ -38,15 +38,93 @@ curl -X POST \
 
 Las respuestas exitosas devuelven el resultado de ejecución serializado del Ejecutor. Los errores muestran fallos de validación, autenticación o flujo de trabajo.
 
+## Respuestas en streaming
+
+Habilita el streaming en tiempo real para recibir la salida del flujo de trabajo a medida que se genera, carácter por carácter. Esto es útil para mostrar las respuestas de IA progresivamente a los usuarios.
+
+### Parámetros de solicitud
+
+Añade estos parámetros para habilitar el streaming:
+
+- `stream` - Establece a `true` para habilitar el streaming de eventos enviados por el servidor (SSE)
+- `selectedOutputs` - Array de salidas de bloques para transmitir (p. ej., `["agent1.content"]`)
+
+### Formato de salida de bloque
+
+Usa el formato `blockName.attribute` para especificar qué salidas de bloques transmitir:
+- Formato: `"blockName.attribute"` (p. ej., si quieres transmitir el contenido del bloque Agente 1, usarías `"agent1.content"`)
+- Los nombres de los bloques no distinguen entre mayúsculas y minúsculas y se ignoran los espacios
+
+### Ejemplo de solicitud
+
+```bash
+curl -X POST \
+  https://sim.ai/api/workflows/WORKFLOW_ID/execute \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: YOUR_KEY' \
+  -d '{
+    "message": "Count to five",
+    "stream": true,
+    "selectedOutputs": ["agent1.content"]
+  }'
+```
+
+### Formato de respuesta
+
+Las respuestas en streaming utilizan el formato de eventos enviados por el servidor (SSE):
+
+```
+data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":"One"}
+
+data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":", two"}
+
+data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":", three"}
+
+data: {"event":"done","success":true,"output":{},"metadata":{"duration":610}}
+
+data: [DONE]
+```
+
+Cada evento incluye:
+- **Fragmentos de streaming**: `{"blockId": "...", "chunk": "text"}` - Texto en tiempo real a medida que se genera
+- **Evento final**: `{"event": "done", ...}` - Metadatos de ejecución y resultados completos
+- **Terminador**: `[DONE]` - Señala el fin del stream
+
+### Streaming de múltiples bloques
+
+Cuando `selectedOutputs` incluye múltiples bloques, cada fragmento indica qué bloque lo produjo:
+
+```bash
+curl -X POST \
+  https://sim.ai/api/workflows/WORKFLOW_ID/execute \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: YOUR_KEY' \
+  -d '{
+    "message": "Process this request",
+    "stream": true,
+    "selectedOutputs": ["agent1.content", "agent2.content"]
+  }'
+```
+
+El campo `blockId` en cada fragmento te permite dirigir la salida al elemento de UI correcto:
+
+```
+data: {"blockId":"agent1-uuid","chunk":"Processing..."}
+
+data: {"blockId":"agent2-uuid","chunk":"Analyzing..."}
+
+data: {"blockId":"agent1-uuid","chunk":" complete"}
+```
+
 ## Referencia de salida
 
 | Referencia | Descripción |
 |-----------|-------------|
-| `<api.field>` | Campo definido en el Formato de Entrada |
-| `<api.input>` | Cuerpo completo estructurado de la solicitud |
+| `<api.field>` | Campo definido en el formato de entrada |
+| `<api.input>` | Cuerpo de solicitud estructurado completo |
 
-Si no se define un Formato de Entrada, el ejecutor expone el JSON sin procesar solo en `<api.input>`.
+Si no se define un formato de entrada, el ejecutor expone el JSON sin procesar solo en `<api.input>`.
 
 <Callout type="warning">
-Un flujo de trabajo puede contener solo un Disparador de API. Publica una nueva implementación después de realizar cambios para que el punto de conexión se mantenga actualizado.
+Un flujo de trabajo puede contener solo un disparador de API. Publica una nueva implementación después de los cambios para que el endpoint se mantenga actualizado.
 </Callout>
