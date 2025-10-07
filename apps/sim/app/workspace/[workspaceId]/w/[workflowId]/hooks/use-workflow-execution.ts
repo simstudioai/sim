@@ -410,6 +410,8 @@ export function useWorkflowExecution() {
                 if (!streamingExecution.stream) return
                 const reader = streamingExecution.stream.getReader()
                 const blockId = (streamingExecution.execution as any)?.blockId
+                let isFirstChunk = true
+
                 if (blockId) {
                   streamedContent.set(blockId, '')
                 }
@@ -423,11 +425,21 @@ export function useWorkflowExecution() {
                     if (blockId) {
                       streamedContent.set(blockId, (streamedContent.get(blockId) || '') + chunk)
                     }
+
+                    // Add separator before first chunk if this isn't the first block
+                    let chunkToSend = chunk
+                    if (isFirstChunk && streamedContent.size > 1) {
+                      chunkToSend = `\n\n${chunk}`
+                      isFirstChunk = false
+                    } else if (isFirstChunk) {
+                      isFirstChunk = false
+                    }
+
                     controller.enqueue(
                       encoder.encode(
                         `data: ${JSON.stringify({
                           blockId,
-                          chunk,
+                          chunk: chunkToSend,
                         })}\n\n`
                       )
                     )
@@ -440,8 +452,81 @@ export function useWorkflowExecution() {
               streamReadingPromises.push(promise)
             }
 
+            // Handle non-streaming blocks (like Function blocks)
+            const onBlockComplete = async (blockId: string, output: any) => {
+              // Get selected outputs from chat store
+              const chatStore = await import('@/stores/panel/chat/store').then(
+                (mod) => mod.useChatStore
+              )
+              const selectedOutputs = chatStore
+                .getState()
+                .getSelectedWorkflowOutput(activeWorkflowId)
+
+              if (!selectedOutputs?.length) return
+
+              const {
+                extractBlockIdFromOutputId,
+                extractPathFromOutputId,
+                parseOutputContentSafely,
+              } = await import('@/lib/response-format')
+
+              // Check if this block's output is selected
+              const matchingOutputs = selectedOutputs.filter(
+                (outputId) => extractBlockIdFromOutputId(outputId) === blockId
+              )
+
+              if (!matchingOutputs.length) return
+
+              // Process each selected output from this block
+              for (const outputId of matchingOutputs) {
+                const path = extractPathFromOutputId(outputId, blockId)
+                let outputValue: any = output
+
+                if (path) {
+                  outputValue = parseOutputContentSafely(outputValue)
+                  const pathParts = path.split('.')
+                  for (const part of pathParts) {
+                    if (outputValue?.[part] !== undefined) {
+                      outputValue = outputValue[part]
+                    } else {
+                      outputValue = undefined
+                      break
+                    }
+                  }
+                }
+
+                if (outputValue !== undefined) {
+                  const formattedOutput =
+                    typeof outputValue === 'string'
+                      ? outputValue
+                      : JSON.stringify(outputValue, null, 2)
+
+                  // Add separator if this isn't the first output
+                  const separator = streamedContent.size > 0 ? '\n\n' : ''
+
+                  // Send the non-streaming block output as a chunk
+                  controller.enqueue(
+                    encoder.encode(
+                      `data: ${JSON.stringify({
+                        blockId,
+                        chunk: separator + formattedOutput,
+                      })}\n\n`
+                    )
+                  )
+
+                  // Track that we've sent output for this block
+                  streamedContent.set(blockId, formattedOutput)
+                }
+              }
+            }
+
             try {
-              const result = await executeWorkflow(workflowInput, onStream, executionId)
+              const result = await executeWorkflow(
+                workflowInput,
+                onStream,
+                executionId,
+                onBlockComplete
+              )
 
               // Check if execution was cancelled
               if (
@@ -589,7 +674,8 @@ export function useWorkflowExecution() {
   const executeWorkflow = async (
     workflowInput?: any,
     onStream?: (se: StreamingExecution) => Promise<void>,
-    executionId?: string
+    executionId?: string,
+    onBlockComplete?: (blockId: string, output: any) => Promise<void>
   ): Promise<ExecutionResult | StreamingExecution> => {
     // Use currentWorkflow but check if we're in diff mode
     const { blocks: workflowBlocks, edges: workflowEdges } = currentWorkflow
@@ -899,6 +985,7 @@ export function useWorkflowExecution() {
           target: conn.target,
         })),
         onStream,
+        onBlockComplete,
         executionId,
         workspaceId,
       },

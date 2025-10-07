@@ -305,7 +305,18 @@ export function Chat({ chatMessage, setChatMessage }: ChatProps) {
 
     // Check if we got a streaming response
     if (result && 'stream' in result && result.stream instanceof ReadableStream) {
-      const messageIdMap = new Map<string, string>()
+      // Create a single message for all outputs (like chat client does)
+      const responseMessageId = crypto.randomUUID()
+      let accumulatedContent = ''
+
+      // Add initial streaming message
+      addMessage({
+        id: responseMessageId,
+        content: '',
+        workflowId: activeWorkflowId,
+        type: 'workflow',
+        isStreaming: true,
+      })
 
       const reader = result.stream.getReader()
       const decoder = new TextDecoder()
@@ -314,8 +325,8 @@ export function Chat({ chatMessage, setChatMessage }: ChatProps) {
         while (true) {
           const { done, value } = await reader.read()
           if (done) {
-            // Finalize all streaming messages
-            messageIdMap.forEach((id) => finalizeMessageStream(id))
+            // Finalize the streaming message
+            finalizeMessageStream(responseMessageId)
             break
           }
 
@@ -339,83 +350,23 @@ export function Chat({ chatMessage, setChatMessage }: ChatProps) {
 
                   // If final result is a failure, surface error and stop
                   if ('success' in result && !result.success) {
-                    addMessage({
-                      content: `Error: ${result.error || 'Workflow execution failed'}`,
-                      workflowId: activeWorkflowId,
-                      type: 'workflow',
-                    })
-
-                    // Clear any existing message streams
-                    for (const msgId of messageIdMap.values()) {
-                      finalizeMessageStream(msgId)
-                    }
-                    messageIdMap.clear()
+                    // Update the existing message with error
+                    appendMessageContent(
+                      responseMessageId,
+                      `${accumulatedContent ? '\n\n' : ''}Error: ${result.error || 'Workflow execution failed'}`
+                    )
+                    finalizeMessageStream(responseMessageId)
 
                     // Stop processing
                     return
                   }
 
-                  const nonStreamingLogs =
-                    result.logs?.filter((log) => !messageIdMap.has(log.blockId)) || []
-
-                  if (nonStreamingLogs.length > 0) {
-                    const outputsToRender = selectedOutputs.filter((outputId) => {
-                      const blockIdForOutput = extractBlockIdFromOutputId(outputId)
-                      return nonStreamingLogs.some((log) => log.blockId === blockIdForOutput)
-                    })
-
-                    for (const outputId of outputsToRender) {
-                      const blockIdForOutput = extractBlockIdFromOutputId(outputId)
-                      const path = extractPathFromOutputId(outputId, blockIdForOutput)
-                      const log = nonStreamingLogs.find((l) => l.blockId === blockIdForOutput)
-                      if (log) {
-                        let output = log.output
-                        if (path) {
-                          output = parseOutputContentSafely(output)
-                          const pathParts = path.split('.')
-                          let current = output
-                          for (const part of pathParts) {
-                            if (current && typeof current === 'object' && part in current) {
-                              current = current[part]
-                            } else {
-                              current = undefined
-                              break
-                            }
-                          }
-                          output = current
-                        }
-                        if (output !== undefined) {
-                          addMessage({
-                            content: typeof output === 'string' ? output : JSON.stringify(output),
-                            workflowId: activeWorkflowId,
-                            type: 'workflow',
-                          })
-                        }
-                      }
-                    }
-                  }
+                  // Final event just marks completion, content already streamed
+                  finalizeMessageStream(responseMessageId)
                 } else if (blockId && contentChunk) {
-                  if (!messageIdMap.has(blockId)) {
-                    const newMessageId = crypto.randomUUID()
-                    messageIdMap.set(blockId, newMessageId)
-                    addMessage({
-                      id: newMessageId,
-                      content: contentChunk,
-                      workflowId: activeWorkflowId,
-                      type: 'workflow',
-                      isStreaming: true,
-                    })
-                  } else {
-                    const existingMessageId = messageIdMap.get(blockId)
-                    if (existingMessageId) {
-                      appendMessageContent(existingMessageId, contentChunk)
-                    }
-                  }
-                } else if (blockId && event === 'end') {
-                  const existingMessageId = messageIdMap.get(blockId)
-                  if (existingMessageId) {
-                    finalizeMessageStream(existingMessageId)
-                  }
+                  // Accumulate all content into the single message
+                  accumulatedContent += contentChunk
+                  appendMessageContent(responseMessageId, contentChunk)
                 }
               } catch (e) {
                 logger.error('Error parsing stream data:', e)

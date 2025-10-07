@@ -34,6 +34,33 @@ export function OutputSelect({
   } | null>(null)
   const blocks = useWorkflowStore((state) => state.blocks)
   const { isShowingDiff, isDiffReady, diffWorkflow } = useWorkflowDiffStore()
+  // Find all scrollable ancestors so the dropdown can stay pinned on scroll
+  const getScrollableAncestors = (el: HTMLElement | null): (HTMLElement | Window)[] => {
+    const ancestors: (HTMLElement | Window)[] = []
+    let node: HTMLElement | null = el?.parentElement || null
+    const isScrollable = (elem: HTMLElement) => {
+      const style = window.getComputedStyle(elem)
+      const overflowY = style.overflowY
+      const overflow = style.overflow
+      const hasScroll = elem.scrollHeight > elem.clientHeight
+      return (
+        hasScroll &&
+        (overflowY === 'auto' ||
+          overflowY === 'scroll' ||
+          overflow === 'auto' ||
+          overflow === 'scroll')
+      )
+    }
+
+    while (node && node !== document.body) {
+      if (isScrollable(node)) ancestors.push(node)
+      node = node.parentElement
+    }
+
+    // Always include window as a fallback
+    ancestors.push(window)
+    return ancestors
+  }
 
   // Track subblock store state to ensure proper reactivity
   const subBlockValues = useSubBlockStore((state) =>
@@ -327,15 +354,22 @@ export function OutputSelect({
       setPortalStyle({ top: rect.bottom + 4, left: rect.left, width: rect.width, height })
     }
 
+    let attachedScrollTargets: (HTMLElement | Window)[] = []
     if (isOutputDropdownOpen) {
       updatePosition()
       window.addEventListener('resize', updatePosition)
-      window.addEventListener('scroll', updatePosition, { passive: true })
+      // Attach to all scrollable ancestors (including the modal's scroll container)
+      attachedScrollTargets = getScrollableAncestors(dropdownRef.current)
+      attachedScrollTargets.forEach((target) =>
+        target.addEventListener('scroll', updatePosition, { passive: true })
+      )
     }
 
     return () => {
       window.removeEventListener('resize', updatePosition)
-      window.removeEventListener('scroll', updatePosition)
+      attachedScrollTargets.forEach((target) =>
+        target.removeEventListener('scroll', updatePosition)
+      )
     }
   }, [isOutputDropdownOpen])
 
