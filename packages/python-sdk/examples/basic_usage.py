@@ -9,7 +9,7 @@ from simstudio import SimStudioClient, SimStudioError
 
 def basic_example():
     """Example 1: Basic workflow execution"""
-    client = SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY"))
+    client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
 
     try:
         # Execute a workflow without input
@@ -31,7 +31,7 @@ def basic_example():
 
 def with_input_example():
     """Example 2: Workflow execution with input data"""
-    client = SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY"))
+    client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
 
     try:
         result = client.execute_workflow(
@@ -66,7 +66,7 @@ def with_input_example():
 
 def status_example():
     """Example 3: Workflow validation and status checking"""
-    client = SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY"))
+    client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
 
     try:
         # Check if workflow is ready
@@ -93,7 +93,7 @@ def status_example():
 
 def context_manager_example():
     """Example 4: Using context manager"""
-    with SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY")) as client:
+    with SimStudioClient(api_key=os.getenv("SIM_API_KEY")) as client:
         try:
             result = client.execute_workflow("your-workflow-id")
             print(f"Result: {result}")
@@ -104,7 +104,7 @@ def context_manager_example():
 
 def batch_execution_example():
     """Example 5: Batch workflow execution"""
-    client = SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY"))
+    client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
     
     workflows = [
         ("workflow-1", {"type": "analysis", "data": "sample1"}),
@@ -155,13 +155,40 @@ def batch_execution_example():
     return results
 
 
+def streaming_example():
+    """Example 6: Workflow execution with streaming"""
+    client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
+
+    try:
+        result = client.execute_workflow(
+            "your-workflow-id",
+            input_data={"message": "Count to five"},
+            stream=True,
+            selected_outputs=["agent1.content"],  # Use blockName.attribute format
+            timeout=60.0
+        )
+
+        if result.success:
+            print("✅ Workflow executed successfully!")
+            print(f"Output: {result.output}")
+            if result.metadata:
+                print(f"Duration: {result.metadata.get('duration')} ms")
+        else:
+            print(f"❌ Workflow failed: {result.error}")
+
+    except SimStudioError as error:
+        print(f"SDK Error: {error} (Code: {error.code})")
+    except Exception as error:
+        print(f"Unexpected error: {error}")
+
+
 def error_handling_example():
-    """Example 6: Comprehensive error handling"""
-    client = SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY"))
+    """Example 7: Comprehensive error handling"""
+    client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
 
     try:
         result = client.execute_workflow("your-workflow-id")
-        
+
         if result.success:
             print("✅ Workflow executed successfully!")
             print(f"Output: {result.output}")
@@ -194,37 +221,41 @@ if __name__ == "__main__":
     print("🚀 Running Sim Python SDK Examples\n")
     
     # Check if API key is set
-    if not os.getenv("SIMSTUDIO_API_KEY"):
-        print("❌ Please set SIMSTUDIO_API_KEY environment variable")
+    if not os.getenv("SIM_API_KEY"):
+        print("❌ Please set SIM_API_KEY environment variable")
         exit(1)
     
     try:
         print("1️⃣ Basic Example:")
         basic_example()
         print("\n✅ Basic example completed\n")
-        
+
         print("2️⃣ Input Example:")
         with_input_example()
         print("\n✅ Input example completed\n")
-        
+
         print("3️⃣ Status Example:")
         status_example()
         print("\n✅ Status example completed\n")
-        
+
         print("4️⃣ Context Manager Example:")
         context_manager_example()
         print("\n✅ Context manager example completed\n")
-        
+
         print("5️⃣ Batch Execution Example:")
         batch_execution_example()
         print("\n✅ Batch execution example completed\n")
-        
-        print("6️⃣ Error Handling Example:")
+
+        print("6️⃣ Streaming Example:")
+        streaming_example()
+        print("\n✅ Streaming example completed\n")
+
+        print("7️⃣ Error Handling Example:")
         error_handling_example()
         print("\n✅ Error handling example completed\n")
-        
+
     except Exception as e:
         print(f"\n💥 Example failed: {e}")
         exit(1)
-    
+
     print("🎉 All examples completed successfully!") 

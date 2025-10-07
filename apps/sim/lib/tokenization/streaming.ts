@@ -27,20 +27,11 @@ export function processStreamingBlockLog(log: BlockLog, streamedContent: string)
 
   // Check if we already have meaningful token/cost data
   if (hasRealTokenData(log.output?.tokens) && hasRealCostData(log.output?.cost)) {
-    logger.debug(`Block ${log.blockId} already has real token/cost data`, {
-      blockType: log.blockType,
-      tokens: log.output?.tokens,
-      cost: log.output?.cost,
-    })
     return false
   }
 
   // Check if we have content to tokenize
   if (!streamedContent?.trim()) {
-    logger.debug(`Block ${log.blockId} has no content to tokenize`, {
-      blockType: log.blockType,
-      contentLength: streamedContent?.length || 0,
-    })
     return false
   }
 
@@ -50,14 +41,6 @@ export function processStreamingBlockLog(log: BlockLog, streamedContent: string)
 
     // Prepare input text from log
     const inputText = extractTextContent(log.input)
-
-    logger.debug(`Starting tokenization for streaming block ${log.blockId}`, {
-      blockType: log.blockType,
-      model,
-      inputLength: inputText.length,
-      outputLength: streamedContent.length,
-      hasInput: !!log.input,
-    })
 
     // Calculate streaming cost
     const result = calculateStreamingCost(
@@ -135,11 +118,6 @@ export function processStreamingBlockLogs(
   streamedContentMap: Map<string, string>
 ): number {
   let processedCount = 0
-
-  logger.debug('Processing streaming block logs for tokenization', {
-    totalLogs: logs.length,
-    streamedBlocks: streamedContentMap.size,
-  })
 
   for (const log of logs) {
     const content = streamedContentMap.get(log.blockId)

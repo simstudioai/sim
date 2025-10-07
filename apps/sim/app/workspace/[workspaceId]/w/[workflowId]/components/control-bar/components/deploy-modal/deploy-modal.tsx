@@ -529,7 +529,7 @@ export function DeployModal({
   return (
     <Dialog open={open} onOpenChange={handleCloseModal}>
       <DialogContent
-        className='flex max-h-[78vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]'
+        className='flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]'
         hideCloseButton
       >
         <DialogHeader className='flex-shrink-0 border-b px-6 py-4'>

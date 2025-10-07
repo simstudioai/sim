@@ -3,7 +3,7 @@ import { SimStudioClient, SimStudioError } from '../src/index'
 // Example 1: Basic workflow execution
 async function basicExample() {
   const client = new SimStudioClient({
-    apiKey: process.env.SIMSTUDIO_API_KEY!,
+    apiKey: process.env.SIM_API_KEY!,
     baseUrl: 'https://sim.ai',
   })
 
@@ -30,7 +30,7 @@ async function basicExample() {
 // Example 2: Workflow execution with input data
 async function withInputExample() {
   const client = new SimStudioClient({
-    apiKey: process.env.SIMSTUDIO_API_KEY!,
+    apiKey: process.env.SIM_API_KEY!,
   })
 
   try {
@@ -70,7 +70,7 @@ async function withInputExample() {
 // Example 3: Workflow validation and status checking
 async function statusExample() {
   const client = new SimStudioClient({
-    apiKey: process.env.SIMSTUDIO_API_KEY!,
+    apiKey: process.env.SIM_API_KEY!,
   })
 
   try {
@@ -107,6 +107,38 @@ async function statusExample() {
   }
 }
 
+// Example 4: Workflow execution with streaming
+async function streamingExample() {
+  const client = new SimStudioClient({
+    apiKey: process.env.SIM_API_KEY!,
+  })
+
+  try {
+    const result = await client.executeWorkflow('your-workflow-id', {
+      input: {
+        message: 'Count to five',
+      },
+      stream: true,
+      selectedOutputs: ['agent1.content'], // Use blockName.attribute format
+      timeout: 60000,
+    })
+
+    if (result.success) {
+      console.log('✅ Workflow executed successfully!')
+      console.log('Output:', result.output)
+      console.log('Duration:', result.metadata?.duration, 'ms')
+    } else {
+      console.log('❌ Workflow failed:', result.error)
+    }
+  } catch (error) {
+    if (error instanceof SimStudioError) {
+      console.error('SDK Error:', error.message, 'Code:', error.code)
+    } else {
+      console.error('Unexpected error:', error)
+    }
+  }
+}
+
 // Run examples
 if (require.main === module) {
   async function runExamples() {
@@ -121,6 +153,9 @@ if (require.main === module) {
 
       await statusExample()
       console.log('\n✅ Status example completed')
+
+      await streamingExample()
+      console.log('\n✅ Streaming example completed')
     } catch (error) {
       console.error('Error running examples:', error)
     }

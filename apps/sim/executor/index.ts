@@ -85,6 +85,53 @@ export class Executor {
   private isCancelled = false
   private isChildExecution = false
 
+  /**
+   * Updates block output with streamed content, handling both structured and unstructured responses
+   */
+  private updateBlockOutputWithStreamedContent(
+    blockId: string,
+    fullContent: string,
+    blockState: any,
+    context: ExecutionContext
+  ): void {
+    if (!blockState?.output) return
+
+    // Check if we have response format - if so, preserve structured response
+    let responseFormat: any
+    if (this.initialBlockStates?.[blockId]) {
+      const initialBlockState = this.initialBlockStates[blockId] as any
+      responseFormat = initialBlockState.responseFormat
+    }
+
+    if (responseFormat && fullContent) {
+      // For structured responses, parse the raw streaming content
+      try {
+        const parsedContent = JSON.parse(fullContent)
+        // Preserve metadata but spread parsed fields at root level
+        const structuredOutput = {
+          ...parsedContent,
+          tokens: blockState.output.tokens,
+          toolCalls: blockState.output.toolCalls,
+          providerTiming: blockState.output.providerTiming,
+          cost: blockState.output.cost,
+        }
+        blockState.output = structuredOutput
+
+        // Also update the corresponding block log
+        const blockLog = context.blockLogs.find((log) => log.blockId === blockId)
+        if (blockLog) {
+          blockLog.output = structuredOutput
+        }
+      } catch (parseError) {
+        // If parsing fails, fall back to setting content
+        blockState.output.content = fullContent
+      }
+    } else {
+      // No response format, use standard content setting
+      blockState.output.content = fullContent
+    }
+  }
+
   constructor(
     private workflowParam:
       | SerializedWorkflow
@@ -312,83 +359,24 @@ export class Executor {
 
                     const blockId = (streamingExec.execution as any).blockId
                     const blockState = context.blockStates.get(blockId)
-                    if (blockState?.output) {
-                      // Check if we have response format - if so, preserve structured response
-                      let responseFormat: any
-                      if (this.initialBlockStates?.[blockId]) {
-                        const initialBlockState = this.initialBlockStates[blockId] as any
-                        responseFormat = initialBlockState.responseFormat
-                      }
-
-                      if (responseFormat && fullContent) {
-                        // For structured responses, always try to parse the raw streaming content
-                        // The streamForExecutor contains the raw JSON response, not the processed display text
-                        try {
-                          const parsedContent = JSON.parse(fullContent)
-                          // Preserve metadata but spread parsed fields at root level (same as manual execution)
-                          const structuredOutput = {
-                            ...parsedContent,
-                            tokens: blockState.output.tokens,
-                            toolCalls: blockState.output.toolCalls,
-                            providerTiming: blockState.output.providerTiming,
-                            cost: blockState.output.cost,
-                          }
-                          blockState.output = structuredOutput
-
-                          // Also update the corresponding block log with the structured output
-                          const blockLog = context.blockLogs.find((log) => log.blockId === blockId)
-                          if (blockLog) {
-                            blockLog.output = structuredOutput
-                          }
-                        } catch (parseError) {
-                          // If parsing fails, fall back to setting content
-                          blockState.output.content = fullContent
-                        }
-                      } else {
-                        // No response format, use standard content setting
-                        blockState.output.content = fullContent
-                      }
-                    }
+                    this.updateBlockOutputWithStreamedContent(
+                      blockId,
+                      fullContent,
+                      blockState,
+                      context
+                    )
                   } catch (readerError: any) {
                     logger.error('Error reading stream for executor:', readerError)
                     // Set partial content if available
                     const blockId = (streamingExec.execution as any).blockId
                     const blockState = context.blockStates.get(blockId)
-                    if (blockState?.output && fullContent) {
-                      // Check if we have response format for error handling too
-                      let responseFormat: any
-                      if (this.initialBlockStates?.[blockId]) {
-                        const initialBlockState = this.initialBlockStates[blockId] as any
-                        responseFormat = initialBlockState.responseFormat
-                      }
-
-                      if (responseFormat) {
-                        // For structured responses, always try to parse the raw streaming content
-                        // The streamForExecutor contains the raw JSON response, not the processed display text
-                        try {
-                          const parsedContent = JSON.parse(fullContent)
-                          const structuredOutput = {
-                            ...parsedContent,
-                            tokens: blockState.output.tokens,
-                            toolCalls: blockState.output.toolCalls,
-                            providerTiming: blockState.output.providerTiming,
-                            cost: blockState.output.cost,
-                          }
-                          blockState.output = structuredOutput
-
-                          // Also update the corresponding block log with the structured output
-                          const blockLog = context.blockLogs.find((log) => log.blockId === blockId)
-                          if (blockLog) {
-                            blockLog.output = structuredOutput
-                          }
-                        } catch (parseError) {
-                          // If parsing fails, fall back to setting content
-                          blockState.output.content = fullContent
-                        }
-                      } else {
-                        // No response format, use standard content setting
-                        blockState.output.content = fullContent
-                      }
+                    if (fullContent) {
+                      this.updateBlockOutputWithStreamedContent(
+                        blockId,
+                        fullContent,
+                        blockState,
+                        context
+                      )
                     }
                   } finally {
                     try {

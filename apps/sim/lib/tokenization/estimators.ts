@@ -5,7 +5,7 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { MIN_TEXT_LENGTH_FOR_ESTIMATION, TOKENIZATION_CONFIG } from '@/lib/tokenization/constants'
 import type { TokenEstimate } from '@/lib/tokenization/types'
-import { createTextPreview, getProviderConfig } from '@/lib/tokenization/utils'
+import { getProviderConfig } from '@/lib/tokenization/utils'
 
 const logger = createLogger('TokenizationEstimators')
 
@@ -25,13 +25,6 @@ export function estimateTokenCount(text: string, providerId?: string): TokenEsti
   const effectiveProviderId = providerId || TOKENIZATION_CONFIG.defaults.provider
   const config = getProviderConfig(effectiveProviderId)
 
-  logger.debug('Starting token estimation', {
-    provider: effectiveProviderId,
-    textLength: text.length,
-    preview: createTextPreview(text),
-    avgCharsPerToken: config.avgCharsPerToken,
-  })
-
   let estimatedTokens: number
 
   switch (effectiveProviderId) {
@@ -49,21 +42,12 @@ export function estimateTokenCount(text: string, providerId?: string): TokenEsti
       estimatedTokens = estimateGenericTokens(text, config.avgCharsPerToken)
   }
 
-  const result: TokenEstimate = {
+  return {
     count: Math.max(1, Math.round(estimatedTokens)),
     confidence: config.confidence,
     provider: effectiveProviderId,
     method: 'heuristic',
   }
-
-  logger.debug('Token estimation completed', {
-    provider: effectiveProviderId,
-    textLength: text.length,
-    estimatedTokens: result.count,
-    confidence: result.confidence,
-  })
-
-  return result
 }
 
 /**

@@ -108,13 +108,13 @@ export async function POST(
     }
 
     try {
-      // Transform outputConfigs to selectedOutputs format
+      // Transform outputConfigs to selectedOutputs format (blockId_attribute format)
       const selectedOutputs: string[] = []
       if (deployment.outputConfigs && Array.isArray(deployment.outputConfigs)) {
         for (const config of deployment.outputConfigs) {
           const outputId = config.path
             ? `${config.blockId}_${config.path}`
-            : `${config.blockId}.content`
+            : `${config.blockId}_content`
           selectedOutputs.push(outputId)
         }
       }
@@ -122,19 +122,18 @@ export async function POST(
       logger.debug(`[${requestId}] Using ${selectedOutputs.length} selected outputs for chat`)
 
       // Use shared streaming response creator
-      const { createStreamingResponse } = await import('@/lib/workflows/streaming')
+      const { createStreamingResponse, SSE_HEADERS } = await import('@/lib/workflows/streaming')
       const { createSecureFilteredResult } = await import('@/app/api/workflows/[id]/execute/route')
 
       const stream = await createStreamingResponse({
         requestId,
         workflow: { id: deployment.workflowId, userId: deployment.userId, isDeployed: true },
-        input: { input, conversationId }, // Chat trigger expects these at top level
+        input: { input, conversationId }, // Format for chat_trigger
         executingUserId: deployment.userId, // Use workflow owner's ID for chat deployments
         streamConfig: {
           selectedOutputs,
           isSecureMode: true,
           workflowTriggerType: 'chat',
-          streamFormat: 'sse', // Chat deployments use SSE format for structured responses
         },
         createFilteredResult: createSecureFilteredResult,
       })
@@ -142,12 +141,7 @@ export async function POST(
       // Return streaming response to client
       const streamResponse = new NextResponse(stream, {
         status: 200,
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          Connection: 'keep-alive',
-          'X-Accel-Buffering': 'no',
-        },
+        headers: SSE_HEADERS,
       })
       return addCorsHeaders(streamResponse, request)
     } catch (error: any) {

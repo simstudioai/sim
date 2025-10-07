@@ -16,7 +16,7 @@ from simstudio import SimStudioClient
 
 # Initialize the client
 client = SimStudioClient(
-    api_key=os.getenv("SIMSTUDIO_API_KEY", "your-api-key-here"),
+    api_key=os.getenv("SIM_API_KEY", "your-api-key-here"),
     base_url="https://sim.ai"  # optional, defaults to https://sim.ai
 )
 
@@ -180,7 +180,7 @@ class SimStudioError(Exception):
 import os
 from simstudio import SimStudioClient
 
-client = SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY"))
+client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
 
 def run_workflow():
     try:
@@ -216,7 +216,7 @@ run_workflow()
 from simstudio import SimStudioClient, SimStudioError
 import os
 
-client = SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY"))
+client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
 
 def execute_with_error_handling():
     try:
@@ -246,7 +246,7 @@ from simstudio import SimStudioClient
 import os
 
 # Using context manager to automatically close the session
-with SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY")) as client:
+with SimStudioClient(api_key=os.getenv("SIM_API_KEY")) as client:
     result = client.execute_workflow("workflow-id")
     print("Result:", result)
 # Session is automatically closed here
@@ -260,8 +260,8 @@ from simstudio import SimStudioClient
 
 # Using environment variables
 client = SimStudioClient(
-    api_key=os.getenv("SIMSTUDIO_API_KEY"),
-    base_url=os.getenv("SIMSTUDIO_BASE_URL", "https://sim.ai")
+    api_key=os.getenv("SIM_API_KEY"),
+    base_url=os.getenv("SIM_BASE_URL", "https://sim.ai")
 )
 ```
 
@@ -271,7 +271,7 @@ client = SimStudioClient(
 from simstudio import SimStudioClient
 import os
 
-client = SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY"))
+client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
 
 def execute_workflows_batch(workflow_data_pairs):
     """Execute multiple workflows with different input data."""
