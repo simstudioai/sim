@@ -13,7 +13,7 @@ const db = drizzle(
     prepare: false,
     idle_timeout: 15,
     connect_timeout: 20,
-    max: 5,
+    max: 3,
     onnotice: () => {},
   }),
   { schema }

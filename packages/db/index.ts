@@ -14,16 +14,8 @@ const postgresClient = postgres(connectionString, {
   prepare: false,
   idle_timeout: 20,
   connect_timeout: 30,
-  max: 80,
+  max: 30,
   onnotice: () => {},
 })
 
-const drizzleClient = drizzle(postgresClient, { schema })
-
-declare global {
-  // eslint-disable-next-line no-var
-  var database: PostgresJsDatabase<typeof schema> | undefined
-}
-
-export const db = globalThis.database || drizzleClient
-globalThis.database = db
+export const db = drizzle(postgresClient, { schema })
