@@ -52,7 +52,7 @@ Add these parameters to enable streaming:
 ### Block Output Format
 
 Use the `blockName.attribute` format to specify which block outputs to stream:
-- Format: `"blockName.attribute"` (e.g., `"agent1.content"`)
+- Format: `"blockName.attribute"` (e.g., If you want to stream the content of the Agent 1 block, you would use `"agent1.content"`)
 - Block names are case-insensitive and spaces are ignored
 
 ### Example Request
@@ -71,7 +71,7 @@ curl -X POST \
 
 ### Response Format
 
-Streaming responses use Server-Sent Events (SSE) format, matching the industry standard used by OpenAI and Anthropic:
+Streaming responses use Server-Sent Events (SSE) format:
 
 ```
 data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":"One"}

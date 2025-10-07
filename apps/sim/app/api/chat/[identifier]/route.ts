@@ -119,9 +119,6 @@ export async function POST(
         }
       }
 
-      logger.debug(`[${requestId}] Using ${selectedOutputs.length} selected outputs for chat`)
-
-      // Use shared streaming response creator
       const { createStreamingResponse, SSE_HEADERS } = await import('@/lib/workflows/streaming')
       const { createSecureFilteredResult } = await import('@/app/api/workflows/[id]/execute/route')
 
@@ -138,7 +135,6 @@ export async function POST(
         createFilteredResult: createSecureFilteredResult,
       })
 
-      // Return streaming response to client
       const streamResponse = new NextResponse(stream, {
         status: 200,
         headers: SSE_HEADERS,
