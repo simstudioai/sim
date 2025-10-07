@@ -146,6 +146,7 @@ export class Executor {
             selectedOutputs?: string[]
             edges?: Array<{ source: string; target: string }>
             onStream?: (streamingExecution: StreamingExecution) => Promise<void>
+            onBlockComplete?: (blockId: string, output: any) => Promise<void>
             executionId?: string
             workspaceId?: string
             isChildExecution?: boolean
@@ -742,6 +743,7 @@ export class Executor {
       selectedOutputs: this.contextExtensions.selectedOutputs || [],
       edges: this.contextExtensions.edges || [],
       onStream: this.contextExtensions.onStream,
+      onBlockComplete: this.contextExtensions.onBlockComplete,
     }
 
     Object.entries(this.initialBlockStates).forEach(([blockId, output]) => {
@@ -2132,6 +2134,14 @@ export class Executor {
         durationMs: Math.round(executionTime),
         success: true,
       })
+
+      if (context.onBlockComplete && !isNonStreamTriggerBlock) {
+        try {
+          await context.onBlockComplete(blockId, output)
+        } catch (callbackError: any) {
+          logger.error('Error in onBlockComplete callback:', callbackError)
+        }
+      }
 
       return output
     } catch (error: any) {

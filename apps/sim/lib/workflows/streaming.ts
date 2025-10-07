@@ -1,23 +1,18 @@
-/**
- * Shared streaming response utilities for workflow execution
- * Used by both /api/workflows/[id]/execute and /api/chat/[identifier]
- */
-
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ExecutionResult } from '@/executor/types'
 
 const logger = createLogger('WorkflowStreaming')
 
-/**
- * Standard SSE (Server-Sent Events) headers for streaming responses
- * Reused across all streaming endpoints
- */
 export const SSE_HEADERS = {
   'Content-Type': 'text/event-stream',
   'Cache-Control': 'no-cache',
   Connection: 'keep-alive',
   'X-Accel-Buffering': 'no',
 } as const
+
+function encodeSSE(data: any): Uint8Array {
+  return new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`)
+}
 
 export interface StreamingConfig {
   selectedOutputs?: string[]
@@ -35,10 +30,6 @@ export interface StreamingResponseOptions {
   createFilteredResult: (result: ExecutionResult) => any
 }
 
-/**
- * Creates a streaming SSE response for workflow execution
- * This centralizes the streaming logic so it's not duplicated across routes
- */
 export async function createStreamingResponse(
   options: StreamingResponseOptions
 ): Promise<ReadableStream> {
@@ -46,20 +37,24 @@ export async function createStreamingResponse(
     options
 
   const { executeWorkflow } = await import('@/app/api/workflows/[id]/execute/route')
-  const { processStreamingBlockLogs } = await import('@/lib/tokenization')
-
-  const encoder = new TextEncoder()
 
   return new ReadableStream({
     async start(controller) {
       try {
         const streamedContent = new Map<string, string>()
+        const processedOutputs = new Set<string>()
 
-        // Set up onStream callback to forward agent streams
+        const sendChunk = (blockId: string, content: string) => {
+          const separator = processedOutputs.size > 0 ? '\n\n' : ''
+          controller.enqueue(encodeSSE({ blockId, chunk: separator + content }))
+          processedOutputs.add(blockId)
+        }
+
         const onStreamCallback = async (streamingExec: any) => {
           const blockId = streamingExec.execution?.blockId || 'unknown'
           const reader = streamingExec.stream.getReader()
           const decoder = new TextDecoder()
+          let isFirstChunk = true
 
           try {
             while (true) {
@@ -67,60 +62,84 @@ export async function createStreamingResponse(
               if (done) break
 
               const textChunk = decoder.decode(value, { stream: true })
-
-              // Accumulate for logs/output
               streamedContent.set(blockId, (streamedContent.get(blockId) || '') + textChunk)
 
-              // Send chunk in SSE format
-              const sseMessage = `data: ${JSON.stringify({ blockId, chunk: textChunk })}\n\n`
-              controller.enqueue(encoder.encode(sseMessage))
+              if (isFirstChunk) {
+                sendChunk(blockId, textChunk)
+                isFirstChunk = false
+              } else {
+                controller.enqueue(encodeSSE({ blockId, chunk: textChunk }))
+              }
             }
           } catch (streamError) {
             logger.error(`[${requestId}] Error reading agent stream:`, streamError)
           }
         }
 
-        // Execute workflow with streaming enabled
+        const onBlockCompleteCallback = async (blockId: string, output: any) => {
+          if (!streamConfig.selectedOutputs?.length) return
+
+          const { extractBlockIdFromOutputId, extractPathFromOutputId, parseOutputContentSafely } =
+            await import('@/lib/response-format')
+
+          const matchingOutputs = streamConfig.selectedOutputs.filter(
+            (outputId) => extractBlockIdFromOutputId(outputId) === blockId
+          )
+
+          if (!matchingOutputs.length) return
+
+          for (const outputId of matchingOutputs) {
+            const path = extractPathFromOutputId(outputId, blockId)
+            let outputValue: any = output
+
+            if (path) {
+              outputValue = parseOutputContentSafely(outputValue)
+              for (const part of path.split('.')) {
+                if (outputValue?.[part] !== undefined) {
+                  outputValue = outputValue[part]
+                } else {
+                  outputValue = undefined
+                  break
+                }
+              }
+            }
+
+            if (outputValue !== undefined) {
+              const formattedOutput =
+                typeof outputValue === 'string' ? outputValue : JSON.stringify(outputValue, null, 2)
+              sendChunk(blockId, formattedOutput)
+            }
+          }
+        }
+
         const result = await executeWorkflow(workflow, requestId, input, executingUserId, {
           enabled: true,
           selectedOutputs: streamConfig.selectedOutputs,
           isSecureMode: streamConfig.isSecureMode,
           workflowTriggerType: streamConfig.workflowTriggerType,
           onStream: onStreamCallback,
+          onBlockComplete: onBlockCompleteCallback,
         })
 
-        // Update streamed content in logs
         if (result.logs && streamedContent.size > 0) {
           result.logs.forEach((log: any) => {
             if (streamedContent.has(log.blockId)) {
               const content = streamedContent.get(log.blockId)
-              if (log.output && content) {
-                log.output.content = content
-              }
+              if (log.output && content) log.output.content = content
             }
           })
 
+          const { processStreamingBlockLogs } = await import('@/lib/tokenization')
           processStreamingBlockLogs(result.logs, streamedContent)
         }
 
-        // Send final event with execution metadata
-        const finalData = createFilteredResult(result)
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ event: 'done', ...finalData })}\n\n`)
-        )
-
-        // Send [DONE] marker
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+        controller.enqueue(encodeSSE({ event: 'final', data: createFilteredResult(result) }))
+        controller.enqueue(encodeSSE('[DONE]'))
         controller.close()
       } catch (error: any) {
         logger.error(`[${requestId}] Stream error:`, error)
         controller.enqueue(
-          encoder.encode(
-            `data: ${JSON.stringify({
-              event: 'error',
-              error: error.message || 'Stream processing error',
-            })}\n\n`
-          )
+          encodeSSE({ event: 'error', error: error.message || 'Stream processing error' })
         )
         controller.close()
       }

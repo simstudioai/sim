@@ -35,14 +35,10 @@ const logger = createLogger('WorkflowExecuteAPI')
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-// Define the schema for environment variables
 const EnvVarsSchema = z.record(z.string())
 
-// Keep track of running executions to prevent duplicate requests
-// Use a combination of workflow ID and request ID to allow concurrent executions with different inputs
 const runningExecutions = new Set<string>()
 
-// Utility function to filter out logs and workflowConnections from API response
 function createFilteredResult(result: any) {
   return {
     ...result,
@@ -56,19 +52,13 @@ function createFilteredResult(result: any) {
   }
 }
 
-// Utility function to create a secure filtered result for streaming (removes ALL sensitive data)
-// This is used for chat deployments and other public-facing streaming responses
 export function createSecureFilteredResult(result: any) {
-  // Only return success status and safe output fields
-  // Completely removes: logs, metadata, workflowConnections, block inputs, internal state
   return {
     success: result.success,
-    output: result.output || {},
     error: result.error,
   }
 }
 
-// Custom error class for usage limit exceeded
 class UsageLimitError extends Error {
   statusCode: number
   constructor(message: string, statusCode = 402) {
@@ -139,16 +129,14 @@ export async function executeWorkflow(
     isSecureMode?: boolean // When true, filter out all sensitive data
     workflowTriggerType?: 'api' | 'chat' // Which trigger block type to look for (default: 'api')
     onStream?: (streamingExec: any) => Promise<void> // Callback for streaming agent responses
+    onBlockComplete?: (blockId: string, output: any) => Promise<void> // Callback when any block completes
   }
 ): Promise<any> {
   const workflowId = workflow.id
   const executionId = uuidv4()
 
-  // Create a unique execution key combining workflow ID and request ID
-  // This allows concurrent executions of the same workflow with different inputs
   const executionKey = `${workflowId}:${requestId}`
 
-  // Skip if this exact execution is already running (prevents duplicate requests)
   if (runningExecutions.has(executionKey)) {
     logger.warn(`[${requestId}] Execution is already running: ${executionKey}`)
     throw new Error('Execution is already running')
@@ -393,6 +381,7 @@ export async function executeWorkflow(
         target: e.target,
       }))
       contextExtensions.onStream = streamConfig.onStream
+      contextExtensions.onBlockComplete = streamConfig.onBlockComplete
     }
 
     const executor = new Executor({

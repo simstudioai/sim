@@ -174,6 +174,7 @@ export interface ExecutionContext {
 
   // New context extensions
   onStream?: (streamingExecution: StreamingExecution) => Promise<string>
+  onBlockComplete?: (blockId: string, output: any) => Promise<void>
 }
 
 /**

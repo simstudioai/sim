@@ -324,12 +324,18 @@ export function Chat({ chatMessage, setChatMessage }: ChatProps) {
 
           for (const line of lines) {
             if (line.startsWith('data: ')) {
-              try {
-                const json = JSON.parse(line.substring(6))
-                const { blockId, chunk: contentChunk, event, data } = json
+              const data = line.substring(6)
 
-                if (event === 'final' && data) {
-                  const result = data as ExecutionResult
+              if (data === '[DONE]') {
+                continue
+              }
+
+              try {
+                const json = JSON.parse(data)
+                const { blockId, chunk: contentChunk, event, data: eventData } = json
+
+                if (event === 'final' && eventData) {
+                  const result = eventData as ExecutionResult
 
                   // If final result is a failure, surface error and stop
                   if ('success' in result && !result.success) {

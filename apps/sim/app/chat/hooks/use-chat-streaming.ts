@@ -4,8 +4,6 @@ import { useRef, useState } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ChatMessage } from '@/app/chat/components/message/message'
 import { CHAT_ERROR_MESSAGES } from '@/app/chat/constants'
-// No longer need complex output extraction - backend handles this
-import type { ExecutionResult } from '@/executor/types'
 
 const logger = createLogger('UseChatStreaming')
 
@@ -148,11 +146,16 @@ export function useChatStreaming() {
 
         for (const line of lines) {
           if (line.startsWith('data: ')) {
+            const data = line.substring(6)
+
+            if (data === '[DONE]') {
+              continue
+            }
+
             try {
-              const json = JSON.parse(line.substring(6))
+              const json = JSON.parse(data)
               const { blockId, chunk: contentChunk, event: eventType } = json
 
-              // Handle error events from the server
               if (eventType === 'error' || json.event === 'error') {
                 const errorMessage = json.error || CHAT_ERROR_MESSAGES.GENERIC_ERROR
                 setMessages((prev) =>
@@ -172,34 +175,11 @@ export function useChatStreaming() {
               }
 
               if (eventType === 'final' && json.data) {
-                // The backend has already processed and combined all outputs
-                // We just need to extract the combined content and use it
-                const result = json.data as ExecutionResult
-
-                // Collect all content from logs that have output.content (backend processed)
-                let combinedContent = ''
-                if (result.logs) {
-                  const contentParts: string[] = []
-
-                  // Get content from all logs that have processed content
-                  result.logs.forEach((log) => {
-                    if (log.output?.content && typeof log.output.content === 'string') {
-                      // The backend already includes proper separators, so just collect the content
-                      contentParts.push(log.output.content)
-                    }
-                  })
-
-                  // Join without additional separators since backend already handles this
-                  combinedContent = contentParts.join('')
-                }
-
-                // Update the existing streaming message with the final combined content
                 setMessages((prev) =>
                   prev.map((msg) =>
                     msg.id === messageId
                       ? {
                           ...msg,
-                          content: combinedContent || accumulatedText, // Use combined content or fallback to streamed
                           isStreaming: false,
                         }
                       : msg
@@ -210,7 +190,6 @@ export function useChatStreaming() {
               }
 
               if (blockId && contentChunk) {
-                // Track that this block has streamed content (like chat panel)
                 if (!messageIdMap.has(blockId)) {
                   messageIdMap.set(blockId, messageId)
                 }
