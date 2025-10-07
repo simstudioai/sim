@@ -15,11 +15,6 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'api.stability.ai',
       },
-      // Vercel Blob Storage
-      {
-        protocol: 'https',
-        hostname: '*.public.blob.vercel-storage.com',
-      },
       // Azure Blob Storage
       {
         protocol: 'https',
@@ -38,15 +33,6 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'lh3.googleusercontent.com',
       },
-      // Custom domain for file storage if configured
-      ...(getEnv('NEXT_PUBLIC_BLOB_BASE_URL')
-        ? [
-            {
-              protocol: 'https' as const,
-              hostname: new URL(getEnv('NEXT_PUBLIC_BLOB_BASE_URL')!).hostname,
-            },
-          ]
-        : []),
       // Brand logo domain if configured
       ...(getEnv('NEXT_PUBLIC_BRAND_LOGO_URL')
         ? (() => {

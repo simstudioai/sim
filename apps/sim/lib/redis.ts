@@ -8,7 +8,6 @@ const logger = createLogger('Redis')
 const redisUrl = env.REDIS_URL
 
 // Global Redis client for connection pooling
-// This is important for serverless environments like Vercel
 let globalRedisClient: Redis | null = null
 
 // Fallback in-memory cache for when Redis is not available
@@ -18,7 +17,6 @@ const MAX_CACHE_SIZE = 1000
 /**
  * Get a Redis client instance
  * Uses connection pooling to avoid creating a new connection for each request
- * This is critical for performance in serverless environments like Vercel
  */
 export function getRedisClient(): Redis | null {
   // For server-side only
