@@ -38,6 +38,84 @@ curl -X POST \
 
 成功したレスポンスはエグゼキュータからシリアル化された実行結果を返します。エラーは検証、認証、またはワークフローの失敗を表示します。
 
+## ストリーミングレスポンス
+
+リアルタイムストリーミングを有効にすると、ワークフローの出力が生成されるたびに文字単位で受信できます。これはAIの応答をユーザーに段階的に表示するのに役立ちます。
+
+### リクエストパラメータ
+
+ストリーミングを有効にするには、これらのパラメータを追加してください：
+
+- `stream` - Server-Sent Events (SSE)ストリーミングを有効にするには `true` に設定します
+- `selectedOutputs` - ストリーミングするブロック出力の配列（例：`["agent1.content"]`）
+
+### ブロック出力フォーマット
+
+`blockName.attribute` フォーマットを使用して、ストリーミングするブロック出力を指定します：
+- フォーマット：`"blockName.attribute"`（例：Agent 1ブロックの内容をストリーミングしたい場合は、`"agent1.content"` を使用します）
+- ブロック名は大文字小文字を区別せず、スペースは無視されます
+
+### リクエスト例
+
+```bash
+curl -X POST \
+  https://sim.ai/api/workflows/WORKFLOW_ID/execute \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: YOUR_KEY' \
+  -d '{
+    "message": "Count to five",
+    "stream": true,
+    "selectedOutputs": ["agent1.content"]
+  }'
+```
+
+### レスポンスフォーマット
+
+ストリーミングレスポンスはServer-Sent Events (SSE)フォーマットを使用します：
+
+```
+data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":"One"}
+
+data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":", two"}
+
+data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":", three"}
+
+data: {"event":"done","success":true,"output":{},"metadata":{"duration":610}}
+
+data: [DONE]
+```
+
+各イベントには以下が含まれます：
+- **ストリーミングチャンク**：`{"blockId": "...", "chunk": "text"}` - 生成されるリアルタイムテキスト
+- **最終イベント**：`{"event": "done", ...}` - 実行メタデータと完全な結果
+- **ターミネーター**：`[DONE]` - ストリーム終了を示す信号
+
+### 複数ブロックのストリーミング
+
+`selectedOutputs` に複数のブロックが含まれる場合、各チャンクはどのブロックから生成されたかを示します：
+
+```bash
+curl -X POST \
+  https://sim.ai/api/workflows/WORKFLOW_ID/execute \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: YOUR_KEY' \
+  -d '{
+    "message": "Process this request",
+    "stream": true,
+    "selectedOutputs": ["agent1.content", "agent2.content"]
+  }'
+```
+
+各チャンクの `blockId` フィールドを使用して、出力を正しいUI要素にルーティングできます：
+
+```
+data: {"blockId":"agent1-uuid","chunk":"Processing..."}
+
+data: {"blockId":"agent2-uuid","chunk":"Analyzing..."}
+
+data: {"blockId":"agent1-uuid","chunk":" complete"}
+```
+
 ## 出力リファレンス
 
 | リファレンス | 説明 |
@@ -45,7 +123,7 @@ curl -X POST \
 | `<api.field>` | 入力フォーマットで定義されたフィールド |
 | `<api.input>` | 構造化されたリクエスト本文全体 |
 
-入力フォーマットが定義されていない場合、エグゼキュータは生のJSONを `<api.input>` のみで公開します。
+入力フォーマットが定義されていない場合、エグゼキューターは `<api.input>` でのみ生のJSONを公開します。
 
 <Callout type="warning">
 ワークフローには1つのAPIトリガーのみ含めることができます。変更後は新しいデプロイメントを公開して、エンドポイントを最新の状態に保ってください。

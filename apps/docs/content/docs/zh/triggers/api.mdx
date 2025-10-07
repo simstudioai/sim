@@ -38,6 +38,84 @@ curl -X POST \
 
 成功的响应会返回来自执行器的序列化执行结果。错误会显示验证、认证或工作流失败的信息。
 
+## 流式响应
+
+启用实时流式传输以在生成时逐字符接收工作流输出。这对于向用户逐步显示 AI 响应非常有用。
+
+### 请求参数
+
+添加以下参数以启用流式传输：
+
+- `stream` - 设置为 `true` 以启用服务器发送事件 (SSE) 流式传输
+- `selectedOutputs` - 要流式传输的块输出数组（例如，`["agent1.content"]`）
+
+### 块输出格式
+
+使用 `blockName.attribute` 格式指定要流式传输的块输出：
+- 格式：`"blockName.attribute"`（例如，如果您想流式传输 Agent 1 块的内容，可以使用 `"agent1.content"`）
+- 块名称不区分大小写，空格会被忽略
+
+### 示例请求
+
+```bash
+curl -X POST \
+  https://sim.ai/api/workflows/WORKFLOW_ID/execute \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: YOUR_KEY' \
+  -d '{
+    "message": "Count to five",
+    "stream": true,
+    "selectedOutputs": ["agent1.content"]
+  }'
+```
+
+### 响应格式
+
+流式响应使用服务器发送事件 (SSE) 格式：
+
+```
+data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":"One"}
+
+data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":", two"}
+
+data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":", three"}
+
+data: {"event":"done","success":true,"output":{},"metadata":{"duration":610}}
+
+data: [DONE]
+```
+
+每个事件包括：
+- **流式块**：`{"blockId": "...", "chunk": "text"}` - 实时生成的文本
+- **最终事件**：`{"event": "done", ...}` - 执行元数据和完整结果
+- **终止符**：`[DONE]` - 表示流结束
+
+### 多块流式传输
+
+当 `selectedOutputs` 包含多个块时，每个块会指示其来源：
+
+```bash
+curl -X POST \
+  https://sim.ai/api/workflows/WORKFLOW_ID/execute \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: YOUR_KEY' \
+  -d '{
+    "message": "Process this request",
+    "stream": true,
+    "selectedOutputs": ["agent1.content", "agent2.content"]
+  }'
+```
+
+每个块中的 `blockId` 字段可让您将输出路由到正确的 UI 元素：
+
+```
+data: {"blockId":"agent1-uuid","chunk":"Processing..."}
+
+data: {"blockId":"agent2-uuid","chunk":"Analyzing..."}
+
+data: {"blockId":"agent1-uuid","chunk":" complete"}
+```
+
 ## 输出参考
 
 | 参考 | 描述 |
@@ -48,5 +126,5 @@ curl -X POST \
 如果未定义输入格式，执行器仅在 `<api.input>` 处暴露原始 JSON。
 
 <Callout type="warning">
-一个工作流只能包含一个 API 触发器。更改后发布新的部署，以确保端点保持最新。
+一个工作流只能包含一个 API 触发器。更改后发布新部署，以确保端点保持最新。
 </Callout>
