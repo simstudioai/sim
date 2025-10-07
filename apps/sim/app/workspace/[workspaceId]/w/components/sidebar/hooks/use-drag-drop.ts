@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -6,24 +6,102 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 const logger = createLogger('WorkflowList:DragDrop')
 
 /**
- * Custom hook for handling drag and drop operations for workflows and folders
+ * Constants for auto-scroll behavior
+ */
+const SCROLL_THRESHOLD = 60 // Distance from edge to trigger scroll
+const SCROLL_SPEED = 8 // Pixels per frame
+
+/**
+ * Custom hook for handling drag and drop operations for workflows and folders.
+ * Includes auto-scrolling and drop target highlighting.
+ *
+ * @returns Drag and drop state and event handlers
  */
 export function useDragDrop() {
-  const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null)
-  const [rootDragOver, setRootDragOver] = useState(false)
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const scrollIntervalRef = useRef<number | null>(null)
+  const lastDragYRef = useRef<number>(0)
 
   const { updateFolderAPI, getFolderPath } = useFolderStore()
   const { updateWorkflow } = useWorkflowRegistry()
 
   /**
+   * Auto-scroll handler - scrolls container when dragging near edges
+   */
+  const handleAutoScroll = useCallback(() => {
+    if (!scrollContainerRef.current || !isDragging) return
+
+    const container = scrollContainerRef.current
+    const rect = container.getBoundingClientRect()
+    const mouseY = lastDragYRef.current
+
+    // Only scroll if mouse is within container bounds
+    if (mouseY < rect.top || mouseY > rect.bottom) return
+
+    // Calculate distance from top and bottom edges
+    const distanceFromTop = mouseY - rect.top
+    const distanceFromBottom = rect.bottom - mouseY
+
+    let scrollDelta = 0
+
+    // Scroll up if near top and not at scroll top
+    if (distanceFromTop < SCROLL_THRESHOLD && container.scrollTop > 0) {
+      const intensity = Math.max(0, Math.min(1, 1 - distanceFromTop / SCROLL_THRESHOLD))
+      scrollDelta = -SCROLL_SPEED * intensity
+    }
+    // Scroll down if near bottom and not at scroll bottom
+    else if (distanceFromBottom < SCROLL_THRESHOLD) {
+      const maxScroll = container.scrollHeight - container.clientHeight
+      if (container.scrollTop < maxScroll) {
+        const intensity = Math.max(0, Math.min(1, 1 - distanceFromBottom / SCROLL_THRESHOLD))
+        scrollDelta = SCROLL_SPEED * intensity
+      }
+    }
+
+    if (scrollDelta !== 0) {
+      container.scrollTop += scrollDelta
+    }
+  }, [isDragging])
+
+  /**
+   * Start auto-scroll animation loop
+   */
+  useEffect(() => {
+    if (isDragging) {
+      scrollIntervalRef.current = window.setInterval(handleAutoScroll, 10) // ~100fps for smoother response
+    } else {
+      if (scrollIntervalRef.current) {
+        clearInterval(scrollIntervalRef.current)
+        scrollIntervalRef.current = null
+      }
+    }
+
+    return () => {
+      if (scrollIntervalRef.current) {
+        clearInterval(scrollIntervalRef.current)
+      }
+    }
+  }, [isDragging, handleAutoScroll])
+
+  /**
    * Moves one or more workflows to a target folder
+   *
+   * @param workflowIds - Array of workflow IDs to move
+   * @param targetFolderId - Target folder ID or null for root
    */
   const handleWorkflowDrop = useCallback(
     async (workflowIds: string[], targetFolderId: string | null) => {
+      if (!workflowIds.length) {
+        logger.warn('No workflows to move')
+        return
+      }
+
       try {
-        for (const workflowId of workflowIds) {
-          await updateWorkflow(workflowId, { folderId: targetFolderId })
-        }
+        await Promise.all(
+          workflowIds.map((workflowId) => updateWorkflow(workflowId, { folderId: targetFolderId }))
+        )
         logger.info(`Moved ${workflowIds.length} workflow(s)`)
       } catch (error) {
         logger.error('Failed to move workflows:', error)
@@ -34,9 +112,17 @@ export function useDragDrop() {
 
   /**
    * Moves a folder to a new parent folder, with validation
+   *
+   * @param draggedFolderId - ID of the folder being moved
+   * @param targetFolderId - Target folder ID or null for root
    */
   const handleFolderMove = useCallback(
     async (draggedFolderId: string, targetFolderId: string | null) => {
+      if (!draggedFolderId) {
+        logger.warn('No folder to move')
+        return
+      }
+
       try {
         const folderStore = useFolderStore.getState()
         const draggedFolderPath = folderStore.getFolderPath(draggedFolderId)
@@ -47,6 +133,12 @@ export function useDragDrop() {
           draggedFolderPath.some((ancestor) => ancestor.id === targetFolderId)
         ) {
           logger.info('Cannot move folder into its own descendant')
+          return
+        }
+
+        // Prevent moving folder into itself
+        if (draggedFolderId === targetFolderId) {
+          logger.info('Cannot move folder into itself')
           return
         }
 
@@ -61,73 +153,137 @@ export function useDragDrop() {
 
   /**
    * Handles drop events for both workflows and folders
+   *
+   * @param e - React drag event
+   * @param targetFolderId - Target folder ID or null for root
    */
   const handleFolderDrop = useCallback(
     async (e: React.DragEvent, targetFolderId: string | null) => {
       e.preventDefault()
       e.stopPropagation()
-      setDragOverFolderId(null)
-      setRootDragOver(false)
+      setDropTargetId(null)
+      setIsDragging(false)
 
-      // Check if dropping workflows
-      const workflowIdsData = e.dataTransfer.getData('workflow-ids')
-      if (workflowIdsData) {
-        const workflowIds = JSON.parse(workflowIdsData) as string[]
-        await handleWorkflowDrop(workflowIds, targetFolderId)
-        return
-      }
+      try {
+        // Check if dropping workflows
+        const workflowIdsData = e.dataTransfer.getData('workflow-ids')
+        if (workflowIdsData) {
+          const workflowIds = JSON.parse(workflowIdsData) as string[]
+          await handleWorkflowDrop(workflowIds, targetFolderId)
+          return
+        }
 
-      // Check if dropping a folder
-      const folderIdData = e.dataTransfer.getData('folder-id')
-      if (folderIdData && targetFolderId !== folderIdData) {
-        await handleFolderMove(folderIdData, targetFolderId)
+        // Check if dropping a folder
+        const folderIdData = e.dataTransfer.getData('folder-id')
+        if (folderIdData && targetFolderId !== folderIdData) {
+          await handleFolderMove(folderIdData, targetFolderId)
+        }
+      } catch (error) {
+        logger.error('Failed to handle drop:', error)
       }
     },
     [handleWorkflowDrop, handleFolderMove]
   )
 
   /**
-   * Creates drag event handlers for a specific folder
+   * Creates drag event handlers for a specific folder section
+   * These handlers are attached to the entire folder section container
+   *
+   * @param folderId - Folder ID to create handlers for
+   * @returns Object containing drag event handlers
    */
   const createFolderDragHandlers = useCallback(
     (folderId: string) => ({
-      onDragOver: (e: React.DragEvent) => {
+      onDragEnter: (e: React.DragEvent<HTMLElement>) => {
         e.preventDefault()
-        e.stopPropagation()
-        setDragOverFolderId(folderId)
+        setIsDragging(true)
       },
-      onDragLeave: (e: React.DragEvent) => {
+      onDragOver: (e: React.DragEvent<HTMLElement>) => {
         e.preventDefault()
-        e.stopPropagation()
-        setDragOverFolderId(null)
+        lastDragYRef.current = e.clientY
+        setDropTargetId(folderId)
+        setIsDragging(true)
       },
-      onDrop: (e: React.DragEvent) => handleFolderDrop(e, folderId),
+      onDragLeave: (e: React.DragEvent<HTMLElement>) => {
+        e.preventDefault()
+        const relatedTarget = e.relatedTarget as HTMLElement | null
+        const currentTarget = e.currentTarget as HTMLElement
+        // Only clear if we're leaving the folder section completely
+        if (!relatedTarget || !currentTarget.contains(relatedTarget)) {
+          setDropTargetId(null)
+        }
+      },
+      onDrop: (e: React.DragEvent<HTMLElement>) => handleFolderDrop(e, folderId),
     }),
     [handleFolderDrop]
   )
 
   /**
+   * Creates drag event handlers for items (workflows/folders) that belong to a parent folder
+   * When dragging over an item, highlights the parent folder section
+   *
+   * @param parentFolderId - Parent folder ID or null for root
+   * @returns Object containing drag event handlers
+   */
+  const createItemDragHandlers = useCallback(
+    (parentFolderId: string | null) => ({
+      onDragOver: (e: React.DragEvent<HTMLElement>) => {
+        e.preventDefault()
+        e.stopPropagation()
+        lastDragYRef.current = e.clientY
+        setDropTargetId(parentFolderId || 'root')
+        setIsDragging(true)
+      },
+    }),
+    []
+  )
+
+  /**
    * Creates drag event handlers for the root drop zone
+   *
+   * @returns Object containing drag event handlers for root
    */
   const createRootDragHandlers = useCallback(
     () => ({
-      onDragOver: (e: React.DragEvent) => {
+      onDragEnter: (e: React.DragEvent<HTMLElement>) => {
         e.preventDefault()
-        setRootDragOver(true)
+        setIsDragging(true)
       },
-      onDragLeave: (e: React.DragEvent) => {
+      onDragOver: (e: React.DragEvent<HTMLElement>) => {
         e.preventDefault()
-        setRootDragOver(false)
+        lastDragYRef.current = e.clientY
+        setDropTargetId('root')
+        setIsDragging(true)
       },
-      onDrop: (e: React.DragEvent) => handleFolderDrop(e, null),
+      onDragLeave: (e: React.DragEvent<HTMLElement>) => {
+        e.preventDefault()
+        const relatedTarget = e.relatedTarget as HTMLElement | null
+        const currentTarget = e.currentTarget as HTMLElement
+        // Only clear if we're leaving the root completely
+        if (!relatedTarget || !currentTarget.contains(relatedTarget)) {
+          setDropTargetId(null)
+        }
+      },
+      onDrop: (e: React.DragEvent<HTMLElement>) => handleFolderDrop(e, null),
     }),
     [handleFolderDrop]
   )
 
+  /**
+   * Set the scroll container ref for auto-scrolling
+   *
+   * @param element - Scrollable container element
+   */
+  const setScrollContainer = useCallback((element: HTMLDivElement | null) => {
+    scrollContainerRef.current = element
+  }, [])
+
   return {
-    dragOverFolderId,
-    rootDragOver,
+    dropTargetId,
+    isDragging,
+    setScrollContainer,
     createFolderDragHandlers,
+    createItemDragHandlers,
     createRootDragHandlers,
   }
 }

@@ -1,12 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 import clsx from 'clsx'
 import { getBlocksForSidebar } from '@/lib/workflows/trigger-utils'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import type { BlockConfig } from '@/blocks/types'
-import { useSidebarStore } from '@/stores/sidebar/store'
+import { usePanelResize } from '../../hooks/use-panel-resize'
 
 interface BlocksProps {
   disabled?: boolean
@@ -22,18 +22,20 @@ interface BlockItem {
 }
 
 /**
- * Constants for blocks panel sizing
+ * Blocks panel component displaying available block types.
+ * Uses the panel resize hook for shared resize/toggle functionality.
+ *
+ * @param props - Component props
+ * @returns Blocks panel with resizable functionality
  */
-const DEFAULT_HEIGHT = 200
-const MIN_HEIGHT = 28
-const HEADER_HEIGHT = 28
-
 export function Blocks({ disabled = false }: BlocksProps) {
-  const [isResizing, setIsResizing] = useState(false)
-  const { blocksHeight, setBlocksHeight, setTriggersHeight } = useSidebarStore()
-  const startYRef = useRef<number>(0)
-  const startHeightRef = useRef<number>(0)
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // Panel resize hook
+  const { handleMouseDown, handleToggle } = usePanelResize({
+    panelType: 'blocks',
+    containerRef,
+  })
 
   const blocks = useMemo(() => {
     const allBlocks = getBlocksForSidebar()
@@ -87,143 +89,58 @@ export function Blocks({ disabled = false }: BlocksProps) {
     return [...regularBlockItems, ...toolItems]
   }, [])
 
-  const handleDragStart = (e: React.DragEvent, item: BlockItem) => {
-    if (disabled) {
-      e.preventDefault()
-      return
-    }
-    e.dataTransfer.setData(
-      'application/json',
-      JSON.stringify({
-        type: item.type,
-        enableTriggerMode: false,
-      })
-    )
-    e.dataTransfer.effectAllowed = 'move'
-  }
-
-  const handleClick = (item: BlockItem) => {
-    if (item.type === 'connectionBlock' || disabled) return
-
-    const event = new CustomEvent('add-block-from-toolbar', {
-      detail: {
-        type: item.type,
-        enableTriggerMode: false,
-      },
-    })
-    window.dispatchEvent(event)
-  }
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    setIsResizing(true)
-    startYRef.current = e.clientY
-    const currentHeight = Number.parseInt(
-      getComputedStyle(document.documentElement).getPropertyValue('--blocks-height')
-    )
-    startHeightRef.current = currentHeight
-  }, [])
-
-  const handleToggle = useCallback(() => {
-    if (blocksHeight <= MIN_HEIGHT) {
-      // Expanding: set to default height, and ensure triggers has enough space for both sections
-      const currentTriggersHeight = Number.parseInt(
-        getComputedStyle(document.documentElement).getPropertyValue('--triggers-height')
-      )
-
-      // Calculate what blocks height we want
-      const desiredBlocksHeight = DEFAULT_HEIGHT
-
-      // Calculate minimum triggers height needed to show blocks content
-      const minRequiredTriggersHeight = desiredBlocksHeight + HEADER_HEIGHT
-
-      // Calculate ideal triggers height to show both blocks and triggers content reasonably
-      // This gives DEFAULT_HEIGHT visible space for triggers content above blocks
-      const idealTriggersHeight = desiredBlocksHeight + HEADER_HEIGHT + DEFAULT_HEIGHT
-
-      // If current triggers height is below ideal, expand triggers to show both sections properly
-      if (currentTriggersHeight < idealTriggersHeight) {
-        if (containerRef.current?.parentElement) {
-          const parentHeight = containerRef.current.parentElement.getBoundingClientRect().height
-          setTriggersHeight(Math.min(idealTriggersHeight, parentHeight))
-        } else {
-          setTriggersHeight(idealTriggersHeight)
-        }
+  /**
+   * Handle drag start for block items
+   *
+   * @param e - React drag event
+   * @param item - Block item configuration
+   */
+  const handleDragStart = useCallback(
+    (e: React.DragEvent<HTMLElement>, item: BlockItem) => {
+      if (disabled) {
+        e.preventDefault()
+        return
       }
 
-      // Now expand blocks (store constraints will handle the sizing)
-      setBlocksHeight(desiredBlocksHeight)
-    } else {
-      // Collapsing: simply collapse to minimum
-      setBlocksHeight(MIN_HEIGHT)
-    }
-  }, [blocksHeight, setBlocksHeight, setTriggersHeight])
+      try {
+        e.dataTransfer.setData(
+          'application/json',
+          JSON.stringify({
+            type: item.type,
+            enableTriggerMode: false,
+          })
+        )
+        e.dataTransfer.effectAllowed = 'move'
+      } catch (error) {
+        console.error('Failed to set drag data:', error)
+      }
+    },
+    [disabled]
+  )
 
   /**
-   * Setup resize event listeners and body styles when resizing
-   * Event handlers are defined inline to avoid stale closure issues
+   * Handle click on block item to add to canvas
+   *
+   * @param item - Block item configuration
    */
-  useEffect(() => {
-    if (!isResizing || !containerRef.current) return
+  const handleClick = useCallback(
+    (item: BlockItem) => {
+      if (item.type === 'connectionBlock' || disabled) return
 
-    const handleMouseMove = (e: MouseEvent) => {
-      const deltaY = startYRef.current - e.clientY
-      let newHeight = startHeightRef.current + deltaY
-
-      const parentContainer = containerRef.current?.parentElement
-      if (parentContainer) {
-        const parentHeight = parentContainer.getBoundingClientRect().height
-        const currentTriggersHeight = Number.parseInt(
-          getComputedStyle(document.documentElement).getPropertyValue('--triggers-height')
-        )
-        const currentBlocksHeight = Number.parseInt(
-          getComputedStyle(document.documentElement).getPropertyValue('--blocks-height')
-        )
-
-        const maxAllowedHeight = currentTriggersHeight - HEADER_HEIGHT
-
-        // Special case: if blocks is at max height and user is expanding blocks (deltaY > 0)
-        // then expand both blocks and triggers together
-        const isAtMaxHeight = Math.abs(currentBlocksHeight - maxAllowedHeight) <= 2
-        const isExpandingBlocks = deltaY > 0
-
-        if (isAtMaxHeight && isExpandingBlocks) {
-          // Calculate how much more the user wants to expand
-          const requestedIncrease = newHeight - currentBlocksHeight
-
-          // Expand triggers by the same amount (respecting parent height limit)
-          const newTriggersHeight = Math.min(
-            currentTriggersHeight + requestedIncrease,
-            parentHeight
-          )
-          setTriggersHeight(newTriggersHeight)
-
-          // Blocks will expand proportionally through the store constraint
-          setBlocksHeight(newHeight)
-        } else {
-          // Normal behavior: constrain blocks within current triggers space
-          newHeight = Math.min(newHeight, maxAllowedHeight)
-          newHeight = Math.max(newHeight, MIN_HEIGHT)
-          setBlocksHeight(newHeight)
-        }
+      try {
+        const event = new CustomEvent('add-block-from-toolbar', {
+          detail: {
+            type: item.type,
+            enableTriggerMode: false,
+          },
+        })
+        window.dispatchEvent(event)
+      } catch (error) {
+        console.error('Failed to dispatch add-block event:', error)
       }
-    }
-
-    const handleMouseUp = () => {
-      setIsResizing(false)
-    }
-
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
-    document.body.style.cursor = 'ns-resize'
-    document.body.style.userSelect = 'none'
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
-  }, [isResizing, setBlocksHeight, setTriggersHeight])
+    },
+    [disabled]
+  )
 
   return (
     <div

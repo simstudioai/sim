@@ -24,6 +24,8 @@ import { useWorkspaceManagement } from './hooks/use-workspace-management'
  * 3. Store updates CSS variables when dimensions change
  *
  * This ensures server and client render identical HTML, preventing hydration errors.
+ *
+ * @returns Sidebar with workflows, triggers, and blocks panels
  */
 export function SidebarNew() {
   const params = useParams()
@@ -31,6 +33,7 @@ export function SidebarNew() {
 
   const sidebarRef = useRef<HTMLElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   // Session data
   const { data: sessionData, isPending: sessionLoading } = useSession()
@@ -63,10 +66,12 @@ export function SidebarNew() {
   const isLoading = workflowsLoading || sessionLoading
 
   /**
-   * Handle import workflow button click
+   * Handle import workflow button click - triggers file input
    */
   const handleImportWorkflow = useCallback(() => {
-    fileInputRef.current?.click()
+    if (fileInputRef.current) {
+      fileInputRef.current.click()
+    }
   }, [])
 
   return (
@@ -166,13 +171,17 @@ export function SidebarNew() {
             </div>
 
             {/* Scrollable workflow list */}
-            <div className='mt-[4px] flex-1 overflow-y-auto overflow-x-hidden px-[8px]'>
+            <div
+              ref={scrollContainerRef}
+              className='mt-[4px] flex-1 overflow-y-auto overflow-x-hidden px-[8px]'
+            >
               <WorkflowList
                 regularWorkflows={regularWorkflows}
                 isLoading={isLoading}
                 isImporting={isImporting}
                 setIsImporting={setIsImporting}
                 fileInputRef={fileInputRef}
+                scrollContainerRef={scrollContainerRef}
               />
             </div>
 

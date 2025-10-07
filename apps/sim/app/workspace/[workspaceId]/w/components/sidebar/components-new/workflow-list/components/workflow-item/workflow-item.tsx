@@ -1,11 +1,12 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useCallback } from 'react'
 import clsx from 'clsx'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
+import { useItemDrag } from '../../../../hooks/use-item-drag'
 
 interface WorkflowItemProps {
   workflow: WorkflowMetadata
@@ -13,53 +14,72 @@ interface WorkflowItemProps {
   level: number
 }
 
+/**
+ * WorkflowItem component displaying a single workflow with drag and selection support.
+ * Uses the item drag hook for unified drag behavior.
+ *
+ * @param props - Component props
+ * @returns Workflow item with drag and selection support
+ */
 export function WorkflowItem({ workflow, active, level }: WorkflowItemProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const [isDragging, setIsDragging] = useState(false)
-  const shouldPreventClickRef = useRef(false)
   const { selectedWorkflows, selectOnly, toggleWorkflowSelection } = useFolderStore()
   const isSelected = selectedWorkflows.has(workflow.id)
 
-  const handleClick = (e: React.MouseEvent) => {
-    e.stopPropagation()
+  /**
+   * Drag start handler - handles workflow dragging with multi-selection support
+   *
+   * @param e - React drag event
+   */
+  const onDragStart = useCallback(
+    (e: React.DragEvent) => {
+      const workflowIds =
+        isSelected && selectedWorkflows.size > 1 ? Array.from(selectedWorkflows) : [workflow.id]
 
-    if (shouldPreventClickRef.current) {
-      e.preventDefault()
-      return
-    }
+      e.dataTransfer.setData('workflow-ids', JSON.stringify(workflowIds))
+      e.dataTransfer.effectAllowed = 'move'
+    },
+    [isSelected, selectedWorkflows, workflow.id]
+  )
 
-    if (e.shiftKey) {
-      e.preventDefault()
-      toggleWorkflowSelection(workflow.id)
-    } else {
-      if (!isSelected || selectedWorkflows.size > 1) {
-        selectOnly(workflow.id)
+  // Item drag hook
+  const { isDragging, shouldPreventClickRef, handleDragStart, handleDragEnd } = useItemDrag({
+    onDragStart,
+  })
+
+  /**
+   * Handle click - manages workflow selection with shift-key support
+   *
+   * @param e - React mouse event
+   */
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLAnchorElement>) => {
+      e.stopPropagation()
+
+      if (shouldPreventClickRef.current) {
+        e.preventDefault()
+        return
       }
-    }
-  }
 
-  const handleDragStart = (e: React.DragEvent) => {
-    shouldPreventClickRef.current = true
-    setIsDragging(true)
-
-    let workflowIds: string[]
-    if (isSelected && selectedWorkflows.size > 1) {
-      workflowIds = Array.from(selectedWorkflows)
-    } else {
-      workflowIds = [workflow.id]
-    }
-
-    e.dataTransfer.setData('workflow-ids', JSON.stringify(workflowIds))
-    e.dataTransfer.effectAllowed = 'move'
-  }
-
-  const handleDragEnd = () => {
-    setIsDragging(false)
-    requestAnimationFrame(() => {
-      shouldPreventClickRef.current = false
-    })
-  }
+      if (e.shiftKey) {
+        e.preventDefault()
+        toggleWorkflowSelection(workflow.id)
+      } else {
+        if (!isSelected || selectedWorkflows.size > 1) {
+          selectOnly(workflow.id)
+        }
+      }
+    },
+    [
+      shouldPreventClickRef,
+      workflow.id,
+      isSelected,
+      selectedWorkflows.size,
+      toggleWorkflowSelection,
+      selectOnly,
+    ]
+  )
 
   return (
     <Link
