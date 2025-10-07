@@ -41,6 +41,7 @@ interface UsePanelResizeProps {
  * @returns Object containing panel state and handlers
  * @returns currentHeight - Current height of the panel in pixels
  * @returns isResizing - Boolean indicating if the panel is currently being resized
+ * @returns isCollapsed - Boolean indicating if the panel is currently collapsed
  * @returns handleMouseDown - Handler for mouse down events on the resize handle
  * @returns handleToggle - Handler to toggle panel between collapsed and expanded states
  */
@@ -53,6 +54,15 @@ export function usePanelResize({ panelType, containerRef }: UsePanelResizeProps)
 
   // Get current panel's height and setter based on type
   const currentHeight = panelType === 'triggers' ? triggersHeight : blocksHeight
+
+  /**
+   * Determine if the panel is currently collapsed
+   */
+  const isCollapsed =
+    panelType === 'triggers'
+      ? Math.abs(triggersHeight - (blocksHeight + HEADER_HEIGHT)) <= 2 ||
+        triggersHeight <= MIN_HEIGHT
+      : blocksHeight <= MIN_HEIGHT
 
   /**
    * Handles mouse down event on the resize handle to initiate panel resizing
@@ -244,6 +254,7 @@ export function usePanelResize({ panelType, containerRef }: UsePanelResizeProps)
   return {
     currentHeight,
     isResizing,
+    isCollapsed,
     handleMouseDown,
     handleToggle,
   }

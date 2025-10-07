@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useRef } from 'react'
 import clsx from 'clsx'
+import { ChevronDown } from 'lucide-react'
 import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/trigger-utils'
 import type { BlockConfig } from '@/blocks/types'
 import { usePanelResize } from '../../hooks/use-panel-resize'
@@ -21,7 +22,7 @@ export function Triggers({ disabled = false }: TriggersProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Panel resize hook
-  const { handleMouseDown, handleToggle } = usePanelResize({
+  const { handleMouseDown, handleToggle, isCollapsed } = usePanelResize({
     panelType: 'triggers',
     containerRef,
   })
@@ -96,10 +97,17 @@ export function Triggers({ disabled = false }: TriggersProps) {
         onMouseDown={handleMouseDown}
       />
       <div
-        className='flex-shrink-0 cursor-pointer px-[10px] pt-[3px] pb-[5px]'
+        className='flex flex-shrink-0 cursor-pointer items-center justify-between px-[10px] pt-[3px] pb-[5px]'
         onClick={handleToggle}
       >
         <div className='font-medium text-[#AEAEAE] text-small dark:text-[#AEAEAE]'>Triggers</div>
+        <ChevronDown
+          className={clsx(
+            'h-[12px] w-[12px] text-[#787878] dark:text-[#787878]',
+            !isCollapsed && 'rotate-180'
+          )}
+          aria-hidden='true'
+        />
       </div>
 
       <div className='triggers-scrollable flex-1 overflow-y-auto overflow-x-hidden px-[8px]'>

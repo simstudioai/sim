@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useRef } from 'react'
 import clsx from 'clsx'
+import { ChevronDown } from 'lucide-react'
 import { getBlocksForSidebar } from '@/lib/workflows/trigger-utils'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
@@ -32,7 +33,7 @@ export function Blocks({ disabled = false }: BlocksProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Panel resize hook
-  const { handleMouseDown, handleToggle } = usePanelResize({
+  const { handleMouseDown, handleToggle, isCollapsed } = usePanelResize({
     panelType: 'blocks',
     containerRef,
   })
@@ -152,10 +153,17 @@ export function Blocks({ disabled = false }: BlocksProps) {
         onMouseDown={handleMouseDown}
       />
       <div
-        className='flex-shrink-0 cursor-pointer px-[10px] pt-[3px] pb-[5px]'
+        className='flex flex-shrink-0 cursor-pointer items-center justify-between px-[10px] pt-[3px] pb-[5px]'
         onClick={handleToggle}
       >
         <div className='font-medium text-[#AEAEAE] text-small dark:text-[#AEAEAE]'>Blocks</div>
+        <ChevronDown
+          className={clsx(
+            'h-[12px] w-[12px] text-[#787878] transition-all dark:text-[#787878]',
+            !isCollapsed && 'rotate-180'
+          )}
+          aria-hidden='true'
+        />
       </div>
 
       <div className='blocks-scrollable flex-1 overflow-y-auto overflow-x-hidden px-[8px]'>
