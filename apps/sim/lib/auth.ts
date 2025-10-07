@@ -650,6 +650,67 @@ export const auth = betterAuth({
             }
           },
         },
+        {
+          providerId: 'webex',
+          clientId: env.WEBEX_CLIENT_ID as string,
+          clientSecret: env.WEBEX_CLIENT_SECRET as string,
+          authorizationUrl: 'https://webexapis.com/v1/authorize',
+          tokenUrl: 'https://webexapis.com/v1/access_token',
+          userInfoUrl: 'https://webexapis.com/v1/people/me',
+          scopes: [
+            'spark:people_read',
+            'spark:messages_read',
+            'spark:messages_write',
+            'spark-compliance:rooms_read',
+            'spark:rooms_read',
+          ],
+          responseType: 'code',
+          redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/webex`,
+          pkce: true,
+          prompt: 'consent',
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://webexapis.com/v1/people/me', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
+
+              if (!response.ok) {
+                logger.error('Error fetching Webex user info:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                return null
+              }
+
+              const profile = await response.json()
+
+              if (!profile) {
+                logger.error('Invalid Webex profile response:', profile)
+                return null
+              }
+
+              const now = new Date()
+
+              const emails = profile.emails
+              const email = emails && emails.length > 0 && emails[0]
+
+              return {
+                id: profile.id,
+                name: profile.displayName,
+                email: email,
+                image: null,
+                emailVerified: profile.type === 'person' || false,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in Webex getUserInfo:', { error })
+              return null
+            }
+          },
+        },
 
         // Supabase provider
         {
