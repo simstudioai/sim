@@ -96,7 +96,7 @@ export class Executor {
           workflowVariables?: Record<string, any>
           contextExtensions?: {
             stream?: boolean
-            selectedOutputIds?: string[]
+            selectedOutputs?: string[]
             edges?: Array<{ source: string; target: string }>
             onStream?: (streamingExecution: StreamingExecution) => Promise<void>
             executionId?: string
@@ -284,7 +284,7 @@ export class Executor {
                   const processedClientStream = streamingResponseFormatProcessor.processStream(
                     streamForClient,
                     blockId,
-                    context.selectedOutputIds || [],
+                    context.selectedOutputs || [],
                     responseFormat
                   )
 
@@ -751,7 +751,7 @@ export class Executor {
       workflow: this.actualWorkflow,
       // Add streaming context from contextExtensions
       stream: this.contextExtensions.stream || false,
-      selectedOutputIds: this.contextExtensions.selectedOutputIds || [],
+      selectedOutputs: this.contextExtensions.selectedOutputs || [],
       edges: this.contextExtensions.edges || [],
       onStream: this.contextExtensions.onStream,
     }

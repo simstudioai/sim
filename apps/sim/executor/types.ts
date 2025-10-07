@@ -169,7 +169,7 @@ export interface ExecutionContext {
 
   // Streaming support and output selection
   stream?: boolean // Whether to use streaming responses when available
-  selectedOutputIds?: string[] // IDs of blocks selected for streaming output
+  selectedOutputs?: string[] // IDs of blocks selected for streaming output
   edges?: Array<{ source: string; target: string }> // Workflow edge connections
 
   // New context extensions
@@ -295,7 +295,7 @@ export interface ResponseFormatStreamProcessor {
   processStream(
     originalStream: ReadableStream,
     blockId: string,
-    selectedOutputIds: string[],
+    selectedOutputs: string[],
     responseFormat?: any
   ): ReadableStream
 }

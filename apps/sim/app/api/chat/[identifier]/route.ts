@@ -108,18 +108,18 @@ export async function POST(
     }
 
     try {
-      // Transform outputConfigs to selectedOutputIds format
-      const selectedOutputIds: string[] = []
+      // Transform outputConfigs to selectedOutputs format
+      const selectedOutputs: string[] = []
       if (deployment.outputConfigs && Array.isArray(deployment.outputConfigs)) {
         for (const config of deployment.outputConfigs) {
           const outputId = config.path
             ? `${config.blockId}_${config.path}`
             : `${config.blockId}.content`
-          selectedOutputIds.push(outputId)
+          selectedOutputs.push(outputId)
         }
       }
 
-      logger.debug(`[${requestId}] Using ${selectedOutputIds.length} selected outputs for chat`)
+      logger.debug(`[${requestId}] Using ${selectedOutputs.length} selected outputs for chat`)
 
       // Use shared streaming response creator
       const { createStreamingResponse } = await import('@/lib/workflows/streaming')
@@ -131,7 +131,7 @@ export async function POST(
         input: { input, conversationId }, // Chat trigger expects these at top level
         executingUserId: deployment.userId, // Use workflow owner's ID for chat deployments
         streamConfig: {
-          selectedOutputIds,
+          selectedOutputs,
           isSecureMode: true,
           workflowTriggerType: 'chat',
           streamFormat: 'sse', // Chat deployments use SSE format for structured responses

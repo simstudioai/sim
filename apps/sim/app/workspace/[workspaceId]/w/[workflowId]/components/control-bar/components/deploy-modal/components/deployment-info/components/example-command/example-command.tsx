@@ -12,16 +12,20 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Label } from '@/components/ui/label'
 import { getEnv, isTruthy } from '@/lib/env'
+import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/chat/components/output-select/output-select'
 
 interface ExampleCommandProps {
   command: string
   apiKey: string
   endpoint: string
   showLabel?: boolean
-  getInputFormatExample?: () => string
+  getInputFormatExample?: (includeStreaming?: boolean) => string
+  workflowId: string | null
+  selectedStreamingOutputs: string[]
+  onSelectedStreamingOutputsChange: (outputs: string[]) => void
 }
 
-type ExampleMode = 'sync' | 'async'
+type ExampleMode = 'sync' | 'async' | 'stream'
 type ExampleType = 'execute' | 'status' | 'rate-limits'
 
 export function ExampleCommand({
@@ -30,6 +34,9 @@ export function ExampleCommand({
   endpoint,
   showLabel = true,
   getInputFormatExample,
+  workflowId,
+  selectedStreamingOutputs,
+  onSelectedStreamingOutputsChange,
 }: ExampleCommandProps) {
   const [mode, setMode] = useState<ExampleMode>('sync')
   const [exampleType, setExampleType] = useState<ExampleType>('execute')
@@ -63,11 +70,30 @@ export function ExampleCommand({
   const getDisplayCommand = () => {
     const baseEndpoint = endpoint.replace(apiKey, '$SIM_API_KEY')
     const inputExample = getInputFormatExample
-      ? getInputFormatExample()
+      ? getInputFormatExample(false) // No streaming for sync/async modes
       : ' -d \'{"input": "your data here"}\''
 
     switch (mode) {
       case 'sync':
+        // For sync mode, use basic example without streaming
+        if (getInputFormatExample) {
+          const syncInputExample = getInputFormatExample(false)
+          return `curl -X POST \\
+  -H "X-API-Key: $SIM_API_KEY" \\
+  -H "Content-Type: application/json"${syncInputExample} \\
+  ${baseEndpoint}`
+        }
+        return formatCurlCommand(command, apiKey)
+
+      case 'stream':
+        // For stream mode, include streaming params
+        if (getInputFormatExample) {
+          const streamInputExample = getInputFormatExample(true)
+          return `curl -X POST \\
+  -H "X-API-Key: $SIM_API_KEY" \\
+  -H "Content-Type: application/json"${streamInputExample} \\
+  ${baseEndpoint}`
+        }
         return formatCurlCommand(command, apiKey)
 
       case 'async':
@@ -114,10 +140,11 @@ export function ExampleCommand({
   }
 
   return (
-    <div className='space-y-1.5'>
-      <div className='flex items-center justify-between'>
-        {showLabel && <Label className='font-medium text-sm'>Example</Label>}
-        {isAsyncEnabled && (
+    <div className='space-y-4'>
+      {/* Example Command */}
+      <div className='space-y-1.5'>
+        <div className='flex items-center justify-between'>
+          {showLabel && <Label className='font-medium text-sm'>Example</Label>}
           <div className='flex items-center gap-1'>
             <Button
               variant='outline'
@@ -134,57 +161,84 @@ export function ExampleCommand({
             <Button
               variant='outline'
               size='sm'
-              onClick={() => setMode('async')}
+              onClick={() => setMode('stream')}
               className={`h-6 min-w-[50px] px-2 py-1 text-xs transition-none ${
-                mode === 'async'
+                mode === 'stream'
                   ? 'border-primary bg-primary text-primary-foreground hover:border-primary hover:bg-primary hover:text-primary-foreground'
                   : ''
               }`}
             >
-              Async
+              Stream
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+            {isAsyncEnabled && (
+              <>
                 <Button
                   variant='outline'
                   size='sm'
-                  className='h-6 min-w-[140px] justify-between px-2 py-1 text-xs'
-                  disabled={mode === 'sync'}
+                  onClick={() => setMode('async')}
+                  className={`h-6 min-w-[50px] px-2 py-1 text-xs transition-none ${
+                    mode === 'async'
+                      ? 'border-primary bg-primary text-primary-foreground hover:border-primary hover:bg-primary hover:text-primary-foreground'
+                      : ''
+                  }`}
                 >
-                  <span className='truncate'>{getExampleTitle()}</span>
-                  <ChevronDown className='ml-1 h-3 w-3 flex-shrink-0' />
+                  Async
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align='end'>
-                <DropdownMenuItem
-                  className='cursor-pointer'
-                  onClick={() => setExampleType('execute')}
-                >
-                  Async Execution
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className='cursor-pointer'
-                  onClick={() => setExampleType('status')}
-                >
-                  Check Job Status
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className='cursor-pointer'
-                  onClick={() => setExampleType('rate-limits')}
-                >
-                  Rate Limits & Usage
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant='outline'
+                      size='sm'
+                      className='h-6 min-w-[140px] justify-between px-2 py-1 text-xs'
+                      disabled={mode === 'sync'}
+                    >
+                      <span className='truncate'>{getExampleTitle()}</span>
+                      <ChevronDown className='ml-1 h-3 w-3 flex-shrink-0' />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align='end'>
+                    <DropdownMenuItem
+                      className='cursor-pointer'
+                      onClick={() => setExampleType('execute')}
+                    >
+                      Async Execution
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className='cursor-pointer'
+                      onClick={() => setExampleType('status')}
+                    >
+                      Check Job Status
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className='cursor-pointer'
+                      onClick={() => setExampleType('rate-limits')}
+                    >
+                      Rate Limits & Usage
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Output selector for Stream mode */}
+        {mode === 'stream' && (
+          <div className='space-y-2'>
+            <div className='text-muted-foreground text-xs'>Select outputs to stream</div>
+            <OutputSelect
+              workflowId={workflowId}
+              selectedOutputs={selectedStreamingOutputs}
+              onOutputSelect={onSelectedStreamingOutputsChange}
+              placeholder='Select outputs for streaming'
+            />
           </div>
         )}
-      </div>
 
-      <div className='group relative h-[120px] rounded-md border bg-background transition-colors hover:bg-muted/50'>
-        <pre className='h-full overflow-auto whitespace-pre-wrap p-3 font-mono text-xs'>
-          {getDisplayCommand()}
-        </pre>
-        <CopyButton text={getActualCommand()} />
+        <div className='group relative rounded-md border bg-background transition-colors hover:bg-muted/50'>
+          <pre className='whitespace-pre-wrap p-3 font-mono text-xs'>{getDisplayCommand()}</pre>
+          <CopyButton text={getActualCommand()} />
+        </div>
       </div>
     </div>
   )

@@ -9,7 +9,7 @@ import type { ExecutionResult } from '@/executor/types'
 const logger = createLogger('WorkflowStreaming')
 
 export interface StreamingConfig {
-  selectedOutputIds?: string[]
+  selectedOutputs?: string[]
   isSecureMode?: boolean
   workflowTriggerType?: 'api' | 'chat'
   streamFormat?: 'text' | 'sse' // 'text' = plain text (default), 'sse' = JSON-wrapped SSE
@@ -96,7 +96,7 @@ export async function createStreamingResponse(
         logger.debug(`[${requestId}] Calling executeWorkflow with streaming enabled`)
         const result = await executeWorkflow(workflow, requestId, input, executingUserId, {
           enabled: true,
-          selectedOutputIds: streamConfig.selectedOutputIds,
+          selectedOutputs: streamConfig.selectedOutputs,
           isSecureMode: streamConfig.isSecureMode,
           workflowTriggerType: streamConfig.workflowTriggerType,
           onStream: onStreamCallback,

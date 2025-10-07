@@ -92,6 +92,7 @@ export function DeployModal({
   const [apiDeployError, setApiDeployError] = useState<string | null>(null)
   const [chatExists, setChatExists] = useState(false)
   const [isChatFormValid, setIsChatFormValid] = useState(false)
+  const [selectedStreamingOutputs, setSelectedStreamingOutputs] = useState<string[]>([])
 
   const [versions, setVersions] = useState<WorkflowDeploymentVersionResponse[]>([])
   const [versionsLoading, setVersionsLoading] = useState(false)
@@ -102,7 +103,7 @@ export function DeployModal({
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 5
 
-  const getInputFormatExample = () => {
+  const getInputFormatExample = (includeStreaming = false) => {
     let inputFormatExample = ''
     try {
       const blocks = Object.values(useWorkflowStore.getState().blocks)
@@ -117,8 +118,9 @@ export function DeployModal({
       if (targetBlock) {
         const inputFormat = useSubBlockStore.getState().getValue(targetBlock.id, 'inputFormat')
 
+        const exampleData: Record<string, any> = {}
+
         if (inputFormat && Array.isArray(inputFormat) && inputFormat.length > 0) {
-          const exampleData: Record<string, any> = {}
           inputFormat.forEach((field: any) => {
             if (field.name) {
               switch (field.type) {
@@ -140,7 +142,40 @@ export function DeployModal({
               }
             }
           })
+        }
 
+        // Add streaming parameters if enabled and outputs are selected
+        if (includeStreaming && selectedStreamingOutputs.length > 0) {
+          exampleData.stream = true
+          // Convert blockId_attribute format to blockName.attribute format for display
+          const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+
+          const convertedOutputs = selectedStreamingOutputs.map((outputId) => {
+            // If it starts with a UUID, convert to blockName.attribute format
+            if (UUID_REGEX.test(outputId)) {
+              const underscoreIndex = outputId.indexOf('_')
+              if (underscoreIndex === -1) return outputId
+
+              const blockId = outputId.substring(0, underscoreIndex)
+              const attribute = outputId.substring(underscoreIndex + 1)
+
+              // Find the block by ID and get its name
+              const block = blocks.find((b) => b.id === blockId)
+              if (block?.name) {
+                // Normalize block name: lowercase and remove spaces
+                const normalizedBlockName = block.name.toLowerCase().replace(/\s+/g, '')
+                return `${normalizedBlockName}.${attribute}`
+              }
+            }
+
+            // Already in blockName.attribute format or couldn't convert
+            return outputId
+          })
+
+          exampleData.selectedOutputs = convertedOutputs
+        }
+
+        if (Object.keys(exampleData).length > 0) {
           inputFormatExample = ` -d '${JSON.stringify(exampleData)}'`
         }
       }
@@ -199,7 +234,7 @@ export function DeployModal({
       setIsLoading(true)
       fetchApiKeys()
       fetchChatDeploymentInfo()
-      setActiveTab('general')
+      setActiveTab('api')
     }
   }, [open, workflowId])
 
@@ -231,7 +266,7 @@ export function DeployModal({
 
         const data = await response.json()
         const endpoint = `${getEnv('NEXT_PUBLIC_APP_URL')}/api/workflows/${workflowId}/execute`
-        const inputFormatExample = getInputFormatExample()
+        const inputFormatExample = getInputFormatExample(true) // Include streaming params based on UI state
 
         setDeploymentInfo({
           isDeployed: data.isDeployed,
@@ -287,7 +322,7 @@ export function DeployModal({
         useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
       }
       const endpoint = `${getEnv('NEXT_PUBLIC_APP_URL')}/api/workflows/${workflowId}/execute`
-      const inputFormatExample = getInputFormatExample()
+      const inputFormatExample = getInputFormatExample(true) // Include streaming params in example
 
       const newDeploymentInfo = {
         isDeployed: true,
@@ -511,16 +546,6 @@ export function DeployModal({
           <div className='flex h-14 flex-none items-center border-b px-6'>
             <div className='flex gap-2'>
               <button
-                onClick={() => setActiveTab('general')}
-                className={`rounded-md px-3 py-1 text-sm transition-colors ${
-                  activeTab === 'general'
-                    ? 'bg-accent text-foreground'
-                    : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
-                }`}
-              >
-                General
-              </button>
-              <button
                 onClick={() => setActiveTab('api')}
                 className={`rounded-md px-3 py-1 text-sm transition-colors ${
                   activeTab === 'api'
@@ -555,46 +580,6 @@ export function DeployModal({
 
           <div className='flex-1 overflow-y-auto'>
             <div className='p-6'>
-              {activeTab === 'general' && (
-                <>
-                  {isDeployed ? (
-                    <DeploymentInfo
-                      isLoading={isLoading}
-                      deploymentInfo={
-                        deploymentInfo ? { ...deploymentInfo, needsRedeployment } : null
-                      }
-                      onRedeploy={handleRedeploy}
-                      onUndeploy={handleUndeploy}
-                      isSubmitting={isSubmitting}
-                      isUndeploying={isUndeploying}
-                      workflowId={workflowId}
-                      deployedState={deployedState}
-                      isLoadingDeployedState={isLoadingDeployedState}
-                      getInputFormatExample={getInputFormatExample}
-                    />
-                  ) : (
-                    <>
-                      {apiDeployError && (
-                        <div className='mb-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-destructive text-sm'>
-                          <div className='font-semibold'>API Deployment Error</div>
-                          <div>{apiDeployError}</div>
-                        </div>
-                      )}
-                      <div className='-mx-1 px-1'>
-                        <DeployForm
-                          apiKeys={apiKeys}
-                          keysLoaded={keysLoaded}
-                          onSubmit={onDeploy}
-                          onApiKeyCreated={fetchApiKeys}
-                          formId='deploy-api-form-general'
-                        />
-                      </div>
-                    </>
-                  )}
-
-                  {/* Versions moved to separate tab */}
-                </>
-              )}
               {activeTab === 'api' && (
                 <>
                   {isDeployed ? (
@@ -611,6 +596,8 @@ export function DeployModal({
                       deployedState={deployedState}
                       isLoadingDeployedState={isLoadingDeployedState}
                       getInputFormatExample={getInputFormatExample}
+                      selectedStreamingOutputs={selectedStreamingOutputs}
+                      onSelectedStreamingOutputsChange={setSelectedStreamingOutputs}
                     />
                   ) : (
                     <>
@@ -620,6 +607,7 @@ export function DeployModal({
                           <div>{apiDeployError}</div>
                         </div>
                       )}
+
                       <div className='-mx-1 px-1'>
                         <DeployForm
                           apiKeys={apiKeys}
@@ -786,36 +774,6 @@ export function DeployModal({
             </div>
           </div>
         </div>
-
-        {activeTab === 'general' && !isDeployed && (
-          <div className='flex flex-shrink-0 justify-between border-t px-6 py-4'>
-            <Button variant='outline' onClick={handleCloseModal}>
-              Cancel
-            </Button>
-
-            <Button
-              type='submit'
-              form='deploy-api-form-general'
-              disabled={isSubmitting || (!keysLoaded && !apiKeys.length)}
-              className={cn(
-                'gap-2 font-medium',
-                'bg-[var(--brand-primary-hover-hex)] hover:bg-[var(--brand-primary-hover-hex)]',
-                'shadow-[0_0_0_0_var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
-                'text-white transition-all duration-200',
-                'disabled:opacity-50 disabled:hover:bg-[var(--brand-primary-hover-hex)] disabled:hover:shadow-none'
-              )}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
-                  Deploying...
-                </>
-              ) : (
-                'Deploy'
-              )}
-            </Button>
-          </div>
-        )}
 
         {activeTab === 'api' && !isDeployed && (
           <div className='flex flex-shrink-0 justify-between border-t px-6 py-4'>

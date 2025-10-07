@@ -77,6 +77,59 @@ class UsageLimitError extends Error {
   }
 }
 
+/**
+ * Resolves selectedOutputs from blockName.attribute format to blockId_attribute format
+ * Supports both formats for backwards compatibility:
+ * - blockName.attribute (e.g., "agent1.content") -> converted to blockId_attribute
+ * - blockId_attribute (existing format) -> passed through as-is
+ */
+function resolveOutputIds(
+  selectedOutputs: string[] | undefined,
+  blocks: Record<string, any>
+): string[] | undefined {
+  if (!selectedOutputs || selectedOutputs.length === 0) {
+    return selectedOutputs
+  }
+
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+
+  return selectedOutputs.map((outputId) => {
+    // If it starts with a UUID, it's already in blockId_attribute format - use as-is
+    if (UUID_REGEX.test(outputId)) {
+      return outputId
+    }
+
+    // Otherwise, treat as blockName.attribute format
+    // Split on first dot to get blockName and path
+    const dotIndex = outputId.indexOf('.')
+    if (dotIndex === -1) {
+      // No dot found - might be just a block name or malformed, return as-is
+      logger.warn(`Invalid output ID format (no dot found): ${outputId}`)
+      return outputId
+    }
+
+    const blockName = outputId.substring(0, dotIndex)
+    const path = outputId.substring(dotIndex + 1)
+
+    // Find block by name (case-insensitive, ignoring spaces)
+    const normalizedBlockName = blockName.toLowerCase().replace(/\s+/g, '')
+    const block = Object.values(blocks).find((b: any) => {
+      const normalized = (b.name || '').toLowerCase().replace(/\s+/g, '')
+      return normalized === normalizedBlockName
+    })
+
+    if (!block) {
+      logger.warn(`Block not found for name: ${blockName} (from ${outputId})`)
+      return outputId // Return original if block not found
+    }
+
+    // Convert to blockId_attribute format
+    const resolvedId = `${block.id}_${path}`
+    logger.debug(`Resolved ${outputId} -> ${resolvedId}`)
+    return resolvedId
+  })
+}
+
 export async function executeWorkflow(
   workflow: any,
   requestId: string,
@@ -84,7 +137,7 @@ export async function executeWorkflow(
   actorUserId: string,
   streamConfig?: {
     enabled: boolean
-    selectedOutputIds?: string[]
+    selectedOutputs?: string[]
     isSecureMode?: boolean // When true, filter out all sensitive data
     workflowTriggerType?: 'api' | 'chat' // Which trigger block type to look for (default: 'api')
     onStream?: (streamingExec: any) => Promise<void> // Callback for streaming agent responses
@@ -336,7 +389,9 @@ export async function executeWorkflow(
     // Add streaming configuration if enabled
     if (streamConfig?.enabled) {
       contextExtensions.stream = true
-      contextExtensions.selectedOutputIds = streamConfig.selectedOutputIds || []
+      // Resolve blockName.attribute format to blockId_attribute format
+      const resolvedOutputIds = resolveOutputIds(streamConfig.selectedOutputs, mergedStates)
+      contextExtensions.selectedOutputs = resolvedOutputIds || []
       contextExtensions.edges = edges.map((e: any) => ({
         source: e.source,
         target: e.target,
@@ -565,13 +620,12 @@ export async function POST(
     const isSecureMode = internalSecret === env.INTERNAL_API_SECRET
 
     // Check if streaming is requested (from headers OR body for internal calls)
-    const streamResponse =
-      request.headers.get('X-Stream-Response') === 'true' || parsedBody.streamResponse === true
+    const stream = request.headers.get('X-Stream-Response') === 'true' || parsedBody.stream === true
 
     // Get selected outputs (from headers OR body for internal calls)
     const selectedOutputsHeader = request.headers.get('X-Selected-Outputs')
-    const selectedOutputIds =
-      parsedBody.selectedOutputIds ||
+    const selectedOutputs =
+      parsedBody.selectedOutputs ||
       (selectedOutputsHeader ? JSON.parse(selectedOutputsHeader) : undefined)
 
     // Get stream format (default to 'text', or 'sse' for JSON-wrapped SSE streaming)
@@ -579,14 +633,29 @@ export async function POST(
 
     // Get workflow trigger type (from body for internal calls, or infer from secure mode)
     const workflowTriggerType =
-      parsedBody.workflowTriggerType || (isSecureMode && streamResponse ? 'chat' : 'api')
+      parsedBody.workflowTriggerType || (isSecureMode && stream ? 'chat' : 'api')
 
     // Get isSecureMode from body or infer from internal secret
     const finalIsSecureMode =
       parsedBody.isSecureMode !== undefined ? parsedBody.isSecureMode : isSecureMode
 
     // Extract input from body (might be nested for chat triggers)
-    const input = parsedBody.input !== undefined ? parsedBody.input : parsedBody
+    // Filter out streaming-related parameters from input
+    let input: any
+    if (parsedBody.input !== undefined) {
+      input = parsedBody.input
+    } else {
+      // Create a copy and remove streaming-related parameters
+      const {
+        stream: _stream,
+        selectedOutputs: _so,
+        streamFormat,
+        workflowTriggerType,
+        isSecureMode: _ism,
+        ...cleanInput
+      } = parsedBody
+      input = cleanInput
+    }
 
     // Get authenticated user and determine trigger type
     let authenticatedUserId: string
@@ -710,7 +779,7 @@ export async function POST(
       }
 
       // Handle streaming response - wrap execution in SSE stream
-      if (streamResponse) {
+      if (stream) {
         logger.debug(`[${requestId}] Creating streaming response for workflow ${workflowId}`)
 
         // Use shared streaming response creator
@@ -725,7 +794,7 @@ export async function POST(
           input,
           executingUserId: authenticatedUserId,
           streamConfig: {
-            selectedOutputIds,
+            selectedOutputs,
             isSecureMode: finalIsSecureMode,
             workflowTriggerType,
             streamFormat,

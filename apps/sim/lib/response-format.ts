@@ -75,12 +75,12 @@ export function parseResponseFormatSafely(responseFormatValue: any, blockId: str
  */
 export function extractFieldValues(
   parsedContent: any,
-  selectedOutputIds: string[],
+  selectedOutputs: string[],
   blockId: string
 ): Record<string, any> {
   const extractedValues: Record<string, any> = {}
 
-  for (const outputId of selectedOutputIds) {
+  for (const outputId of selectedOutputs) {
     const blockIdForOutput = extractBlockIdFromOutputId(outputId)
 
     if (blockIdForOutput !== blockId) {
@@ -165,8 +165,8 @@ export function parseOutputContentSafely(output: any): any {
 /**
  * Check if a set of output IDs contains response format selections for a specific block
  */
-export function hasResponseFormatSelection(selectedOutputIds: string[], blockId: string): boolean {
-  return selectedOutputIds.some((outputId) => {
+export function hasResponseFormatSelection(selectedOutputs: string[], blockId: string): boolean {
+  return selectedOutputs.some((outputId) => {
     const blockIdForOutput = extractBlockIdFromOutputId(outputId)
     return blockIdForOutput === blockId && outputId.includes('_')
   })
@@ -175,8 +175,8 @@ export function hasResponseFormatSelection(selectedOutputIds: string[], blockId:
 /**
  * Get selected field names for a specific block from output IDs
  */
-export function getSelectedFieldNames(selectedOutputIds: string[], blockId: string): string[] {
-  return selectedOutputIds
+export function getSelectedFieldNames(selectedOutputs: string[], blockId: string): string[] {
+  return selectedOutputs
     .filter((outputId) => {
       const blockIdForOutput = extractBlockIdFromOutputId(outputId)
       return blockIdForOutput === blockId && outputId.includes('_')

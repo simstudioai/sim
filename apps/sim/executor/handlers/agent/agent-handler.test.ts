@@ -886,7 +886,7 @@ describe('AgentBlockHandler', () => {
       }
 
       mockContext.stream = true
-      mockContext.selectedOutputIds = [mockBlock.id]
+      mockContext.selectedOutputs = [mockBlock.id]
 
       const result = await handler.execute(mockBlock, inputs, mockContext)
 
@@ -955,7 +955,7 @@ describe('AgentBlockHandler', () => {
       }
 
       mockContext.stream = true
-      mockContext.selectedOutputIds = [mockBlock.id]
+      mockContext.selectedOutputs = [mockBlock.id]
 
       const result = await handler.execute(mockBlock, inputs, mockContext)
 
@@ -1012,7 +1012,7 @@ describe('AgentBlockHandler', () => {
       }
 
       mockContext.stream = true
-      mockContext.selectedOutputIds = [mockBlock.id]
+      mockContext.selectedOutputs = [mockBlock.id]
 
       const result = await handler.execute(mockBlock, inputs, mockContext)
 

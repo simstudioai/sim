@@ -371,7 +371,7 @@ export class AgentBlockHandler implements BlockHandler {
 
   private getStreamingConfig(block: SerializedBlock, context: ExecutionContext): StreamingConfig {
     const isBlockSelectedForOutput =
-      context.selectedOutputIds?.some((outputId) => {
+      context.selectedOutputs?.some((outputId) => {
         if (outputId === block.id) return true
         const firstUnderscoreIndex = outputId.indexOf('_')
         return (

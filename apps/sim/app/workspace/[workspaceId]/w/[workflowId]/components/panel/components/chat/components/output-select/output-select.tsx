@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
+import { createPortal } from 'react-dom'
 import { extractFieldsFromSchema, parseResponseFormatSafely } from '@/lib/response-format'
 import { cn } from '@/lib/utils'
 import { getBlock } from '@/blocks'
@@ -24,6 +25,13 @@ export function OutputSelect({
 }: OutputSelectProps) {
   const [isOutputDropdownOpen, setIsOutputDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const portalRef = useRef<HTMLDivElement>(null)
+  const [portalStyle, setPortalStyle] = useState<{
+    top: number
+    left: number
+    width: number
+    height: number
+  } | null>(null)
   const blocks = useWorkflowStore((state) => state.blocks)
   const { isShowingDiff, isDiffReady, diffWorkflow } = useWorkflowDiffStore()
 
@@ -295,7 +303,10 @@ export function OutputSelect({
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      const target = event.target as Node
+      const insideTrigger = dropdownRef.current?.contains(target)
+      const insidePortal = portalRef.current?.contains(target)
+      if (!insideTrigger && !insidePortal) {
         setIsOutputDropdownOpen(false)
       }
     }
@@ -305,6 +316,28 @@ export function OutputSelect({
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [])
+
+  // Position the portal dropdown relative to the trigger button
+  useEffect(() => {
+    const updatePosition = () => {
+      if (!isOutputDropdownOpen || !dropdownRef.current) return
+      const rect = dropdownRef.current.getBoundingClientRect()
+      const available = Math.max(140, window.innerHeight - rect.bottom - 12)
+      const height = Math.min(available, 240)
+      setPortalStyle({ top: rect.bottom + 4, left: rect.left, width: rect.width, height })
+    }
+
+    if (isOutputDropdownOpen) {
+      updatePosition()
+      window.addEventListener('resize', updatePosition)
+      window.addEventListener('scroll', updatePosition, { passive: true })
+    }
+
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition)
+    }
+  }, [isOutputDropdownOpen])
 
   // Handle output selection - toggle selection
   const handleOutputSelection = (value: string) => {
@@ -359,48 +392,73 @@ export function OutputSelect({
         />
       </button>
 
-      {isOutputDropdownOpen && workflowOutputs.length > 0 && (
-        <div className='absolute left-0 z-50 mt-1 w-full overflow-hidden rounded-[8px] border border-[#E5E5E5] bg-[#FFFFFF] pt-1 shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'>
-          <div className='max-h-[230px] overflow-y-auto'>
-            {Object.entries(groupedOutputs).map(([blockName, outputs]) => (
-              <div key={blockName}>
-                <div className='border-[#E5E5E5] border-t px-3 pt-1.5 pb-0.5 font-normal text-muted-foreground text-xs first:border-t-0 dark:border-[#414141]'>
-                  {blockName}
-                </div>
-                <div>
-                  {outputs.map((output) => (
-                    <button
-                      type='button'
-                      key={output.id}
-                      onClick={() => handleOutputSelection(output.id)}
-                      className={cn(
-                        'flex w-full items-center gap-2 px-3 py-1.5 text-left font-normal text-sm',
-                        'hover:bg-accent hover:text-accent-foreground',
-                        'focus:bg-accent focus:text-accent-foreground focus:outline-none'
-                      )}
-                    >
-                      <div
-                        className='flex h-5 w-5 flex-shrink-0 items-center justify-center rounded'
-                        style={{
-                          backgroundColor: getOutputColor(output.blockId, output.blockType),
-                        }}
-                      >
-                        <span className='h-3 w-3 font-bold text-white text-xs'>
-                          {blockName.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                      <span className='flex-1 truncate'>{output.path}</span>
-                      {selectedOutputs.includes(output.id) && (
-                        <Check className='h-4 w-4 flex-shrink-0 text-muted-foreground' />
-                      )}
-                    </button>
-                  ))}
-                </div>
+      {isOutputDropdownOpen &&
+        workflowOutputs.length > 0 &&
+        portalStyle &&
+        createPortal(
+          <div
+            ref={portalRef}
+            style={{
+              position: 'fixed',
+              top: portalStyle.top,
+              left: portalStyle.left,
+              width: portalStyle.width,
+              zIndex: 2147483647,
+              pointerEvents: 'auto',
+            }}
+            className='mt-0'
+            data-rs-scroll-lock-ignore
+          >
+            <div className='overflow-hidden rounded-[8px] border border-[#E5E5E5] bg-[#FFFFFF] pt-1 shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'>
+              <div
+                className='overflow-y-auto overscroll-contain'
+                style={{ maxHeight: portalStyle.height }}
+                onWheel={(e) => {
+                  // Keep wheel scroll inside the dropdown and avoid dialog/body scroll locks
+                  e.stopPropagation()
+                }}
+              >
+                {Object.entries(groupedOutputs).map(([blockName, outputs]) => (
+                  <div key={blockName}>
+                    <div className='border-[#E5E5E5] border-t px-3 pt-1.5 pb-0.5 font-normal text-muted-foreground text-xs first:border-t-0 dark:border-[#414141]'>
+                      {blockName}
+                    </div>
+                    <div>
+                      {outputs.map((output) => (
+                        <button
+                          type='button'
+                          key={output.id}
+                          onClick={() => handleOutputSelection(output.id)}
+                          className={cn(
+                            'flex w-full items-center gap-2 px-3 py-1.5 text-left font-normal text-sm',
+                            'hover:bg-accent hover:text-accent-foreground',
+                            'focus:bg-accent focus:text-accent-foreground focus:outline-none'
+                          )}
+                        >
+                          <div
+                            className='flex h-5 w-5 flex-shrink-0 items-center justify-center rounded'
+                            style={{
+                              backgroundColor: getOutputColor(output.blockId, output.blockType),
+                            }}
+                          >
+                            <span className='h-3 w-3 font-bold text-white text-xs'>
+                              {blockName.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <span className='flex-1 truncate'>{output.path}</span>
+                          {selectedOutputs.includes(output.id) && (
+                            <Check className='h-4 w-4 flex-shrink-0 text-muted-foreground' />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   )
 }
