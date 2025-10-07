@@ -12,19 +12,26 @@ const SCROLL_THRESHOLD = 60 // Distance from edge to trigger scroll
 const SCROLL_SPEED = 8 // Pixels per frame
 
 /**
+ * Constants for folder auto-expand on hover during drag
+ */
+const HOVER_EXPAND_DELAY = 400 // Milliseconds to wait before expanding folder
+
+/**
  * Custom hook for handling drag and drop operations for workflows and folders.
- * Includes auto-scrolling and drop target highlighting.
+ * Includes auto-scrolling, drop target highlighting, and hover-to-expand.
  *
  * @returns Drag and drop state and event handlers
  */
 export function useDragDrop() {
   const [dropTargetId, setDropTargetId] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [hoverFolderId, setHoverFolderId] = useState<string | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const scrollIntervalRef = useRef<number | null>(null)
+  const hoverExpandTimerRef = useRef<number | null>(null)
   const lastDragYRef = useRef<number>(0)
 
-  const { updateFolderAPI, getFolderPath } = useFolderStore()
+  const { updateFolderAPI, getFolderPath, setExpanded, expandedFolders } = useFolderStore()
   const { updateWorkflow } = useWorkflowRegistry()
 
   /**
@@ -84,6 +91,49 @@ export function useDragDrop() {
       }
     }
   }, [isDragging, handleAutoScroll])
+
+  /**
+   * Handle hover folder changes - start/clear expand timer
+   */
+  useEffect(() => {
+    // Clear existing timer when hover folder changes
+    if (hoverExpandTimerRef.current) {
+      clearTimeout(hoverExpandTimerRef.current)
+      hoverExpandTimerRef.current = null
+    }
+
+    // Don't start timer if not dragging or no folder is hovered
+    if (!isDragging || !hoverFolderId) {
+      return
+    }
+
+    // Don't expand if folder is already expanded
+    if (expandedFolders.has(hoverFolderId)) {
+      return
+    }
+
+    // Start timer to expand folder after delay
+    hoverExpandTimerRef.current = window.setTimeout(() => {
+      setExpanded(hoverFolderId, true)
+      logger.info(`Auto-expanded folder ${hoverFolderId} during drag`)
+    }, HOVER_EXPAND_DELAY)
+
+    return () => {
+      if (hoverExpandTimerRef.current) {
+        clearTimeout(hoverExpandTimerRef.current)
+        hoverExpandTimerRef.current = null
+      }
+    }
+  }, [hoverFolderId, isDragging, expandedFolders, setExpanded])
+
+  /**
+   * Cleanup hover state when dragging stops
+   */
+  useEffect(() => {
+    if (!isDragging) {
+      setHoverFolderId(null)
+    }
+  }, [isDragging])
 
   /**
    * Moves one or more workflows to a target folder
@@ -270,6 +320,32 @@ export function useDragDrop() {
   )
 
   /**
+   * Creates drag event handlers for folder header (the clickable part)
+   * These handlers trigger folder expansion on hover during drag
+   *
+   * @param folderId - Folder ID to handle hover for
+   * @returns Object containing drag event handlers for folder header
+   */
+  const createFolderHeaderHoverHandlers = useCallback(
+    (folderId: string) => ({
+      onDragEnter: (e: React.DragEvent<HTMLElement>) => {
+        if (isDragging) {
+          setHoverFolderId(folderId)
+        }
+      },
+      onDragLeave: (e: React.DragEvent<HTMLElement>) => {
+        const relatedTarget = e.relatedTarget as HTMLElement | null
+        const currentTarget = e.currentTarget as HTMLElement
+        // Only clear if we're leaving the folder header completely
+        if (!relatedTarget || !currentTarget.contains(relatedTarget)) {
+          setHoverFolderId(null)
+        }
+      },
+    }),
+    [isDragging]
+  )
+
+  /**
    * Set the scroll container ref for auto-scrolling
    *
    * @param element - Scrollable container element
@@ -285,5 +361,6 @@ export function useDragDrop() {
     createFolderDragHandlers,
     createItemDragHandlers,
     createRootDragHandlers,
+    createFolderHeaderHoverHandlers,
   }
 }

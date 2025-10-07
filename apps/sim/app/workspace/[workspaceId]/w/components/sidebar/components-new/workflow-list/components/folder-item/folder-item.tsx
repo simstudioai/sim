@@ -10,16 +10,21 @@ import { useItemDrag } from '../../../../hooks/use-item-drag'
 interface FolderItemProps {
   folder: FolderTreeNode
   level: number
+  hoverHandlers?: {
+    onDragEnter?: (e: React.DragEvent<HTMLElement>) => void
+    onDragLeave?: (e: React.DragEvent<HTMLElement>) => void
+  }
 }
 
 /**
  * FolderItem component displaying a single folder with drag and expand/collapse support.
  * Uses item drag and folder expand hooks for unified behavior.
+ * Supports hover-to-expand during drag operations via hoverHandlers.
  *
  * @param props - Component props
  * @returns Folder item with drag and expand support
  */
-export function FolderItem({ folder, level }: FolderItemProps) {
+export function FolderItem({ folder, level, hoverHandlers }: FolderItemProps) {
   // Folder expand hook
   const { isExpanded, handleToggleExpanded, handleKeyDown } = useFolderExpand({
     folderId: folder.id,
@@ -76,6 +81,7 @@ export function FolderItem({ folder, level }: FolderItemProps) {
       draggable
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      {...hoverHandlers}
     >
       <ChevronRight
         className={clsx(

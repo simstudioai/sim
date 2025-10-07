@@ -69,6 +69,7 @@ export function WorkflowList({
     createFolderDragHandlers,
     createItemDragHandlers,
     createRootDragHandlers,
+    createFolderHeaderHoverHandlers,
   } = useDragDrop()
 
   // Workflow import hook
@@ -194,7 +195,11 @@ export function WorkflowList({
             style={{ paddingLeft: `${level * TREE_SPACING.INDENT_PER_LEVEL}px` }}
             {...createItemDragHandlers(folder.id)}
           >
-            <FolderItem folder={folder} level={level} />
+            <FolderItem
+              folder={folder}
+              level={level}
+              hoverHandlers={createFolderHeaderHoverHandlers(folder.id)}
+            />
           </div>
 
           {isExpanded && hasChildren && (
@@ -247,6 +252,7 @@ export function WorkflowList({
       isDragging,
       createFolderDragHandlers,
       createItemDragHandlers,
+      createFolderHeaderHoverHandlers,
       calculateVerticalLineHeight,
       renderWorkflowItem,
     ]

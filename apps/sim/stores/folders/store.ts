@@ -242,14 +242,8 @@ export const useFolderStore = create<FolderState>()(
 
           get().setFolders(processedFolders)
 
-          // Initialize expanded state from folder data
-          const expandedSet = new Set<string>()
-          processedFolders.forEach((folder: WorkflowFolder) => {
-            if (folder.isExpanded) {
-              expandedSet.add(folder.id)
-            }
-          })
-          set({ expandedFolders: expandedSet })
+          // Start with all folders collapsed - only active workflow path will be expanded by the UI
+          set({ expandedFolders: new Set() })
         } catch (error) {
           logger.error('Error fetching folders:', error)
         } finally {
