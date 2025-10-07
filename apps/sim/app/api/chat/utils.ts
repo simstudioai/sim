@@ -10,12 +10,13 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { hasAdminPermission } from '@/lib/permissions/utils'
+import { processStreamingBlockLogs } from '@/lib/tokenization'
 import { decryptSecret, generateRequestId } from '@/lib/utils'
 import { TriggerUtils } from '@/lib/workflows/triggers'
 import { CHAT_ERROR_MESSAGES } from '@/app/chat/constants'
 import { getBlock } from '@/blocks'
 import { Executor } from '@/executor'
-import type { ExecutionResult, StreamingExecution } from '@/executor/types'
+import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -688,31 +689,126 @@ export async function executeWorkflowForChat(
 
         executionResultForLogging = executionResult
 
-        logger.info(`[${requestId}] Chat workflow execution completed:`, {
-          success: executionResult.success,
-          executionTime: executionResult.metadata?.duration,
-        })
+        if (executionResult?.logs) {
+          const processedOutputs = new Set<string>()
+          executionResult.logs.forEach((log: BlockLog) => {
+            if (streamedContent.has(log.blockId)) {
+              const content = streamedContent.get(log.blockId)
+              if (log.output && content) {
+                const separator = processedOutputs.size > 0 ? '\n\n' : ''
+                log.output.content = separator + content
+                processedOutputs.add(log.blockId)
+              }
+            }
+          })
 
-        const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
-
-        await loggingSession.safeComplete({
-          endedAt: new Date().toISOString(),
-          totalDurationMs: totalDuration || 0,
-          finalOutput: executionResult.output || {},
-          traceSpans: (traceSpans || []) as any,
-        })
-
-        sessionCompleted = true
-
-        controller.enqueue(
-          encoder.encode(
-            `data: ${JSON.stringify({
-              event: 'complete',
-              success: executionResult.success,
-              output: executionResult.output,
-            })}\n\n`
+          const nonStreamingLogs = executionResult.logs.filter(
+            (log: BlockLog) => !streamedContent.has(log.blockId)
           )
-        )
+
+          const extractBlockIdFromOutputId = (outputId: string): string => {
+            return outputId.includes('_') ? outputId.split('_')[0] : outputId.split('.')[0]
+          }
+
+          const extractPathFromOutputId = (outputId: string, blockId: string): string => {
+            return outputId.substring(blockId.length + 1)
+          }
+
+          const parseOutputContentSafely = (output: any): any => {
+            if (!output?.content) {
+              return output
+            }
+
+            if (typeof output.content === 'string') {
+              try {
+                return JSON.parse(output.content)
+              } catch (e) {
+                return output
+              }
+            }
+
+            return output
+          }
+
+          const outputsToRender = selectedOutputIds.filter((outputId) => {
+            const blockIdForOutput = extractBlockIdFromOutputId(outputId)
+            return nonStreamingLogs.some((log) => log.blockId === blockIdForOutput)
+          })
+
+          for (const outputId of outputsToRender) {
+            const blockIdForOutput = extractBlockIdFromOutputId(outputId)
+            const path = extractPathFromOutputId(outputId, blockIdForOutput)
+            const log = nonStreamingLogs.find((l) => l.blockId === blockIdForOutput)
+
+            if (log) {
+              let outputValue: any = log.output
+
+              if (path) {
+                outputValue = parseOutputContentSafely(outputValue)
+
+                const pathParts = path.split('.')
+                for (const part of pathParts) {
+                  if (outputValue && typeof outputValue === 'object' && part in outputValue) {
+                    outputValue = outputValue[part]
+                  } else {
+                    outputValue = undefined
+                    break
+                  }
+                }
+              }
+
+              if (outputValue !== undefined) {
+                const separator = processedOutputs.size > 0 ? '\n\n' : ''
+
+                const formattedOutput =
+                  typeof outputValue === 'string'
+                    ? outputValue
+                    : JSON.stringify(outputValue, null, 2)
+
+                if (!log.output.content) {
+                  log.output.content = separator + formattedOutput
+                } else {
+                  log.output.content = separator + formattedOutput
+                }
+                processedOutputs.add(log.blockId)
+              }
+            }
+          }
+
+          const processedCount = processStreamingBlockLogs(executionResult.logs, streamedContent)
+          logger.info(`Processed ${processedCount} blocks for streaming tokenization`)
+
+          const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
+          const enrichedResult = { ...executionResult, traceSpans, totalDuration }
+          if (conversationId) {
+            if (!enrichedResult.metadata) {
+              enrichedResult.metadata = {
+                duration: totalDuration,
+                startTime: new Date().toISOString(),
+              }
+            }
+            ;(enrichedResult.metadata as any).conversationId = conversationId
+          }
+        }
+
+        if (!(result && typeof result === 'object' && 'stream' in result)) {
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ event: 'final', data: result })}\n\n`)
+          )
+        }
+
+        if (!sessionCompleted) {
+          const resultForTracing =
+            executionResult || ({ success: true, output: {}, logs: [] } as ExecutionResult)
+          const { traceSpans } = buildTraceSpans(resultForTracing)
+          await loggingSession.safeComplete({
+            endedAt: new Date().toISOString(),
+            totalDurationMs: executionResult?.metadata?.duration || 0,
+            finalOutput: executionResult?.output || {},
+            traceSpans,
+          })
+          sessionCompleted = true
+        }
 
         controller.close()
       } catch (error: any) {
