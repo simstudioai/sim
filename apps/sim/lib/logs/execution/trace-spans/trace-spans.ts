@@ -110,11 +110,8 @@ export function buildTraceSpans(result: ExecutionResult): {
       }
     }
 
-    // Prefer human-friendly workflow block naming if provided by child execution mapping
-    const displayName =
-      isWorkflowBlockType(log.blockType) && log.output?.childWorkflowName
-        ? `${log.output.childWorkflowName} workflow`
-        : log.blockName || log.blockId
+    // Use block name consistently for all block types
+    const displayName = log.blockName || log.blockId
 
     const span: TraceSpan = {
       id: spanId,
@@ -282,12 +279,6 @@ export function buildTraceSpans(result: ExecutionResult): {
       const childTraceSpans = log.output.childTraceSpans as TraceSpan[]
       const flattenedChildren = flattenWorkflowChildren(childTraceSpans)
       span.children = mergeTraceSpanChildren(span.children || [], flattenedChildren)
-
-      // Workflow blocks that successfully executed a child workflow should show as success
-      // even if the child workflow failed - only the actual failing block should show as error
-      if (log.error && span.children.length > 0) {
-        span.status = 'success'
-      }
     }
 
     // Store in map
@@ -661,16 +652,13 @@ function ensureNestedWorkflowsProcessed(span: TraceSpan): TraceSpan {
   const mergedChildren = mergeTraceSpanChildren(normalizedChildren, outputChildSpans)
 
   if (processedSpan.output && 'childTraceSpans' in processedSpan.output) {
-    processedSpan.output = { ...(processedSpan.output as Record<string, unknown>) }(
-      processedSpan.output as { childTraceSpans?: TraceSpan[] }
-    ).childTraceSpans = undefined
+    const { childTraceSpans, ...cleanOutput } = processedSpan.output as {
+      childTraceSpans?: TraceSpan[]
+    } & Record<string, unknown>
+    processedSpan.output = cleanOutput
   }
 
-  if (mergedChildren.length > 0) {
-    processedSpan.children = mergedChildren
-  } else if ('children' in processedSpan) {
-    processedSpan.children = undefined
-  }
+  processedSpan.children = mergedChildren.length > 0 ? mergedChildren : undefined
 
   return processedSpan
 }

@@ -402,7 +402,6 @@ export class WorkflowBlockHandler implements BlockHandler {
 
     return {
       ...span,
-      name: this.cleanChildSpanName(span.name, childWorkflowName),
       metadata,
       ...(transformedChildren ? { children: transformedChildren } : {}),
     }
@@ -479,31 +478,6 @@ export class WorkflowBlockHandler implements BlockHandler {
   private isSyntheticWorkflowWrapper(span: TraceSpan | undefined): boolean {
     if (!span || span.type !== 'workflow') return false
     return !span.blockId
-  }
-
-  /**
-   * Cleans up child span names for readability
-   */
-  private cleanChildSpanName(spanName: string, childWorkflowName: string): string {
-    if (spanName.includes(`${childWorkflowName}:`)) {
-      const cleanName = spanName.replace(`${childWorkflowName}:`, '').trim()
-
-      if (cleanName === 'Workflow Execution') {
-        return `${childWorkflowName} workflow`
-      }
-
-      if (cleanName.startsWith('Agent ')) {
-        return `${cleanName}`
-      }
-
-      return `${cleanName}`
-    }
-
-    if (spanName === 'Workflow Execution') {
-      return `${childWorkflowName} workflow`
-    }
-
-    return `${spanName}`
   }
 
   /**

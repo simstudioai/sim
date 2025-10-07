@@ -588,6 +588,7 @@ describe('buildTraceSpans', () => {
       id: 'nested-workflow-span',
       name: 'Nested Workflow Block',
       type: 'workflow',
+      blockId: 'nested-workflow-block-id',
       duration: 3000,
       startTime: '2024-01-01T10:00:01.000Z',
       endTime: '2024-01-01T10:00:04.000Z',
@@ -703,7 +704,7 @@ describe('buildTraceSpans', () => {
 
     const rainbowCupcakeSpan = {
       id: 'rainbow-workflow-span',
-      name: 'rainbow-cupcake workflow',
+      name: 'Rainbow Cupcake',
       type: 'workflow',
       duration: 300,
       startTime: '2024-01-01T10:01:02.000Z',
@@ -748,16 +749,20 @@ describe('buildTraceSpans', () => {
     expect(traceSpans).toHaveLength(1)
     const workflowExecutionSpan = traceSpans[0]
     expect(workflowExecutionSpan.name).toBe('Workflow Execution')
+    expect(workflowExecutionSpan.status).toBe('error')
     expect(workflowExecutionSpan.children).toBeDefined()
     expect(workflowExecutionSpan.children).toHaveLength(1)
 
     const silkPondSpan = workflowExecutionSpan.children?.[0]
-    expect(silkPondSpan?.name).toBe('silk-pond workflow')
+    expect(silkPondSpan?.name).toBe('Silk Pond')
+    expect(silkPondSpan?.status).toBe('error')
     expect(silkPondSpan?.children).toBeDefined()
     expect(silkPondSpan?.children).toHaveLength(1)
 
     const rainbowSpan = silkPondSpan?.children?.[0]
-    expect(rainbowSpan?.name).toBe('rainbow-cupcake workflow')
+    expect(rainbowSpan?.name).toBe('Rainbow Cupcake')
+    expect(rainbowSpan?.status).toBe('error')
+    expect(rainbowSpan?.type).toBe('workflow')
     expect(rainbowSpan?.children).toBeDefined()
     expect(rainbowSpan?.children).toHaveLength(1)
 
