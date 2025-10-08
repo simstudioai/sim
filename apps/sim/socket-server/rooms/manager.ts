@@ -11,8 +11,8 @@ const connectionString = env.DATABASE_URL
 const db = drizzle(
   postgres(connectionString, {
     prepare: false,
-    idle_timeout: 15,
-    connect_timeout: 20,
+    idle_timeout: 20,
+    connect_timeout: 10,
     max: 3,
     onnotice: () => {},
   }),
