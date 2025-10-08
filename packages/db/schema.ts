@@ -564,6 +564,7 @@ export const userStats = pgTable('user_stats', {
   // Billing period tracking
   currentPeriodCost: decimal('current_period_cost').notNull().default('0'), // Usage in current billing period
   lastPeriodCost: decimal('last_period_cost').default('0'), // Usage from previous billing period
+  billedOverageThisPeriod: decimal('billed_overage_this_period').notNull().default('0'), // Amount of overage already billed via threshold billing
   // Pro usage snapshot when joining a team (to prevent double-billing)
   proPeriodCostSnapshot: decimal('pro_period_cost_snapshot').default('0'), // Snapshot of Pro usage when joining team
   // Copilot usage tracking

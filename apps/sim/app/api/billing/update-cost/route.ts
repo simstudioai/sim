@@ -3,6 +3,7 @@ import { userStats } from '@sim/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { checkInternalApiKey } from '@/lib/copilot/utils'
 import { isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -147,6 +148,9 @@ export async function POST(req: NextRequest) {
       addedCost: costToStore,
       addedTokens: totalTokens,
     })
+
+    // Check if user has hit overage threshold and bill incrementally
+    await checkAndBillOverageThreshold(userId)
 
     const duration = Date.now() - startTime
 

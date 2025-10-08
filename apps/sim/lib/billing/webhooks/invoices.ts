@@ -8,6 +8,54 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('StripeInvoiceWebhooks')
 
+function parseDecimal(value: string | number | null | undefined): number {
+  if (value === null || value === undefined) return 0
+  return Number.parseFloat(value.toString())
+}
+
+/**
+ * Get total billed overage for a subscription, handling team vs individual plans
+ * For team plans: sums billedOverageThisPeriod across all members
+ * For other plans: gets billedOverageThisPeriod for the user
+ */
+export async function getBilledOverageForSubscription(sub: {
+  plan: string | null
+  referenceId: string
+}): Promise<number> {
+  let billedOverage = 0
+
+  if (sub.plan === 'team') {
+    const members = await db
+      .select({ userId: member.userId })
+      .from(member)
+      .where(eq(member.organizationId, sub.referenceId))
+
+    for (const m of members) {
+      const memberStats = await db
+        .select({ billedOverageThisPeriod: userStats.billedOverageThisPeriod })
+        .from(userStats)
+        .where(eq(userStats.userId, m.userId))
+        .limit(1)
+
+      if (memberStats.length > 0) {
+        billedOverage += parseDecimal(memberStats[0].billedOverageThisPeriod)
+      }
+    }
+  } else {
+    const userStatsRecords = await db
+      .select({ billedOverageThisPeriod: userStats.billedOverageThisPeriod })
+      .from(userStats)
+      .where(eq(userStats.userId, sub.referenceId))
+      .limit(1)
+
+    if (userStatsRecords.length > 0) {
+      billedOverage = parseDecimal(userStatsRecords[0].billedOverageThisPeriod)
+    }
+  }
+
+  return billedOverage
+}
+
 export async function resetUsageForSubscription(sub: { plan: string | null; referenceId: string }) {
   if (sub.plan === 'team' || sub.plan === 'enterprise') {
     const membersRows = await db
@@ -25,7 +73,11 @@ export async function resetUsageForSubscription(sub: { plan: string | null; refe
         const current = currentStats[0].current || '0'
         await db
           .update(userStats)
-          .set({ lastPeriodCost: current, currentPeriodCost: '0' })
+          .set({
+            lastPeriodCost: current,
+            currentPeriodCost: '0',
+            billedOverageThisPeriod: '0',
+          })
           .where(eq(userStats.userId, m.userId))
       }
     }
@@ -50,6 +102,7 @@ export async function resetUsageForSubscription(sub: { plan: string | null; refe
           lastPeriodCost: totalLastPeriod,
           currentPeriodCost: '0',
           proPeriodCostSnapshot: '0', // Clear snapshot at period end
+          billedOverageThisPeriod: '0', // Clear threshold billing tracker at period end
         })
         .where(eq(userStats.userId, sub.referenceId))
     }
@@ -281,9 +334,23 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
     // Compute overage (only for team and pro plans), before resetting usage
     const totalOverage = await calculateSubscriptionOverage(sub)
 
-    if (totalOverage > 0) {
+    // Get already-billed overage from threshold billing
+    const billedOverage = await getBilledOverageForSubscription(sub)
+
+    // Only bill the remaining unbilled overage
+    const remainingOverage = Math.max(0, totalOverage - billedOverage)
+
+    logger.info('Invoice finalized overage calculation', {
+      subscriptionId: sub.id,
+      totalOverage,
+      billedOverage,
+      remainingOverage,
+      billingPeriod,
+    })
+
+    if (remainingOverage > 0) {
       const customerId = String(invoice.customer)
-      const cents = Math.round(totalOverage * 100)
+      const cents = Math.round(remainingOverage * 100)
       const itemIdemKey = `overage-item:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
       const invoiceIdemKey = `overage-invoice:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
 
