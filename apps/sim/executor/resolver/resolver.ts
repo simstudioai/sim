@@ -313,7 +313,7 @@ export class InputResolver {
       }
       // Handle objects and arrays recursively
       else if (typeof value === 'object') {
-        result[key] = this.processObjectValue(value, key, context, block)
+        result[key] = this.processObjectValue(value, context, block)
       }
       // Pass through other value types
       else {
@@ -684,7 +684,7 @@ export class InputResolver {
       }
 
       // Standard block reference resolution with connection validation
-      const validation = this.validateBlockReference(blockRef, currentBlock.id, context)
+      const validation = this.validateBlockReference(blockRef, currentBlock.id)
 
       if (!validation.isValid) {
         throw new Error(validation.errorMessage!)
@@ -846,141 +846,41 @@ export class InputResolver {
   }
 
   /**
-   * Validates if a match with < and > is actually a variable reference.
-   * Valid variable references must:
-   * - Have no space after the opening <
-   * - Contain a dot (.)
-   * - Have no spaces until the closing >
-   * - Not be comparison operators or HTML tags
-   *
-   * @param match - The matched string including < and >
-   * @returns Whether this is a valid variable reference
-   */
-  private isValidVariableReference(match: string): boolean {
-    const innerContent = match.slice(1, -1)
-
-    if (innerContent.startsWith(' ')) {
-      return false
-    }
-
-    if (innerContent.match(/^\s*[<>=!]+\s*$/) || innerContent.match(/\s[<>=!]+\s/)) {
-      return false
-    }
-
-    if (innerContent.match(/^[<>=!]+\s/)) {
-      return false
-    }
-
-    if (innerContent.includes('.')) {
-      const dotIndex = innerContent.indexOf('.')
-      const beforeDot = innerContent.substring(0, dotIndex)
-      const afterDot = innerContent.substring(dotIndex + 1)
-
-      if (afterDot.includes(' ')) {
-        return false
-      }
-
-      if (beforeDot.match(/[+*/=<>!]/) || afterDot.match(/[+\-*/=<>!]/)) {
-        return false
-      }
-    } else {
-      if (
-        innerContent.match(/[+\-*/=<>!]/) ||
-        innerContent.match(/^\d/) ||
-        innerContent.match(/\s\d/)
-      ) {
-        return false
-      }
-    }
-
-    return true
-  }
-
-  /**
-   * Determines if a string contains a properly formatted environment variable reference.
-   * Valid references are either:
-   * 1. A standalone env var (entire string is just {{ENV_VAR}})
-   * 2. An explicit env var with clear boundaries (usually within a URL or similar)
-   *
-   * @param value - The string to check
-   * @returns Whether this contains a properly formatted env var reference
-   */
-  private containsProperEnvVarReference(value: string): boolean {
-    if (!value || typeof value !== 'string') return false
-
-    // Case 1: String is just a single environment variable
-    if (value.trim().match(/^\{\{[^{}]+\}\}$/)) {
-      return true
-    }
-
-    // Case 2: Check for environment variables in specific contexts
-    // For example, in URLs, bearer tokens, etc.
-    const properContextPatterns = [
-      // Auth header patterns
-      /Bearer\s+\{\{[^{}]+\}\}/i,
-      /Authorization:\s+Bearer\s+\{\{[^{}]+\}\}/i,
-      /Authorization:\s+\{\{[^{}]+\}\}/i,
-
-      // API key in URL patterns
-      /[?&]api[_-]?key=\{\{[^{}]+\}\}/i,
-      /[?&]key=\{\{[^{}]+\}\}/i,
-      /[?&]token=\{\{[^{}]+\}\}/i,
-
-      // API key in header patterns
-      /X-API-Key:\s+\{\{[^{}]+\}\}/i,
-      /api[_-]?key:\s+\{\{[^{}]+\}\}/i,
-    ]
-
-    return properContextPatterns.some((pattern) => pattern.test(value))
-  }
-
-  /**
    * Resolves environment variables in any value ({{ENV_VAR}}).
-   * Only processes environment variables in apiKey fields or when explicitly needed.
    *
    * @param value - Value that may contain environment variable references
-   * @param isApiKey - Whether this is an API key field (requires special env var handling)
    * @returns Value with environment variables resolved
    * @throws Error if referenced environment variable is not found
    */
-  resolveEnvVariables(value: any, isApiKey = false): any {
+  resolveEnvVariables(value: any): any {
     if (typeof value === 'string') {
-      // Only process environment variables if:
-      // 1. This is an API key field
-      // 2. String is a complete environment variable reference ({{ENV_VAR}})
-      // 3. String contains environment variable references in proper contexts (auth headers, URLs)
-      const isExplicitEnvVar = value.trim().startsWith('{{') && value.trim().endsWith('}}')
-      const hasProperEnvVarReferences = this.containsProperEnvVarReference(value)
+      const envMatches = value.match(/\{\{([^}]+)\}\}/g)
+      if (envMatches) {
+        let resolvedValue = value
+        for (const match of envMatches) {
+          const envKey = match.slice(2, -2)
+          const envValue = this.environmentVariables[envKey]
 
-      if (isApiKey || isExplicitEnvVar || hasProperEnvVarReferences) {
-        const envMatches = value.match(/\{\{([^}]+)\}\}/g)
-        if (envMatches) {
-          let resolvedValue = value
-          for (const match of envMatches) {
-            const envKey = match.slice(2, -2)
-            const envValue = this.environmentVariables[envKey]
-
-            if (envValue === undefined) {
-              throw new Error(`Environment variable "${envKey}" was not found.`)
-            }
-
-            resolvedValue = resolvedValue.replace(match, envValue)
+          if (envValue === undefined) {
+            throw new Error(`Environment variable "${envKey}" was not found.`)
           }
-          return resolvedValue
+
+          resolvedValue = resolvedValue.replace(match, envValue)
         }
+        return resolvedValue
       }
       return value
     }
 
     if (Array.isArray(value)) {
-      return value.map((item) => this.resolveEnvVariables(item, isApiKey))
+      return value.map((item) => this.resolveEnvVariables(item))
     }
 
     if (value && typeof value === 'object') {
       return Object.entries(value).reduce(
         (acc, [k, v]) => ({
           ...acc,
-          [k]: this.resolveEnvVariables(v, k.toLowerCase() === 'apikey'),
+          [k]: this.resolveEnvVariables(v),
         }),
         {}
       )
@@ -1016,11 +916,8 @@ export class InputResolver {
       // Then resolve block references
       const resolvedReferences = this.resolveBlockReferences(resolvedVars, context, currentBlock)
 
-      // Check if this is an API key field
-      const isApiKey = this.isApiKeyField(currentBlock, value)
-
-      // Then resolve environment variables with the API key flag
-      return this.resolveEnvVariables(resolvedReferences, isApiKey)
+      // Then resolve environment variables
+      return this.resolveEnvVariables(resolvedReferences)
     }
 
     // Handle arrays
@@ -1032,7 +929,6 @@ export class InputResolver {
     if (typeof value === 'object') {
       const result: Record<string, any> = {}
       for (const [k, v] of Object.entries(value)) {
-        const _isApiKey = k.toLowerCase() === 'apikey'
         result[k] = this.resolveNestedStructure(v, context, currentBlock)
       }
       return result
@@ -1040,38 +936,6 @@ export class InputResolver {
 
     // Return primitives as is
     return value
-  }
-
-  /**
-   * Determines if a given field in a block is an API key field.
-   *
-   * @param block - Block containing the field
-   * @param value - Value to check
-   * @returns Whether this appears to be an API key field
-   */
-  private isApiKeyField(block: SerializedBlock, value: string): boolean {
-    // Check if the block is an API or agent block (which typically have API keys)
-    const blockType = block.metadata?.id
-    if (blockType !== 'api' && blockType !== 'agent') {
-      return false
-    }
-
-    // Look for the value in the block params
-    for (const [key, paramValue] of Object.entries(block.config.params)) {
-      if (paramValue === value) {
-        // Check if key name suggests it's an API key
-        const normalizedKey = key.toLowerCase().replace(/[_\-\s]/g, '')
-        return (
-          normalizedKey === 'apikey' ||
-          normalizedKey.includes('apikey') ||
-          normalizedKey.includes('secretkey') ||
-          normalizedKey.includes('accesskey') ||
-          normalizedKey.includes('token')
-        )
-      }
-    }
-
-    return false
   }
 
   /**
@@ -1292,40 +1156,16 @@ export class InputResolver {
   }
 
   /**
-   * Checks if a block reference could potentially be valid without throwing errors.
-   * Used to filter out non-block patterns like <test> from block reference resolution.
-   *
-   * @param blockRef - The block reference to check
-   * @param currentBlockId - ID of the current block
-   * @returns Whether this could be a valid block reference
-   */
-  private isAccessibleBlockReference(blockRef: string, currentBlockId: string): boolean {
-    // Special cases that are always allowed
-    const specialRefs = ['start', 'loop', 'parallel']
-    if (specialRefs.includes(blockRef.toLowerCase())) {
-      return true
-    }
-
-    // Get all accessible block names for this block
-    const accessibleNames = this.getAccessibleBlockNames(currentBlockId)
-
-    // Check if the reference matches any accessible block name
-    return accessibleNames.includes(blockRef) || accessibleNames.includes(blockRef.toLowerCase())
-  }
-
-  /**
    * Validates if a block reference is accessible from the current block.
    * Checks existence and connection-based access rules.
    *
    * @param blockRef - Name or ID of the referenced block
    * @param currentBlockId - ID of the block making the reference
-   * @param context - Current execution context
    * @returns Validation result with success status and resolved block ID or error message
    */
   private validateBlockReference(
     blockRef: string,
-    currentBlockId: string,
-    context: ExecutionContext
+    currentBlockId: string
   ): { isValid: boolean; resolvedBlockId?: string; errorMessage?: string } {
     // Special case: 'start' is always allowed
     if (blockRef.toLowerCase() === 'start') {
@@ -1709,7 +1549,7 @@ export class InputResolver {
         } else if (parallel.nodes.includes(currentBlock.id)) {
           // Fallback: if we're inside a parallel execution but don't have currentVirtualBlockId
           // This shouldn't happen in normal execution but provides backward compatibility
-          for (const [virtualId, mapping] of context.parallelBlockMapping || new Map()) {
+          for (const [_, mapping] of context.parallelBlockMapping || new Map()) {
             if (mapping.originalBlockId === currentBlock.id && mapping.parallelId === parallelId) {
               const iterationKey = `${parallelId}_iteration_${mapping.iterationIndex}`
               const iterationItem = context.loopItems.get(iterationKey)
@@ -1899,11 +1739,8 @@ export class InputResolver {
     // Then resolve block references
     const resolvedReferences = this.resolveBlockReferences(resolvedVars, context, block)
 
-    // Check if this is an API key field
-    const isApiKey = this.isApiKeyField(block, value)
-
     // Then resolve environment variables
-    const resolvedEnv = this.resolveEnvVariables(resolvedReferences, isApiKey)
+    const resolvedEnv = this.resolveEnvVariables(resolvedReferences)
 
     // Special handling for different block types
     const blockType = block.metadata?.id
@@ -1927,17 +1764,11 @@ export class InputResolver {
    * Handles special cases like table-like arrays with cells.
    *
    * @param value - Object or array to process
-   * @param key - The parameter key
    * @param context - Current execution context
    * @param block - Block containing the value
    * @returns Processed object/array
    */
-  private processObjectValue(
-    value: any,
-    key: string,
-    context: ExecutionContext,
-    block: SerializedBlock
-  ): any {
+  private processObjectValue(value: any, context: ExecutionContext, block: SerializedBlock): any {
     // Special handling for table-like arrays (e.g., from API params/headers)
     if (
       Array.isArray(value) &&

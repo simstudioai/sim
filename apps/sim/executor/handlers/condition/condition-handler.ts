@@ -109,7 +109,7 @@ export class ConditionBlockHandler implements BlockHandler {
         // Use full resolution pipeline: variables -> block references -> env vars
         const resolvedVars = this.resolver.resolveVariableReferences(conditionValueString, block)
         const resolvedRefs = this.resolver.resolveBlockReferences(resolvedVars, context, block)
-        resolvedConditionValue = this.resolver.resolveEnvVariables(resolvedRefs, true)
+        resolvedConditionValue = this.resolver.resolveEnvVariables(resolvedRefs)
         logger.info(
           `Resolved condition "${condition.title}" (${condition.id}): from "${conditionValueString}" to "${resolvedConditionValue}"`
         )
