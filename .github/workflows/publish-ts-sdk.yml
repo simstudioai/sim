@@ -79,6 +79,6 @@ jobs:
             ```
             
             ### Documentation
-            See the [README](https://github.com/simstudio/sim/tree/main/packages/ts-sdk) for usage instructions.
+            See the [README](https://github.com/simstudioai/sim/tree/main/packages/ts-sdk) or the [docs](https://docs.sim.ai/sdks/typescript) for more information.
           draft: false
           prerelease: false 
