@@ -4,7 +4,7 @@ export interface TelegramMessage {
   message_id: number
   from: {
     id: number
-    is_bot: string
+    is_bot: boolean
     first_name?: string
     username?: string
   }
@@ -116,7 +116,7 @@ export interface TelegramSendAnimationParams extends TelegramAuthParams {
 }
 
 export interface TelegramDeleteMessageParams extends TelegramAuthParams {
-  messageId: string
+  messageId: number
 }
 
 export interface TelegramSendMessageResponse extends ToolResponse {

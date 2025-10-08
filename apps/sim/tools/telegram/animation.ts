@@ -92,8 +92,8 @@ export const telegramSendAnimationTool: ToolConfig<
           properties: {
             id: { type: 'number', description: 'Sender ID' },
             is_bot: {
-              type: 'string',
-              description: 'Whether the sender is a bot',
+              type: 'boolean',
+              description: 'Whether the chat is a bot or not',
             },
             first_name: {
               type: 'string',

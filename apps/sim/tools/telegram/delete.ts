@@ -50,7 +50,6 @@ export const telegramDeleteMessageTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-    console.log(data.result)
     return {
       success: data.ok,
       output: {

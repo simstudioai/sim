@@ -91,8 +91,8 @@ export const telegramSendAudioTool: ToolConfig<TelegramSendAudioParams, Telegram
             properties: {
               id: { type: 'number', description: 'Sender ID' },
               is_bot: {
-                type: 'string',
-                description: 'Whether the sender is a bot',
+                type: 'boolean',
+                description: 'Whether the chat is a bot or not',
               },
               first_name: {
                 type: 'string',
@@ -131,21 +131,33 @@ export const telegramSendAudioTool: ToolConfig<TelegramSendAudioParams, Telegram
             type: 'string',
             description: 'Text content of the sent message (if applicable)',
           },
-          voice: {
+          audio: {
             type: 'object',
-            description: 'Voice message (audio note) details',
+            description: 'Audio file details',
             properties: {
               duration: {
                 type: 'number',
-                description: 'Duration of the voice message in seconds',
+                description: 'Duration of the audio in seconds',
+              },
+              performer: {
+                type: 'string',
+                description: 'Performer of the audio',
+              },
+              title: {
+                type: 'string',
+                description: 'Title of the audio',
+              },
+              file_name: {
+                type: 'string',
+                description: 'Original filename of the audio',
               },
               mime_type: {
                 type: 'string',
-                description: 'MIME type of the audio file (e.g., audio/ogg)',
+                description: 'MIME type of the audio file',
               },
               file_id: {
                 type: 'string',
-                description: 'Unique file identifier for this voice message',
+                description: 'Unique file identifier for this audio',
               },
               file_unique_id: {
                 type: 'string',
@@ -153,7 +165,7 @@ export const telegramSendAudioTool: ToolConfig<TelegramSendAudioParams, Telegram
               },
               file_size: {
                 type: 'number',
-                description: 'Size of the voice file in bytes',
+                description: 'Size of the audio file in bytes',
               },
             },
           },
