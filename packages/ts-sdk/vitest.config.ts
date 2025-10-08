@@ -8,4 +8,7 @@ export default defineConfig({
     include: ['src/**/*.test.{ts,tsx}', 'tests/**/*.test.{ts,tsx}'],
     exclude: ['**/node_modules/**', '**/dist/**'],
   },
+  resolve: {
+    conditions: ['node', 'default'],
+  },
 })
