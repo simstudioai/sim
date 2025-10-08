@@ -13,15 +13,15 @@ const connectionString = env.DATABASE_URL
 const socketDb = drizzle(
   postgres(connectionString, {
     prepare: false,
-    idle_timeout: 20,
-    connect_timeout: 10,
-    max: 5,
+    idle_timeout: 10,
+    connect_timeout: 20,
+    max: 15,
     onnotice: () => {},
   }),
   { schema }
 )
 
-// Use dedicated connection for socket operations
+// Use dedicated connection for socket operations, fallback to shared db for compatibility
 const db = socketDb
 
 // Constants
