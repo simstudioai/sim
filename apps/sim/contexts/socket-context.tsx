@@ -600,22 +600,37 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
       // Apply light throttling only to position updates for smooth collaborative experience
       const isPositionUpdate = operation === 'update-position' && target === 'block'
+      const { commit = true } = payload || {}
 
       if (isPositionUpdate && payload.id) {
         const blockId = payload.id
 
-        // Store the latest position update
+        if (commit) {
+          socket.emit('workflow-operation', {
+            operation,
+            target,
+            payload,
+            timestamp: Date.now(),
+            operationId,
+          })
+          pendingPositionUpdates.current.delete(blockId)
+          const timeoutId = positionUpdateTimeouts.current.get(blockId)
+          if (timeoutId) {
+            clearTimeout(timeoutId)
+            positionUpdateTimeouts.current.delete(blockId)
+          }
+          return
+        }
+
         pendingPositionUpdates.current.set(blockId, {
           operation,
           target,
           payload,
           timestamp: Date.now(),
-          operationId, // Include operation ID for queue tracking
+          operationId,
         })
 
-        // Check if we already have a pending timeout for this block
         if (!positionUpdateTimeouts.current.has(blockId)) {
-          // Schedule emission with optimized throttling (30fps = ~33ms) to reduce DB load
           const timeoutId = window.setTimeout(() => {
             const latestUpdate = pendingPositionUpdates.current.get(blockId)
             if (latestUpdate) {
@@ -623,7 +638,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
               pendingPositionUpdates.current.delete(blockId)
             }
             positionUpdateTimeouts.current.delete(blockId)
-          }, 33) // 30fps - good balance between smoothness and DB performance
+          }, 33)
 
           positionUpdateTimeouts.current.set(blockId, timeoutId)
         }

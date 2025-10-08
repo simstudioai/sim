@@ -1422,7 +1422,7 @@ const WorkflowContent = React.memo(() => {
       setDraggedNodeId(node.id)
 
       // Emit collaborative position update during drag for smooth real-time movement
-      collaborativeUpdateBlockPosition(node.id, node.position)
+      collaborativeUpdateBlockPosition(node.id, node.position, false)
 
       // Get the current parent ID of the node being dragged
       const currentParentId = blocks[node.id]?.data?.parentId || null
@@ -1608,7 +1608,7 @@ const WorkflowContent = React.memo(() => {
 
       // Emit collaborative position update for the final position
       // This ensures other users see the smooth final position
-      collaborativeUpdateBlockPosition(node.id, node.position)
+      collaborativeUpdateBlockPosition(node.id, node.position, true)
 
       // Record single move entry on drag end to avoid micro-moves
       try {

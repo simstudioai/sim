@@ -340,6 +340,10 @@ async function handleBlockOperationTx(
         throw new Error('Missing required fields for update position operation')
       }
 
+      if (payload.commit !== true) {
+        return
+      }
+
       const updateResult = await tx
         .update(workflowBlocks)
         .set({

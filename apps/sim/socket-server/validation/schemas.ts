@@ -36,6 +36,7 @@ export const BlockOperationSchema = z.object({
     type: z.string().optional(),
     name: z.string().optional(),
     position: PositionSchema.optional(),
+    commit: z.boolean().optional(),
     data: z.record(z.any()).optional(),
     subBlocks: z.record(z.any()).optional(),
     outputs: z.record(z.any()).optional(),

@@ -868,13 +868,19 @@ export function useCollaborativeWorkflow() {
   )
 
   const collaborativeUpdateBlockPosition = useCallback(
-    (id: string, position: Position) => {
-      // Only apply position updates here (no undo recording to avoid micro-moves)
-      executeQueuedDebouncedOperation('update-position', 'block', { id, position }, () =>
+    (id: string, position: Position, commit = true) => {
+      if (commit) {
+        executeQueuedOperation('update-position', 'block', { id, position, commit }, () => {
+          workflowStore.updateBlockPosition(id, position)
+        })
+        return
+      }
+
+      executeQueuedDebouncedOperation('update-position', 'block', { id, position }, () => {
         workflowStore.updateBlockPosition(id, position)
-      )
+      })
     },
-    [executeQueuedDebouncedOperation, workflowStore]
+    [executeQueuedDebouncedOperation, executeQueuedOperation, workflowStore]
   )
 
   const collaborativeUpdateBlockName = useCallback(

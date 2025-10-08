@@ -28,6 +28,7 @@ export interface UserPresence {
   socketId: string
   joinedAt: number
   lastActivity: number
+  role: string
   cursor?: { x: number; y: number }
   selection?: { type: 'block' | 'edge' | 'none'; id?: string }
 }

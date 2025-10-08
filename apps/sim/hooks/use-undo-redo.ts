@@ -603,6 +603,7 @@ export function useUndoRedo() {
                 id: moveOp.data.blockId,
                 position: { x: moveOp.data.after.x, y: moveOp.data.after.y },
                 parentId: moveOp.data.after.parentId,
+                commit: true,
                 isUndo: true,
                 originalOpId: entry.id,
               },
@@ -706,6 +707,7 @@ export function useUndoRedo() {
               payload: {
                 id: blockId,
                 position: newPosition,
+                commit: true,
                 isUndo: true,
                 originalOpId: entry.id,
               },
