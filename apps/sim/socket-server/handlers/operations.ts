@@ -3,7 +3,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { persistWorkflowOperation } from '@/socket-server/database/operations'
 import type { HandlerDependencies } from '@/socket-server/handlers/workflow'
 import type { AuthenticatedSocket } from '@/socket-server/middleware/auth'
-import { verifyOperationPermission } from '@/socket-server/middleware/permissions'
+import { checkRolePermission } from '@/socket-server/middleware/permissions'
 import type { RoomManager } from '@/socket-server/rooms/manager'
 import { WorkflowOperationSchema } from '@/socket-server/validation/schemas'
 
@@ -43,35 +43,51 @@ export function setupOperationsHandlers(
       operationId = validatedOperation.operationId
       const { operation, target, payload, timestamp } = validatedOperation
 
-      // Check operation permissions
-      const permissionCheck = await verifyOperationPermission(
-        session.userId,
-        workflowId,
-        operation,
-        target
-      )
-      if (!permissionCheck.allowed) {
-        logger.warn(
-          `User ${session.userId} forbidden from ${operation} on ${target}: ${permissionCheck.reason}`
-        )
-        socket.emit('operation-forbidden', {
-          type: 'INSUFFICIENT_PERMISSIONS',
-          message: permissionCheck.reason || 'Insufficient permissions for this operation',
-          operation,
-          target,
-        })
-        return
-      }
-
-      const userPresence = room.users.get(socket.id)
-      if (userPresence) {
-        userPresence.lastActivity = Date.now()
-      }
-
       // For position updates, preserve client timestamp to maintain ordering
       // For other operations, use server timestamp for consistency
       const isPositionUpdate = operation === 'update-position' && target === 'block'
+      const commitPositionUpdate =
+        isPositionUpdate && 'commit' in payload ? payload.commit === true : false
       const operationTimestamp = isPositionUpdate ? timestamp : Date.now()
+
+      // Skip permission checks for non-committed position updates (broadcasts only, no persistence)
+      if (isPositionUpdate && !commitPositionUpdate) {
+        // Update last activity
+        const userPresence = room.users.get(socket.id)
+        if (userPresence) {
+          userPresence.lastActivity = Date.now()
+        }
+      } else {
+        // Check permissions from cached role for all other operations
+        const userPresence = room.users.get(socket.id)
+        if (!userPresence) {
+          logger.warn(`User presence not found for socket ${socket.id}`)
+          socket.emit('operation-forbidden', {
+            type: 'SESSION_ERROR',
+            message: 'User session not found',
+            operation,
+            target,
+          })
+          return
+        }
+
+        userPresence.lastActivity = Date.now()
+
+        // Check permissions using cached role (no DB query)
+        const permissionCheck = checkRolePermission(userPresence.role, operation)
+        if (!permissionCheck.allowed) {
+          logger.warn(
+            `User ${session.userId} (role: ${userPresence.role}) forbidden from ${operation} on ${target}`
+          )
+          socket.emit('operation-forbidden', {
+            type: 'INSUFFICIENT_PERMISSIONS',
+            message: `${permissionCheck.reason} on '${target}'`,
+            operation,
+            target,
+          })
+          return
+        }
+      }
 
       // Broadcast first for position updates to minimize latency, then persist
       // For other operations, persist first for consistency
@@ -94,16 +110,29 @@ export function setupOperationsHandlers(
 
         socket.to(workflowId).emit('workflow-operation', broadcastData)
 
-        // Persist position update asynchronously to avoid blocking real-time updates
-        persistWorkflowOperation(workflowId, {
-          operation,
-          target,
-          payload,
-          timestamp: operationTimestamp,
-          userId: session.userId,
-        }).catch((error) => {
+        if (!commitPositionUpdate) {
+          return
+        }
+
+        try {
+          await persistWorkflowOperation(workflowId, {
+            operation,
+            target,
+            payload,
+            timestamp: operationTimestamp,
+            userId: session.userId,
+          })
+          room.lastModified = Date.now()
+
+          if (operationId) {
+            socket.emit('operation-confirmed', {
+              operationId,
+              serverTimestamp: Date.now(),
+            })
+          }
+        } catch (error) {
           logger.error('Failed to persist position update:', error)
-          // Emit failure for position updates if operationId is provided
+
           if (operationId) {
             socket.emit('operation-failed', {
               operationId,
@@ -111,19 +140,9 @@ export function setupOperationsHandlers(
               retryable: true,
             })
           }
-        })
-
-        room.lastModified = Date.now()
-
-        // Emit confirmation if operationId is provided
-        if (operationId) {
-          socket.emit('operation-confirmed', {
-            operationId,
-            serverTimestamp: Date.now(),
-          })
         }
 
-        return // Early return for position updates
+        return
       }
 
       if (target === 'variable' && ['add', 'remove', 'duplicate'].includes(operation)) {

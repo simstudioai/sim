@@ -46,6 +46,7 @@ export function setupWorkflowHandlers(
 
       logger.info(`Join workflow request from ${userId} (${userName}) for workflow ${workflowId}`)
 
+      let userRole: string
       try {
         const accessInfo = await verifyWorkflowAccess(userId, workflowId)
         if (!accessInfo.hasAccess) {
@@ -53,6 +54,7 @@ export function setupWorkflowHandlers(
           socket.emit('join-workflow-error', { error: 'Access denied to workflow' })
           return
         }
+        userRole = accessInfo.role || 'read'
       } catch (error) {
         logger.warn(`Error verifying workflow access for ${userId}:`, error)
         socket.emit('join-workflow-error', { error: 'Failed to verify workflow access' })
@@ -85,6 +87,7 @@ export function setupWorkflowHandlers(
         socketId: socket.id,
         joinedAt: Date.now(),
         lastActivity: Date.now(),
+        role: userRole,
       }
 
       room.users.set(socket.id, userPresence)
