@@ -42,24 +42,19 @@ export function ExampleCommand({
   const [exampleType, setExampleType] = useState<ExampleType>('execute')
   const isAsyncEnabled = isTruthy(getEnv('NEXT_PUBLIC_TRIGGER_DEV_ENABLED'))
 
-  // Format the curl command to use a placeholder for the API key
   const formatCurlCommand = (command: string, apiKey: string) => {
     if (!command.includes('curl')) return command
 
-    // Replace the actual API key with a placeholder in the command
     const sanitizedCommand = command.replace(apiKey, '$SIM_API_KEY')
 
-    // Format the command with line breaks for better readability
     return sanitizedCommand
       .replace(' -H ', '\n  -H ')
       .replace(' -d ', '\n  -d ')
       .replace(' http', '\n  http')
   }
 
-  // Get the command with placeholder for copying (single line, no line breaks)
   const getActualCommand = () => {
     const displayCommand = getDisplayCommand()
-    // Remove line breaks and extra whitespace for copying
     return displayCommand
       .replace(/\\\n\s*/g, ' ') // Remove backslash + newline + whitespace
       .replace(/\n\s*/g, ' ') // Remove any remaining newlines + whitespace
@@ -70,51 +65,56 @@ export function ExampleCommand({
   const getDisplayCommand = () => {
     const baseEndpoint = endpoint.replace(apiKey, '$SIM_API_KEY')
     const inputExample = getInputFormatExample
-      ? getInputFormatExample(false) // No streaming for sync/async modes
+      ? getInputFormatExample(false)
       : ' -d \'{"input": "your data here"}\''
+
+    const addStreamingParams = (dashD: string) => {
+      const match = dashD.match(/-d\s*'([\s\S]*)'/)
+      if (!match) {
+        const payload: Record<string, any> = { stream: true }
+        if (selectedStreamingOutputs && selectedStreamingOutputs.length > 0) {
+          payload.selectedOutputs = selectedStreamingOutputs
+        }
+        return ` -d '${JSON.stringify(payload)}'`
+      }
+      try {
+        const payload = JSON.parse(match[1]) as Record<string, any>
+        payload.stream = true
+        if (selectedStreamingOutputs && selectedStreamingOutputs.length > 0) {
+          payload.selectedOutputs = selectedStreamingOutputs
+        }
+        return ` -d '${JSON.stringify(payload)}'`
+      } catch {
+        return dashD
+      }
+    }
 
     switch (mode) {
       case 'sync':
-        // For sync mode, use basic example without streaming
         if (getInputFormatExample) {
           const syncInputExample = getInputFormatExample(false)
-          return `curl -X POST \\
-  -H "X-API-Key: $SIM_API_KEY" \\
-  -H "Content-Type: application/json"${syncInputExample} \\
-  ${baseEndpoint}`
+          return `curl -X POST \\\n  -H "X-API-Key: $SIM_API_KEY" \\\n  -H "Content-Type: application/json"${syncInputExample} \\\n  ${baseEndpoint}`
         }
         return formatCurlCommand(command, apiKey)
 
-      case 'stream':
-        // For stream mode, include streaming params
-        if (getInputFormatExample) {
-          const streamInputExample = getInputFormatExample(true)
-          return `curl -X POST \\
-  -H "X-API-Key: $SIM_API_KEY" \\
-  -H "Content-Type: application/json"${streamInputExample} \\
-  ${baseEndpoint}`
-        }
-        return formatCurlCommand(command, apiKey)
+      case 'stream': {
+        const streamDashD = addStreamingParams(inputExample)
+        return `curl -X POST \\\n  -H "X-API-Key: $SIM_API_KEY" \\\n  -H "Content-Type: application/json"${streamDashD} \\\n  ${baseEndpoint}`
+      }
 
       case 'async':
         switch (exampleType) {
           case 'execute':
-            return `curl -X POST \\
-  -H "X-API-Key: $SIM_API_KEY" \\
-  -H "Content-Type: application/json" \\
-  -H "X-Execution-Mode: async"${inputExample} \\
-  ${baseEndpoint}`
+            return `curl -X POST \\\n  -H "X-API-Key: $SIM_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -H "X-Execution-Mode: async"${inputExample} \\\n  ${baseEndpoint}`
 
           case 'status': {
             const baseUrl = baseEndpoint.split('/api/workflows/')[0]
-            return `curl -H "X-API-Key: $SIM_API_KEY" \\
-  ${baseUrl}/api/jobs/JOB_ID_FROM_EXECUTION`
+            return `curl -H "X-API-Key: $SIM_API_KEY" \\\n  ${baseUrl}/api/jobs/JOB_ID_FROM_EXECUTION`
           }
 
           case 'rate-limits': {
             const baseUrlForRateLimit = baseEndpoint.split('/api/workflows/')[0]
-            return `curl -H "X-API-Key: $SIM_API_KEY" \\
-  ${baseUrlForRateLimit}/api/users/me/usage-limits`
+            return `curl -H "X-API-Key: $SIM_API_KEY" \\\n  ${baseUrlForRateLimit}/api/users/me/usage-limits`
           }
 
           default:
@@ -231,6 +231,7 @@ export function ExampleCommand({
               selectedOutputs={selectedStreamingOutputs}
               onOutputSelect={onSelectedStreamingOutputsChange}
               placeholder='Select outputs for streaming'
+              valueMode='label'
             />
           </div>
         )}
