@@ -130,13 +130,12 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
         return
       }
 
-      const isTeamPlan = userSubscription.plan === 'team'
-
-      if (isTeamPlan && userSubscription.referenceId !== userId) {
-        logger.debug('User is team member - skipping individual threshold billing', {
+      if (userSubscription.plan === 'team') {
+        logger.debug('Team plan detected - triggering org-level threshold billing', {
           userId,
           organizationId: userSubscription.referenceId,
         })
+        await checkAndBillOrganizationOverageThreshold(userSubscription.referenceId)
         return
       }
 
@@ -262,7 +261,7 @@ export async function checkAndBillOrganizationOverageThreshold(
     }
 
     const members = await db
-      .select({ userId: member.userId })
+      .select({ userId: member.userId, role: member.role })
       .from(member)
       .where(eq(member.organizationId, organizationId))
 
@@ -270,7 +269,25 @@ export async function checkAndBillOrganizationOverageThreshold(
       return
     }
 
+    const owner = members.find((m) => m.role === 'owner')
+    if (!owner) {
+      logger.error('No owner found for organization', { organizationId })
+      return
+    }
+
     await db.transaction(async (tx) => {
+      const ownerStatsLock = await tx
+        .select()
+        .from(userStats)
+        .where(eq(userStats.userId, owner.userId))
+        .for('update')
+        .limit(1)
+
+      if (ownerStatsLock.length === 0) {
+        logger.error('Owner stats not found', { organizationId, ownerId: owner.userId })
+        return
+      }
+
       let totalTeamUsage = 0
       let totalBilledOverage = 0
 
@@ -354,17 +371,16 @@ export async function checkAndBillOrganizationOverageThreshold(
           idempotencyKey,
         })
 
-        if (members.length > 0) {
-          await tx
-            .update(userStats)
-            .set({
-              billedOverageThisPeriod: sql`${userStats.billedOverageThisPeriod} + ${amountToBill}`,
-            })
-            .where(eq(userStats.userId, members[0].userId))
-        }
+        await tx
+          .update(userStats)
+          .set({
+            billedOverageThisPeriod: sql`${userStats.billedOverageThisPeriod} + ${amountToBill}`,
+          })
+          .where(eq(userStats.userId, owner.userId))
 
         logger.info('Successfully created and finalized organization threshold overage invoice', {
           organizationId,
+          ownerId: owner.userId,
           amountBilled: amountToBill,
           invoiceId,
         })
