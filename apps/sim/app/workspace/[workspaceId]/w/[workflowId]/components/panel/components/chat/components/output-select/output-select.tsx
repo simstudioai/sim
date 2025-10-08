@@ -14,6 +14,7 @@ interface OutputSelectProps {
   onOutputSelect: (outputIds: string[]) => void
   disabled?: boolean
   placeholder?: string
+  valueMode?: 'id' | 'label'
 }
 
 export function OutputSelect({
@@ -22,6 +23,7 @@ export function OutputSelect({
   onOutputSelect,
   disabled = false,
   placeholder = 'Select output sources',
+  valueMode = 'id',
 }: OutputSelectProps) {
   const [isOutputDropdownOpen, setIsOutputDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -201,28 +203,31 @@ export function OutputSelect({
     return outputs
   }, [workflowBlocks, workflowId, isShowingDiff, isDiffReady, diffWorkflow, blocks, subBlockValues])
 
+  // Utility to check selected by id or label
+  const isSelectedValue = (o: { id: string; label: string }) =>
+    selectedOutputs.includes(o.id) || selectedOutputs.includes(o.label)
+
   // Get selected outputs display text
   const selectedOutputsDisplayText = useMemo(() => {
     if (!selectedOutputs || selectedOutputs.length === 0) {
       return placeholder
     }
 
-    // Ensure all selected outputs exist in the workflowOutputs array
-    const validOutputs = selectedOutputs.filter((id) => workflowOutputs.some((o) => o.id === id))
+    // Ensure all selected outputs exist in the workflowOutputs array by id or label
+    const validOutputs = selectedOutputs.filter((val) =>
+      workflowOutputs.some((o) => o.id === val || o.label === val)
+    )
 
     if (validOutputs.length === 0) {
       return placeholder
     }
 
     if (validOutputs.length === 1) {
-      const output = workflowOutputs.find((o) => o.id === validOutputs[0])
+      const output = workflowOutputs.find(
+        (o) => o.id === validOutputs[0] || o.label === validOutputs[0]
+      )
       if (output) {
-        // Add defensive check for output.blockName
-        const blockNameText =
-          output.blockName && typeof output.blockName === 'string'
-            ? output.blockName.replace(/\s+/g, '').toLowerCase()
-            : `block-${output.blockId}`
-        return `${blockNameText}.${output.path}`
+        return output.label
       }
       return placeholder
     }
@@ -234,10 +239,14 @@ export function OutputSelect({
   const selectedOutputInfo = useMemo(() => {
     if (!selectedOutputs || selectedOutputs.length === 0) return null
 
-    const validOutputs = selectedOutputs.filter((id) => workflowOutputs.some((o) => o.id === id))
+    const validOutputs = selectedOutputs.filter((val) =>
+      workflowOutputs.some((o) => o.id === val || o.label === val)
+    )
     if (validOutputs.length === 0) return null
 
-    const output = workflowOutputs.find((o) => o.id === validOutputs[0])
+    const output = workflowOutputs.find(
+      (o) => o.id === validOutputs[0] || o.label === validOutputs[0]
+    )
     if (!output) return null
 
     return {
@@ -355,14 +364,19 @@ export function OutputSelect({
     }
 
     let attachedScrollTargets: (HTMLElement | Window)[] = []
+    let rafId: number | null = null
     if (isOutputDropdownOpen) {
       updatePosition()
       window.addEventListener('resize', updatePosition)
-      // Attach to all scrollable ancestors (including the modal's scroll container)
       attachedScrollTargets = getScrollableAncestors(dropdownRef.current)
       attachedScrollTargets.forEach((target) =>
         target.addEventListener('scroll', updatePosition, { passive: true })
       )
+      const loop = () => {
+        updatePosition()
+        rafId = requestAnimationFrame(loop)
+      }
+      rafId = requestAnimationFrame(loop)
     }
 
     return () => {
@@ -370,18 +384,21 @@ export function OutputSelect({
       attachedScrollTargets.forEach((target) =>
         target.removeEventListener('scroll', updatePosition)
       )
+      if (rafId) cancelAnimationFrame(rafId)
     }
   }, [isOutputDropdownOpen])
 
   // Handle output selection - toggle selection
   const handleOutputSelection = (value: string) => {
+    const emittedValue =
+      valueMode === 'label' ? value : workflowOutputs.find((o) => o.label === value)?.id || value
     let newSelectedOutputs: string[]
-    const index = selectedOutputs.indexOf(value)
+    const index = selectedOutputs.indexOf(emittedValue)
 
     if (index === -1) {
-      newSelectedOutputs = [...new Set([...selectedOutputs, value])]
+      newSelectedOutputs = [...new Set([...selectedOutputs, emittedValue])]
     } else {
-      newSelectedOutputs = selectedOutputs.filter((id) => id !== value)
+      newSelectedOutputs = selectedOutputs.filter((id) => id !== emittedValue)
     }
 
     onOutputSelect(newSelectedOutputs)
@@ -434,7 +451,7 @@ export function OutputSelect({
             ref={portalRef}
             style={{
               position: 'fixed',
-              top: portalStyle.top,
+              top: portalStyle.top - 1, // overlap border by 1px to avoid visible gap
               left: portalStyle.left,
               width: portalStyle.width,
               zIndex: 2147483647,
@@ -462,7 +479,7 @@ export function OutputSelect({
                         <button
                           type='button'
                           key={output.id}
-                          onClick={() => handleOutputSelection(output.id)}
+                          onClick={() => handleOutputSelection(output.label)}
                           className={cn(
                             'flex w-full items-center gap-2 px-3 py-1.5 text-left font-normal text-sm',
                             'hover:bg-accent hover:text-accent-foreground',
@@ -480,7 +497,7 @@ export function OutputSelect({
                             </span>
                           </div>
                           <span className='flex-1 truncate'>{output.path}</span>
-                          {selectedOutputs.includes(output.id) && (
+                          {isSelectedValue(output) && (
                             <Check className='h-4 w-4 flex-shrink-0 text-muted-foreground' />
                           )}
                         </button>
