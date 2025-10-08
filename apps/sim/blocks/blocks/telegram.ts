@@ -64,6 +64,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       type: 'long-input',
       layout: 'full',
       placeholder: 'Enter the message to send',
+      required: true,
       condition: { field: 'operation', value: 'telegram_send_message' },
     },
     {
@@ -73,15 +74,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       layout: 'full',
       placeholder: 'Enter photo URL or file_id',
       description: 'Photo to send. Pass a file_id or HTTP URL',
-      condition: { field: 'operation', value: 'telegram_send_photo' },
-    },
-    {
-      id: 'caption',
-      title: 'Caption',
-      type: 'long-input',
-      layout: 'full',
-      placeholder: 'Enter optional caption',
-      description: 'Photo caption (optional)',
+      required: true,
       condition: { field: 'operation', value: 'telegram_send_photo' },
     },
     {
@@ -91,15 +84,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       layout: 'full',
       placeholder: 'Enter video URL or file_id',
       description: 'Video to send. Pass a file_id or HTTP URL',
-      condition: { field: 'operation', value: 'telegram_send_video' },
-    },
-    {
-      id: 'videoCaption',
-      title: 'Caption',
-      type: 'long-input',
-      layout: 'full',
-      placeholder: 'Enter optional caption',
-      description: 'Video caption (optional)',
+      required: true,
       condition: { field: 'operation', value: 'telegram_send_video' },
     },
     {
@@ -109,15 +94,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       layout: 'full',
       placeholder: 'Enter audio URL or file_id',
       description: 'Audio file to send. Pass a file_id or HTTP URL',
-      condition: { field: 'operation', value: 'telegram_send_audio' },
-    },
-    {
-      id: 'audioCaption',
-      title: 'Caption',
-      type: 'long-input',
-      layout: 'full',
-      placeholder: 'Enter optional caption',
-      description: 'Audio caption (optional)',
+      required: true,
       condition: { field: 'operation', value: 'telegram_send_audio' },
     },
     {
@@ -127,16 +104,25 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       layout: 'full',
       placeholder: 'Enter animation URL or file_id',
       description: 'Animation (GIF) to send. Pass a file_id or HTTP URL',
+      required: true,
       condition: { field: 'operation', value: 'telegram_send_animation' },
     },
     {
-      id: 'animationCaption',
+      id: 'caption',
       title: 'Caption',
       type: 'long-input',
       layout: 'full',
       placeholder: 'Enter optional caption',
-      description: 'Animation caption (optional)',
-      condition: { field: 'operation', value: 'telegram_send_animation' },
+      description: 'Media caption (optional)',
+      condition: {
+        field: 'operation',
+        value: [
+          'telegram_send_photo',
+          'telegram_send_video',
+          'telegram_send_audio',
+          'telegram_send_animation',
+        ],
+      },
     },
     {
       id: 'messageId',
@@ -145,6 +131,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       layout: 'full',
       placeholder: 'Enter the message ID to delete',
       description: 'The unique identifier of the message you want to delete',
+      required: true,
       condition: { field: 'operation', value: 'telegram_delete_message' },
     },
     // TRIGGER MODE: Trigger configuration (only shown when trigger mode is active)
@@ -186,21 +173,25 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
         }
       },
       params: (params) => {
-        const commonParams: Record<string, any> = {}
-
         if (!params.botToken) throw new Error('Bot token required for this operation')
-        commonParams.botToken = params.botToken
 
         const chatId = (params.chatId || '').trim()
         if (!chatId) {
           throw new Error('Chat ID is required.')
         }
 
+        const commonParams = {
+          botToken: params.botToken,
+          chatId,
+        }
+
         switch (params.operation) {
           case 'telegram_send_message':
+            if (!params.text) {
+              throw new Error('Message text is required.')
+            }
             return {
               ...commonParams,
-              chatId,
               text: params.text,
             }
           case 'telegram_delete_message':
@@ -209,7 +200,6 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
             }
             return {
               ...commonParams,
-              chatId,
               messageId: params.messageId,
             }
           case 'telegram_send_photo':
@@ -218,7 +208,6 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
             }
             return {
               ...commonParams,
-              chatId,
               photo: params.photo,
               caption: params.caption,
             }
@@ -228,9 +217,8 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
             }
             return {
               ...commonParams,
-              chatId,
               video: params.video,
-              caption: params.videoCaption,
+              caption: params.caption,
             }
           case 'telegram_send_audio':
             if (!params.audio) {
@@ -238,9 +226,8 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
             }
             return {
               ...commonParams,
-              chatId,
               audio: params.audio,
-              caption: params.audioCaption,
+              caption: params.caption,
             }
           case 'telegram_send_animation':
             if (!params.animation) {
@@ -248,14 +235,13 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
             }
             return {
               ...commonParams,
-              chatId,
               animation: params.animation,
-              caption: params.animationCaption,
+              caption: params.caption,
             }
           default:
             return {
               ...commonParams,
-              chatId,
+              text: params.text,
             }
         }
       },
@@ -271,9 +257,6 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
     audio: { type: 'string', description: 'Audio URL or file_id' },
     animation: { type: 'string', description: 'Animation URL or file_id' },
     caption: { type: 'string', description: 'Caption for media' },
-    videoCaption: { type: 'string', description: 'Caption for video' },
-    audioCaption: { type: 'string', description: 'Caption for audio' },
-    animationCaption: { type: 'string', description: 'Caption for animation' },
     messageId: { type: 'string', description: 'Message ID to delete' },
   },
   outputs: {

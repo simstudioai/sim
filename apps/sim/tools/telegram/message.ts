@@ -80,8 +80,8 @@ export const telegramSendMessageTool: ToolConfig<
           properties: {
             id: { type: 'number', description: 'Chat ID' },
             is_bot: {
-              type: 'string',
-              description: 'Type of chat (private, group, supergroup, channel)',
+              type: 'boolean',
+              description: 'Whether the chat is a bot or not',
             },
             first_name: {
               type: 'string',
