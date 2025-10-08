@@ -582,6 +582,195 @@ describe('buildTraceSpans', () => {
     // Verify no toolCalls property exists (since we're using children instead)
     expect(agentSpan.toolCalls).toBeUndefined()
   })
+
+  test('should flatten nested child workflow trace spans recursively', () => {
+    const nestedChildSpan = {
+      id: 'nested-workflow-span',
+      name: 'Nested Workflow Block',
+      type: 'workflow',
+      blockId: 'nested-workflow-block-id',
+      duration: 3000,
+      startTime: '2024-01-01T10:00:01.000Z',
+      endTime: '2024-01-01T10:00:04.000Z',
+      status: 'success' as const,
+      output: {
+        childTraceSpans: [
+          {
+            id: 'grand-wrapper',
+            name: 'Workflow Execution',
+            type: 'workflow',
+            duration: 3000,
+            startTime: '2024-01-01T10:00:01.000Z',
+            endTime: '2024-01-01T10:00:04.000Z',
+            status: 'success' as const,
+            children: [
+              {
+                id: 'grand-child-block',
+                name: 'Deep API Call',
+                type: 'api',
+                duration: 1500,
+                startTime: '2024-01-01T10:00:01.500Z',
+                endTime: '2024-01-01T10:00:03.000Z',
+                status: 'success' as const,
+                input: { path: '/v1/test' },
+                output: { result: 'ok' },
+              },
+            ],
+          },
+        ],
+      },
+    }
+
+    const toolSpan = {
+      id: 'child-tool-span',
+      name: 'Helper Tool',
+      type: 'tool',
+      duration: 1000,
+      startTime: '2024-01-01T10:00:04.000Z',
+      endTime: '2024-01-01T10:00:05.000Z',
+      status: 'success' as const,
+    }
+
+    const mockExecutionResult: ExecutionResult = {
+      success: true,
+      output: { result: 'parent output' },
+      logs: [
+        {
+          blockId: 'workflow-1',
+          blockName: 'Child Workflow',
+          blockType: 'workflow',
+          startedAt: '2024-01-01T10:00:00.000Z',
+          endedAt: '2024-01-01T10:00:05.000Z',
+          durationMs: 5000,
+          success: true,
+          output: {
+            childWorkflowName: 'Child Workflow',
+            childTraceSpans: [
+              {
+                id: 'child-wrapper',
+                name: 'Workflow Execution',
+                type: 'workflow',
+                duration: 5000,
+                startTime: '2024-01-01T10:00:00.000Z',
+                endTime: '2024-01-01T10:00:05.000Z',
+                status: 'success' as const,
+                children: [nestedChildSpan, toolSpan],
+              },
+            ],
+          },
+        },
+      ],
+    }
+
+    const { traceSpans } = buildTraceSpans(mockExecutionResult)
+
+    expect(traceSpans).toHaveLength(1)
+    const workflowSpan = traceSpans[0]
+    expect(workflowSpan.type).toBe('workflow')
+    expect(workflowSpan.children).toBeDefined()
+    expect(workflowSpan.children).toHaveLength(2)
+
+    const nestedWorkflowSpan = workflowSpan.children?.find((span) => span.type === 'workflow')
+    expect(nestedWorkflowSpan).toBeDefined()
+    expect(nestedWorkflowSpan?.name).toBe('Nested Workflow Block')
+    expect(nestedWorkflowSpan?.children).toBeDefined()
+    expect(nestedWorkflowSpan?.children).toHaveLength(1)
+    expect(nestedWorkflowSpan?.children?.[0].name).toBe('Deep API Call')
+    expect(nestedWorkflowSpan?.children?.[0].type).toBe('api')
+
+    const helperToolSpan = workflowSpan.children?.find((span) => span.id === 'child-tool-span')
+    expect(helperToolSpan?.type).toBe('tool')
+
+    const syntheticWrappers = workflowSpan.children?.filter(
+      (span) => span.name === 'Workflow Execution'
+    )
+    expect(syntheticWrappers).toHaveLength(0)
+  })
+
+  test('should handle nested child workflow errors with proper hierarchy', () => {
+    const functionErrorSpan = {
+      id: 'function-error-span',
+      name: 'Function 1',
+      type: 'function',
+      duration: 200,
+      startTime: '2024-01-01T10:01:02.000Z',
+      endTime: '2024-01-01T10:01:02.200Z',
+      status: 'error' as const,
+      blockId: 'function-1',
+      output: {
+        error: 'Syntax Error: Line 1: `retur "HELLO"` - Unexpected string',
+      },
+    }
+
+    const rainbowCupcakeSpan = {
+      id: 'rainbow-workflow-span',
+      name: 'Rainbow Cupcake',
+      type: 'workflow',
+      duration: 300,
+      startTime: '2024-01-01T10:01:02.000Z',
+      endTime: '2024-01-01T10:01:02.300Z',
+      status: 'error' as const,
+      blockId: 'workflow-rainbow',
+      output: {
+        childWorkflowName: 'rainbow-cupcake',
+        error: 'Syntax Error: Line 1: `retur "HELLO"` - Unexpected string',
+        childTraceSpans: [functionErrorSpan],
+      },
+    }
+
+    const mockExecutionResult: ExecutionResult = {
+      success: false,
+      output: { result: null },
+      metadata: {
+        duration: 3000,
+        startTime: '2024-01-01T10:01:00.000Z',
+      },
+      logs: [
+        {
+          blockId: 'workflow-silk',
+          blockName: 'Silk Pond',
+          blockType: 'workflow',
+          startedAt: '2024-01-01T10:01:00.000Z',
+          endedAt: '2024-01-01T10:01:03.000Z',
+          durationMs: 3000,
+          success: false,
+          error:
+            'Error in child workflow "silk-pond": Error in child workflow "rainbow-cupcake": Syntax Error',
+          output: {
+            childWorkflowName: 'silk-pond',
+            childTraceSpans: [rainbowCupcakeSpan],
+          },
+        },
+      ],
+    }
+
+    const { traceSpans } = buildTraceSpans(mockExecutionResult)
+
+    expect(traceSpans).toHaveLength(1)
+    const workflowExecutionSpan = traceSpans[0]
+    expect(workflowExecutionSpan.name).toBe('Workflow Execution')
+    expect(workflowExecutionSpan.status).toBe('error')
+    expect(workflowExecutionSpan.children).toBeDefined()
+    expect(workflowExecutionSpan.children).toHaveLength(1)
+
+    const silkPondSpan = workflowExecutionSpan.children?.[0]
+    expect(silkPondSpan?.name).toBe('Silk Pond')
+    expect(silkPondSpan?.status).toBe('error')
+    expect(silkPondSpan?.children).toBeDefined()
+    expect(silkPondSpan?.children).toHaveLength(1)
+
+    const rainbowSpan = silkPondSpan?.children?.[0]
+    expect(rainbowSpan?.name).toBe('Rainbow Cupcake')
+    expect(rainbowSpan?.status).toBe('error')
+    expect(rainbowSpan?.type).toBe('workflow')
+    expect(rainbowSpan?.children).toBeDefined()
+    expect(rainbowSpan?.children).toHaveLength(1)
+
+    const functionSpan = rainbowSpan?.children?.[0]
+    expect(functionSpan?.name).toBe('Function 1')
+    expect(functionSpan?.status).toBe('error')
+    expect((functionSpan?.output as { error?: string })?.error).toContain('Syntax Error')
+  })
 })
 
 describe('stripCustomToolPrefix', () => {

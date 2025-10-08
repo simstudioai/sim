@@ -429,7 +429,15 @@ export function useUndoRedo() {
           blockSnapshot.position,
           blockSnapshot.data,
           blockSnapshot.data?.parentId,
-          blockSnapshot.data?.extent
+          blockSnapshot.data?.extent,
+          {
+            enabled: blockSnapshot.enabled,
+            horizontalHandles: blockSnapshot.horizontalHandles,
+            isWide: blockSnapshot.isWide,
+            advancedMode: blockSnapshot.advancedMode,
+            triggerMode: blockSnapshot.triggerMode,
+            height: blockSnapshot.height,
+          }
         )
 
         // Set subblock values for the main block locally
@@ -471,7 +479,15 @@ export function useUndoRedo() {
                 snap.position,
                 snap.data,
                 snap.data?.parentId,
-                snap.data?.extent
+                snap.data?.extent,
+                {
+                  enabled: snap.enabled,
+                  horizontalHandles: snap.horizontalHandles,
+                  isWide: snap.isWide,
+                  advancedMode: snap.advancedMode,
+                  triggerMode: snap.triggerMode,
+                  height: snap.height,
+                }
               )
 
               // Send to server with subBlocks included in payload
@@ -587,6 +603,7 @@ export function useUndoRedo() {
                 id: moveOp.data.blockId,
                 position: { x: moveOp.data.after.x, y: moveOp.data.after.y },
                 parentId: moveOp.data.after.parentId,
+                commit: true,
                 isUndo: true,
                 originalOpId: entry.id,
               },
@@ -690,6 +707,7 @@ export function useUndoRedo() {
               payload: {
                 id: blockId,
                 position: newPosition,
+                commit: true,
                 isUndo: true,
                 originalOpId: entry.id,
               },
@@ -801,7 +819,15 @@ export function useUndoRedo() {
           snap.position,
           snap.data,
           snap.data?.parentId,
-          snap.data?.extent
+          snap.data?.extent,
+          {
+            enabled: snap.enabled,
+            horizontalHandles: snap.horizontalHandles,
+            isWide: snap.isWide,
+            advancedMode: snap.advancedMode,
+            triggerMode: snap.triggerMode,
+            height: snap.height,
+          }
         )
 
         // Set subblock values for the main block locally
@@ -841,7 +867,15 @@ export function useUndoRedo() {
                 snapNested.position,
                 snapNested.data,
                 snapNested.data?.parentId,
-                snapNested.data?.extent
+                snapNested.data?.extent,
+                {
+                  enabled: snapNested.enabled,
+                  horizontalHandles: snapNested.horizontalHandles,
+                  isWide: snapNested.isWide,
+                  advancedMode: snapNested.advancedMode,
+                  triggerMode: snapNested.triggerMode,
+                  height: snapNested.height,
+                }
               )
 
               // Send to server with subBlocks included
@@ -1058,7 +1092,15 @@ export function useUndoRedo() {
           duplicatedBlockSnapshot.position,
           duplicatedBlockSnapshot.data,
           duplicatedBlockSnapshot.data?.parentId,
-          duplicatedBlockSnapshot.data?.extent
+          duplicatedBlockSnapshot.data?.extent,
+          {
+            enabled: duplicatedBlockSnapshot.enabled,
+            horizontalHandles: duplicatedBlockSnapshot.horizontalHandles,
+            isWide: duplicatedBlockSnapshot.isWide,
+            advancedMode: duplicatedBlockSnapshot.advancedMode,
+            triggerMode: duplicatedBlockSnapshot.triggerMode,
+            height: duplicatedBlockSnapshot.height,
+          }
         )
 
         // Restore subblock values

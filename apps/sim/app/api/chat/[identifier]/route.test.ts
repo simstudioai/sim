@@ -27,7 +27,7 @@ describe('Chat Identifier API Route', () => {
   const mockAddCorsHeaders = vi.fn().mockImplementation((response) => response)
   const mockValidateChatAuth = vi.fn().mockResolvedValue({ authorized: true })
   const mockSetChatAuthCookie = vi.fn()
-  const mockExecuteWorkflowForChat = vi.fn().mockResolvedValue(createMockStream())
+  const mockCreateStreamingResponse = vi.fn().mockResolvedValue(createMockStream())
 
   const mockChatResult = [
     {
@@ -72,7 +72,16 @@ describe('Chat Identifier API Route', () => {
       validateChatAuth: mockValidateChatAuth,
       setChatAuthCookie: mockSetChatAuthCookie,
       validateAuthToken: vi.fn().mockReturnValue(true),
-      executeWorkflowForChat: mockExecuteWorkflowForChat,
+    }))
+
+    vi.doMock('@/lib/workflows/streaming', () => ({
+      createStreamingResponse: mockCreateStreamingResponse,
+      SSE_HEADERS: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      },
     }))
 
     vi.doMock('@/lib/logs/console/logger', () => ({
@@ -369,8 +378,23 @@ describe('Chat Identifier API Route', () => {
       expect(response.headers.get('Cache-Control')).toBe('no-cache')
       expect(response.headers.get('Connection')).toBe('keep-alive')
 
-      // Verify executeWorkflowForChat was called with correct parameters
-      expect(mockExecuteWorkflowForChat).toHaveBeenCalledWith('chat-id', 'Hello world', 'conv-123')
+      // Verify createStreamingResponse was called with correct workflow info
+      expect(mockCreateStreamingResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workflow: expect.objectContaining({
+            id: 'workflow-id',
+            userId: 'user-id',
+          }),
+          input: expect.objectContaining({
+            input: 'Hello world',
+            conversationId: 'conv-123',
+          }),
+          streamConfig: expect.objectContaining({
+            isSecureMode: true,
+            workflowTriggerType: 'chat',
+          }),
+        })
+      )
     })
 
     it('should handle streaming response body correctly', async () => {
@@ -399,8 +423,8 @@ describe('Chat Identifier API Route', () => {
     })
 
     it('should handle workflow execution errors gracefully', async () => {
-      const originalExecuteWorkflow = mockExecuteWorkflowForChat.getMockImplementation()
-      mockExecuteWorkflowForChat.mockImplementationOnce(async () => {
+      const originalStreamingResponse = mockCreateStreamingResponse.getMockImplementation()
+      mockCreateStreamingResponse.mockImplementationOnce(async () => {
         throw new Error('Execution failed')
       })
 
@@ -417,8 +441,8 @@ describe('Chat Identifier API Route', () => {
       expect(data).toHaveProperty('error')
       expect(data).toHaveProperty('message', 'Execution failed')
 
-      if (originalExecuteWorkflow) {
-        mockExecuteWorkflowForChat.mockImplementation(originalExecuteWorkflow)
+      if (originalStreamingResponse) {
+        mockCreateStreamingResponse.mockImplementation(originalStreamingResponse)
       }
     })
 
@@ -443,7 +467,7 @@ describe('Chat Identifier API Route', () => {
       expect(data).toHaveProperty('message', 'Invalid request body')
     })
 
-    it('should pass conversationId to executeWorkflowForChat when provided', async () => {
+    it('should pass conversationId to streaming execution when provided', async () => {
       const req = createMockRequest('POST', {
         input: 'Hello world',
         conversationId: 'test-conversation-123',
@@ -454,10 +478,13 @@ describe('Chat Identifier API Route', () => {
 
       await POST(req, { params })
 
-      expect(mockExecuteWorkflowForChat).toHaveBeenCalledWith(
-        'chat-id',
-        'Hello world',
-        'test-conversation-123'
+      expect(mockCreateStreamingResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: expect.objectContaining({
+            input: 'Hello world',
+            conversationId: 'test-conversation-123',
+          }),
+        })
       )
     })
 
@@ -469,7 +496,13 @@ describe('Chat Identifier API Route', () => {
 
       await POST(req, { params })
 
-      expect(mockExecuteWorkflowForChat).toHaveBeenCalledWith('chat-id', 'Hello world', undefined)
+      expect(mockCreateStreamingResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: expect.objectContaining({
+            input: 'Hello world',
+          }),
+        })
+      )
     })
   })
 })

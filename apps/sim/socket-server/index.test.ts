@@ -40,9 +40,9 @@ vi.mock('@/socket-server/middleware/auth', () => ({
 vi.mock('@/socket-server/middleware/permissions', () => ({
   verifyWorkflowAccess: vi.fn().mockResolvedValue({
     hasAccess: true,
-    role: 'owner',
+    role: 'admin',
   }),
-  verifyOperationPermission: vi.fn().mockResolvedValue({
+  checkRolePermission: vi.fn().mockReturnValue({
     allowed: true,
   }),
 }))
@@ -212,6 +212,7 @@ describe('Socket Server Index Integration', () => {
         socketId,
         joinedAt: Date.now(),
         lastActivity: Date.now(),
+        role: 'admin',
       })
       room.activeConnections = 1
 

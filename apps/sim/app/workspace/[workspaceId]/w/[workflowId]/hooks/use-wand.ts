@@ -203,8 +203,14 @@ export function useWand({
 
             for (const line of lines) {
               if (line.startsWith('data: ')) {
+                const lineData = line.substring(6)
+
+                if (lineData === '[DONE]') {
+                  continue
+                }
+
                 try {
-                  const data = JSON.parse(line.substring(6))
+                  const data = JSON.parse(lineData)
 
                   if (data.error) {
                     throw new Error(data.error)

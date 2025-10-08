@@ -17,6 +17,7 @@ import {
 } from '@/lib/workflows/db-helpers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { Executor } from '@/executor'
+import type { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
 
@@ -386,6 +387,13 @@ async function executeWebhookJobInternal(
 
     // Complete logging session with error (matching workflow-execution pattern)
     try {
+      const executionResult = (error?.executionResult as ExecutionResult | undefined) || {
+        success: false,
+        output: {},
+        logs: [],
+      }
+      const { traceSpans } = buildTraceSpans(executionResult)
+
       await loggingSession.safeCompleteWithError({
         endedAt: new Date().toISOString(),
         totalDurationMs: 0,
@@ -393,6 +401,7 @@ async function executeWebhookJobInternal(
           message: error.message || 'Webhook execution failed',
           stackTrace: error.stack,
         },
+        traceSpans,
       })
     } catch (loggingError) {
       logger.error(`[${requestId}] Failed to complete logging session`, loggingError)

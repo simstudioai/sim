@@ -101,7 +101,7 @@ describe('Executor', () => {
         workflow,
         contextExtensions: {
           stream: true,
-          selectedOutputIds: ['block1'],
+          selectedOutputs: ['block1'],
           edges: [{ source: 'starter', target: 'block1' }],
           onStream: mockOnStream,
         },
@@ -302,7 +302,7 @@ describe('Executor', () => {
         workflow,
         contextExtensions: {
           stream: true,
-          selectedOutputIds: ['block1'],
+          selectedOutputs: ['block1'],
           onStream: mockOnStream,
         },
       })
@@ -322,14 +322,14 @@ describe('Executor', () => {
     it.concurrent('should pass context extensions to execution context', async () => {
       const workflow = createMinimalWorkflow()
       const mockOnStream = vi.fn()
-      const selectedOutputIds = ['block1', 'block2']
+      const selectedOutputs = ['block1', 'block2']
       const edges = [{ source: 'starter', target: 'block1' }]
 
       const executor = new Executor({
         workflow,
         contextExtensions: {
           stream: true,
-          selectedOutputIds,
+          selectedOutputs,
           edges,
           onStream: mockOnStream,
         },
@@ -618,7 +618,7 @@ describe('Executor', () => {
         workflow,
         contextExtensions: {
           stream: true,
-          selectedOutputIds: ['block1'],
+          selectedOutputs: ['block1'],
           onStream: mockOnStream,
         },
       })
@@ -639,7 +639,7 @@ describe('Executor', () => {
         workflow,
         contextExtensions: {
           stream: true,
-          selectedOutputIds: ['block1'],
+          selectedOutputs: ['block1'],
           onStream: mockOnStream,
         },
       })

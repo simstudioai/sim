@@ -13,13 +13,16 @@ import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { CodeLanguage } from '@/lib/execution/languages'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import { isLikelyReferenceSegment, SYSTEM_REFERENCE_PREFIXES } from '@/lib/workflows/references'
 import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
+import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 import type { GenerationType } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useTagSelection } from '@/hooks/use-tag-selection'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { normalizeBlockName } from '@/stores/workflows/utils'
 
 const logger = createLogger('Code')
 
@@ -98,6 +101,8 @@ export function Code({
   const [cursorPosition, setCursorPosition] = useState(0)
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
   const [visualLineHeights, setVisualLineHeights] = useState<number[]>([])
+
+  const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
   const collapsedStateKey = `${subBlockId}_collapsed`
   const isCollapsed =
@@ -354,6 +359,30 @@ IMPORTANT FORMATTING RULES:
     }, 0)
   }
 
+  const shouldHighlightReference = (part: string): boolean => {
+    if (!part.startsWith('<') || !part.endsWith('>')) {
+      return false
+    }
+
+    if (!isLikelyReferenceSegment(part)) {
+      return false
+    }
+
+    if (!accessiblePrefixes) {
+      return true
+    }
+
+    const inner = part.slice(1, -1)
+    const [prefix] = inner.split('.')
+    const normalizedPrefix = normalizeBlockName(prefix)
+
+    if (SYSTEM_REFERENCE_PREFIXES.has(normalizedPrefix)) {
+      return true
+    }
+
+    return accessiblePrefixes.has(normalizedPrefix)
+  }
+
   const renderLineNumbers = (): ReactElement[] => {
     const numbers: ReactElement[] = []
     let lineNumber = 1
@@ -490,13 +519,51 @@ IMPORTANT FORMATTING RULES:
                 e.preventDefault()
               }
             }}
-            highlight={(codeToHighlight) =>
-              highlight(
-                codeToHighlight,
-                languages[effectiveLanguage === 'python' ? 'python' : 'javascript'],
-                effectiveLanguage === 'python' ? 'python' : 'javascript'
-              )
-            }
+            highlight={(codeToHighlight) => {
+              const placeholders: { placeholder: string; original: string; type: 'var' | 'env' }[] =
+                []
+              let processedCode = codeToHighlight
+
+              // Replace environment variables with placeholders
+              processedCode = processedCode.replace(/\{\{([^}]+)\}\}/g, (match) => {
+                const placeholder = `__ENV_VAR_${placeholders.length}__`
+                placeholders.push({ placeholder, original: match, type: 'env' })
+                return placeholder
+              })
+
+              // Replace variable references with placeholders
+              processedCode = processedCode.replace(/<([^>]+)>/g, (match) => {
+                if (shouldHighlightReference(match)) {
+                  const placeholder = `__VAR_REF_${placeholders.length}__`
+                  placeholders.push({ placeholder, original: match, type: 'var' })
+                  return placeholder
+                }
+                return match
+              })
+
+              // Apply Prism syntax highlighting
+              const lang = effectiveLanguage === 'python' ? 'python' : 'javascript'
+              let highlightedCode = highlight(processedCode, languages[lang], lang)
+
+              // Restore and highlight the placeholders
+              placeholders.forEach(({ placeholder, original, type }) => {
+                if (type === 'env') {
+                  highlightedCode = highlightedCode.replace(
+                    placeholder,
+                    `<span class="text-blue-500">${original}</span>`
+                  )
+                } else if (type === 'var') {
+                  // Escape the < and > for display
+                  const escaped = original.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                  highlightedCode = highlightedCode.replace(
+                    placeholder,
+                    `<span class="text-blue-500">${escaped}</span>`
+                  )
+                }
+              })
+
+              return highlightedCode
+            }}
             padding={12}
             style={{
               fontFamily: 'inherit',

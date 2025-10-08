@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
+import { createPortal } from 'react-dom'
 import { extractFieldsFromSchema, parseResponseFormatSafely } from '@/lib/response-format'
 import { cn } from '@/lib/utils'
 import { getBlock } from '@/blocks'
@@ -13,6 +14,7 @@ interface OutputSelectProps {
   onOutputSelect: (outputIds: string[]) => void
   disabled?: boolean
   placeholder?: string
+  valueMode?: 'id' | 'label'
 }
 
 export function OutputSelect({
@@ -21,11 +23,46 @@ export function OutputSelect({
   onOutputSelect,
   disabled = false,
   placeholder = 'Select output sources',
+  valueMode = 'id',
 }: OutputSelectProps) {
   const [isOutputDropdownOpen, setIsOutputDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const portalRef = useRef<HTMLDivElement>(null)
+  const [portalStyle, setPortalStyle] = useState<{
+    top: number
+    left: number
+    width: number
+    height: number
+  } | null>(null)
   const blocks = useWorkflowStore((state) => state.blocks)
   const { isShowingDiff, isDiffReady, diffWorkflow } = useWorkflowDiffStore()
+  // Find all scrollable ancestors so the dropdown can stay pinned on scroll
+  const getScrollableAncestors = (el: HTMLElement | null): (HTMLElement | Window)[] => {
+    const ancestors: (HTMLElement | Window)[] = []
+    let node: HTMLElement | null = el?.parentElement || null
+    const isScrollable = (elem: HTMLElement) => {
+      const style = window.getComputedStyle(elem)
+      const overflowY = style.overflowY
+      const overflow = style.overflow
+      const hasScroll = elem.scrollHeight > elem.clientHeight
+      return (
+        hasScroll &&
+        (overflowY === 'auto' ||
+          overflowY === 'scroll' ||
+          overflow === 'auto' ||
+          overflow === 'scroll')
+      )
+    }
+
+    while (node && node !== document.body) {
+      if (isScrollable(node)) ancestors.push(node)
+      node = node.parentElement
+    }
+
+    // Always include window as a fallback
+    ancestors.push(window)
+    return ancestors
+  }
 
   // Track subblock store state to ensure proper reactivity
   const subBlockValues = useSubBlockStore((state) =>
@@ -166,28 +203,31 @@ export function OutputSelect({
     return outputs
   }, [workflowBlocks, workflowId, isShowingDiff, isDiffReady, diffWorkflow, blocks, subBlockValues])
 
+  // Utility to check selected by id or label
+  const isSelectedValue = (o: { id: string; label: string }) =>
+    selectedOutputs.includes(o.id) || selectedOutputs.includes(o.label)
+
   // Get selected outputs display text
   const selectedOutputsDisplayText = useMemo(() => {
     if (!selectedOutputs || selectedOutputs.length === 0) {
       return placeholder
     }
 
-    // Ensure all selected outputs exist in the workflowOutputs array
-    const validOutputs = selectedOutputs.filter((id) => workflowOutputs.some((o) => o.id === id))
+    // Ensure all selected outputs exist in the workflowOutputs array by id or label
+    const validOutputs = selectedOutputs.filter((val) =>
+      workflowOutputs.some((o) => o.id === val || o.label === val)
+    )
 
     if (validOutputs.length === 0) {
       return placeholder
     }
 
     if (validOutputs.length === 1) {
-      const output = workflowOutputs.find((o) => o.id === validOutputs[0])
+      const output = workflowOutputs.find(
+        (o) => o.id === validOutputs[0] || o.label === validOutputs[0]
+      )
       if (output) {
-        // Add defensive check for output.blockName
-        const blockNameText =
-          output.blockName && typeof output.blockName === 'string'
-            ? output.blockName.replace(/\s+/g, '').toLowerCase()
-            : `block-${output.blockId}`
-        return `${blockNameText}.${output.path}`
+        return output.label
       }
       return placeholder
     }
@@ -199,10 +239,14 @@ export function OutputSelect({
   const selectedOutputInfo = useMemo(() => {
     if (!selectedOutputs || selectedOutputs.length === 0) return null
 
-    const validOutputs = selectedOutputs.filter((id) => workflowOutputs.some((o) => o.id === id))
+    const validOutputs = selectedOutputs.filter((val) =>
+      workflowOutputs.some((o) => o.id === val || o.label === val)
+    )
     if (validOutputs.length === 0) return null
 
-    const output = workflowOutputs.find((o) => o.id === validOutputs[0])
+    const output = workflowOutputs.find(
+      (o) => o.id === validOutputs[0] || o.label === validOutputs[0]
+    )
     if (!output) return null
 
     return {
@@ -295,7 +339,10 @@ export function OutputSelect({
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      const target = event.target as Node
+      const insideTrigger = dropdownRef.current?.contains(target)
+      const insidePortal = portalRef.current?.contains(target)
+      if (!insideTrigger && !insidePortal) {
         setIsOutputDropdownOpen(false)
       }
     }
@@ -306,15 +353,52 @@ export function OutputSelect({
     }
   }, [])
 
+  // Position the portal dropdown relative to the trigger button
+  useEffect(() => {
+    const updatePosition = () => {
+      if (!isOutputDropdownOpen || !dropdownRef.current) return
+      const rect = dropdownRef.current.getBoundingClientRect()
+      const available = Math.max(140, window.innerHeight - rect.bottom - 12)
+      const height = Math.min(available, 240)
+      setPortalStyle({ top: rect.bottom + 4, left: rect.left, width: rect.width, height })
+    }
+
+    let attachedScrollTargets: (HTMLElement | Window)[] = []
+    let rafId: number | null = null
+    if (isOutputDropdownOpen) {
+      updatePosition()
+      window.addEventListener('resize', updatePosition)
+      attachedScrollTargets = getScrollableAncestors(dropdownRef.current)
+      attachedScrollTargets.forEach((target) =>
+        target.addEventListener('scroll', updatePosition, { passive: true })
+      )
+      const loop = () => {
+        updatePosition()
+        rafId = requestAnimationFrame(loop)
+      }
+      rafId = requestAnimationFrame(loop)
+    }
+
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      attachedScrollTargets.forEach((target) =>
+        target.removeEventListener('scroll', updatePosition)
+      )
+      if (rafId) cancelAnimationFrame(rafId)
+    }
+  }, [isOutputDropdownOpen])
+
   // Handle output selection - toggle selection
   const handleOutputSelection = (value: string) => {
+    const emittedValue =
+      valueMode === 'label' ? value : workflowOutputs.find((o) => o.label === value)?.id || value
     let newSelectedOutputs: string[]
-    const index = selectedOutputs.indexOf(value)
+    const index = selectedOutputs.indexOf(emittedValue)
 
     if (index === -1) {
-      newSelectedOutputs = [...new Set([...selectedOutputs, value])]
+      newSelectedOutputs = [...new Set([...selectedOutputs, emittedValue])]
     } else {
-      newSelectedOutputs = selectedOutputs.filter((id) => id !== value)
+      newSelectedOutputs = selectedOutputs.filter((id) => id !== emittedValue)
     }
 
     onOutputSelect(newSelectedOutputs)
@@ -359,48 +443,73 @@ export function OutputSelect({
         />
       </button>
 
-      {isOutputDropdownOpen && workflowOutputs.length > 0 && (
-        <div className='absolute left-0 z-50 mt-1 w-full overflow-hidden rounded-[8px] border border-[#E5E5E5] bg-[#FFFFFF] pt-1 shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'>
-          <div className='max-h-[230px] overflow-y-auto'>
-            {Object.entries(groupedOutputs).map(([blockName, outputs]) => (
-              <div key={blockName}>
-                <div className='border-[#E5E5E5] border-t px-3 pt-1.5 pb-0.5 font-normal text-muted-foreground text-xs first:border-t-0 dark:border-[#414141]'>
-                  {blockName}
-                </div>
-                <div>
-                  {outputs.map((output) => (
-                    <button
-                      type='button'
-                      key={output.id}
-                      onClick={() => handleOutputSelection(output.id)}
-                      className={cn(
-                        'flex w-full items-center gap-2 px-3 py-1.5 text-left font-normal text-sm',
-                        'hover:bg-accent hover:text-accent-foreground',
-                        'focus:bg-accent focus:text-accent-foreground focus:outline-none'
-                      )}
-                    >
-                      <div
-                        className='flex h-5 w-5 flex-shrink-0 items-center justify-center rounded'
-                        style={{
-                          backgroundColor: getOutputColor(output.blockId, output.blockType),
-                        }}
-                      >
-                        <span className='h-3 w-3 font-bold text-white text-xs'>
-                          {blockName.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                      <span className='flex-1 truncate'>{output.path}</span>
-                      {selectedOutputs.includes(output.id) && (
-                        <Check className='h-4 w-4 flex-shrink-0 text-muted-foreground' />
-                      )}
-                    </button>
-                  ))}
-                </div>
+      {isOutputDropdownOpen &&
+        workflowOutputs.length > 0 &&
+        portalStyle &&
+        createPortal(
+          <div
+            ref={portalRef}
+            style={{
+              position: 'fixed',
+              top: portalStyle.top - 1, // overlap border by 1px to avoid visible gap
+              left: portalStyle.left,
+              width: portalStyle.width,
+              zIndex: 2147483647,
+              pointerEvents: 'auto',
+            }}
+            className='mt-0'
+            data-rs-scroll-lock-ignore
+          >
+            <div className='overflow-hidden rounded-[8px] border border-[#E5E5E5] bg-[#FFFFFF] pt-1 shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'>
+              <div
+                className='overflow-y-auto overscroll-contain'
+                style={{ maxHeight: portalStyle.height }}
+                onWheel={(e) => {
+                  // Keep wheel scroll inside the dropdown and avoid dialog/body scroll locks
+                  e.stopPropagation()
+                }}
+              >
+                {Object.entries(groupedOutputs).map(([blockName, outputs]) => (
+                  <div key={blockName}>
+                    <div className='border-[#E5E5E5] border-t px-3 pt-1.5 pb-0.5 font-normal text-muted-foreground text-xs first:border-t-0 dark:border-[#414141]'>
+                      {blockName}
+                    </div>
+                    <div>
+                      {outputs.map((output) => (
+                        <button
+                          type='button'
+                          key={output.id}
+                          onClick={() => handleOutputSelection(output.label)}
+                          className={cn(
+                            'flex w-full items-center gap-2 px-3 py-1.5 text-left font-normal text-sm',
+                            'hover:bg-accent hover:text-accent-foreground',
+                            'focus:bg-accent focus:text-accent-foreground focus:outline-none'
+                          )}
+                        >
+                          <div
+                            className='flex h-5 w-5 flex-shrink-0 items-center justify-center rounded'
+                            style={{
+                              backgroundColor: getOutputColor(output.blockId, output.blockType),
+                            }}
+                          >
+                            <span className='h-3 w-3 font-bold text-white text-xs'>
+                              {blockName.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <span className='flex-1 truncate'>{output.path}</span>
+                          {isSelectedValue(output) && (
+                            <Check className='h-4 w-4 flex-shrink-0 text-muted-foreground' />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   )
 }

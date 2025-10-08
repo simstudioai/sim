@@ -30,7 +30,7 @@ interface ExecutorOptions {
   workflowVariables?: Record<string, any>
   contextExtensions?: {
     stream?: boolean
-    selectedOutputIds?: string[]
+    selectedOutputs?: string[]
     edges?: Array<{ source: string; target: string }>
     onStream?: (streamingExecution: StreamingExecution) => Promise<void>
     executionId?: string
@@ -181,11 +181,11 @@ export async function executeWorkflowWithLogging(
   )
 
   // If this is a chat execution, get the selected outputs
-  let selectedOutputIds: string[] | undefined
+  let selectedOutputs: string[] | undefined
   if (isExecutingFromChat) {
     // Get selected outputs from chat store
     const chatStore = await import('@/stores/panel/chat/store').then((mod) => mod.useChatStore)
-    selectedOutputIds = chatStore.getState().getSelectedWorkflowOutput(activeWorkflowId)
+    selectedOutputs = chatStore.getState().getSelectedWorkflowOutput(activeWorkflowId)
   }
 
   // Create executor options
@@ -197,7 +197,7 @@ export async function executeWorkflowWithLogging(
     workflowVariables,
     contextExtensions: {
       stream: isExecutingFromChat,
-      selectedOutputIds,
+      selectedOutputs,
       edges: workflow.connections.map((conn) => ({
         source: conn.source,
         target: conn.target,

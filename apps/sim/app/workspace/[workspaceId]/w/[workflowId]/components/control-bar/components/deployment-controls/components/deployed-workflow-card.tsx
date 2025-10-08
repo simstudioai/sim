@@ -56,7 +56,8 @@ export function DeployedWorkflowCard({
         <div className='flex items-center justify-between'>
           <h3 className='font-medium'>Workflow Preview</h3>
           <div className='flex items-center gap-2'>
-            {hasCurrent && (
+            {/* Show Current only when no explicit version is selected */}
+            {hasCurrent && !hasSelected && (
               <button
                 type='button'
                 className={cn(
@@ -68,6 +69,7 @@ export function DeployedWorkflowCard({
                 Current
               </button>
             )}
+            {/* Always show Active Deployed */}
             {hasActive && (
               <button
                 type='button'
@@ -80,6 +82,7 @@ export function DeployedWorkflowCard({
                 Active Deployed
               </button>
             )}
+            {/* If a specific version is selected, show its label */}
             {hasSelected && (
               <button
                 type='button'
@@ -109,7 +112,7 @@ export function DeployedWorkflowCard({
             width='100%'
             isPannable={true}
             defaultPosition={{ x: 0, y: 0 }}
-            defaultZoom={1}
+            defaultZoom={0.8}
           />
         </div>
       </CardContent>

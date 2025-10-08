@@ -32,6 +32,7 @@ interface WorkflowPreviewProps {
   isPannable?: boolean
   defaultPosition?: { x: number; y: number }
   defaultZoom?: number
+  fitPadding?: number
   onNodeClick?: (blockId: string, mousePosition: { x: number; y: number }) => void
 }
 
@@ -54,7 +55,8 @@ export function WorkflowPreview({
   width = '100%',
   isPannable = false,
   defaultPosition,
-  defaultZoom,
+  defaultZoom = 0.8,
+  fitPadding = 0.25,
   onNodeClick,
 }: WorkflowPreviewProps) {
   // Check if the workflow state is valid
@@ -274,6 +276,7 @@ export function WorkflowPreview({
           edgeTypes={edgeTypes}
           connectionLineType={ConnectionLineType.SmoothStep}
           fitView
+          fitViewOptions={{ padding: fitPadding }}
           panOnScroll={false}
           panOnDrag={isPannable}
           zoomOnScroll={false}
@@ -298,7 +301,12 @@ export function WorkflowPreview({
               : undefined
           }
         >
-          <Background />
+          <Background
+            color='hsl(var(--workflow-dots))'
+            size={4}
+            gap={40}
+            style={{ backgroundColor: 'hsl(var(--workflow-background))' }}
+          />
         </ReactFlow>
       </div>
     </ReactFlowProvider>

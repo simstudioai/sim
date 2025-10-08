@@ -5,9 +5,11 @@ import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
+import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { getSession } from '@/lib/auth'
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { env } from '@/lib/env'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -23,6 +25,7 @@ import {
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { Executor } from '@/executor'
+import type { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import { RateLimitError, RateLimiter, type TriggerType } from '@/services/queue'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
@@ -32,15 +35,11 @@ const logger = createLogger('WorkflowExecuteAPI')
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-// Define the schema for environment variables
 const EnvVarsSchema = z.record(z.string())
 
-// Keep track of running executions to prevent duplicate requests
-// Use a combination of workflow ID and request ID to allow concurrent executions with different inputs
 const runningExecutions = new Set<string>()
 
-// Utility function to filter out logs and workflowConnections from API response
-function createFilteredResult(result: any) {
+export function createFilteredResult(result: any) {
   return {
     ...result,
     logs: undefined,
@@ -53,7 +52,6 @@ function createFilteredResult(result: any) {
   }
 }
 
-// Custom error class for usage limit exceeded
 class UsageLimitError extends Error {
   statusCode: number
   constructor(message: string, statusCode = 402) {
@@ -62,20 +60,76 @@ class UsageLimitError extends Error {
   }
 }
 
-async function executeWorkflow(
+/**
+ * Resolves output IDs to the internal blockId_attribute format
+ * Supports both:
+ * - User-facing format: blockName.path (e.g., "agent1.content")
+ * - Internal format: blockId_attribute (e.g., "uuid_content") - used by chat deployments
+ */
+function resolveOutputIds(
+  selectedOutputs: string[] | undefined,
+  blocks: Record<string, any>
+): string[] | undefined {
+  if (!selectedOutputs || selectedOutputs.length === 0) {
+    return selectedOutputs
+  }
+
+  // UUID regex to detect if it's already in blockId_attribute format
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+
+  return selectedOutputs.map((outputId) => {
+    // If it starts with a UUID, it's already in blockId_attribute format (from chat deployments)
+    if (UUID_REGEX.test(outputId)) {
+      return outputId
+    }
+
+    // Otherwise, it's in blockName.path format from the user/API
+    const dotIndex = outputId.indexOf('.')
+    if (dotIndex === -1) {
+      logger.warn(`Invalid output ID format (missing dot): ${outputId}`)
+      return outputId
+    }
+
+    const blockName = outputId.substring(0, dotIndex)
+    const path = outputId.substring(dotIndex + 1)
+
+    // Find the block by name (case-insensitive, ignoring spaces)
+    const normalizedBlockName = blockName.toLowerCase().replace(/\s+/g, '')
+    const block = Object.values(blocks).find((b: any) => {
+      const normalized = (b.name || '').toLowerCase().replace(/\s+/g, '')
+      return normalized === normalizedBlockName
+    })
+
+    if (!block) {
+      logger.warn(`Block not found for name: ${blockName} (from output ID: ${outputId})`)
+      return outputId
+    }
+
+    const resolvedId = `${block.id}_${path}`
+    logger.debug(`Resolved output ID: ${outputId} -> ${resolvedId}`)
+    return resolvedId
+  })
+}
+
+export async function executeWorkflow(
   workflow: any,
   requestId: string,
-  input?: any,
-  executingUserId?: string
+  input: any | undefined,
+  actorUserId: string,
+  streamConfig?: {
+    enabled: boolean
+    selectedOutputs?: string[]
+    isSecureMode?: boolean // When true, filter out all sensitive data
+    workflowTriggerType?: 'api' | 'chat' // Which trigger block type to look for (default: 'api')
+    onStream?: (streamingExec: any) => Promise<void> // Callback for streaming agent responses
+    onBlockComplete?: (blockId: string, output: any) => Promise<void> // Callback when any block completes
+  }
 ): Promise<any> {
   const workflowId = workflow.id
   const executionId = uuidv4()
 
-  // Create a unique execution key combining workflow ID and request ID
-  // This allows concurrent executions of the same workflow with different inputs
   const executionKey = `${workflowId}:${requestId}`
 
-  // Skip if this exact execution is already running (prevents duplicate requests)
   if (runningExecutions.has(executionKey)) {
     logger.warn(`[${requestId}] Execution is already running: ${executionKey}`)
     throw new Error('Execution is already running')
@@ -85,8 +139,8 @@ async function executeWorkflow(
 
   // Rate limiting is now handled before entering the sync queue
 
-  // Check if the user has exceeded their usage limits
-  const usageCheck = await checkServerSideUsageLimits(workflow.userId)
+  // Check if the actor has exceeded their usage limits
+  const usageCheck = await checkServerSideUsageLimits(actorUserId)
   if (usageCheck.isExceeded) {
     logger.warn(`[${requestId}] User ${workflow.userId} has exceeded usage limits`, {
       currentUsage: usageCheck.currentUsage,
@@ -132,13 +186,13 @@ async function executeWorkflow(
 
     // Load personal (for the executing user) and workspace env (workspace overrides personal)
     const { personalEncrypted, workspaceEncrypted } = await getPersonalAndWorkspaceEnv(
-      executingUserId || workflow.userId,
+      actorUserId,
       workflow.workspaceId || undefined
     )
     const variables = EnvVarsSchema.parse({ ...personalEncrypted, ...workspaceEncrypted })
 
     await loggingSession.safeStart({
-      userId: executingUserId || workflow.userId,
+      userId: actorUserId,
       workspaceId: workflow.workspaceId,
       variables,
     })
@@ -273,15 +327,20 @@ async function executeWorkflow(
       true // Enable validation during execution
     )
 
-    // Determine API trigger start block
-    // Direct API execution ONLY works with API trigger blocks (or legacy starter in api/run mode)
-    const startBlock = TriggerUtils.findStartBlock(mergedStates, 'api', false) // isChildWorkflow = false
+    // Determine trigger start block based on execution type
+    // - 'chat': For chat deployments (looks for chat_trigger block)
+    // - 'api': For direct API execution (looks for api_trigger block)
+    // streamConfig is passed from POST handler when using streaming/chat
+    const preferredTriggerType = streamConfig?.workflowTriggerType || 'api'
+    const startBlock = TriggerUtils.findStartBlock(mergedStates, preferredTriggerType, false)
 
     if (!startBlock) {
-      logger.error(`[${requestId}] No API trigger configured for this workflow`)
-      throw new Error(
-        'No API trigger configured for this workflow. Add an API Trigger block or use a Start block in API mode.'
-      )
+      const errorMsg =
+        preferredTriggerType === 'api'
+          ? 'No API trigger block found. Add an API Trigger block to this workflow.'
+          : 'No chat trigger block found. Add a Chat Trigger block to this workflow.'
+      logger.error(`[${requestId}] ${errorMsg}`)
+      throw new Error(errorMsg)
     }
 
     const startBlockId = startBlock.blockId
@@ -299,38 +358,50 @@ async function executeWorkflow(
       }
     }
 
+    // Build context extensions
+    const contextExtensions: any = {
+      executionId,
+      workspaceId: workflow.workspaceId,
+      isDeployedContext: true,
+    }
+
+    // Add streaming configuration if enabled
+    if (streamConfig?.enabled) {
+      contextExtensions.stream = true
+      contextExtensions.selectedOutputs = streamConfig.selectedOutputs || []
+      contextExtensions.edges = edges.map((e: any) => ({
+        source: e.source,
+        target: e.target,
+      }))
+      contextExtensions.onStream = streamConfig.onStream
+      contextExtensions.onBlockComplete = streamConfig.onBlockComplete
+    }
+
     const executor = new Executor({
       workflow: serializedWorkflow,
       currentBlockStates: processedBlockStates,
       envVarValues: decryptedEnvVars,
       workflowInput: processedInput,
       workflowVariables,
-      contextExtensions: {
-        executionId,
-        workspaceId: workflow.workspaceId,
-        isDeployedContext: true,
-      },
+      contextExtensions,
     })
 
     // Set up logging on the executor
     loggingSession.setupExecutor(executor)
 
-    const result = await executor.execute(workflowId, startBlockId)
-
-    // Check if we got a StreamingExecution result (with stream + execution properties)
-    // For API routes, we only care about the ExecutionResult part, not the stream
-    const executionResult = 'stream' in result && 'execution' in result ? result.execution : result
+    // Execute workflow (will always return ExecutionResult since we don't use onStream)
+    const result = (await executor.execute(workflowId, startBlockId)) as ExecutionResult
 
     logger.info(`[${requestId}] Workflow execution completed: ${workflowId}`, {
-      success: executionResult.success,
-      executionTime: executionResult.metadata?.duration,
+      success: result.success,
+      executionTime: result.metadata?.duration,
     })
 
     // Build trace spans from execution result (works for both success and failure)
-    const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
+    const { traceSpans, totalDuration } = buildTraceSpans(result)
 
     // Update workflow run counts if execution was successful
-    if (executionResult.success) {
+    if (result.success) {
       await updateWorkflowRunCounts(workflowId)
 
       // Track API call in user stats
@@ -340,19 +411,27 @@ async function executeWorkflow(
           totalApiCalls: sql`total_api_calls + 1`,
           lastActive: sql`now()`,
         })
-        .where(eq(userStats.userId, workflow.userId))
+        .where(eq(userStats.userId, actorUserId))
     }
 
     await loggingSession.safeComplete({
       endedAt: new Date().toISOString(),
       totalDurationMs: totalDuration || 0,
-      finalOutput: executionResult.output || {},
+      finalOutput: result.output || {},
       traceSpans: (traceSpans || []) as any,
     })
 
-    return executionResult
+    // For non-streaming, return the execution result
+    return result
   } catch (error: any) {
     logger.error(`[${requestId}] Workflow execution failed: ${workflowId}`, error)
+
+    const executionResultForError = (error?.executionResult as ExecutionResult | undefined) || {
+      success: false,
+      output: {},
+      logs: [],
+    }
+    const { traceSpans } = buildTraceSpans(executionResultForError)
 
     await loggingSession.safeCompleteWithError({
       endedAt: new Date().toISOString(),
@@ -361,6 +440,7 @@ async function executeWorkflow(
         message: error.message || 'Workflow execution failed',
         stackTrace: error.stack,
       },
+      traceSpans,
     })
 
     throw error
@@ -396,19 +476,30 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // Synchronous execution
     try {
-      // Check rate limits BEFORE entering queue for GET requests
-      if (triggerType === 'api') {
-        // Get user subscription (checks both personal and org subscriptions)
-        const userSubscription = await getHighestPrioritySubscription(validation.workflow.userId)
+      // Resolve actor user id
+      let actorUserId: string | null = null
+      if (triggerType === 'manual') {
+        actorUserId = session!.user!.id
+      } else {
+        const apiKeyHeader = request.headers.get('X-API-Key')
+        const auth = apiKeyHeader ? await authenticateApiKeyFromHeader(apiKeyHeader) : null
+        if (!auth?.success || !auth.userId) {
+          return createErrorResponse('Unauthorized', 401)
+        }
+        actorUserId = auth.userId
+        if (auth.keyId) {
+          void updateApiKeyLastUsed(auth.keyId).catch(() => {})
+        }
 
+        // Check rate limits BEFORE entering execution for API requests
+        const userSubscription = await getHighestPrioritySubscription(actorUserId)
         const rateLimiter = new RateLimiter()
         const rateLimitCheck = await rateLimiter.checkRateLimitWithSubscription(
-          validation.workflow.userId,
+          actorUserId,
           userSubscription,
-          triggerType,
-          false // isAsync = false for sync calls
+          'api',
+          false
         )
-
         if (!rateLimitCheck.allowed) {
           throw new RateLimitError(
             `Rate limit exceeded. You have ${rateLimitCheck.remaining} requests remaining. Resets at ${rateLimitCheck.resetAt.toISOString()}`
@@ -420,8 +511,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         validation.workflow,
         requestId,
         undefined,
-        // Executing user (manual run): if session present, use that user for fallback
-        (await getSession())?.user?.id || undefined
+        actorUserId as string
       )
 
       // Check if the workflow execution contains a response block output
@@ -487,40 +577,76 @@ export async function POST(
     const executionMode = request.headers.get('X-Execution-Mode')
     const isAsync = executionMode === 'async'
 
-    // Parse request body
+    // Parse request body first to check for internal parameters
     const body = await request.text()
     logger.info(`[${requestId}] ${body ? 'Request body provided' : 'No request body provided'}`)
 
-    let input = {}
+    let parsedBody: any = {}
     if (body) {
       try {
-        input = JSON.parse(body)
+        parsedBody = JSON.parse(body)
       } catch (error) {
         logger.error(`[${requestId}] Failed to parse request body as JSON`, error)
         return createErrorResponse('Invalid JSON in request body', 400)
       }
     }
 
-    logger.info(`[${requestId}] Input passed to workflow:`, input)
+    logger.info(`[${requestId}] Input passed to workflow:`, parsedBody)
 
-    // Get authenticated user and determine trigger type
-    let authenticatedUserId: string | null = null
-    let triggerType: TriggerType = 'manual'
+    const extractExecutionParams = (req: NextRequest, body: any) => {
+      const internalSecret = req.headers.get('X-Internal-Secret')
+      const isInternalCall = internalSecret === env.INTERNAL_API_SECRET
 
-    const session = await getSession()
-    if (session?.user?.id) {
-      authenticatedUserId = session.user.id
-      triggerType = 'manual' // UI session (not rate limited)
-    } else {
-      const apiKeyHeader = request.headers.get('X-API-Key')
-      if (apiKeyHeader) {
-        authenticatedUserId = validation.workflow.userId
-        triggerType = 'api'
+      return {
+        isSecureMode: body.isSecureMode !== undefined ? body.isSecureMode : isInternalCall,
+        streamResponse: req.headers.get('X-Stream-Response') === 'true' || body.stream === true,
+        selectedOutputs:
+          body.selectedOutputs ||
+          (req.headers.get('X-Selected-Outputs')
+            ? JSON.parse(req.headers.get('X-Selected-Outputs')!)
+            : undefined),
+        workflowTriggerType:
+          body.workflowTriggerType || (isInternalCall && body.stream ? 'chat' : 'api'),
+        input: body.input !== undefined ? body.input : body,
       }
     }
 
-    if (!authenticatedUserId) {
-      return createErrorResponse('Authentication required', 401)
+    const {
+      isSecureMode: finalIsSecureMode,
+      streamResponse,
+      selectedOutputs,
+      workflowTriggerType,
+      input,
+    } = extractExecutionParams(request as NextRequest, parsedBody)
+
+    // Get authenticated user and determine trigger type
+    let authenticatedUserId: string
+    let triggerType: TriggerType = 'manual'
+
+    // For internal calls (chat deployments), use the workflow owner's ID
+    if (finalIsSecureMode) {
+      authenticatedUserId = validation.workflow.userId
+      triggerType = 'manual' // Chat deployments use manual trigger type (no rate limit)
+    } else {
+      const session = await getSession()
+      const apiKeyHeader = request.headers.get('X-API-Key')
+
+      if (session?.user?.id && !apiKeyHeader) {
+        authenticatedUserId = session.user.id
+        triggerType = 'manual'
+      } else if (apiKeyHeader) {
+        const auth = await authenticateApiKeyFromHeader(apiKeyHeader)
+        if (!auth.success || !auth.userId) {
+          return createErrorResponse('Unauthorized', 401)
+        }
+        authenticatedUserId = auth.userId
+        triggerType = 'api'
+        if (auth.keyId) {
+          void updateApiKeyLastUsed(auth.keyId).catch(() => {})
+        }
+      } else {
+        return createErrorResponse('Authentication required', 401)
+      }
     }
 
     // Get user subscription (checks both personal and org subscriptions)
@@ -606,13 +732,47 @@ export async function POST(
         )
       }
 
+      // Handle streaming response - wrap execution in SSE stream
+      if (streamResponse) {
+        // Load workflow blocks to resolve output IDs from blockName.attribute to blockId_attribute format
+        const deployedData = await loadDeployedWorkflowState(workflowId)
+        const resolvedSelectedOutputs = selectedOutputs
+          ? resolveOutputIds(selectedOutputs, deployedData.blocks || {})
+          : selectedOutputs
+
+        // Use shared streaming response creator
+        const { createStreamingResponse } = await import('@/lib/workflows/streaming')
+        const { SSE_HEADERS } = await import('@/lib/utils')
+
+        const stream = await createStreamingResponse({
+          requestId,
+          workflow: validation.workflow,
+          input,
+          executingUserId: authenticatedUserId,
+          streamConfig: {
+            selectedOutputs: resolvedSelectedOutputs,
+            isSecureMode: finalIsSecureMode,
+            workflowTriggerType,
+          },
+          createFilteredResult,
+        })
+
+        return new NextResponse(stream, {
+          status: 200,
+          headers: SSE_HEADERS,
+        })
+      }
+
+      // Non-streaming execution
       const result = await executeWorkflow(
         validation.workflow,
         requestId,
         input,
-        authenticatedUserId
+        authenticatedUserId,
+        undefined
       )
 
+      // Non-streaming response
       const hasResponseBlock = workflowHasResponseBlock(result)
       if (hasResponseBlock) {
         return createHttpResponseFromBlock(result)

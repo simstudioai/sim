@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { getVideoUrl } from '@/lib/utils'
+import { getAssetUrl } from '@/lib/utils'
 import { Lightbox } from './lightbox'
 
 interface VideoProps {
@@ -39,7 +39,7 @@ export function Video({
         muted={muted}
         playsInline={playsInline}
         className={`${className} ${enableLightbox ? 'cursor-pointer transition-opacity hover:opacity-90' : ''}`}
-        src={getVideoUrl(src)}
+        src={getAssetUrl(src)}
         onClick={handleVideoClick}
       />
 

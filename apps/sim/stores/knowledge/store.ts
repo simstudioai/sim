@@ -159,6 +159,7 @@ interface KnowledgeStore {
   updateChunk: (documentId: string, chunkId: string, updates: Partial<ChunkData>) => void
   addPendingDocuments: (knowledgeBaseId: string, documents: DocumentData[]) => void
   addKnowledgeBase: (knowledgeBase: KnowledgeBaseData) => void
+  updateKnowledgeBase: (id: string, updates: Partial<KnowledgeBaseData>) => void
   removeKnowledgeBase: (id: string) => void
   removeDocument: (knowledgeBaseId: string, documentId: string) => void
   clearDocuments: (knowledgeBaseId: string) => void
@@ -794,6 +795,24 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
       knowledgeBasesList: [knowledgeBase, ...state.knowledgeBasesList],
     }))
     logger.info(`Knowledge base added: ${knowledgeBase.id}`)
+  },
+
+  updateKnowledgeBase: (id: string, updates: Partial<KnowledgeBaseData>) => {
+    set((state) => {
+      const existingKb = state.knowledgeBases[id]
+      if (!existingKb) return state
+
+      const updatedKb = { ...existingKb, ...updates }
+
+      return {
+        knowledgeBases: {
+          ...state.knowledgeBases,
+          [id]: updatedKb,
+        },
+        knowledgeBasesList: state.knowledgeBasesList.map((kb) => (kb.id === id ? updatedKb : kb)),
+      }
+    })
+    logger.info(`Knowledge base updated: ${id}`)
   },
 
   removeKnowledgeBase: (id: string) => {

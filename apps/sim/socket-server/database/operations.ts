@@ -15,9 +15,8 @@ const socketDb = drizzle(
     prepare: false,
     idle_timeout: 10,
     connect_timeout: 20,
-    max: 25,
+    max: 15,
     onnotice: () => {},
-    debug: false,
   }),
   { schema }
 )
@@ -339,6 +338,10 @@ async function handleBlockOperationTx(
     case 'update-position': {
       if (!payload.id || !payload.position) {
         throw new Error('Missing required fields for update position operation')
+      }
+
+      if (payload.commit !== true) {
+        return
       }
 
       const updateResult = await tx

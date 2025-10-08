@@ -582,6 +582,8 @@ export function FrozenCanvas({
           workflowState={data.workflowState}
           showSubBlocks={true}
           isPannable={true}
+          defaultZoom={0.8}
+          fitPadding={0.25}
           onNodeClick={(blockId) => {
             // Always allow clicking blocks, even if they don't have execution data
             // This is important for failed workflows where some blocks never executed

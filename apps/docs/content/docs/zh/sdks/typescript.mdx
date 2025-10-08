@@ -7,10 +7,10 @@ import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 
-Sim 的官方 TypeScript/JavaScript SDK 提供完整的类型安全，支持 Node.js 和浏览器环境，允许您从 Node.js 应用程序、Web 应用程序和其他 JavaScript 环境中以编程方式执行工作流。目前，所有工作流执行均为同步。
+Sim 的官方 TypeScript/JavaScript SDK 提供完整的类型安全，支持 Node.js 和浏览器环境，允许您从 Node.js 应用程序、Web 应用程序和其他 JavaScript 环境中以编程方式执行工作流。
 
 <Callout type="info">
-  TypeScript SDK 提供完整的类型安全，支持 Node.js 和浏览器环境。目前，所有工作流执行均为同步。
+  TypeScript SDK 提供完整的类型安全、异步执行支持、带有指数回退的自动速率限制以及使用跟踪。
 </Callout>
 
 ## 安装
@@ -91,12 +91,17 @@ const result = await client.executeWorkflow('workflow-id', {
 ```
 
 **参数：**
-- `workflowId`（字符串）：要执行的工作流的 ID
-- `options`（ExecutionOptions，可选）：
-  - `input`（任意类型）：传递给工作流的输入数据
-  - `timeout`（数字）：超时时间（以毫秒为单位，默认值：30000）
+- `workflowId` (字符串): 要执行的工作流的 ID
+- `options` (ExecutionOptions，可选):
+  - `input` (任意类型): 传递给工作流的输入数据
+  - `timeout` (数字): 超时时间（以毫秒为单位，默认值：30000）
+  - `stream` (布尔值): 启用流式响应（默认值：false）
+  - `selectedOutputs` (字符串数组): 以 `blockName.attribute` 格式阻止流中的输出（例如，`["agent1.content"]`）
+  - `async` (布尔值): 异步执行（默认值：false）
 
-**返回值：** `Promise<WorkflowExecutionResult>`
+**返回值：** `Promise<WorkflowExecutionResult | AsyncExecutionResult>`
+
+当 `async: true` 时，立即返回一个用于轮询的任务 ID。否则，等待完成。
 
 ##### getWorkflowStatus()
 
@@ -108,7 +113,7 @@ console.log('Is deployed:', status.isDeployed);
 ```
 
 **参数：**
-- `workflowId`（字符串）：工作流的 ID
+- `workflowId` (字符串): 工作流的 ID
 
 **返回值：** `Promise<WorkflowStatus>`
 
@@ -124,32 +129,121 @@ if (isReady) {
 ```
 
 **参数：**
-- `workflowId`（字符串）：工作流的 ID
+- `workflowId` (字符串): 工作流的 ID
 
 **返回值：** `Promise<boolean>`
 
-##### executeWorkflowSync()
+##### getJobStatus()
 
-<Callout type="info">
-  当前，此方法与 `executeWorkflow()` 相同，因为所有执行都是同步的。提供此方法是为了在将来添加异步执行时保持兼容性。
-</Callout>
-
-执行工作流（当前为同步，与 `executeWorkflow()` 相同）。
+获取异步任务执行的状态。
 
 ```typescript
-const result = await client.executeWorkflowSync('workflow-id', {
-  input: { data: 'some input' },
-  timeout: 60000
+const status = await client.getJobStatus('task-id-from-async-execution');
+console.log('Status:', status.status); // 'queued', 'processing', 'completed', 'failed'
+if (status.status === 'completed') {
+  console.log('Output:', status.output);
+}
+```
+
+**参数：**
+- `taskId` (字符串): 异步执行返回的任务 ID
+
+**返回值：** `Promise<JobStatus>`
+
+**响应字段：**
+- `success` (布尔值): 请求是否成功
+- `taskId` (字符串): 任务 ID
+- `status` (字符串): 可能的值包括 `'queued'`, `'processing'`, `'completed'`, `'failed'`, `'cancelled'`
+- `metadata` (对象): 包含 `startedAt`, `completedAt` 和 `duration`
+- `output` (任意类型，可选): 工作流输出（完成时）
+- `error` (任意类型，可选): 错误详情（失败时）
+- `estimatedDuration` (数字，可选): 估计持续时间（以毫秒为单位，处理中/排队时）
+
+##### executeWithRetry()
+
+使用指数退避机制，在遇到速率限制错误时自动重试执行工作流。
+
+```typescript
+const result = await client.executeWithRetry('workflow-id', {
+  input: { message: 'Hello' },
+  timeout: 30000
+}, {
+  maxRetries: 3,           // Maximum number of retries
+  initialDelay: 1000,      // Initial delay in ms (1 second)
+  maxDelay: 30000,         // Maximum delay in ms (30 seconds)
+  backoffMultiplier: 2     // Exponential backoff multiplier
 });
 ```
 
 **参数：**
 - `workflowId`（字符串）：要执行的工作流的 ID
-- `options`（ExecutionOptions，可选）：
-  - `input`（任意类型）：传递给工作流的输入数据
-  - `timeout`（数字）：初始请求的超时时间（以毫秒为单位）
+- `options`（ExecutionOptions，可选）：与 `executeWorkflow()` 相同
+- `retryOptions`（RetryOptions，可选）：
+  - `maxRetries`（数字）：最大重试次数（默认值：3）
+  - `initialDelay`（数字）：初始延迟时间（以毫秒为单位，默认值：1000）
+  - `maxDelay`（数字）：最大延迟时间（以毫秒为单位，默认值：30000）
+  - `backoffMultiplier`（数字）：退避倍数（默认值：2）
 
-**返回值：** `Promise<WorkflowExecutionResult>`
+**返回值：** `Promise<WorkflowExecutionResult | AsyncExecutionResult>`
+
+重试逻辑使用指数退避（1秒 → 2秒 → 4秒 → 8秒...），并带有 ±25% 的抖动以防止蜂拥效应。如果 API 提供了 `retry-after` 头，则会使用该头。
+
+##### getRateLimitInfo()
+
+从上一次 API 响应中获取当前速率限制信息。
+
+```typescript
+const rateLimitInfo = client.getRateLimitInfo();
+if (rateLimitInfo) {
+  console.log('Limit:', rateLimitInfo.limit);
+  console.log('Remaining:', rateLimitInfo.remaining);
+  console.log('Reset:', new Date(rateLimitInfo.reset * 1000));
+}
+```
+
+**返回值：** `RateLimitInfo | null`
+
+##### getUsageLimits()
+
+获取您的账户当前的使用限制和配额信息。
+
+```typescript
+const limits = await client.getUsageLimits();
+console.log('Sync requests remaining:', limits.rateLimit.sync.remaining);
+console.log('Async requests remaining:', limits.rateLimit.async.remaining);
+console.log('Current period cost:', limits.usage.currentPeriodCost);
+console.log('Plan:', limits.usage.plan);
+```
+
+**返回值：** `Promise<UsageLimits>`
+
+**响应结构：**
+
+```typescript
+{
+  success: boolean
+  rateLimit: {
+    sync: {
+      isLimited: boolean
+      limit: number
+      remaining: number
+      resetAt: string
+    }
+    async: {
+      isLimited: boolean
+      limit: number
+      remaining: number
+      resetAt: string
+    }
+    authType: string  // 'api' or 'manual'
+  }
+  usage: {
+    currentPeriodCost: number
+    limit: number
+    plan: string  // e.g., 'free', 'pro'
+  }
+}
+```
 
 ##### setApiKey()
 
@@ -187,6 +281,20 @@ interface WorkflowExecutionResult {
 }
 ```
 
+### AsyncExecutionResult
+
+```typescript
+interface AsyncExecutionResult {
+  success: boolean;
+  taskId: string;
+  status: 'queued';
+  createdAt: string;
+  links: {
+    status: string;  // e.g., "/api/jobs/{taskId}"
+  };
+}
+```
+
 ### WorkflowStatus
 
 ```typescript
@@ -198,6 +306,45 @@ interface WorkflowStatus {
 }
 ```
 
+### RateLimitInfo
+
+```typescript
+interface RateLimitInfo {
+  limit: number;
+  remaining: number;
+  reset: number;
+  retryAfter?: number;
+}
+```
+
+### UsageLimits
+
+```typescript
+interface UsageLimits {
+  success: boolean;
+  rateLimit: {
+    sync: {
+      isLimited: boolean;
+      limit: number;
+      remaining: number;
+      resetAt: string;
+    };
+    async: {
+      isLimited: boolean;
+      limit: number;
+      remaining: number;
+      resetAt: string;
+    };
+    authType: string;
+  };
+  usage: {
+    currentPeriodCost: number;
+    limit: number;
+    plan: string;
+  };
+}
+```
+
 ### SimStudioError
 
 ```typescript
@@ -206,6 +353,13 @@ class SimStudioError extends Error {
   status?: number;
 }
 ```
+
+**常见错误代码：**
+- `UNAUTHORIZED`: 无效的 API 密钥
+- `TIMEOUT`: 请求超时
+- `RATE_LIMIT_EXCEEDED`: 超出速率限制
+- `USAGE_LIMIT_EXCEEDED`: 超出使用限制
+- `EXECUTION_ERROR`: 工作流执行失败
 
 ## 示例
 
@@ -230,7 +384,7 @@ class SimStudioError extends Error {
 import { SimStudioClient } from 'simstudio-ts-sdk';
 
 const client = new SimStudioClient({
-  apiKey: process.env.SIMSTUDIO_API_KEY!
+  apiKey: process.env.SIM_API_KEY!
 });
 
 async function runWorkflow() {
@@ -271,7 +425,7 @@ runWorkflow();
 import { SimStudioClient, SimStudioError } from 'simstudio-ts-sdk';
 
 const client = new SimStudioClient({
-  apiKey: process.env.SIMSTUDIO_API_KEY!
+  apiKey: process.env.SIM_API_KEY!
 });
 
 async function executeWithErrorHandling() {
@@ -315,14 +469,14 @@ async function executeWithErrorHandling() {
     import { SimStudioClient } from 'simstudio-ts-sdk';
 
     // Development configuration
-    const apiKey = process.env.SIMSTUDIO_API_KEY;
+    const apiKey = process.env.SIM_API_KEY;
     if (!apiKey) {
-      throw new Error('SIMSTUDIO_API_KEY environment variable is required');
+      throw new Error('SIM_API_KEY environment variable is required');
     }
 
     const client = new SimStudioClient({
       apiKey,
-      baseUrl: process.env.SIMSTUDIO_BASE_URL // optional
+      baseUrl: process.env.SIM_BASE_URL // optional
     });
     ```
 
@@ -333,14 +487,14 @@ async function executeWithErrorHandling() {
     import { SimStudioClient } from 'simstudio-ts-sdk';
 
     // Production configuration with validation
-    const apiKey = process.env.SIMSTUDIO_API_KEY;
+    const apiKey = process.env.SIM_API_KEY;
     if (!apiKey) {
-      throw new Error('SIMSTUDIO_API_KEY environment variable is required');
+      throw new Error('SIM_API_KEY environment variable is required');
     }
 
     const client = new SimStudioClient({
       apiKey,
-      baseUrl: process.env.SIMSTUDIO_BASE_URL || 'https://sim.ai'
+      baseUrl: process.env.SIM_BASE_URL || 'https://sim.ai'
     });
     ```
 
@@ -357,7 +511,7 @@ import { SimStudioClient } from 'simstudio-ts-sdk';
 
 const app = express();
 const client = new SimStudioClient({
-  apiKey: process.env.SIMSTUDIO_API_KEY!
+  apiKey: process.env.SIM_API_KEY!
 });
 
 app.use(express.json());
@@ -399,7 +553,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { SimStudioClient } from 'simstudio-ts-sdk';
 
 const client = new SimStudioClient({
-  apiKey: process.env.SIMSTUDIO_API_KEY!
+  apiKey: process.env.SIM_API_KEY!
 });
 
 export default async function handler(
@@ -469,14 +623,14 @@ document.getElementById('executeBtn')?.addEventListener('click', executeClientSi
 
 ### React Hook 示例
 
-为工作流执行创建一个自定义 React Hook：
+为工作流执行创建自定义 React hook：
 
 ```typescript
 import { useState, useCallback } from 'react';
 import { SimStudioClient, WorkflowExecutionResult } from 'simstudio-ts-sdk';
 
 const client = new SimStudioClient({
-  apiKey: process.env.NEXT_PUBLIC_SIMSTUDIO_API_KEY!
+  apiKey: process.env.SIM_API_KEY!
 });
 
 interface UseWorkflowResult {
@@ -532,7 +686,7 @@ function WorkflowComponent() {
       <button onClick={handleExecute} disabled={loading}>
         {loading ? 'Executing...' : 'Execute Workflow'}
       </button>
-      
+
       {error && <div>Error: {error.message}</div>}
       {result && (
         <div>
@@ -545,38 +699,267 @@ function WorkflowComponent() {
 }
 ```
 
-## 获取您的 API 密钥
+### 异步工作流执行
+
+为长时间运行的任务异步执行工作流：
+
+```typescript
+import { SimStudioClient, AsyncExecutionResult } from 'simstudio-ts-sdk';
+
+const client = new SimStudioClient({
+  apiKey: process.env.SIM_API_KEY!
+});
+
+async function executeAsync() {
+  try {
+    // Start async execution
+    const result = await client.executeWorkflow('workflow-id', {
+      input: { data: 'large dataset' },
+      async: true  // Execute asynchronously
+    });
+
+    // Check if result is an async execution
+    if ('taskId' in result) {
+      console.log('Task ID:', result.taskId);
+      console.log('Status endpoint:', result.links.status);
+
+      // Poll for completion
+      let status = await client.getJobStatus(result.taskId);
+
+      while (status.status === 'queued' || status.status === 'processing') {
+        console.log('Current status:', status.status);
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+        status = await client.getJobStatus(result.taskId);
+      }
+
+      if (status.status === 'completed') {
+        console.log('Workflow completed!');
+        console.log('Output:', status.output);
+        console.log('Duration:', status.metadata.duration);
+      } else {
+        console.error('Workflow failed:', status.error);
+      }
+    }
+  } catch (error) {
+    console.error('Error:', error);
+  }
+}
+
+executeAsync();
+```
+
+### 速率限制和重试
+
+通过指数退避自动处理速率限制：
+
+```typescript
+import { SimStudioClient, SimStudioError } from 'simstudio-ts-sdk';
+
+const client = new SimStudioClient({
+  apiKey: process.env.SIM_API_KEY!
+});
+
+async function executeWithRetryHandling() {
+  try {
+    // Automatically retries on rate limit
+    const result = await client.executeWithRetry('workflow-id', {
+      input: { message: 'Process this' }
+    }, {
+      maxRetries: 5,
+      initialDelay: 1000,
+      maxDelay: 60000,
+      backoffMultiplier: 2
+    });
+
+    console.log('Success:', result);
+  } catch (error) {
+    if (error instanceof SimStudioError && error.code === 'RATE_LIMIT_EXCEEDED') {
+      console.error('Rate limit exceeded after all retries');
+
+      // Check rate limit info
+      const rateLimitInfo = client.getRateLimitInfo();
+      if (rateLimitInfo) {
+        console.log('Rate limit resets at:', new Date(rateLimitInfo.reset * 1000));
+      }
+    }
+  }
+}
+```
+
+### 使用监控
+
+监控您的账户使用情况和限制：
+
+```typescript
+import { SimStudioClient } from 'simstudio-ts-sdk';
+
+const client = new SimStudioClient({
+  apiKey: process.env.SIM_API_KEY!
+});
+
+async function checkUsage() {
+  try {
+    const limits = await client.getUsageLimits();
+
+    console.log('=== Rate Limits ===');
+    console.log('Sync requests:');
+    console.log('  Limit:', limits.rateLimit.sync.limit);
+    console.log('  Remaining:', limits.rateLimit.sync.remaining);
+    console.log('  Resets at:', limits.rateLimit.sync.resetAt);
+    console.log('  Is limited:', limits.rateLimit.sync.isLimited);
+
+    console.log('\nAsync requests:');
+    console.log('  Limit:', limits.rateLimit.async.limit);
+    console.log('  Remaining:', limits.rateLimit.async.remaining);
+    console.log('  Resets at:', limits.rateLimit.async.resetAt);
+    console.log('  Is limited:', limits.rateLimit.async.isLimited);
+
+    console.log('\n=== Usage ===');
+    console.log('Current period cost: 
+
+### Streaming Workflow Execution
+
+Execute workflows with real-time streaming responses:
+
+```typescript
+import { SimStudioClient } from 'simstudio-ts-sdk';
+
+const client = new SimStudioClient({
+  apiKey: process.env.SIM_API_KEY!
+});
+
+async function executeWithStreaming() {
+  try {
+    // 为特定的块输出启用流式传输
+    const result = await client.executeWorkflow('workflow-id', {
+      input: { message: 'Count to five' },
+      stream: true,
+      selectedOutputs: ['agent1.content'] // 使用 blockName.attribute 格式
+    });
+
+    console.log('工作流结果:', result);
+  } catch (error) {
+    console.error('错误:', error);
+  }
+}
+```
+
+The streaming response follows the Server-Sent Events (SSE) format:
+
+```
+data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":"One"}
+
+data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":", two"}
+
+data: {"event":"done","success":true,"output":{},"metadata":{"duration":610}}
+
+data: [DONE]
+```
+
+**React Streaming Example:**
+
+```typescript
+import { useState, useEffect } from 'react';
+
+function StreamingWorkflow() {
+  const [output, setOutput] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const executeStreaming = async () => {
+    setLoading(true);
+    setOutput('');
+
+    // 重要提示：请从您的后端服务器发起此 API 调用，而不是从浏览器发起
+    // 切勿在客户端代码中暴露您的 API 密钥
+    const response = await fetch('https://sim.ai/api/workflows/WORKFLOW_ID/execute', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': process.env.SIM_API_KEY! // 仅限服务器端环境变量
+      },
+      body: JSON.stringify({
+        message: '生成一个故事',
+        stream: true,
+        selectedOutputs: ['agent1.content']
+      })
+    });
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+
+    while (reader) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value);
+      const lines = chunk.split('\n\n');
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6);
+          if (data === '[DONE]') {
+            setLoading(false);
+            break;
+          }
+
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.chunk) {
+              setOutput(prev => prev + parsed.chunk);
+            } else if (parsed.event === 'done') {
+              console.log('执行完成：', parsed.metadata);
+            }
+          } catch (e) {
+            // 跳过无效的 JSON
+          }
+        }
+      }
+    }
+  };
+
+  return (
+    <div>
+      <button onClick={executeStreaming} disabled={loading}>
+        {loading ? '生成中...' : '开始流式处理'}
+      </button>
+      <div style={{ whiteSpace: 'pre-wrap' }}>{output}</div>
+    </div>
+  );
+}
+```
+
+## Getting Your API Key
 
 <Steps>
-  <Step title="登录 Sim">
-    访问 [Sim](https://sim.ai) 并登录您的账户。
+  <Step title="Log in to Sim">
+    Navigate to [Sim](https://sim.ai) and log in to your account.
   </Step>
-  <Step title="打开您的工作流">
-    导航到您想要以编程方式执行的工作流。
+  <Step title="Open your workflow">
+    Navigate to the workflow you want to execute programmatically.
   </Step>
-  <Step title="部署您的工作流">
-    如果尚未部署，请点击“部署”以部署您的工作流。
+  <Step title="Deploy your workflow">
+    Click on "Deploy" to deploy your workflow if it hasn't been deployed yet.
   </Step>
-  <Step title="创建或选择一个 API 密钥">
-    在部署过程中，选择或创建一个 API 密钥。
+  <Step title="Create or select an API key">
+    During the deployment process, select or create an API key.
   </Step>
-  <Step title="复制 API 密钥">
-    复制 API 密钥以在您的 TypeScript/JavaScript 应用程序中使用。
+  <Step title="Copy the API key">
+    Copy the API key to use in your TypeScript/JavaScript application.
   </Step>
 </Steps>
 
 <Callout type="warning">
-  请确保您的 API 密钥安全，切勿将其提交到版本控制中。使用环境变量或安全配置管理。
+  Keep your API key secure and never commit it to version control. Use environment variables or secure configuration management.
 </Callout>
 
-## 要求
+## Requirements
 
 - Node.js 16+
-- TypeScript 5.0+（适用于 TypeScript 项目）
+- TypeScript 5.0+ (for TypeScript projects)
 
-## TypeScript 支持
+## TypeScript Support
 
-SDK 是用 TypeScript 编写的，并提供完整的类型安全：
+The SDK is written in TypeScript and provides full type safety:
 
 ```typescript
 import { 
@@ -586,19 +969,19 @@ import {
   SimStudioError 
 } from 'simstudio-ts-sdk';
 
-// Type-safe client initialization
+// 类型安全的客户端初始化
 const client: SimStudioClient = new SimStudioClient({
-  apiKey: process.env.SIMSTUDIO_API_KEY!
+  apiKey: process.env.SIM_API_KEY!
 });
 
-// Type-safe workflow execution
+// 类型安全的工作流执行
 const result: WorkflowExecutionResult = await client.executeWorkflow('workflow-id', {
   input: {
-    message: 'Hello, TypeScript!'
+    message: '你好，TypeScript！'
   }
 });
 
-// Type-safe status checking
+// 类型安全的状态检查
 const status: WorkflowStatus = await client.getWorkflowStatus('workflow-id');
 ```
 

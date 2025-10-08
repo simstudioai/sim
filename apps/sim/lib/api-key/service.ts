@@ -126,6 +126,27 @@ export async function updateApiKeyLastUsed(keyId: string): Promise<void> {
 }
 
 /**
+ * Given a pinned API key ID, resolve the owning userId (actor).
+ * Returns null if not found.
+ */
+export async function getApiKeyOwnerUserId(
+  pinnedApiKeyId: string | null | undefined
+): Promise<string | null> {
+  if (!pinnedApiKeyId) return null
+  try {
+    const rows = await db
+      .select({ userId: apiKeyTable.userId })
+      .from(apiKeyTable)
+      .where(eq(apiKeyTable.id, pinnedApiKeyId))
+      .limit(1)
+    return rows[0]?.userId ?? null
+  } catch (error) {
+    logger.error('Error resolving API key owner', { error, pinnedApiKeyId })
+    return null
+  }
+}
+
+/**
  * Get the API encryption key from the environment
  * @returns The API encryption key
  */

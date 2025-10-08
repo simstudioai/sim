@@ -416,7 +416,7 @@ describe('Chat API Utils', () => {
         execution: executionResult,
       }
 
-      // Simulate the type extraction logic from executeWorkflowForChat
+      // Test that streaming execution wraps the result correctly
       const extractedFromStreaming =
         streamingResult && typeof streamingResult === 'object' && 'execution' in streamingResult
           ? streamingResult.execution

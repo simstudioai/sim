@@ -30,9 +30,10 @@ interface ExecutorOptions {
   workflowVariables?: Record<string, any>
   contextExtensions?: {
     stream?: boolean
-    selectedOutputIds?: string[]
+    selectedOutputs?: string[]
     edges?: Array<{ source: string; target: string }>
     onStream?: (streamingExecution: StreamingExecution) => Promise<void>
+    onBlockComplete?: (blockId: string, output: any) => Promise<void>
     executionId?: string
     workspaceId?: string
   }
@@ -42,6 +43,56 @@ interface ExecutorOptions {
 interface DebugValidationResult {
   isValid: boolean
   error?: string
+}
+
+const WORKFLOW_EXECUTION_FAILURE_MESSAGE = 'Workflow execution failed'
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function sanitizeMessage(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  if (!trimmed || trimmed === 'undefined (undefined)') return undefined
+  return trimmed
+}
+
+function normalizeErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    const message = sanitizeMessage(error.message)
+    if (message) return message
+  } else if (typeof error === 'string') {
+    const message = sanitizeMessage(error)
+    if (message) return message
+  }
+
+  if (isRecord(error)) {
+    const directMessage = sanitizeMessage(error.message)
+    if (directMessage) return directMessage
+
+    const nestedError = error.error
+    if (isRecord(nestedError)) {
+      const nestedMessage = sanitizeMessage(nestedError.message)
+      if (nestedMessage) return nestedMessage
+    } else {
+      const nestedMessage = sanitizeMessage(nestedError)
+      if (nestedMessage) return nestedMessage
+    }
+  }
+
+  return WORKFLOW_EXECUTION_FAILURE_MESSAGE
+}
+
+function isExecutionResult(value: unknown): value is ExecutionResult {
+  if (!isRecord(value)) return false
+  return typeof value.success === 'boolean' && isRecord(value.output)
+}
+
+function extractExecutionResult(error: unknown): ExecutionResult | null {
+  if (!isRecord(error)) return null
+  const candidate = error.executionResult
+  return isExecutionResult(candidate) ? candidate : null
 }
 
 export function useWorkflowExecution() {
@@ -273,7 +324,7 @@ export function useWorkflowExecution() {
       if (isChatExecution) {
         const stream = new ReadableStream({
           async start(controller) {
-            const encoder = new TextEncoder()
+            const { encodeSSE } = await import('@/lib/utils')
             const executionId = uuidv4()
             const streamedContent = new Map<string, string>()
             const streamReadingPromises: Promise<void>[] = []
@@ -360,6 +411,8 @@ export function useWorkflowExecution() {
                 if (!streamingExecution.stream) return
                 const reader = streamingExecution.stream.getReader()
                 const blockId = (streamingExecution.execution as any)?.blockId
+                let isFirstChunk = true
+
                 if (blockId) {
                   streamedContent.set(blockId, '')
                 }
@@ -373,14 +426,17 @@ export function useWorkflowExecution() {
                     if (blockId) {
                       streamedContent.set(blockId, (streamedContent.get(blockId) || '') + chunk)
                     }
-                    controller.enqueue(
-                      encoder.encode(
-                        `data: ${JSON.stringify({
-                          blockId,
-                          chunk,
-                        })}\n\n`
-                      )
-                    )
+
+                    // Add separator before first chunk if this isn't the first block
+                    let chunkToSend = chunk
+                    if (isFirstChunk && streamedContent.size > 1) {
+                      chunkToSend = `\n\n${chunk}`
+                      isFirstChunk = false
+                    } else if (isFirstChunk) {
+                      isFirstChunk = false
+                    }
+
+                    controller.enqueue(encodeSSE({ blockId, chunk: chunkToSend }))
                   }
                 } catch (error) {
                   logger.error('Error reading from stream:', error)
@@ -390,8 +446,58 @@ export function useWorkflowExecution() {
               streamReadingPromises.push(promise)
             }
 
+            // Handle non-streaming blocks (like Function blocks)
+            const onBlockComplete = async (blockId: string, output: any) => {
+              // Get selected outputs from chat store
+              const chatStore = await import('@/stores/panel/chat/store').then(
+                (mod) => mod.useChatStore
+              )
+              const selectedOutputs = chatStore
+                .getState()
+                .getSelectedWorkflowOutput(activeWorkflowId)
+
+              if (!selectedOutputs?.length) return
+
+              const { extractBlockIdFromOutputId, extractPathFromOutputId, traverseObjectPath } =
+                await import('@/lib/response-format')
+
+              // Check if this block's output is selected
+              const matchingOutputs = selectedOutputs.filter(
+                (outputId) => extractBlockIdFromOutputId(outputId) === blockId
+              )
+
+              if (!matchingOutputs.length) return
+
+              // Process each selected output from this block
+              for (const outputId of matchingOutputs) {
+                const path = extractPathFromOutputId(outputId, blockId)
+                const outputValue = traverseObjectPath(output, path)
+
+                if (outputValue !== undefined) {
+                  const formattedOutput =
+                    typeof outputValue === 'string'
+                      ? outputValue
+                      : JSON.stringify(outputValue, null, 2)
+
+                  // Add separator if this isn't the first output
+                  const separator = streamedContent.size > 0 ? '\n\n' : ''
+
+                  // Send the non-streaming block output as a chunk
+                  controller.enqueue(encodeSSE({ blockId, chunk: separator + formattedOutput }))
+
+                  // Track that we've sent output for this block
+                  streamedContent.set(blockId, formattedOutput)
+                }
+              }
+            }
+
             try {
-              const result = await executeWorkflow(workflowInput, onStream, executionId)
+              const result = await executeWorkflow(
+                workflowInput,
+                onStream,
+                executionId,
+                onBlockComplete
+              )
 
               // Check if execution was cancelled
               if (
@@ -400,11 +506,7 @@ export function useWorkflowExecution() {
                 !result.success &&
                 result.error === 'Workflow execution was cancelled'
               ) {
-                controller.enqueue(
-                  encoder.encode(
-                    `data: ${JSON.stringify({ event: 'cancelled', data: result })}\n\n`
-                  )
-                )
+                controller.enqueue(encodeSSE({ event: 'cancelled', data: result }))
                 return
               }
 
@@ -439,9 +541,8 @@ export function useWorkflowExecution() {
                   logger.info(`Processed ${processedCount} blocks for streaming tokenization`)
                 }
 
-                controller.enqueue(
-                  encoder.encode(`data: ${JSON.stringify({ event: 'final', data: result })}\n\n`)
-                )
+                const { encodeSSE } = await import('@/lib/utils')
+                controller.enqueue(encodeSSE({ event: 'final', data: result }))
                 persistLogs(executionId, result).catch((err) =>
                   logger.error('Error persisting logs:', err)
                 )
@@ -461,9 +562,8 @@ export function useWorkflowExecution() {
               }
 
               // Send the error as final event so downstream handlers can treat it uniformly
-              controller.enqueue(
-                encoder.encode(`data: ${JSON.stringify({ event: 'final', data: errorResult })}\n\n`)
-              )
+              const { encodeSSE } = await import('@/lib/utils')
+              controller.enqueue(encodeSSE({ event: 'final', data: errorResult }))
 
               // Persist the error to logs so it shows up in the logs page
               persistLogs(executionId, errorResult).catch((err) =>
@@ -539,7 +639,8 @@ export function useWorkflowExecution() {
   const executeWorkflow = async (
     workflowInput?: any,
     onStream?: (se: StreamingExecution) => Promise<void>,
-    executionId?: string
+    executionId?: string,
+    onBlockComplete?: (blockId: string, output: any) => Promise<void>
   ): Promise<ExecutionResult | StreamingExecution> => {
     // Use currentWorkflow but check if we're in diff mode
     const { blocks: workflowBlocks, edges: workflowEdges } = currentWorkflow
@@ -664,11 +765,11 @@ export function useWorkflowExecution() {
     )
 
     // If this is a chat execution, get the selected outputs
-    let selectedOutputIds: string[] | undefined
+    let selectedOutputs: string[] | undefined
     if (isExecutingFromChat && activeWorkflowId) {
       // Get selected outputs from chat store
       const chatStore = await import('@/stores/panel/chat/store').then((mod) => mod.useChatStore)
-      selectedOutputIds = chatStore.getState().getSelectedWorkflowOutput(activeWorkflowId)
+      selectedOutputs = chatStore.getState().getSelectedWorkflowOutput(activeWorkflowId)
     }
 
     // Helper to extract test values from inputFormat subblock
@@ -843,12 +944,13 @@ export function useWorkflowExecution() {
       workflowVariables,
       contextExtensions: {
         stream: isExecutingFromChat,
-        selectedOutputIds,
+        selectedOutputs,
         edges: workflow.connections.map((conn) => ({
           source: conn.source,
           target: conn.target,
         })),
         onStream,
+        onBlockComplete,
         executionId,
         workspaceId,
       },
@@ -862,74 +964,56 @@ export function useWorkflowExecution() {
     return newExecutor.execute(activeWorkflowId || '', startBlockId)
   }
 
-  const handleExecutionError = (error: any, options?: { executionId?: string }) => {
-    let errorMessage = 'Unknown error'
-    if (error instanceof Error) {
-      errorMessage = error.message || `Error: ${String(error)}`
-    } else if (typeof error === 'string') {
-      errorMessage = error
-    } else if (error && typeof error === 'object') {
-      if (
-        error.message === 'undefined (undefined)' ||
-        (error.error &&
-          typeof error.error === 'object' &&
-          error.error.message === 'undefined (undefined)')
-      ) {
-        errorMessage = 'API request failed - no specific error details available'
-      } else if (error.message) {
-        errorMessage = error.message
-      } else if (error.error && typeof error.error === 'string') {
-        errorMessage = error.error
-      } else if (error.error && typeof error.error === 'object' && error.error.message) {
-        errorMessage = error.error.message
-      } else {
-        try {
-          errorMessage = `Error details: ${JSON.stringify(error)}`
-        } catch {
-          errorMessage = 'Error occurred but details could not be displayed'
-        }
+  const handleExecutionError = (error: unknown, options?: { executionId?: string }) => {
+    const normalizedMessage = normalizeErrorMessage(error)
+    const executionResultFromError = extractExecutionResult(error)
+
+    let errorResult: ExecutionResult
+
+    if (executionResultFromError) {
+      const logs = Array.isArray(executionResultFromError.logs) ? executionResultFromError.logs : []
+
+      errorResult = {
+        ...executionResultFromError,
+        success: false,
+        error: executionResultFromError.error ?? normalizedMessage,
+        logs,
       }
-    }
+    } else {
+      if (!executor) {
+        try {
+          let blockId = 'serialization'
+          let blockName = 'Workflow'
+          let blockType = 'serializer'
+          if (error instanceof WorkflowValidationError) {
+            blockId = error.blockId || blockId
+            blockName = error.blockName || blockName
+            blockType = error.blockType || blockType
+          }
 
-    if (errorMessage === 'undefined (undefined)') {
-      errorMessage = 'API request failed - no specific error details available'
-    }
+          useConsoleStore.getState().addConsole({
+            input: {},
+            output: {},
+            success: false,
+            error: normalizedMessage,
+            durationMs: 0,
+            startedAt: new Date().toISOString(),
+            endedAt: new Date().toISOString(),
+            workflowId: activeWorkflowId || '',
+            blockId,
+            executionId: options?.executionId,
+            blockName,
+            blockType,
+          })
+        } catch {}
+      }
 
-    // If we failed before creating an executor (e.g., serializer validation), add a console entry
-    if (!executor) {
-      try {
-        // Prefer attributing to specific subflow if we have a structured error
-        let blockId = 'serialization'
-        let blockName = 'Workflow'
-        let blockType = 'serializer'
-        if (error instanceof WorkflowValidationError) {
-          blockId = error.blockId || blockId
-          blockName = error.blockName || blockName
-          blockType = error.blockType || blockType
-        }
-
-        useConsoleStore.getState().addConsole({
-          input: {},
-          output: {},
-          success: false,
-          error: errorMessage,
-          durationMs: 0,
-          startedAt: new Date().toISOString(),
-          endedAt: new Date().toISOString(),
-          workflowId: activeWorkflowId || '',
-          blockId,
-          executionId: options?.executionId,
-          blockName,
-          blockType,
-        })
-      } catch {}
-    }
-
-    const errorResult: ExecutionResult = {
-      success: false,
-      output: {},
-      error: errorMessage,
-      logs: [],
+      errorResult = {
+        success: false,
+        output: {},
+        error: normalizedMessage,
+        logs: [],
+      }
     }
 
     setExecutionResult(errorResult)
@@ -937,16 +1021,14 @@ export function useWorkflowExecution() {
     setIsDebugging(false)
     setActiveBlocks(new Set())
 
-    let notificationMessage = 'Workflow execution failed'
-    if (error?.request?.url) {
-      if (error.request.url && error.request.url.trim() !== '') {
-        notificationMessage += `: Request to ${error.request.url} failed`
-        if (error.status) {
-          notificationMessage += ` (Status: ${error.status})`
-        }
+    let notificationMessage = WORKFLOW_EXECUTION_FAILURE_MESSAGE
+    if (isRecord(error) && isRecord(error.request) && sanitizeMessage(error.request.url)) {
+      notificationMessage += `: Request to ${(error.request.url as string).trim()} failed`
+      if ('status' in error && typeof error.status === 'number') {
+        notificationMessage += ` (Status: ${error.status})`
       }
-    } else {
-      notificationMessage += `: ${errorMessage}`
+    } else if (sanitizeMessage(errorResult.error)) {
+      notificationMessage += `: ${errorResult.error}`
     }
 
     return errorResult

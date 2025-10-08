@@ -10,20 +10,29 @@ if (!connectionString) {
   throw new Error('Missing DATABASE_URL environment variable')
 }
 
+console.log(
+  '[DB Pool Init]',
+  JSON.stringify({
+    timestamp: new Date().toISOString(),
+    nodeEnv: process.env.NODE_ENV,
+    action: 'CREATING_CONNECTION_POOL',
+    poolConfig: {
+      max: 30,
+      idle_timeout: 20,
+      connect_timeout: 30,
+      prepare: false,
+    },
+    pid: process.pid,
+    isProduction: process.env.NODE_ENV === 'production',
+  })
+)
+
 const postgresClient = postgres(connectionString, {
   prepare: false,
   idle_timeout: 20,
   connect_timeout: 30,
-  max: 80,
+  max: 30,
   onnotice: () => {},
 })
 
-const drizzleClient = drizzle(postgresClient, { schema })
-
-declare global {
-  // eslint-disable-next-line no-var
-  var database: PostgresJsDatabase<typeof schema> | undefined
-}
-
-export const db = globalThis.database || drizzleClient
-if (process.env.NODE_ENV !== 'production') globalThis.database = db
+export const db = drizzle(postgresClient, { schema })
