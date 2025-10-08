@@ -467,6 +467,7 @@ export function TriggerModal({
             )}
 
             <TriggerConfigSection
+              blockId={blockId}
               triggerDef={triggerDef}
               config={config}
               onChange={handleConfigChange}

@@ -165,7 +165,7 @@ describe('ConditionBlockHandler', () => {
       mockContext,
       mockBlock
     )
-    expect(mockResolver.resolveEnvVariables).toHaveBeenCalledWith('context.value > 5', true)
+    expect(mockResolver.resolveEnvVariables).toHaveBeenCalledWith('context.value > 5')
     expect(result).toEqual(expectedOutput)
     expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('cond1')
   })
@@ -205,7 +205,7 @@ describe('ConditionBlockHandler', () => {
       mockContext,
       mockBlock
     )
-    expect(mockResolver.resolveEnvVariables).toHaveBeenCalledWith('context.value < 0', true)
+    expect(mockResolver.resolveEnvVariables).toHaveBeenCalledWith('context.value < 0')
     expect(result).toEqual(expectedOutput)
     expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('else1')
   })
@@ -241,7 +241,7 @@ describe('ConditionBlockHandler', () => {
       mockContext,
       mockBlock
     )
-    expect(mockResolver.resolveEnvVariables).toHaveBeenCalledWith('10 > 5', true)
+    expect(mockResolver.resolveEnvVariables).toHaveBeenCalledWith('10 > 5')
     expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('cond1')
   })
 
@@ -268,7 +268,7 @@ describe('ConditionBlockHandler', () => {
       mockContext,
       mockBlock
     )
-    expect(mockResolver.resolveEnvVariables).toHaveBeenCalledWith('"john" !== null', true)
+    expect(mockResolver.resolveEnvVariables).toHaveBeenCalledWith('"john" !== null')
     expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('cond1')
   })
 
@@ -295,7 +295,7 @@ describe('ConditionBlockHandler', () => {
       mockContext,
       mockBlock
     )
-    expect(mockResolver.resolveEnvVariables).toHaveBeenCalledWith('{{POOP}} === "hi"', true)
+    expect(mockResolver.resolveEnvVariables).toHaveBeenCalledWith('{{POOP}} === "hi"')
     expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('cond1')
   })
 

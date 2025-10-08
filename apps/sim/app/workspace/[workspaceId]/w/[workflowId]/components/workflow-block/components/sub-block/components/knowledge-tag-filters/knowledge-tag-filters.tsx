@@ -239,7 +239,12 @@ export function KnowledgeTagFilters({
             onBlur={handleBlur}
           />
           <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
-            <div className='whitespace-pre'>{formatDisplayText(cellValue || 'Select tag')}</div>
+            <div className='whitespace-pre'>
+              {formatDisplayText(cellValue || 'Select tag', {
+                accessiblePrefixes,
+                highlightAll: !accessiblePrefixes,
+              })}
+            </div>
           </div>
           {showDropdown && tagDefinitions.length > 0 && (
             <div className='absolute top-full left-0 z-[100] mt-1 w-full'>

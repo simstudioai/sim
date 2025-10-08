@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
+import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 
 interface TableProps {
   blockId: string
@@ -34,6 +35,7 @@ export function Table({
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const [storeValue, setStoreValue] = useSubBlockValue<TableRow[]>(blockId, subBlockId)
+  const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
@@ -240,7 +242,12 @@ export function Table({
             data-overlay={cellKey}
             className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'
           >
-            <div className='whitespace-pre'>{formatDisplayText(cellValue)}</div>
+            <div className='whitespace-pre'>
+              {formatDisplayText(cellValue, {
+                accessiblePrefixes,
+                highlightAll: !accessiblePrefixes,
+              })}
+            </div>
           </div>
         </div>
       </td>
