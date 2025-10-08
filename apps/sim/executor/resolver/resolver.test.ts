@@ -432,7 +432,7 @@ describe('InputResolver', () => {
 
       expect(result.apiKey).toBe('test-api-key')
       expect(result.url).toBe('https://example.com?key=test-api-key')
-      expect(result.regularParam).toBe('Base URL is: {{BASE_URL}}')
+      expect(result.regularParam).toBe('Base URL is: https://api.example.com')
     })
 
     it('should resolve explicit environment variables', () => {
@@ -458,7 +458,7 @@ describe('InputResolver', () => {
       expect(result.explicitEnv).toBe('https://api.example.com')
     })
 
-    it('should not resolve environment variables in regular contexts', () => {
+    it('should resolve environment variables in all contexts', () => {
       const block: SerializedBlock = {
         id: 'test-block',
         metadata: { id: 'generic', name: 'Test Block' },
@@ -478,7 +478,7 @@ describe('InputResolver', () => {
 
       const result = resolver.resolveInputs(block, mockContext)
 
-      expect(result.regularParam).toBe('Value with {{API_KEY}} embedded')
+      expect(result.regularParam).toBe('Value with test-api-key embedded')
     })
   })
 

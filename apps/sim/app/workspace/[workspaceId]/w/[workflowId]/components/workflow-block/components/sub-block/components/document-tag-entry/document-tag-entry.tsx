@@ -9,6 +9,7 @@ import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { MAX_TAG_SLOTS } from '@/lib/knowledge/consts'
 import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
+import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/use-knowledge-base-tag-definitions'
 import { useTagSelection } from '@/hooks/use-tag-selection'
@@ -40,6 +41,7 @@ export function DocumentTagEntry({
   isConnecting = false,
 }: DocumentTagEntryProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlock.id)
+  const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
   // Get the knowledge base ID from other sub-blocks
   const [knowledgeBaseIdValue] = useSubBlockValue(blockId, 'knowledgeBaseId')
@@ -301,7 +303,12 @@ export function DocumentTagEntry({
             )}
           />
           <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
-            <div className='whitespace-pre'>{formatDisplayText(cellValue)}</div>
+            <div className='whitespace-pre'>
+              {formatDisplayText(cellValue, {
+                accessiblePrefixes,
+                highlightAll: !accessiblePrefixes,
+              })}
+            </div>
           </div>
           {showDropdown && availableTagDefinitions.length > 0 && (
             <div className='absolute top-full left-0 z-[100] mt-1 w-full'>
@@ -389,7 +396,10 @@ export function DocumentTagEntry({
           />
           <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
             <div className='whitespace-pre text-muted-foreground'>
-              {formatDisplayText(cellValue)}
+              {formatDisplayText(cellValue, {
+                accessiblePrefixes,
+                highlightAll: !accessiblePrefixes,
+              })}
             </div>
           </div>
           {showTypeDropdown && !isReadOnly && (
@@ -469,7 +479,12 @@ export function DocumentTagEntry({
             className='w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
           />
           <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
-            <div className='whitespace-pre'>{formatDisplayText(cellValue)}</div>
+            <div className='whitespace-pre'>
+              {formatDisplayText(cellValue, {
+                accessiblePrefixes,
+                highlightAll: !accessiblePrefixes,
+              })}
+            </div>
           </div>
         </div>
       </td>

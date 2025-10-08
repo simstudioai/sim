@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { useParams } from 'next/navigation'
+import { formatDisplayText } from '@/components/ui/formatted-text'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -14,6 +15,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
+import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useMcpTools } from '@/hooks/use-mcp-tools'
 import { formatParameterLabel } from '@/tools/params'
 
@@ -37,6 +39,7 @@ export function McpDynamicArgs({
   const { mcpTools } = useMcpTools(workspaceId)
   const [selectedTool] = useSubBlockValue(blockId, 'tool')
   const [toolArgs, setToolArgs] = useSubBlockValue(blockId, subBlockId)
+  const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
   const selectedToolConfig = mcpTools.find((tool) => tool.id === selectedTool)
   const toolSchema = selectedToolConfig?.inputSchema
@@ -180,7 +183,7 @@ export function McpDynamicArgs({
 
       case 'long-input':
         return (
-          <div key={`${paramName}-long`}>
+          <div key={`${paramName}-long`} className='relative'>
             <Textarea
               value={value || ''}
               onChange={(e) => updateParameter(paramName, e.target.value, paramSchema)}
@@ -192,8 +195,14 @@ export function McpDynamicArgs({
               }
               disabled={disabled}
               rows={4}
-              className='min-h-[80px] resize-none'
+              className='min-h-[80px] resize-none text-transparent caret-foreground'
             />
+            <div className='pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-words p-3 text-sm'>
+              {formatDisplayText(value || '', {
+                accessiblePrefixes,
+                highlightAll: !accessiblePrefixes,
+              })}
+            </div>
           </div>
         )
 
@@ -203,9 +212,10 @@ export function McpDynamicArgs({
           paramName.toLowerCase().includes('password') ||
           paramName.toLowerCase().includes('token')
         const isNumeric = paramSchema.type === 'number' || paramSchema.type === 'integer'
+        const isTextInput = !isPassword && !isNumeric
 
         return (
-          <div key={`${paramName}-short`}>
+          <div key={`${paramName}-short`} className={isTextInput ? 'relative' : ''}>
             <Input
               type={isPassword ? 'password' : isNumeric ? 'number' : 'text'}
               value={value || ''}
@@ -231,7 +241,18 @@ export function McpDynamicArgs({
                     `Enter ${formatParameterLabel(paramName).toLowerCase()}`
               }
               disabled={disabled}
+              className={isTextInput ? 'text-transparent caret-foreground' : ''}
             />
+            {isTextInput && (
+              <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
+                <div className='whitespace-pre'>
+                  {formatDisplayText(value?.toString() || '', {
+                    accessiblePrefixes,
+                    highlightAll: !accessiblePrefixes,
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )
       }
