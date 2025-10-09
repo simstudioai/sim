@@ -155,7 +155,7 @@ const getOutputTypeForPath = (
       const chatModeTypes: Record<string, string> = {
         input: 'string',
         conversationId: 'string',
-        files: 'array',
+        files: 'files',
       }
       return chatModeTypes[outputPath] || 'any'
     }
@@ -336,10 +336,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
   const combinedAccessiblePrefixes = useMemo(() => {
     if (!rawAccessiblePrefixes) return new Set<string>()
-    const normalized = new Set<string>(rawAccessiblePrefixes)
-    normalized.add(normalizeBlockName(blockId))
-    return normalized
-  }, [rawAccessiblePrefixes, blockId])
+    return new Set<string>(rawAccessiblePrefixes)
+  }, [rawAccessiblePrefixes])
 
   // Subscribe to live subblock values for the active workflow to react to input format changes
   const workflowSubBlockValues = useSubBlockStore((state) =>

@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
+import { uploadExecutionFile } from '@/lib/workflows/execution-file-storage'
 import {
   addCorsHeaders,
   setChatAuthCookie,
@@ -11,6 +12,7 @@ import {
   validateChatAuth,
 } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('ChatIdentifierAPI')
 
@@ -75,7 +77,7 @@ export async function POST(
     }
 
     // Use the already parsed body
-    const { input, password, email, conversationId } = parsedBody
+    const { input, password, email, conversationId, files } = parsedBody
 
     // If this is an authentication request (has password or email but no input),
     // set auth cookie and return success
@@ -88,8 +90,8 @@ export async function POST(
       return response
     }
 
-    // For chat messages, create regular response
-    if (!input) {
+    // For chat messages, create regular response (allow empty input if files are present)
+    if (!input && (!files || files.length === 0)) {
       return addCorsHeaders(createErrorResponse('No input provided', 400), request)
     }
 
@@ -123,10 +125,83 @@ export async function POST(
       const { SSE_HEADERS } = await import('@/lib/utils')
       const { createFilteredResult } = await import('@/app/api/workflows/[id]/execute/route')
 
+      // Prepare workflow input with files if present
+      const workflowInput: any = { input, conversationId }
+      if (files && Array.isArray(files) && files.length > 0) {
+        logger.debug(`[${requestId}] Processing ${files.length} attached files`)
+
+        // Generate execution context for file uploads
+        const executionId = crypto.randomUUID()
+        const executionContext = {
+          workspaceId: deployment.userId, // Use userId as workspaceId for deployed chats
+          workflowId: deployment.workflowId,
+          executionId,
+        }
+
+        // Upload files to S3 and get presigned URLs
+        const uploadedFiles: UserFile[] = []
+        for (const file of files) {
+          try {
+            // Decode base64 dataUrl to Buffer
+            if (file.dataUrl) {
+              // Extract base64 data from dataUrl (format: data:mime/type;base64,<data>)
+              // Use string operations instead of regex to avoid stack overflow on large files
+              const dataUrlPrefix = 'data:'
+              const base64Prefix = ';base64,'
+
+              if (!file.dataUrl.startsWith(dataUrlPrefix)) {
+                logger.warn(`[${requestId}] Invalid dataUrl format for file: ${file.name}`)
+                continue
+              }
+
+              const base64Index = file.dataUrl.indexOf(base64Prefix)
+              if (base64Index === -1) {
+                logger.warn(
+                  `[${requestId}] Invalid dataUrl format (no base64 marker) for file: ${file.name}`
+                )
+                continue
+              }
+
+              const mimeType = file.dataUrl.substring(dataUrlPrefix.length, base64Index)
+              const base64Data = file.dataUrl.substring(base64Index + base64Prefix.length)
+              const buffer = Buffer.from(base64Data, 'base64')
+
+              logger.debug(
+                `[${requestId}] Uploading file to S3: ${file.name} (${buffer.length} bytes)`
+              )
+
+              // Upload to S3 execution storage
+              const userFile = await uploadExecutionFile(
+                executionContext,
+                buffer,
+                file.name,
+                mimeType || file.type
+              )
+
+              uploadedFiles.push(userFile)
+              logger.debug(
+                `[${requestId}] Successfully uploaded ${file.name} with URL: ${userFile.url}`
+              )
+            } else if (file.url) {
+              // File already has a URL, use it directly
+              uploadedFiles.push(file as UserFile)
+            }
+          } catch (error) {
+            logger.error(`[${requestId}] Failed to upload file ${file.name}:`, error)
+            throw new Error(`Failed to upload file: ${file.name}`)
+          }
+        }
+
+        if (uploadedFiles.length > 0) {
+          workflowInput.files = uploadedFiles
+          logger.info(`[${requestId}] Successfully uploaded ${uploadedFiles.length} files to S3`)
+        }
+      }
+
       const stream = await createStreamingResponse({
         requestId,
         workflow: { id: deployment.workflowId, userId: deployment.userId, isDeployed: true },
-        input: { input, conversationId }, // Format for chat_trigger
+        input: workflowInput, // Format for chat_trigger with optional files
         executingUserId: deployment.userId, // Use workflow owner's ID for chat deployments
         streamConfig: {
           selectedOutputs,

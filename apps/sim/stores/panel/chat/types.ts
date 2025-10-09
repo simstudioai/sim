@@ -1,3 +1,11 @@
+export interface ChatAttachment {
+  id: string
+  name: string
+  type: string
+  dataUrl: string
+  size?: number
+}
+
 export interface ChatMessage {
   id: string
   content: string | any
@@ -6,6 +14,7 @@ export interface ChatMessage {
   timestamp: string
   blockId?: string
   isStreaming?: boolean
+  attachments?: ChatAttachment[]
 }
 
 export interface OutputConfig {

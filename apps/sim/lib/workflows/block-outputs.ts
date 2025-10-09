@@ -37,7 +37,7 @@ export function getBlockOutputs(
       return {
         input: { type: 'string', description: 'User message' },
         conversationId: { type: 'string', description: 'Conversation ID' },
-        files: { type: 'array', description: 'Uploaded files' },
+        files: { type: 'files', description: 'Uploaded files' },
       }
     }
     if (

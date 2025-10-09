@@ -616,8 +616,150 @@ export async function POST(
       streamResponse,
       selectedOutputs,
       workflowTriggerType,
-      input,
+      input: rawInput,
     } = extractExecutionParams(request as NextRequest, parsedBody)
+
+    // Process file uploads in the input before execution
+    let processedInput = rawInput
+    logger.info(`[${requestId}] Raw input received:`, JSON.stringify(rawInput, null, 2))
+
+    // Load workflow to check for file-type fields in the inputFormat
+    try {
+      const deployedData = await loadDeployedWorkflowState(workflowId)
+      const blocks = deployedData.blocks || {}
+      logger.info(`[${requestId}] Loaded ${Object.keys(blocks).length} blocks from workflow`)
+
+      // Find the API trigger block
+      const apiTriggerBlock = Object.values(blocks).find(
+        (block: any) => block.type === 'api_trigger'
+      ) as any
+      logger.info(`[${requestId}] API trigger block found:`, !!apiTriggerBlock)
+
+      if (apiTriggerBlock?.subBlocks?.inputFormat?.value) {
+        const inputFormat = apiTriggerBlock.subBlocks.inputFormat.value as Array<{
+          name: string
+          type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'files'
+        }>
+        logger.info(
+          `[${requestId}] Input format fields:`,
+          inputFormat.map((f) => `${f.name}:${f.type}`).join(', ')
+        )
+
+        // Find file-type fields
+        const fileFields = inputFormat.filter((field) => field.type === 'files')
+        logger.info(`[${requestId}] Found ${fileFields.length} file-type fields`)
+
+        if (fileFields.length > 0 && typeof rawInput === 'object' && rawInput !== null) {
+          // Process each file field
+          for (const fileField of fileFields) {
+            const fieldValue = rawInput[fileField.name]
+
+            if (fieldValue && typeof fieldValue === 'object') {
+              // Check if it's a single file or array of files
+              const files = Array.isArray(fieldValue) ? fieldValue : [fieldValue]
+              const uploadedFiles = []
+
+              for (const file of files) {
+                // Handle file based on type: 'file' (base64) or 'url' (direct URL)
+                if (file.type === 'file' && file.data && file.name) {
+                  try {
+                    // Extract base64 data from data field
+                    const dataUrlPrefix = 'data:'
+                    const base64Prefix = ';base64,'
+
+                    if (!file.data.startsWith(dataUrlPrefix)) {
+                      logger.warn(`[${requestId}] Invalid data format for file: ${file.name}`)
+                      continue
+                    }
+
+                    const base64Index = file.data.indexOf(base64Prefix)
+                    if (base64Index === -1) {
+                      logger.warn(
+                        `[${requestId}] Invalid data format (no base64 marker) for file: ${file.name}`
+                      )
+                      continue
+                    }
+
+                    const mimeType = file.data.substring(dataUrlPrefix.length, base64Index)
+                    const base64Data = file.data.substring(base64Index + base64Prefix.length)
+                    const buffer = Buffer.from(base64Data, 'base64')
+
+                    // Check file size limit (20MB)
+                    const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB in bytes
+                    if (buffer.length > MAX_FILE_SIZE) {
+                      const fileSizeMB = (buffer.length / (1024 * 1024)).toFixed(2)
+                      throw new Error(
+                        `File "${file.name}" exceeds the maximum size limit of 20MB (actual size: ${fileSizeMB}MB)`
+                      )
+                    }
+
+                    logger.debug(
+                      `[${requestId}] Uploading file to S3: ${file.name} (${buffer.length} bytes)`
+                    )
+
+                    // Generate execution context for file upload
+                    const executionId = uuidv4()
+                    const executionContext = {
+                      workspaceId: validation.workflow.workspaceId,
+                      workflowId,
+                      executionId,
+                    }
+
+                    const { uploadExecutionFile } = await import(
+                      '@/lib/workflows/execution-file-storage'
+                    )
+
+                    // Upload to S3
+                    const userFile = await uploadExecutionFile(
+                      executionContext,
+                      buffer,
+                      file.name,
+                      mimeType || file.mime
+                    )
+
+                    uploadedFiles.push(userFile)
+                    logger.debug(
+                      `[${requestId}] Successfully uploaded ${file.name} with URL: ${userFile.url}`
+                    )
+                  } catch (error) {
+                    logger.error(`[${requestId}] Failed to upload file ${file.name}:`, error)
+                    throw new Error(`Failed to upload file: ${file.name}`)
+                  }
+                } else if (file.type === 'url' && file.data) {
+                  // File is already a URL, pass it through as a UserFile-like object
+                  uploadedFiles.push({
+                    url: file.data,
+                    name: file.name,
+                    size: 0, // Unknown size for URL files
+                    type: file.mime || 'application/octet-stream',
+                    key: '',
+                    uploadedAt: new Date().toISOString(),
+                    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
+                  })
+                }
+              }
+
+              // Update the input with uploaded files (always as an array)
+              if (uploadedFiles.length > 0) {
+                processedInput = {
+                  ...processedInput,
+                  [fileField.name]: uploadedFiles,
+                }
+                logger.info(
+                  `[${requestId}] Successfully processed ${uploadedFiles.length} file(s) for field: ${fileField.name}`
+                )
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      logger.error(`[${requestId}] Failed to process file uploads:`, error)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to process file uploads'
+      return createErrorResponse(errorMessage, 400)
+    }
+
+    const input = processedInput
 
     // Get authenticated user and determine trigger type
     let authenticatedUserId: string
