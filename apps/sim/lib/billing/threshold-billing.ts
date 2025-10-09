@@ -171,7 +171,10 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
 
       const stripe = requireStripeClient()
       const stripeSubscription = await stripe.subscriptions.retrieve(stripeSubscriptionId)
-      const customerId = stripeSubscription.customer as string
+      const customerId =
+        typeof stripeSubscription.customer === 'string'
+          ? stripeSubscription.customer
+          : stripeSubscription.customer.id
 
       const periodEnd = userSubscription.periodEnd
         ? Math.floor(userSubscription.periodEnd.getTime() / 1000)
@@ -337,7 +340,10 @@ export async function checkAndBillOrganizationOverageThreshold(
 
       const stripe = requireStripeClient()
       const stripeSubscription = await stripe.subscriptions.retrieve(stripeSubscriptionId)
-      const customerId = stripeSubscription.customer as string
+      const customerId =
+        typeof stripeSubscription.customer === 'string'
+          ? stripeSubscription.customer
+          : stripeSubscription.customer.id
 
       const periodEnd = orgSubscription.periodEnd
         ? Math.floor(orgSubscription.periodEnd.getTime() / 1000)

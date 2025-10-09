@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { member, subscription as subscriptionTable, userStats } from '@sim/db/schema'
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { calculateSubscriptionOverage } from '@/lib/billing/core/billing'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
@@ -36,15 +36,19 @@ export async function getBilledOverageForSubscription(sub: {
       .from(member)
       .where(eq(member.organizationId, sub.referenceId))
 
-    for (const m of members) {
-      const memberStats = await db
-        .select({ billedOverageThisPeriod: userStats.billedOverageThisPeriod })
-        .from(userStats)
-        .where(eq(userStats.userId, m.userId))
-        .limit(1)
+    const memberIds = members.map((m) => m.userId)
 
-      if (memberStats.length > 0) {
-        billedOverage += parseDecimal(memberStats[0].billedOverageThisPeriod)
+    if (memberIds.length > 0) {
+      const memberStatsRows = await db
+        .select({
+          userId: userStats.userId,
+          billedOverageThisPeriod: userStats.billedOverageThisPeriod,
+        })
+        .from(userStats)
+        .where(inArray(userStats.userId, memberIds))
+
+      for (const stats of memberStatsRows) {
+        billedOverage += parseDecimal(stats.billedOverageThisPeriod)
       }
     }
   } else {
@@ -147,16 +151,14 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
         .select({ userId: member.userId })
         .from(member)
         .where(eq(member.organizationId, sub.referenceId))
-      for (const m of membersRows) {
-        const row = await db
+      const memberIds = membersRows.map((m) => m.userId)
+      if (memberIds.length > 0) {
+        const blockedRows = await db
           .select({ blocked: userStats.billingBlocked })
           .from(userStats)
-          .where(eq(userStats.userId, m.userId))
-          .limit(1)
-        if (row.length > 0 && row[0].blocked) {
-          wasBlocked = true
-          break
-        }
+          .where(inArray(userStats.userId, memberIds))
+
+        wasBlocked = blockedRows.some((row) => !!row.blocked)
       }
     } else {
       const row = await db
@@ -172,11 +174,13 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
         .select({ userId: member.userId })
         .from(member)
         .where(eq(member.organizationId, sub.referenceId))
-      for (const m of members) {
+      const memberIds = members.map((m) => m.userId)
+
+      if (memberIds.length > 0) {
         await db
           .update(userStats)
           .set({ billingBlocked: false })
-          .where(eq(userStats.userId, m.userId))
+          .where(inArray(userStats.userId, memberIds))
       }
     } else {
       await db
@@ -263,11 +267,13 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
             .select({ userId: member.userId })
             .from(member)
             .where(eq(member.organizationId, sub.referenceId))
-          for (const m of members) {
+          const memberIds = members.map((m) => m.userId)
+
+          if (memberIds.length > 0) {
             await db
               .update(userStats)
               .set({ billingBlocked: true })
-              .where(eq(userStats.userId, m.userId))
+              .where(inArray(userStats.userId, memberIds))
           }
           logger.info('Blocked team/enterprise members due to payment failure', {
             organizationId: sub.referenceId,
