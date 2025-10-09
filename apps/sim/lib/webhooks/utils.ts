@@ -140,14 +140,133 @@ export async function validateSlackSignature(
 }
 
 /**
+ * Format Microsoft Teams Graph change notification
+ */
+async function formatTeamsGraphNotification(
+  body: any,
+  foundWebhook: any,
+  foundWorkflow: any,
+  request: NextRequest
+): Promise<any> {
+  const notification = body.value[0] // Process first notification
+  const changeType = notification.changeType || 'created'
+  const resource = notification.resource || ''
+  const subscriptionId = notification.subscriptionId || ''
+  
+  // Extract chatId and messageId from resource path
+  // Format: "chats/{chatId}/messages/{messageId}"
+  const resourceMatch = resource.match(/chats\/([^/]+)\/messages\/([^/]+)/)
+  if (!resourceMatch) {
+    logger.warn('Could not parse Teams Graph notification resource', { resource })
+    return {
+      input: 'Teams notification received',
+      webhook: {
+        data: {
+          provider: 'microsoftteams',
+          path: foundWebhook.path,
+          providerConfig: foundWebhook.providerConfig,
+          payload: body,
+          headers: Object.fromEntries(request.headers.entries()),
+          method: request.method,
+        },
+      },
+      workflowId: foundWorkflow.id,
+    }
+  }
+
+  const [, chatId, messageId] = resourceMatch
+  const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+  const credentialId = providerConfig.credentialId
+  const includeAttachments = providerConfig.includeAttachments !== false
+
+  // Fetch full message details
+  let message: any = null
+  let uploadedFiles: any[] = []
+
+  if (credentialId) {
+    try {
+      const accessToken = await refreshAccessTokenIfNeeded(credentialId, foundWorkflow.userId, 'teams-graph-notification')
+      if (accessToken) {
+        // Fetch message
+        const msgRes = await fetch(
+          `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        )
+        if (msgRes.ok) {
+          message = await msgRes.json()
+
+          // Fetch hosted contents if requested
+          if (includeAttachments) {
+            const { fetchHostedContentsForChatMessage } = await import('@/tools/microsoft_teams/utils')
+            uploadedFiles = await fetchHostedContentsForChatMessage({
+              accessToken,
+              chatId,
+              messageId,
+            })
+          }
+        }
+      }
+    } catch (error) {
+      logger.error('Error fetching Teams message from Graph notification:', error)
+    }
+  }
+
+  const messageText = message?.body?.content || ''
+  const from = message?.from?.user || {}
+  const createdAt = message?.createdDateTime || notification.resourceData?.createdDateTime || ''
+
+  return {
+    input: messageText,
+    message_id: messageId,
+    chat_id: chatId,
+    from_name: from.displayName || 'Unknown',
+    text: messageText,
+    created_at: createdAt,
+    change_type: changeType,
+    subscription_id: subscriptionId,
+    attachments: uploadedFiles,
+    microsoftteams: {
+      message: {
+        id: messageId,
+        text: messageText,
+        timestamp: createdAt,
+        chatId,
+        raw: message,
+      },
+      from: {
+        id: from.id,
+        name: from.displayName,
+        aadObjectId: from.aadObjectId,
+      },
+      notification: {
+        changeType,
+        subscriptionId,
+        resource,
+      },
+    },
+    webhook: {
+      data: {
+        provider: 'microsoftteams',
+        path: foundWebhook.path,
+        providerConfig: foundWebhook.providerConfig,
+        payload: body,
+        headers: Object.fromEntries(request.headers.entries()),
+        method: request.method,
+      },
+    },
+    workflowId: foundWorkflow.id,
+  }
+}
+
+/**
  * Format webhook input based on provider
  */
-export function formatWebhookInput(
+export async function formatWebhookInput(
   foundWebhook: any,
   foundWorkflow: any,
   body: any,
   request: NextRequest
-): any {
+): Promise<any> {
   if (foundWebhook.provider === 'whatsapp') {
     const data = body?.entry?.[0]?.changes?.[0]?.value
     const messages = data?.messages || []
@@ -359,6 +478,12 @@ export function formatWebhookInput(
   }
 
   if (foundWebhook.provider === 'microsoftteams') {
+    // Check if this is a Microsoft Graph change notification
+    if (body?.value && Array.isArray(body.value) && body.value.length > 0) {
+      // Graph subscription notification
+      return await formatTeamsGraphNotification(body, foundWebhook, foundWorkflow, request)
+    }
+
     // Microsoft Teams outgoing webhook - Teams sending data to us
     const messageText = body?.text || ''
     const messageId = body?.id || ''

@@ -15,7 +15,15 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { getTrigger } from '@/triggers'
 import type { TriggerConfig } from '@/triggers/types'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { CredentialSelector } from '../../credential-selector/credential-selector'
 import { TriggerConfigSection } from './trigger-config-section'
 import { TriggerInstructions } from './trigger-instructions'
@@ -32,19 +40,28 @@ interface TriggerModalProps {
   onDelete?: () => Promise<boolean>
   triggerId?: string
   blockId: string
+  availableTriggers?: string[]
+  selectedTriggerId?: string | null
+  onTriggerChange?: (triggerId: string) => void
 }
 
 export function TriggerModal({
   isOpen,
   onClose,
   triggerPath,
-  triggerDef,
+  triggerDef: propTriggerDef,
   triggerConfig: initialConfig,
   onSave,
   onDelete,
   triggerId,
   blockId,
+  availableTriggers = [],
+  selectedTriggerId,
+  onTriggerChange,
 }: TriggerModalProps) {
+  // Use selectedTriggerId to get the current trigger definition dynamically
+  const triggerDef = selectedTriggerId ? getTrigger(selectedTriggerId) || propTriggerDef : propTriggerDef
+  
   const [config, setConfig] = useState<Record<string, any>>(initialConfig)
   const [isSaving, setIsSaving] = useState(false)
 
@@ -445,6 +462,49 @@ export function TriggerModal({
 
         <div className='flex-1 overflow-y-auto px-6 py-6'>
           <div className='space-y-6'>
+            {/* Trigger Type Selector - only show if multiple triggers available */}
+            {availableTriggers && availableTriggers.length > 1 && onTriggerChange && (
+              <div className='space-y-2 rounded-md border border-border bg-card p-4 shadow-sm'>
+                <Label htmlFor='trigger-type-select' className='font-medium text-sm'>
+                  Trigger Type
+                </Label>
+                <p className='text-muted-foreground text-sm'>
+                  Choose how this workflow should be triggered
+                </p>
+                <Select
+                  value={selectedTriggerId || availableTriggers[0]}
+                  onValueChange={(value) => {
+                    if (onTriggerChange && value !== selectedTriggerId) {
+                      onTriggerChange(value)
+                    }
+                  }}
+                  disabled={!!triggerId}
+                >
+                  <SelectTrigger id='trigger-type-select' className='h-10'>
+                    <SelectValue placeholder='Select trigger type' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableTriggers.map((triggerId) => {
+                      const trigger = getTrigger(triggerId)
+                      return (
+                        <SelectItem key={triggerId} value={triggerId}>
+                          <div className='flex items-center gap-2'>
+                            {trigger?.icon && <trigger.icon className='h-4 w-4' />}
+                            <span>{trigger?.name || triggerId}</span>
+                          </div>
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectContent>
+                </Select>
+                {triggerId && (
+                  <p className='text-muted-foreground text-xs'>
+                    Delete the trigger to change the trigger type
+                  </p>
+                )}
+              </div>
+            )}
+
             {triggerDef.requiresCredentials && triggerDef.credentialProvider && (
               <div className='space-y-2 rounded-md border border-border bg-card p-4 shadow-sm'>
                 <h3 className='font-medium text-sm'>Credentials</h3>

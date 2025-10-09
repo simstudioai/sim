@@ -293,7 +293,7 @@ async function executeWebhookJobInternal(
       headers: new Map(Object.entries(payload.headers)),
     } as any
 
-    const input = formatWebhookInput(mockWebhook, mockWorkflow, payload.body, mockRequest)
+    const input = await formatWebhookInput(mockWebhook, mockWorkflow, payload.body, mockRequest)
 
     if (!input && payload.provider === 'whatsapp') {
       logger.info(`[${requestId}] No messages in WhatsApp payload, skipping execution`)

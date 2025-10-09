@@ -3,7 +3,7 @@ import type {
   MicrosoftTeamsReadResponse,
   MicrosoftTeamsToolParams,
 } from '@/tools/microsoft_teams/types'
-import { extractMessageAttachments } from '@/tools/microsoft_teams/utils'
+import { extractMessageAttachments, fetchHostedContentsForChannelMessage } from '@/tools/microsoft_teams/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('MicrosoftTeamsReadChannel')
@@ -37,6 +37,12 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
       required: true,
       visibility: 'user-only',
       description: 'The ID of the channel to read from',
+    },
+    includeAttachments: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Download and include message attachments (hosted contents) into storage',
     },
   },
 
@@ -98,7 +104,7 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
     }
 
     // Process messages with attachments
-    const processedMessages = messages.map((message: any, index: number) => {
+    const processedMessages = await Promise.all(messages.map(async (message: any, index: number) => {
       try {
         const content = message.body?.content || 'No content'
         const messageId = message.id
@@ -112,6 +118,27 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
           sender = 'System'
         }
 
+        // Optionally fetch and upload hosted contents
+        let uploaded: any[] = []
+        if (
+          params?.includeAttachments &&
+          params.accessToken &&
+          params.teamId &&
+          params.channelId &&
+          messageId
+        ) {
+          try {
+            uploaded = await fetchHostedContentsForChannelMessage({
+              accessToken: params.accessToken,
+              teamId: params.teamId,
+              channelId: params.channelId,
+              messageId,
+            })
+          } catch (_e) {
+            uploaded = []
+          }
+        }
+
         return {
           id: messageId,
           content: content,
@@ -119,6 +146,7 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
           timestamp: message.createdDateTime,
           messageType: message.messageType || 'message',
           attachments,
+          uploadedFiles: uploaded,
         }
       } catch (error) {
         logger.error(`Error processing message at index ${index}:`, error)
@@ -131,7 +159,7 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
           attachments: [],
         }
       }
-    })
+    }))
 
     // Format the messages into a readable text (no attachment info in content)
     const formattedMessages = processedMessages
@@ -171,11 +199,15 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
       messages: processedMessages,
     }
 
+    // Flatten uploaded files across all messages for convenience
+    const flattenedUploads = processedMessages.flatMap((m: any) => m.uploadedFiles || [])
+
     return {
       success: true,
       output: {
         content: formattedMessages,
         metadata,
+        attachments: flattenedUploads,
       },
     }
   },
@@ -189,5 +221,6 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
     attachmentCount: { type: 'number', description: 'Total number of attachments found' },
     attachmentTypes: { type: 'array', description: 'Types of attachments found' },
     content: { type: 'string', description: 'Formatted content of channel messages' },
+    attachments: { type: 'file[]', description: 'Uploaded attachments for convenience (flattened)' },
   },
 }

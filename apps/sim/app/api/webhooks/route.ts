@@ -326,6 +326,39 @@ export async function POST(request: NextRequest) {
     }
     // --- End Telegram specific logic ---
 
+    // --- Microsoft Teams chat subscription setup ---
+    if (savedWebhook && provider === 'microsoftteams') {
+      try {
+        const cfg = (savedWebhook.providerConfig as Record<string, any>) || {}
+        // Check if this is a chat subscription trigger (not outgoing webhook)
+        if (cfg.triggerId === 'microsoftteams_chat_subscription') {
+          logger.info(
+            `[${requestId}] Microsoft Teams chat subscription requested. Creating Graph subscription.`
+          )
+          const { createMicrosoftTeamsChatSubscription } = await import('@/lib/webhooks/teams-subscriptions.ts')
+          const created = await createMicrosoftTeamsChatSubscription(request, userId, savedWebhook, requestId)
+          if (!created) {
+            logger.error(`[${requestId}] Failed to create Microsoft Teams chat subscription`)
+            return NextResponse.json(
+              {
+                error: 'Failed to create Microsoft Teams chat subscription',
+              },
+              { status: 500 }
+            )
+          }
+        }
+      } catch (err) {
+        logger.error(`[${requestId}] Error setting up Microsoft Teams chat subscription`, err)
+        return NextResponse.json(
+          {
+            error: 'Failed to configure Microsoft Teams chat subscription',
+            details: err instanceof Error ? err.message : 'Unknown error',
+          },
+          { status: 500 }
+        )
+      }
+    }
+
     // --- Gmail webhook setup ---
     if (savedWebhook && provider === 'gmail') {
       logger.info(`[${requestId}] Gmail provider detected. Setting up Gmail webhook configuration.`)

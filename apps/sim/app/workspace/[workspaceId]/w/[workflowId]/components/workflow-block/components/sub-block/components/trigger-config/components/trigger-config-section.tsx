@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Check, ChevronDown, Copy, Eye, EyeOff, Info } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -26,6 +26,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { cn } from '@/lib/utils'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { TriggerConfig } from '@/triggers/types'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { CredentialSelector } from '../../credential-selector/credential-selector'
 
 interface TriggerConfigSectionProps {
   blockId: string
@@ -47,6 +49,26 @@ export function TriggerConfigSection({
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({})
   const [copied, setCopied] = useState<string | null>(null)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
+  
+  // Sync credential field values from subblock store to config
+  useEffect(() => {
+    const credentialFields = Object.entries(triggerDef.configFields).filter(
+      ([, field]) => field.type === 'credential'
+    )
+    
+    if (credentialFields.length === 0) return
+    
+    const unsubscribe = useSubBlockStore.subscribe((state) => {
+      credentialFields.forEach(([fieldId]) => {
+        const credentialValue = state.getValue(blockId, fieldId) as string | null
+        if (credentialValue && credentialValue !== config[fieldId]) {
+          onChange(fieldId, credentialValue)
+        }
+      })
+    })
+    
+    return unsubscribe
+  }, [blockId, triggerDef.configFields, config, onChange])
 
   const copyToClipboard = (text: string, type: string) => {
     navigator.clipboard.writeText(text)
@@ -215,6 +237,30 @@ export function TriggerConfigSection({
               value={value}
               onChange={(e) => onChange(fieldId, Number(e.target.value))}
               className='h-9 rounded-[8px]'
+            />
+            {fieldDef.description && (
+              <p className='text-muted-foreground text-sm'>{fieldDef.description}</p>
+            )}
+          </div>
+        )
+
+      case 'credential':
+        return (
+          <div className='space-y-2'>
+            <Label htmlFor={fieldId}>
+              {fieldDef.label}
+              {fieldDef.required && <span className='ml-1 text-red-500'>*</span>}
+            </Label>
+            <CredentialSelector
+              blockId={blockId}
+              subBlock={{
+                id: fieldId,
+                type: 'oauth-input' as const,
+                placeholder: fieldDef.placeholder || `Select ${fieldDef.provider} credential`,
+                provider: fieldDef.provider as any,
+                requiredScopes: fieldDef.requiredScopes || [],
+              }}
+              previewValue={value}
             />
             {fieldDef.description && (
               <p className='text-muted-foreground text-sm'>{fieldDef.description}</p>
