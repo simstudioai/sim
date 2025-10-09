@@ -108,6 +108,40 @@ export class SimStudioClient {
    * Execute a workflow with optional input data
    * If async is true, returns immediately with a task ID
    */
+  /**
+   * Convert File objects in input to API format (base64)
+   * Recursively processes nested objects and arrays
+   */
+  private async convertFilesToBase64(value: any): Promise<any> {
+    if (value instanceof File) {
+      // Convert File to base64 format expected by API
+      const arrayBuffer = await value.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
+      const base64 = buffer.toString('base64')
+
+      return {
+        type: 'file',
+        data: `data:${value.type || 'application/octet-stream'};base64,${base64}`,
+        name: value.name,
+        mime: value.type || 'application/octet-stream',
+      }
+    }
+
+    if (Array.isArray(value)) {
+      return Promise.all(value.map((item) => this.convertFilesToBase64(item)))
+    }
+
+    if (value !== null && typeof value === 'object') {
+      const converted: any = {}
+      for (const [key, val] of Object.entries(value)) {
+        converted[key] = await this.convertFilesToBase64(val)
+      }
+      return converted
+    }
+
+    return value
+  }
+
   async executeWorkflow(
     workflowId: string,
     options: ExecutionOptions = {}
@@ -121,15 +155,6 @@ export class SimStudioClient {
         setTimeout(() => reject(new Error('TIMEOUT')), timeout)
       })
 
-      // Build request body - spread input at root level, then add API control parameters
-      const body: any = input !== undefined ? { ...input } : {}
-      if (stream !== undefined) {
-        body.stream = stream
-      }
-      if (selectedOutputs !== undefined) {
-        body.selectedOutputs = selectedOutputs
-      }
-
       // Build headers - async execution uses X-Execution-Mode header
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -139,10 +164,23 @@ export class SimStudioClient {
         headers['X-Execution-Mode'] = 'async'
       }
 
+      // Build JSON body - spread input at root level, then add API control parameters
+      let jsonBody: any = input !== undefined ? { ...input } : {}
+
+      // Convert any File objects in the input to base64 format
+      jsonBody = await this.convertFilesToBase64(jsonBody)
+
+      if (stream !== undefined) {
+        jsonBody.stream = stream
+      }
+      if (selectedOutputs !== undefined) {
+        jsonBody.selectedOutputs = selectedOutputs
+      }
+
       const fetchPromise = fetch(url, {
         method: 'POST',
         headers,
-        body: JSON.stringify(body),
+        body: JSON.stringify(jsonBody),
       })
 
       const response = await Promise.race([fetchPromise, timeoutPromise])

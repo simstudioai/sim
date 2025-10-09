@@ -593,14 +593,91 @@ async function executeClientSideWorkflow() {
     });
 
     console.log('Workflow result:', result);
-    
+
     // Update UI with result
-    document.getElementById('result')!.textContent = 
+    document.getElementById('result')!.textContent =
       JSON.stringify(result.output, null, 2);
   } catch (error) {
     console.error('Error:', error);
   }
 }
+```
+
+### File Upload
+
+File objects are automatically detected and converted to base64 format. Include them in your input under the field name matching your workflow's API trigger input format.
+
+The SDK converts File objects to this format:
+```typescript
+{
+  type: 'file',
+  data: 'data:mime/type;base64,base64data',
+  name: 'filename',
+  mime: 'mime/type'
+}
+```
+
+Alternatively, you can manually provide files using the URL format:
+```typescript
+{
+  type: 'url',
+  data: 'https://example.com/file.pdf',
+  name: 'file.pdf',
+  mime: 'application/pdf'
+}
+```
+
+<Tabs items={['Browser', 'Node.js']}>
+  <Tab value="Browser">
+    ```typescript
+    import { SimStudioClient } from 'simstudio-ts-sdk';
+
+    const client = new SimStudioClient({
+      apiKey: process.env.NEXT_PUBLIC_SIM_API_KEY!
+    });
+
+    // From file input
+    async function handleFileUpload(event: Event) {
+      const input = event.target as HTMLInputElement;
+      const files = Array.from(input.files || []);
+
+      // Include files under the field name from your API trigger's input format
+      const result = await client.executeWorkflow('workflow-id', {
+        input: {
+          documents: files,  // Must match your workflow's "files" field name
+          instructions: 'Analyze these documents'
+        }
+      });
+
+      console.log('Result:', result);
+    }
+    ```
+  </Tab>
+  <Tab value="Node.js">
+    ```typescript
+    import { SimStudioClient } from 'simstudio-ts-sdk';
+    import fs from 'fs';
+
+    const client = new SimStudioClient({
+      apiKey: process.env.SIM_API_KEY!
+    });
+
+    // Read file and create File object
+    const fileBuffer = fs.readFileSync('./document.pdf');
+    const file = new File([fileBuffer], 'document.pdf', {
+      type: 'application/pdf'
+    });
+
+    // Include files under the field name from your API trigger's input format
+    const result = await client.executeWorkflow('workflow-id', {
+      input: {
+        documents: [file],  // Must match your workflow's "files" field name
+        query: 'Summarize this document'
+      }
+    });
+    ```
+  </Tab>
+</Tabs>
 
 // Attach to button click
 document.getElementById('executeBtn')?.addEventListener('click', executeClientSideWorkflow);
