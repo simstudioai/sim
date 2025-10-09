@@ -18,6 +18,34 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ path: string }> }
+) {
+  const requestId = generateRequestId()
+  const { path } = await params
+  
+  // Handle Microsoft Graph subscription validation
+  const url = new URL(request.url)
+  const validationToken = url.searchParams.get('validationToken')
+  
+  if (validationToken) {
+    logger.info(`[${requestId}] Microsoft Graph subscription validation for path: ${path}`)
+    return new NextResponse(validationToken, {
+      status: 200,
+      headers: { 'Content-Type': 'text/plain' },
+    })
+  }
+  
+  // Handle other GET-based verifications if needed
+  const challengeResponse = await handleProviderChallenges({}, request, requestId, path)
+  if (challengeResponse) {
+    return challengeResponse
+  }
+  
+  return new NextResponse('Method not allowed', { status: 405 })
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ path: string }> }

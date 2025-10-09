@@ -153,7 +153,11 @@ export function TriggerConfig({
       setStoredTriggerId(effectiveTriggerId)
 
       // Map trigger ID to webhook provider name
-      const webhookProvider = effectiveTriggerId.replace(/_webhook|_poller$/, '') // e.g., 'slack_webhook' -> 'slack', 'gmail_poller' -> 'gmail'
+      const webhookProvider = effectiveTriggerId
+        .replace(/_chat_subscription$/, '')
+        .replace(/_webhook$/, '')
+        .replace(/_poller$/, '')
+        .replace(/_subscription$/, '') // e.g., 'slack_webhook' -> 'slack', 'gmail_poller' -> 'gmail', 'microsoftteams_chat_subscription' -> 'microsoftteams'
 
       // Include selected credential from the modal (if any)
       const selectedCredentialId =
@@ -176,6 +180,7 @@ export function TriggerConfig({
             providerConfig: {
               ...config,
               ...(selectedCredentialId ? { credentialId: selectedCredentialId } : {}),
+              triggerId: effectiveTriggerId, // Include trigger ID to determine subscription vs polling
             },
           }),
         })
@@ -409,6 +414,13 @@ export function TriggerConfig({
           onDelete={handleDeleteTrigger}
           triggerId={triggerId || undefined}
           blockId={blockId}
+          availableTriggers={availableTriggers}
+          selectedTriggerId={selectedTriggerId}
+          onTriggerChange={(newTriggerId) => {
+            setStoredTriggerId(newTriggerId)
+            // Clear config when changing trigger type
+            setTriggerConfig({})
+          }}
         />
       )}
     </div>

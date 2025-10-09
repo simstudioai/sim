@@ -51,6 +51,9 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
         'Group.ReadWrite.All',
         'Team.ReadBasic.All',
         'offline_access',
+        // For downloading reference attachments stored in SharePoint/OneDrive when needed
+        'Files.Read.All',
+        'Sites.Read.All',
       ],
       placeholder: 'Select Microsoft account',
       required: true,
@@ -142,7 +145,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       type: 'trigger-config',
       layout: 'full',
       triggerProvider: 'microsoftteams',
-      availableTriggers: ['microsoftteams_webhook'],
+      availableTriggers: ['microsoftteams_webhook', 'microsoftteams_chat_subscription'],
     },
   ],
   tools: {
