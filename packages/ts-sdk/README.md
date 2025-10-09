@@ -300,7 +300,7 @@ const file = new File([fileBuffer], 'document.pdf', { type: 'application/pdf' })
 // Include files under the field name from your API trigger's input format
 const result = await client.executeWorkflow('workflow-id', {
   input: {
-    documents: [file],  // Must match your workflow's "files" field name
+    documents: [file],  // Field name must match your API trigger's file input field
     instructions: 'Process this document'
   }
 });
@@ -312,7 +312,7 @@ const handleFileUpload = async (event: Event) => {
 
   const result = await client.executeWorkflow('workflow-id', {
     input: {
-      attachments: files,  // Must match your workflow's "files" field name
+      attachments: files,  // Field name must match your API trigger's file input field
       query: 'Analyze these files'
     }
   });

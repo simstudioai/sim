@@ -24,7 +24,7 @@ def main():
         result = client.execute_workflow(
             workflow_id='your-workflow-id',
             input_data={
-                'documents': [f],  # Must match your workflow's "files" field name
+                'documents': [f],  # Field name must match your API trigger's file input field
                 'instructions': 'Analyze this document'
             }
         )
@@ -40,7 +40,7 @@ def main():
         result = client.execute_workflow(
             workflow_id='your-workflow-id',
             input_data={
-                'attachments': [f1, f2],  # Must match your workflow's "files" field name
+                'attachments': [f1, f2],  # Field name must match your API trigger's file input field
                 'query': 'Compare these documents'
             }
         )

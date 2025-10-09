@@ -112,9 +112,11 @@ export class SimStudioClient {
    * Convert File objects in input to API format (base64)
    * Recursively processes nested objects and arrays
    */
-  private async convertFilesToBase64(value: any): Promise<any> {
+  private async convertFilesToBase64(
+    value: any,
+    visited: WeakSet<object> = new WeakSet()
+  ): Promise<any> {
     if (value instanceof File) {
-      // Convert File to base64 format expected by API
       const arrayBuffer = await value.arrayBuffer()
       const buffer = Buffer.from(arrayBuffer)
       const base64 = buffer.toString('base64')
@@ -128,14 +130,27 @@ export class SimStudioClient {
     }
 
     if (Array.isArray(value)) {
-      return Promise.all(value.map((item) => this.convertFilesToBase64(item)))
+      if (visited.has(value)) {
+        return '[Circular]'
+      }
+      visited.add(value)
+      const result = await Promise.all(
+        value.map((item) => this.convertFilesToBase64(item, visited))
+      )
+      visited.delete(value)
+      return result
     }
 
     if (value !== null && typeof value === 'object') {
+      if (visited.has(value)) {
+        return '[Circular]'
+      }
+      visited.add(value)
       const converted: any = {}
       for (const [key, val] of Object.entries(value)) {
-        converted[key] = await this.convertFilesToBase64(val)
+        converted[key] = await this.convertFilesToBase64(val, visited)
       }
+      visited.delete(value)
       return converted
     }
 

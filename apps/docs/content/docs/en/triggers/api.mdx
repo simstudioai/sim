@@ -176,7 +176,7 @@ For files, access all properties:
 | `<api.fieldName[0].uploadedAt>` | Upload timestamp (ISO 8601) | string |
 | `<api.fieldName[0].expiresAt>` | URL expiry timestamp (ISO 8601) | string |
 
-For URL-referenced files, the following properties are available:
+For URL-referenced files, the same properties are available except `uploadedAt` and `expiresAt` since the file is not uploaded to our storage.
 
 If no Input Format is defined, the executor exposes the raw JSON at `<api.input>` only.
 

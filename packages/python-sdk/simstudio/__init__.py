@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional, Union
 from dataclasses import dataclass
 import time
 import random
+import os
 
 import requests
 
@@ -134,9 +135,8 @@ class SimStudioClient:
 
             # Get file metadata
             filename = getattr(value, 'name', 'file')
-            # Extract just the filename if it's a full path
-            if isinstance(filename, str) and '/' in filename:
-                filename = filename.split('/')[-1]
+            if isinstance(filename, str):
+                filename = os.path.basename(filename)
 
             content_type = getattr(value, 'content_type', 'application/octet-stream')
 

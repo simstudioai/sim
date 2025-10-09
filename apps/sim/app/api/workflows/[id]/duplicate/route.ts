@@ -47,17 +47,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Duplicate workflow and all related data in a transaction
     const result = await db.transaction(async (tx) => {
       // First verify the source workflow exists
-      const sourceWorkflow = await tx
+      const sourceWorkflowRow = await tx
         .select()
         .from(workflow)
         .where(eq(workflow.id, sourceWorkflowId))
         .limit(1)
 
-      if (sourceWorkflow.length === 0) {
+      if (sourceWorkflowRow.length === 0) {
         throw new Error('Source workflow not found')
       }
 
-      const source = sourceWorkflow[0]
+      const source = sourceWorkflowRow[0]
 
       // Check if user has permission to access the source workflow
       let canAccessSource = false

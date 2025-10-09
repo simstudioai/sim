@@ -109,8 +109,10 @@ describe('Workflow By ID API Route', () => {
         db: {
           select: vi.fn().mockReturnValue({
             from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                then: vi.fn().mockResolvedValue(mockWorkflow),
+              leftJoin: vi.fn().mockReturnValue({
+                where: vi.fn().mockReturnValue({
+                  then: vi.fn().mockResolvedValue({ workflow: mockWorkflow }),
+                }),
               }),
             }),
           }),
@@ -204,8 +206,10 @@ describe('Workflow By ID API Route', () => {
         db: {
           select: vi.fn().mockReturnValue({
             from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                then: vi.fn().mockResolvedValue(mockWorkflow),
+              leftJoin: vi.fn().mockReturnValue({
+                where: vi.fn().mockReturnValue({
+                  then: vi.fn().mockResolvedValue({ workflow: mockWorkflow }),
+                }),
               }),
             }),
           }),
@@ -254,8 +258,10 @@ describe('Workflow By ID API Route', () => {
         db: {
           select: vi.fn().mockReturnValue({
             from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                then: vi.fn().mockResolvedValue(mockWorkflow),
+              leftJoin: vi.fn().mockReturnValue({
+                where: vi.fn().mockReturnValue({
+                  then: vi.fn().mockResolvedValue({ workflow: mockWorkflow }),
+                }),
               }),
             }),
           }),
@@ -395,8 +401,10 @@ describe('Workflow By ID API Route', () => {
         db: {
           select: vi.fn().mockReturnValue({
             from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                then: vi.fn().mockResolvedValue(mockWorkflow),
+              leftJoin: vi.fn().mockReturnValue({
+                where: vi.fn().mockReturnValue({
+                  then: vi.fn().mockResolvedValue({ workflow: mockWorkflow }),
+                }),
               }),
             }),
           }),
@@ -451,7 +459,7 @@ describe('Workflow By ID API Route', () => {
           update: vi.fn().mockReturnValue({
             set: vi.fn().mockReturnValue({
               where: vi.fn().mockReturnValue({
-                returning: vi.fn().mockResolvedValue([{ ...mockWorkflow, ...updateData }]),
+                returning: vi.fn().mockResolvedValue([{ ...mockWorkflow, name: updateData.name }]),
               }),
             }),
           }),
@@ -500,7 +508,7 @@ describe('Workflow By ID API Route', () => {
           update: vi.fn().mockReturnValue({
             set: vi.fn().mockReturnValue({
               where: vi.fn().mockReturnValue({
-                returning: vi.fn().mockResolvedValue([{ ...mockWorkflow, ...updateData }]),
+                returning: vi.fn().mockResolvedValue([{ ...mockWorkflow, name: updateData.name }]),
               }),
             }),
           }),
@@ -546,8 +554,10 @@ describe('Workflow By ID API Route', () => {
         db: {
           select: vi.fn().mockReturnValue({
             from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                then: vi.fn().mockResolvedValue(mockWorkflow),
+              leftJoin: vi.fn().mockReturnValue({
+                where: vi.fn().mockReturnValue({
+                  then: vi.fn().mockResolvedValue({ workflow: mockWorkflow }),
+                }),
               }),
             }),
           }),
@@ -591,8 +601,23 @@ describe('Workflow By ID API Route', () => {
         db: {
           select: vi.fn().mockReturnValue({
             from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                then: vi.fn().mockResolvedValue(mockWorkflow),
+              leftJoin: vi.fn().mockReturnValue({
+                where: vi.fn().mockReturnValue({
+                  then: vi.fn().mockResolvedValue({ workflow: mockWorkflow }),
+                }),
+              }),
+            }),
+          }),
+        },
+      }))
+      vi.doMock('@sim/db', () => ({
+        db: {
+          select: vi.fn().mockReturnValue({
+            from: vi.fn().mockReturnValue({
+              leftJoin: vi.fn().mockReturnValue({
+                where: vi.fn().mockReturnValue({
+                  then: vi.fn().mockResolvedValue({ workflow: mockWorkflow }),
+                }),
               }),
             }),
           }),

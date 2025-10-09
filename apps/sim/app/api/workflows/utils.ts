@@ -120,11 +120,11 @@ export async function processApiWorkflowField(
 
   const files = Array.isArray(fieldValue) ? fieldValue : [fieldValue]
   const uploadedFiles: UserFile[] = []
+  const executionId = uuidv4()
+  const fullContext = { ...executionContext, executionId }
 
   for (const file of files) {
     try {
-      const executionId = uuidv4()
-      const fullContext = { ...executionContext, executionId }
       const userFile = await processApiWorkflowFiles(file, fullContext, requestId)
 
       if (userFile) {
