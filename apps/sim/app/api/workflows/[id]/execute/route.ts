@@ -23,7 +23,11 @@ import {
   workflowHasResponseBlock,
 } from '@/lib/workflows/utils'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
-import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import {
+  createErrorResponse,
+  createSuccessResponse,
+  processApiWorkflowField,
+} from '@/app/api/workflows/utils'
 import { Executor } from '@/executor'
 import type { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
@@ -74,16 +78,13 @@ function resolveOutputIds(
     return selectedOutputs
   }
 
-  // UUID regex to detect if it's already in blockId_attribute format
   const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
 
   return selectedOutputs.map((outputId) => {
-    // If it starts with a UUID, it's already in blockId_attribute format (from chat deployments)
     if (UUID_REGEX.test(outputId)) {
       return outputId
     }
 
-    // Otherwise, it's in blockName.path format from the user/API
     const dotIndex = outputId.indexOf('.')
     if (dotIndex === -1) {
       logger.warn(`Invalid output ID format (missing dot): ${outputId}`)
@@ -93,7 +94,6 @@ function resolveOutputIds(
     const blockName = outputId.substring(0, dotIndex)
     const path = outputId.substring(dotIndex + 1)
 
-    // Find the block by name (case-insensitive, ignoring spaces)
     const normalizedBlockName = blockName.toLowerCase().replace(/\s+/g, '')
     const block = Object.values(blocks).find((b: any) => {
       const normalized = (b.name || '').toLowerCase().replace(/\s+/g, '')
@@ -137,9 +137,6 @@ export async function executeWorkflow(
 
   const loggingSession = new LoggingSession(workflowId, executionId, 'api', requestId)
 
-  // Rate limiting is now handled before entering the sync queue
-
-  // Check if the actor has exceeded their usage limits
   const usageCheck = await checkServerSideUsageLimits(actorUserId)
   if (usageCheck.isExceeded) {
     logger.warn(`[${requestId}] User ${workflow.userId} has exceeded usage limits`, {
@@ -151,13 +148,11 @@ export async function executeWorkflow(
     )
   }
 
-  // Log input to help debug
   logger.info(
     `[${requestId}] Executing workflow with input:`,
     input ? JSON.stringify(input, null, 2) : 'No input provided'
   )
 
-  // Use input directly for API workflows
   const processedInput = input
   logger.info(
     `[${requestId}] Using input directly for workflow:`,
@@ -168,10 +163,7 @@ export async function executeWorkflow(
     runningExecutions.add(executionKey)
     logger.info(`[${requestId}] Starting workflow execution: ${workflowId}`)
 
-    // Load workflow data from deployed state for API executions
     const deployedData = await loadDeployedWorkflowState(workflowId)
-
-    // Use deployed data as primary source for API executions
     const { blocks, edges, loops, parallels } = deployedData
     logger.info(`[${requestId}] Using deployed state for workflow execution: ${workflowId}`)
     logger.debug(`[${requestId}] Deployed data loaded:`, {
@@ -181,10 +173,8 @@ export async function executeWorkflow(
       parallelsCount: Object.keys(parallels || {}).length,
     })
 
-    // Use the same execution flow as in scheduled executions
     const mergedStates = mergeSubblockState(blocks)
 
-    // Load personal (for the executing user) and workspace env (workspace overrides personal)
     const { personalEncrypted, workspaceEncrypted } = await getPersonalAndWorkspaceEnv(
       actorUserId,
       workflow.workspaceId || undefined
@@ -197,7 +187,6 @@ export async function executeWorkflow(
       variables,
     })
 
-    // Replace environment variables in the block states
     const currentBlockStates = await Object.entries(mergedStates).reduce(
       async (accPromise, [id, block]) => {
         const acc = await accPromise
@@ -206,13 +195,11 @@ export async function executeWorkflow(
             const subAcc = await subAccPromise
             let value = subBlock.value
 
-            // If the value is a string and contains environment variable syntax
             if (typeof value === 'string' && value.includes('{{') && value.includes('}}')) {
               const matches = value.match(/{{([^}]+)}}/g)
               if (matches) {
-                // Process all matches sequentially
                 for (const match of matches) {
-                  const varName = match.slice(2, -2) // Remove {{ and }}
+                  const varName = match.slice(2, -2)
                   const encryptedValue = variables[varName]
                   if (!encryptedValue) {
                     throw new Error(`Environment variable "${varName}" was not found`)
@@ -244,7 +231,6 @@ export async function executeWorkflow(
       Promise.resolve({} as Record<string, Record<string, any>>)
     )
 
-    // Create a map of decrypted environment variables
     const decryptedEnvVars: Record<string, string> = {}
     for (const [key, encryptedValue] of Object.entries(variables)) {
       try {
@@ -256,22 +242,17 @@ export async function executeWorkflow(
       }
     }
 
-    // Process the block states to ensure response formats are properly parsed
     const processedBlockStates = Object.entries(currentBlockStates).reduce(
       (acc, [blockId, blockState]) => {
-        // Check if this block has a responseFormat that needs to be parsed
         if (blockState.responseFormat && typeof blockState.responseFormat === 'string') {
           const responseFormatValue = blockState.responseFormat.trim()
 
-          // Check for variable references like <start.input>
           if (responseFormatValue.startsWith('<') && responseFormatValue.includes('>')) {
             logger.debug(
               `[${requestId}] Response format contains variable reference for block ${blockId}`
             )
-            // Keep variable references as-is - they will be resolved during execution
             acc[blockId] = blockState
           } else if (responseFormatValue === '') {
-            // Empty string - remove response format
             acc[blockId] = {
               ...blockState,
               responseFormat: undefined,
@@ -279,7 +260,6 @@ export async function executeWorkflow(
           } else {
             try {
               logger.debug(`[${requestId}] Parsing responseFormat for block ${blockId}`)
-              // Attempt to parse the responseFormat if it's a string
               const parsedResponseFormat = JSON.parse(responseFormatValue)
 
               acc[blockId] = {
@@ -291,7 +271,6 @@ export async function executeWorkflow(
                 `[${requestId}] Failed to parse responseFormat for block ${blockId}, using undefined`,
                 error
               )
-              // Set to undefined instead of keeping malformed JSON - this allows execution to continue
               acc[blockId] = {
                 ...blockState,
                 responseFormat: undefined,
@@ -306,7 +285,6 @@ export async function executeWorkflow(
       {} as Record<string, Record<string, any>>
     )
 
-    // Get workflow variables - they are stored as JSON objects in the database
     const workflowVariables = (workflow.variables as Record<string, any>) || {}
 
     if (Object.keys(workflowVariables).length > 0) {
@@ -317,20 +295,15 @@ export async function executeWorkflow(
       logger.debug(`[${requestId}] No workflow variables found for: ${workflowId}`)
     }
 
-    // Serialize and execute the workflow
     logger.debug(`[${requestId}] Serializing workflow: ${workflowId}`)
     const serializedWorkflow = new Serializer().serializeWorkflow(
       mergedStates,
       edges,
       loops,
       parallels,
-      true // Enable validation during execution
+      true
     )
 
-    // Determine trigger start block based on execution type
-    // - 'chat': For chat deployments (looks for chat_trigger block)
-    // - 'api': For direct API execution (looks for api_trigger block)
-    // streamConfig is passed from POST handler when using streaming/chat
     const preferredTriggerType = streamConfig?.workflowTriggerType || 'api'
     const startBlock = TriggerUtils.findStartBlock(mergedStates, preferredTriggerType, false)
 
@@ -346,8 +319,6 @@ export async function executeWorkflow(
     const startBlockId = startBlock.blockId
     const triggerBlock = startBlock.block
 
-    // Check if the API trigger has any outgoing connections (except for legacy starter blocks)
-    // Legacy starter blocks have their own validation in the executor
     if (triggerBlock.type !== 'starter') {
       const outgoingConnections = serializedWorkflow.connections.filter(
         (conn) => conn.source === startBlockId
@@ -358,14 +329,12 @@ export async function executeWorkflow(
       }
     }
 
-    // Build context extensions
     const contextExtensions: any = {
       executionId,
       workspaceId: workflow.workspaceId,
       isDeployedContext: true,
     }
 
-    // Add streaming configuration if enabled
     if (streamConfig?.enabled) {
       contextExtensions.stream = true
       contextExtensions.selectedOutputs = streamConfig.selectedOutputs || []
@@ -386,10 +355,8 @@ export async function executeWorkflow(
       contextExtensions,
     })
 
-    // Set up logging on the executor
     loggingSession.setupExecutor(executor)
 
-    // Execute workflow (will always return ExecutionResult since we don't use onStream)
     const result = (await executor.execute(workflowId, startBlockId)) as ExecutionResult
 
     logger.info(`[${requestId}] Workflow execution completed: ${workflowId}`, {
@@ -397,14 +364,11 @@ export async function executeWorkflow(
       executionTime: result.metadata?.duration,
     })
 
-    // Build trace spans from execution result (works for both success and failure)
     const { traceSpans, totalDuration } = buildTraceSpans(result)
 
-    // Update workflow run counts if execution was successful
     if (result.success) {
       await updateWorkflowRunCounts(workflowId)
 
-      // Track API call in user stats
       await db
         .update(userStats)
         .set({
@@ -421,7 +385,6 @@ export async function executeWorkflow(
       traceSpans: (traceSpans || []) as any,
     })
 
-    // For non-streaming, return the execution result
     return result
   } catch (error: any) {
     logger.error(`[${requestId}] Workflow execution failed: ${workflowId}`, error)
@@ -461,22 +424,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return createErrorResponse(validation.error.message, validation.error.status)
     }
 
-    // Determine trigger type based on authentication
     let triggerType: TriggerType = 'manual'
     const session = await getSession()
     if (!session?.user?.id) {
-      // Check for API key
       const apiKeyHeader = request.headers.get('X-API-Key')
       if (apiKeyHeader) {
         triggerType = 'api'
       }
     }
 
-    // Note: Async execution is now handled in the POST handler below
-
-    // Synchronous execution
     try {
-      // Resolve actor user id
       let actorUserId: string | null = null
       if (triggerType === 'manual') {
         actorUserId = session!.user!.id
@@ -491,7 +448,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           void updateApiKeyLastUsed(auth.keyId).catch(() => {})
         }
 
-        // Check rate limits BEFORE entering execution for API requests
         const userSubscription = await getHighestPrioritySubscription(actorUserId)
         const rateLimiter = new RateLimiter()
         const rateLimitCheck = await rateLimiter.checkRateLimitWithSubscription(
@@ -514,13 +470,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         actorUserId as string
       )
 
-      // Check if the workflow execution contains a response block output
       const hasResponseBlock = workflowHasResponseBlock(result)
       if (hasResponseBlock) {
         return createHttpResponseFromBlock(result)
       }
 
-      // Filter out logs and workflowConnections from the API response
       const filteredResult = createFilteredResult(result)
       return createSuccessResponse(filteredResult)
     } catch (error: any) {
@@ -536,12 +490,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   } catch (error: any) {
     logger.error(`[${requestId}] Error executing workflow: ${id}`, error)
 
-    // Check if this is a rate limit error
     if (error instanceof RateLimitError) {
       return createErrorResponse(error.message, error.statusCode, 'RATE_LIMIT_EXCEEDED')
     }
 
-    // Check if this is a usage limit error
     if (error instanceof UsageLimitError) {
       return createErrorResponse(error.message, error.statusCode, 'USAGE_LIMIT_EXCEEDED')
     }
@@ -566,18 +518,15 @@ export async function POST(
   const workflowId = id
 
   try {
-    // Validate workflow access
     const validation = await validateWorkflowAccess(request as NextRequest, id)
     if (validation.error) {
       logger.warn(`[${requestId}] Workflow access validation failed: ${validation.error.message}`)
       return createErrorResponse(validation.error.message, validation.error.status)
     }
 
-    // Check execution mode from header
     const executionMode = request.headers.get('X-Execution-Mode')
     const isAsync = executionMode === 'async'
 
-    // Parse request body first to check for internal parameters
     const body = await request.text()
     logger.info(`[${requestId}] ${body ? 'Request body provided' : 'No request body provided'}`)
 
@@ -619,17 +568,14 @@ export async function POST(
       input: rawInput,
     } = extractExecutionParams(request as NextRequest, parsedBody)
 
-    // Process file uploads in the input before execution
     let processedInput = rawInput
     logger.info(`[${requestId}] Raw input received:`, JSON.stringify(rawInput, null, 2))
 
-    // Load workflow to check for file-type fields in the inputFormat
     try {
       const deployedData = await loadDeployedWorkflowState(workflowId)
       const blocks = deployedData.blocks || {}
       logger.info(`[${requestId}] Loaded ${Object.keys(blocks).length} blocks from workflow`)
 
-      // Find the API trigger block
       const apiTriggerBlock = Object.values(blocks).find(
         (block: any) => block.type === 'api_trigger'
       ) as any
@@ -645,101 +591,25 @@ export async function POST(
           inputFormat.map((f) => `${f.name}:${f.type}`).join(', ')
         )
 
-        // Find file-type fields
         const fileFields = inputFormat.filter((field) => field.type === 'files')
         logger.info(`[${requestId}] Found ${fileFields.length} file-type fields`)
 
         if (fileFields.length > 0 && typeof rawInput === 'object' && rawInput !== null) {
-          // Process each file field
+          const executionContext = {
+            workspaceId: validation.workflow.workspaceId,
+            workflowId,
+          }
+
           for (const fileField of fileFields) {
             const fieldValue = rawInput[fileField.name]
 
             if (fieldValue && typeof fieldValue === 'object') {
-              // Check if it's a single file or array of files
-              const files = Array.isArray(fieldValue) ? fieldValue : [fieldValue]
-              const uploadedFiles = []
+              const uploadedFiles = await processApiWorkflowField(
+                fieldValue,
+                executionContext,
+                requestId
+              )
 
-              for (const file of files) {
-                // Handle file based on type: 'file' (base64) or 'url' (direct URL)
-                if (file.type === 'file' && file.data && file.name) {
-                  try {
-                    // Extract base64 data from data field
-                    const dataUrlPrefix = 'data:'
-                    const base64Prefix = ';base64,'
-
-                    if (!file.data.startsWith(dataUrlPrefix)) {
-                      logger.warn(`[${requestId}] Invalid data format for file: ${file.name}`)
-                      continue
-                    }
-
-                    const base64Index = file.data.indexOf(base64Prefix)
-                    if (base64Index === -1) {
-                      logger.warn(
-                        `[${requestId}] Invalid data format (no base64 marker) for file: ${file.name}`
-                      )
-                      continue
-                    }
-
-                    const mimeType = file.data.substring(dataUrlPrefix.length, base64Index)
-                    const base64Data = file.data.substring(base64Index + base64Prefix.length)
-                    const buffer = Buffer.from(base64Data, 'base64')
-
-                    // Check file size limit (20MB)
-                    const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB in bytes
-                    if (buffer.length > MAX_FILE_SIZE) {
-                      const fileSizeMB = (buffer.length / (1024 * 1024)).toFixed(2)
-                      throw new Error(
-                        `File "${file.name}" exceeds the maximum size limit of 20MB (actual size: ${fileSizeMB}MB)`
-                      )
-                    }
-
-                    logger.debug(
-                      `[${requestId}] Uploading file to S3: ${file.name} (${buffer.length} bytes)`
-                    )
-
-                    // Generate execution context for file upload
-                    const executionId = uuidv4()
-                    const executionContext = {
-                      workspaceId: validation.workflow.workspaceId,
-                      workflowId,
-                      executionId,
-                    }
-
-                    const { uploadExecutionFile } = await import(
-                      '@/lib/workflows/execution-file-storage'
-                    )
-
-                    // Upload to S3
-                    const userFile = await uploadExecutionFile(
-                      executionContext,
-                      buffer,
-                      file.name,
-                      mimeType || file.mime
-                    )
-
-                    uploadedFiles.push(userFile)
-                    logger.debug(
-                      `[${requestId}] Successfully uploaded ${file.name} with URL: ${userFile.url}`
-                    )
-                  } catch (error) {
-                    logger.error(`[${requestId}] Failed to upload file ${file.name}:`, error)
-                    throw new Error(`Failed to upload file: ${file.name}`)
-                  }
-                } else if (file.type === 'url' && file.data) {
-                  // File is already a URL, pass it through as a UserFile-like object
-                  uploadedFiles.push({
-                    url: file.data,
-                    name: file.name,
-                    size: 0, // Unknown size for URL files
-                    type: file.mime || 'application/octet-stream',
-                    key: '',
-                    uploadedAt: new Date().toISOString(),
-                    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
-                  })
-                }
-              }
-
-              // Update the input with uploaded files (always as an array)
               if (uploadedFiles.length > 0) {
                 processedInput = {
                   ...processedInput,
@@ -761,14 +631,12 @@ export async function POST(
 
     const input = processedInput
 
-    // Get authenticated user and determine trigger type
     let authenticatedUserId: string
     let triggerType: TriggerType = 'manual'
 
-    // For internal calls (chat deployments), use the workflow owner's ID
     if (finalIsSecureMode) {
       authenticatedUserId = validation.workflow.userId
-      triggerType = 'manual' // Chat deployments use manual trigger type (no rate limit)
+      triggerType = 'manual'
     } else {
       const session = await getSession()
       const apiKeyHeader = request.headers.get('X-API-Key')
@@ -791,7 +659,6 @@ export async function POST(
       }
     }
 
-    // Get user subscription (checks both personal and org subscriptions)
     const userSubscription = await getHighestPrioritySubscription(authenticatedUserId)
 
     if (isAsync) {
@@ -801,7 +668,7 @@ export async function POST(
           authenticatedUserId,
           userSubscription,
           'api',
-          true // isAsync = true
+          true
         )
 
         if (!rateLimitCheck.allowed) {
@@ -825,7 +692,6 @@ export async function POST(
           )
         }
 
-        // Rate limit passed - always use Trigger.dev for async executions
         const handle = await tasks.trigger('workflow-execution', {
           workflowId,
           userId: authenticatedUserId,
@@ -865,7 +731,7 @@ export async function POST(
         authenticatedUserId,
         userSubscription,
         triggerType,
-        false // isAsync = false for sync calls
+        false
       )
 
       if (!rateLimitCheck.allowed) {
@@ -874,15 +740,12 @@ export async function POST(
         )
       }
 
-      // Handle streaming response - wrap execution in SSE stream
       if (streamResponse) {
-        // Load workflow blocks to resolve output IDs from blockName.attribute to blockId_attribute format
         const deployedData = await loadDeployedWorkflowState(workflowId)
         const resolvedSelectedOutputs = selectedOutputs
           ? resolveOutputIds(selectedOutputs, deployedData.blocks || {})
           : selectedOutputs
 
-        // Use shared streaming response creator
         const { createStreamingResponse } = await import('@/lib/workflows/streaming')
         const { SSE_HEADERS } = await import('@/lib/utils')
 
@@ -905,7 +768,6 @@ export async function POST(
         })
       }
 
-      // Non-streaming execution
       const result = await executeWorkflow(
         validation.workflow,
         requestId,
@@ -914,13 +776,11 @@ export async function POST(
         undefined
       )
 
-      // Non-streaming response
       const hasResponseBlock = workflowHasResponseBlock(result)
       if (hasResponseBlock) {
         return createHttpResponseFromBlock(result)
       }
 
-      // Filter out logs and workflowConnections from the API response
       const filteredResult = createFilteredResult(result)
       return createSuccessResponse(filteredResult)
     } catch (error: any) {
@@ -936,17 +796,14 @@ export async function POST(
   } catch (error: any) {
     logger.error(`[${requestId}] Error executing workflow: ${workflowId}`, error)
 
-    // Check if this is a rate limit error
     if (error instanceof RateLimitError) {
       return createErrorResponse(error.message, error.statusCode, 'RATE_LIMIT_EXCEEDED')
     }
 
-    // Check if this is a usage limit error
     if (error instanceof UsageLimitError) {
       return createErrorResponse(error.message, error.statusCode, 'USAGE_LIMIT_EXCEEDED')
     }
 
-    // Check if this is a rate limit error (string match for backward compatibility)
     if (error.message?.includes('Rate limit exceeded')) {
       return createErrorResponse(error.message, 429, 'RATE_LIMIT_EXCEEDED')
     }
