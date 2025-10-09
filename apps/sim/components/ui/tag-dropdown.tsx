@@ -995,6 +995,33 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
       let processedTag = tag
 
+      // Check if this is a file property and add [0] automatically
+      const fileProperties = ['url', 'name', 'size', 'type', 'key', 'uploadedAt', 'expiresAt']
+      const parts = tag.split('.')
+      if (parts.length >= 2 && fileProperties.includes(parts[parts.length - 1])) {
+        const fieldName = parts[parts.length - 2]
+
+        if (blockGroup) {
+          const block = useWorkflowStore.getState().blocks[blockGroup.blockId]
+          const blockConfig = block ? (getBlock(block.type) ?? null) : null
+          const mergedSubBlocks = getMergedSubBlocks(blockGroup.blockId)
+
+          const fieldType = getOutputTypeForPath(
+            block,
+            blockConfig,
+            blockGroup.blockId,
+            fieldName,
+            mergedSubBlocks
+          )
+
+          if (fieldType === 'files') {
+            const blockAndField = parts.slice(0, -1).join('.')
+            const property = parts[parts.length - 1]
+            processedTag = `${blockAndField}[0].${property}`
+          }
+        }
+      }
+
       if (tag.startsWith(TAG_PREFIXES.VARIABLE)) {
         const variableName = tag.substring(TAG_PREFIXES.VARIABLE.length)
         const variableObj = workflowVariables.find(
