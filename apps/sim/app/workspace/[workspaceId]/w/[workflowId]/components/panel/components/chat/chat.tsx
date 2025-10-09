@@ -799,6 +799,17 @@ export function Chat({ chatMessage, setChatMessage }: ChatProps) {
                       errors.push(`${file.name} is too large (max 10MB)`)
                       continue
                     }
+
+                    // Check for duplicates
+                    const isDuplicate = chatFiles.some(
+                      (existingFile) =>
+                        existingFile.name === file.name && existingFile.size === file.size
+                    )
+                    if (isDuplicate) {
+                      errors.push(`${file.name} already added`)
+                      continue
+                    }
+
                     newFiles.push({
                       id: crypto.randomUUID(),
                       name: file.name,
