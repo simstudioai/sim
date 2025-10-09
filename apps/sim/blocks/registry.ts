@@ -73,6 +73,7 @@ import { TelegramBlock } from '@/blocks/blocks/telegram'
 import { ThinkingBlock } from '@/blocks/blocks/thinking'
 import { TranslateBlock } from '@/blocks/blocks/translate'
 import { TwilioSMSBlock } from '@/blocks/blocks/twilio'
+import { TwilioVoiceBlock } from '@/blocks/blocks/twilio_voice'
 import { TypeformBlock } from '@/blocks/blocks/typeform'
 import { VariablesBlock } from '@/blocks/blocks/variables'
 import { VisionBlock } from '@/blocks/blocks/vision'
@@ -168,6 +169,7 @@ export const registry: Record<string, BlockConfig> = {
   thinking: ThinkingBlock,
   translate: TranslateBlock,
   twilio_sms: TwilioSMSBlock,
+  twilio_voice: TwilioVoiceBlock,
   typeform: TypeformBlock,
   variables: VariablesBlock,
   vision: VisionBlock,

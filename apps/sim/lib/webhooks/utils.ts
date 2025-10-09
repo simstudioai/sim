@@ -526,6 +526,63 @@ async function formatTeamsGraphNotification(
 }
 
 /**
+ * Validate Twilio webhook signature
+ * Twilio uses HMAC-SHA1 for signature validation
+ * https://www.twilio.com/docs/usage/security#validating-requests
+ */
+export async function validateTwilioSignature(
+  authToken: string,
+  signature: string,
+  url: string,
+  params: Record<string, any>
+): Promise<boolean> {
+  try {
+    // Basic validation
+    if (!authToken || !signature || !url) {
+      return false
+    }
+
+    // Sort parameters alphabetically and concatenate with URL
+    const sortedKeys = Object.keys(params).sort()
+    let data = url
+    for (const key of sortedKeys) {
+      data += key + params[key]
+    }
+
+    // Create HMAC-SHA1 signature
+    const encoder = new TextEncoder()
+    const key = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(authToken),
+      { name: 'HMAC', hash: 'SHA-1' },
+      false,
+      ['sign']
+    )
+
+    const signatureBytes = await crypto.subtle.sign('HMAC', key, encoder.encode(data))
+
+    // Convert to base64
+    const signatureArray = Array.from(new Uint8Array(signatureBytes))
+    const signatureBase64 = btoa(String.fromCharCode(...signatureArray))
+
+    // Constant-time comparison
+    if (signatureBase64.length !== signature.length) {
+      return false
+    }
+
+    let result = 0
+    for (let i = 0; i < signatureBase64.length; i++) {
+      result |= signatureBase64.charCodeAt(i) ^ signature.charCodeAt(i)
+    }
+
+    return result === 0
+  } catch (error) {
+    logger.error('Error validating Twilio signature:', error)
+    return false
+  }
+}
+
+/**
  * Format webhook input based on provider
  */
 export async function formatWebhookInput(
@@ -719,6 +776,42 @@ export async function formatWebhookInput(
       webhook: {
         data: {
           provider: 'telegram',
+          path: foundWebhook.path,
+          providerConfig: foundWebhook.providerConfig,
+          payload: body,
+          headers: Object.fromEntries(request.headers.entries()),
+          method: request.method,
+        },
+      },
+      workflowId: foundWorkflow.id,
+    }
+  }
+
+  if (foundWebhook.provider === 'twilio_voice') {
+    // Twilio sends data as URL-encoded form data
+    // The body will already be parsed by parseWebhookBody
+    return {
+      twilioVoice: {
+        data: {
+          callSid: body.CallSid,
+          accountSid: body.AccountSid,
+          from: body.From,
+          to: body.To,
+          callStatus: body.CallStatus,
+          direction: body.Direction,
+          apiVersion: body.ApiVersion,
+          callerName: body.CallerName,
+          forwardedFrom: body.ForwardedFrom,
+          digits: body.Digits,
+          speechResult: body.SpeechResult,
+          recordingUrl: body.RecordingUrl,
+          recordingSid: body.RecordingSid,
+          raw: JSON.stringify(body),
+        },
+      },
+      webhook: {
+        data: {
+          provider: 'twilio_voice',
           path: foundWebhook.path,
           providerConfig: foundWebhook.providerConfig,
           payload: body,

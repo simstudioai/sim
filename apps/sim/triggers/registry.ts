@@ -19,6 +19,7 @@ import {
   webflowFormSubmissionTrigger,
 } from '@/triggers/webflow'
 import { whatsappWebhookTrigger } from '@/triggers/whatsapp'
+import { twilioVoiceWebhookTrigger } from '@/triggers/twilio_voice/webhook'
 
 export const TRIGGER_REGISTRY: TriggerRegistry = {
   slack_webhook: slackWebhookTrigger,
@@ -33,6 +34,7 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   telegram_webhook: telegramWebhookTrigger,
   whatsapp_webhook: whatsappWebhookTrigger,
   google_forms_webhook: googleFormsWebhookTrigger,
+  twilio_voice_webhook: twilioVoiceWebhookTrigger,
   webflow_collection_item_created: webflowCollectionItemCreatedTrigger,
   webflow_collection_item_changed: webflowCollectionItemChangedTrigger,
   webflow_collection_item_deleted: webflowCollectionItemDeletedTrigger,

@@ -237,6 +237,55 @@ export async function verifyProviderAuth(
     }
   }
 
+  // Twilio Voice webhook signature verification
+  if (foundWebhook.provider === 'twilio_voice') {
+    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+    const authToken = providerConfig.authToken as string | undefined
+
+    if (authToken) {
+      const signature = request.headers.get('x-twilio-signature')
+
+      if (!signature) {
+        logger.warn(`[${requestId}] Twilio Voice webhook missing signature header`)
+        return new NextResponse('Unauthorized - Missing Twilio signature', { status: 401 })
+      }
+
+      // Parse the body to get parameters for signature validation
+      let params: Record<string, any> = {}
+      try {
+        // Body is URL-encoded for Twilio webhooks
+        if (typeof rawBody === 'string') {
+          const urlParams = new URLSearchParams(rawBody)
+          params = Object.fromEntries(urlParams.entries())
+        }
+      } catch (error) {
+        logger.error(`[${requestId}] Error parsing Twilio webhook body for signature validation:`, error)
+        return new NextResponse('Bad Request - Invalid body format', { status: 400 })
+      }
+
+      // Construct the full URL (needed for Twilio signature validation)
+      const url = new URL(request.url)
+      const fullUrl = url.toString()
+
+      // Dynamically import the validation function to avoid issues
+      const { validateTwilioSignature } = await import('@/lib/webhooks/utils')
+      
+      const isValidSignature = await validateTwilioSignature(
+        authToken,
+        signature,
+        fullUrl,
+        params
+      )
+
+      if (!isValidSignature) {
+        logger.warn(`[${requestId}] Twilio Voice signature verification failed`)
+        return new NextResponse('Unauthorized - Invalid Twilio signature', { status: 401 })
+      }
+
+      logger.debug(`[${requestId}] Twilio Voice signature verified successfully`)
+    }
+  }
+
   // Generic webhook authentication
   if (foundWebhook.provider === 'generic') {
     const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
@@ -520,6 +569,36 @@ export async function queueWebhookExecution(
       })
     }
 
+    // Twilio Voice requires TwiML XML response
+    if (foundWebhook.provider === 'twilio_voice') {
+      const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+      const twimlResponse = providerConfig.twimlResponse as string | undefined
+
+      // If user provided custom TwiML, return it
+      if (twimlResponse) {
+        return new NextResponse(twimlResponse, {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/xml',
+          },
+        })
+      }
+
+      // Default TwiML if none provided - just hangs up after brief pause
+      const defaultTwiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say>Your call is being processed.</Say>
+  <Pause length="1"/>
+</Response>`
+
+      return new NextResponse(defaultTwiml, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/xml',
+        },
+      })
+    }
+
     return NextResponse.json({ message: 'Webhook processed' })
   } catch (error: any) {
     logger.error(`[${options.requestId}] Failed to queue webhook execution:`, error)
@@ -532,6 +611,21 @@ export async function queueWebhookExecution(
         },
         { status: 500 }
       )
+    }
+
+    if (foundWebhook.provider === 'twilio_voice') {
+      const errorTwiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say>We're sorry, but an error occurred processing your call. Please try again later.</Say>
+  <Hangup/>
+</Response>`
+
+      return new NextResponse(errorTwiml, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/xml',
+        },
+      })
     }
 
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
