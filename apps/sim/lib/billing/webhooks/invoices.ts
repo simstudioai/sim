@@ -8,6 +8,12 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('StripeInvoiceWebhooks')
 
+const OVERAGE_INVOICE_TYPES = new Set<string>([
+  'overage_billing',
+  'overage_threshold_billing',
+  'overage_threshold_billing_org',
+])
+
 function parseDecimal(value: string | number | null | undefined): number {
   if (value === null || value === undefined) return 0
   return Number.parseFloat(value.toString())
@@ -196,7 +202,8 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
   try {
     const invoice = event.data.object as Stripe.Invoice
 
-    const isOverageInvoice = invoice.metadata?.type === 'overage_billing'
+    const invoiceType = invoice.metadata?.type
+    const isOverageInvoice = !!(invoiceType && OVERAGE_INVOICE_TYPES.has(invoiceType))
     let stripeSubscriptionId: string | undefined
 
     if (isOverageInvoice) {

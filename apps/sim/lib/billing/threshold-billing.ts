@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { member, subscription, userStats } from '@sim/db/schema'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { DEFAULT_OVERAGE_THRESHOLD } from '@/lib/billing/constants'
 import { calculateSubscriptionOverage, getPlanPricing } from '@/lib/billing/core/billing'
@@ -178,8 +178,9 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
         : Math.floor(Date.now() / 1000)
       const billingPeriod = new Date(periodEnd * 1000).toISOString().slice(0, 7)
 
-      const timestamp = Date.now()
-      const idempotencyKey = `threshold-overage:${customerId}:${stripeSubscriptionId}:${billingPeriod}:${timestamp}`
+      const amountCents = Math.round(amountToBill * 100)
+      const totalOverageCents = Math.round(currentOverage * 100)
+      const idempotencyKey = `threshold-overage:${customerId}:${stripeSubscriptionId}:${billingPeriod}:${totalOverageCents}:${amountCents}`
 
       logger.info('Creating threshold overage invoice', {
         userId,
@@ -190,7 +191,7 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
       })
 
       try {
-        const cents = Math.round(amountToBill * 100)
+        const cents = amountCents
 
         const invoiceId = await createAndFinalizeOverageInvoice(stripe, {
           customerId,
@@ -199,7 +200,7 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
           description: `Threshold overage billing – ${billingPeriod}`,
           itemDescription: `Usage overage ($${amountToBill.toFixed(2)})`,
           metadata: {
-            type: 'threshold_overage',
+            type: 'overage_threshold_billing',
             userId,
             subscriptionId: stripeSubscriptionId,
             billingPeriod,
@@ -288,22 +289,22 @@ export async function checkAndBillOrganizationOverageThreshold(
         return
       }
 
-      let totalTeamUsage = 0
-      let totalBilledOverage = 0
+      let totalTeamUsage = parseDecimal(ownerStatsLock[0].currentPeriodCost)
+      const totalBilledOverage = parseDecimal(ownerStatsLock[0].billedOverageThisPeriod)
 
-      for (const m of members) {
-        const memberStats = await tx
+      const nonOwnerIds = members.filter((m) => m.userId !== owner.userId).map((m) => m.userId)
+
+      if (nonOwnerIds.length > 0) {
+        const memberStatsRows = await tx
           .select({
+            userId: userStats.userId,
             currentPeriodCost: userStats.currentPeriodCost,
-            billedOverageThisPeriod: userStats.billedOverageThisPeriod,
           })
           .from(userStats)
-          .where(eq(userStats.userId, m.userId))
-          .limit(1)
+          .where(inArray(userStats.userId, nonOwnerIds))
 
-        if (memberStats.length > 0) {
-          totalTeamUsage += parseDecimal(memberStats[0].currentPeriodCost)
-          totalBilledOverage += parseDecimal(memberStats[0].billedOverageThisPeriod)
+        for (const stats of memberStatsRows) {
+          totalTeamUsage += parseDecimal(stats.currentPeriodCost)
         }
       }
 
@@ -342,9 +343,10 @@ export async function checkAndBillOrganizationOverageThreshold(
         ? Math.floor(orgSubscription.periodEnd.getTime() / 1000)
         : Math.floor(Date.now() / 1000)
       const billingPeriod = new Date(periodEnd * 1000).toISOString().slice(0, 7)
-      const timestamp = Date.now()
+      const amountCents = Math.round(amountToBill * 100)
+      const totalOverageCents = Math.round(currentOverage * 100)
 
-      const idempotencyKey = `threshold-overage-org:${customerId}:${stripeSubscriptionId}:${billingPeriod}:${timestamp}`
+      const idempotencyKey = `threshold-overage-org:${customerId}:${stripeSubscriptionId}:${billingPeriod}:${totalOverageCents}:${amountCents}`
 
       logger.info('Creating organization threshold overage invoice', {
         organizationId,
@@ -353,7 +355,7 @@ export async function checkAndBillOrganizationOverageThreshold(
       })
 
       try {
-        const cents = Math.round(amountToBill * 100)
+        const cents = amountCents
 
         const invoiceId = await createAndFinalizeOverageInvoice(stripe, {
           customerId,
@@ -362,7 +364,7 @@ export async function checkAndBillOrganizationOverageThreshold(
           description: `Team threshold overage billing – ${billingPeriod}`,
           itemDescription: `Team usage overage ($${amountToBill.toFixed(2)})`,
           metadata: {
-            type: 'threshold_overage_organization',
+            type: 'overage_threshold_billing_org',
             organizationId,
             subscriptionId: stripeSubscriptionId,
             billingPeriod,
