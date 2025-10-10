@@ -44,6 +44,7 @@ import { quickValidateEmail } from '@/lib/email/validation'
 import { env, isTruthy } from '@/lib/env'
 import { isBillingEnabled, isEmailVerificationEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getRedisClient } from '@/lib/redis'
 import { SSO_TRUSTED_PROVIDERS } from './sso/consts'
 
 const logger = createLogger('Auth')
@@ -59,6 +60,40 @@ if (validStripeKey) {
   })
 }
 
+// Configure Redis secondary storage for session data (optional)
+const redis = getRedisClient()
+const redisSecondaryStorage = redis
+  ? {
+      get: async (key: string) => {
+        try {
+          const value = await redis.get(key)
+          return value
+        } catch (error) {
+          logger.error('Redis get error in secondaryStorage', { key, error })
+          return null
+        }
+      },
+      set: async (key: string, value: string, ttl?: number) => {
+        try {
+          if (ttl) {
+            await redis.set(key, value, 'EX', ttl)
+          } else {
+            await redis.set(key, value)
+          }
+        } catch (error) {
+          logger.error('Redis set error in secondaryStorage', { key, ttl, error })
+        }
+      },
+      delete: async (key: string) => {
+        try {
+          await redis.del(key)
+        } catch (error) {
+          logger.error('Redis delete error in secondaryStorage', { key, error })
+        }
+      },
+    }
+  : undefined
+
 export const auth = betterAuth({
   baseURL: getBaseURL(),
   trustedOrigins: [
@@ -69,6 +104,8 @@ export const auth = betterAuth({
     provider: 'pg',
     schema,
   }),
+  // Conditionally add secondaryStorage only if Redis is available
+  ...(redisSecondaryStorage ? { secondaryStorage: redisSecondaryStorage } : {}),
   session: {
     cookieCache: {
       enabled: true,

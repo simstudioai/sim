@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { renderOTPEmail } from '@/components/emails/render-email'
 import { sendEmail } from '@/lib/email/mailer'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getRedisClient, markMessageAsProcessed, releaseLock } from '@/lib/redis'
+import { getRedisClient } from '@/lib/redis'
 import { generateRequestId } from '@/lib/utils'
 import { addCorsHeaders, setChatAuthCookie } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
@@ -21,83 +21,52 @@ function generateOTP() {
 // We use 15 minutes (900 seconds) expiry for OTPs
 const OTP_EXPIRY = 15 * 60
 
-// Store OTP in Redis
-async function storeOTP(email: string, chatId: string, otp: string): Promise<void> {
+async function storeOTP(email: string, chatId: string, otp: string): Promise<boolean> {
   const key = `otp:${email}:${chatId}`
   const redis = getRedisClient()
 
-  if (redis) {
-    // Use Redis if available
-    await redis.set(key, otp, 'EX', OTP_EXPIRY)
-  } else {
-    // Use the existing function as fallback to mark that an OTP exists
-    await markMessageAsProcessed(key, OTP_EXPIRY)
+  if (!redis) {
+    logger.warn('Redis not available, OTP functionality requires Redis')
+    return false
+  }
 
-    // For the fallback case, we need to handle storing the OTP value separately
-    // since markMessageAsProcessed only stores "1"
-    const valueKey = `${key}:value`
-    try {
-      // Access the in-memory cache directly - hacky but works for fallback
-      const inMemoryCache = (global as any).inMemoryCache
-      if (inMemoryCache) {
-        const fullKey = `processed:${valueKey}`
-        const expiry = OTP_EXPIRY ? Date.now() + OTP_EXPIRY * 1000 : null
-        inMemoryCache.set(fullKey, { value: otp, expiry })
-      }
-    } catch (error) {
-      logger.error('Error storing OTP in fallback cache:', error)
-    }
+  try {
+    await redis.set(key, otp, 'EX', OTP_EXPIRY)
+    return true
+  } catch (error) {
+    logger.error('Error storing OTP in Redis:', error)
+    return false
   }
 }
 
-// Get OTP from Redis
 async function getOTP(email: string, chatId: string): Promise<string | null> {
   const key = `otp:${email}:${chatId}`
   const redis = getRedisClient()
 
-  if (redis) {
-    // Use Redis if available
-    return await redis.get(key)
+  if (!redis) {
+    return null
   }
-  // Use the existing function as fallback - check if it exists
-  const exists = await new Promise((resolve) => {
-    try {
-      // Check the in-memory cache directly - hacky but works for fallback
-      const inMemoryCache = (global as any).inMemoryCache
-      const fullKey = `processed:${key}`
-      const cacheEntry = inMemoryCache?.get(fullKey)
-      resolve(!!cacheEntry)
-    } catch {
-      resolve(false)
-    }
-  })
 
-  if (!exists) return null
-
-  // Try to get the value key
-  const valueKey = `${key}:value`
   try {
-    const inMemoryCache = (global as any).inMemoryCache
-    const fullKey = `processed:${valueKey}`
-    const cacheEntry = inMemoryCache?.get(fullKey)
-    return cacheEntry?.value || null
-  } catch {
+    return await redis.get(key)
+  } catch (error) {
+    logger.error('Error getting OTP from Redis:', error)
     return null
   }
 }
 
-// Delete OTP from Redis
 async function deleteOTP(email: string, chatId: string): Promise<void> {
   const key = `otp:${email}:${chatId}`
   const redis = getRedisClient()
 
-  if (redis) {
-    // Use Redis if available
+  if (!redis) {
+    return
+  }
+
+  try {
     await redis.del(key)
-  } else {
-    // Use the existing function as fallback
-    await releaseLock(`processed:${key}`)
-    await releaseLock(`processed:${key}:value`)
+  } catch (error) {
+    logger.error('Error deleting OTP from Redis:', error)
   }
 }
 
@@ -177,7 +146,17 @@ export async function POST(
 
       const otp = generateOTP()
 
-      await storeOTP(email, deployment.id, otp)
+      const stored = await storeOTP(email, deployment.id, otp)
+      if (!stored) {
+        logger.error(`[${requestId}] Failed to store OTP - Redis unavailable`)
+        return addCorsHeaders(
+          createErrorResponse(
+            'Email verification temporarily unavailable, please try again later',
+            503
+          ),
+          request
+        )
+      }
 
       const emailHtml = await renderOTPEmail(
         otp,
