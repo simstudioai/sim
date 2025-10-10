@@ -16,6 +16,9 @@ describe('Workflow By ID API Route', () => {
     error: vi.fn(),
   }
 
+  const mockGetWorkflowById = vi.fn()
+  const mockGetWorkflowAccessContext = vi.fn()
+
   beforeEach(() => {
     vi.resetModules()
 
@@ -30,6 +33,20 @@ describe('Workflow By ID API Route', () => {
     vi.doMock('@/lib/workflows/db-helpers', () => ({
       loadWorkflowFromNormalizedTables: vi.fn().mockResolvedValue(null),
     }))
+
+    mockGetWorkflowById.mockReset()
+    mockGetWorkflowAccessContext.mockReset()
+
+    vi.doMock('@/lib/workflows/utils', async () => {
+      const actual =
+        await vi.importActual<typeof import('@/lib/workflows/utils')>('@/lib/workflows/utils')
+
+      return {
+        ...actual,
+        getWorkflowById: mockGetWorkflowById,
+        getWorkflowAccessContext: mockGetWorkflowAccessContext,
+      }
+    })
   })
 
   afterEach(() => {
@@ -60,17 +77,14 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
-      vi.doMock('@sim/db', () => ({
-        db: {
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                then: vi.fn().mockResolvedValue(undefined),
-              }),
-            }),
-          }),
-        },
-      }))
+      mockGetWorkflowById.mockResolvedValueOnce(null)
+      mockGetWorkflowAccessContext.mockResolvedValueOnce({
+        workflow: null,
+        workspaceOwnerId: null,
+        workspacePermission: null,
+        isOwner: false,
+        isWorkspaceOwner: false,
+      })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/nonexistent')
       const params = Promise.resolve({ id: 'nonexistent' })
@@ -105,21 +119,27 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
-      vi.doMock('@sim/db', () => ({
-        db: {
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                then: vi.fn().mockResolvedValue(mockWorkflow),
-              }),
-            }),
-          }),
-        },
-      }))
+      mockGetWorkflowById.mockResolvedValueOnce(mockWorkflow)
+      mockGetWorkflowAccessContext.mockResolvedValueOnce({
+        workflow: mockWorkflow,
+        workspaceOwnerId: null,
+        workspacePermission: null,
+        isOwner: true,
+        isWorkspaceOwner: false,
+      })
 
       vi.doMock('@/lib/workflows/db-helpers', () => ({
         loadWorkflowFromNormalizedTables: vi.fn().mockResolvedValue(mockNormalizedData),
       }))
+
+      mockGetWorkflowById.mockResolvedValueOnce(mockWorkflow)
+      mockGetWorkflowAccessContext.mockResolvedValueOnce({
+        workflow: mockWorkflow,
+        workspaceOwnerId: null,
+        workspacePermission: null,
+        isOwner: true,
+        isWorkspaceOwner: false,
+      })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123')
       const params = Promise.resolve({ id: 'workflow-123' })
@@ -154,21 +174,27 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
-      vi.doMock('@sim/db', () => ({
-        db: {
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                then: vi.fn().mockResolvedValue(mockWorkflow),
-              }),
-            }),
-          }),
-        },
-      }))
+      mockGetWorkflowById.mockResolvedValueOnce(mockWorkflow)
+      mockGetWorkflowAccessContext.mockResolvedValueOnce({
+        workflow: mockWorkflow,
+        workspaceOwnerId: 'workspace-456',
+        workspacePermission: 'admin',
+        isOwner: false,
+        isWorkspaceOwner: false,
+      })
 
       vi.doMock('@/lib/workflows/db-helpers', () => ({
         loadWorkflowFromNormalizedTables: vi.fn().mockResolvedValue(mockNormalizedData),
       }))
+
+      mockGetWorkflowById.mockResolvedValueOnce(mockWorkflow)
+      mockGetWorkflowAccessContext.mockResolvedValueOnce({
+        workflow: mockWorkflow,
+        workspaceOwnerId: 'workspace-456',
+        workspacePermission: 'read',
+        isOwner: false,
+        isWorkspaceOwner: false,
+      })
 
       vi.doMock('@/lib/permissions/utils', () => ({
         getUserEntityPermissions: vi.fn().mockResolvedValue('read'),
@@ -200,22 +226,14 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
-      vi.doMock('@sim/db', () => ({
-        db: {
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                then: vi.fn().mockResolvedValue(mockWorkflow),
-              }),
-            }),
-          }),
-        },
-      }))
-
-      vi.doMock('@/lib/permissions/utils', () => ({
-        getUserEntityPermissions: vi.fn().mockResolvedValue(null),
-        hasAdminPermission: vi.fn().mockResolvedValue(false),
-      }))
+      mockGetWorkflowById.mockResolvedValueOnce(mockWorkflow)
+      mockGetWorkflowAccessContext.mockResolvedValueOnce({
+        workflow: mockWorkflow,
+        workspaceOwnerId: 'workspace-456',
+        workspacePermission: null,
+        isOwner: false,
+        isWorkspaceOwner: false,
+      })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123')
       const params = Promise.resolve({ id: 'workflow-123' })
@@ -250,17 +268,14 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
-      vi.doMock('@sim/db', () => ({
-        db: {
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                then: vi.fn().mockResolvedValue(mockWorkflow),
-              }),
-            }),
-          }),
-        },
-      }))
+      mockGetWorkflowById.mockResolvedValueOnce(mockWorkflow)
+      mockGetWorkflowAccessContext.mockResolvedValueOnce({
+        workflow: mockWorkflow,
+        workspaceOwnerId: null,
+        workspacePermission: null,
+        isOwner: true,
+        isWorkspaceOwner: false,
+      })
 
       vi.doMock('@/lib/workflows/db-helpers', () => ({
         loadWorkflowFromNormalizedTables: vi.fn().mockResolvedValue(mockNormalizedData),
@@ -294,19 +309,22 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
+      mockGetWorkflowById.mockResolvedValueOnce(mockWorkflow)
+      mockGetWorkflowAccessContext.mockResolvedValueOnce({
+        workflow: mockWorkflow,
+        workspaceOwnerId: null,
+        workspacePermission: null,
+        isOwner: true,
+        isWorkspaceOwner: false,
+      })
+
       vi.doMock('@sim/db', () => ({
         db: {
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                then: vi.fn().mockResolvedValue(mockWorkflow),
-              }),
-            }),
-          }),
           delete: vi.fn().mockReturnValue({
-            where: vi.fn().mockResolvedValue(undefined),
+            where: vi.fn().mockResolvedValue([{ id: 'workflow-123' }]),
           }),
         },
+        workflow: {},
       }))
 
       global.fetch = vi.fn().mockResolvedValue({
@@ -340,24 +358,22 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
+      mockGetWorkflowById.mockResolvedValueOnce(mockWorkflow)
+      mockGetWorkflowAccessContext.mockResolvedValueOnce({
+        workflow: mockWorkflow,
+        workspaceOwnerId: 'workspace-456',
+        workspacePermission: 'admin',
+        isOwner: false,
+        isWorkspaceOwner: false,
+      })
+
       vi.doMock('@sim/db', () => ({
         db: {
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                then: vi.fn().mockResolvedValue(mockWorkflow),
-              }),
-            }),
-          }),
           delete: vi.fn().mockReturnValue({
-            where: vi.fn().mockResolvedValue(undefined),
+            where: vi.fn().mockResolvedValue([{ id: 'workflow-123' }]),
           }),
         },
-      }))
-
-      vi.doMock('@/lib/permissions/utils', () => ({
-        getUserEntityPermissions: vi.fn().mockResolvedValue('admin'),
-        hasAdminPermission: vi.fn().mockResolvedValue(true),
+        workflow: {},
       }))
 
       global.fetch = vi.fn().mockResolvedValue({
@@ -391,22 +407,14 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
-      vi.doMock('@sim/db', () => ({
-        db: {
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                then: vi.fn().mockResolvedValue(mockWorkflow),
-              }),
-            }),
-          }),
-        },
-      }))
-
-      vi.doMock('@/lib/permissions/utils', () => ({
-        getUserEntityPermissions: vi.fn().mockResolvedValue('read'),
-        hasAdminPermission: vi.fn().mockResolvedValue(false),
-      }))
+      mockGetWorkflowById.mockResolvedValueOnce(mockWorkflow)
+      mockGetWorkflowAccessContext.mockResolvedValueOnce({
+        workflow: mockWorkflow,
+        workspaceOwnerId: 'workspace-456',
+        workspacePermission: null,
+        isOwner: false,
+        isWorkspaceOwner: false,
+      })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
         method: 'DELETE',
@@ -432,6 +440,7 @@ describe('Workflow By ID API Route', () => {
       }
 
       const updateData = { name: 'Updated Workflow' }
+      const updatedWorkflow = { ...mockWorkflow, ...updateData, updatedAt: new Date() }
 
       vi.doMock('@/lib/auth', () => ({
         getSession: vi.fn().mockResolvedValue({
@@ -439,23 +448,26 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
+      mockGetWorkflowById.mockResolvedValueOnce(mockWorkflow)
+      mockGetWorkflowAccessContext.mockResolvedValueOnce({
+        workflow: mockWorkflow,
+        workspaceOwnerId: null,
+        workspacePermission: null,
+        isOwner: true,
+        isWorkspaceOwner: false,
+      })
+
       vi.doMock('@sim/db', () => ({
         db: {
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                then: vi.fn().mockResolvedValue(mockWorkflow),
-              }),
-            }),
-          }),
           update: vi.fn().mockReturnValue({
             set: vi.fn().mockReturnValue({
               where: vi.fn().mockReturnValue({
-                returning: vi.fn().mockResolvedValue([{ ...mockWorkflow, ...updateData }]),
+                returning: vi.fn().mockResolvedValue([updatedWorkflow]),
               }),
             }),
           }),
         },
+        workflow: {},
       }))
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
@@ -481,6 +493,7 @@ describe('Workflow By ID API Route', () => {
       }
 
       const updateData = { name: 'Updated Workflow' }
+      const updatedWorkflow = { ...mockWorkflow, ...updateData, updatedAt: new Date() }
 
       vi.doMock('@/lib/auth', () => ({
         getSession: vi.fn().mockResolvedValue({
@@ -488,28 +501,26 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
+      mockGetWorkflowById.mockResolvedValueOnce(mockWorkflow)
+      mockGetWorkflowAccessContext.mockResolvedValueOnce({
+        workflow: mockWorkflow,
+        workspaceOwnerId: 'workspace-456',
+        workspacePermission: 'write',
+        isOwner: false,
+        isWorkspaceOwner: false,
+      })
+
       vi.doMock('@sim/db', () => ({
         db: {
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                then: vi.fn().mockResolvedValue(mockWorkflow),
-              }),
-            }),
-          }),
           update: vi.fn().mockReturnValue({
             set: vi.fn().mockReturnValue({
               where: vi.fn().mockReturnValue({
-                returning: vi.fn().mockResolvedValue([{ ...mockWorkflow, ...updateData }]),
+                returning: vi.fn().mockResolvedValue([updatedWorkflow]),
               }),
             }),
           }),
         },
-      }))
-
-      vi.doMock('@/lib/permissions/utils', () => ({
-        getUserEntityPermissions: vi.fn().mockResolvedValue('write'),
-        hasAdminPermission: vi.fn().mockResolvedValue(false),
+        workflow: {},
       }))
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
@@ -542,22 +553,14 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
-      vi.doMock('@sim/db', () => ({
-        db: {
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                then: vi.fn().mockResolvedValue(mockWorkflow),
-              }),
-            }),
-          }),
-        },
-      }))
-
-      vi.doMock('@/lib/permissions/utils', () => ({
-        getUserEntityPermissions: vi.fn().mockResolvedValue('read'),
-        hasAdminPermission: vi.fn().mockResolvedValue(false),
-      }))
+      mockGetWorkflowById.mockResolvedValueOnce(mockWorkflow)
+      mockGetWorkflowAccessContext.mockResolvedValueOnce({
+        workflow: mockWorkflow,
+        workspaceOwnerId: 'workspace-456',
+        workspacePermission: 'read',
+        isOwner: false,
+        isWorkspaceOwner: false,
+      })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
         method: 'PUT',
@@ -587,17 +590,14 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
-      vi.doMock('@sim/db', () => ({
-        db: {
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                then: vi.fn().mockResolvedValue(mockWorkflow),
-              }),
-            }),
-          }),
-        },
-      }))
+      mockGetWorkflowById.mockResolvedValueOnce(mockWorkflow)
+      mockGetWorkflowAccessContext.mockResolvedValueOnce({
+        workflow: mockWorkflow,
+        workspaceOwnerId: null,
+        workspacePermission: null,
+        isOwner: true,
+        isWorkspaceOwner: false,
+      })
 
       // Invalid data - empty name
       const invalidData = { name: '' }
@@ -625,17 +625,7 @@ describe('Workflow By ID API Route', () => {
         }),
       }))
 
-      vi.doMock('@sim/db', () => ({
-        db: {
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                then: vi.fn().mockRejectedValue(new Error('Database connection timeout')),
-              }),
-            }),
-          }),
-        },
-      }))
+      mockGetWorkflowById.mockRejectedValueOnce(new Error('Database connection timeout'))
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123')
       const params = Promise.resolve({ id: 'workflow-123' })

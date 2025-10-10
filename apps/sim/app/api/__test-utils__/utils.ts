@@ -1116,12 +1116,20 @@ export function createMockDatabase(options: MockDatabaseOptions = {}) {
 
   const createUpdateChain = () => ({
     set: vi.fn().mockImplementation(() => ({
-      where: vi.fn().mockImplementation(() => {
-        if (updateOptions.throwError) {
-          return Promise.reject(createDbError('update', updateOptions.errorMessage))
-        }
-        return Promise.resolve(updateOptions.results)
-      }),
+      where: vi.fn().mockImplementation(() => ({
+        returning: vi.fn().mockImplementation(() => {
+          if (updateOptions.throwError) {
+            return Promise.reject(createDbError('update', updateOptions.errorMessage))
+          }
+          return Promise.resolve(updateOptions.results)
+        }),
+        then: vi.fn().mockImplementation((resolve) => {
+          if (updateOptions.throwError) {
+            return Promise.reject(createDbError('update', updateOptions.errorMessage))
+          }
+          return Promise.resolve(updateOptions.results).then(resolve)
+        }),
+      })),
     })),
   })
 

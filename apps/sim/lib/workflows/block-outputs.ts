@@ -37,7 +37,7 @@ export function getBlockOutputs(
       return {
         input: { type: 'string', description: 'User message' },
         conversationId: { type: 'string', description: 'Conversation ID' },
-        files: { type: 'array', description: 'Uploaded files' },
+        files: { type: 'files', description: 'Uploaded files' },
       }
     }
     if (
@@ -136,7 +136,20 @@ export function getBlockOutputPaths(
 
       // If value has 'type' property, it's a leaf node (output definition)
       if (value && typeof value === 'object' && 'type' in value) {
-        paths.push(path)
+        // Special handling for 'files' type - expand to show array element properties
+        if (value.type === 'files') {
+          // Show properties without [0] for cleaner display
+          // The tag dropdown will add [0] automatically when inserting
+          paths.push(`${path}.url`)
+          paths.push(`${path}.name`)
+          paths.push(`${path}.size`)
+          paths.push(`${path}.type`)
+          paths.push(`${path}.key`)
+          paths.push(`${path}.uploadedAt`)
+          paths.push(`${path}.expiresAt`)
+        } else {
+          paths.push(path)
+        }
       }
       // If value is an object without 'type', recurse into it
       else if (value && typeof value === 'object' && !Array.isArray(value)) {
@@ -164,8 +177,33 @@ export function getBlockOutputType(
 ): string {
   const outputs = getBlockOutputs(blockType, subBlocks, triggerMode)
 
-  // Navigate through nested path
-  const pathParts = outputPath.split('.')
+  const arrayIndexRegex = /\[(\d+)\]/g
+  const cleanPath = outputPath.replace(arrayIndexRegex, '')
+  const pathParts = cleanPath.split('.').filter(Boolean)
+
+  const filePropertyTypes: Record<string, string> = {
+    url: 'string',
+    name: 'string',
+    size: 'number',
+    type: 'string',
+    key: 'string',
+    uploadedAt: 'string',
+    expiresAt: 'string',
+  }
+
+  const lastPart = pathParts[pathParts.length - 1]
+  if (lastPart && filePropertyTypes[lastPart]) {
+    const parentPath = pathParts.slice(0, -1).join('.')
+    let current: any = outputs
+    for (const part of pathParts.slice(0, -1)) {
+      if (!current || typeof current !== 'object') break
+      current = current[part]
+    }
+    if (current && typeof current === 'object' && 'type' in current && current.type === 'files') {
+      return filePropertyTypes[lastPart]
+    }
+  }
+
   let current: any = outputs
 
   for (const part of pathParts) {

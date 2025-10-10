@@ -139,6 +139,16 @@ export function DeployModal({
                 case 'array':
                   exampleData[field.name] = [1, 2, 3]
                   break
+                case 'files':
+                  exampleData[field.name] = [
+                    {
+                      data: 'data:application/pdf;base64,...',
+                      type: 'file',
+                      name: 'document.pdf',
+                      mime: 'application/pdf',
+                    },
+                  ]
+                  break
               }
             }
           })

@@ -5,8 +5,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { generateRequestId } from '@/lib/utils'
+import { getWorkflowAccessContext } from '@/lib/workflows/utils'
 import type { Variable } from '@/stores/panel/variables/types'
 
 const logger = createLogger('WorkflowVariablesAPI')
@@ -35,32 +35,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     // Get the workflow record
-    const workflowRecord = await db
-      .select()
-      .from(workflow)
-      .where(eq(workflow.id, workflowId))
-      .limit(1)
+    const accessContext = await getWorkflowAccessContext(workflowId, session.user.id)
+    const workflowData = accessContext?.workflow
 
-    if (!workflowRecord.length) {
+    if (!workflowData) {
       logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
       return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
     }
-
-    const workflowData = workflowRecord[0]
     const workspaceId = workflowData.workspaceId
 
     // Check authorization - either the user owns the workflow or has workspace permissions
-    let isAuthorized = workflowData.userId === session.user.id
-
-    // If not authorized by ownership and the workflow belongs to a workspace, check workspace permissions
-    if (!isAuthorized && workspaceId) {
-      const userPermission = await getUserEntityPermissions(
-        session.user.id,
-        'workspace',
-        workspaceId
-      )
-      isAuthorized = userPermission !== null
-    }
+    const isAuthorized =
+      accessContext?.isOwner || (workspaceId ? accessContext?.workspacePermission !== null : false)
 
     if (!isAuthorized) {
       logger.warn(
@@ -125,32 +111,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     // Get the workflow record
-    const workflowRecord = await db
-      .select()
-      .from(workflow)
-      .where(eq(workflow.id, workflowId))
-      .limit(1)
+    const accessContext = await getWorkflowAccessContext(workflowId, session.user.id)
+    const workflowData = accessContext?.workflow
 
-    if (!workflowRecord.length) {
+    if (!workflowData) {
       logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
       return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
     }
-
-    const workflowData = workflowRecord[0]
     const workspaceId = workflowData.workspaceId
 
     // Check authorization - either the user owns the workflow or has workspace permissions
-    let isAuthorized = workflowData.userId === session.user.id
-
-    // If not authorized by ownership and the workflow belongs to a workspace, check workspace permissions
-    if (!isAuthorized && workspaceId) {
-      const userPermission = await getUserEntityPermissions(
-        session.user.id,
-        'workspace',
-        workspaceId
-      )
-      isAuthorized = userPermission !== null
-    }
+    const isAuthorized =
+      accessContext?.isOwner || (workspaceId ? accessContext?.workspacePermission !== null : false)
 
     if (!isAuthorized) {
       logger.warn(

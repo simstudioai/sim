@@ -61,7 +61,7 @@ const result = await client.executeWorkflow('workflow-id', {
 **Parameters:**
 - `workflowId` (string): The ID of the workflow to execute
 - `options` (ExecutionOptions, optional):
-  - `input` (any): Input data to pass to the workflow
+  - `input` (any): Input data to pass to the workflow. File objects are automatically converted to base64.
   - `timeout` (number): Timeout in milliseconds (default: 30000)
 
 **Returns:** `Promise<WorkflowExecutionResult>`
@@ -259,6 +259,64 @@ const client = new SimStudioClient({
   apiKey: process.env.SIM_API_KEY!,
   baseUrl: process.env.SIM_BASE_URL // optional
 });
+```
+
+### File Upload
+
+File objects are automatically detected and converted to base64 format. Include them in your input under the field name matching your workflow's API trigger input format:
+
+The SDK converts File objects to this format:
+```typescript
+{
+  type: 'file',
+  data: 'data:mime/type;base64,base64data',
+  name: 'filename',
+  mime: 'mime/type'
+}
+```
+
+Alternatively, you can manually provide files using the URL format:
+```typescript
+{
+  type: 'url',
+  data: 'https://example.com/file.pdf',
+  name: 'file.pdf',
+  mime: 'application/pdf'
+}
+```
+
+```typescript
+import { SimStudioClient } from 'simstudio-ts-sdk';
+import fs from 'fs';
+
+const client = new SimStudioClient({
+  apiKey: process.env.SIM_API_KEY!
+});
+
+// Node.js: Read file and create File object
+const fileBuffer = fs.readFileSync('./document.pdf');
+const file = new File([fileBuffer], 'document.pdf', { type: 'application/pdf' });
+
+// Include files under the field name from your API trigger's input format
+const result = await client.executeWorkflow('workflow-id', {
+  input: {
+    documents: [file],  // Field name must match your API trigger's file input field
+    instructions: 'Process this document'
+  }
+});
+
+// Browser: From file input
+const handleFileUpload = async (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const files = Array.from(input.files || []);
+
+  const result = await client.executeWorkflow('workflow-id', {
+    input: {
+      attachments: files,  // Field name must match your API trigger's file input field
+      query: 'Analyze these files'
+    }
+  });
+};
 ```
 
 ## Getting Your API Key

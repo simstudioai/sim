@@ -3,7 +3,7 @@ import { ResponseFormat as SharedResponseFormat } from '@/app/workspace/[workspa
 export interface JSONProperty {
   id: string
   key: string
-  type: 'string' | 'number' | 'boolean' | 'object' | 'array'
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'file'
   value?: any
   collapsed?: boolean
 }

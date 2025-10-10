@@ -1,53 +1,173 @@
 import { db } from '@sim/db'
-import { apiKey, userStats, workflow as workflowTable } from '@sim/db/schema'
-import { eq } from 'drizzle-orm'
+import {
+  apiKey,
+  permissions,
+  userStats,
+  workflow as workflowTable,
+  workspace,
+} from '@sim/db/schema'
+import type { InferSelectModel } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getEnv } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import { hasWorkspaceAdminAccess } from '@/lib/permissions/utils'
+import type { PermissionType } from '@/lib/permissions/utils'
 import type { ExecutionResult } from '@/executor/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowUtils')
 
+const WORKFLOW_BASE_SELECTION = {
+  id: workflowTable.id,
+  userId: workflowTable.userId,
+  workspaceId: workflowTable.workspaceId,
+  folderId: workflowTable.folderId,
+  name: workflowTable.name,
+  description: workflowTable.description,
+  color: workflowTable.color,
+  lastSynced: workflowTable.lastSynced,
+  createdAt: workflowTable.createdAt,
+  updatedAt: workflowTable.updatedAt,
+  isDeployed: workflowTable.isDeployed,
+  deployedState: workflowTable.deployedState,
+  deployedAt: workflowTable.deployedAt,
+  pinnedApiKeyId: workflowTable.pinnedApiKeyId,
+  collaborators: workflowTable.collaborators,
+  runCount: workflowTable.runCount,
+  lastRunAt: workflowTable.lastRunAt,
+  variables: workflowTable.variables,
+  isPublished: workflowTable.isPublished,
+  marketplaceData: workflowTable.marketplaceData,
+  pinnedApiKeyKey: apiKey.key,
+  pinnedApiKeyName: apiKey.name,
+  pinnedApiKeyType: apiKey.type,
+  pinnedApiKeyWorkspaceId: apiKey.workspaceId,
+}
+
+type WorkflowSelection = InferSelectModel<typeof workflowTable>
+type ApiKeySelection = InferSelectModel<typeof apiKey>
+
+type WorkflowRow = WorkflowSelection & {
+  pinnedApiKeyKey: ApiKeySelection['key'] | null
+  pinnedApiKeyName: ApiKeySelection['name'] | null
+  pinnedApiKeyType: ApiKeySelection['type'] | null
+  pinnedApiKeyWorkspaceId: ApiKeySelection['workspaceId'] | null
+}
+
+type WorkflowWithPinnedKey = WorkflowSelection & {
+  pinnedApiKey: Pick<ApiKeySelection, 'id' | 'name' | 'key' | 'type' | 'workspaceId'> | null
+}
+
+function mapWorkflowRow(row: WorkflowRow | undefined): WorkflowWithPinnedKey | undefined {
+  if (!row) {
+    return undefined
+  }
+
+  const {
+    pinnedApiKeyKey,
+    pinnedApiKeyName,
+    pinnedApiKeyType,
+    pinnedApiKeyWorkspaceId,
+    ...workflowWithoutDerived
+  } = row
+
+  const pinnedApiKey =
+    workflowWithoutDerived.pinnedApiKeyId && pinnedApiKeyKey && pinnedApiKeyName && pinnedApiKeyType
+      ? {
+          id: workflowWithoutDerived.pinnedApiKeyId,
+          name: pinnedApiKeyName,
+          key: pinnedApiKeyKey,
+          type: pinnedApiKeyType,
+          workspaceId: pinnedApiKeyWorkspaceId,
+        }
+      : null
+
+  return {
+    ...workflowWithoutDerived,
+    pinnedApiKey,
+  }
+}
+
 export async function getWorkflowById(id: string) {
-  const workflows = await db
-    .select({
-      id: workflowTable.id,
-      userId: workflowTable.userId,
-      workspaceId: workflowTable.workspaceId,
-      folderId: workflowTable.folderId,
-      name: workflowTable.name,
-      description: workflowTable.description,
-      color: workflowTable.color,
-      lastSynced: workflowTable.lastSynced,
-      createdAt: workflowTable.createdAt,
-      updatedAt: workflowTable.updatedAt,
-      isDeployed: workflowTable.isDeployed,
-      deployedState: workflowTable.deployedState,
-      deployedAt: workflowTable.deployedAt,
-      pinnedApiKeyId: workflowTable.pinnedApiKeyId,
-      collaborators: workflowTable.collaborators,
-      runCount: workflowTable.runCount,
-      lastRunAt: workflowTable.lastRunAt,
-      variables: workflowTable.variables,
-      isPublished: workflowTable.isPublished,
-      marketplaceData: workflowTable.marketplaceData,
-      pinnedApiKey: {
-        id: apiKey.id,
-        name: apiKey.name,
-        key: apiKey.key,
-        type: apiKey.type,
-        workspaceId: apiKey.workspaceId,
-      },
-    })
+  const rows = await db
+    .select(WORKFLOW_BASE_SELECTION)
     .from(workflowTable)
     .leftJoin(apiKey, eq(workflowTable.pinnedApiKeyId, apiKey.id))
     .where(eq(workflowTable.id, id))
     .limit(1)
 
-  return workflows[0]
+  return mapWorkflowRow(rows[0] as WorkflowRow | undefined)
+}
+
+type WorkflowRecord = ReturnType<typeof getWorkflowById> extends Promise<infer R>
+  ? NonNullable<R>
+  : never
+
+export interface WorkflowAccessContext {
+  workflow: WorkflowRecord
+  workspaceOwnerId: string | null
+  workspacePermission: PermissionType | null
+  isOwner: boolean
+  isWorkspaceOwner: boolean
+}
+
+export async function getWorkflowAccessContext(
+  workflowId: string,
+  userId?: string
+): Promise<WorkflowAccessContext | null> {
+  const rows = await db
+    .select({
+      ...WORKFLOW_BASE_SELECTION,
+      workspaceOwnerId: workspace.ownerId,
+      workspacePermission: permissions.permissionType,
+    })
+    .from(workflowTable)
+    .leftJoin(apiKey, eq(workflowTable.pinnedApiKeyId, apiKey.id))
+    .leftJoin(workspace, eq(workspace.id, workflowTable.workspaceId))
+    .leftJoin(
+      permissions,
+      and(
+        eq(permissions.entityType, 'workspace'),
+        eq(permissions.entityId, workflowTable.workspaceId),
+        userId ? eq(permissions.userId, userId) : eq(permissions.userId, '' as unknown as string)
+      )
+    )
+    .where(eq(workflowTable.id, workflowId))
+    .limit(1)
+
+  const row = rows[0] as
+    | (WorkflowRow & {
+        workspaceOwnerId: string | null
+        workspacePermission: PermissionType | null
+      })
+    | undefined
+
+  if (!row) {
+    return null
+  }
+
+  const workflow = mapWorkflowRow(row as WorkflowRow)
+
+  if (!workflow) {
+    return null
+  }
+
+  const resolvedWorkspaceOwner = row.workspaceOwnerId ?? null
+  const resolvedWorkspacePermission = row.workspacePermission ?? null
+
+  const resolvedUserId = userId ?? null
+
+  const isOwner = resolvedUserId ? workflow.userId === resolvedUserId : false
+  const isWorkspaceOwner = resolvedUserId ? resolvedWorkspaceOwner === resolvedUserId : false
+
+  return {
+    workflow,
+    workspaceOwnerId: resolvedWorkspaceOwner,
+    workspacePermission: resolvedWorkspacePermission,
+    isOwner,
+    isWorkspaceOwner,
+  }
 }
 
 export async function updateWorkflowRunCounts(workflowId: string, runs = 1) {
@@ -421,8 +541,8 @@ export async function validateWorkflowPermissions(
     }
   }
 
-  const workflow = await getWorkflowById(workflowId)
-  if (!workflow) {
+  const accessContext = await getWorkflowAccessContext(workflowId, session.user.id)
+  if (!accessContext) {
     logger.warn(`[${requestId}] Workflow ${workflowId} not found`)
     return {
       error: { message: 'Workflow not found', status: 404 },
@@ -431,9 +551,31 @@ export async function validateWorkflowPermissions(
     }
   }
 
+  const { workflow, workspacePermission, isOwner } = accessContext
+
+  if (isOwner) {
+    return {
+      error: null,
+      session,
+      workflow,
+    }
+  }
+
   if (workflow.workspaceId) {
-    const hasAccess = await hasWorkspaceAdminAccess(session.user.id, workflow.workspaceId)
-    if (!hasAccess) {
+    let hasPermission = false
+
+    if (action === 'read') {
+      // Any workspace permission allows read
+      hasPermission = workspacePermission !== null
+    } else if (action === 'write') {
+      // Write or admin permission allows write
+      hasPermission = workspacePermission === 'write' || workspacePermission === 'admin'
+    } else if (action === 'admin') {
+      // Only admin permission allows admin actions
+      hasPermission = workspacePermission === 'admin'
+    }
+
+    if (!hasPermission) {
       logger.warn(
         `[${requestId}] User ${session.user.id} unauthorized to ${action} workflow ${workflowId} in workspace ${workflow.workspaceId}`
       )
@@ -444,15 +586,13 @@ export async function validateWorkflowPermissions(
       }
     }
   } else {
-    if (workflow.userId !== session.user.id) {
-      logger.warn(
-        `[${requestId}] User ${session.user.id} unauthorized to ${action} workflow ${workflowId} owned by ${workflow.userId}`
-      )
-      return {
-        error: { message: `Unauthorized: Access denied to ${action} this workflow`, status: 403 },
-        session: null,
-        workflow: null,
-      }
+    logger.warn(
+      `[${requestId}] User ${session.user.id} unauthorized to ${action} workflow ${workflowId} owned by ${workflow.userId}`
+    )
+    return {
+      error: { message: `Unauthorized: Access denied to ${action} this workflow`, status: 403 },
+      session: null,
+      workflow: null,
     }
   }
 
