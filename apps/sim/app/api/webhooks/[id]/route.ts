@@ -282,11 +282,13 @@ export async function DELETE(
 
         if (!resolvedExternalId) {
           try {
-            const requestOrigin = new URL(request.url).origin
-            const effectiveOrigin = requestOrigin.includes('localhost')
-              ? env.NEXT_PUBLIC_APP_URL || requestOrigin
-              : requestOrigin
-            const expectedNotificationUrl = `${effectiveOrigin}/api/webhooks/trigger/${foundWebhook.path}`
+            if (!env.NEXT_PUBLIC_APP_URL) {
+              logger.error(
+                `[${requestId}] NEXT_PUBLIC_APP_URL not configured, cannot match Airtable webhook`
+              )
+              throw new Error('NEXT_PUBLIC_APP_URL must be configured')
+            }
+            const expectedNotificationUrl = `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/trigger/${foundWebhook.path}`
 
             const listUrl = `https://api.airtable.com/v0/bases/${baseId}/webhooks`
             const listResp = await fetch(listUrl, {
