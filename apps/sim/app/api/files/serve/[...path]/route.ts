@@ -1,11 +1,11 @@
 import { readFile } from 'fs/promises'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { downloadFile, getStorageProvider, isUsingCloudStorage } from '@/lib/uploads'
 import { S3_KB_CONFIG } from '@/lib/uploads/setup'
 import '@/lib/uploads/setup.server'
-import { getSession } from '@/lib/auth'
 import {
   createErrorResponse,
   createFileResponse,
@@ -29,23 +29,19 @@ export async function GET(
 
     logger.info('File serve request:', { path })
 
-    const session = await getSession()
-    if (!session?.user?.id) {
-      logger.warn('Unauthorized file access attempt', { path })
+    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+
+    if (!authResult.success) {
+      logger.warn('Unauthorized file access attempt', { path, error: authResult.error })
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userId = session.user.id
+    const userId = authResult.userId
     const fullPath = path.join('/')
     const isS3Path = path[0] === 's3'
     const isBlobPath = path[0] === 'blob'
     const isCloudPath = isS3Path || isBlobPath
     const cloudKey = isCloudPath ? path.slice(1).join('/') : fullPath
-    const isExecutionFile = cloudKey.split('/').length >= 3 && !cloudKey.startsWith('kb/')
-
-    if (!isExecutionFile) {
-      logger.info('Authenticated file access granted', { userId, path: cloudKey })
-    }
 
     if (isUsingCloudStorage() || isCloudPath) {
       const bucketType = request.nextUrl.searchParams.get('bucket')
@@ -64,7 +60,7 @@ export async function GET(
   }
 }
 
-async function handleLocalFile(filename: string, userId: string): Promise<NextResponse> {
+async function handleLocalFile(filename: string, userId?: string): Promise<NextResponse> {
   try {
     const filePath = findLocalFile(filename)
 

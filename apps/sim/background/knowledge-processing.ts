@@ -26,7 +26,7 @@ export type DocumentProcessingPayload = {
 
 export const processDocument = task({
   id: 'knowledge-process-document',
-  maxDuration: env.KB_CONFIG_MAX_DURATION || 300,
+  maxDuration: env.KB_CONFIG_MAX_DURATION || 600,
   retry: {
     maxAttempts: env.KB_CONFIG_MAX_ATTEMPTS || 3,
     factor: env.KB_CONFIG_RETRY_FACTOR || 2,
