@@ -36,7 +36,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userId = authResult.userId || 'internal-service'
+    const userId = authResult.userId!
     const fullPath = path.join('/')
     const isS3Path = path[0] === 's3'
     const isBlobPath = path[0] === 'blob'

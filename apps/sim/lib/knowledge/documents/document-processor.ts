@@ -209,12 +209,10 @@ async function downloadFileWithTimeout(fileUrl: string): Promise<Buffer> {
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUTS.FILE_DOWNLOAD)
 
   try {
-    // Check if this is a request to our own file serve endpoint
     const isInternalFileServe = fileUrl.includes('/api/files/serve/')
     const headers: HeadersInit = {}
 
     if (isInternalFileServe) {
-      // Generate internal JWT token for authenticated access to our own file serve endpoint
       const { generateInternalToken } = await import('@/lib/auth/internal')
       const token = await generateInternalToken()
       headers.Authorization = `Bearer ${token}`
