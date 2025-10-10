@@ -387,7 +387,7 @@ Behandeln Sie verschiedene Fehlertypen, die während der Workflow-Ausführung au
 from simstudio import SimStudioClient, SimStudioError
 import os
 
-client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))   
+client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
 
 def execute_with_error_handling():
     try:
@@ -600,7 +600,7 @@ Führe Workflows mit Echtzeit-Streaming-Antworten aus:
 from simstudio import SimStudioClient
 import os
 
-client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))   
+client = SimStudioClient(api_key=os.getenv("SIM_API_KEY"))
 
 def execute_with_streaming():
     """Execute workflow with streaming enabled."""

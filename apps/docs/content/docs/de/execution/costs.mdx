@@ -170,17 +170,49 @@ Verschiedene Abonnementpläne haben unterschiedliche Nutzungslimits:
 | **Team** | $500 (gepoolt) | 50 sync, 100 async |
 | **Enterprise** | Individuell | Individuell |
 
+## Abrechnungsmodell
+
+Sim verwendet ein **Basisabonnement + Mehrverbrauch** Abrechnungsmodell:
+
+### Wie es funktioniert
+
+**Pro-Plan (20 $/Monat):**
+- Monatliches Abonnement beinhaltet 20 $ Nutzung
+- Nutzung unter 20 $ → Keine zusätzlichen Kosten
+- Nutzung über 20 $ → Zahlung des Mehrverbrauchs am Monatsende
+- Beispiel: 35 $ Nutzung = 20 $ (Abonnement) + 15 $ (Mehrverbrauch)
+
+**Team-Plan (40 $/Nutzer/Monat):**
+- Gemeinsame Nutzung für alle Teammitglieder
+- Mehrverbrauch wird aus der Gesamtnutzung des Teams berechnet
+- Organisationsinhaber erhält eine Rechnung
+
+**Enterprise-Pläne:**
+- Fester monatlicher Preis, kein Mehrverbrauch
+- Individuelle Nutzungslimits gemäß Vereinbarung
+
+### Schwellenwertabrechnung
+
+Wenn der nicht abgerechnete Mehrverbrauch 50 $ erreicht, berechnet Sim automatisch den gesamten nicht abgerechneten Betrag.
+
+**Beispiel:**
+- Tag 10: 70 $ Mehrverbrauch → Sofortige Abrechnung von 70 $
+- Tag 15: Zusätzliche 35 $ Nutzung (insgesamt 105 $) → Bereits abgerechnet, keine Aktion
+- Tag 20: Weitere 50 $ Nutzung (insgesamt 155 $, 85 $ nicht abgerechnet) → Sofortige Abrechnung von 85 $
+
+Dies verteilt hohe Mehrverbrauchskosten über den Monat, anstatt eine große Rechnung am Periodenende zu stellen.
+
 ## Best Practices für Kostenmanagement
 
 1. **Regelmäßig überwachen**: Prüfen Sie Ihr Nutzungs-Dashboard häufig, um Überraschungen zu vermeiden
 2. **Budgets festlegen**: Nutzen Sie Planlimits als Leitplanken für Ihre Ausgaben
 3. **Workflows optimieren**: Überprüfen Sie kostenintensive Ausführungen und optimieren Sie Prompts oder Modellauswahl
-4. **Passende Modelle verwenden**: Stimmen Sie die Modellkomplexität auf die Aufgabenanforderungen ab
+4. **Passende Modelle verwenden**: Passen Sie die Modellkomplexität an die Aufgabenanforderungen an
 5. **Ähnliche Aufgaben bündeln**: Kombinieren Sie wenn möglich mehrere Anfragen, um den Overhead zu reduzieren
 
 ## Nächste Schritte
 
 - Überprüfen Sie Ihre aktuelle Nutzung unter [Einstellungen → Abonnement](https://sim.ai/settings/subscription)
 - Erfahren Sie mehr über [Logging](/execution/logging), um Ausführungsdetails zu verfolgen
-- Erkunden Sie die [Externe API](/execution/api) für programmatische Kostenüberwachung
-- Sehen Sie sich [Workflow-Optimierungstechniken](/blocks) an, um Kosten zu reduzieren
+- Erkunden Sie die [externe API](/execution/api) für programmatische Kostenüberwachung
+- Sehen Sie sich [Workflow-Optimierungstechniken](/blocks) zur Kostenreduzierung an
