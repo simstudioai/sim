@@ -47,6 +47,7 @@ export type SubBlockType =
   | 'switch' // Toggle button
   | 'tool-input' // Tool configuration
   | 'checkbox-list' // Multiple selection
+  | 'grouped-checkbox-list' // Grouped, scrollable checkbox list with select all
   | 'condition-input' // Conditional logic
   | 'eval-input' // Evaluation input
   | 'time-input' // Time input
@@ -123,8 +124,8 @@ export interface SubBlockConfig {
   required?: boolean
   defaultValue?: string | number | boolean | Record<string, unknown> | Array<unknown>
   options?:
-    | { label: string; id: string; icon?: React.ComponentType<{ className?: string }> }[]
-    | (() => { label: string; id: string; icon?: React.ComponentType<{ className?: string }> }[])
+    | { label: string; id: string; icon?: React.ComponentType<{ className?: string }>; group?: string }[]
+    | (() => { label: string; id: string; icon?: React.ComponentType<{ className?: string }>; group?: string }[])
   min?: number
   max?: number
   columns?: string[]
@@ -134,6 +135,10 @@ export interface SubBlockConfig {
   hidden?: boolean
   description?: string
   value?: (params: Record<string, any>) => string
+  grouped?: boolean
+  scrollable?: boolean
+  maxHeight?: number
+  selectAllOption?: boolean
   condition?:
     | {
         field: string

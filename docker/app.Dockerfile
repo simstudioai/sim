@@ -58,11 +58,24 @@ RUN bun run build
 FROM base AS runner
 WORKDIR /app
 
+# Install Python and dependencies for guardrails PII detection
+RUN apk add --no-cache python3 py3-pip bash
+
 ENV NODE_ENV=production
 
 COPY --from=builder /app/apps/sim/public ./apps/sim/public
 COPY --from=builder /app/apps/sim/.next/standalone ./
 COPY --from=builder /app/apps/sim/.next/static ./apps/sim/.next/static
+
+# Copy guardrails setup script and requirements
+COPY --from=builder /app/apps/sim/lib/guardrails/setup.sh ./apps/sim/lib/guardrails/setup.sh
+COPY --from=builder /app/apps/sim/lib/guardrails/requirements.txt ./apps/sim/lib/guardrails/requirements.txt
+COPY --from=builder /app/apps/sim/lib/guardrails/validate_pii.py ./apps/sim/lib/guardrails/validate_pii.py
+
+# Run guardrails setup to create venv and install Python dependencies
+RUN chmod +x ./apps/sim/lib/guardrails/setup.sh && \
+    cd ./apps/sim/lib/guardrails && \
+    ./setup.sh
 
 EXPOSE 3000
 ENV PORT=3000 \
