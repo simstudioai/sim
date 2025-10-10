@@ -180,7 +180,9 @@ async function parseDocument(
 }
 
 async function handleFileForOCR(fileUrl: string, filename: string, mimeType: string) {
-  if (fileUrl.startsWith('https://')) {
+  const isExternalHttps = fileUrl.startsWith('https://') && !fileUrl.includes('/api/files/serve/')
+
+  if (isExternalHttps) {
     return { httpsUrl: fileUrl }
   }
 
@@ -207,7 +209,18 @@ async function downloadFileWithTimeout(fileUrl: string): Promise<Buffer> {
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUTS.FILE_DOWNLOAD)
 
   try {
-    const response = await fetch(fileUrl, { signal: controller.signal })
+    // Check if this is a request to our own file serve endpoint
+    const isInternalFileServe = fileUrl.includes('/api/files/serve/')
+    const headers: HeadersInit = {}
+
+    if (isInternalFileServe) {
+      // Generate internal JWT token for authenticated access to our own file serve endpoint
+      const { generateInternalToken } = await import('@/lib/auth/internal')
+      const token = await generateInternalToken()
+      headers.Authorization = `Bearer ${token}`
+    }
+
+    const response = await fetch(fileUrl, { signal: controller.signal, headers })
     clearTimeout(timeoutId)
 
     if (!response.ok) {
