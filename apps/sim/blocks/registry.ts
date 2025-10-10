@@ -23,6 +23,7 @@ import { FunctionBlock } from '@/blocks/blocks/function'
 import { GenericWebhookBlock } from '@/blocks/blocks/generic_webhook'
 import { GitHubBlock } from '@/blocks/blocks/github'
 import { GmailBlock } from '@/blocks/blocks/gmail'
+import { GuardrailsBlock } from '@/blocks/blocks/guardrails'
 import { GoogleSearchBlock } from '@/blocks/blocks/google'
 import { GoogleCalendarBlock } from '@/blocks/blocks/google_calendar'
 import { GoogleDocsBlock } from '@/blocks/blocks/google_docs'
@@ -108,6 +109,7 @@ export const registry: Record<string, BlockConfig> = {
   generic_webhook: GenericWebhookBlock,
   github: GitHubBlock,
   gmail: GmailBlock,
+  guardrails: GuardrailsBlock,
   google_calendar: GoogleCalendarBlock,
   google_docs: GoogleDocsBlock,
   google_drive: GoogleDriveBlock,

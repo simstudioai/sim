@@ -2019,11 +2019,9 @@ export class Executor {
 
       // Handle error outputs and ensure object structure
       const output: NormalizedBlockOutput =
-        rawOutput && typeof rawOutput === 'object' && rawOutput.error
-          ? { error: rawOutput.error, status: rawOutput.status || 500 }
-          : typeof rawOutput === 'object' && rawOutput !== null
-            ? rawOutput
-            : { result: rawOutput }
+        typeof rawOutput === 'object' && rawOutput !== null
+          ? rawOutput
+          : { result: rawOutput }
 
       // Update the context with the execution result
       // Use virtual block ID for parallel executions

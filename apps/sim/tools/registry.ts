@@ -26,6 +26,7 @@ import {
 import { fileParseTool } from '@/tools/file'
 import { crawlTool, scrapeTool, searchTool } from '@/tools/firecrawl'
 import { functionExecuteTool } from '@/tools/function'
+import { guardrailsValidateTool } from '@/tools/guardrails'
 import {
   githubCommentTool,
   githubLatestCommitTool,
@@ -215,6 +216,7 @@ export const tools: Record<string, ToolConfig> = {
   firecrawl_search: searchTool,
   firecrawl_crawl: crawlTool,
   google_search: googleSearchTool,
+  guardrails_validate: guardrailsValidateTool,
   jina_read_url: readUrlTool,
   linkup_search: linkupSearchTool,
   resend_send: mailSendTool,

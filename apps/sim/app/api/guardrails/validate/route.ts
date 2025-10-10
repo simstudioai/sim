@@ -1,0 +1,232 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createLogger } from '@/lib/logs/console/logger'
+import { generateRequestId } from '@/lib/utils'
+import { validateJson } from '@/lib/guardrails/validate_json'
+import { validateRegex } from '@/lib/guardrails/validate_regex'
+import { validateHallucination } from '@/lib/guardrails/validate_hallucination'
+import { validatePII } from '@/lib/guardrails/validate_pii'
+
+const logger = createLogger('GuardrailsValidateAPI')
+
+export async function POST(request: NextRequest) {
+  const requestId = generateRequestId()
+  logger.info(`[${requestId}] Guardrails validation request received`)
+
+  try {
+    const body = await request.json()
+    const { validationType, input, regex, knowledgeBaseId, threshold, topK, model, apiKey, workflowId, piiEntityTypes, piiMode, piiLanguage } = body
+
+    // Validate required fields
+    if (!validationType) {
+      return NextResponse.json({
+        success: true,
+        output: {
+          passed: false,
+          validationType: 'unknown',
+          input: input || '',
+          error: 'Missing required field: validationType',
+        },
+      })
+    }
+
+    // Handle empty or missing input - but allow empty strings for JSON validation
+    // (empty string is invalid JSON, which is a valid validation result)
+    if (input === undefined || input === null) {
+      return NextResponse.json({
+        success: true,
+        output: {
+          passed: false,
+          validationType,
+          input: '',
+          error: 'Input is missing or undefined',
+        },
+      })
+    }
+
+    // Validate validationType
+    if (validationType !== 'json' && validationType !== 'regex' && validationType !== 'hallucination' && validationType !== 'pii') {
+      return NextResponse.json({
+        success: true,
+        output: {
+          passed: false,
+          validationType,
+          input: input || '',
+          error: 'Invalid validationType. Must be "json", "regex", "hallucination", or "pii"',
+        },
+      })
+    }
+
+    // For regex validation, ensure regex pattern is provided
+    if (validationType === 'regex' && !regex) {
+      return NextResponse.json({
+        success: true,
+        output: {
+          passed: false,
+          validationType,
+          input: input || '',
+          error: 'Regex pattern is required for regex validation',
+        },
+      })
+    }
+
+    // For hallucination validation, ensure model is provided
+    if (validationType === 'hallucination' && !model) {
+      return NextResponse.json({
+        success: true,
+        output: {
+          passed: false,
+          validationType,
+          input: input || '',
+          error: 'Model is required for hallucination validation',
+        },
+      })
+    }
+
+    // Convert input to string for validation
+    const inputStr = convertInputToString(input)
+
+    logger.info(`[${requestId}] Executing validation locally`, {
+      validationType,
+      inputType: typeof input,
+    })
+
+    // Execute validation
+    const validationResult = await executeValidation(
+      validationType,
+      inputStr,
+      regex,
+      knowledgeBaseId,
+      threshold,
+      topK,
+      model,
+      apiKey,
+      workflowId,
+      piiEntityTypes,
+      piiMode,
+      piiLanguage,
+      requestId
+    )
+
+    logger.info(`[${requestId}] Validation completed`, {
+      passed: validationResult.passed,
+      hasError: !!validationResult.error,
+      score: validationResult.score,
+    })
+
+    return NextResponse.json({
+      success: true,
+      output: {
+        passed: validationResult.passed,
+        validationType,
+        input,
+        error: validationResult.error,
+        score: validationResult.score,
+        reasoning: validationResult.reasoning,
+        detectedEntities: validationResult.detectedEntities,
+        maskedText: validationResult.maskedText,
+      },
+    })
+  } catch (error: any) {
+    logger.error(`[${requestId}] Guardrails validation failed`, { error })
+    // Return validation failure instead of 500 error
+    return NextResponse.json({
+      success: true,
+      output: {
+        passed: false,
+        validationType: 'unknown',
+        input: '',
+        error: error.message || 'Validation failed due to unexpected error',
+      },
+    })
+  }
+}
+
+/**
+ * Convert input to strfing for validation
+ */
+function convertInputToString(input: any): string {
+  if (typeof input === 'string') {
+    return input
+  } else if (input === null || input === undefined) {
+    return ''
+  } else if (typeof input === 'object') {
+    return JSON.stringify(input)
+  } else {
+    return String(input)
+  }
+}
+
+/**
+ * Execute validation using TypeScript validators
+ */
+async function executeValidation(
+  validationType: string,
+  inputStr: string,
+  regex: string | undefined,
+  knowledgeBaseId: string | undefined,
+  threshold: string | undefined,
+  topK: string | undefined,
+  model: string,
+  apiKey: string | undefined,
+  workflowId: string | undefined,
+  piiEntityTypes: string[] | undefined,
+  piiMode: string | undefined,
+  piiLanguage: string | undefined,
+  requestId: string
+): Promise<{
+  passed: boolean
+  error?: string
+  score?: number
+  reasoning?: string
+  detectedEntities?: any[]
+  maskedText?: string
+}> {
+  // Use TypeScript validators for all validation types
+  if (validationType === 'json') {
+    return validateJson(inputStr)
+  } else if (validationType === 'regex') {
+    if (!regex) {
+      return {
+        passed: false,
+        error: 'Regex pattern is required',
+      }
+    }
+    return validateRegex(inputStr, regex)
+  } else if (validationType === 'hallucination') {
+    if (!knowledgeBaseId) {
+      return {
+        passed: false,
+        error: 'Knowledge base ID is required for hallucination check',
+      }
+    }
+
+    // Use TypeScript hallucination validator with RAG + LLM scoring
+    return await validateHallucination({
+      userInput: inputStr,
+      knowledgeBaseId,
+      threshold: threshold != null ? parseFloat(threshold) : 3, // Default threshold is 3 (confidence score, scores < 3 fail)
+      topK: topK ? parseInt(topK) : 10, // Default topK is 10
+      model: model,
+      apiKey,
+      workflowId,
+      requestId,
+    })
+  } else if (validationType === 'pii') {
+    // PII validation using Presidio
+    return await validatePII({
+      text: inputStr,
+      entityTypes: piiEntityTypes || [], // Empty array = detect all PII types
+      mode: (piiMode as 'block' | 'mask') || 'block', // Default to block mode
+      language: piiLanguage || 'en',
+      requestId,
+    })
+  } else {
+    return {
+      passed: false,
+      error: 'Unknown validation type',
+    }
+  }
+}
+
+
+
