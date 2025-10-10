@@ -223,6 +223,7 @@ export function TriggerConfig({
           provider: webhookProvider,
           providerConfig: {
             ...config,
+            triggerId: effectiveTriggerId, // Include the trigger ID to identify the trigger type
             ...(selectedCredentialId ? { credentialId: selectedCredentialId } : {}),
           },
         }),
@@ -240,14 +241,6 @@ export function TriggerConfig({
       const data = await response.json()
       const savedWebhookId = data.webhook.id
       setTriggerId(savedWebhookId)
-
-      logger.info('Trigger saved successfully as webhook', {
-        webhookId: savedWebhookId,
-        triggerDefId: effectiveTriggerId,
-        provider: webhookProvider,
-        path,
-        blockId,
-      })
 
       // Update the actual trigger after saving
       setActualTriggerId(webhookProvider)

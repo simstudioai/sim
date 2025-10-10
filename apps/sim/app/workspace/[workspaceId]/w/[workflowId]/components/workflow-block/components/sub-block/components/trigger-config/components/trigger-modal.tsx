@@ -11,12 +11,6 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { createLogger } from '@/lib/logs/console/logger'
-import { cn } from '@/lib/utils'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { getTrigger } from '@/triggers'
-import type { TriggerConfig } from '@/triggers/types'
 import {
   Select,
   SelectContent,
@@ -24,6 +18,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { createLogger } from '@/lib/logs/console/logger'
+import { cn } from '@/lib/utils'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { getTrigger } from '@/triggers'
+import type { TriggerConfig } from '@/triggers/types'
 import { CredentialSelector } from '../../credential-selector/credential-selector'
 import { TriggerConfigSection } from './trigger-config-section'
 import { TriggerInstructions } from './trigger-instructions'
@@ -60,8 +60,10 @@ export function TriggerModal({
   onTriggerChange,
 }: TriggerModalProps) {
   // Use selectedTriggerId to get the current trigger definition dynamically
-  const triggerDef = selectedTriggerId ? getTrigger(selectedTriggerId) || propTriggerDef : propTriggerDef
-  
+  const triggerDef = selectedTriggerId
+    ? getTrigger(selectedTriggerId) || propTriggerDef
+    : propTriggerDef
+
   const [config, setConfig] = useState<Record<string, any>>(initialConfig)
   const [isSaving, setIsSaving] = useState(false)
 

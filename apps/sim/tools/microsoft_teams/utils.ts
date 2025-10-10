@@ -54,7 +54,8 @@ export async function fetchHostedContentsForChatMessage(params: {
     for (const item of items) {
       const base64: string | undefined = item.contentBytes
       if (!base64) continue
-      const contentType: string = typeof item.contentType === 'string' ? item.contentType : 'application/octet-stream'
+      const contentType: string =
+        typeof item.contentType === 'string' ? item.contentType : 'application/octet-stream'
       const name: string = item.id ? `teams-hosted-${item.id}` : 'teams-hosted-content'
       results.push({ name, mimeType: contentType, data: base64 })
     }
@@ -87,7 +88,8 @@ export async function fetchHostedContentsForChannelMessage(params: {
     for (const item of items) {
       const base64: string | undefined = item.contentBytes
       if (!base64) continue
-      const contentType: string = typeof item.contentType === 'string' ? item.contentType : 'application/octet-stream'
+      const contentType: string =
+        typeof item.contentType === 'string' ? item.contentType : 'application/octet-stream'
       const name: string = item.id ? `teams-hosted-${item.id}` : 'teams-hosted-content'
       results.push({ name, mimeType: contentType, data: base64 })
     }
