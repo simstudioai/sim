@@ -9,7 +9,7 @@ const logger = createLogger('ResponseBlockHandler')
 interface JSONProperty {
   id: string
   name: string
-  type: 'string' | 'number' | 'boolean' | 'object' | 'array'
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'files'
   value: any
   collapsed?: boolean
 }
@@ -140,6 +140,9 @@ export class ResponseBlockHandler implements BlockHandler {
         return this.convertNumberValue(prop.value)
       case 'boolean':
         return this.convertBooleanValue(prop.value)
+      case 'files':
+        // File values should be passed through as-is (UserFile objects)
+        return prop.value
       default:
         return prop.value
     }

@@ -22,9 +22,17 @@ The API trigger exposes your workflow as a secure HTTP endpoint. Send JSON data 
   />
 </div>
 
-Add an **Input Format** field for each parameter. Runtime output keys mirror the schema and are also available under `<api.input>`.
+Add an **Input Format** field for each parameter. Supported types:
 
-Manual runs in the editor use the `value` column so you can test without sending a request. During execution the resolver populates both `<api.userId>` and `<api.input.userId>`.
+- **string** - Text values
+- **number** - Numeric values
+- **boolean** - True/false values
+- **json** - JSON objects
+- **files** - File uploads (access via `<api.fieldName[0].url>`, `<api.fieldName[0].name>`, etc.)
+
+Runtime output keys mirror the schema and are available under `<api.input>`.
+
+Manual runs in the editor use the `value` column so you can test without sending a request. During execution the resolver populates both `<api.fieldName>` and `<api.input.fieldName>`.
 
 ## Request Example
 
@@ -122,6 +130,53 @@ data: {"blockId":"agent1-uuid","chunk":" complete"}
 |-----------|-------------|
 | `<api.field>` | Field defined in the Input Format |
 | `<api.input>` | Entire structured request body |
+
+### File Upload Format
+
+The API accepts files in two formats:
+
+**1. Base64-encoded files** (recommended for SDKs):
+```json
+{
+  "documents": [{
+    "type": "file",
+    "data": "data:application/pdf;base64,JVBERi0xLjQK...",
+    "name": "document.pdf",
+    "mime": "application/pdf"
+  }]
+}
+```
+- Maximum file size: 20MB per file
+- Files are uploaded to cloud storage and converted to UserFile objects with all properties
+
+**2. Direct URL references**:
+```json
+{
+  "documents": [{
+    "type": "url",
+    "data": "https://example.com/document.pdf",
+    "name": "document.pdf",
+    "mime": "application/pdf"
+  }]
+}
+```
+- File is not uploaded, URL is passed through directly
+- Useful for referencing existing files
+
+### File Properties
+
+For files, access all properties:
+
+| Property | Description | Type |
+|----------|-------------|------|
+| `<api.fieldName[0].url>` | Signed download URL | string |
+| `<api.fieldName[0].name>` | Original filename | string |
+| `<api.fieldName[0].size>` | File size in bytes | number |
+| `<api.fieldName[0].type>` | MIME type | string |
+| `<api.fieldName[0].uploadedAt>` | Upload timestamp (ISO 8601) | string |
+| `<api.fieldName[0].expiresAt>` | URL expiry timestamp (ISO 8601) | string |
+
+For URL-referenced files, the same properties are available except `uploadedAt` and `expiresAt` since the file is not uploaded to our storage.
 
 If no Input Format is defined, the executor exposes the raw JSON at `<api.input>` only.
 

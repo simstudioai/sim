@@ -1,17 +1,14 @@
-import { db } from '@sim/db'
-import { workflow as workflowTable } from '@sim/db/schema'
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { generateRequestId } from '@/lib/utils'
 import { applyAutoLayout } from '@/lib/workflows/autolayout'
 import {
   loadWorkflowFromNormalizedTables,
   type NormalizedWorkflowData,
 } from '@/lib/workflows/db-helpers'
+import { getWorkflowAccessContext } from '@/lib/workflows/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -77,11 +74,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     })
 
     // Fetch the workflow to check ownership/access
-    const workflowData = await db
-      .select()
-      .from(workflowTable)
-      .where(eq(workflowTable.id, workflowId))
-      .then((rows) => rows[0])
+    const accessContext = await getWorkflowAccessContext(workflowId, userId)
+    const workflowData = accessContext?.workflow
 
     if (!workflowData) {
       logger.warn(`[${requestId}] Workflow ${workflowId} not found for autolayout`)
@@ -89,24 +83,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // Check if user has permission to update this workflow
-    let canUpdate = false
-
-    // Case 1: User owns the workflow
-    if (workflowData.userId === userId) {
-      canUpdate = true
-    }
-
-    // Case 2: Workflow belongs to a workspace and user has write or admin permission
-    if (!canUpdate && workflowData.workspaceId) {
-      const userPermission = await getUserEntityPermissions(
-        userId,
-        'workspace',
-        workflowData.workspaceId
-      )
-      if (userPermission === 'write' || userPermission === 'admin') {
-        canUpdate = true
-      }
-    }
+    const canUpdate =
+      accessContext?.isOwner ||
+      (workflowData.workspaceId
+        ? accessContext?.workspacePermission === 'write' ||
+          accessContext?.workspacePermission === 'admin'
+        : false)
 
     if (!canUpdate) {
       logger.warn(

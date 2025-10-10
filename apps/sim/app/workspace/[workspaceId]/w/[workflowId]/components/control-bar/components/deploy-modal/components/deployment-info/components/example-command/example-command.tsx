@@ -236,8 +236,8 @@ export function ExampleCommand({
           </div>
         )}
 
-        <div className='group relative rounded-md border bg-background transition-colors hover:bg-muted/50'>
-          <pre className='whitespace-pre-wrap p-3 font-mono text-xs'>{getDisplayCommand()}</pre>
+        <div className='group relative overflow-x-auto rounded-md border bg-background transition-colors hover:bg-muted/50'>
+          <pre className='whitespace-pre p-3 font-mono text-xs'>{getDisplayCommand()}</pre>
           <CopyButton text={getActualCommand()} />
         </div>
       </div>

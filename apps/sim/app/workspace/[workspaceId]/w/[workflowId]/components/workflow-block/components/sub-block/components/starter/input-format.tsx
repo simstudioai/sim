@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, Plus, Trash } from 'lucide-react'
+import { ChevronDown, Paperclip, Plus, Trash } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -27,7 +27,7 @@ import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/
 interface Field {
   id: string
   name: string
-  type?: 'string' | 'number' | 'boolean' | 'object' | 'array'
+  type?: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'files'
   value?: string
   collapsed?: boolean
 }
@@ -339,36 +339,45 @@ export function FieldFormat({
                             onClick={() => updateField(field.id, 'type', 'string')}
                             className='cursor-pointer'
                           >
-                            <span className='mr-2 font-mono'>Aa</span>
+                            <span className='mr-2 w-6 text-center font-mono'>Aa</span>
                             <span>String</span>
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => updateField(field.id, 'type', 'number')}
                             className='cursor-pointer'
                           >
-                            <span className='mr-2 font-mono'>123</span>
+                            <span className='mr-2 w-6 text-center font-mono'>123</span>
                             <span>Number</span>
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => updateField(field.id, 'type', 'boolean')}
                             className='cursor-pointer'
                           >
-                            <span className='mr-2 font-mono'>0/1</span>
+                            <span className='mr-2 w-6 text-center font-mono'>0/1</span>
                             <span>Boolean</span>
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => updateField(field.id, 'type', 'object')}
                             className='cursor-pointer'
                           >
-                            <span className='mr-2 font-mono'>{'{}'}</span>
+                            <span className='mr-2 w-6 text-center font-mono'>{'{}'}</span>
                             <span>Object</span>
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => updateField(field.id, 'type', 'array')}
                             className='cursor-pointer'
                           >
-                            <span className='mr-2 font-mono'>[]</span>
+                            <span className='mr-2 w-6 text-center font-mono'>[]</span>
                             <span>Array</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => updateField(field.id, 'type', 'files')}
+                            className='cursor-pointer'
+                          >
+                            <div className='mr-2 flex w-6 justify-center'>
+                              <Paperclip className='h-4 w-4' />
+                            </div>
+                            <span>Files</span>
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

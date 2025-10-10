@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional, Union
 from dataclasses import dataclass
 import time
 import random
+import os
 
 import requests
 
@@ -109,6 +110,53 @@ class SimStudioClient:
         })
         self._rate_limit_info: Optional[RateLimitInfo] = None
     
+    def _convert_files_to_base64(self, value: Any) -> Any:
+        """
+        Convert file objects in input to API format (base64).
+        Recursively processes nested dicts and lists.
+        """
+        import base64
+        import io
+
+        # Check if this is a file-like object
+        if hasattr(value, 'read') and callable(value.read):
+            # Save current position if seekable
+            initial_pos = value.tell() if hasattr(value, 'tell') else None
+
+            # Read file bytes
+            file_bytes = value.read()
+
+            # Restore position if seekable
+            if initial_pos is not None and hasattr(value, 'seek'):
+                value.seek(initial_pos)
+
+            # Encode to base64
+            base64_data = base64.b64encode(file_bytes).decode('utf-8')
+
+            # Get file metadata
+            filename = getattr(value, 'name', 'file')
+            if isinstance(filename, str):
+                filename = os.path.basename(filename)
+
+            content_type = getattr(value, 'content_type', 'application/octet-stream')
+
+            return {
+                'type': 'file',
+                'data': f'data:{content_type};base64,{base64_data}',
+                'name': filename,
+                'mime': content_type
+            }
+
+        # Recursively process lists
+        if isinstance(value, list):
+            return [self._convert_files_to_base64(item) for item in value]
+
+        # Recursively process dicts
+        if isinstance(value, dict):
+            return {k: self._convert_files_to_base64(v) for k, v in value.items()}
+
+        return value
+
     def execute_workflow(
         self,
         workflow_id: str,
@@ -122,9 +170,11 @@ class SimStudioClient:
         Execute a workflow with optional input data.
         If async_execution is True, returns immediately with a task ID.
 
+        File objects in input_data will be automatically detected and converted to base64.
+
         Args:
             workflow_id: The ID of the workflow to execute
-            input_data: Input data to pass to the workflow
+            input_data: Input data to pass to the workflow (can include file-like objects)
             timeout: Timeout in seconds (default: 30.0)
             stream: Enable streaming responses (default: None)
             selected_outputs: Block outputs to stream (e.g., ["agent1.content"])
@@ -138,19 +188,23 @@ class SimStudioClient:
         """
         url = f"{self.base_url}/api/workflows/{workflow_id}/execute"
 
-        # Build request body - spread input at root level, then add API control parameters
-        body = input_data.copy() if input_data is not None else {}
-        if stream is not None:
-            body['stream'] = stream
-        if selected_outputs is not None:
-            body['selectedOutputs'] = selected_outputs
-
         # Build headers - async execution uses X-Execution-Mode header
         headers = self._session.headers.copy()
         if async_execution:
             headers['X-Execution-Mode'] = 'async'
 
         try:
+            # Build JSON body - spread input at root level, then add API control parameters
+            body = input_data.copy() if input_data is not None else {}
+
+            # Convert any file objects in the input to base64 format
+            body = self._convert_files_to_base64(body)
+
+            if stream is not None:
+                body['stream'] = stream
+            if selected_outputs is not None:
+                body['selectedOutputs'] = selected_outputs
+
             response = self._session.post(
                 url,
                 json=body,
@@ -281,7 +335,7 @@ class SimStudioClient:
 
         Args:
             workflow_id: The ID of the workflow to execute
-            input_data: Input data to pass to the workflow
+            input_data: Input data to pass to the workflow (can include file-like objects)
             timeout: Timeout for the initial request in seconds
             stream: Enable streaming responses (default: None)
             selected_outputs: Block outputs to stream (e.g., ["agent1.content"])
@@ -373,7 +427,7 @@ class SimStudioClient:
 
         Args:
             workflow_id: The ID of the workflow to execute
-            input_data: Input data to pass to the workflow
+            input_data: Input data to pass to the workflow (can include file-like objects)
             timeout: Timeout in seconds
             stream: Enable streaming responses
             selected_outputs: Block outputs to stream

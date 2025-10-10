@@ -1,10 +1,9 @@
 'use client'
 
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowUp } from 'lucide-react'
+import { AlertCircle, ArrowDown, ArrowUp, File, FileText, Image, Paperclip, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Notice } from '@/components/ui/notice'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
@@ -13,7 +12,6 @@ import {
   parseOutputContentSafely,
 } from '@/lib/response-format'
 import {
-  ChatFileUpload,
   ChatMessage,
   OutputSelect,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/chat/components'
@@ -261,12 +259,40 @@ export function Chat({ chatMessage, setChatMessage }: ChatProps) {
     let result: any = null
 
     try {
-      // Add user message
+      // Read files as data URLs for display in chat (only images to avoid localStorage quota issues)
+      const attachmentsWithData = await Promise.all(
+        chatFiles.map(async (file) => {
+          let dataUrl = ''
+          // Only read images as data URLs to avoid storing large files in localStorage
+          if (file.type.startsWith('image/')) {
+            try {
+              dataUrl = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader()
+                reader.onload = () => resolve(reader.result as string)
+                reader.onerror = reject
+                reader.readAsDataURL(file.file)
+              })
+            } catch (error) {
+              logger.error('Error reading file as data URL:', error)
+            }
+          }
+          return {
+            id: file.id,
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            dataUrl,
+          }
+        })
+      )
+
+      // Add user message with attachments (include all files, even non-images without dataUrl)
       addMessage({
         content:
           sentMessage || (chatFiles.length > 0 ? `Uploaded ${chatFiles.length} file(s)` : ''),
         workflowId: activeWorkflowId,
         type: 'user',
+        attachments: attachmentsWithData,
       })
 
       // Prepare workflow input
@@ -626,66 +652,212 @@ export function Chat({ chatMessage, setChatMessage }: ChatProps) {
 
                 if (validNewFiles.length > 0) {
                   setChatFiles([...chatFiles, ...validNewFiles])
+                  setUploadErrors([]) // Clear errors when files are successfully added
                 }
               }
             }
           }}
         >
-          {/* File upload section */}
-          <div className='mb-2'>
-            {uploadErrors.length > 0 && (
-              <div className='mb-2'>
-                <Notice variant='error' title='File upload error'>
-                  <ul className='list-disc pl-5'>
-                    {uploadErrors.map((err, idx) => (
-                      <li key={idx}>{err}</li>
-                    ))}
-                  </ul>
-                </Notice>
+          {/* Error messages */}
+          {uploadErrors.length > 0 && (
+            <div className='mb-2'>
+              <div className='rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800/50 dark:bg-red-950/20'>
+                <div className='flex items-start gap-2'>
+                  <AlertCircle className='mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400' />
+                  <div className='flex-1'>
+                    <div className='mb-1 font-medium text-red-800 text-sm dark:text-red-300'>
+                      File upload error
+                    </div>
+                    <div className='space-y-1'>
+                      {uploadErrors.map((err, idx) => (
+                        <div key={idx} className='text-red-700 text-sm dark:text-red-400'>
+                          {err}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Combined input container matching copilot style */}
+          <div
+            className={`rounded-[8px] border border-[#E5E5E5] bg-[#FFFFFF] p-2 shadow-xs transition-all duration-200 dark:border-[#414141] dark:bg-[var(--surface-elevated)] ${
+              isDragOver
+                ? 'border-[var(--brand-primary-hover-hex)] bg-purple-50/50 dark:border-[var(--brand-primary-hover-hex)] dark:bg-purple-950/20'
+                : ''
+            }`}
+          >
+            {/* File thumbnails */}
+            {chatFiles.length > 0 && (
+              <div className='mb-2 flex flex-wrap gap-1.5'>
+                {chatFiles.map((file) => {
+                  const isImage = file.type.startsWith('image/')
+                  const previewUrl = isImage ? URL.createObjectURL(file.file) : null
+                  const getFileIcon = (type: string) => {
+                    if (type.includes('pdf'))
+                      return <FileText className='h-5 w-5 text-muted-foreground' />
+                    if (type.startsWith('image/'))
+                      return <Image className='h-5 w-5 text-muted-foreground' />
+                    if (type.includes('text') || type.includes('json'))
+                      return <FileText className='h-5 w-5 text-muted-foreground' />
+                    return <File className='h-5 w-5 text-muted-foreground' />
+                  }
+                  const formatFileSize = (bytes: number) => {
+                    if (bytes === 0) return '0 B'
+                    const k = 1024
+                    const sizes = ['B', 'KB', 'MB', 'GB']
+                    const i = Math.floor(Math.log(bytes) / Math.log(k))
+                    return `${Math.round((bytes / k ** i) * 10) / 10} ${sizes[i]}`
+                  }
+
+                  return (
+                    <div
+                      key={file.id}
+                      className={`group relative overflow-hidden rounded-md border border-border/50 bg-muted/20 ${
+                        previewUrl
+                          ? 'h-16 w-16'
+                          : 'flex h-16 min-w-[120px] max-w-[200px] items-center gap-2 px-2'
+                      }`}
+                    >
+                      {previewUrl ? (
+                        <img
+                          src={previewUrl}
+                          alt={file.name}
+                          className='h-full w-full object-cover'
+                        />
+                      ) : (
+                        <>
+                          <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-background/50'>
+                            {getFileIcon(file.type)}
+                          </div>
+                          <div className='min-w-0 flex-1'>
+                            <div className='truncate font-medium text-foreground text-xs'>
+                              {file.name}
+                            </div>
+                            <div className='text-[10px] text-muted-foreground'>
+                              {formatFileSize(file.size)}
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {/* Remove button */}
+                      <Button
+                        variant='ghost'
+                        size='icon'
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (previewUrl) URL.revokeObjectURL(previewUrl)
+                          setChatFiles(chatFiles.filter((f) => f.id !== file.id))
+                        }}
+                        className='absolute top-0.5 right-0.5 h-5 w-5 bg-gray-800/80 p-0 text-white opacity-0 transition-opacity hover:bg-gray-800/80 hover:text-white group-hover:opacity-100 dark:bg-black/70 dark:hover:bg-black/70 dark:hover:text-white'
+                      >
+                        <X className='h-3 w-3' />
+                      </Button>
+                    </div>
+                  )
+                })}
               </div>
             )}
-            <ChatFileUpload
-              files={chatFiles}
-              onFilesChange={(files) => {
-                setChatFiles(files)
-              }}
-              maxFiles={5}
-              maxSize={10}
-              disabled={!activeWorkflowId || isExecuting || isUploadingFiles}
-              onError={(errors) => setUploadErrors(errors)}
-            />
-          </div>
 
-          <div className='flex gap-2'>
-            <Input
-              ref={inputRef}
-              value={chatMessage}
-              onChange={(e) => {
-                setChatMessage(e.target.value)
-                setHistoryIndex(-1) // Reset history index when typing
-              }}
-              onKeyDown={handleKeyPress}
-              placeholder={isDragOver ? 'Drop files here...' : 'Type a message...'}
-              className={`h-9 flex-1 rounded-lg border-[#E5E5E5] bg-[#FFFFFF] text-muted-foreground shadow-xs focus-visible:ring-0 focus-visible:ring-offset-0 dark:border-[#414141] dark:bg-[var(--surface-elevated)] ${
-                isDragOver
-                  ? 'border-[var(--brand-primary-hover-hex)] bg-purple-50/50 dark:border-[var(--brand-primary-hover-hex)] dark:bg-purple-950/20'
-                  : ''
-              }`}
-              disabled={!activeWorkflowId || isExecuting || isUploadingFiles}
-            />
-            <Button
-              onClick={handleSendMessage}
-              size='icon'
-              disabled={
-                (!chatMessage.trim() && chatFiles.length === 0) ||
-                !activeWorkflowId ||
-                isExecuting ||
-                isUploadingFiles
-              }
-              className='h-9 w-9 rounded-lg bg-[var(--brand-primary-hover-hex)] text-white shadow-[0_0_0_0_var(--brand-primary-hover-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
-            >
-              <ArrowUp className='h-4 w-4' />
-            </Button>
+            {/* Input row */}
+            <div className='flex items-center gap-1'>
+              {/* Attach button */}
+              <Button
+                variant='ghost'
+                size='icon'
+                onClick={() => document.getElementById('chat-file-input')?.click()}
+                disabled={
+                  !activeWorkflowId || isExecuting || isUploadingFiles || chatFiles.length >= 5
+                }
+                className='h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground'
+                title='Attach files'
+              >
+                <Paperclip className='h-3 w-3' />
+              </Button>
+
+              {/* Hidden file input */}
+              <input
+                id='chat-file-input'
+                type='file'
+                multiple
+                onChange={(e) => {
+                  const files = e.target.files
+                  if (!files) return
+
+                  const newFiles: ChatFile[] = []
+                  const errors: string[] = []
+                  for (let i = 0; i < files.length; i++) {
+                    if (chatFiles.length + newFiles.length >= 5) {
+                      errors.push('Maximum 5 files allowed')
+                      break
+                    }
+                    const file = files[i]
+                    if (file.size > 10 * 1024 * 1024) {
+                      errors.push(`${file.name} is too large (max 10MB)`)
+                      continue
+                    }
+
+                    // Check for duplicates
+                    const isDuplicate = chatFiles.some(
+                      (existingFile) =>
+                        existingFile.name === file.name && existingFile.size === file.size
+                    )
+                    if (isDuplicate) {
+                      errors.push(`${file.name} already added`)
+                      continue
+                    }
+
+                    newFiles.push({
+                      id: crypto.randomUUID(),
+                      name: file.name,
+                      size: file.size,
+                      type: file.type,
+                      file,
+                    })
+                  }
+                  if (errors.length > 0) setUploadErrors(errors)
+                  if (newFiles.length > 0) {
+                    setChatFiles([...chatFiles, ...newFiles])
+                    setUploadErrors([]) // Clear errors when files are successfully added
+                  }
+                  e.target.value = ''
+                }}
+                className='hidden'
+                disabled={!activeWorkflowId || isExecuting || isUploadingFiles}
+              />
+
+              {/* Text input */}
+              <Input
+                ref={inputRef}
+                value={chatMessage}
+                onChange={(e) => {
+                  setChatMessage(e.target.value)
+                  setHistoryIndex(-1)
+                }}
+                onKeyDown={handleKeyPress}
+                placeholder={isDragOver ? 'Drop files here...' : 'Type a message...'}
+                className='h-8 flex-1 border-0 bg-transparent font-sans text-foreground text-sm shadow-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
+                disabled={!activeWorkflowId || isExecuting || isUploadingFiles}
+              />
+
+              {/* Send button */}
+              <Button
+                onClick={handleSendMessage}
+                size='icon'
+                disabled={
+                  (!chatMessage.trim() && chatFiles.length === 0) ||
+                  !activeWorkflowId ||
+                  isExecuting ||
+                  isUploadingFiles
+                }
+                className='h-6 w-6 shrink-0 rounded-full bg-[var(--brand-primary-hover-hex)] text-white shadow-[0_0_0_0_var(--brand-primary-hover-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
+              >
+                <ArrowUp className='h-3 w-3' />
+              </Button>
+            </div>
           </div>
         </div>
       </div>

@@ -3,7 +3,7 @@
 import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Send, Square } from 'lucide-react'
+import { AlertCircle, Paperclip, Send, Square, X } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { VoiceInput } from '@/app/chat/components/input/voice-input'
 
@@ -12,8 +12,17 @@ const PLACEHOLDER_DESKTOP = 'Enter a message or click the mic to speak'
 const MAX_TEXTAREA_HEIGHT = 120 // Max height in pixels (e.g., for about 3-4 lines)
 const MAX_TEXTAREA_HEIGHT_MOBILE = 100 // Smaller for mobile
 
+interface AttachedFile {
+  id: string
+  name: string
+  size: number
+  type: string
+  file: File
+  dataUrl?: string
+}
+
 export const ChatInput: React.FC<{
-  onSubmit?: (value: string, isVoiceInput?: boolean) => void
+  onSubmit?: (value: string, isVoiceInput?: boolean, files?: AttachedFile[]) => void
   isStreaming?: boolean
   onStopStreaming?: () => void
   onVoiceStart?: () => void
@@ -21,8 +30,11 @@ export const ChatInput: React.FC<{
 }> = ({ onSubmit, isStreaming = false, onStopStreaming, onVoiceStart, voiceOnly = false }) => {
   const wrapperRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null) // Ref for the textarea
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [isActive, setIsActive] = useState(false)
   const [inputValue, setInputValue] = useState('')
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
+  const [uploadErrors, setUploadErrors] = useState<string[]>([])
 
   // Check if speech-to-text is available in the browser
   const isSttAvailable =
@@ -85,10 +97,75 @@ export const ChatInput: React.FC<{
     // Focus is now handled by the useEffect above
   }
 
+  // Handle file selection
+  const handleFileSelect = async (selectedFiles: FileList | null) => {
+    if (!selectedFiles) return
+
+    const newFiles: AttachedFile[] = []
+    const maxSize = 10 * 1024 * 1024 // 10MB limit
+    const maxFiles = 5
+
+    for (let i = 0; i < selectedFiles.length; i++) {
+      if (attachedFiles.length + newFiles.length >= maxFiles) break
+
+      const file = selectedFiles[i]
+
+      // Check file size
+      if (file.size > maxSize) {
+        setUploadErrors((prev) => [...prev, `${file.name} is too large (max 10MB)`])
+        continue
+      }
+
+      // Check for duplicates
+      const isDuplicate = attachedFiles.some(
+        (existingFile) => existingFile.name === file.name && existingFile.size === file.size
+      )
+      if (isDuplicate) {
+        setUploadErrors((prev) => [...prev, `${file.name} already added`])
+        continue
+      }
+
+      // Read file as data URL if it's an image
+      let dataUrl: string | undefined
+      if (file.type.startsWith('image/')) {
+        try {
+          dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload = () => resolve(reader.result as string)
+            reader.onerror = reject
+            reader.readAsDataURL(file)
+          })
+        } catch (error) {
+          console.error('Error reading file:', error)
+        }
+      }
+
+      newFiles.push({
+        id: crypto.randomUUID(),
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        file,
+        dataUrl,
+      })
+    }
+
+    if (newFiles.length > 0) {
+      setAttachedFiles([...attachedFiles, ...newFiles])
+      setUploadErrors([]) // Clear errors when files are successfully added
+    }
+  }
+
+  const handleRemoveFile = (fileId: string) => {
+    setAttachedFiles(attachedFiles.filter((f) => f.id !== fileId))
+  }
+
   const handleSubmit = () => {
-    if (!inputValue.trim()) return
-    onSubmit?.(inputValue.trim(), false) // false = not voice input
+    if (!inputValue.trim() && attachedFiles.length === 0) return
+    onSubmit?.(inputValue.trim(), false, attachedFiles) // false = not voice input
     setInputValue('')
+    setAttachedFiles([])
+    setUploadErrors([]) // Clear errors when sending message
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto' // Reset height after submit
       textareaRef.current.style.overflowY = 'hidden' // Ensure overflow is hidden
@@ -132,6 +209,29 @@ export const ChatInput: React.FC<{
     <>
       <div className='fixed right-0 bottom-0 left-0 flex w-full items-center justify-center bg-gradient-to-t from-white to-transparent px-4 pb-4 text-black md:px-0 md:pb-4'>
         <div ref={wrapperRef} className='w-full max-w-3xl md:max-w-[748px]'>
+          {/* Error Messages */}
+          {uploadErrors.length > 0 && (
+            <div className='mb-3'>
+              <div className='rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800/50 dark:bg-red-950/20'>
+                <div className='flex items-start gap-2'>
+                  <AlertCircle className='mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400' />
+                  <div className='flex-1'>
+                    <div className='mb-1 font-medium text-red-800 text-sm dark:text-red-300'>
+                      File upload error
+                    </div>
+                    <div className='space-y-1'>
+                      {uploadErrors.map((error, idx) => (
+                        <div key={idx} className='text-red-700 text-sm dark:text-red-400'>
+                          {error}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Text Input Area with Controls */}
           <motion.div
             className='rounded-2xl border border-gray-200 bg-white shadow-sm md:rounded-3xl'
@@ -140,27 +240,99 @@ export const ChatInput: React.FC<{
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2 }}
           >
-            <div className='flex items-center gap-2 p-3 md:p-4'>
-              {/* Voice Input */}
-              {isSttAvailable && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div>
-                        <VoiceInput
-                          onVoiceStart={handleVoiceStart}
-                          disabled={isStreaming}
-                          minimal
+            {/* File Previews */}
+            {attachedFiles.length > 0 && (
+              <div className='mb-2 flex flex-wrap gap-2 px-3 pt-3 md:px-4'>
+                {attachedFiles.map((file) => {
+                  const formatFileSize = (bytes: number) => {
+                    if (bytes === 0) return '0 B'
+                    const k = 1024
+                    const sizes = ['B', 'KB', 'MB', 'GB']
+                    const i = Math.floor(Math.log(bytes) / Math.log(k))
+                    return `${Math.round((bytes / k ** i) * 10) / 10} ${sizes[i]}`
+                  }
+
+                  return (
+                    <div
+                      key={file.id}
+                      className={`group relative overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800 ${
+                        file.dataUrl
+                          ? 'h-16 w-16 md:h-20 md:w-20'
+                          : 'flex h-16 min-w-[120px] max-w-[200px] items-center gap-2 px-2 md:h-20 md:min-w-[140px] md:max-w-[220px] md:px-3'
+                      }`}
+                      title=''
+                    >
+                      {file.dataUrl ? (
+                        <img
+                          src={file.dataUrl}
+                          alt={file.name}
+                          className='h-full w-full object-cover'
                         />
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent side='top'>
-                      <p>Start voice conversation</p>
-                      <span className='text-gray-500 text-xs'>Click to enter voice mode</span>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
+                      ) : (
+                        <>
+                          <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-gray-100 md:h-10 md:w-10 dark:bg-gray-700'>
+                            <Paperclip
+                              size={16}
+                              className='text-gray-500 md:h-5 md:w-5 dark:text-gray-400'
+                            />
+                          </div>
+                          <div className='min-w-0 flex-1'>
+                            <div className='truncate font-medium text-gray-800 text-xs dark:text-gray-200'>
+                              {file.name}
+                            </div>
+                            <div className='text-[10px] text-gray-500 dark:text-gray-400'>
+                              {formatFileSize(file.size)}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                      <button
+                        type='button'
+                        onClick={() => handleRemoveFile(file.id)}
+                        className='absolute top-1 right-1 rounded-full bg-gray-800/80 p-1 text-white opacity-0 transition-opacity hover:bg-gray-800/80 hover:text-white group-hover:opacity-100 dark:bg-black/70 dark:hover:bg-black/70 dark:hover:text-white'
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            <div className='flex items-center gap-2 p-3 md:p-4'>
+              {/* Paperclip Button */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type='button'
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isStreaming || attachedFiles.length >= 5}
+                      className='flex items-center justify-center rounded-full p-1.5 text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 md:p-2'
+                    >
+                      <Paperclip size={16} className='md:h-5 md:w-5' />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side='top'>
+                    <p>Attach files</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              {/* Hidden file input */}
+              <input
+                ref={fileInputRef}
+                type='file'
+                multiple
+                onChange={(e) => {
+                  handleFileSelect(e.target.files)
+                  if (fileInputRef.current) {
+                    fileInputRef.current.value = ''
+                  }
+                }}
+                className='hidden'
+                disabled={isStreaming}
+              />
 
               {/* Text Input Container */}
               <div className='relative flex-1'>
@@ -208,10 +380,30 @@ export const ChatInput: React.FC<{
                 </div>
               </div>
 
+              {/* Voice Input */}
+              {isSttAvailable && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div>
+                        <VoiceInput
+                          onVoiceStart={handleVoiceStart}
+                          disabled={isStreaming}
+                          minimal
+                        />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side='top'>
+                      <p>Start voice conversation</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+
               {/* Send Button */}
               <button
                 className={`flex items-center justify-center rounded-full p-1.5 text-white transition-colors md:p-2 ${
-                  inputValue.trim()
+                  inputValue.trim() || attachedFiles.length > 0
                     ? 'bg-black hover:bg-zinc-700'
                     : 'cursor-default bg-gray-300 hover:bg-gray-400'
                 }`}

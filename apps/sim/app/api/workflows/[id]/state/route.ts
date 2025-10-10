@@ -5,10 +5,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { generateRequestId } from '@/lib/utils'
 import { extractAndPersistCustomTools } from '@/lib/workflows/custom-tools-persistence'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/db-helpers'
+import { getWorkflowAccessContext } from '@/lib/workflows/utils'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/validation'
 
 const logger = createLogger('WorkflowStateAPI')
@@ -124,11 +124,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const state = WorkflowStateSchema.parse(body)
 
     // Fetch the workflow to check ownership/access
-    const workflowData = await db
-      .select()
-      .from(workflow)
-      .where(eq(workflow.id, workflowId))
-      .then((rows) => rows[0])
+    const accessContext = await getWorkflowAccessContext(workflowId, userId)
+    const workflowData = accessContext?.workflow
 
     if (!workflowData) {
       logger.warn(`[${requestId}] Workflow ${workflowId} not found for state update`)
@@ -136,24 +133,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Check if user has permission to update this workflow
-    let canUpdate = false
-
-    // Case 1: User owns the workflow
-    if (workflowData.userId === userId) {
-      canUpdate = true
-    }
-
-    // Case 2: Workflow belongs to a workspace and user has write or admin permission
-    if (!canUpdate && workflowData.workspaceId) {
-      const userPermission = await getUserEntityPermissions(
-        userId,
-        'workspace',
-        workflowData.workspaceId
-      )
-      if (userPermission === 'write' || userPermission === 'admin') {
-        canUpdate = true
-      }
-    }
+    const canUpdate =
+      accessContext?.isOwner ||
+      (workflowData.workspaceId
+        ? accessContext?.workspacePermission === 'write' ||
+          accessContext?.workspacePermission === 'admin'
+        : false)
 
     if (!canUpdate) {
       logger.warn(

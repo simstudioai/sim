@@ -6,6 +6,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
 import {
   addCorsHeaders,
+  processChatFiles,
   setChatAuthCookie,
   validateAuthToken,
   validateChatAuth,
@@ -75,7 +76,7 @@ export async function POST(
     }
 
     // Use the already parsed body
-    const { input, password, email, conversationId } = parsedBody
+    const { input, password, email, conversationId, files } = parsedBody
 
     // If this is an authentication request (has password or email but no input),
     // set auth cookie and return success
@@ -88,8 +89,8 @@ export async function POST(
       return response
     }
 
-    // For chat messages, create regular response
-    if (!input) {
+    // For chat messages, create regular response (allow empty input if files are present)
+    if (!input && (!files || files.length === 0)) {
       return addCorsHeaders(createErrorResponse('No input provided', 400), request)
     }
 
@@ -108,7 +109,6 @@ export async function POST(
     }
 
     try {
-      // Transform outputConfigs to selectedOutputs format (blockId_attribute format)
       const selectedOutputs: string[] = []
       if (deployment.outputConfigs && Array.isArray(deployment.outputConfigs)) {
         for (const config of deployment.outputConfigs) {
@@ -123,11 +123,30 @@ export async function POST(
       const { SSE_HEADERS } = await import('@/lib/utils')
       const { createFilteredResult } = await import('@/app/api/workflows/[id]/execute/route')
 
+      const workflowInput: any = { input, conversationId }
+      if (files && Array.isArray(files) && files.length > 0) {
+        logger.debug(`[${requestId}] Processing ${files.length} attached files`)
+
+        const executionId = crypto.randomUUID()
+        const executionContext = {
+          workspaceId: deployment.userId,
+          workflowId: deployment.workflowId,
+          executionId,
+        }
+
+        const uploadedFiles = await processChatFiles(files, executionContext, requestId)
+
+        if (uploadedFiles.length > 0) {
+          workflowInput.files = uploadedFiles
+          logger.info(`[${requestId}] Successfully processed ${uploadedFiles.length} files`)
+        }
+      }
+
       const stream = await createStreamingResponse({
         requestId,
         workflow: { id: deployment.workflowId, userId: deployment.userId, isDeployed: true },
-        input: { input, conversationId }, // Format for chat_trigger
-        executingUserId: deployment.userId, // Use workflow owner's ID for chat deployments
+        input: workflowInput,
+        executingUserId: deployment.userId,
         streamConfig: {
           selectedOutputs,
           isSecureMode: true,

@@ -46,6 +46,18 @@ const DEFAULT_VOICE_SETTINGS = {
 }
 
 /**
+ * Converts a File object to a base64 data URL
+ */
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
+/**
  * Creates an audio stream handler for text-to-speech conversion
  * @param streamTextToAudio - Function to stream text to audio
  * @param voiceId - The voice ID to use for TTS
@@ -265,20 +277,43 @@ export default function ChatClient({ identifier }: { identifier: string }) {
   }
 
   // Handle sending a message
-  const handleSendMessage = async (messageParam?: string, isVoiceInput = false) => {
+  const handleSendMessage = async (
+    messageParam?: string,
+    isVoiceInput = false,
+    files?: Array<{
+      id: string
+      name: string
+      size: number
+      type: string
+      file: File
+      dataUrl?: string
+    }>
+  ) => {
     const messageToSend = messageParam ?? inputValue
-    if (!messageToSend.trim() || isLoading) return
+    if ((!messageToSend.trim() && (!files || files.length === 0)) || isLoading) return
 
-    logger.info('Sending message:', { messageToSend, isVoiceInput, conversationId })
+    logger.info('Sending message:', {
+      messageToSend,
+      isVoiceInput,
+      conversationId,
+      filesCount: files?.length,
+    })
 
     // Reset userHasScrolled when sending a new message
     setUserHasScrolled(false)
 
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
-      content: messageToSend,
+      content: messageToSend || (files && files.length > 0 ? `Sent ${files.length} file(s)` : ''),
       type: 'user',
       timestamp: new Date(),
+      attachments: files?.map((file) => ({
+        id: file.id,
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        dataUrl: file.dataUrl || '',
+      })),
     }
 
     // Add the user's message to the chat
@@ -299,7 +334,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
 
     try {
       // Send structured payload to maintain chat context
-      const payload = {
+      const payload: any = {
         input:
           typeof userMessage.content === 'string'
             ? userMessage.content
@@ -307,7 +342,22 @@ export default function ChatClient({ identifier }: { identifier: string }) {
         conversationId,
       }
 
-      logger.info('API payload:', payload)
+      // Add files if present (convert to base64 for JSON transmission)
+      if (files && files.length > 0) {
+        payload.files = await Promise.all(
+          files.map(async (file) => ({
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            dataUrl: file.dataUrl || (await fileToBase64(file.file)),
+          }))
+        )
+      }
+
+      logger.info('API payload:', {
+        ...payload,
+        files: payload.files ? `${payload.files.length} files` : undefined,
+      })
 
       const response = await fetch(`/api/chat/${identifier}`, {
         method: 'POST',
@@ -499,8 +549,8 @@ export default function ChatClient({ identifier }: { identifier: string }) {
       <div className='relative p-3 pb-4 md:p-4 md:pb-6'>
         <div className='relative mx-auto max-w-3xl md:max-w-[748px]'>
           <ChatInput
-            onSubmit={(value, isVoiceInput) => {
-              void handleSendMessage(value, isVoiceInput)
+            onSubmit={(value, isVoiceInput, files) => {
+              void handleSendMessage(value, isVoiceInput, files)
             }}
             isStreaming={isStreamingResponse}
             onStopStreaming={() => stopStreaming(setMessages)}
