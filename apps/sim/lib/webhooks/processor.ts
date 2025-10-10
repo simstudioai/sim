@@ -406,13 +406,31 @@ export async function queueWebhookExecution(
       return NextResponse.json({ message: 'Pinned API key required' }, { status: 200 })
     }
 
+    const headers = Object.fromEntries(request.headers.entries())
+
+    // For Microsoft Teams Graph notifications, extract unique identifiers for idempotency
+    if (
+      foundWebhook.provider === 'microsoftteams' &&
+      body?.value &&
+      Array.isArray(body.value) &&
+      body.value.length > 0
+    ) {
+      const notification = body.value[0]
+      const subscriptionId = notification.subscriptionId
+      const messageId = notification.resourceData?.id
+
+      if (subscriptionId && messageId) {
+        headers['x-teams-notification-id'] = `${subscriptionId}:${messageId}`
+      }
+    }
+
     const payload = {
       webhookId: foundWebhook.id,
       workflowId: foundWorkflow.id,
       userId: actorUserId,
       provider: foundWebhook.provider,
       body,
-      headers: Object.fromEntries(request.headers.entries()),
+      headers,
       path: options.path || foundWebhook.path,
       blockId: foundWebhook.blockId,
       testMode: options.testMode,
