@@ -551,11 +551,31 @@ export async function validateWorkflowPermissions(
     }
   }
 
-  const { workflow, workspacePermission, isOwner, isWorkspaceOwner } = accessContext
+  const { workflow, workspacePermission, isOwner } = accessContext
+
+  if (isOwner) {
+    return {
+      error: null,
+      session,
+      workflow,
+    }
+  }
 
   if (workflow.workspaceId) {
-    const hasWorkspaceAdminRights = isWorkspaceOwner || workspacePermission === 'admin'
-    if (!hasWorkspaceAdminRights) {
+    let hasPermission = false
+
+    if (action === 'read') {
+      // Any workspace permission allows read
+      hasPermission = workspacePermission !== null
+    } else if (action === 'write') {
+      // Write or admin permission allows write
+      hasPermission = workspacePermission === 'write' || workspacePermission === 'admin'
+    } else if (action === 'admin') {
+      // Only admin permission allows admin actions
+      hasPermission = workspacePermission === 'admin'
+    }
+
+    if (!hasPermission) {
       logger.warn(
         `[${requestId}] User ${session.user.id} unauthorized to ${action} workflow ${workflowId} in workspace ${workflow.workspaceId}`
       )
@@ -566,15 +586,13 @@ export async function validateWorkflowPermissions(
       }
     }
   } else {
-    if (!isOwner) {
-      logger.warn(
-        `[${requestId}] User ${session.user.id} unauthorized to ${action} workflow ${workflowId} owned by ${workflow.userId}`
-      )
-      return {
-        error: { message: `Unauthorized: Access denied to ${action} this workflow`, status: 403 },
-        session: null,
-        workflow: null,
-      }
+    logger.warn(
+      `[${requestId}] User ${session.user.id} unauthorized to ${action} workflow ${workflowId} owned by ${workflow.userId}`
+    )
+    return {
+      error: { message: `Unauthorized: Access denied to ${action} this workflow`, status: 403 },
+      session: null,
+      workflow: null,
     }
   }
 

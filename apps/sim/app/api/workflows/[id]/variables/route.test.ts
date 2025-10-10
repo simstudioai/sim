@@ -18,12 +18,18 @@ import {
 describe('Workflow Variables API Route', () => {
   let authMocks: ReturnType<typeof mockAuth>
   let databaseMocks: ReturnType<typeof createMockDatabase>
+  const mockGetWorkflowAccessContext = vi.fn()
 
   beforeEach(() => {
     vi.resetModules()
     setupCommonApiMocks()
     mockCryptoUuid('mock-request-id-12345678')
     authMocks = mockAuth(mockUser)
+    mockGetWorkflowAccessContext.mockReset()
+
+    vi.doMock('@/lib/workflows/utils', () => ({
+      getWorkflowAccessContext: mockGetWorkflowAccessContext,
+    }))
   })
 
   afterEach(() => {
@@ -47,9 +53,7 @@ describe('Workflow Variables API Route', () => {
 
     it('should return 404 when workflow does not exist', async () => {
       authMocks.setAuthenticated({ id: 'user-123', email: 'test@example.com' })
-      databaseMocks = createMockDatabase({
-        select: { results: [[]] }, // No workflow found
-      })
+      mockGetWorkflowAccessContext.mockResolvedValueOnce(null)
 
       const req = new NextRequest('http://localhost:3000/api/workflows/nonexistent/variables')
       const params = Promise.resolve({ id: 'nonexistent' })
@@ -73,8 +77,12 @@ describe('Workflow Variables API Route', () => {
       }
 
       authMocks.setAuthenticated({ id: 'user-123', email: 'test@example.com' })
-      databaseMocks = createMockDatabase({
-        select: { results: [[mockWorkflow]] },
+      mockGetWorkflowAccessContext.mockResolvedValueOnce({
+        workflow: mockWorkflow,
+        workspaceOwnerId: null,
+        workspacePermission: null,
+        isOwner: true,
+        isWorkspaceOwner: false,
       })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123/variables')
@@ -99,13 +107,13 @@ describe('Workflow Variables API Route', () => {
       }
 
       authMocks.setAuthenticated({ id: 'user-123', email: 'test@example.com' })
-      databaseMocks = createMockDatabase({
-        select: { results: [[mockWorkflow]] },
+      mockGetWorkflowAccessContext.mockResolvedValueOnce({
+        workflow: mockWorkflow,
+        workspaceOwnerId: 'workspace-owner',
+        workspacePermission: 'read',
+        isOwner: false,
+        isWorkspaceOwner: false,
       })
-
-      vi.doMock('@/lib/permissions/utils', () => ({
-        getUserEntityPermissions: vi.fn().mockResolvedValue('read'),
-      }))
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123/variables')
       const params = Promise.resolve({ id: 'workflow-123' })
@@ -116,14 +124,6 @@ describe('Workflow Variables API Route', () => {
       expect(response.status).toBe(200)
       const data = await response.json()
       expect(data.data).toEqual(mockWorkflow.variables)
-
-      // Verify permissions check was called
-      const { getUserEntityPermissions } = await import('@/lib/permissions/utils')
-      expect(getUserEntityPermissions).toHaveBeenCalledWith(
-        'user-123',
-        'workspace',
-        'workspace-456'
-      )
     })
 
     it('should deny access when user has no workspace permissions', async () => {
@@ -135,13 +135,13 @@ describe('Workflow Variables API Route', () => {
       }
 
       authMocks.setAuthenticated({ id: 'user-123', email: 'test@example.com' })
-      databaseMocks = createMockDatabase({
-        select: { results: [[mockWorkflow]] },
+      mockGetWorkflowAccessContext.mockResolvedValueOnce({
+        workflow: mockWorkflow,
+        workspaceOwnerId: 'workspace-owner',
+        workspacePermission: null,
+        isOwner: false,
+        isWorkspaceOwner: false,
       })
-
-      vi.doMock('@/lib/permissions/utils', () => ({
-        getUserEntityPermissions: vi.fn().mockResolvedValue(null),
-      }))
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123/variables')
       const params = Promise.resolve({ id: 'workflow-123' })
@@ -165,8 +165,12 @@ describe('Workflow Variables API Route', () => {
       }
 
       authMocks.setAuthenticated({ id: 'user-123', email: 'test@example.com' })
-      databaseMocks = createMockDatabase({
-        select: { results: [[mockWorkflow]] },
+      mockGetWorkflowAccessContext.mockResolvedValueOnce({
+        workflow: mockWorkflow,
+        workspaceOwnerId: null,
+        workspacePermission: null,
+        isOwner: true,
+        isWorkspaceOwner: false,
       })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123/variables')
@@ -191,8 +195,15 @@ describe('Workflow Variables API Route', () => {
       }
 
       authMocks.setAuthenticated({ id: 'user-123', email: 'test@example.com' })
+      mockGetWorkflowAccessContext.mockResolvedValueOnce({
+        workflow: mockWorkflow,
+        workspaceOwnerId: null,
+        workspacePermission: null,
+        isOwner: true,
+        isWorkspaceOwner: false,
+      })
+
       databaseMocks = createMockDatabase({
-        select: { results: [[mockWorkflow]] },
         update: { results: [{}] },
       })
 
@@ -223,13 +234,13 @@ describe('Workflow Variables API Route', () => {
       }
 
       authMocks.setAuthenticated({ id: 'user-123', email: 'test@example.com' })
-      databaseMocks = createMockDatabase({
-        select: { results: [[mockWorkflow]] },
+      mockGetWorkflowAccessContext.mockResolvedValueOnce({
+        workflow: mockWorkflow,
+        workspaceOwnerId: 'workspace-owner',
+        workspacePermission: null,
+        isOwner: false,
+        isWorkspaceOwner: false,
       })
-
-      vi.doMock('@/lib/permissions/utils', () => ({
-        getUserEntityPermissions: vi.fn().mockResolvedValue(null),
-      }))
 
       const variables = [
         { id: 'var-1', workflowId: 'workflow-123', name: 'test', type: 'string', value: 'hello' },
@@ -258,8 +269,12 @@ describe('Workflow Variables API Route', () => {
       }
 
       authMocks.setAuthenticated({ id: 'user-123', email: 'test@example.com' })
-      databaseMocks = createMockDatabase({
-        select: { results: [[mockWorkflow]] },
+      mockGetWorkflowAccessContext.mockResolvedValueOnce({
+        workflow: mockWorkflow,
+        workspaceOwnerId: null,
+        workspacePermission: null,
+        isOwner: true,
+        isWorkspaceOwner: false,
       })
 
       // Invalid data - missing required fields
@@ -283,9 +298,7 @@ describe('Workflow Variables API Route', () => {
   describe('Error handling', () => {
     it.concurrent('should handle database errors gracefully', async () => {
       authMocks.setAuthenticated({ id: 'user-123', email: 'test@example.com' })
-      databaseMocks = createMockDatabase({
-        select: { throwError: true, errorMessage: 'Database connection failed' },
-      })
+      mockGetWorkflowAccessContext.mockRejectedValueOnce(new Error('Database connection failed'))
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123/variables')
       const params = Promise.resolve({ id: 'workflow-123' })

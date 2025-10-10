@@ -74,8 +74,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       userId = authenticatedUserId
     }
 
-    let workflowData = await getWorkflowById(workflowId)
     let accessContext = null
+    let workflowData = await getWorkflowById(workflowId)
 
     if (!workflowData) {
       logger.warn(`[${requestId}] Workflow ${workflowId} not found`)
@@ -92,12 +92,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       // Case 1: User owns the workflow
       if (workflowData) {
         accessContext = await getWorkflowAccessContext(workflowId, userId ?? undefined)
-        workflowData = accessContext?.workflow ?? workflowData
-        if (accessContext?.isOwner) {
+
+        if (!accessContext) {
+          logger.warn(`[${requestId}] Workflow ${workflowId} not found`)
+          return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+        }
+
+        workflowData = accessContext.workflow
+
+        if (accessContext.isOwner) {
           hasAccess = true
         }
 
-        if (!hasAccess && workflowData.workspaceId && accessContext?.workspacePermission) {
+        if (!hasAccess && workflowData.workspaceId && accessContext.workspacePermission) {
           hasAccess = true
         }
       }
@@ -190,7 +197,7 @@ export async function DELETE(
     // Case 2: Workflow belongs to a workspace and user has admin permission
     if (!canDelete && workflowData.workspaceId) {
       const context = accessContext || (await getWorkflowAccessContext(workflowId, userId))
-      if (context?.workspacePermission === 'admin' || context?.isWorkspaceOwner) {
+      if (context?.workspacePermission === 'admin') {
         canDelete = true
       }
     }
@@ -309,6 +316,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const updates = UpdateWorkflowSchema.parse(body)
 
     // Fetch the workflow to check ownership/access
+    const accessContext = await getWorkflowAccessContext(workflowId, userId)
     const workflowData = accessContext?.workflow || (await getWorkflowById(workflowId))
 
     if (!workflowData) {
@@ -327,11 +335,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Case 2: Workflow belongs to a workspace and user has write or admin permission
     if (!canUpdate && workflowData.workspaceId) {
       const context = accessContext || (await getWorkflowAccessContext(workflowId, userId))
-      if (
-        context?.workspacePermission === 'write' ||
-        context?.workspacePermission === 'admin' ||
-        context?.isWorkspaceOwner
-      ) {
+      if (context?.workspacePermission === 'write' || context?.workspacePermission === 'admin') {
         canUpdate = true
       }
     }
