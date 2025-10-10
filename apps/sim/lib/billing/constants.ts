@@ -19,3 +19,9 @@ export const DEFAULT_ENTERPRISE_TIER_COST_LIMIT = 200
  * This charge is applied regardless of whether the workflow uses AI models
  */
 export const BASE_EXECUTION_CHARGE = 0.001
+
+/**
+ * Default threshold (in dollars) for incremental overage billing
+ * When unbilled overage reaches this amount, an invoice item is created
+ */
+export const DEFAULT_OVERAGE_THRESHOLD = 50

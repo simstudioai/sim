@@ -11,6 +11,7 @@ import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { checkUsageStatus, maybeSendUsageThresholdEmail } from '@/lib/billing/core/usage'
+import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { emitWorkflowExecutionCompleted } from '@/lib/logs/events'
@@ -441,6 +442,9 @@ export class ExecutionLogger implements IExecutionLoggerService {
         addedCost: costToStore,
         addedTokens: costSummary.totalTokens,
       })
+
+      // Check if user has hit overage threshold and bill incrementally
+      await checkAndBillOverageThreshold(userId)
     } catch (error) {
       logger.error('Error updating user stats with cost information', {
         workflowId,
