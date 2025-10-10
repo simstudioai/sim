@@ -97,7 +97,7 @@ export async function processApiWorkflowFiles(
       name: file.name,
       size: 0,
       type: file.mime || 'application/octet-stream',
-      key: '',
+      key: `url/${file.name}`,
       uploadedAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     }

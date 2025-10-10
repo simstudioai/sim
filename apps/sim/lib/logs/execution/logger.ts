@@ -125,8 +125,17 @@ export class ExecutionLogger implements IExecutionLoggerService {
     }
     finalOutput: BlockOutputData
     traceSpans?: TraceSpan[]
+    workflowInput?: any
   }): Promise<WorkflowExecutionLog> {
-    const { executionId, endedAt, totalDurationMs, costSummary, finalOutput, traceSpans } = params
+    const {
+      executionId,
+      endedAt,
+      totalDurationMs,
+      costSummary,
+      finalOutput,
+      traceSpans,
+      workflowInput,
+    } = params
 
     logger.debug(`Completing workflow execution ${executionId}`)
 
@@ -144,8 +153,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
     const level = hasErrors ? 'error' : 'info'
 
-    // Extract files from trace spans and final output
-    const executionFiles = this.extractFilesFromExecution(traceSpans, finalOutput)
+    // Extract files from trace spans, final output, and workflow input
+    const executionFiles = this.extractFilesFromExecution(traceSpans, finalOutput, workflowInput)
 
     const [updatedLog] = await db
       .update(workflowExecutionLogs)
@@ -452,9 +461,13 @@ export class ExecutionLogger implements IExecutionLoggerService {
   }
 
   /**
-   * Extract file references from execution trace spans and final output
+   * Extract file references from execution trace spans, final output, and workflow input
    */
-  private extractFilesFromExecution(traceSpans?: any[], finalOutput?: any): any[] {
+  private extractFilesFromExecution(
+    traceSpans?: any[],
+    finalOutput?: any,
+    workflowInput?: any
+  ): any[] {
     const files: any[] = []
     const seenFileIds = new Set<string>()
 
@@ -553,6 +566,15 @@ export class ExecutionLogger implements IExecutionLoggerService {
     if (finalOutput) {
       extractFilesFromObject(finalOutput, 'final_output')
     }
+
+    // Extract files from workflow input
+    if (workflowInput) {
+      extractFilesFromObject(workflowInput, 'workflow_input')
+    }
+
+    logger.debug(`Extracted ${files.length} file(s) from execution`, {
+      fileNames: files.map((f) => f.name),
+    })
 
     return files
   }

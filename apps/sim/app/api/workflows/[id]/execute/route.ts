@@ -383,6 +383,7 @@ export async function executeWorkflow(
       totalDurationMs: totalDuration || 0,
       finalOutput: result.output || {},
       traceSpans: (traceSpans || []) as any,
+      workflowInput: processedInput,
     })
 
     return result

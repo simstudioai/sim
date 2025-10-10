@@ -28,6 +28,7 @@ export interface SessionCompleteParams {
   totalDurationMs?: number
   finalOutput?: any
   traceSpans?: any[]
+  workflowInput?: any
 }
 
 export interface SessionErrorCompleteParams {
@@ -106,7 +107,7 @@ export class LoggingSession {
   }
 
   async complete(params: SessionCompleteParams = {}): Promise<void> {
-    const { endedAt, totalDurationMs, finalOutput, traceSpans } = params
+    const { endedAt, totalDurationMs, finalOutput, traceSpans, workflowInput } = params
 
     try {
       const costSummary = calculateCostSummary(traceSpans || [])
@@ -118,6 +119,7 @@ export class LoggingSession {
         costSummary,
         finalOutput: finalOutput || {},
         traceSpans: traceSpans || [],
+        workflowInput,
       })
 
       if (this.requestId) {
