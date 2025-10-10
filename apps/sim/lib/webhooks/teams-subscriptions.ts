@@ -1,12 +1,9 @@
 import { db } from '@sim/db'
 import { webhook as webhookTable } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
-import { NextRequest } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { env } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-
-const logger = createLogger('TeamsSubscriptions')
 
 export async function createMicrosoftTeamsChatSubscription(
   request: NextRequest,
@@ -17,19 +14,12 @@ export async function createMicrosoftTeamsChatSubscription(
   try {
     const providerConfig = (webhookData.providerConfig as Record<string, any>) || {}
     const credentialId: string | undefined = providerConfig.credentialId
-    const subscriptionScope: 'chat' | 'all-chats' = providerConfig.subscriptionScope || 'chat'
     const chatId: string | undefined = providerConfig.chatId
 
-    if (!credentialId) {
-      logger.warn(`[${requestId}] Missing credentialId for Teams chat subscription creation.`)
-      return false
-    }
+    if (!credentialId) return false
 
     const accessToken = await refreshAccessTokenIfNeeded(credentialId, userId, requestId)
-    if (!accessToken) {
-      logger.warn(`[${requestId}] Could not retrieve Teams access token for user ${userId}`)
-      return false
-    }
+    if (!accessToken) return false
 
     const requestOrigin = new URL(request.url).origin
     const effectiveOrigin = requestOrigin.includes('localhost')
@@ -37,25 +27,51 @@ export async function createMicrosoftTeamsChatSubscription(
       : requestOrigin
 
     const notificationUrl = `${effectiveOrigin}/api/webhooks/trigger/${webhookData.path}`
-    const resource =
-      subscriptionScope === 'all-chats'
-        ? '/chats/getAllMessages'
-        : chatId
-          ? `/chats/${encodeURIComponent(chatId)}/messages`
-          : null
+    const resource = chatId ? `/chats/${chatId}/messages` : null
 
-    if (!resource) {
-      logger.warn(`[${requestId}] Missing chatId for chat scope subscription.`)
-      return false
-    }
+    if (!resource) return false
 
-    // Set expiration (max varies; set short and require renewal job later)
-    const expirationDateTime = new Date(Date.now() + 60 * 60 * 1000).toISOString() // 1 hour
+    // Clean up existing Teams chat subscriptions for this credential
+    try {
+      const listResponse = await fetch('https://graph.microsoft.com/v1.0/subscriptions', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
 
-    // For includeResourceData=true we must provide an encryption cert. For now, use false as MVP.
+      if (listResponse.ok) {
+        const data = await listResponse.json()
+        const allSubscriptions = data.value || []
+        const chatSubscriptions = allSubscriptions.filter((sub: any) =>
+          sub.resource?.includes('/chats/')
+        )
+
+        for (const sub of chatSubscriptions) {
+          try {
+            const notificationUrl = sub.notificationUrl || ''
+            const isOurSubscription = notificationUrl.includes('/api/webhooks/trigger/')
+
+            if (isOurSubscription) {
+              await fetch(`https://graph.microsoft.com/v1.0/subscriptions/${sub.id}`, {
+                method: 'DELETE',
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                },
+              })
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+
+    const maxLifetimeMinutes = 4230
+    const expirationDateTime = new Date(Date.now() + maxLifetimeMinutes * 60 * 1000).toISOString()
+
     const body = {
       changeType: 'created,updated',
       notificationUrl,
+      lifecycleNotificationUrl: notificationUrl,
       resource,
       includeResourceData: false,
       expirationDateTime,
@@ -73,11 +89,9 @@ export async function createMicrosoftTeamsChatSubscription(
 
     const payload = await res.json()
     if (!res.ok) {
-      logger.error(`[${requestId}] Failed to create Teams subscription`, { status: res.status, payload })
       return false
     }
 
-    // Persist subscription id and expiration in providerConfig
     const updatedConfig = {
       ...providerConfig,
       externalSubscriptionId: payload.id,
@@ -85,15 +99,15 @@ export async function createMicrosoftTeamsChatSubscription(
     }
     await db
       .update(webhookTable)
-      .set({ providerConfig: updatedConfig, updatedAt: new Date() })
+      .set({
+        providerConfig: updatedConfig,
+        isActive: true,
+        updatedAt: new Date(),
+      })
       .where(eq(webhookTable.id, webhookData.id))
 
-    logger.info(`[${requestId}] Created Teams chat subscription ${payload.id}`)
     return true
-  } catch (error) {
-    logger.error('Error creating Teams subscription:', error)
+  } catch {
     return false
   }
 }
-
-

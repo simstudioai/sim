@@ -51,8 +51,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
         'Group.ReadWrite.All',
         'Team.ReadBasic.All',
         'offline_access',
-        // For downloading reference attachments stored in SharePoint/OneDrive when needed
-        'Files.Read.All',
+        'Files.Read',
         'Sites.Read.All',
       ],
       placeholder: 'Select Microsoft account',

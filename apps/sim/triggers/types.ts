@@ -1,4 +1,10 @@
-export type TriggerFieldType = 'string' | 'boolean' | 'select' | 'number' | 'multiselect' | 'credential'
+export type TriggerFieldType =
+  | 'string'
+  | 'boolean'
+  | 'select'
+  | 'number'
+  | 'multiselect'
+  | 'credential'
 
 export interface TriggerConfigField {
   type: TriggerFieldType

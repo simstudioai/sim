@@ -5,7 +5,10 @@ import { genericWebhookTrigger } from './generic'
 import { githubWebhookTrigger } from './github'
 import { gmailPollingTrigger } from './gmail'
 import { googleFormsWebhookTrigger } from './googleforms/webhook'
-import { microsoftTeamsWebhookTrigger, microsoftTeamsChatSubscriptionTrigger } from './microsoftteams'
+import {
+  microsoftTeamsChatSubscriptionTrigger,
+  microsoftTeamsWebhookTrigger,
+} from './microsoftteams'
 import { outlookPollingTrigger } from './outlook'
 import { slackWebhookTrigger } from './slack'
 import { stripeWebhookTrigger } from './stripe/webhook'

@@ -18,17 +18,14 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ path: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ path: string }> }) {
   const requestId = generateRequestId()
   const { path } = await params
-  
+
   // Handle Microsoft Graph subscription validation
   const url = new URL(request.url)
   const validationToken = url.searchParams.get('validationToken')
-  
+
   if (validationToken) {
     logger.info(`[${requestId}] Microsoft Graph subscription validation for path: ${path}`)
     return new NextResponse(validationToken, {
@@ -36,13 +33,13 @@ export async function GET(
       headers: { 'Content-Type': 'text/plain' },
     })
   }
-  
+
   // Handle other GET-based verifications if needed
   const challengeResponse = await handleProviderChallenges({}, request, requestId, path)
   if (challengeResponse) {
     return challengeResponse
   }
-  
+
   return new NextResponse('Method not allowed', { status: 405 })
 }
 
@@ -52,6 +49,21 @@ export async function POST(
 ) {
   const requestId = generateRequestId()
   const { path } = await params
+
+  // Handle Microsoft Graph subscription validation (some environments send POST with validationToken)
+  try {
+    const url = new URL(request.url)
+    const validationToken = url.searchParams.get('validationToken')
+    if (validationToken) {
+      logger.info(`[${requestId}] Microsoft Graph subscription validation (POST) for path: ${path}`)
+      return new NextResponse(validationToken, {
+        status: 200,
+        headers: { 'Content-Type': 'text/plain' },
+      })
+    }
+  } catch {
+    // ignore URL parsing errors; proceed to normal handling
+  }
 
   const parseResult = await parseWebhookBody(request, requestId)
 
@@ -71,10 +83,19 @@ export async function POST(
 
   if (!findResult) {
     logger.warn(`[${requestId}] Webhook or workflow not found for path: ${path}`)
+
     return new NextResponse('Not Found', { status: 404 })
   }
 
   const { webhook: foundWebhook, workflow: foundWorkflow } = findResult
+
+  // Log successful webhook lookup for debugging
+  logger.info(`[${requestId}] Found webhook for path: ${path}`, {
+    webhookId: foundWebhook.id,
+    provider: foundWebhook.provider,
+    workflowId: foundWorkflow.id,
+    blockId: foundWebhook.blockId,
+  })
 
   const authError = await verifyProviderAuth(foundWebhook, request, rawBody, requestId)
   if (authError) {

@@ -408,6 +408,68 @@ export async function DELETE(
       }
     }
 
+    // If it's a Microsoft Teams webhook with a subscription, delete the Graph subscription
+    if (foundWebhook.provider === 'microsoftteams') {
+      const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+      const externalSubscriptionId = providerConfig.externalSubscriptionId
+      const credentialId = providerConfig.credentialId
+      const triggerId = providerConfig.triggerId
+
+      // Only attempt deletion for chat subscription triggers that have an external subscription
+      if (
+        triggerId === 'microsoftteams_chat_subscription' &&
+        externalSubscriptionId &&
+        credentialId
+      ) {
+        try {
+          logger.info(
+            `[${requestId}] Deleting Microsoft Teams subscription ${externalSubscriptionId}`
+          )
+
+          // Get access token for the user
+          const { refreshAccessTokenIfNeeded } = await import('@/app/api/auth/oauth/utils')
+          const accessToken = await refreshAccessTokenIfNeeded(
+            credentialId,
+            webhookData.workflow.userId,
+            requestId
+          )
+
+          if (accessToken) {
+            const deleteResponse = await fetch(
+              `https://graph.microsoft.com/v1.0/subscriptions/${externalSubscriptionId}`,
+              {
+                method: 'DELETE',
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                },
+              }
+            )
+
+            if (deleteResponse.ok || deleteResponse.status === 404) {
+              logger.info(
+                `[${requestId}] Successfully deleted Teams subscription ${externalSubscriptionId} (status: ${deleteResponse.status})`
+              )
+            } else {
+              const errorBody = await deleteResponse.text()
+              logger.warn(
+                `[${requestId}] Failed to delete Teams subscription ${externalSubscriptionId}. Status: ${deleteResponse.status}, Error: ${errorBody}`
+              )
+              // Don't fail the webhook deletion if subscription cleanup fails
+            }
+          } else {
+            logger.warn(`[${requestId}] Could not get access token to delete Teams subscription`)
+          }
+        } catch (error: any) {
+          logger.error(`[${requestId}] Error deleting Teams subscription`, {
+            webhookId: id,
+            subscriptionId: externalSubscriptionId,
+            error: error.message,
+          })
+          // Don't fail the webhook deletion if subscription cleanup fails
+        }
+      }
+    }
+
     // If it's a Telegram webhook, delete it from Telegram first
     if (foundWebhook.provider === 'telegram') {
       try {

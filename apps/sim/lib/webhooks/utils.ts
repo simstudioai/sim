@@ -3,6 +3,8 @@ import { account, webhook } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getPresignedUrlWithConfig, uploadToS3 } from '@/lib/uploads/s3/s3-client'
+import { S3_EXECUTION_FILES_CONFIG } from '@/lib/uploads/setup'
 import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('WebhookUtils')
@@ -148,23 +150,61 @@ async function formatTeamsGraphNotification(
   foundWorkflow: any,
   request: NextRequest
 ): Promise<any> {
-  const notification = body.value[0] // Process first notification
+  const notification = body.value[0]
   const changeType = notification.changeType || 'created'
   const resource = notification.resource || ''
   const subscriptionId = notification.subscriptionId || ''
-  
+
   // Extract chatId and messageId from resource path
-  // Format: "chats/{chatId}/messages/{messageId}"
-  const resourceMatch = resource.match(/chats\/([^/]+)\/messages\/([^/]+)/)
-  if (!resourceMatch) {
-    logger.warn('Could not parse Teams Graph notification resource', { resource })
+  let chatId: string | null = null
+  let messageId: string | null = null
+
+  const fullMatch = resource.match(/chats\/([^/]+)\/messages\/([^/]+)/)
+  if (fullMatch) {
+    chatId = fullMatch[1]
+    messageId = fullMatch[2]
+  }
+
+  if (!chatId || !messageId) {
+    const quotedMatch = resource.match(/chats\('([^']+)'\)\/messages\('([^']+)'\)/)
+    if (quotedMatch) {
+      chatId = quotedMatch[1]
+      messageId = quotedMatch[2]
+    }
+  }
+
+  if (!chatId || !messageId) {
+    const collectionMatch = resource.match(/chats\/([^/]+)\/messages$/)
+    const rdId = body?.value?.[0]?.resourceData?.id
+    if (collectionMatch && rdId) {
+      chatId = collectionMatch[1]
+      messageId = rdId
+    }
+  }
+
+  if ((!chatId || !messageId) && body?.value?.[0]?.resourceData?.['@odata.id']) {
+    const odataId = String(body.value[0].resourceData['@odata.id'])
+    const odataMatch = odataId.match(/chats\('([^']+)'\)\/messages\('([^']+)'\)/)
+    if (odataMatch) {
+      chatId = odataMatch[1]
+      messageId = odataMatch[2]
+    }
+  }
+
+  if (!chatId || !messageId) {
+    logger.warn('Could not resolve chatId/messageId from Teams notification', {
+      resource,
+      hasResourceDataId: Boolean(body?.value?.[0]?.resourceData?.id),
+      valueLength: Array.isArray(body?.value) ? body.value.length : 0,
+      keys: Object.keys(body || {}),
+    })
     return {
       input: 'Teams notification received',
       webhook: {
         data: {
           provider: 'microsoftteams',
-          path: foundWebhook.path,
-          providerConfig: foundWebhook.providerConfig,
+          path: foundWebhook?.path || '',
+          providerConfig: foundWebhook?.providerConfig || {},
           payload: body,
           headers: Object.fromEntries(request.headers.entries()),
           method: request.method,
@@ -173,45 +213,288 @@ async function formatTeamsGraphNotification(
       workflowId: foundWorkflow.id,
     }
   }
-
-  const [, chatId, messageId] = resourceMatch
-  const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+  const resolvedChatId = chatId as string
+  const resolvedMessageId = messageId as string
+  const providerConfig = (foundWebhook?.providerConfig as Record<string, any>) || {}
   const credentialId = providerConfig.credentialId
   const includeAttachments = providerConfig.includeAttachments !== false
 
-  // Fetch full message details
   let message: any = null
   let uploadedFiles: any[] = []
+  let accessToken: string | null = null
 
   if (credentialId) {
     try {
-      const accessToken = await refreshAccessTokenIfNeeded(credentialId, foundWorkflow.userId, 'teams-graph-notification')
+      let effectiveUserId: string | null = null
+      try {
+        const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+        effectiveUserId = rows.length ? rows[0].userId : null
+      } catch {
+        effectiveUserId = null
+      }
+      accessToken = await refreshAccessTokenIfNeeded(
+        credentialId,
+        effectiveUserId || foundWorkflow.userId,
+        'teams-graph-notification'
+      )
+      if (!accessToken) {
+        try {
+          accessToken = await getOAuthToken(
+            effectiveUserId || foundWorkflow.userId,
+            'microsoft-teams'
+          )
+        } catch {
+          accessToken = null
+        }
+      }
       if (accessToken) {
-        // Fetch message
-        const msgRes = await fetch(
-          `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}`,
-          { headers: { Authorization: `Bearer ${accessToken}` } }
-        )
-        if (msgRes.ok) {
-          message = await msgRes.json()
+        const msgUrl = `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(resolvedChatId)}/messages/${encodeURIComponent(resolvedMessageId)}`
+        const res = await fetch(msgUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
+        if (res.ok) {
+          message = await res.json()
 
-          // Fetch hosted contents if requested
-          if (includeAttachments) {
-            const { fetchHostedContentsForChatMessage } = await import('@/tools/microsoft_teams/utils')
-            uploadedFiles = await fetchHostedContentsForChatMessage({
+          if (includeAttachments && message?.attachments?.length > 0) {
+            const { fetchHostedContentsForChatMessage } = await import(
+              '@/tools/microsoft_teams/utils'
+            )
+            const hosted = await fetchHostedContentsForChatMessage({
               accessToken,
-              chatId,
-              messageId,
+              chatId: resolvedChatId,
+              messageId: resolvedMessageId,
             })
+            uploadedFiles = Array.isArray(hosted) ? hosted.slice() : []
+
+            const attachments = Array.isArray(message?.attachments) ? message.attachments : []
+            for (const att of attachments) {
+              try {
+                const contentUrl =
+                  typeof att?.contentUrl === 'string' ? (att.contentUrl as string) : undefined
+                const contentTypeHint =
+                  typeof att?.contentType === 'string' ? (att.contentType as string) : undefined
+                let attachmentName = (att?.name as string) || 'teams-attachment'
+
+                if (!contentUrl) continue
+
+                let buffer: Buffer | null = null
+                let mimeType = 'application/octet-stream'
+
+                if (contentUrl.includes('sharepoint.com') || contentUrl.includes('onedrive')) {
+                  try {
+                    const directRes = await fetch(contentUrl, {
+                      headers: { Authorization: `Bearer ${accessToken}` },
+                      redirect: 'follow',
+                    })
+
+                    if (directRes.ok) {
+                      const arrayBuffer = await directRes.arrayBuffer()
+                      buffer = Buffer.from(arrayBuffer)
+                      mimeType =
+                        directRes.headers.get('content-type') ||
+                        contentTypeHint ||
+                        'application/octet-stream'
+                    } else {
+                      const encodedUrl = Buffer.from(contentUrl)
+                        .toString('base64')
+                        .replace(/\+/g, '-')
+                        .replace(/\//g, '_')
+                        .replace(/=+$/, '')
+
+                      const graphUrl = `https://graph.microsoft.com/v1.0/shares/u!${encodedUrl}/driveItem/content`
+                      const graphRes = await fetch(graphUrl, {
+                        headers: { Authorization: `Bearer ${accessToken}` },
+                        redirect: 'follow',
+                      })
+
+                      if (graphRes.ok) {
+                        const arrayBuffer = await graphRes.arrayBuffer()
+                        buffer = Buffer.from(arrayBuffer)
+                        mimeType =
+                          graphRes.headers.get('content-type') ||
+                          contentTypeHint ||
+                          'application/octet-stream'
+                      } else {
+                        continue
+                      }
+                    }
+                  } catch {
+                    continue
+                  }
+                } else if (
+                  contentUrl.includes('1drv.ms') ||
+                  contentUrl.includes('onedrive.live.com') ||
+                  contentUrl.includes('onedrive.com') ||
+                  contentUrl.includes('my.microsoftpersonalcontent.com')
+                ) {
+                  try {
+                    let shareToken: string | null = null
+
+                    if (contentUrl.includes('1drv.ms')) {
+                      const urlParts = contentUrl.split('/').pop()
+                      if (urlParts) shareToken = urlParts
+                    } else if (contentUrl.includes('resid=')) {
+                      const urlParams = new URL(contentUrl).searchParams
+                      const resId = urlParams.get('resid')
+                      if (resId) shareToken = resId
+                    }
+
+                    if (!shareToken) {
+                      const base64Url = Buffer.from(contentUrl, 'utf-8')
+                        .toString('base64')
+                        .replace(/\+/g, '-')
+                        .replace(/\//g, '_')
+                        .replace(/=+$/, '')
+                      shareToken = `u!${base64Url}`
+                    } else if (!shareToken.startsWith('u!')) {
+                      const base64Url = Buffer.from(shareToken, 'utf-8')
+                        .toString('base64')
+                        .replace(/\+/g, '-')
+                        .replace(/\//g, '_')
+                        .replace(/=+$/, '')
+                      shareToken = `u!${base64Url}`
+                    }
+
+                    const metadataUrl = `https://graph.microsoft.com/v1.0/shares/${shareToken}/driveItem`
+                    const metadataRes = await fetch(metadataUrl, {
+                      headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        Accept: 'application/json',
+                      },
+                    })
+
+                    if (!metadataRes.ok) {
+                      const directUrl = `https://graph.microsoft.com/v1.0/shares/${shareToken}/driveItem/content`
+                      const directRes = await fetch(directUrl, {
+                        headers: { Authorization: `Bearer ${accessToken}` },
+                        redirect: 'follow',
+                      })
+
+                      if (directRes.ok) {
+                        const arrayBuffer = await directRes.arrayBuffer()
+                        buffer = Buffer.from(arrayBuffer)
+                        mimeType =
+                          directRes.headers.get('content-type') ||
+                          contentTypeHint ||
+                          'application/octet-stream'
+                      } else {
+                        continue
+                      }
+                    } else {
+                      const metadata = await metadataRes.json()
+                      const downloadUrl = metadata['@microsoft.graph.downloadUrl']
+
+                      if (downloadUrl) {
+                        const downloadRes = await fetch(downloadUrl)
+
+                        if (downloadRes.ok) {
+                          const arrayBuffer = await downloadRes.arrayBuffer()
+                          buffer = Buffer.from(arrayBuffer)
+                          mimeType =
+                            downloadRes.headers.get('content-type') ||
+                            metadata.file?.mimeType ||
+                            contentTypeHint ||
+                            'application/octet-stream'
+
+                          if (metadata.name && metadata.name !== attachmentName) {
+                            attachmentName = metadata.name
+                          }
+                        } else {
+                          continue
+                        }
+                      } else {
+                        continue
+                      }
+                    }
+                  } catch {
+                    continue
+                  }
+                } else {
+                  try {
+                    const ares = await fetch(contentUrl, {
+                      headers: { Authorization: `Bearer ${accessToken}` },
+                    })
+                    if (ares.ok) {
+                      const arrayBuffer = await ares.arrayBuffer()
+                      buffer = Buffer.from(arrayBuffer)
+                      mimeType =
+                        ares.headers.get('content-type') ||
+                        contentTypeHint ||
+                        'application/octet-stream'
+                    }
+                  } catch {
+                    continue
+                  }
+                }
+
+                if (!buffer) continue
+
+                const size = buffer.length
+                const fileInfo = await uploadToS3(
+                  buffer,
+                  attachmentName,
+                  mimeType,
+                  {
+                    bucket: S3_EXECUTION_FILES_CONFIG.bucket,
+                    region: S3_EXECUTION_FILES_CONFIG.region,
+                  },
+                  size,
+                  true
+                )
+
+                let url: string | undefined
+                try {
+                  url = await getPresignedUrlWithConfig(
+                    fileInfo.key,
+                    {
+                      bucket: S3_EXECUTION_FILES_CONFIG.bucket,
+                      region: S3_EXECUTION_FILES_CONFIG.region,
+                    },
+                    60 * 60
+                  )
+                } catch {
+                  url = undefined
+                }
+
+                uploadedFiles.push({
+                  name: attachmentName,
+                  mimeType,
+                  size,
+                  key: fileInfo.key,
+                  path: fileInfo.path,
+                  url,
+                  sourceUrl: contentUrl,
+                })
+              } catch {}
+            }
           }
         }
       }
-    } catch (error) {
-      logger.error('Error fetching Teams message from Graph notification:', error)
-    }
+    } catch {}
+  } else {
+    try {
+      accessToken = await getOAuthToken(foundWorkflow.userId, 'microsoft-teams')
+      if (accessToken) {
+        const msgUrl = `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(resolvedChatId)}/messages/${encodeURIComponent(resolvedMessageId)}`
+        const res = await fetch(msgUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
+        if (res.ok) {
+          message = await res.json()
+        } else {
+          const listUrl = `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(resolvedChatId)}/messages?$top=20&$orderby=createdDateTime desc`
+          const listRes = await fetch(listUrl, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          })
+          if (listRes.ok) {
+            const listData = await listRes.json()
+            const items: any[] = Array.isArray(listData?.value) ? listData.value : []
+            message = items.find((m) => m?.id === resolvedMessageId) || items[0] || null
+          }
+        }
+      }
+    } catch {}
   }
 
-  const messageText = message?.body?.content || ''
+  // Prefer body.content; fall back to summary or empty string
+  const messageText =
+    (message?.body?.content as string | undefined) || (message?.summary as string | undefined) || ''
   const from = message?.from?.user || {}
   const createdAt = message?.createdDateTime || notification.resourceData?.createdDateTime || ''
 
@@ -247,8 +530,8 @@ async function formatTeamsGraphNotification(
     webhook: {
       data: {
         provider: 'microsoftteams',
-        path: foundWebhook.path,
-        providerConfig: foundWebhook.providerConfig,
+        path: foundWebhook?.path || '',
+        providerConfig: foundWebhook?.providerConfig || {},
         payload: body,
         headers: Object.fromEntries(request.headers.entries()),
         method: request.method,
@@ -480,11 +763,11 @@ export async function formatWebhookInput(
   if (foundWebhook.provider === 'microsoftteams') {
     // Check if this is a Microsoft Graph change notification
     if (body?.value && Array.isArray(body.value) && body.value.length > 0) {
-      // Graph subscription notification
       return await formatTeamsGraphNotification(body, foundWebhook, foundWorkflow, request)
     }
 
     // Microsoft Teams outgoing webhook - Teams sending data to us
+    //
     const messageText = body?.text || ''
     const messageId = body?.id || ''
     const timestamp = body?.timestamp || body?.localTimestamp || ''

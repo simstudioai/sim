@@ -25,8 +25,8 @@ import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
-import type { TriggerConfig } from '@/triggers/types'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import type { TriggerConfig } from '@/triggers/types'
 import { CredentialSelector } from '../../credential-selector/credential-selector'
 
 interface TriggerConfigSectionProps {
@@ -49,15 +49,15 @@ export function TriggerConfigSection({
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({})
   const [copied, setCopied] = useState<string | null>(null)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
-  
+
   // Sync credential field values from subblock store to config
   useEffect(() => {
     const credentialFields = Object.entries(triggerDef.configFields).filter(
       ([, field]) => field.type === 'credential'
     )
-    
+
     if (credentialFields.length === 0) return
-    
+
     const unsubscribe = useSubBlockStore.subscribe((state) => {
       credentialFields.forEach(([fieldId]) => {
         const credentialValue = state.getValue(blockId, fieldId) as string | null
@@ -66,7 +66,7 @@ export function TriggerConfigSection({
         }
       })
     })
-    
+
     return unsubscribe
   }, [blockId, triggerDef.configFields, config, onChange])
 
@@ -101,7 +101,13 @@ export function TriggerConfigSection({
           </div>
         )
 
-      case 'select':
+      case 'select': {
+        // Hide Scope selector for microsoftteams_chat_subscription to simplify UI (single-chat only)
+        const isHiddenScope =
+          (triggerDef.id === 'microsoftteams_chat_subscription' &&
+            fieldId === 'subscriptionScope') ||
+          false
+        if (isHiddenScope) return null
         return (
           <div className='space-y-2'>
             <Label htmlFor={fieldId}>
@@ -125,6 +131,7 @@ export function TriggerConfigSection({
             )}
           </div>
         )
+      }
 
       case 'multiselect': {
         const selectedValues = Array.isArray(value) ? value : []

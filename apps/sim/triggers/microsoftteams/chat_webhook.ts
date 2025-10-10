@@ -5,7 +5,8 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
   id: 'microsoftteams_chat_subscription',
   name: 'Microsoft Teams Chat',
   provider: 'microsoftteams',
-  description: 'Trigger workflow from new messages in Microsoft Teams chats via Microsoft Graph subscriptions',
+  description:
+    'Trigger workflow from new messages in Microsoft Teams chats via Microsoft Graph subscriptions',
   version: '1.0.0',
   icon: MicrosoftTeamsIcon,
 
@@ -25,6 +26,8 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
         'Chat.ReadWrite',
         'Chat.ReadBasic',
         'offline_access',
+        'Files.Read',
+        'Sites.Read.All',
       ],
     },
     subscriptionScope: {
@@ -77,5 +80,3 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
     attachments: [],
   },
 }
-
-
