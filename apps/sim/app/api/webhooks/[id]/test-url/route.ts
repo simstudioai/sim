@@ -64,13 +64,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const origin = new URL(request.url).origin
-    const effectiveOrigin = origin.includes('localhost')
-      ? env.NEXT_PUBLIC_APP_URL || origin
-      : origin
+    if (!env.NEXT_PUBLIC_APP_URL) {
+      logger.error(`[${requestId}] NEXT_PUBLIC_APP_URL not configured`)
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
+    }
 
     const token = await signTestWebhookToken(id, ttlSeconds)
-    const url = `${effectiveOrigin}/api/webhooks/test/${id}?token=${encodeURIComponent(token)}`
+    const url = `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/test/${id}?token=${encodeURIComponent(token)}`
 
     logger.info(`[${requestId}] Minted test URL for webhook ${id}`)
     return NextResponse.json({
