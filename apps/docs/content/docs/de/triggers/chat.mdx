@@ -24,20 +24,31 @@ Der Chat-Auslöser erstellt eine Konversationsschnittstelle für Ihren Workflow.
 
 Der Auslöser schreibt drei Felder, auf die nachfolgende Blöcke verweisen können:
 
-| Referenz | Beschreibung |
-|-----------|-------------|
-| `<chat.input>` | Neueste Benutzernachricht |
-| `<chat.conversationId>` | Konversations-Thread-ID |
-| `<chat.files>` | Optionale hochgeladene Dateien |
+| Referenz | Beschreibung | Typ |
+|-----------|-------------|------|
+| `<chat.input>` | Letzte Benutzernachricht | string |
+| `<chat.conversationId>` | Konversations-Thread-ID | string |
+| `<chat.files>` | Optionale hochgeladene Dateien | files array |
 
-Dateien enthalten `name`, `mimeType` und einen signierten Download `url`.
+### Dateieigenschaften
+
+Zugriff auf einzelne Dateieigenschaften über Array-Indizierung:
+
+| Eigenschaft | Beschreibung | Typ |
+|----------|-------------|------|
+| `<chat.files[0].url>` | Signierte Download-URL | string |
+| `<chat.files[0].name>` | Ursprünglicher Dateiname | string |
+| `<chat.files[0].size>` | Dateigröße in Bytes | number |
+| `<chat.files[0].type>` | MIME-Typ | string |
+| `<chat.files[0].uploadedAt>` | Upload-Zeitstempel (ISO 8601) | string |
+| `<chat.files[0].expiresAt>` | URL-Ablaufzeitstempel (ISO 8601) | string |
 
 ## Nutzungshinweise
 
-1. Fügen Sie einen Chat-Auslöser-Block pro Workflow hinzu.
+1. Fügen Sie einen Chat-Trigger-Block pro Workflow hinzu.
 2. Stellen Sie den Workflow im Chat-Modus bereit.
-3. Teilen Sie den Bereitstellungslink – jede Antwort verwendet die Konversations-ID wieder, sodass der Workflow den Kontext beibehalten kann.
+3. Teilen Sie den Bereitstellungslink – jede Antwort verwendet dieselbe Konversations-ID, damit der Workflow den Kontext beibehalten kann.
 
 <Callout type="info">
-Der Builder blockiert mehrere Chat-Auslöser-Blöcke im selben Workflow.
+Der Builder blockiert mehrere Chat-Trigger-Blöcke im selben Workflow.
 </Callout>

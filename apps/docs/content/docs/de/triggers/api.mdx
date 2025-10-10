@@ -22,9 +22,17 @@ Der API-Trigger stellt Ihren Workflow als sicheren HTTP-Endpunkt bereit. Senden 
   />
 </div>
 
-Fügen Sie für jeden Parameter ein Feld **Eingabeformat** hinzu. Die Ausgabeschlüssel zur Laufzeit spiegeln das Schema wider und sind auch unter `<api.input>` verfügbar.
+Füge ein **Eingabeformat**-Feld für jeden Parameter hinzu. Unterstützte Typen:
 
-Manuelle Ausführungen im Editor verwenden die Spalte `value`, damit Sie testen können, ohne eine Anfrage zu senden. Während der Ausführung füllt der Resolver sowohl `<api.userId>` als auch `<api.input.userId>` aus.
+- **string** - Textwerte
+- **number** - Numerische Werte
+- **boolean** - Wahr/Falsch-Werte
+- **json** - JSON-Objekte
+- **files** - Datei-Uploads (Zugriff über `<api.fieldName[0].url>`, `<api.fieldName[0].name>`, usw.)
+
+Laufzeit-Ausgabeschlüssel spiegeln das Schema wider und sind unter `<api.input>` verfügbar.
+
+Manuelle Ausführungen im Editor verwenden die Spalte `value`, damit du testen kannst, ohne eine Anfrage zu senden. Während der Ausführung füllt der Resolver sowohl `<api.fieldName>` als auch `<api.input.fieldName>`.
 
 ## Anfrage-Beispiel
 
@@ -40,22 +48,22 @@ Erfolgreiche Antworten geben das serialisierte Ausführungsergebnis vom Executor
 
 ## Streaming-Antworten
 
-Aktivieren Sie Echtzeit-Streaming, um Workflow-Ausgaben zu erhalten, während sie zeichen-für-zeichen generiert werden. Dies ist nützlich, um KI-Antworten progressiv für Benutzer anzuzeigen.
+Aktiviere Echtzeit-Streaming, um Workflow-Ausgaben während der Generierung zeichenweise zu erhalten. Dies ist nützlich, um KI-Antworten progressiv für Benutzer anzuzeigen.
 
-### Anfrageparameter
+### Anfrage-Parameter
 
-Fügen Sie diese Parameter hinzu, um Streaming zu aktivieren:
+Füge diese Parameter hinzu, um Streaming zu aktivieren:
 
-- `stream` - Auf `true` setzen, um Server-Sent Events (SSE) Streaming zu aktivieren
+- `stream` - Setze auf `true`, um Server-Sent Events (SSE) Streaming zu aktivieren
 - `selectedOutputs` - Array von Block-Ausgaben zum Streamen (z.B. `["agent1.content"]`)
 
 ### Block-Ausgabeformat
 
-Verwenden Sie das `blockName.attribute` Format, um anzugeben, welche Block-Ausgaben gestreamt werden sollen:
-- Format: `"blockName.attribute"` (z.B. Wenn Sie den Inhalt des Agent 1-Blocks streamen möchten, würden Sie `"agent1.content"` verwenden)
+Verwende das Format `blockName.attribute`, um anzugeben, welche Block-Ausgaben gestreamt werden sollen:
+- Format: `"blockName.attribute"` (z.B. Wenn du den Inhalt des Agent 1-Blocks streamen möchtest, würdest du `"agent1.content"` verwenden)
 - Blocknamen sind nicht case-sensitive und Leerzeichen werden ignoriert
 
-### Beispielanfrage
+### Beispiel-Anfrage
 
 ```bash
 curl -X POST \
@@ -86,44 +94,89 @@ data: [DONE]
 ```
 
 Jedes Ereignis enthält:
-- **Streaming-Chunks**: `{"blockId": "...", "chunk": "text"}` - Echtzeit-Text während er generiert wird
-- **Abschlussereignis**: `{"event": "done", ...}` - Ausführungsmetadaten und vollständige Ergebnisse
+- **Streaming-Chunks**: `{"blockId": "...", "chunk": "text"}` - Echtzeit-Text während der Generierung
+- **Finales Ereignis**: `{"event": "done", ...}` - Ausführungsmetadaten und vollständige Ergebnisse
 - **Terminator**: `[DONE]` - Signalisiert das Ende des Streams
 
 ### Streaming mehrerer Blöcke
 
 Wenn `selectedOutputs` mehrere Blöcke enthält, zeigt jeder Chunk an, welcher Block ihn erzeugt hat:
 
-```bash
-curl -X POST \
-  https://sim.ai/api/workflows/WORKFLOW_ID/execute \
-  -H 'Content-Type: application/json' \
-  -H 'X-API-Key: YOUR_KEY' \
-  -d '{
-    "message": "Process this request",
-    "stream": true,
-    "selectedOutputs": ["agent1.content", "agent2.content"]
-  }'
+```json
+{
+  "type": "block",
+  "blockType": "text",
+  "text": "Dies ist ein Textblock"
+}
 ```
 
-Das Feld `blockId` in jedem Chunk ermöglicht es Ihnen, die Ausgabe zum richtigen UI-Element zu leiten:
+Das Feld `blockId` in jedem Chunk ermöglicht es, die Ausgabe an das richtige UI-Element zu leiten:
 
+```json
+{
+  "type": "block",
+  "blockType": "code",
+  "text": "console.log('Hallo Welt');"
+}
 ```
-data: {"blockId":"agent1-uuid","chunk":"Processing..."}
 
-data: {"blockId":"agent2-uuid","chunk":"Analyzing..."}
-
-data: {"blockId":"agent1-uuid","chunk":" complete"}
-```
-
-## Ausgabereferenz
+## Ausgabe-Referenz
 
 | Referenz | Beschreibung |
 |-----------|-------------|
-| `<api.field>` | Im Eingabeformat definiertes Feld |
-| `<api.input>` | Gesamter strukturierter Anfragekörper |
+| `<api.field>` | Feld, das im Eingabeformat definiert ist |
+| `<api.input>` | Gesamter strukturierter Anforderungstext |
 
-Wenn kein Eingabeformat definiert ist, stellt der Executor das rohe JSON nur unter `<api.input>` zur Verfügung.
+### Datei-Upload-Format
+
+Die API akzeptiert Dateien in zwei Formaten:
+
+**1. Base64-kodierte Dateien** (empfohlen für SDKs):
+
+```json
+{
+  "files": [{
+    "data": "iVBORw0KGgoAAAANSUhEUgAA...",
+    "name": "image.png",
+    "mime": "image/png"
+  }]
+}
+```
+
+- Maximale Dateigröße: 20MB pro Datei
+- Dateien werden in den Cloud-Speicher hochgeladen und in UserFile-Objekte mit allen Eigenschaften umgewandelt
+
+**2. Direkte URL-Referenzen**:
+
+```json
+{
+  "files": [{
+    "url": "https://example.com/image.png",
+    "name": "image.png",
+    "mime": "image/png"
+  }]
+}
+```
+
+- Die Datei wird nicht hochgeladen, die URL wird direkt weitergegeben
+- Nützlich für die Referenzierung bestehender Dateien
+
+### Datei-Eigenschaften
+
+Für Dateien können alle Eigenschaften abgerufen werden:
+
+| Eigenschaft | Beschreibung | Typ |
+|----------|-------------|------|
+| `<api.fieldName[0].url>` | Signierte Download-URL | string |
+| `<api.fieldName[0].name>` | Ursprünglicher Dateiname | string |
+| `<api.fieldName[0].size>` | Dateigröße in Bytes | number |
+| `<api.fieldName[0].type>` | MIME-Typ | string |
+| `<api.fieldName[0].uploadedAt>` | Upload-Zeitstempel (ISO 8601) | string |
+| `<api.fieldName[0].expiresAt>` | URL-Ablaufzeitstempel (ISO 8601) | string |
+
+Für URL-referenzierte Dateien sind dieselben Eigenschaften verfügbar, mit Ausnahme von `uploadedAt` und `expiresAt`, da die Datei nicht in unseren Speicher hochgeladen wird.
+
+Wenn kein Eingabeformat definiert ist, stellt der Executor nur das rohe JSON unter `<api.input>` zur Verfügung.
 
 <Callout type="warning">
 Ein Workflow kann nur einen API-Trigger enthalten. Veröffentlichen Sie nach Änderungen eine neue Bereitstellung, damit der Endpunkt aktuell bleibt.
