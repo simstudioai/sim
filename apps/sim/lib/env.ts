@@ -49,6 +49,7 @@ export const env = createEnv({
     STRIPE_ENTERPRISE_PRICE_ID:            z.string().min(1).optional(),           // Stripe price ID for enterprise tier
     ENTERPRISE_TIER_COST_LIMIT:            z.number().optional(),                  // Cost limit for enterprise tier users
     BILLING_ENABLED:                       z.boolean().optional(),                 // Enable billing enforcement and usage tracking
+    OVERAGE_THRESHOLD_DOLLARS:             z.number().optional().default(50),      // Dollar threshold for incremental overage billing (default: $50)
 
     // Email & Communication
     EMAIL_VERIFICATION_ENABLED:            z.boolean().optional(),                 // Enable email verification for user registration and login (defaults to false)

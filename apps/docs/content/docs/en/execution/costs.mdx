@@ -166,6 +166,38 @@ Different subscription plans have different usage limits:
 | **Team** | $500 (pooled) | 50 sync, 100 async |
 | **Enterprise** | Custom | Custom |
 
+## Billing Model
+
+Sim uses a **base subscription + overage** billing model:
+
+### How It Works
+
+**Pro Plan ($20/month):**
+- Monthly subscription includes $20 of usage
+- Usage under $20 → No additional charges
+- Usage over $20 → Pay the overage at month end
+- Example: $35 usage = $20 (subscription) + $15 (overage)
+
+**Team Plan ($40/seat/month):**
+- Pooled usage across all team members
+- Overage calculated from total team usage
+- Organization owner receives one bill
+
+**Enterprise Plans:**
+- Fixed monthly price, no overages
+- Custom usage limits per agreement
+
+### Threshold Billing
+
+When unbilled overage reaches $50, Sim automatically bills the full unbilled amount.
+
+**Example:**
+- Day 10: $70 overage → Bill $70 immediately
+- Day 15: Additional $35 usage ($105 total) → Already billed, no action
+- Day 20: Another $50 usage ($155 total, $85 unbilled) → Bill $85 immediately
+
+This spreads large overage charges throughout the month instead of one large bill at period end.
+
 ## Cost Management Best Practices
 
 1. **Monitor Regularly**: Check your usage dashboard frequently to avoid surprises

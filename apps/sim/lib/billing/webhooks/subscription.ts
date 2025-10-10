@@ -4,7 +4,7 @@ import { and, eq, ne } from 'drizzle-orm'
 import { calculateSubscriptionOverage } from '@/lib/billing/core/billing'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { createLogger } from '@/lib/logs/console/logger'
-import { resetUsageForSubscription } from './invoices'
+import { getBilledOverageForSubscription, resetUsageForSubscription } from './invoices'
 
 const logger = createLogger('StripeSubscriptionWebhooks')
 
@@ -104,11 +104,24 @@ export async function handleSubscriptionDeleted(subscription: {
       return
     }
 
+    // Get already-billed overage from threshold billing
+    const billedOverage = await getBilledOverageForSubscription(subscription)
+
+    // Only bill the remaining unbilled overage
+    const remainingOverage = Math.max(0, totalOverage - billedOverage)
+
+    logger.info('Subscription deleted overage calculation', {
+      subscriptionId: subscription.id,
+      totalOverage,
+      billedOverage,
+      remainingOverage,
+    })
+
     // Create final overage invoice if needed
-    if (totalOverage > 0 && stripeSubscriptionId) {
+    if (remainingOverage > 0 && stripeSubscriptionId) {
       const stripeSubscription = await stripe.subscriptions.retrieve(stripeSubscriptionId)
       const customerId = stripeSubscription.customer as string
-      const cents = Math.round(totalOverage * 100)
+      const cents = Math.round(remainingOverage * 100)
 
       // Use the subscription end date for the billing period
       const endedAt = stripeSubscription.ended_at || Math.floor(Date.now() / 1000)
@@ -145,7 +158,9 @@ export async function handleSubscriptionDeleted(subscription: {
             description: `Usage overage for ${subscription.plan} plan (Final billing period)`,
             metadata: {
               type: 'final_usage_overage',
-              usage: totalOverage.toFixed(2),
+              usage: remainingOverage.toFixed(2),
+              totalOverage: totalOverage.toFixed(2),
+              billedOverage: billedOverage.toFixed(2),
               billingPeriod,
             },
           },
@@ -161,7 +176,9 @@ export async function handleSubscriptionDeleted(subscription: {
           subscriptionId: subscription.id,
           stripeSubscriptionId,
           invoiceId: overageInvoice.id,
-          overageAmount: totalOverage,
+          totalOverage,
+          billedOverage,
+          remainingOverage,
           cents,
           billingPeriod,
         })
@@ -169,7 +186,9 @@ export async function handleSubscriptionDeleted(subscription: {
         logger.error('Failed to create final overage invoice', {
           subscriptionId: subscription.id,
           stripeSubscriptionId,
-          overageAmount: totalOverage,
+          totalOverage,
+          billedOverage,
+          remainingOverage,
           error: invoiceError,
         })
         // Don't throw - we don't want to fail the webhook
