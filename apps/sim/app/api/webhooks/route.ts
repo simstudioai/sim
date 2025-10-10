@@ -136,10 +136,15 @@ export async function POST(request: NextRequest) {
     let finalPath = path
     const credentialBasedProviders = ['gmail', 'outlook']
     const isCredentialBased = credentialBasedProviders.includes(provider)
+    // Treat Microsoft Teams chat subscription as credential-based for path generation purposes
+    const isMicrosoftTeamsChatSubscription =
+      provider === 'microsoftteams' &&
+      typeof providerConfig === 'object' &&
+      providerConfig?.triggerId === 'microsoftteams_chat_subscription'
 
     // If path is missing
     if (!finalPath || finalPath.trim() === '') {
-      if (isCredentialBased) {
+      if (isCredentialBased || isMicrosoftTeamsChatSubscription) {
         // Try to reuse existing path for this workflow+block if one exists
         if (blockId) {
           const existingForBlock = await db
@@ -151,7 +156,7 @@ export async function POST(request: NextRequest) {
           if (existingForBlock.length > 0) {
             finalPath = existingForBlock[0].path
             logger.info(
-              `[${requestId}] Reusing existing dummy path for ${provider} trigger: ${finalPath}`
+              `[${requestId}] Reusing existing generated path for ${provider} trigger: ${finalPath}`
             )
           }
         }
@@ -159,7 +164,7 @@ export async function POST(request: NextRequest) {
         // If still no path, generate a new dummy path (first-time save)
         if (!finalPath || finalPath.trim() === '') {
           finalPath = `${provider}-${crypto.randomUUID()}`
-          logger.info(`[${requestId}] Generated dummy path for ${provider} trigger: ${finalPath}`)
+          logger.info(`[${requestId}] Generated webhook path for ${provider} trigger: ${finalPath}`)
         }
       } else {
         logger.warn(`[${requestId}] Missing path for webhook creation`, {
@@ -325,6 +330,40 @@ export async function POST(request: NextRequest) {
       }
     }
     // --- End Telegram specific logic ---
+
+    // Microsoft Teams chat subscription setup
+    if (savedWebhook && provider === 'microsoftteams') {
+      try {
+        const cfg = (savedWebhook.providerConfig as Record<string, any>) || {}
+        if (cfg.triggerId === 'microsoftteams_chat_subscription') {
+          const { createMicrosoftTeamsChatSubscription } = await import(
+            '@/lib/webhooks/teams-subscriptions'
+          )
+          const created = await createMicrosoftTeamsChatSubscription(
+            request,
+            userId,
+            savedWebhook,
+            requestId
+          )
+          if (!created) {
+            return NextResponse.json(
+              {
+                error: 'Failed to create Microsoft Teams chat subscription',
+              },
+              { status: 500 }
+            )
+          }
+        }
+      } catch (err) {
+        return NextResponse.json(
+          {
+            error: 'Failed to configure Microsoft Teams chat subscription',
+            details: err instanceof Error ? err.message : 'Unknown error',
+          },
+          { status: 500 }
+        )
+      }
+    }
 
     // --- Gmail webhook setup ---
     if (savedWebhook && provider === 'gmail') {

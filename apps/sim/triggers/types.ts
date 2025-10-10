@@ -1,4 +1,10 @@
-export type TriggerFieldType = 'string' | 'boolean' | 'select' | 'number' | 'multiselect'
+export type TriggerFieldType =
+  | 'string'
+  | 'boolean'
+  | 'select'
+  | 'number'
+  | 'multiselect'
+  | 'credential'
 
 export interface TriggerConfigField {
   type: TriggerFieldType
@@ -9,6 +15,8 @@ export interface TriggerConfigField {
   description?: string
   required?: boolean
   isSecret?: boolean
+  provider?: string // OAuth provider for credential type fields
+  requiredScopes?: string[] // Required OAuth scopes for credential type fields
 }
 
 export interface TriggerOutput {

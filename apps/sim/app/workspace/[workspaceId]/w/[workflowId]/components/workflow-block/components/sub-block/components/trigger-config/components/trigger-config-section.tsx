@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Check, ChevronDown, Copy, Eye, EyeOff, Info } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -25,7 +25,9 @@ import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { TriggerConfig } from '@/triggers/types'
+import { CredentialSelector } from '../../credential-selector/credential-selector'
 
 interface TriggerConfigSectionProps {
   blockId: string
@@ -47,6 +49,26 @@ export function TriggerConfigSection({
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({})
   const [copied, setCopied] = useState<string | null>(null)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
+
+  // Sync credential field values from subblock store to config
+  useEffect(() => {
+    const credentialFields = Object.entries(triggerDef.configFields).filter(
+      ([, field]) => field.type === 'credential'
+    )
+
+    if (credentialFields.length === 0) return
+
+    const unsubscribe = useSubBlockStore.subscribe((state) => {
+      credentialFields.forEach(([fieldId]) => {
+        const credentialValue = state.getValue(blockId, fieldId) as string | null
+        if (credentialValue && credentialValue !== config[fieldId]) {
+          onChange(fieldId, credentialValue)
+        }
+      })
+    })
+
+    return unsubscribe
+  }, [blockId, triggerDef.configFields, config, onChange])
 
   const copyToClipboard = (text: string, type: string) => {
     navigator.clipboard.writeText(text)
@@ -79,7 +101,13 @@ export function TriggerConfigSection({
           </div>
         )
 
-      case 'select':
+      case 'select': {
+        // Hide Scope selector for microsoftteams_chat_subscription to simplify UI (single-chat only)
+        const isHiddenScope =
+          (triggerDef.id === 'microsoftteams_chat_subscription' &&
+            fieldId === 'subscriptionScope') ||
+          false
+        if (isHiddenScope) return null
         return (
           <div className='space-y-2'>
             <Label htmlFor={fieldId}>
@@ -103,6 +131,7 @@ export function TriggerConfigSection({
             )}
           </div>
         )
+      }
 
       case 'multiselect': {
         const selectedValues = Array.isArray(value) ? value : []
@@ -215,6 +244,30 @@ export function TriggerConfigSection({
               value={value}
               onChange={(e) => onChange(fieldId, Number(e.target.value))}
               className='h-9 rounded-[8px]'
+            />
+            {fieldDef.description && (
+              <p className='text-muted-foreground text-sm'>{fieldDef.description}</p>
+            )}
+          </div>
+        )
+
+      case 'credential':
+        return (
+          <div className='space-y-2'>
+            <Label htmlFor={fieldId}>
+              {fieldDef.label}
+              {fieldDef.required && <span className='ml-1 text-red-500'>*</span>}
+            </Label>
+            <CredentialSelector
+              blockId={blockId}
+              subBlock={{
+                id: fieldId,
+                type: 'oauth-input' as const,
+                placeholder: fieldDef.placeholder || `Select ${fieldDef.provider} credential`,
+                provider: fieldDef.provider as any,
+                requiredScopes: fieldDef.requiredScopes || [],
+              }}
+              previewValue={value}
             />
             {fieldDef.description && (
               <p className='text-muted-foreground text-sm'>{fieldDef.description}</p>

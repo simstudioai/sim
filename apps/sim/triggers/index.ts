@@ -5,7 +5,10 @@ import { genericWebhookTrigger } from './generic'
 import { githubWebhookTrigger } from './github'
 import { gmailPollingTrigger } from './gmail'
 import { googleFormsWebhookTrigger } from './googleforms/webhook'
-import { microsoftTeamsWebhookTrigger } from './microsoftteams'
+import {
+  microsoftTeamsChatSubscriptionTrigger,
+  microsoftTeamsWebhookTrigger,
+} from './microsoftteams'
 import { outlookPollingTrigger } from './outlook'
 import { slackWebhookTrigger } from './slack'
 import { stripeWebhookTrigger } from './stripe/webhook'
@@ -21,6 +24,7 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   github_webhook: githubWebhookTrigger,
   gmail_poller: gmailPollingTrigger,
   microsoftteams_webhook: microsoftTeamsWebhookTrigger,
+  microsoftteams_chat_subscription: microsoftTeamsChatSubscriptionTrigger,
   outlook_poller: outlookPollingTrigger,
   stripe_webhook: stripeWebhookTrigger,
   telegram_webhook: telegramWebhookTrigger,
