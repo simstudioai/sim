@@ -821,7 +821,9 @@ async function checkUsage() {
 
 Execute workflows with real-time streaming responses:
 
-```typescript
+```
+
+typescript
 import { SimStudioClient } from 'simstudio-ts-sdk';
 
 const client = new SimStudioClient({
@@ -842,11 +844,13 @@ async function executeWithStreaming() {
     console.error('错误:', error);
   }
 }
+
 ```
 
 The streaming response follows the Server-Sent Events (SSE) format:
 
 ```
+
 data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":"One"}
 
 data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":", two"}
@@ -854,11 +858,14 @@ data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":", two"}
 data: {"event":"done","success":true,"output":{},"metadata":{"duration":610}}
 
 data: [DONE]
+
 ```
 
 **React Streaming Example:**
 
-```typescript
+```
+
+typescript
 import { useState, useEffect } from 'react';
 
 function StreamingWorkflow() {
@@ -926,6 +933,114 @@ function StreamingWorkflow() {
     </div>
   );
 }
+
+```
+
+## Getting Your API Key
+
+<Steps>
+  <Step title="Log in to Sim">
+    Navigate to [Sim](https://sim.ai) and log in to your account.
+  </Step>
+  <Step title="Open your workflow">
+    Navigate to the workflow you want to execute programmatically.
+  </Step>
+  <Step title="Deploy your workflow">
+    Click on "Deploy" to deploy your workflow if it hasn't been deployed yet.
+  </Step>
+  <Step title="Create or select an API key">
+    During the deployment process, select or create an API key.
+  </Step>
+  <Step title="Copy the API key">
+    Copy the API key to use in your TypeScript/JavaScript application.
+  </Step>
+</Steps>
+
+<Callout type="warning">
+  Keep your API key secure and never commit it to version control. Use environment variables or secure configuration management.
+</Callout>
+
+## Requirements
+
+- Node.js 16+
+- TypeScript 5.0+ (for TypeScript projects)
+
+## TypeScript Support
+
+The SDK is written in TypeScript and provides full type safety:
+
+```
+
+typescript
+import { 
+  SimStudioClient, 
+  WorkflowExecutionResult, 
+  WorkflowStatus,
+  SimStudioError 
+} from 'simstudio-ts-sdk';
+
+// 类型安全的客户端初始化
+const client: SimStudioClient = new SimStudioClient({
+  apiKey: process.env.SIM_API_KEY!
+});
+
+// 类型安全的工作流执行
+const result: WorkflowExecutionResult = await client.executeWorkflow('workflow-id', {
+  input: {
+    message: '你好，TypeScript！'
+  }
+});
+
+// 类型安全的状态检查
+const status: WorkflowStatus = await client.getWorkflowStatus('workflow-id');
+```
+
+## 许可证
+
+Apache-2.0
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+
+    while (reader) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value);
+      const lines = chunk.split('\n\n');
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6);
+          if (data === '[DONE]') {
+            setLoading(false);
+            break;
+          }
+
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.chunk) {
+              setOutput(prev => prev + parsed.chunk);
+            } else if (parsed.event === 'done') {
+              console.log('执行完成：', parsed.metadata);
+            }
+          } catch (e) {
+            // 跳过无效的 JSON
+          }
+        }
+      }
+    }
+  };
+
+  return (
+    <div>
+      <button onClick={executeStreaming} disabled={loading}>
+        {loading ? '生成中...' : '开始流式传输'}
+      </button>
+      <div style={{ whiteSpace: 'pre-wrap' }}>{output}</div>
+    </div>
+  );
+}
 ```
 
 ## Getting Your API Key
@@ -982,6 +1097,193 @@ const result: WorkflowExecutionResult = await client.executeWorkflow('workflow-i
 });
 
 // 类型安全的状态检查
+const status: WorkflowStatus = await client.getWorkflowStatus('workflow-id');
+```
+
+## License
+
+Apache-2.0 + limits.usage.limit.toFixed(2));
+    console.log('Plan:', limits.usage.plan);
+
+    const percentUsed = (limits.usage.currentPeriodCost / limits.usage.limit) * 100;
+    console.log('Usage: ' + percentUsed.toFixed(1) + '%');
+
+    if (percentUsed > 80) {
+      console.warn('⚠️  Warning: You are approaching your usage limit!');
+    }
+  } catch (error) {
+    console.error('Error checking usage:', error);
+  }
+}
+
+checkUsage();
+```
+
+### 流式工作流执行
+
+通过实时流式响应执行工作流：
+
+```typescript
+import { SimStudioClient } from 'simstudio-ts-sdk';
+
+const client = new SimStudioClient({
+  apiKey: process.env.SIM_API_KEY!
+});
+
+async function executeWithStreaming() {
+  try {
+    // Enable streaming for specific block outputs
+    const result = await client.executeWorkflow('workflow-id', {
+      input: { message: 'Count to five' },
+      stream: true,
+      selectedOutputs: ['agent1.content'] // Use blockName.attribute format
+    });
+
+    console.log('Workflow result:', result);
+  } catch (error) {
+    console.error('Error:', error);
+  }
+}
+```
+
+流式响应遵循服务器发送事件 (SSE) 格式：
+
+```
+data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":"One"}
+
+data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":", two"}
+
+data: {"event":"done","success":true,"output":{},"metadata":{"duration":610}}
+
+data: [DONE]
+```
+
+**React 流式示例：**
+
+```typescript
+import { useState, useEffect } from 'react';
+
+function StreamingWorkflow() {
+  const [output, setOutput] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const executeStreaming = async () => {
+    setLoading(true);
+    setOutput('');
+
+    // IMPORTANT: Make this API call from your backend server, not the browser
+    // Never expose your API key in client-side code
+    const response = await fetch('https://sim.ai/api/workflows/WORKFLOW_ID/execute', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': process.env.SIM_API_KEY! // Server-side environment variable only
+      },
+      body: JSON.stringify({
+        message: 'Generate a story',
+        stream: true,
+        selectedOutputs: ['agent1.content']
+      })
+    });
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+
+    while (reader) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value);
+      const lines = chunk.split('\n\n');
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6);
+          if (data === '[DONE]') {
+            setLoading(false);
+            break;
+          }
+
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.chunk) {
+              setOutput(prev => prev + parsed.chunk);
+            } else if (parsed.event === 'done') {
+              console.log('Execution complete:', parsed.metadata);
+            }
+          } catch (e) {
+            // Skip invalid JSON
+          }
+        }
+      }
+    }
+  };
+
+  return (
+    <div>
+      <button onClick={executeStreaming} disabled={loading}>
+        {loading ? 'Generating...' : 'Start Streaming'}
+      </button>
+      <div style={{ whiteSpace: 'pre-wrap' }}>{output}</div>
+    </div>
+  );
+}
+```
+
+## 获取您的 API 密钥
+
+<Steps>
+  <Step title="登录 Sim">
+    访问 [Sim](https://sim.ai) 并登录您的账户。
+  </Step>
+  <Step title="打开您的工作流">
+    导航到您想要以编程方式执行的工作流。
+  </Step>
+  <Step title="部署您的工作流">
+    如果尚未部署，请点击“部署”以部署您的工作流。
+  </Step>
+  <Step title="创建或选择一个 API 密钥">
+    在部署过程中，选择或创建一个 API 密钥。
+  </Step>
+  <Step title="复制 API 密钥">
+    复制 API 密钥以在您的 TypeScript/JavaScript 应用程序中使用。
+  </Step>
+</Steps>
+
+<Callout type="warning">
+  请确保您的 API 密钥安全，切勿将其提交到版本控制中。请使用环境变量或安全的配置管理工具。
+</Callout>
+
+## 要求
+
+- Node.js 16+
+- TypeScript 5.0+（适用于 TypeScript 项目）
+
+## TypeScript 支持
+
+该 SDK 使用 TypeScript 编写，并提供完整的类型安全：
+
+```typescript
+import { 
+  SimStudioClient, 
+  WorkflowExecutionResult, 
+  WorkflowStatus,
+  SimStudioError 
+} from 'simstudio-ts-sdk';
+
+// Type-safe client initialization
+const client: SimStudioClient = new SimStudioClient({
+  apiKey: process.env.SIM_API_KEY!
+});
+
+// Type-safe workflow execution
+const result: WorkflowExecutionResult = await client.executeWorkflow('workflow-id', {
+  input: {
+    message: 'Hello, TypeScript!'
+  }
+});
+
+// Type-safe status checking
 const status: WorkflowStatus = await client.getWorkflowStatus('workflow-id');
 ```
 
