@@ -432,24 +432,19 @@ async function createAirtableWebhookSubscription(
       logger.warn(
         `[${requestId}] Could not retrieve Airtable access token for user ${userId}. Cannot create webhook in Airtable.`
       )
-      // Instead of silently returning, throw an error with clear user guidance
       throw new Error(
         'Airtable account connection required. Please connect your Airtable account in the trigger configuration and try again.'
       )
     }
 
-    const requestOrigin = new URL(request.url).origin
-    // Ensure origin does not point to localhost for external API calls
-    const effectiveOrigin = requestOrigin.includes('localhost')
-      ? env.NEXT_PUBLIC_APP_URL || requestOrigin // Use env var if available, fallback to original
-      : requestOrigin
-
-    const notificationUrl = `${effectiveOrigin}/api/webhooks/trigger/${path}`
-    if (effectiveOrigin !== requestOrigin) {
-      logger.debug(
-        `[${requestId}] Remapped localhost origin to ${effectiveOrigin} for notificationUrl`
+    if (!env.NEXT_PUBLIC_APP_URL) {
+      logger.error(
+        `[${requestId}] NEXT_PUBLIC_APP_URL not configured, cannot register Airtable webhook`
       )
+      throw new Error('NEXT_PUBLIC_APP_URL must be configured for Airtable webhook registration')
     }
+
+    const notificationUrl = `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/trigger/${path}`
 
     const airtableApiUrl = `https://api.airtable.com/v0/bases/${baseId}/webhooks`
 
@@ -549,18 +544,14 @@ async function createTelegramWebhookSubscription(
       return // Cannot proceed without botToken
     }
 
-    const requestOrigin = new URL(request.url).origin
-    // Ensure origin does not point to localhost for external API calls
-    const effectiveOrigin = requestOrigin.includes('localhost')
-      ? env.NEXT_PUBLIC_APP_URL || requestOrigin // Use env var if available, fallback to original
-      : requestOrigin
-
-    const notificationUrl = `${effectiveOrigin}/api/webhooks/trigger/${path}`
-    if (effectiveOrigin !== requestOrigin) {
-      logger.debug(
-        `[${requestId}] Remapped localhost origin to ${effectiveOrigin} for notificationUrl`
+    if (!env.NEXT_PUBLIC_APP_URL) {
+      logger.error(
+        `[${requestId}] NEXT_PUBLIC_APP_URL not configured, cannot register Telegram webhook`
       )
+      throw new Error('NEXT_PUBLIC_APP_URL must be configured for Telegram webhook registration')
     }
+
+    const notificationUrl = `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/trigger/${path}`
 
     const telegramApiUrl = `https://api.telegram.org/bot${botToken}/setWebhook`
 
