@@ -9,15 +9,7 @@ export const dynamic = 'force-dynamic'
 const logger = createLogger('GoogleDriveFilesAPI')
 
 function escapeForDriveQuery(value: string): string {
-  let sanitized = value
-  let previous: string
-
-  do {
-    previous = sanitized
-    sanitized = sanitized.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
-  } while (sanitized !== previous)
-
-  return sanitized
+  return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
 }
 
 export async function GET(request: NextRequest) {
