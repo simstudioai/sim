@@ -23,8 +23,8 @@ export default function PrivacyPolicy() {
         </p>
         <p className='mt-4'>
           By using or accessing the Service, you confirm that you have read and understood this
-          Privacy Policy, and you consent to the collection, use, and disclosure of your
-          information as described herein.
+          Privacy Policy, and you consent to the collection, use, and disclosure of your information
+          as described herein.
         </p>
       </section>
 
@@ -178,8 +178,8 @@ export default function PrivacyPolicy() {
           <li>Other Google Workspace content or metadata as needed per feature</li>
         </ul>
         <p className='mb-4'>
-          We only request the minimal scopes necessary for the features you enable. We do not request
-          scopes for unimplemented features.
+          We only request the minimal scopes necessary for the features you enable. We do not
+          request scopes for unimplemented features.
         </p>
 
         <h3 className='mb-2 font-medium text-xl'>Usage Data</h3>
@@ -330,17 +330,17 @@ export default function PrivacyPolicy() {
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>8. Analytics</h2>
+        <h2 className='mb-4 font-semibold text-2xl'>7. Analytics</h2>
         <p className='mb-4'>
-          We may aggregate or anonymize non-Google data (not tied to personal identity) for
-          internal analytics, product improvement, usage trends, or performance monitoring. This
-          data cannot be tied back to individual users and is not used for generalized AI/ML
-          training with Google Data.
+          We may aggregate or anonymize non-Google data (not tied to personal identity) for internal
+          analytics, product improvement, usage trends, or performance monitoring. This data cannot
+          be tied back to individual users and is not used for generalized AI/ML training with
+          Google Data.
         </p>
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>9. Behavioral Remarketing</h2>
+        <h2 className='mb-4 font-semibold text-2xl'>8. Behavioral Remarketing</h2>
         <p className='mb-4'>
           The Company uses remarketing services to advertise on third party websites to You after
           You visited our Service. We and Our third-party vendors use cookies to inform, optimize
@@ -367,7 +367,7 @@ export default function PrivacyPolicy() {
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>10. Payments</h2>
+        <h2 className='mb-4 font-semibold text-2xl'>9. Payments</h2>
         <p className='mb-4'>
           We may provide paid products and/or services within the Service. In that case, we may use
           third-party services for payment processing (e.g. payment processors).
@@ -387,7 +387,9 @@ export default function PrivacyPolicy() {
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>11. Use of Google / Workspace APIs & Data — Limited Use</h2>
+        <h2 className='mb-4 font-semibold text-2xl'>
+          10. Use of Google / Workspace APIs & Data — Limited Use
+        </h2>
         <h3 className='mb-2 font-medium text-xl'>Affirmative Statement & Compliance</h3>
         <p className='mb-4'>
           Sim’s use, storage, processing, and transfer of Google Data (raw or derived) strictly
@@ -468,17 +470,33 @@ export default function PrivacyPolicy() {
         </ul>
 
         <h3 className='mb-2 font-medium text-xl'>Retention & Deletion</h3>
+        <p className='mb-4'>We retain data only as long as necessary for the purposes disclosed:</p>
+        <ul className='mb-4 list-disc space-y-2 pl-6'>
+          <li>
+            <strong>Account Data:</strong> Retained during active account + 30 days after deletion
+            request
+          </li>
+          <li>
+            <strong>Google API Data:</strong> Retained during feature use + 7 days after revocation
+            or account deletion
+          </li>
+          <li>
+            <strong>Usage Logs:</strong> 90 days for analytics; up to 1 year for security
+            investigations
+          </li>
+          <li>
+            <strong>Transaction Records:</strong> Up to 7 years for legal and tax compliance
+          </li>
+        </ul>
         <p className='mb-4'>
-          Google Data is retained only as long as needed to support your use of the enabled features
-          or services. When you revoke access, delete your account, or stop using a feature, we
-          remove associated Google Data unless retention is necessary for legal, security, or other
-          disclosed purposes. You may request deletion of Google Data via in-app settings or by
-          contacting us; we will comply in a timely manner.
+          When you revoke access, delete your account, or stop using a feature, we remove associated
+          data within the timeframes above. You may request deletion via in-app settings or by
+          contacting us; we will comply promptly.
         </p>
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>12. Links To Other Sites</h2>
+        <h2 className='mb-4 font-semibold text-2xl'>11. Links To Other Sites</h2>
         <p className='mb-4'>
           Our Service may contain links to other sites that are not operated by us. If you click on
           a third party link, you will be directed to that third party's site. We strongly advise
@@ -491,7 +509,7 @@ export default function PrivacyPolicy() {
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>13. Children's Privacy</h2>
+        <h2 className='mb-4 font-semibold text-2xl'>12. Children's Privacy</h2>
         <p className='mb-4'>
           Our Service does not address anyone under the age of 18 ("Children").
         </p>
@@ -505,7 +523,7 @@ export default function PrivacyPolicy() {
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>14. Changes To This Privacy Policy</h2>
+        <h2 className='mb-4 font-semibold text-2xl'>13. Changes To This Privacy Policy</h2>
         <p className='mb-4'>
           We may update our Privacy Policy from time to time. We will notify you of any changes by
           posting the new Privacy Policy on this page.
@@ -523,7 +541,7 @@ export default function PrivacyPolicy() {
 
       <section>
         <h2 className='mb-4 font-semibold text-2xl'>
-          15. Your Data Protection Rights Under General Data Protection Regulation (GDPR)
+          14. Your Data Protection Rights Under General Data Protection Regulation (GDPR)
         </h2>
         <p className='mb-4'>
           If you are a resident of the European Economic Area (EEA), you have certain data
@@ -572,23 +590,50 @@ export default function PrivacyPolicy() {
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>16. California Privacy Rights</h2>
+        <h2 className='mb-4 font-semibold text-2xl'>15. California Privacy Rights</h2>
         <p className='mb-4'>
-          California Civil Code Section 1798.83, also known as the "Shine The Light" law, permits
-          our users who are California residents to request and obtain from us, once a year and free
-          of charge, information about categories of personal information (if any) we disclosed to
-          third parties for direct marketing purposes and the names and addresses of all third
-          parties with which we shared personal information in the immediately preceding calendar
-          year.
+          If you are a California resident, you have specific rights under the California Consumer
+          Privacy Act (CCPA) and California Privacy Rights Act (CPRA), including the right to know
+          what personal information we collect, the right to delete your information, and the right
+          to opt-out of the sale or sharing of your personal information.
+        </p>
+
+        <h3 className='mb-2 font-medium text-xl'>Do Not Sell or Share My Personal Information</h3>
+        <p className='mb-4'>
+          We do not sell your personal information for monetary consideration. However, some data
+          sharing practices (such as analytics or advertising services) may be considered a "sale"
+          or "share" under CCPA/CPRA. You have the right to opt-out of such data sharing. To
+          exercise this right, contact us at{' '}
+          <Link
+            href='mailto:privacy@sim.ai'
+            className='text-[var(--brand-primary-hex)] underline hover:text-[var(--brand-primary-hover-hex)]'
+          >
+            privacy@sim.ai
+          </Link>
+          .
+        </p>
+
+        <h3 className='mb-2 font-medium text-xl'>Global Privacy Control (GPC)</h3>
+        <p className='mb-4'>
+          We recognize and honor Global Privacy Control (GPC) signals. When your browser sends a GPC
+          signal, we will treat it as a valid request to opt-out of the sale or sharing of your
+          personal information.
+        </p>
+
+        <h3 className='mb-2 font-medium text-xl'>Shine The Light Law</h3>
+        <p className='mb-4'>
+          California Civil Code Section 1798.83 permits California residents to request information
+          about categories of personal information we disclosed to third parties for direct
+          marketing purposes in the preceding calendar year.
         </p>
         <p>
-          If you are a California resident and would like to make such a request, please submit your
-          request in writing to us using the contact information provided below.
+          To make a request under CCPA or the Shine The Light law, please submit your request using
+          the contact information provided below.
         </p>
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>17. Vulnerability Disclosure Policy</h2>
+        <h2 className='mb-4 font-semibold text-2xl'>16. Vulnerability Disclosure Policy</h2>
 
         <h3 className='mb-2 font-medium text-xl'>Introduction</h3>
         <p className='mb-4'>
@@ -707,17 +752,24 @@ export default function PrivacyPolicy() {
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>18. Contact & Dispute Resolution</h2>
-        <p>
-          If you have questions, requests, or complaints, contact us at:{' '}
-          <Link
-            href='mailto:privacy@sim.ai'
-            className='text-[var(--brand-primary-hex)] underline hover:text-[var(--brand-primary-hover-hex)]'
-          >
-            privacy@sim.ai
-          </Link>
-          . We will respond within a reasonable timeframe.
+        <h2 className='mb-4 font-semibold text-2xl'>17. Contact & Dispute Resolution</h2>
+        <p className='mb-4'>
+          If you have questions, requests, or complaints regarding this Privacy Policy or our data
+          practices, you may contact us at:
         </p>
+        <ul className='mb-4 list-disc space-y-2 pl-6'>
+          <li>
+            Email:{' '}
+            <Link
+              href='mailto:privacy@sim.ai'
+              className='text-[var(--brand-primary-hex)] underline hover:text-[var(--brand-primary-hover-hex)]'
+            >
+              privacy@sim.ai
+            </Link>
+          </li>
+          <li>Mailing Address: Sim, 80 Langton St, San Francisco, CA 94133, USA</li>
+        </ul>
+        <p>We will respond to your request within a reasonable timeframe.</p>
       </section>
     </LegalLayout>
   )

@@ -15,7 +15,7 @@ export default function TermsOfService() {
   return (
     <LegalLayout title='Terms of Service'>
       <section>
-        <p className='mb-4'>Last Updated: September 10, 2025</p>
+        <p className='mb-4'>Last Updated: October 11, 2025</p>
         <p>
           Please read these Terms of Service ("Terms") carefully before using the Sim platform (the
           "Service") operated by Sim, Inc ("us", "we", or "our").
@@ -44,7 +44,71 @@ export default function TermsOfService() {
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>2. Intellectual Property</h2>
+        <h2 className='mb-4 font-semibold text-2xl'>2. License to Use Service</h2>
+        <p className='mb-4'>
+          Subject to your compliance with these Terms, we grant you a limited, non-exclusive,
+          non-transferable, revocable license to access and use the Service for your internal
+          business or personal purposes.
+        </p>
+        <p>
+          This license does not permit you to resell, redistribute, or make the Service available to
+          third parties, or to use the Service to build a competitive product or service.
+        </p>
+      </section>
+
+      <section>
+        <h2 className='mb-4 font-semibold text-2xl'>3. Subscription Plans & Payment Terms</h2>
+        <p className='mb-4'>
+          We offer Free, Pro, Team, and Enterprise subscription plans. Paid plans include a base
+          subscription fee plus usage-based charges for inference and other services that exceed
+          your plan's included limits.
+        </p>
+        <p className='mb-4'>
+          You agree to pay all fees associated with your account. Your base subscription fee is
+          charged at the beginning of each billing cycle (monthly or annually). Inference overages
+          are charged incrementally every $50 during your billing period, which may result in
+          multiple invoices within a single billing cycle. Payment is due upon receipt of invoice.
+          If payment fails, we may suspend or terminate your access to paid features.
+        </p>
+        <p>
+          We reserve the right to change our pricing with 30 days' notice to paid subscribers. Price
+          changes will take effect at your next renewal.
+        </p>
+      </section>
+
+      <section>
+        <h2 className='mb-4 font-semibold text-2xl'>4. Auto-Renewal & Cancellation</h2>
+        <p className='mb-4'>
+          Paid subscriptions automatically renew at the end of each billing period unless you cancel
+          before the renewal date. You can cancel your subscription at any time through your account
+          settings or by contacting us.
+        </p>
+        <p className='mb-4'>
+          Cancellations take effect at the end of the current billing period. You will retain access
+          to paid features until that time. We do not provide refunds for partial billing periods.
+        </p>
+        <p>
+          Upon cancellation or termination, you may export your data within 30 days. After 30 days,
+          we may delete your data in accordance with our data retention policies.
+        </p>
+      </section>
+
+      <section>
+        <h2 className='mb-4 font-semibold text-2xl'>5. Data Ownership & Retention</h2>
+        <p className='mb-4'>
+          You retain all ownership rights to data, content, and information you submit to the
+          Service ("Your Data"). You grant us a limited license to process, store, and transmit Your
+          Data solely to provide and improve the Service as described in our Privacy Policy.
+        </p>
+        <p>
+          We retain Your Data while your account is active and for 30 days after account termination
+          or cancellation. You may request data export or deletion at any time through your account
+          settings.
+        </p>
+      </section>
+
+      <section>
+        <h2 className='mb-4 font-semibold text-2xl'>6. Intellectual Property</h2>
         <p className='mb-4'>
           The Service and its original content, features, and functionality are and will remain the
           exclusive property of Sim, Inc and its licensors. The Service is protected by copyright,
@@ -57,7 +121,7 @@ export default function TermsOfService() {
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>3. User Content</h2>
+        <h2 className='mb-4 font-semibold text-2xl'>7. User Content</h2>
         <p className='mb-4'>
           Our Service allows you to post, link, store, share and otherwise make available certain
           information, text, graphics, videos, or other material ("User Content"). You are
@@ -84,7 +148,21 @@ export default function TermsOfService() {
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>4. Acceptable Use</h2>
+        <h2 className='mb-4 font-semibold text-2xl'>8. Third-Party Services</h2>
+        <p className='mb-4'>
+          The Service may integrate with third-party services (such as Google Workspace, cloud
+          storage providers, and AI model providers). Your use of third-party services is subject to
+          their respective terms and privacy policies.
+        </p>
+        <p>
+          We are not responsible for the availability, functionality, or actions of third-party
+          services. Any issues with third-party integrations should be directed to the respective
+          provider.
+        </p>
+      </section>
+
+      <section>
+        <h2 className='mb-4 font-semibold text-2xl'>9. Acceptable Use</h2>
         <p className='mb-4'>You agree not to use the Service:</p>
         <ul className='mb-4 list-disc space-y-2 pl-6'>
           <li>
@@ -115,7 +193,7 @@ export default function TermsOfService() {
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>5. Termination</h2>
+        <h2 className='mb-4 font-semibold text-2xl'>10. Termination</h2>
         <p className='mb-4'>
           We may terminate or suspend your account immediately, without prior notice or liability,
           for any reason whatsoever, including without limitation if you breach the Terms.
@@ -127,7 +205,7 @@ export default function TermsOfService() {
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>6. Limitation of Liability</h2>
+        <h2 className='mb-4 font-semibold text-2xl'>11. Limitation of Liability</h2>
         <p className='mb-4'>
           In no event shall Sim, Inc, nor its directors, employees, partners, agents, suppliers, or
           affiliates, be liable for any indirect, incidental, special, consequential or punitive
@@ -147,7 +225,7 @@ export default function TermsOfService() {
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>7. Disclaimer</h2>
+        <h2 className='mb-4 font-semibold text-2xl'>12. Disclaimer</h2>
         <p className='mb-4'>
           Your use of the Service is at your sole risk. The Service is provided on an "AS IS" and
           "AS AVAILABLE" basis. The Service is provided without warranties of any kind, whether
@@ -167,7 +245,17 @@ export default function TermsOfService() {
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>8. Governing Law</h2>
+        <h2 className='mb-4 font-semibold text-2xl'>13. Indemnification</h2>
+        <p>
+          You agree to indemnify, defend, and hold harmless Sim, Inc and its officers, directors,
+          employees, and agents from any claims, damages, losses, liabilities, and expenses
+          (including reasonable attorneys' fees) arising from your use of the Service, your
+          violation of these Terms, or your violation of any rights of another party.
+        </p>
+      </section>
+
+      <section>
+        <h2 className='mb-4 font-semibold text-2xl'>14. Governing Law</h2>
         <p>
           These Terms shall be governed and construed in accordance with the laws of the United
           States, without regard to its conflict of law provisions.
@@ -180,7 +268,7 @@ export default function TermsOfService() {
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>9. Arbitration Agreement</h2>
+        <h2 className='mb-4 font-semibold text-2xl'>15. Arbitration Agreement</h2>
         <p className='mb-4'>
           Please read the following arbitration agreement carefully. It requires you to arbitrate
           disputes with Sim, Inc, its parent companies, subsidiaries, affiliates, successors and
@@ -221,7 +309,7 @@ export default function TermsOfService() {
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>10. Changes to Terms</h2>
+        <h2 className='mb-4 font-semibold text-2xl'>16. Changes to Terms</h2>
         <p>
           We reserve the right, at our sole discretion, to modify or replace these Terms at any
           time. If a revision is material, we will try to provide at least 30 days' notice prior to
@@ -236,7 +324,7 @@ export default function TermsOfService() {
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>11. Copyright Policy</h2>
+        <h2 className='mb-4 font-semibold text-2xl'>17. Copyright Policy</h2>
         <p className='mb-4'>
           We respect the intellectual property of others and ask that users of our Service do the
           same. If you believe that one of our users is, through the use of our Service, unlawfully
@@ -270,7 +358,7 @@ export default function TermsOfService() {
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>12. Contact Us</h2>
+        <h2 className='mb-4 font-semibold text-2xl'>18. Contact Us</h2>
         <p>
           If you have any questions about these Terms, please contact us at:{' '}
           <Link
