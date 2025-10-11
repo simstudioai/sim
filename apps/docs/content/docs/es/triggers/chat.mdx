@@ -24,20 +24,31 @@ El disparador de Chat crea una interfaz conversacional para tu flujo de trabajo.
 
 El disparador escribe tres campos que los bloques posteriores pueden referenciar:
 
-| Referencia | Descripción |
-|-----------|-------------|
-| `<chat.input>` | Último mensaje del usuario |
-| `<chat.conversationId>` | ID del hilo de conversación |
-| `<chat.files>` | Archivos subidos opcionales |
+| Referencia | Descripción | Tipo |
+|-----------|-------------|------|
+| `<chat.input>` | Último mensaje del usuario | string |
+| `<chat.conversationId>` | ID del hilo de conversación | string |
+| `<chat.files>` | Archivos subidos opcionales | array de archivos |
 
-Los archivos incluyen `name`, `mimeType`, y una descarga firmada `url`.
+### Propiedades de archivo
+
+Accede a las propiedades individuales de los archivos usando indexación de arrays:
+
+| Propiedad | Descripción | Tipo |
+|----------|-------------|------|
+| `<chat.files[0].url>` | URL de descarga firmada | string |
+| `<chat.files[0].name>` | Nombre original del archivo | string |
+| `<chat.files[0].size>` | Tamaño del archivo en bytes | number |
+| `<chat.files[0].type>` | Tipo MIME | string |
+| `<chat.files[0].uploadedAt>` | Marca de tiempo de subida (ISO 8601) | string |
+| `<chat.files[0].expiresAt>` | Marca de tiempo de caducidad de la URL (ISO 8601) | string |
 
 ## Notas de uso
 
-1. Añade un bloque de Disparador de Chat por flujo de trabajo.
+1. Añade un bloque de Chat Trigger por flujo de trabajo.
 2. Despliega el flujo de trabajo en modo chat.
 3. Comparte el enlace de despliegue—cada respuesta reutiliza el ID de conversación para que el flujo de trabajo pueda mantener el contexto.
 
 <Callout type="info">
-El constructor bloquea múltiples bloques de Disparador de Chat en el mismo flujo de trabajo.
+El constructor bloquea múltiples bloques de Chat Trigger en el mismo flujo de trabajo.
 </Callout>

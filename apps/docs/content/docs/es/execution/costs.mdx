@@ -170,17 +170,49 @@ Los diferentes planes de suscripción tienen diferentes límites de uso:
 | **Equipo** | $500 (agrupado) | 50 síncronos, 100 asíncronos |
 | **Empresa** | Personalizado | Personalizado |
 
+## Modelo de facturación
+
+Sim utiliza un modelo de facturación de **suscripción base + excedente**:
+
+### Cómo funciona
+
+**Plan Pro (20$/mes):**
+- La suscripción mensual incluye 20$ de uso
+- Uso por debajo de 20$ → Sin cargos adicionales
+- Uso por encima de 20$ → Paga el excedente al final del mes
+- Ejemplo: 35$ de uso = 20$ (suscripción) + 15$ (excedente)
+
+**Plan Team (40$/usuario/mes):**
+- Uso compartido entre todos los miembros del equipo
+- El excedente se calcula a partir del uso total del equipo
+- El propietario de la organización recibe una única factura
+
+**Planes Enterprise:**
+- Precio mensual fijo, sin excedentes
+- Límites de uso personalizados según el acuerdo
+
+### Facturación por umbrales
+
+Cuando el excedente no facturado alcanza los 50$, Sim factura automáticamente el importe total no facturado.
+
+**Ejemplo:**
+- Día 10: 70$ de excedente → Factura inmediata de 70$
+- Día 15: 35$ adicionales de uso (105$ en total) → Ya facturado, sin acción
+- Día 20: Otros 50$ de uso (155$ en total, 85$ sin facturar) → Factura inmediata de 85$
+
+Esto distribuye los cargos grandes por excedente a lo largo del mes en lugar de una factura grande al final del período.
+
 ## Mejores prácticas para la gestión de costos
 
-1. **Monitorear regularmente**: Revisa tu panel de uso frecuentemente para evitar sorpresas
-2. **Establecer presupuestos**: Utiliza los límites del plan como guías para tu gasto
-3. **Optimizar flujos de trabajo**: Revisa las ejecuciones de alto costo y optimiza los prompts o la selección de modelos
-4. **Usar modelos apropiados**: Ajusta la complejidad del modelo a los requisitos de la tarea
-5. **Agrupar tareas similares**: Combina múltiples solicitudes cuando sea posible para reducir la sobrecarga
+1. **Monitoreo regular**: Revisa tu panel de uso con frecuencia para evitar sorpresas
+2. **Establece presupuestos**: Utiliza los límites del plan como guía para tu gasto
+3. **Optimiza flujos de trabajo**: Revisa las ejecuciones de alto costo y optimiza los prompts o la selección de modelos
+4. **Usa modelos apropiados**: Ajusta la complejidad del modelo a los requisitos de la tarea
+5. **Agrupa tareas similares**: Combina múltiples solicitudes cuando sea posible para reducir la sobrecarga
 
 ## Próximos pasos
 
 - Revisa tu uso actual en [Configuración → Suscripción](https://sim.ai/settings/subscription)
 - Aprende sobre [Registro](/execution/logging) para seguir los detalles de ejecución
-- Explora la [API externa](/execution/api) para monitoreo programático de costos
+- Explora la [API externa](/execution/api) para el monitoreo programático de costos
 - Consulta las [técnicas de optimización de flujo de trabajo](/blocks) para reducir costos
