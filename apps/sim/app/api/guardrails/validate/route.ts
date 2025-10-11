@@ -29,7 +29,6 @@ export async function POST(request: NextRequest) {
       piiLanguage,
     } = body
 
-    // Validate required fields
     if (!validationType) {
       return NextResponse.json({
         success: true,
@@ -42,8 +41,6 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Handle empty or missing input - but allow empty strings for JSON validation
-    // (empty string is invalid JSON, which is a valid validation result)
     if (input === undefined || input === null) {
       return NextResponse.json({
         success: true,
@@ -56,7 +53,6 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Validate validationType
     if (
       validationType !== 'json' &&
       validationType !== 'regex' &&
@@ -74,7 +70,6 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // For regex validation, ensure regex pattern is provided
     if (validationType === 'regex' && !regex) {
       return NextResponse.json({
         success: true,
@@ -87,7 +82,6 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // For hallucination validation, ensure model is provided
     if (validationType === 'hallucination' && !model) {
       return NextResponse.json({
         success: true,
@@ -100,7 +94,6 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Convert input to string for validation
     const inputStr = convertInputToString(input)
 
     logger.info(`[${requestId}] Executing validation locally`, {
@@ -108,7 +101,6 @@ export async function POST(request: NextRequest) {
       inputType: typeof input,
     })
 
-    // Execute validation
     const validationResult = await executeValidation(
       validationType,
       inputStr,
@@ -146,7 +138,6 @@ export async function POST(request: NextRequest) {
     })
   } catch (error: any) {
     logger.error(`[${requestId}] Guardrails validation failed`, { error })
-    // Return validation failure instead of 500 error
     return NextResponse.json({
       success: true,
       output: {

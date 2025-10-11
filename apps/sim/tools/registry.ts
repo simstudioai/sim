@@ -26,7 +26,6 @@ import {
 import { fileParseTool } from '@/tools/file'
 import { crawlTool, scrapeTool, searchTool } from '@/tools/firecrawl'
 import { functionExecuteTool } from '@/tools/function'
-import { guardrailsValidateTool } from '@/tools/guardrails'
 import {
   githubCommentTool,
   githubLatestCommitTool,
@@ -65,6 +64,7 @@ import {
   listMattersHoldsTool,
   listMattersTool,
 } from '@/tools/google_vault'
+import { guardrailsValidateTool } from '@/tools/guardrails'
 import { requestTool as httpRequest } from '@/tools/http'
 import { huggingfaceChatTool } from '@/tools/huggingface'
 import {

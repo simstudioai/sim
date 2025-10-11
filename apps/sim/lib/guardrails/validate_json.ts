@@ -17,4 +17,3 @@ export function validateJson(inputStr: string): ValidationResult {
     return { passed: false, error: `Validation error: ${error.message}` }
   }
 }
-

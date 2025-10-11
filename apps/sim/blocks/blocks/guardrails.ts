@@ -1,15 +1,10 @@
 import { ShieldCheckIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
-import type { ToolResponse } from '@/tools/types'
 import { isHosted } from '@/lib/environment'
-import {
-  getBaseModelProviders,
-  getHostedModels,
-  getProviderIcon,
-} from '@/providers/utils'
+import type { BlockConfig } from '@/blocks/types'
+import { getBaseModelProviders, getHostedModels, getProviderIcon } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
+import type { ToolResponse } from '@/tools/types'
 
-// Helper to get current Ollama models
 const getCurrentOllamaModels = () => {
   const providersState = useProvidersStore.getState()
   return providersState.providers.ollama.models
@@ -44,8 +39,8 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
   - Chain with Condition block to handle validation failures
   `,
   docsLink: 'https://docs.sim.ai/blocks/guardrails',
-  category: 'tools',
-  bgColor: '#9333EA',
+  category: 'blocks',
+  bgColor: '#3D642D',
   icon: ShieldCheckIcon,
   subBlocks: [
     {
@@ -53,7 +48,7 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
       title: 'Content to Validate',
       type: 'long-input',
       layout: 'full',
-      placeholder: 'Reference block output: <blockName.output>',
+      placeholder: 'Enter content to validate',
       required: true,
     },
     {
@@ -96,10 +91,34 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
       },
     },
     {
+      id: 'model',
+      title: 'Model',
+      type: 'combobox',
+      layout: 'half',
+      placeholder: 'Type or select a model...',
+      required: true,
+      options: () => {
+        const providersState = useProvidersStore.getState()
+        const ollamaModels = providersState.providers.ollama.models
+        const openrouterModels = providersState.providers.openrouter.models
+        const baseModels = Object.keys(getBaseModelProviders())
+        const allModels = Array.from(new Set([...baseModels, ...ollamaModels, ...openrouterModels]))
+
+        return allModels.map((model) => {
+          const icon = getProviderIcon(model)
+          return { label: model, id: model, ...(icon && { icon }) }
+        })
+      },
+      condition: {
+        field: 'validationType',
+        value: ['hallucination'],
+      },
+    },
+    {
       id: 'threshold',
-      title: 'Confidence Threshold (0-10)',
+      title: 'Confidence',
       type: 'slider',
-      layout: 'full',
+      layout: 'half',
       min: 0,
       max: 10,
       step: 1,
@@ -119,30 +138,6 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
       step: 1,
       defaultValue: 5,
       mode: 'advanced',
-      condition: {
-        field: 'validationType',
-        value: ['hallucination'],
-      },
-    },
-    {
-      id: 'model',
-      title: 'Model',
-      type: 'combobox',
-      layout: 'full',
-      placeholder: 'Type or select a model...',
-      required: true,
-      options: () => {
-        const providersState = useProvidersStore.getState()
-        const ollamaModels = providersState.providers.ollama.models
-        const openrouterModels = providersState.providers.openrouter.models
-        const baseModels = Object.keys(getBaseModelProviders())
-        const allModels = Array.from(new Set([...baseModels, ...ollamaModels, ...openrouterModels]))
-
-        return allModels.map((model) => {
-          const icon = getProviderIcon(model)
-          return { label: model, id: model, ...(icon && { icon }) }
-        })
-      },
       condition: {
         field: 'validationType',
         value: ['hallucination'],
@@ -175,16 +170,15 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
               not: true, // Show for all models EXCEPT hosted ones
             },
           }
-        } else {
-          // In self-hosted mode, hide for Ollama models
-          return {
-            ...baseCondition,
-            and: {
-              field: 'model' as const,
-              value: getCurrentOllamaModels(),
-              not: true, // Show for all models EXCEPT Ollama ones
-            },
-          }
+        }
+        // In self-hosted mode, hide for Ollama models
+        return {
+          ...baseCondition,
+          and: {
+            field: 'model' as const,
+            value: getCurrentOllamaModels(),
+            not: true, // Show for all models EXCEPT Ollama ones
+          },
         }
       },
     },
@@ -212,7 +206,11 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
         // USA
         { label: 'US bank account number', id: 'US_BANK_NUMBER', group: 'USA' },
         { label: 'US driver license number', id: 'US_DRIVER_LICENSE', group: 'USA' },
-        { label: 'US individual taxpayer identification number (ITIN)', id: 'US_ITIN', group: 'USA' },
+        {
+          label: 'US individual taxpayer identification number (ITIN)',
+          id: 'US_ITIN',
+          group: 'USA',
+        },
         { label: 'US passport number', id: 'US_PASSPORT', group: 'USA' },
         { label: 'US Social Security number', id: 'US_SSN', group: 'USA' },
 
@@ -357,7 +355,8 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
     },
     score: {
       type: 'number',
-      description: 'Confidence score (0-10, 0=hallucination, 10=grounded, only for hallucination check)',
+      description:
+        'Confidence score (0-10, 0=hallucination, 10=grounded, only for hallucination check)',
     },
     reasoning: {
       type: 'string',
@@ -373,4 +372,3 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
     },
   },
 }
-

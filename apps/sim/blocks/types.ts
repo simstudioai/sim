@@ -124,8 +124,18 @@ export interface SubBlockConfig {
   required?: boolean
   defaultValue?: string | number | boolean | Record<string, unknown> | Array<unknown>
   options?:
-    | { label: string; id: string; icon?: React.ComponentType<{ className?: string }>; group?: string }[]
-    | (() => { label: string; id: string; icon?: React.ComponentType<{ className?: string }>; group?: string }[])
+    | {
+        label: string
+        id: string
+        icon?: React.ComponentType<{ className?: string }>
+        group?: string
+      }[]
+    | (() => {
+        label: string
+        id: string
+        icon?: React.ComponentType<{ className?: string }>
+        group?: string
+      }[])
   min?: number
   max?: number
   columns?: string[]

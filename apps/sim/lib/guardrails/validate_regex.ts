@@ -13,11 +13,9 @@ export function validateRegex(inputStr: string, pattern: string): ValidationResu
 
     if (match) {
       return { passed: true }
-    } else {
-      return { passed: false, error: 'Input does not match regex pattern' }
     }
+    return { passed: false, error: 'Input does not match regex pattern' }
   } catch (error: any) {
     return { passed: false, error: `Invalid regex pattern: ${error.message}` }
   }
 }
-

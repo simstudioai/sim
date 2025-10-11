@@ -10,6 +10,16 @@ import { Video } from '@/components/ui/video'
 
 The Guardrails block validates and protects your AI workflows by checking content against multiple validation types. Ensure data quality, prevent hallucinations, detect PII, and enforce format requirements before content moves through your workflow.
 
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/guardrails.png"
+    alt="Guardrails Block"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
 ## Overview
 
 The Guardrails block enables you to:
@@ -95,6 +105,10 @@ Uses Retrieval-Augmented Generation (RAG) with LLM scoring to detect when AI-gen
 ### PII Detection
 
 Detects personally identifiable information using Microsoft Presidio. Supports 40+ entity types across multiple countries and languages.
+
+<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
+  <Video src="guardrails.mp4" width={500} height={350} />
+</div>
 
 **How It Works:**
 1. Scans content for PII entities using pattern matching and NLP
@@ -202,6 +216,10 @@ Additional outputs by type:
     <li>If PII detected → Reject submission or mask sensitive data</li>
     <li>If no PII → Process normally</li>
   </ol>
+</div>
+
+<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
+  <Video src="guardrails-example.mp4" width={500} height={350} />
 </div>
 
 ### Validate Email Format

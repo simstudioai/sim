@@ -150,7 +150,7 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
 
     // Try to parse JSON from the response
     let jsonContent = content
-    
+
     // Remove markdown code blocks if present
     if (content.includes('```')) {
       const jsonMatch = content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/)
@@ -187,16 +187,8 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
 export async function validateHallucination(
   input: HallucinationValidationInput
 ): Promise<HallucinationValidationResult> {
-  const {
-    userInput,
-    knowledgeBaseId,
-    threshold,
-    topK,
-    model,
-    apiKey,
-    workflowId,
-    requestId,
-  } = input
+  const { userInput, knowledgeBaseId, threshold, topK, model, apiKey, workflowId, requestId } =
+    input
 
   try {
     // Validate inputs
@@ -227,7 +219,13 @@ export async function validateHallucination(
     }
 
     // Step 1: Query knowledge base with RAG
-    const ragContext = await queryKnowledgeBase(knowledgeBaseId, userInput, topK, requestId, workflowId)
+    const ragContext = await queryKnowledgeBase(
+      knowledgeBaseId,
+      userInput,
+      topK,
+      requestId,
+      workflowId
+    )
 
     if (ragContext.length === 0) {
       return {
@@ -272,4 +270,3 @@ export async function validateHallucination(
     }
   }
 }
-
