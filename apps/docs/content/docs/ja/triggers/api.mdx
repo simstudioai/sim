@@ -22,9 +22,17 @@ APIトリガーは、ワークフローを安全なHTTPエンドポイントと�
   />
 </div>
 
-各パラメータに**入力フォーマット**フィールドを追加します。実行時の出力キーはスキーマを反映し、`<api.input>`でも利用できます。
+各パラメータに**入力フォーマット**フィールドを追加します。サポートされている型：
 
-エディタでの手動実行は `value` 列を使用するため、リクエストを送信せずにテストできます。実行中、リゾルバーは `<api.userId>` と `<api.input.userId>` の両方に値を設定します。
+- **string** - テキスト値
+- **number** - 数値
+- **boolean** - 真/偽の値
+- **json** - JSONオブジェクト
+- **files** - ファイルアップロード（`<api.fieldName[0].url>`、`<api.fieldName[0].name>`などでアクセス）
+
+ランタイム出力キーはスキーマを反映し、`<api.input>`の下で利用できます。
+
+エディタでの手動実行では、リクエストを送信せずにテストできるように`value`列を使用します。実行中、リゾルバは`<api.fieldName>`と`<api.input.fieldName>`の両方に値を設定します。
 
 ## リクエスト例
 
@@ -36,23 +44,23 @@ curl -X POST \
   -d '{"userId":"demo-user","maxTokens":1024}'
 ```
 
-成功したレスポンスはエグゼキュータからシリアル化された実行結果を返します。エラーは検証、認証、またはワークフローの失敗を表示します。
+成功したレスポンスはエグゼキュータからのシリアル化された実行結果を返します。エラーは検証、認証、またはワークフローの失敗を表示します。
 
 ## ストリーミングレスポンス
 
-リアルタイムストリーミングを有効にすると、ワークフローの出力が生成されるたびに文字単位で受信できます。これはAIの応答をユーザーに段階的に表示するのに役立ちます。
+リアルタイムストリーミングを有効にすると、生成されたワークフロー出力を文字単位でリアルタイムに受信できます。これはAIの応答をユーザーに段階的に表示するのに役立ちます。
 
 ### リクエストパラメータ
 
-ストリーミングを有効にするには、これらのパラメータを追加してください：
+ストリーミングを有効にするには、これらのパラメータを追加します：
 
-- `stream` - Server-Sent Events (SSE)ストリーミングを有効にするには `true` に設定します
+- `stream` - Server-Sent Events（SSE）ストリーミングを有効にするには`true`に設定
 - `selectedOutputs` - ストリーミングするブロック出力の配列（例：`["agent1.content"]`）
 
 ### ブロック出力フォーマット
 
-`blockName.attribute` フォーマットを使用して、ストリーミングするブロック出力を指定します：
-- フォーマット：`"blockName.attribute"`（例：Agent 1ブロックの内容をストリーミングしたい場合は、`"agent1.content"` を使用します）
+`blockName.attribute`フォーマットを使用して、ストリーミングするブロック出力を指定します：
+- フォーマット：`"blockName.attribute"`（例：Agent 1ブロックの内容をストリーミングしたい場合は、`"agent1.content"`を使用）
 - ブロック名は大文字小文字を区別せず、スペースは無視されます
 
 ### リクエスト例
@@ -71,7 +79,7 @@ curl -X POST \
 
 ### レスポンスフォーマット
 
-ストリーミングレスポンスはServer-Sent Events (SSE)フォーマットを使用します：
+ストリーミングレスポンスはServer-Sent Events（SSE）フォーマットを使用します：
 
 ```
 data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":"One"}
@@ -88,32 +96,28 @@ data: [DONE]
 各イベントには以下が含まれます：
 - **ストリーミングチャンク**：`{"blockId": "...", "chunk": "text"}` - 生成されるリアルタイムテキスト
 - **最終イベント**：`{"event": "done", ...}` - 実行メタデータと完全な結果
-- **ターミネーター**：`[DONE]` - ストリーム終了を示す信号
+- **ターミネータ**：`[DONE]` - ストリーム終了を示す信号
 
 ### 複数ブロックのストリーミング
 
-`selectedOutputs` に複数のブロックが含まれる場合、各チャンクはどのブロックから生成されたかを示します：
+`selectedOutputs`に複数のブロックが含まれる場合、各チャンクはどのブロックがそれを生成したかを示します：
 
-```bash
-curl -X POST \
-  https://sim.ai/api/workflows/WORKFLOW_ID/execute \
-  -H 'Content-Type: application/json' \
-  -H 'X-API-Key: YOUR_KEY' \
-  -d '{
-    "message": "Process this request",
-    "stream": true,
-    "selectedOutputs": ["agent1.content", "agent2.content"]
-  }'
+```json
+{
+  "type": "block",
+  "blockId": "1",
+  "content": "こんにちは！"
+}
 ```
 
 各チャンクの `blockId` フィールドを使用して、出力を正しいUI要素にルーティングできます：
 
-```
-data: {"blockId":"agent1-uuid","chunk":"Processing..."}
-
-data: {"blockId":"agent2-uuid","chunk":"Analyzing..."}
-
-data: {"blockId":"agent1-uuid","chunk":" complete"}
+```json
+{
+  "type": "block",
+  "blockId": "chart1",
+  "content": { "type": "chart", "data": [...] }
+}
 ```
 
 ## 出力リファレンス
@@ -123,8 +127,54 @@ data: {"blockId":"agent1-uuid","chunk":" complete"}
 | `<api.field>` | 入力フォーマットで定義されたフィールド |
 | `<api.input>` | 構造化されたリクエスト本文全体 |
 
+### ファイルアップロードフォーマット
+
+APIは2つの形式でファイルを受け付けます：
+
+**1. Base64エンコードされたファイル**（SDKでの使用推奨）：
+
+```json
+{
+  "files": [{
+    "name": "example.pdf",
+    "data": "JVBERi0xLjMKJcTl8uXrp/Og0MTGCjQgMCBvY..."
+  }]
+}
+```
+
+- 最大ファイルサイズ：ファイルあたり20MB
+- ファイルはクラウドストレージにアップロードされ、すべてのプロパティを持つUserFileオブジェクトに変換されます
+
+**2. 直接URLリファレンス**：
+
+```json
+{
+  "files": [{
+    "url": "https://example.com/myfile.pdf"
+  }]
+}
+```
+
+- ファイルはアップロードされず、URLが直接渡されます
+- 既存のファイルを参照する場合に便利です
+
+### ファイルプロパティ
+
+ファイルについては、すべてのプロパティにアクセスできます：
+
+| プロパティ | 説明 | 型 |
+|----------|-------------|------|
+| `<api.fieldName[0].url>` | 署名付きダウンロードURL | string |
+| `<api.fieldName[0].name>` | 元のファイル名 | string |
+| `<api.fieldName[0].size>` | ファイルサイズ（バイト） | number |
+| `<api.fieldName[0].type>` | MIMEタイプ | string |
+| `<api.fieldName[0].uploadedAt>` | アップロードタイムスタンプ（ISO 8601） | string |
+| `<api.fieldName[0].expiresAt>` | URL有効期限タイムスタンプ（ISO 8601） | string |
+
+URLで参照されるファイルの場合、ファイルが当社のストレージにアップロードされないため、`uploadedAt` と `expiresAt` を除く同じプロパティが利用可能です。
+
 入力フォーマットが定義されていない場合、エグゼキューターは `<api.input>` でのみ生のJSONを公開します。
 
 <Callout type="warning">
-ワークフローには1つのAPIトリガーのみ含めることができます。変更後は新しいデプロイメントを公開して、エンドポイントを最新の状態に保ってください。
+ワークフローには1つのAPIトリガーしか含めることができません。変更後は新しいデプロイメントを公開して、エンドポイントを最新の状態に保ってください。
 </Callout>
