@@ -222,7 +222,7 @@ function extractOutputs(content: string): Record<string, any> {
     while ((match = fieldRegex.exec(outputsContent)) !== null) {
       fieldPositions.push({
         name: match[1],
-        start: match.index + match[0].length - 1, // Position of the opening brace
+        start: match.index + match[0].length - 1,
       })
     }
 
@@ -287,7 +287,7 @@ function extractOutputs(content: string): Record<string, any> {
 }
 
 function extractToolsAccess(content: string): string[] {
-  const accessMatch = content.match(/access\s*:\s*\[\s*((?:['"][^'"]+['"](?:\s*,\s*)?)+)\s*\]/)
+  const accessMatch = content.match(/access\s*:\s*\[\s*([^\]]+)\s*\]/)
   if (!accessMatch) return []
 
   const accessContent = accessMatch[1]
