@@ -1,6 +1,7 @@
 import { Container, Img, Link, Section, Text } from '@react-email/components'
 import { getBrandConfig } from '@/lib/branding/branding'
 import { getEnv } from '@/lib/env'
+import { isHosted } from '@/lib/environment'
 
 interface UnsubscribeOptions {
   unsubscribeToken?: string
@@ -78,6 +79,12 @@ export const EmailFooter = ({
                 >
                   {brand.supportEmail}
                 </a>
+                {isHosted && (
+                  <>
+                    <br />
+                    Sim, 80 Langton St, San Francisco, CA 94133, USA
+                  </>
+                )}
               </Text>
               <table cellPadding={0} cellSpacing={0} style={{ width: '100%', marginTop: '4px' }}>
                 <tr>
