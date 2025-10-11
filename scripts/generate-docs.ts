@@ -32,28 +32,6 @@ interface BlockConfig {
   [key: string]: any
 }
 
-function escapeMarkdown(text: string): string {
-  let sanitized = text
-  let previous: string
-
-  do {
-    previous = sanitized
-    sanitized = sanitized
-      .replace(/\\/g, '\\\\')
-      .replace(/\|/g, '\\|')
-      .replace(/\{/g, '\\{')
-      .replace(/\}/g, '\\}')
-      .replace(/\(/g, '\\(')
-      .replace(/\)/g, '\\)')
-      .replace(/\[/g, '\\[')
-      .replace(/\]/g, '\\]')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-  } while (sanitized !== previous)
-
-  return sanitized
-}
-
 function extractIcons(): Record<string, string> {
   try {
     const iconsContent = fs.readFileSync(ICONS_PATH, 'utf-8')
@@ -244,7 +222,7 @@ function extractOutputs(content: string): Record<string, any> {
     while ((match = fieldRegex.exec(outputsContent)) !== null) {
       fieldPositions.push({
         name: match[1],
-        start: match.index + match[0].length - 1,
+        start: match.index + match[0].length - 1, // Position of the opening brace
       })
     }
 
@@ -309,7 +287,7 @@ function extractOutputs(content: string): Record<string, any> {
 }
 
 function extractToolsAccess(content: string): string[] {
-  const accessMatch = content.match(/access\s*:\s*\[\s*([^\]]+)\s*\]/)
+  const accessMatch = content.match(/access\s*:\s*\[\s*((?:['"][^'"]+['"](?:\s*,\s*)?)+)\s*\]/)
   if (!accessMatch) return []
 
   const accessContent = accessMatch[1]
@@ -395,7 +373,9 @@ function extractToolInfo(
           descriptionMatch = paramBlock.match(/description\s*:\s*`([^`]+)`/s)
         }
         if (!descriptionMatch) {
-          descriptionMatch = paramBlock.match(/description\s*:\s*['"]([^'"]+)['"](?=\s*[,}])/s)
+          descriptionMatch = paramBlock.match(
+            /description\s*:\s*['"]([^'"]*(?:\n[^'"]*)*?)['"](?=\s*[,}])/s
+          )
         }
 
         params.push({
@@ -446,7 +426,16 @@ function formatOutputStructure(outputs: Record<string, any>, indentLevel = 0): s
       }
     }
 
-    const escapedDescription = escapeMarkdown(description)
+    const escapedDescription = description
+      .replace(/\|/g, '\\|')
+      .replace(/\{/g, '\\{')
+      .replace(/\}/g, '\\}')
+      .replace(/\(/g, '\\(')
+      .replace(/\)/g, '\\)')
+      .replace(/\[/g, '\\[')
+      .replace(/\]/g, '\\]')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
 
     let prefix = ''
     if (indentLevel === 1) {
@@ -763,7 +752,6 @@ async function getToolInfo(toolName: string): Promise<{
 
 function extractManualContent(existingContent: string): Record<string, string> {
   const manualSections: Record<string, string> = {}
-
   const manualContentRegex =
     /\{\/\*\s*MANUAL-CONTENT-START:(\w+)\s*\*\/\}([\s\S]*?)\{\/\*\s*MANUAL-CONTENT-END\s*\*\/\}/g
 
@@ -850,6 +838,11 @@ async function generateBlockDoc(blockPath: string, icons: Record<string, string>
       return
     }
 
+    if (blockConfig.type.includes('_trigger')) {
+      console.log(`Skipping ${blockConfig.type} - contains '_trigger'`)
+      return
+    }
+
     if (
       (blockConfig.category === 'blocks' &&
         blockConfig.type !== 'memory' &&
@@ -917,7 +910,16 @@ async function generateMarkdownForBlock(
       const output = outputs[outputKey]
 
       const escapedDescription = output.description
-        ? escapeMarkdown(output.description)
+        ? output.description
+            .replace(/\|/g, '\\|')
+            .replace(/\{/g, '\\{')
+            .replace(/\}/g, '\\}')
+            .replace(/\(/g, '\\(')
+            .replace(/\)/g, '\\)')
+            .replace(/\[/g, '\\[')
+            .replace(/\]/g, '\\]')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
         : `Output from ${outputKey}`
 
       if (typeof output.type === 'string') {
@@ -940,7 +942,16 @@ async function generateMarkdownForBlock(
         for (const propName in output.properties) {
           const prop = output.properties[propName]
           const escapedPropertyDescription = prop.description
-            ? escapeMarkdown(prop.description)
+            ? prop.description
+                .replace(/\|/g, '\\|')
+                .replace(/\{/g, '\\{')
+                .replace(/\}/g, '\\}')
+                .replace(/\(/g, '\\(')
+                .replace(/\)/g, '\\)')
+                .replace(/\[/g, '\\[')
+                .replace(/\]/g, '\\]')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
             : `The ${propName} of the ${outputKey}`
 
           outputsSection += `| ↳ \`${propName}\` | ${prop.type} | ${escapedPropertyDescription} |\n`
@@ -958,6 +969,7 @@ async function generateMarkdownForBlock(
     for (const tool of tools.access) {
       toolsSection += `### \`${tool}\`\n\n`
 
+      console.log(`Getting info for tool: ${tool}`)
       const toolInfo = await getToolInfo(tool)
 
       if (toolInfo) {
@@ -972,7 +984,16 @@ async function generateMarkdownForBlock(
         if (toolInfo.params.length > 0) {
           for (const param of toolInfo.params) {
             const escapedDescription = param.description
-              ? escapeMarkdown(param.description)
+              ? param.description
+                  .replace(/\|/g, '\\|')
+                  .replace(/\{/g, '\\{')
+                  .replace(/\}/g, '\\}')
+                  .replace(/\(/g, '\\(')
+                  .replace(/\)/g, '\\)')
+                  .replace(/\[/g, '\\[')
+                  .replace(/\]/g, '\\]')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;')
               : 'No description'
 
             toolsSection += `| \`${param.name}\` | ${param.type} | ${param.required ? 'Yes' : 'No'} | ${escapedDescription} |\n`
@@ -1005,7 +1026,16 @@ async function generateMarkdownForBlock(
               }
             }
 
-            const escapedDescription = escapeMarkdown(description)
+            const escapedDescription = description
+              .replace(/\|/g, '\\|')
+              .replace(/\{/g, '\\{')
+              .replace(/\}/g, '\\}')
+              .replace(/\(/g, '\\(')
+              .replace(/\)/g, '\\)')
+              .replace(/\[/g, '\\[')
+              .replace(/\]/g, '\\]')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
 
             toolsSection += `| \`${key}\` | ${type} | ${escapedDescription} |\n`
           }

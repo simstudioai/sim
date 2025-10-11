@@ -1,9 +1,7 @@
 import { LinearIcon } from '@/components/icons'
-import type { BlockConfig, BlockIcon } from '@/blocks/types'
+import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import type { LinearResponse } from '@/tools/linear/types'
-
-const LinearBlockIcon: BlockIcon = (props) => LinearIcon(props as any)
 
 export const LinearBlock: BlockConfig<LinearResponse> = {
   type: 'linear',
@@ -12,7 +10,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
   authMode: AuthMode.OAuth,
   longDescription: 'Integrate Linear into the workflow. Can read and create issues.',
   category: 'tools',
-  icon: LinearBlockIcon,
+  icon: LinearIcon,
   bgColor: '#5E6AD2',
   subBlocks: [
     {
