@@ -180,7 +180,6 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
 
         const parsedValues = values ? JSON.parse(values as string) : undefined
 
-        // Handle both selector and manual input
         const effectiveSpreadsheetId = (spreadsheetId || manualSpreadsheetId || '').trim()
 
         if (!effectiveSpreadsheetId) {

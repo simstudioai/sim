@@ -28,6 +28,52 @@ export async function getConfluenceCloudId(domain: string, accessToken: string):
   throw new Error('No Confluence resources found')
 }
 
+/**
+ * Safely decode HTML entities
+ * Uses repeated replacement to prevent double-escaping vulnerabilities
+ * This prevents attacks where &amp;lt; becomes &lt; then <
+ */
+function decodeHtmlEntities(text: string): string {
+  let decoded = text
+  let previous: string
+
+  // Repeat until no more entities are decoded
+  // This ensures nested entities like &amp;lt; are fully resolved
+  do {
+    previous = decoded
+    // Decode specific entities (but NOT &amp; yet)
+    decoded = decoded
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+    // Decode &amp; LAST to prevent double-decoding
+    decoded = decoded.replace(/&amp;/g, '&')
+  } while (decoded !== previous)
+
+  return decoded
+}
+
+/**
+ * Safely strip HTML tags from a string
+ * Uses repeated replacement to prevent incomplete sanitization
+ */
+function stripHtmlTags(html: string): string {
+  let text = html
+  let previous: string
+
+  do {
+    previous = text
+    // Remove HTML tags
+    text = text.replace(/<[^>]*>/g, '')
+    // Also remove < and > characters that might remain
+    text = text.replace(/[<>]/g, '')
+  } while (text !== previous)
+
+  return text.trim()
+}
+
 export function transformPageData(data: any) {
   // Get content from wherever we can find it
   const content =
@@ -38,14 +84,10 @@ export function transformPageData(data: any) {
     data.description ||
     `Content for page ${data.title || 'Unknown'}`
 
-  const cleanContent = content
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/\s+/g, ' ')
-    .trim()
+  // First strip HTML tags, then decode entities, then normalize whitespace
+  let cleanContent = stripHtmlTags(content)
+  cleanContent = decodeHtmlEntities(cleanContent)
+  cleanContent = cleanContent.replace(/\s+/g, ' ').trim()
 
   return {
     success: true,

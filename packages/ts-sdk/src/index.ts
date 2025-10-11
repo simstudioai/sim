@@ -94,6 +94,20 @@ export class SimStudioError extends Error {
   }
 }
 
+/**
+ * Remove trailing slashes from a URL
+ * Uses string operations instead of regex to prevent ReDoS attacks
+ * @param url - The URL to normalize
+ * @returns URL without trailing slashes
+ */
+function normalizeBaseUrl(url: string): string {
+  let normalized = url
+  while (normalized.endsWith('/')) {
+    normalized = normalized.slice(0, -1)
+  }
+  return normalized
+}
+
 export class SimStudioClient {
   private apiKey: string
   private baseUrl: string
@@ -101,7 +115,7 @@ export class SimStudioClient {
 
   constructor(config: SimStudioConfig) {
     this.apiKey = config.apiKey
-    this.baseUrl = (config.baseUrl || 'https://sim.ai').replace(/\/+$/, '')
+    this.baseUrl = normalizeBaseUrl(config.baseUrl || 'https://sim.ai')
   }
 
   /**
@@ -306,7 +320,7 @@ export class SimStudioClient {
    * Set a new base URL
    */
   setBaseUrl(baseUrl: string): void {
-    this.baseUrl = baseUrl.replace(/\/+$/, '')
+    this.baseUrl = normalizeBaseUrl(baseUrl)
   }
 
   /**

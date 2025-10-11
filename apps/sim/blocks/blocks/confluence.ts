@@ -14,7 +14,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
   bgColor: '#E0E0E0',
   icon: ConfluenceIcon,
   subBlocks: [
-    // Operation selector
     {
       id: 'operation',
       title: 'Operation',
@@ -50,7 +49,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       placeholder: 'Select Confluence account',
       required: true,
     },
-    // Page selector (basic mode)
     {
       id: 'pageId',
       title: 'Select Page',
@@ -63,7 +61,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       dependsOn: ['credential', 'domain'],
       mode: 'basic',
     },
-    // Manual page ID input (advanced mode)
     {
       id: 'manualPageId',
       title: 'Page ID',
@@ -73,7 +70,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       placeholder: 'Enter Confluence page ID',
       mode: 'advanced',
     },
-    // Update page fields
     {
       id: 'title',
       title: 'New Title',
@@ -107,7 +103,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       params: (params) => {
         const { credential, pageId, manualPageId, ...rest } = params
 
-        // Use the selected page ID or the manually entered one
         const effectivePageId = (pageId || manualPageId || '').trim()
 
         if (!effectivePageId) {
@@ -128,7 +123,6 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
     credential: { type: 'string', description: 'Confluence access token' },
     pageId: { type: 'string', description: 'Page identifier' },
     manualPageId: { type: 'string', description: 'Manual page identifier' },
-    // Update operation inputs
     title: { type: 'string', description: 'New page title' },
     content: { type: 'string', description: 'New page content' },
   },

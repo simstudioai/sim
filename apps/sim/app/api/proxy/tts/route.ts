@@ -53,13 +53,11 @@ export async function POST(request: Request) {
       return new NextResponse('Empty audio received', { status: 422 })
     }
 
-    // Upload the audio file to storage and return multiple URL options
     const audioBuffer = Buffer.from(await audioBlob.arrayBuffer())
     const timestamp = Date.now()
     const fileName = `elevenlabs-tts-${timestamp}.mp3`
     const fileInfo = await uploadFile(audioBuffer, fileName, 'audio/mpeg')
 
-    // Generate the full URL for external use using the configured base URL
     const audioUrl = `${getBaseUrl()}${fileInfo.path}`
 
     return NextResponse.json({

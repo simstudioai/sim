@@ -151,10 +151,8 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
         const { credential, values, spreadsheetId, manualSpreadsheetId, tableName, ...rest } =
           params
 
-        // Handle both selector and manual input
         const effectiveSpreadsheetId = (spreadsheetId || manualSpreadsheetId || '').trim()
 
-        // Parse values from JSON string to array if it exists
         let parsedValues
         try {
           parsedValues = values ? JSON.parse(values as string) : undefined
@@ -166,7 +164,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
           throw new Error('Spreadsheet ID is required.')
         }
 
-        // For table operations, ensure tableName is provided
         if (params.operation === 'table_add' && !tableName) {
           throw new Error('Table name is required for table operations.')
         }
@@ -178,7 +175,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
           credential,
         }
 
-        // Add table-specific parameters
         if (params.operation === 'table_add') {
           return {
             ...baseParams,

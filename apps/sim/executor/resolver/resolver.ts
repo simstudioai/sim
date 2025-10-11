@@ -11,16 +11,10 @@ import { normalizeBlockName } from '@/stores/workflows/utils'
 
 const logger = createLogger('InputResolver')
 
-/**
- * Helper function to resolve property access
- */
 function resolvePropertyAccess(obj: any, property: string): any {
   return obj[property]
 }
 
-/**
- * Resolves input values for blocks by handling references and variable substitution.
- */
 export class InputResolver {
   private blockById: Map<string, SerializedBlock>
   private blockByNormalizedName: Map<string, SerializedBlock>
@@ -947,7 +941,17 @@ export class InputResolver {
    */
   private stringifyForCondition(value: any): string {
     if (typeof value === 'string') {
-      return `"${value.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"`
+      let sanitized = value
+      let previous: string
+      do {
+        previous = sanitized
+        sanitized = sanitized
+          .replace(/\\/g, '\\\\')
+          .replace(/"/g, '\\"')
+          .replace(/\n/g, '\\n')
+          .replace(/\r/g, '\\r')
+      } while (sanitized !== previous)
+      return `"${sanitized}"`
     }
     if (value === null) {
       return 'null'

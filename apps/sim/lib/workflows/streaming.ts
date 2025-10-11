@@ -97,7 +97,6 @@ export async function createStreamingResponse(
           for (const outputId of matchingOutputs) {
             const path = extractPathFromOutputId(outputId, blockId)
 
-            // Response blocks have their data nested under 'response'
             let outputValue = traverseObjectPath(output, path)
             if (outputValue === undefined && output.response) {
               outputValue = traverseObjectPath(output.response, path)
@@ -159,7 +158,6 @@ export async function createStreamingResponse(
           output: {} as any,
         }
 
-        // If there are selected outputs, only include those specific fields
         if (streamConfig.selectedOutputs?.length && result.output) {
           const { extractBlockIdFromOutputId, extractPathFromOutputId, traverseObjectPath } =
             await import('@/lib/response-format')
@@ -168,19 +166,28 @@ export async function createStreamingResponse(
             const blockId = extractBlockIdFromOutputId(outputId)
             const path = extractPathFromOutputId(outputId, blockId)
 
-            // Find the output value from the result
             if (result.logs) {
               const blockLog = result.logs.find((log: any) => log.blockId === blockId)
               if (blockLog?.output) {
-                // Response blocks have their data nested under 'response'
                 let value = traverseObjectPath(blockLog.output, path)
                 if (value === undefined && blockLog.output.response) {
                   value = traverseObjectPath(blockLog.output.response, path)
                 }
                 if (value !== undefined) {
-                  // Store it in a structured way
+                  const dangerousKeys = ['__proto__', 'constructor', 'prototype']
+                  if (dangerousKeys.includes(blockId) || dangerousKeys.includes(path)) {
+                    logger.warn(
+                      `[${requestId}] Blocked potentially dangerous property assignment`,
+                      {
+                        blockId,
+                        path,
+                      }
+                    )
+                    continue
+                  }
+
                   if (!minimalResult.output[blockId]) {
-                    minimalResult.output[blockId] = {}
+                    minimalResult.output[blockId] = Object.create(null)
                   }
                   minimalResult.output[blockId][path] = value
                 }
@@ -188,7 +195,6 @@ export async function createStreamingResponse(
             }
           }
         } else if (!streamConfig.selectedOutputs?.length) {
-          // No selected outputs means include the full output (but still filtered)
           minimalResult.output = result.output
         }
 

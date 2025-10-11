@@ -3,7 +3,19 @@ import type { CanvasLayout } from '@/tools/sharepoint/types'
 
 const logger = createLogger('SharepointUtils')
 
-// Extract readable text from SharePoint canvas layout
+function stripHtmlTags(html: string): string {
+  let text = html
+  let previous: string
+
+  do {
+    previous = text
+    text = text.replace(/<[^>]*>/g, '')
+    text = text.replace(/[<>]/g, '')
+  } while (text !== previous)
+
+  return text.trim()
+}
+
 export function extractTextFromCanvasLayout(canvasLayout: CanvasLayout | null | undefined): string {
   logger.info('Extracting text from canvas layout', {
     hasCanvasLayout: !!canvasLayout,
@@ -37,8 +49,7 @@ export function extractTextFromCanvasLayout(canvasLayout: CanvasLayout | null | 
             })
 
             if (webpart.innerHtml) {
-              // Extract text from HTML, removing tags
-              const text = webpart.innerHtml.replace(/<[^>]*>/g, '').trim()
+              const text = stripHtmlTags(webpart.innerHtml)
               if (text) {
                 textParts.push(text)
                 logger.info('Extracted text', { text })
@@ -50,7 +61,7 @@ export function extractTextFromCanvasLayout(canvasLayout: CanvasLayout | null | 
     } else if (section.webparts) {
       for (const webpart of section.webparts) {
         if (webpart.innerHtml) {
-          const text = webpart.innerHtml.replace(/<[^>]*>/g, '').trim()
+          const text = stripHtmlTags(webpart.innerHtml)
           if (text) textParts.push(text)
         }
       }
@@ -67,7 +78,6 @@ export function extractTextFromCanvasLayout(canvasLayout: CanvasLayout | null | 
   return finalContent
 }
 
-// Remove OData metadata from objects
 export function cleanODataMetadata<T>(obj: T): T {
   if (!obj || typeof obj !== 'object') return obj
 
@@ -77,7 +87,6 @@ export function cleanODataMetadata<T>(obj: T): T {
 
   const cleaned: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-    // Skip OData metadata keys
     if (key.includes('@odata')) continue
 
     cleaned[key] = cleanODataMetadata(value)
