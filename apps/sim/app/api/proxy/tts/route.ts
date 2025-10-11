@@ -15,8 +15,6 @@ export async function POST(request: Request) {
       return new NextResponse('Missing required parameters', { status: 400 })
     }
 
-    // Validate voiceId to prevent SSRF attacks
-    // ElevenLabs voice IDs are alphanumeric strings
     const voiceIdValidation = validateAlphanumericId(voiceId, 'voiceId', 255)
     if (!voiceIdValidation.isValid) {
       logger.error(`Invalid voice ID: ${voiceIdValidation.error}`)

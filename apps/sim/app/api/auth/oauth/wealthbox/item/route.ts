@@ -39,15 +39,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Credential ID and Item ID are required' }, { status: 400 })
     }
 
-    // Validate item type to prevent SSRF attacks
     const typeValidation = validateEnum(type, ['contact'] as const, 'type')
     if (!typeValidation.isValid) {
       logger.warn(`[${requestId}] Invalid item type: ${typeValidation.error}`)
       return NextResponse.json({ error: typeValidation.error }, { status: 400 })
     }
 
-    // Validate itemId to prevent SSRF attacks
-    // Wealthbox item IDs are numeric
     const itemIdValidation = validatePathSegment(itemId, {
       paramName: 'itemId',
       maxLength: 100,
@@ -60,7 +57,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: itemIdValidation.error }, { status: 400 })
     }
 
-    // Get the credential from the database
     const credentials = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
 
     if (!credentials.length) {
@@ -70,7 +66,6 @@ export async function GET(request: NextRequest) {
 
     const credential = credentials[0]
 
-    // Check if the credential belongs to the user
     if (credential.userId !== session.user.id) {
       logger.warn(`[${requestId}] Unauthorized credential access attempt`, {
         credentialUserId: credential.userId,
@@ -79,7 +74,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
-    // Refresh access token if needed
     const accessToken = await refreshAccessTokenIfNeeded(credentialId, session.user.id, requestId)
 
     if (!accessToken) {
@@ -87,7 +81,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })
     }
 
-    // Determine the endpoint based on item type - only contacts
     const endpoints = {
       contact: 'contacts',
     }
@@ -95,7 +88,6 @@ export async function GET(request: NextRequest) {
 
     logger.info(`[${requestId}] Fetching ${type} ${itemId} from Wealthbox`)
 
-    // Make request to Wealthbox API
     const response = await fetch(`https://api.crmworkspace.com/v1/${endpoint}/${itemId}`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -133,13 +125,10 @@ export async function GET(request: NextRequest) {
       totalCount: data.meta?.total_count,
     })
 
-    // Transform the response to match our expected format
     let items: any[] = []
 
     if (type === 'contact') {
-      // Handle single contact response - API returns contact data directly when fetching by ID
       if (data?.id) {
-        // Single contact response
         const item = {
           id: data.id?.toString() || '',
           name: `${data.first_name || ''} ${data.last_name || ''}`.trim() || `Contact ${data.id}`,

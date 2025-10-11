@@ -221,7 +221,6 @@ async function handleExternalUrl(url: string, fileType?: string): Promise<ParseR
   try {
     logger.info('Fetching external URL:', url)
 
-    // Validate URL to prevent SSRF attacks
     const urlValidation = validateExternalUrl(url, 'fileUrl')
     if (!urlValidation.isValid) {
       logger.warn(`Blocked external URL request: ${urlValidation.error}`)

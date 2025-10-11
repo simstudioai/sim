@@ -26,8 +26,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Credential ID and File ID are required' }, { status: 400 })
     }
 
-    // Validate fileId to prevent SSRF attacks
-    // Google Drive file IDs are alphanumeric with hyphens and underscores
     const fileIdValidation = validateAlphanumericId(fileId, 'fileId', 255)
     if (!fileIdValidation.isValid) {
       logger.warn(`[${requestId}] Invalid file ID: ${fileIdValidation.error}`)
@@ -76,10 +74,10 @@ export async function GET(request: NextRequest) {
     const file = await response.json()
 
     const exportFormats: { [key: string]: string } = {
-      'application/vnd.google-apps.document': 'application/pdf', // Google Docs to PDF
+      'application/vnd.google-apps.document': 'application/pdf',
       'application/vnd.google-apps.spreadsheet':
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // Google Sheets to XLSX
-      'application/vnd.google-apps.presentation': 'application/pdf', // Google Slides to PDF
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.google-apps.presentation': 'application/pdf',
     }
 
     if (
