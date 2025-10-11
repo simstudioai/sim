@@ -209,6 +209,13 @@ const nextConfig: NextConfig = {
   async redirects() {
     const redirects = []
 
+    // Redirect /building to /blog (legacy URL support)
+    redirects.push({
+      source: '/building/:path*',
+      destination: '/blog/:path*',
+      permanent: true,
+    })
+
     // Only enable domain redirects for the hosted version
     if (isHosted) {
       redirects.push(

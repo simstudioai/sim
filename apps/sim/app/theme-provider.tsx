@@ -20,7 +20,7 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
     pathname.startsWith('/verify') ||
     pathname.startsWith('/changelog') ||
     pathname.startsWith('/chat') ||
-    pathname.startsWith('/building')
+    pathname.startsWith('/blog')
       ? 'light'
       : undefined
 

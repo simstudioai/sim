@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import OpenAiN8nSim from './openai-n8n-sim'
 
 const baseUrl = 'https://sim.ai'
-const canonicalUrl = `${baseUrl}/building/openai-vs-n8n-vs-sim`
+const canonicalUrl = `${baseUrl}/blog/openai-vs-n8n-vs-sim`
 
 export const metadata: Metadata = {
   title: 'OpenAI AgentKit vs n8n vs Sim: AI Agent Workflow Builder Comparison | Sim',
@@ -106,7 +106,7 @@ export const metadata: Metadata = {
     ],
     images: [
       {
-        url: `${baseUrl}/building/openai-vs-n8n-vs-sim/workflow.png`,
+        url: `${baseUrl}/blog/openai-vs-n8n-vs-sim/workflow.png`,
         width: 1200,
         height: 630,
         alt: 'Sim AI agent workflow builder interface comparison',
@@ -118,7 +118,7 @@ export const metadata: Metadata = {
     title: 'OpenAI AgentKit vs n8n vs Sim: AI Agent Workflow Builder Comparison',
     description:
       'Compare OpenAI AgentKit, n8n, and Sim for building AI agent workflows. Explore key differences in capabilities, integrations, and which platform fits your production needs.',
-    images: ['/building/openai-vs-n8n-vs-sim/workflow.png'],
+    images: ['/blog/openai-vs-n8n-vs-sim/workflow.png'],
     creator: '@karabegemir',
     site: '@simai',
   },
@@ -130,10 +130,6 @@ export const metadata: Metadata = {
   },
 }
 
-/**
- * Blog post page comparing OpenAI AgentKit, n8n, and Sim workflow builders for AI agents.
- * Optimized for SEO with structured data, canonical URLs, and comprehensive metadata.
- */
 export default function Page() {
   return <OpenAiN8nSim />
 }

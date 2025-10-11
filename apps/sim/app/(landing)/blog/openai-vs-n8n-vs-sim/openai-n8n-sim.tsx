@@ -2,14 +2,9 @@ import Image from 'next/image'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { soehne } from '@/app/fonts/soehne/soehne'
 
-/**
- * Blog post component comparing OpenAI AgentKit, n8n, and Sim workflow builders for building AI agents.
- * Layout inspired by Anthropic's engineering blog posts.
- * Includes structured data (JSON-LD) for enhanced SEO and LLM discoverability.
- */
 export default function OpenAiN8nSim() {
   const baseUrl = 'https://sim.ai'
-  const articleUrl = `${baseUrl}/building/openai-vs-n8n-vs-sim`
+  const articleUrl = `${baseUrl}/blog/openai-vs-n8n-vs-sim`
 
   const articleStructuredData = {
     '@context': 'https://schema.org',
@@ -17,7 +12,7 @@ export default function OpenAiN8nSim() {
     headline: 'OpenAI AgentKit vs n8n vs Sim: AI Agent Workflow Builder Comparison',
     description:
       'Compare OpenAI AgentKit, n8n, and Sim for building AI agent workflows. Explore key differences in capabilities, integrations, collaboration, and which platform best fits your production AI agent needs.',
-    image: `${baseUrl}/building/openai-vs-n8n-vs-sim/workflow.png`,
+    image: `${baseUrl}/blog/openai-vs-n8n-vs-sim/workflow.png`,
     datePublished: '2025-10-06T00:00:00.000Z',
     dateModified: '2025-10-06T00:00:00.000Z',
     author: {
@@ -80,8 +75,8 @@ export default function OpenAiN8nSim() {
       {
         '@type': 'ListItem',
         position: 2,
-        name: 'Building',
-        item: `${baseUrl}/building`,
+        name: 'Blog',
+        item: `${baseUrl}/blog`,
       },
       {
         '@type': 'ListItem',
@@ -120,7 +115,7 @@ export default function OpenAiN8nSim() {
             <div className='h-[180px] w-full flex-shrink-0 sm:h-[200px] md:h-auto md:w-[300px]'>
               <div className='relative h-full w-full overflow-hidden rounded-lg md:aspect-[5/4]'>
                 <Image
-                  src='/building/openai-vs-n8n-vs-sim/workflow.png'
+                  src='/blog/openai-vs-n8n-vs-sim/workflow.png'
                   alt='Sim AI agent workflow builder interface'
                   width={300}
                   height={240}
@@ -149,7 +144,7 @@ export default function OpenAiN8nSim() {
                 >
                   <Avatar className='size-6'>
                     <AvatarImage
-                      src='/building/openai-vs-n8n-vs-sim/emir-karabeg.png'
+                      src='/blog/openai-vs-n8n-vs-sim/emir-karabeg.png'
                       alt='Emir Karabeg'
                     />
                     <AvatarFallback>EK</AvatarFallback>
@@ -195,7 +190,7 @@ export default function OpenAiN8nSim() {
                 >
                   <Avatar className='size-6'>
                     <AvatarImage
-                      src='/building/openai-vs-n8n-vs-sim/emir-karabeg.png'
+                      src='/blog/openai-vs-n8n-vs-sim/emir-karabeg.png'
                       alt='Emir Karabeg'
                     />
                     <AvatarFallback>EK</AvatarFallback>
@@ -253,7 +248,7 @@ export default function OpenAiN8nSim() {
 
               <figure className='my-8 overflow-hidden rounded-lg'>
                 <Image
-                  src='/building/openai-vs-n8n-vs-sim/openai.png'
+                  src='/blog/openai-vs-n8n-vs-sim/openai.png'
                   alt='OpenAI AgentKit workflow interface'
                   width={800}
                   height={450}
@@ -288,7 +283,7 @@ export default function OpenAiN8nSim() {
 
               <figure className='my-8 overflow-hidden rounded-lg'>
                 <Image
-                  src='/building/openai-vs-n8n-vs-sim/widgets.png'
+                  src='/blog/openai-vs-n8n-vs-sim/widgets.png'
                   alt='OpenAI AgentKit custom widgets interface'
                   width={800}
                   height={450}
@@ -371,7 +366,7 @@ export default function OpenAiN8nSim() {
 
               <figure className='my-8 overflow-hidden rounded-lg'>
                 <Image
-                  src='/building/openai-vs-n8n-vs-sim/n8n.png'
+                  src='/blog/openai-vs-n8n-vs-sim/n8n.png'
                   alt='n8n workflow automation interface'
                   width={800}
                   height={450}
@@ -489,7 +484,7 @@ export default function OpenAiN8nSim() {
 
               <figure className='my-8 overflow-hidden rounded-lg'>
                 <Image
-                  src='/building/openai-vs-n8n-vs-sim/sim.png'
+                  src='/blog/openai-vs-n8n-vs-sim/sim.png'
                   alt='Sim visual workflow builder with AI agent blocks'
                   width={800}
                   height={450}
@@ -515,7 +510,7 @@ export default function OpenAiN8nSim() {
 
               <figure className='my-8 overflow-hidden rounded-lg'>
                 <Image
-                  src='/building/openai-vs-n8n-vs-sim/copilot.png'
+                  src='/blog/openai-vs-n8n-vs-sim/copilot.png'
                   alt='Sim AI Copilot assisting with workflow development'
                   width={800}
                   height={450}
@@ -540,7 +535,7 @@ export default function OpenAiN8nSim() {
 
               <figure className='my-8 overflow-hidden rounded-lg'>
                 <Image
-                  src='/building/openai-vs-n8n-vs-sim/templates.png'
+                  src='/blog/openai-vs-n8n-vs-sim/templates.png'
                   alt='Sim workflow templates gallery'
                   width={800}
                   height={450}
@@ -621,7 +616,7 @@ export default function OpenAiN8nSim() {
 
               <figure className='my-8 overflow-hidden rounded-lg'>
                 <Image
-                  src='/building/openai-vs-n8n-vs-sim/logs.png'
+                  src='/blog/openai-vs-n8n-vs-sim/logs.png'
                   alt='Sim execution logs and monitoring dashboard'
                   width={800}
                   height={450}
