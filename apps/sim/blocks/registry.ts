@@ -30,6 +30,7 @@ import { GoogleDriveBlock } from '@/blocks/blocks/google_drive'
 import { GoogleFormsBlock } from '@/blocks/blocks/google_form'
 import { GoogleSheetsBlock } from '@/blocks/blocks/google_sheets'
 import { GoogleVaultBlock } from '@/blocks/blocks/google_vault'
+import { GuardrailsBlock } from '@/blocks/blocks/guardrails'
 import { HuggingFaceBlock } from '@/blocks/blocks/huggingface'
 import { HunterBlock } from '@/blocks/blocks/hunter'
 import { ImageGeneratorBlock } from '@/blocks/blocks/image_generator'
@@ -108,6 +109,7 @@ export const registry: Record<string, BlockConfig> = {
   generic_webhook: GenericWebhookBlock,
   github: GitHubBlock,
   gmail: GmailBlock,
+  guardrails: GuardrailsBlock,
   google_calendar: GoogleCalendarBlock,
   google_docs: GoogleDocsBlock,
   google_drive: GoogleDriveBlock,

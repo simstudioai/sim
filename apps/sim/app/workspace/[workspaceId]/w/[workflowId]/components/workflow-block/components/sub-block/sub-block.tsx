@@ -17,6 +17,7 @@ import {
   FileSelectorInput,
   FileUpload,
   FolderSelectorInput,
+  GroupedCheckboxList,
   InputFormat,
   InputMapping,
   KnowledgeBaseSelector,
@@ -252,6 +253,20 @@ export function SubBlock({
             isPreview={isPreview}
             subBlockValues={subBlockValues}
             disabled={isDisabled}
+          />
+        )
+      case 'grouped-checkbox-list':
+        return (
+          <GroupedCheckboxList
+            blockId={blockId}
+            subBlockId={config.id}
+            title={config.title ?? ''}
+            options={config.options as { label: string; id: string; group?: string }[]}
+            layout={config.layout}
+            isPreview={isPreview}
+            subBlockValues={subBlockValues ?? {}}
+            disabled={isDisabled}
+            maxHeight={config.maxHeight}
           />
         )
       case 'condition-input':
