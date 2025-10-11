@@ -109,8 +109,6 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     logger.error('Error in Stream TTS:', error)
 
-    // Return generic error message to prevent XSS through error details
-    // Error details are logged server-side but not exposed to clients
     return new Response('Internal Server Error', {
       status: 500,
     })
