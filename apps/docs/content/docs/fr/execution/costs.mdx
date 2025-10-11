@@ -170,17 +170,49 @@ Les différents forfaits d'abonnement ont des limites d'utilisation différentes
 | **Équipe** | 500 $ (mutualisé) | 50 sync, 100 async |
 | **Entreprise** | Personnalisé | Personnalisé |
 
+## Modèle de facturation
+
+Sim utilise un modèle de facturation **abonnement de base + dépassement** :
+
+### Comment ça fonctionne
+
+**Plan Pro (20 $/mois) :**
+- L'abonnement mensuel inclut 20 $ d'utilisation
+- Utilisation inférieure à 20 $ → Pas de frais supplémentaires
+- Utilisation supérieure à 20 $ → Paiement du dépassement en fin de mois
+- Exemple : 35 $ d'utilisation = 20 $ (abonnement) + 15 $ (dépassement)
+
+**Plan Team (40 $/siège/mois) :**
+- Utilisation mutualisée entre tous les membres de l'équipe
+- Dépassement calculé sur l'utilisation totale de l'équipe
+- Le propriétaire de l'organisation reçoit une seule facture
+
+**Plans Enterprise :**
+- Prix mensuel fixe, sans dépassements
+- Limites d'utilisation personnalisées selon l'accord
+
+### Facturation par seuil
+
+Lorsque le dépassement non facturé atteint 50 $, Sim facture automatiquement le montant total non facturé.
+
+**Exemple :**
+- Jour 10 : 70 $ de dépassement → Facturation immédiate de 70 $
+- Jour 15 : 35 $ d'utilisation supplémentaire (105 $ au total) → Déjà facturé, aucune action
+- Jour 20 : 50 $ d'utilisation supplémentaire (155 $ au total, 85 $ non facturés) → Facturation immédiate de 85 $
+
+Cela répartit les frais de dépassement importants tout au long du mois au lieu d'une seule grosse facture en fin de période.
+
 ## Meilleures pratiques de gestion des coûts
 
-1. **Surveillez régulièrement** : vérifiez fréquemment votre tableau de bord d'utilisation pour éviter les surprises
-2. **Définissez des budgets** : utilisez les limites du plan comme garde-fous pour vos dépenses
-3. **Optimisez les flux de travail** : examinez les exécutions à coût élevé et optimisez les prompts ou la sélection de modèles
-4. **Utilisez des modèles appropriés** : adaptez la complexité du modèle aux exigences de la tâche
-5. **Regroupez les tâches similaires** : combinez plusieurs requêtes lorsque c'est possible pour réduire les frais généraux
+1. **Surveillance régulière** : Vérifiez fréquemment votre tableau de bord d'utilisation pour éviter les surprises
+2. **Définir des budgets** : Utilisez les limites du plan comme garde-fous pour vos dépenses
+3. **Optimiser les flux de travail** : Examinez les exécutions à coût élevé et optimisez les prompts ou la sélection de modèles
+4. **Utiliser des modèles appropriés** : Adaptez la complexité du modèle aux exigences de la tâche
+5. **Regrouper les tâches similaires** : Combinez plusieurs requêtes lorsque c'est possible pour réduire les frais généraux
 
 ## Prochaines étapes
 
-- Examinez votre utilisation actuelle dans [Paramètres → Abonnement](https://sim.ai/settings/subscription)
-- Apprenez-en plus sur la [Journalisation](/execution/logging) pour suivre les détails d'exécution
+- Consultez votre utilisation actuelle dans [Paramètres → Abonnement](https://sim.ai/settings/subscription)
+- Découvrez la [Journalisation](/execution/logging) pour suivre les détails d'exécution
 - Explorez l'[API externe](/execution/api) pour la surveillance programmatique des coûts
-- Découvrez les [techniques d'optimisation de flux de travail](/blocks) pour réduire les coûts
+- Consultez les [techniques d'optimisation des flux de travail](/blocks) pour réduire les coûts
