@@ -212,7 +212,6 @@ async function executeValidation(
       }
     }
 
-    // Use TypeScript hallucination validator with RAG + LLM scoring
     return await validateHallucination({
       userInput: inputStr,
       knowledgeBaseId,
@@ -225,7 +224,6 @@ async function executeValidation(
     })
   }
   if (validationType === 'pii') {
-    // PII validation using Presidio
     return await validatePII({
       text: inputStr,
       entityTypes: piiEntityTypes || [], // Empty array = detect all PII types

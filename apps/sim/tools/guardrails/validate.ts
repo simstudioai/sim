@@ -164,11 +164,8 @@ export const guardrailsValidateTool: ToolConfig<GuardrailsValidateInput, Guardra
     },
 
     transformResponse: async (response: Response): Promise<GuardrailsValidateOutput> => {
-      // Always parse the JSON response, even for non-OK status codes
-      // Our API always returns a structured response with validation results
       const result = await response.json()
 
-      // If the API returned an error structure (shouldn't happen now, but just in case)
       if (!response.ok && !result.output) {
         return {
           success: true,

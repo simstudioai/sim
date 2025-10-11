@@ -39,11 +39,9 @@ export function GroupedCheckboxList({
   const [open, setOpen] = useState(false)
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
 
-  // Get preview value or use store value
   const previewValue = isPreview && subBlockValues ? subBlockValues[subBlockId]?.value : undefined
   const selectedValues = ((isPreview ? previewValue : storeValue) as string[]) || []
 
-  // Group options by their group property
   const groupedOptions = useMemo(() => {
     const groups: Record<string, { label: string; id: string }[]> = {}
 

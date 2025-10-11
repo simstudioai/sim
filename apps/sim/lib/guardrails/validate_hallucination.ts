@@ -1,3 +1,4 @@
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { executeProviderRequest } from '@/providers'
 import { getApiKey, getProviderFromModel } from '@/providers/utils'
@@ -40,7 +41,7 @@ async function queryKnowledgeBase(
     })
 
     // Call the knowledge base search API directly
-    const searchUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/knowledge/search`
+    const searchUrl = `${env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/knowledge/search`
 
     const response = await fetch(searchUrl, {
       method: 'POST',
@@ -65,7 +66,6 @@ async function queryKnowledgeBase(
     const result = await response.json()
     const results = result.data?.results || []
 
-    // Extract content from search results
     const chunks = results.map((r: any) => r.content || '').filter((c: string) => c.length > 0)
 
     logger.info(`[${requestId}] Retrieved ${chunks.length} chunks from knowledge base`)
@@ -140,7 +140,6 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
       apiKey,
     })
 
-    // Handle streaming response (shouldn't happen with our request, but just in case)
     if (response instanceof ReadableStream || ('stream' in response && 'execution' in response)) {
       throw new Error('Unexpected streaming response from LLM')
     }
@@ -148,10 +147,8 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
     const content = response.content.trim()
     logger.debug(`[${requestId}] LLM response:`, { content })
 
-    // Try to parse JSON from the response
     let jsonContent = content
 
-    // Remove markdown code blocks if present
     if (content.includes('```')) {
       const jsonMatch = content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/)
       if (jsonMatch) {
@@ -191,7 +188,6 @@ export async function validateHallucination(
     input
 
   try {
-    // Validate inputs
     if (!userInput || userInput.trim().length === 0) {
       return {
         passed: false,
@@ -206,7 +202,6 @@ export async function validateHallucination(
       }
     }
 
-    // Get API key for the model
     let finalApiKey: string
     try {
       const providerId = getProviderFromModel(model)
@@ -248,8 +243,7 @@ export async function validateHallucination(
       threshold,
     })
 
-    // Step 3: Check against threshold
-    // Lower scores = less confidence = fail validation
+    // Step 3: Check against threshold. Lower scores = less confidence = fail validation
     const passed = score >= threshold
 
     return {
