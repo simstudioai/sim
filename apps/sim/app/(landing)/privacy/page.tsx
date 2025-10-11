@@ -15,15 +15,16 @@ export default function PrivacyPolicy() {
   return (
     <LegalLayout title='Privacy Policy'>
       <section>
-        <p className='mb-4'>Last Updated: September 10, 2025</p>
+        <p className='mb-4'>Last Updated: October 11, 2025</p>
         <p>
-          This Privacy Policy describes how your personal information is collected, used, and shared
-          when you visit or use Sim ("the Service", "we", "us", or "our").
+          This Privacy Policy describes how Sim ("we", "us", "our", or "the Service") collects,
+          uses, discloses, and protects personal data — including data obtained from Google APIs
+          (including Google Workspace APIs) — and your rights and controls regarding that data.
         </p>
         <p className='mt-4'>
-          By using the Service, you agree to the collection and use of information in accordance
-          with this policy. Unless otherwise defined in this Privacy Policy, terms used in this
-          Privacy Policy have the same meanings as in our Terms of Service.
+          By using or accessing the Service, you confirm that you have read and understood this
+          Privacy Policy, and you consent to the collection, use, and disclosure of your information
+          as described herein.
         </p>
       </section>
 
@@ -40,6 +41,10 @@ export default function PrivacyPolicy() {
         <p className='mb-4'>For the purposes of this Privacy Policy:</p>
         <ul className='mb-4 list-disc space-y-2 pl-6'>
           <li>
+            <strong>Application</strong> or <strong>Service</strong> means the Sim web or mobile
+            application or related services.
+          </li>
+          <li>
             <strong>Account</strong> means a unique account created for You to access our Service or
             parts of our Service.
           </li>
@@ -48,10 +53,6 @@ export default function PrivacyPolicy() {
             common control with a party, where "control" means ownership of 50% or more of the
             shares, equity interest or other securities entitled to vote for election of directors
             or other managing authority.
-          </li>
-          <li>
-            <strong>Application</strong> means the software program provided by the Company
-            downloaded by You on any electronic device.
           </li>
           <li>
             <strong>Business</strong>, for the purpose of the CCPA (California Consumer Privacy
@@ -90,13 +91,26 @@ export default function PrivacyPolicy() {
             tracking of their online activities across websites.
           </li>
           <li>
-            <strong>Personal Data</strong> is any information that relates to an identified or
-            identifiable individual. For the purposes for GDPR, Personal Data means any information
-            relating to You such as a name, an identification number, location data, online
-            identifier or to one or more factors specific to the physical, physiological, genetic,
-            mental, economic, cultural or social identity. For the purposes of the CCPA, Personal
-            Data means any information that identifies, relates to, describes or is capable of being
-            associated with, or could reasonably be linked, directly or indirectly, with You.
+            <strong>Personal Data</strong> (or "Personal Information") is any information that
+            relates to an identified or identifiable individual. For the purposes for GDPR, Personal
+            Data means any information relating to You such as a name, an identification number,
+            location data, online identifier or to one or more factors specific to the physical,
+            physiological, genetic, mental, economic, cultural or social identity. For the purposes
+            of the CCPA, Personal Data means any information that identifies, relates to, describes
+            or is capable of being associated with, or could reasonably be linked, directly or
+            indirectly, with You.
+          </li>
+          <li>
+            <strong>Google Data</strong> means any data, content, or metadata obtained via Google
+            APIs (including Google Workspace APIs).
+          </li>
+          <li>
+            <strong>Generalized AI/ML model</strong> means an AI or ML model intended to be broadly
+            trained across multiple users, not specific to a single user's data or behavior.
+          </li>
+          <li>
+            <strong>User-facing features</strong> means features directly visible or used by the
+            individual user through the app UI.
           </li>
           <li>
             <strong>Sale</strong>, for the purpose of the CCPA (California Consumer Privacy Act),
@@ -104,9 +118,6 @@ export default function PrivacyPolicy() {
             transferring, or otherwise communicating orally, in writing, or by electronic or other
             means, a Consumer's Personal information to another business or a third party for
             monetary or other valuable consideration.
-          </li>
-          <li>
-            <strong>Service</strong> refers to the Application or the Website or both.
           </li>
           <li>
             <strong>Service Provider</strong> means any natural or legal person who processes the
@@ -140,19 +151,36 @@ export default function PrivacyPolicy() {
 
       <section>
         <h2 className='mb-4 font-semibold text-2xl'>1. Information We Collect</h2>
-        <h3 className='mb-2 font-medium text-xl'>Personal Information</h3>
+        <h3 className='mb-2 font-medium text-xl'>Personal Data You Provide</h3>
         <p className='mb-4'>
-          While using our Service, we may ask you to provide us with certain personally identifiable
-          information that can be used to contact or identify you ("Personal Information").
-          Personally identifiable information may include, but is not limited to:
+          When you sign up, link accounts, or use features, you may provide Personal Data such as:
         </p>
         <ul className='mb-4 list-disc space-y-2 pl-6'>
-          <li>Email address</li>
-          <li>First name and last name</li>
-          <li>Phone number</li>
-          <li>Address, State, Province, ZIP/Postal code, City</li>
-          <li>Cookies and Usage Data</li>
+          <li>Name and email address</li>
+          <li>Phone number and mailing address</li>
+          <li>Profile picture, settings, and preferences</li>
+          <li>Content you upload (e.g., documents, files) within Sim</li>
+          <li>Any data you explicitly input or connect, including via Google integrations</li>
         </ul>
+
+        <h3 className='mb-2 font-medium text-xl'>Google Data via API Scopes</h3>
+        <p className='mb-4'>
+          If you choose to connect your Google account (e.g., Google Workspace, Gmail, Drive,
+          Calendar, Contacts), we may request specific scopes. Types of Google Data we may access
+          include:
+        </p>
+        <ul className='mb-4 list-disc space-y-2 pl-6'>
+          <li>Basic profile (name, email)</li>
+          <li>Drive files and documents</li>
+          <li>Calendar events</li>
+          <li>Contacts</li>
+          <li>Gmail messages (only if explicitly requested for a specific feature)</li>
+          <li>Other Google Workspace content or metadata as needed per feature</li>
+        </ul>
+        <p className='mb-4'>
+          We only request the minimal scopes necessary for the features you enable. We do not
+          request scopes for unimplemented features.
+        </p>
 
         <h3 className='mb-2 font-medium text-xl'>Usage Data</h3>
         <p className='mb-4'>
@@ -212,7 +240,21 @@ export default function PrivacyPolicy() {
             To contact You by email, telephone calls, SMS, or other equivalent forms of electronic
             communication
           </li>
+          <li>
+            To enable and support user-enabled integrations with Google services (e.g., syncing
+            files or calendar) and provide personalization, suggestions, and user-specific
+            automation for that individual user.
+          </li>
+          <li>
+            To detect and prevent fraud, abuse, or security incidents and to comply with legal
+            obligations.
+          </li>
         </ul>
+        <p className='mt-4'>
+          <strong>Importantly:</strong> any Google Data used within Sim is used only for features
+          tied to that specific user (user-facing features), and <strong>never</strong> for
+          generalized AI/ML training or shared model improvement across users.
+        </p>
       </section>
 
       <section>
@@ -290,32 +332,10 @@ export default function PrivacyPolicy() {
       <section>
         <h2 className='mb-4 font-semibold text-2xl'>7. Analytics</h2>
         <p className='mb-4'>
-          We may use third-party Service Providers to monitor and analyze the use of our Service.
-        </p>
-        <h3 className='mb-2 font-medium text-xl'>Google Analytics</h3>
-        <p className='mb-4'>
-          Google Analytics is a web analytics service offered by Google that tracks and reports
-          website traffic. Google uses the data collected to track and monitor the use of our
-          Service. This data is shared with other Google services. Google may use the collected data
-          to contextualize and personalize the ads of its own advertising network.
-        </p>
-        <p className='mb-4'>
-          You can opt-out of having made your activity on the Service available to Google Analytics
-          by installing the Google Analytics opt-out browser add-on. The add-on prevents the Google
-          Analytics JavaScript (ga.js, analytics.js, and dc.js) from sharing information with Google
-          Analytics about visits activity.
-        </p>
-        <p>
-          For more information on the privacy practices of Google, please visit the Google Privacy &
-          Terms web page:{' '}
-          <Link
-            href='https://policies.google.com/privacy?hl=en'
-            className='text-[var(--brand-primary-hex)] underline hover:text-[var(--brand-primary-hover-hex)]'
-            target='_blank'
-            rel='noopener noreferrer'
-          >
-            https://policies.google.com/privacy
-          </Link>
+          We may aggregate or anonymize non-Google data (not tied to personal identity) for internal
+          analytics, product improvement, usage trends, or performance monitoring. This data cannot
+          be tied back to individual users and is not used for generalized AI/ML training with
+          Google Data.
         </p>
       </section>
 
@@ -367,28 +387,116 @@ export default function PrivacyPolicy() {
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>10. Google Workspace APIs</h2>
-        <p className='mb-4'>
-          We want to explicitly affirm that any user data obtained through Google Workspace APIs is{' '}
-          <strong>not</strong> used to develop, improve, or train generalized AI and/or machine
-          learning models. We use data obtained through Google Workspace APIs solely for the purpose
-          of providing and improving the specific functionality of our Service for which the API
-          access was granted.
-        </p>
-      </section>
-
-      <section>
         <h2 className='mb-4 font-semibold text-2xl'>
-          11. Information Collected while Using Google APIs
+          10. Use of Google / Workspace APIs & Data — Limited Use
         </h2>
+        <h3 className='mb-2 font-medium text-xl'>Affirmative Statement & Compliance</h3>
         <p className='mb-4'>
-          Sim's use and transfer to any other app of information received from Google APIs will
-          adhere to Google API Services User Data Policy, including the Limited Use requirements.
+          Sim’s use, storage, processing, and transfer of Google Data (raw or derived) strictly
+          adheres to the Google API Services User Data Policy, including the Limited Use
+          requirements, and to the Google Workspace API user data policy (when applicable). We
+          explicitly affirm that:
+        </p>
+        <ul className='mb-4 list-disc space-y-2 pl-6'>
+          <li>
+            Sim does not use, transfer, or allow Google Data to be used to train, improve, or
+            develop generalized or non-personalized AI/ML models.
+          </li>
+          <li>
+            Any processing of Google Data is limited to providing or improving user-facing features
+            visible in the app UI.
+          </li>
+          <li>
+            We do not allow third parties to access Google Data for purposes of training or model
+            improvement.
+          </li>
+          <li>Transfers of Google Data are disallowed except in limited permitted cases.</li>
+        </ul>
+
+        <h3 className='mb-2 font-medium text-xl'>Permitted Transfers & Data Use</h3>
+        <p className='mb-4'>
+          We may only transfer Google Data (raw or derived) to third parties under the following
+          limited conditions and always aligned with user disclosures and consent:
+        </p>
+        <ul className='mb-4 list-disc space-y-2 pl-6'>
+          <li>To provide or improve user-facing features (with the user's explicit consent)</li>
+          <li>For security, abuse investigation, or system integrity</li>
+          <li>To comply with laws or legal obligations</li>
+          <li>
+            As part of a merger, acquisition, divestiture, or sale of assets, with explicit user
+            consent
+          </li>
+        </ul>
+
+        <h3 className='mb-2 font-medium text-xl'>Human Access Restrictions</h3>
+        <p className='mb-4'>
+          We restrict human review of Google Data strictly. No employee, contractor, or agent may
+          view Google Data unless one of the following is true:
+        </p>
+        <ul className='mb-4 list-disc space-y-2 pl-6'>
+          <li>
+            The user gave explicit, documented consent to view specific items (e.g., "Let customer
+            support view this email/file").
+          </li>
+          <li>It is necessary for security, abuse investigation, or legal process.</li>
+          <li>
+            Data is aggregated, anonymized, and used for internal operations only (without
+            re-identification).
+          </li>
+        </ul>
+
+        <h3 className='mb-2 font-medium text-xl'>Scope Minimization & Justification</h3>
+        <p className='mb-4'>
+          We only request scopes essential to features you opt into; we do not request broad or
+          unused permissions. For each Google API scope we request, we maintain internal
+          documentation justifying why that scope is needed and why narrower scopes are
+          insufficient. Where possible, we follow incremental authorization and request additional
+          scopes only when needed in context.
+        </p>
+
+        <h3 className='mb-2 font-medium text-xl'>Secure Handling & Storage</h3>
+        <ul className='mb-4 list-disc space-y-2 pl-6'>
+          <li>Google Data is encrypted in transit (TLS/HTTPS) and at rest.</li>
+          <li>Access controls, role-based permissions, logging, and auditing protect data.</li>
+          <li>
+            OAuth tokens and credentials are stored securely (e.g., encrypted vault, hardware or
+            secure key management).
+          </li>
+          <li>We regularly review security practices and infrastructure.</li>
+          <li>
+            If a security incident affects Google Data, we will notify Google as required and
+            cooperate fully.
+          </li>
+        </ul>
+
+        <h3 className='mb-2 font-medium text-xl'>Retention & Deletion</h3>
+        <p className='mb-4'>We retain data only as long as necessary for the purposes disclosed:</p>
+        <ul className='mb-4 list-disc space-y-2 pl-6'>
+          <li>
+            <strong>Account Data:</strong> Retained during active account + 30 days after deletion
+            request
+          </li>
+          <li>
+            <strong>Google API Data:</strong> Retained during feature use + 7 days after revocation
+            or account deletion
+          </li>
+          <li>
+            <strong>Usage Logs:</strong> 90 days for analytics; up to 1 year for security
+            investigations
+          </li>
+          <li>
+            <strong>Transaction Records:</strong> Up to 7 years for legal and tax compliance
+          </li>
+        </ul>
+        <p className='mb-4'>
+          When you revoke access, delete your account, or stop using a feature, we remove associated
+          data within the timeframes above. You may request deletion via in-app settings or by
+          contacting us; we will comply promptly.
         </p>
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>12. Links To Other Sites</h2>
+        <h2 className='mb-4 font-semibold text-2xl'>11. Links To Other Sites</h2>
         <p className='mb-4'>
           Our Service may contain links to other sites that are not operated by us. If you click on
           a third party link, you will be directed to that third party's site. We strongly advise
@@ -401,7 +509,7 @@ export default function PrivacyPolicy() {
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>13. Children's Privacy</h2>
+        <h2 className='mb-4 font-semibold text-2xl'>12. Children's Privacy</h2>
         <p className='mb-4'>
           Our Service does not address anyone under the age of 18 ("Children").
         </p>
@@ -415,7 +523,7 @@ export default function PrivacyPolicy() {
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>14. Changes To This Privacy Policy</h2>
+        <h2 className='mb-4 font-semibold text-2xl'>13. Changes To This Privacy Policy</h2>
         <p className='mb-4'>
           We may update our Privacy Policy from time to time. We will notify you of any changes by
           posting the new Privacy Policy on this page.
@@ -433,7 +541,7 @@ export default function PrivacyPolicy() {
 
       <section>
         <h2 className='mb-4 font-semibold text-2xl'>
-          15. Your Data Protection Rights Under General Data Protection Regulation (GDPR)
+          14. Your Data Protection Rights Under General Data Protection Regulation (GDPR)
         </h2>
         <p className='mb-4'>
           If you are a resident of the European Economic Area (EEA), you have certain data
@@ -482,23 +590,50 @@ export default function PrivacyPolicy() {
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>16. California Privacy Rights</h2>
+        <h2 className='mb-4 font-semibold text-2xl'>15. California Privacy Rights</h2>
         <p className='mb-4'>
-          California Civil Code Section 1798.83, also known as the "Shine The Light" law, permits
-          our users who are California residents to request and obtain from us, once a year and free
-          of charge, information about categories of personal information (if any) we disclosed to
-          third parties for direct marketing purposes and the names and addresses of all third
-          parties with which we shared personal information in the immediately preceding calendar
-          year.
+          If you are a California resident, you have specific rights under the California Consumer
+          Privacy Act (CCPA) and California Privacy Rights Act (CPRA), including the right to know
+          what personal information we collect, the right to delete your information, and the right
+          to opt-out of the sale or sharing of your personal information.
+        </p>
+
+        <h3 className='mb-2 font-medium text-xl'>Do Not Sell or Share My Personal Information</h3>
+        <p className='mb-4'>
+          We do not sell your personal information for monetary consideration. However, some data
+          sharing practices (such as analytics or advertising services) may be considered a "sale"
+          or "share" under CCPA/CPRA. You have the right to opt-out of such data sharing. To
+          exercise this right, contact us at{' '}
+          <Link
+            href='mailto:privacy@sim.ai'
+            className='text-[var(--brand-primary-hex)] underline hover:text-[var(--brand-primary-hover-hex)]'
+          >
+            privacy@sim.ai
+          </Link>
+          .
+        </p>
+
+        <h3 className='mb-2 font-medium text-xl'>Global Privacy Control (GPC)</h3>
+        <p className='mb-4'>
+          We recognize and honor Global Privacy Control (GPC) signals. When your browser sends a GPC
+          signal, we will treat it as a valid request to opt-out of the sale or sharing of your
+          personal information.
+        </p>
+
+        <h3 className='mb-2 font-medium text-xl'>Shine The Light Law</h3>
+        <p className='mb-4'>
+          California Civil Code Section 1798.83 permits California residents to request information
+          about categories of personal information we disclosed to third parties for direct
+          marketing purposes in the preceding calendar year.
         </p>
         <p>
-          If you are a California resident and would like to make such a request, please submit your
-          request in writing to us using the contact information provided below.
+          To make a request under CCPA or the Shine The Light law, please submit your request using
+          the contact information provided below.
         </p>
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>17. Vulnerability Disclosure Policy</h2>
+        <h2 className='mb-4 font-semibold text-2xl'>16. Vulnerability Disclosure Policy</h2>
 
         <h3 className='mb-2 font-medium text-xl'>Introduction</h3>
         <p className='mb-4'>
@@ -617,16 +752,24 @@ export default function PrivacyPolicy() {
       </section>
 
       <section>
-        <h2 className='mb-4 font-semibold text-2xl'>18. Contact Us</h2>
-        <p>
-          If you have any questions about this Privacy Policy, please contact us at:{' '}
-          <Link
-            href='mailto:privacy@sim.ai'
-            className='text-[var(--brand-primary-hex)] underline hover:text-[var(--brand-primary-hover-hex)]'
-          >
-            privacy@sim.ai
-          </Link>
+        <h2 className='mb-4 font-semibold text-2xl'>17. Contact & Dispute Resolution</h2>
+        <p className='mb-4'>
+          If you have questions, requests, or complaints regarding this Privacy Policy or our data
+          practices, you may contact us at:
         </p>
+        <ul className='mb-4 list-disc space-y-2 pl-6'>
+          <li>
+            Email:{' '}
+            <Link
+              href='mailto:privacy@sim.ai'
+              className='text-[var(--brand-primary-hex)] underline hover:text-[var(--brand-primary-hover-hex)]'
+            >
+              privacy@sim.ai
+            </Link>
+          </li>
+          <li>Mailing Address: Sim, 80 Langton St, San Francisco, CA 94133, USA</li>
+        </ul>
+        <p>We will respond to your request within a reasonable timeframe.</p>
       </section>
     </LegalLayout>
   )
