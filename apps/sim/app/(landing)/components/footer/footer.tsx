@@ -216,10 +216,10 @@ export default function Footer({ fullWidth = false }: FooterProps) {
                 Enterprise
               </Link>
               <Link
-                href='/building'
+                href='/blog'
                 className='text-[14px] text-muted-foreground transition-colors hover:text-foreground'
               >
-                Building
+                Blog
               </Link>
               <Link
                 href='/changelog'

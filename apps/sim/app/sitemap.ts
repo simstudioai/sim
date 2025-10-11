@@ -40,15 +40,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // Blog posts and content pages
   const blogPages = [
     {
-      url: `${baseUrl}/building/openai-vs-n8n-vs-sim`,
-      lastModified: new Date('2025-10-06'),
+      url: `${baseUrl}/blog/openai-vs-n8n-vs-sim`,
+      lastModified: new Date('2025-10-11'),
       changeFrequency: 'monthly' as const,
       priority: 0.9,
     },
   ]
-
-  // You can add dynamic pages here by fetching from database
-  // const dynamicPages = await fetchDynamicPages()
 
   return [...staticPages, ...blogPages]
 }
