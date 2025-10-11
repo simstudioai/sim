@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { validateHallucination } from '@/lib/guardrails/validate_hallucination'
+import { validateJson } from '@/lib/guardrails/validate_json'
+import { validatePII } from '@/lib/guardrails/validate_pii'
+import { validateRegex } from '@/lib/guardrails/validate_regex'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
-import { validateJson } from '@/lib/guardrails/validate_json'
-import { validateRegex } from '@/lib/guardrails/validate_regex'
-import { validateHallucination } from '@/lib/guardrails/validate_hallucination'
-import { validatePII } from '@/lib/guardrails/validate_pii'
 
 const logger = createLogger('GuardrailsValidateAPI')
 
@@ -14,7 +14,20 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { validationType, input, regex, knowledgeBaseId, threshold, topK, model, apiKey, workflowId, piiEntityTypes, piiMode, piiLanguage } = body
+    const {
+      validationType,
+      input,
+      regex,
+      knowledgeBaseId,
+      threshold,
+      topK,
+      model,
+      apiKey,
+      workflowId,
+      piiEntityTypes,
+      piiMode,
+      piiLanguage,
+    } = body
 
     // Validate required fields
     if (!validationType) {
@@ -44,7 +57,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate validationType
-    if (validationType !== 'json' && validationType !== 'regex' && validationType !== 'hallucination' && validationType !== 'pii') {
+    if (
+      validationType !== 'json' &&
+      validationType !== 'regex' &&
+      validationType !== 'hallucination' &&
+      validationType !== 'pii'
+    ) {
       return NextResponse.json({
         success: true,
         output: {
@@ -142,18 +160,19 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Convert input to strfing for validation
+ * Convert input to string for validation
  */
 function convertInputToString(input: any): string {
   if (typeof input === 'string') {
     return input
-  } else if (input === null || input === undefined) {
-    return ''
-  } else if (typeof input === 'object') {
-    return JSON.stringify(input)
-  } else {
-    return String(input)
   }
+  if (input === null || input === undefined) {
+    return ''
+  }
+  if (typeof input === 'object') {
+    return JSON.stringify(input)
+  }
+  return String(input)
 }
 
 /**
@@ -184,7 +203,8 @@ async function executeValidation(
   // Use TypeScript validators for all validation types
   if (validationType === 'json') {
     return validateJson(inputStr)
-  } else if (validationType === 'regex') {
+  }
+  if (validationType === 'regex') {
     if (!regex) {
       return {
         passed: false,
@@ -192,7 +212,8 @@ async function executeValidation(
       }
     }
     return validateRegex(inputStr, regex)
-  } else if (validationType === 'hallucination') {
+  }
+  if (validationType === 'hallucination') {
     if (!knowledgeBaseId) {
       return {
         passed: false,
@@ -204,14 +225,15 @@ async function executeValidation(
     return await validateHallucination({
       userInput: inputStr,
       knowledgeBaseId,
-      threshold: threshold != null ? parseFloat(threshold) : 3, // Default threshold is 3 (confidence score, scores < 3 fail)
-      topK: topK ? parseInt(topK) : 10, // Default topK is 10
+      threshold: threshold != null ? Number.parseFloat(threshold) : 3, // Default threshold is 3 (confidence score, scores < 3 fail)
+      topK: topK ? Number.parseInt(topK) : 10, // Default topK is 10
       model: model,
       apiKey,
       workflowId,
       requestId,
     })
-  } else if (validationType === 'pii') {
+  }
+  if (validationType === 'pii') {
     // PII validation using Presidio
     return await validatePII({
       text: inputStr,
@@ -220,13 +242,9 @@ async function executeValidation(
       language: piiLanguage || 'en',
       requestId,
     })
-  } else {
-    return {
-      passed: false,
-      error: 'Unknown validation type',
-    }
+  }
+  return {
+    passed: false,
+    error: 'Unknown validation type',
   }
 }
-
-
-

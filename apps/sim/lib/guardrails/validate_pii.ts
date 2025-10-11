@@ -1,6 +1,6 @@
 import { spawn } from 'child_process'
-import path from 'path'
 import fs from 'fs'
+import path from 'path'
 import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('PIIValidator')
@@ -31,7 +31,7 @@ export interface PIIValidationResult {
 
 /**
  * Validate text for PII using Microsoft Presidio
- * 
+ *
  * Supports two modes:
  * - block: Fails validation if any PII is detected
  * - mask: Passes validation and returns masked text with PII replaced
@@ -97,11 +97,7 @@ async function executePythonPIIDetection(
 
     const timeout = setTimeout(() => {
       python.kill()
-      resolve({
-        passed: false,
-        error: 'PII validation timeout',
-        detectedEntities: [],
-      })
+      reject(new Error('PII validation timeout'))
     }, DEFAULT_TIMEOUT)
 
     // Write input to stdin as JSON
@@ -179,11 +175,11 @@ async function executePythonPIIDetection(
       logger.error(`[${requestId}] Failed to spawn Python process`, {
         error: error.message,
       })
-      resolve({
-        passed: false,
-        error: `Failed to execute Python: ${error.message}. Make sure Python 3 and Presidio are installed.`,
-        detectedEntities: [],
-      })
+      reject(
+        new Error(
+          `Failed to execute Python: ${error.message}. Make sure Python 3 and Presidio are installed.`
+        )
+      )
     })
   })
 }
@@ -206,18 +202,18 @@ export const SUPPORTED_PII_ENTITIES = {
   PHONE_NUMBER: 'Phone number',
   MEDICAL_LICENSE: 'Medical license number',
   URL: 'URL',
-  
+
   // USA
   US_BANK_NUMBER: 'US bank account number',
   US_DRIVER_LICENSE: 'US driver license',
   US_ITIN: 'US Individual Taxpayer Identification Number',
   US_PASSPORT: 'US passport number',
   US_SSN: 'US Social Security Number',
-  
+
   // UK
   UK_NHS: 'UK NHS number',
   UK_NINO: 'UK National Insurance Number',
-  
+
   // Other countries
   ES_NIF: 'Spanish NIF number',
   ES_NIE: 'Spanish NIE number',
@@ -244,4 +240,3 @@ export const SUPPORTED_PII_ENTITIES = {
 } as const
 
 export type PIIEntityType = keyof typeof SUPPORTED_PII_ENTITIES
-
