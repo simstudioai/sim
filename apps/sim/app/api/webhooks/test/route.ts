@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { webhook } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
 
@@ -13,7 +14,6 @@ export async function GET(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    // Get the webhook ID and provider from the query parameters
     const { searchParams } = new URL(request.url)
     const webhookId = searchParams.get('id')
 
@@ -24,7 +24,6 @@ export async function GET(request: NextRequest) {
 
     logger.debug(`[${requestId}] Testing webhook with ID: ${webhookId}`)
 
-    // Find the webhook in the database
     const webhooks = await db.select().from(webhook).where(eq(webhook.id, webhookId)).limit(1)
 
     if (webhooks.length === 0) {
@@ -36,8 +35,14 @@ export async function GET(request: NextRequest) {
     const provider = foundWebhook.provider || 'generic'
     const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
 
-    // Construct the webhook URL
-    const baseUrl = new URL(request.url).origin
+    if (!env.NEXT_PUBLIC_APP_URL) {
+      logger.error(`[${requestId}] NEXT_PUBLIC_APP_URL not configured, cannot test webhook`)
+      return NextResponse.json(
+        { success: false, error: 'NEXT_PUBLIC_APP_URL must be configured' },
+        { status: 500 }
+      )
+    }
+    const baseUrl = env.NEXT_PUBLIC_APP_URL
     const webhookUrl = `${baseUrl}/api/webhooks/trigger/${foundWebhook.path}`
 
     logger.info(`[${requestId}] Testing webhook for provider: ${provider}`, {
@@ -46,7 +51,6 @@ export async function GET(request: NextRequest) {
       isActive: foundWebhook.isActive,
     })
 
-    // Provider-specific test logic
     switch (provider) {
       case 'whatsapp': {
         const verificationToken = providerConfig.verificationToken
@@ -59,10 +63,8 @@ export async function GET(request: NextRequest) {
           )
         }
 
-        // Generate a test challenge
         const challenge = `test_${Date.now()}`
 
-        // Construct the WhatsApp verification URL
         const whatsappUrl = `${webhookUrl}?hub.mode=subscribe&hub.verify_token=${verificationToken}&hub.challenge=${challenge}`
 
         logger.debug(`[${requestId}] Testing WhatsApp webhook verification`, {
@@ -70,19 +72,16 @@ export async function GET(request: NextRequest) {
           challenge,
         })
 
-        // Make a request to the webhook endpoint
         const response = await fetch(whatsappUrl, {
           headers: {
             'User-Agent': 'facebookplatform/1.0',
           },
         })
 
-        // Get the response details
         const status = response.status
         const contentType = response.headers.get('content-type')
         const responseText = await response.text()
 
-        // Check if the test was successful
         const success = status === 200 && responseText === challenge
 
         if (success) {
@@ -139,7 +138,6 @@ export async function GET(request: NextRequest) {
           )
         }
 
-        // Test the webhook endpoint with a simple message to check if it's reachable
         const testMessage = {
           update_id: 12345,
           message: {
@@ -165,7 +163,6 @@ export async function GET(request: NextRequest) {
           url: webhookUrl,
         })
 
-        // Make a test request to the webhook endpoint
         const response = await fetch(webhookUrl, {
           method: 'POST',
           headers: {
@@ -175,16 +172,12 @@ export async function GET(request: NextRequest) {
           body: JSON.stringify(testMessage),
         })
 
-        // Get the response details
         const status = response.status
         let responseText = ''
         try {
           responseText = await response.text()
-        } catch (_e) {
-          // Ignore if we can't get response text
-        }
+        } catch (_e) {}
 
-        // Consider success if we get a 2xx response
         const success = status >= 200 && status < 300
 
         if (success) {
@@ -196,7 +189,6 @@ export async function GET(request: NextRequest) {
           })
         }
 
-        // Get webhook info from Telegram API
         let webhookInfo = null
         try {
           const webhookInfoUrl = `https://api.telegram.org/bot${botToken}/getWebhookInfo`
@@ -215,7 +207,6 @@ export async function GET(request: NextRequest) {
           logger.warn(`[${requestId}] Failed to get Telegram webhook info`, e)
         }
 
-        // Format the curl command for testing
         const curlCommand = [
           `curl -X POST "${webhookUrl}"`,
           `-H "Content-Type: application/json"`,
@@ -288,16 +279,13 @@ export async function GET(request: NextRequest) {
       }
 
       case 'generic': {
-        // Get the general webhook configuration
         const token = providerConfig.token
         const secretHeaderName = providerConfig.secretHeaderName
         const requireAuth = providerConfig.requireAuth
         const allowedIps = providerConfig.allowedIps
 
-        // Generate sample curl command for testing
         let curlCommand = `curl -X POST "${webhookUrl}" -H "Content-Type: application/json"`
 
-        // Add auth headers to the curl command if required
         if (requireAuth && token) {
           if (secretHeaderName) {
             curlCommand += ` -H "${secretHeaderName}: ${token}"`
@@ -306,7 +294,6 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // Add a sample payload
         curlCommand += ` -d '{"event":"test_event","timestamp":"${new Date().toISOString()}"}'`
 
         logger.info(`[${requestId}] General webhook test successful: ${webhookId}`)
@@ -391,7 +378,6 @@ export async function GET(request: NextRequest) {
         })
       }
 
-      // Add the Airtable test case
       case 'airtable': {
         const baseId = providerConfig.baseId
         const tableId = providerConfig.tableId
@@ -408,7 +394,6 @@ export async function GET(request: NextRequest) {
           )
         }
 
-        // Define a sample payload structure
         const samplePayload = {
           webhook: {
             id: 'whiYOUR_WEBHOOK_ID',
@@ -418,16 +403,15 @@ export async function GET(request: NextRequest) {
           },
           payloadFormat: 'v0',
           actionMetadata: {
-            source: 'tableOrViewChange', // Example source
+            source: 'tableOrViewChange',
             sourceMetadata: {},
           },
           payloads: [
             {
               timestamp: new Date().toISOString(),
-              baseTransactionNumber: Date.now(), // Example transaction number
+              baseTransactionNumber: Date.now(),
               changedTablesById: {
                 [tableId]: {
-                  // Example changes - structure may vary based on actual event
                   changedRecordsById: {
                     recSAMPLEID1: {
                       current: { cellValuesByFieldId: { fldSAMPLEID: 'New Value' } },
@@ -442,7 +426,6 @@ export async function GET(request: NextRequest) {
           ],
         }
 
-        // Generate sample curl command
         let curlCommand = `curl -X POST "${webhookUrl}" -H "Content-Type: application/json"`
         curlCommand += ` -d '${JSON.stringify(samplePayload, null, 2)}'`
 
@@ -519,7 +502,6 @@ export async function GET(request: NextRequest) {
       }
 
       default: {
-        // Generic webhook test
         logger.info(`[${requestId}] Generic webhook test successful: ${webhookId}`)
         return NextResponse.json({
           success: true,
