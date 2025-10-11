@@ -10,6 +10,7 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
+import { formatDisplayText } from '@/components/ui/formatted-text'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -23,9 +24,11 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { TriggerConfig } from '@/triggers/types'
 
 interface TriggerConfigSectionProps {
+  blockId: string
   triggerDef: TriggerConfig
   config: Record<string, any>
   onChange: (fieldId: string, value: any) => void
@@ -34,6 +37,7 @@ interface TriggerConfigSectionProps {
 }
 
 export function TriggerConfigSection({
+  blockId,
   triggerDef,
   config,
   onChange,
@@ -42,6 +46,7 @@ export function TriggerConfigSection({
 }: TriggerConfigSectionProps) {
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({})
   const [copied, setCopied] = useState<string | null>(null)
+  const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
   const copyToClipboard = (text: string, type: string) => {
     navigator.clipboard.writeText(text)
@@ -258,9 +263,20 @@ export function TriggerConfigSection({
                 className={cn(
                   'h-9 rounded-[8px]',
                   isSecret ? 'pr-32' : '',
-                  'focus-visible:ring-2 focus-visible:ring-primary/20'
+                  'focus-visible:ring-2 focus-visible:ring-primary/20',
+                  !isSecret && 'text-transparent caret-foreground'
                 )}
               />
+              {!isSecret && (
+                <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'>
+                  <div className='whitespace-pre'>
+                    {formatDisplayText(value?.toString() || '', {
+                      accessiblePrefixes,
+                      highlightAll: !accessiblePrefixes,
+                    })}
+                  </div>
+                </div>
+              )}
               {isSecret && (
                 <div className='absolute top-0.5 right-0.5 flex h-8 items-center gap-1 pr-1'>
                   <Button

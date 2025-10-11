@@ -1,10 +1,11 @@
 import { readFile } from 'fs/promises'
-import type { NextRequest, NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { downloadFile, getStorageProvider, isUsingCloudStorage } from '@/lib/uploads'
 import { S3_KB_CONFIG } from '@/lib/uploads/setup'
 import '@/lib/uploads/setup.server'
-
 import {
   createErrorResponse,
   createFileResponse,
@@ -15,9 +16,6 @@ import {
 
 const logger = createLogger('FilesServeAPI')
 
-/**
- * Main API route handler for serving files
- */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> }
@@ -31,27 +29,26 @@ export async function GET(
 
     logger.info('File serve request:', { path })
 
-    // Join the path segments to get the filename or cloud key
-    const fullPath = path.join('/')
+    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
 
-    // Check if this is a cloud file (path starts with 's3/' or 'blob/')
+    if (!authResult.success) {
+      logger.warn('Unauthorized file access attempt', { path, error: authResult.error })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const userId = authResult.userId
+    const fullPath = path.join('/')
     const isS3Path = path[0] === 's3'
     const isBlobPath = path[0] === 'blob'
     const isCloudPath = isS3Path || isBlobPath
+    const cloudKey = isCloudPath ? path.slice(1).join('/') : fullPath
 
-    // Use cloud handler if in production, path explicitly specifies cloud storage, or we're using cloud storage
     if (isUsingCloudStorage() || isCloudPath) {
-      // Extract the actual key (remove 's3/' or 'blob/' prefix if present)
-      const cloudKey = isCloudPath ? path.slice(1).join('/') : fullPath
-
-      // Get bucket type from query parameter
       const bucketType = request.nextUrl.searchParams.get('bucket')
-
-      return await handleCloudProxy(cloudKey, bucketType)
+      return await handleCloudProxy(cloudKey, bucketType, userId)
     }
 
-    // Use local handler for local files
-    return await handleLocalFile(fullPath)
+    return await handleLocalFile(fullPath, userId)
   } catch (error) {
     logger.error('Error serving file:', error)
 
@@ -63,10 +60,7 @@ export async function GET(
   }
 }
 
-/**
- * Handle local file serving
- */
-async function handleLocalFile(filename: string): Promise<NextResponse> {
+async function handleLocalFile(filename: string, userId?: string): Promise<NextResponse> {
   try {
     const filePath = findLocalFile(filename)
 
@@ -76,6 +70,8 @@ async function handleLocalFile(filename: string): Promise<NextResponse> {
 
     const fileBuffer = await readFile(filePath)
     const contentType = getContentType(filename)
+
+    logger.info('Local file served', { userId, filename, size: fileBuffer.length })
 
     return createFileResponse({
       buffer: fileBuffer,
@@ -112,12 +108,10 @@ async function downloadKBFile(cloudKey: string): Promise<Buffer> {
   throw new Error(`Unsupported storage provider for KB files: ${storageProvider}`)
 }
 
-/**
- * Proxy cloud file through our server
- */
 async function handleCloudProxy(
   cloudKey: string,
-  bucketType?: string | null
+  bucketType?: string | null,
+  userId?: string
 ): Promise<NextResponse> {
   try {
     // Check if this is a KB file (starts with 'kb/')
@@ -155,6 +149,13 @@ async function handleCloudProxy(
     // Extract the original filename from the key (last part after last /)
     const originalFilename = cloudKey.split('/').pop() || 'download'
     const contentType = getContentType(originalFilename)
+
+    logger.info('Cloud file served', {
+      userId,
+      key: cloudKey,
+      size: fileBuffer.length,
+      bucket: bucketType || 'default',
+    })
 
     return createFileResponse({
       buffer: fileBuffer,

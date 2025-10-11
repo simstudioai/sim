@@ -72,19 +72,17 @@ export function VoiceInput({
 
   if (minimal) {
     return (
-      <motion.button
+      <button
         type='button'
         onClick={handleVoiceClick}
         disabled={disabled}
-        className={`flex items-center justify-center p-1 transition-colors duration-200 ${
-          disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:text-gray-600'
+        className={`flex items-center justify-center rounded-full p-1.5 text-gray-600 transition-colors duration-200 hover:bg-gray-100 md:p-2 ${
+          disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
         }`}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
         title='Start voice conversation'
       >
-        <Mic size={18} className='text-gray-500' />
-      </motion.button>
+        <Mic size={16} className='md:h-5 md:w-5' />
+      </button>
     )
   }
 

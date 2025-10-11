@@ -11,6 +11,7 @@ import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { checkUsageStatus, maybeSendUsageThresholdEmail } from '@/lib/billing/core/usage'
+import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { emitWorkflowExecutionCompleted } from '@/lib/logs/events'
@@ -125,8 +126,17 @@ export class ExecutionLogger implements IExecutionLoggerService {
     }
     finalOutput: BlockOutputData
     traceSpans?: TraceSpan[]
+    workflowInput?: any
   }): Promise<WorkflowExecutionLog> {
-    const { executionId, endedAt, totalDurationMs, costSummary, finalOutput, traceSpans } = params
+    const {
+      executionId,
+      endedAt,
+      totalDurationMs,
+      costSummary,
+      finalOutput,
+      traceSpans,
+      workflowInput,
+    } = params
 
     logger.debug(`Completing workflow execution ${executionId}`)
 
@@ -144,8 +154,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
     const level = hasErrors ? 'error' : 'info'
 
-    // Extract files from trace spans and final output
-    const executionFiles = this.extractFilesFromExecution(traceSpans, finalOutput)
+    // Extract files from trace spans, final output, and workflow input
+    const executionFiles = this.extractFilesFromExecution(traceSpans, finalOutput, workflowInput)
 
     const [updatedLog] = await db
       .update(workflowExecutionLogs)
@@ -441,6 +451,9 @@ export class ExecutionLogger implements IExecutionLoggerService {
         addedCost: costToStore,
         addedTokens: costSummary.totalTokens,
       })
+
+      // Check if user has hit overage threshold and bill incrementally
+      await checkAndBillOverageThreshold(userId)
     } catch (error) {
       logger.error('Error updating user stats with cost information', {
         workflowId,
@@ -452,9 +465,13 @@ export class ExecutionLogger implements IExecutionLoggerService {
   }
 
   /**
-   * Extract file references from execution trace spans and final output
+   * Extract file references from execution trace spans, final output, and workflow input
    */
-  private extractFilesFromExecution(traceSpans?: any[], finalOutput?: any): any[] {
+  private extractFilesFromExecution(
+    traceSpans?: any[],
+    finalOutput?: any,
+    workflowInput?: any
+  ): any[] {
     const files: any[] = []
     const seenFileIds = new Set<string>()
 
@@ -553,6 +570,15 @@ export class ExecutionLogger implements IExecutionLoggerService {
     if (finalOutput) {
       extractFilesFromObject(finalOutput, 'final_output')
     }
+
+    // Extract files from workflow input
+    if (workflowInput) {
+      extractFilesFromObject(workflowInput, 'workflow_input')
+    }
+
+    logger.debug(`Extracted ${files.length} file(s) from execution`, {
+      fileNames: files.map((f) => f.name),
+    })
 
     return files
   }

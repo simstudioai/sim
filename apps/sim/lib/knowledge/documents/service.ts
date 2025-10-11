@@ -17,14 +17,14 @@ import type { DocumentSortField, SortOrder } from './types'
 const logger = createLogger('DocumentService')
 
 const TIMEOUTS = {
-  OVERALL_PROCESSING: (env.KB_CONFIG_MAX_DURATION || 600) * 1000, // Increased to 10 minutes to match Trigger's timeout
+  OVERALL_PROCESSING: (env.KB_CONFIG_MAX_DURATION || 600) * 1000, // Default 10 minutes for KB document processing
   EMBEDDINGS_API: (env.KB_CONFIG_MAX_TIMEOUT || 10000) * 18,
 } as const
 
 // Configuration for handling large documents
 const LARGE_DOC_CONFIG = {
   MAX_CHUNKS_PER_BATCH: 500, // Insert embeddings in batches of 500
-  MAX_EMBEDDING_BATCH: 50, // Generate embeddings in batches of 50
+  MAX_EMBEDDING_BATCH: 500, // Generate embeddings in batches of 500
   MAX_FILE_SIZE: 100 * 1024 * 1024, // 100MB max file size
   MAX_CHUNKS_PER_DOCUMENT: 100000, // Maximum chunks allowed per document
 }

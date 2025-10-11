@@ -123,8 +123,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Create the serve path
-        const servePath = `/api/files/serve/${result.key}`
+        const servePath = result.path
 
         const uploadResult = {
           name: originalName,

@@ -308,6 +308,22 @@ function getSecureFileHeaders(filename: string, originalContentType: string) {
 }
 
 /**
+ * Encode filename for Content-Disposition header to support non-ASCII characters
+ * Uses RFC 5987 encoding for international characters
+ */
+function encodeFilenameForHeader(filename: string): string {
+  const hasNonAscii = /[^\x00-\x7F]/.test(filename)
+
+  if (!hasNonAscii) {
+    return `filename="${filename}"`
+  }
+
+  const encodedFilename = encodeURIComponent(filename)
+  const asciiSafe = filename.replace(/[^\x00-\x7F]/g, '_')
+  return `filename="${asciiSafe}"; filename*=UTF-8''${encodedFilename}`
+}
+
+/**
  * Create a file response with appropriate security headers
  */
 export function createFileResponse(file: FileResponse): NextResponse {
@@ -317,7 +333,7 @@ export function createFileResponse(file: FileResponse): NextResponse {
     status: 200,
     headers: {
       'Content-Type': contentType,
-      'Content-Disposition': `${disposition}; filename="${file.filename}"`,
+      'Content-Disposition': `${disposition}; ${encodeFilenameForHeader(file.filename)}`,
       'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
       'X-Content-Type-Options': 'nosniff',
       'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox;",
