@@ -5,15 +5,13 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { validateMicrosoftGraphId } from '@/lib/security/input-validation'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('OneDriveFolderAPI')
 
-/**
- * Get a single folder from Microsoft OneDrive
- */
 export async function GET(request: NextRequest) {
   const requestId = randomUUID().slice(0, 8)
 
@@ -29,6 +27,11 @@ export async function GET(request: NextRequest) {
 
     if (!credentialId || !fileId) {
       return NextResponse.json({ error: 'Credential ID and File ID are required' }, { status: 400 })
+    }
+
+    const fileIdValidation = validateMicrosoftGraphId(fileId, 'fileId')
+    if (!fileIdValidation.isValid) {
+      return NextResponse.json({ error: fileIdValidation.error }, { status: 400 })
     }
 
     const credentials = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
@@ -65,7 +68,6 @@ export async function GET(request: NextRequest) {
 
     const folder = await response.json()
 
-    // Transform the response to match expected format
     const transformedFolder = {
       id: folder.id,
       name: folder.name,

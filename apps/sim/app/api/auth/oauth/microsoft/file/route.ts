@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { validateMicrosoftGraphId } from '@/lib/security/input-validation'
 import { generateRequestId } from '@/lib/utils'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
@@ -32,6 +33,14 @@ export async function GET(request: NextRequest) {
 
     if (!credentialId || !fileId) {
       return NextResponse.json({ error: 'Credential ID and File ID are required' }, { status: 400 })
+    }
+
+    // Validate fileId to prevent SSRF attacks
+    // Microsoft Graph file IDs can be complex patterns including special characters
+    const fileIdValidation = validateMicrosoftGraphId(fileId, 'fileId')
+    if (!fileIdValidation.isValid) {
+      logger.warn(`[${requestId}] Invalid file ID: ${fileIdValidation.error}`)
+      return NextResponse.json({ error: fileIdValidation.error }, { status: 400 })
     }
 
     // Get the credential from the database

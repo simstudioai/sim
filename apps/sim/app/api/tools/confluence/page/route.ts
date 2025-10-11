@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { validateAlphanumericId, validateJiraCloudId } from '@/lib/security/input-validation'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
 export const dynamic = 'force-dynamic'
@@ -19,8 +20,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Page ID is required' }, { status: 400 })
     }
 
+    // Validate pageId to prevent SSRF attacks
+    const pageIdValidation = validateAlphanumericId(pageId, 'pageId', 255)
+    if (!pageIdValidation.isValid) {
+      return NextResponse.json({ error: pageIdValidation.error }, { status: 400 })
+    }
+
     // Use provided cloudId or fetch it if not provided
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
+
+    // Validate cloudId to prevent SSRF attacks
+    // Confluence uses Atlassian Cloud IDs (similar format to Jira)
+    const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
+    if (!cloudIdValidation.isValid) {
+      return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
+    }
 
     // Build the URL for the Confluence API
     const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}?expand=body.storage,body.view,body.atlas_doc_format`
@@ -103,7 +117,19 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Page ID is required' }, { status: 400 })
     }
 
+    // Validate pageId to prevent SSRF attacks
+    const pageIdValidation = validateAlphanumericId(pageId, 'pageId', 255)
+    if (!pageIdValidation.isValid) {
+      return NextResponse.json({ error: pageIdValidation.error }, { status: 400 })
+    }
+
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
+
+    // Validate cloudId to prevent SSRF attacks
+    const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
+    if (!cloudIdValidation.isValid) {
+      return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
+    }
 
     // First, get the current page to check its version
     const currentPageUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}`

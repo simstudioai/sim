@@ -11,6 +11,7 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { validateUUID } from '@/lib/security/input-validation'
 
 const logger = createLogger('CheckpointRevertAPI')
 
@@ -89,6 +90,14 @@ export async function POST(request: NextRequest) {
       hasDeployedAt: !!cleanedState.deployedAt,
       isDeployed: cleanedState.isDeployed,
     })
+
+    // Validate workflowId to prevent SSRF attacks
+    // WorkflowId should be a UUID
+    const workflowIdValidation = validateUUID(checkpoint.workflowId, 'workflowId')
+    if (!workflowIdValidation.isValid) {
+      logger.error(`[${tracker.requestId}] Invalid workflow ID: ${workflowIdValidation.error}`)
+      return NextResponse.json({ error: 'Invalid workflow ID format' }, { status: 400 })
+    }
 
     const stateResponse = await fetch(
       `${request.nextUrl.origin}/api/workflows/${checkpoint.workflowId}/state`,

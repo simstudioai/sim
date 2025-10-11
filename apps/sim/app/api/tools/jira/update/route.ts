@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
+import { validateJiraCloudId, validateJiraIssueKey } from '@/lib/security/input-validation'
 import { getJiraCloudId } from '@/tools/jira/utils'
 
 export const dynamic = 'force-dynamic'
@@ -13,7 +14,7 @@ export async function PUT(request: Request) {
       accessToken,
       issueKey,
       summary,
-      title, // Support both summary and title for backwards compatibility
+      title,
       description,
       status,
       priority,
@@ -21,7 +22,6 @@ export async function PUT(request: Request) {
       cloudId: providedCloudId,
     } = await request.json()
 
-    // Validate required parameters
     if (!domain) {
       logger.error('Missing domain in request')
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -37,16 +37,23 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Issue key is required' }, { status: 400 })
     }
 
-    // Use provided cloudId or fetch it if not provided
     const cloudId = providedCloudId || (await getJiraCloudId(domain, accessToken))
     logger.info('Using cloud ID:', cloudId)
 
-    // Build the URL using cloudId for Jira API
+    const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
+    if (!cloudIdValidation.isValid) {
+      return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
+    }
+
+    const issueKeyValidation = validateJiraIssueKey(issueKey, 'issueKey')
+    if (!issueKeyValidation.isValid) {
+      return NextResponse.json({ error: issueKeyValidation.error }, { status: 400 })
+    }
+
     const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${issueKey}`
 
     logger.info('Updating Jira issue at:', url)
 
-    // Map the summary from either summary or title field
     const summaryValue = summary || title
     const fields: Record<string, any> = {}
 
@@ -92,7 +99,6 @@ export async function PUT(request: Request) {
 
     const body = { fields }
 
-    // Make the request to Jira API
     const response = await fetch(url, {
       method: 'PUT',
       headers: {
@@ -117,7 +123,6 @@ export async function PUT(request: Request) {
       )
     }
 
-    // Note: Jira update API typically returns 204 No Content on success
     const responseData = response.status === 204 ? {} : await response.json()
     logger.info('Successfully updated Jira issue:', issueKey)
 

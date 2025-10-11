@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { validateEnum, validatePathSegment } from '@/lib/security/input-validation'
 import { generateRequestId } from '@/lib/utils'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
@@ -38,13 +39,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Credential ID and Item ID are required' }, { status: 400 })
     }
 
-    // Validate item type - only handle contacts now
-    if (type !== 'contact') {
-      logger.warn(`[${requestId}] Invalid item type: ${type}`)
-      return NextResponse.json(
-        { error: 'Invalid item type. Only contact is supported.' },
-        { status: 400 }
-      )
+    // Validate item type to prevent SSRF attacks
+    const typeValidation = validateEnum(type, ['contact'] as const, 'type')
+    if (!typeValidation.isValid) {
+      logger.warn(`[${requestId}] Invalid item type: ${typeValidation.error}`)
+      return NextResponse.json({ error: typeValidation.error }, { status: 400 })
+    }
+
+    // Validate itemId to prevent SSRF attacks
+    // Wealthbox item IDs are numeric
+    const itemIdValidation = validatePathSegment(itemId, {
+      paramName: 'itemId',
+      maxLength: 100,
+      allowHyphens: true,
+      allowUnderscores: true,
+      allowDots: false,
+    })
+    if (!itemIdValidation.isValid) {
+      logger.warn(`[${requestId}] Invalid item ID: ${itemIdValidation.error}`)
+      return NextResponse.json({ error: itemIdValidation.error }, { status: 400 })
     }
 
     // Get the credential from the database

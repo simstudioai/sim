@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
+import { validateNumericId } from '@/lib/security/input-validation'
 
 interface DiscordServer {
   id: string
@@ -22,6 +23,14 @@ export async function POST(request: Request) {
 
     // If serverId is provided, we'll fetch just that server
     if (serverId) {
+      // Validate serverId to prevent SSRF attacks
+      // Discord IDs are numeric snowflakes
+      const serverIdValidation = validateNumericId(serverId, 'serverId')
+      if (!serverIdValidation.isValid) {
+        logger.error(`Invalid server ID: ${serverIdValidation.error}`)
+        return NextResponse.json({ error: serverIdValidation.error }, { status: 400 })
+      }
+
       logger.info(`Fetching single Discord server: ${serverId}`)
 
       // Fetch a specific server by ID

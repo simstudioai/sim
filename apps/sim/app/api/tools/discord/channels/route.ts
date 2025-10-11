@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
+import { validateNumericId } from '@/lib/security/input-validation'
 
 interface DiscordChannel {
   id: string
@@ -26,8 +27,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Server ID is required' }, { status: 400 })
     }
 
-    // If channelId is provided, we'll fetch just that specific channel
+    // Validate serverId to prevent SSRF attacks
+    // Discord IDs are numeric snowflakes
+    const serverIdValidation = validateNumericId(serverId, 'serverId')
+    if (!serverIdValidation.isValid) {
+      logger.error(`Invalid server ID: ${serverIdValidation.error}`)
+      return NextResponse.json({ error: serverIdValidation.error }, { status: 400 })
+    }
+
+    // If channelId is provided, validate and fetch it
     if (channelId) {
+      // Validate channelId to prevent SSRF attacks
+      const channelIdValidation = validateNumericId(channelId, 'channelId')
+      if (!channelIdValidation.isValid) {
+        logger.error(`Invalid channel ID: ${channelIdValidation.error}`)
+        return NextResponse.json({ error: channelIdValidation.error }, { status: 400 })
+      }
+
       logger.info(`Fetching single Discord channel: ${channelId}`)
 
       // Fetch a specific channel by ID

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
+import { validateAlphanumericId } from '@/lib/security/input-validation'
 import { uploadFile } from '@/lib/uploads/storage-client'
 import { getBaseUrl } from '@/lib/urls/utils'
 
@@ -12,6 +13,14 @@ export async function POST(request: Request) {
 
     if (!text || !voiceId || !apiKey) {
       return new NextResponse('Missing required parameters', { status: 400 })
+    }
+
+    // Validate voiceId to prevent SSRF attacks
+    // ElevenLabs voice IDs are alphanumeric strings
+    const voiceIdValidation = validateAlphanumericId(voiceId, 'voiceId', 255)
+    if (!voiceIdValidation.isValid) {
+      logger.error(`Invalid voice ID: ${voiceIdValidation.error}`)
+      return new NextResponse(voiceIdValidation.error, { status: 400 })
     }
 
     logger.info('Proxying TTS request for voice:', voiceId)

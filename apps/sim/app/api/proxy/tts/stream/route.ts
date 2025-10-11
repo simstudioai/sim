@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { validateAlphanumericId } from '@/lib/security/input-validation'
 
 const logger = createLogger('ProxyTTSStreamAPI')
 
@@ -11,6 +12,14 @@ export async function POST(request: NextRequest) {
 
     if (!text || !voiceId) {
       return new Response('Missing required parameters', { status: 400 })
+    }
+
+    // Validate voiceId to prevent SSRF attacks
+    // ElevenLabs voice IDs are alphanumeric strings
+    const voiceIdValidation = validateAlphanumericId(voiceId, 'voiceId', 255)
+    if (!voiceIdValidation.isValid) {
+      logger.error(`Invalid voice ID: ${voiceIdValidation.error}`)
+      return new Response(voiceIdValidation.error, { status: 400 })
     }
 
     const apiKey = env.ELEVENLABS_API_KEY

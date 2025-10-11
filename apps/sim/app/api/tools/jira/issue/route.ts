@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
+import { validateJiraCloudId, validateJiraIssueKey } from '@/lib/security/input-validation'
 import { getJiraCloudId } from '@/tools/jira/utils'
 
 export const dynamic = 'force-dynamic'
@@ -9,7 +10,6 @@ const logger = createLogger('JiraIssueAPI')
 export async function POST(request: Request) {
   try {
     const { domain, accessToken, issueId, cloudId: providedCloudId } = await request.json()
-    // Add detailed request logging
     if (!domain) {
       logger.error('Missing domain in request')
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -25,16 +25,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Issue ID is required' }, { status: 400 })
     }
 
-    // Use provided cloudId or fetch it if not provided
     const cloudId = providedCloudId || (await getJiraCloudId(domain, accessToken))
     logger.info('Using cloud ID:', cloudId)
 
-    // Build the URL using cloudId for Jira API
+    const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
+    if (!cloudIdValidation.isValid) {
+      return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
+    }
+
+    const issueIdValidation = validateJiraIssueKey(issueId, 'issueId')
+    if (!issueIdValidation.isValid) {
+      return NextResponse.json({ error: issueIdValidation.error }, { status: 400 })
+    }
+
     const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${issueId}`
 
     logger.info('Fetching Jira issue from:', url)
 
-    // Make the request to Jira API
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -63,7 +70,6 @@ export async function POST(request: Request) {
     const data = await response.json()
     logger.info('Successfully fetched issue:', data.key)
 
-    // Transform the Jira issue data into our expected format
     const issueInfo: any = {
       id: data.key,
       name: data.fields.summary,
@@ -71,7 +77,6 @@ export async function POST(request: Request) {
       url: `https://${domain}/browse/${data.key}`,
       modifiedTime: data.fields.updated,
       webViewLink: `https://${domain}/browse/${data.key}`,
-      // Add additional fields that might be needed for the workflow
       status: data.fields.status?.name,
       description: data.fields.description,
       priority: data.fields.priority?.name,
@@ -85,11 +90,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       issue: issueInfo,
-      cloudId, // Return the cloudId so it can be cached
+      cloudId,
     })
   } catch (error) {
     logger.error('Error processing request:', error)
-    // Add more context to the error response
     return NextResponse.json(
       {
         error: 'Failed to retrieve Jira issue',
