@@ -14,14 +14,14 @@ const logger = createLogger('TeamsSubscriptionRenewal')
  */
 export const renewTeamsSubscriptions = task({
   id: 'renew-teams-subscriptions',
-  // Run every 2 days to catch subscriptions that expire in ~3 days
+  // Job typically runs every 2 days; use a 48h renewal window so subs don't expire between runs
   run: async (_payload: Record<string, never>) => {
     logger.info('Starting Teams subscription renewal job')
 
     try {
       // Find all Microsoft Teams webhooks with chat subscriptions that expire soon
-      // Check for subscriptions expiring within the next 24 hours
-      const expirationThreshold = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      // Check for subscriptions expiring within the next 48 hours to align with a 2-day cadence
+      const expirationThreshold = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
 
       const webhooksWithWorkflows = await db
         .select({
