@@ -17,7 +17,7 @@ export const updateTool: ToolConfig<SupabaseUpdateParams, SupabaseUpdateResponse
     table: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'The name of the Supabase table to update',
     },
     filter: {
@@ -35,7 +35,7 @@ export const updateTool: ToolConfig<SupabaseUpdateParams, SupabaseUpdateResponse
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Your Supabase service role secret key',
     },
   },

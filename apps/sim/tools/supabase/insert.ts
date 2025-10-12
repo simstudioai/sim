@@ -17,7 +17,7 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
     table: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'The name of the Supabase table to insert data into',
     },
     data: {
@@ -29,7 +29,7 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Your Supabase service role secret key',
     },
   },
