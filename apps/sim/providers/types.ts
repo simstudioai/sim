@@ -9,6 +9,7 @@ export type ProviderId =
   | 'xai'
   | 'cerebras'
   | 'groq'
+  | 'mistral'
   | 'ollama'
   | 'openrouter'
 

@@ -337,21 +337,21 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
     },
   },
   outputs: {
-    passed: {
-      type: 'boolean',
-      description: 'Whether validation passed (true/false)',
+    input: {
+      type: 'string',
+      description: 'Original input that was validated',
+    },
+    maskedText: {
+      type: 'string',
+      description: 'Text with PII masked (only for PII detection in mask mode)',
     },
     validationType: {
       type: 'string',
       description: 'Type of validation performed',
     },
-    input: {
-      type: 'string',
-      description: 'Original input that was validated',
-    },
-    error: {
-      type: 'string',
-      description: 'Error message if validation failed',
+    passed: {
+      type: 'boolean',
+      description: 'Whether validation passed (true/false)',
     },
     score: {
       type: 'number',
@@ -366,9 +366,9 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
       type: 'array',
       description: 'Detected PII entities (only for PII detection)',
     },
-    maskedText: {
+    error: {
       type: 'string',
-      description: 'Text with PII masked (only for PII detection in mask mode)',
+      description: 'Error message if validation failed',
     },
   },
 }

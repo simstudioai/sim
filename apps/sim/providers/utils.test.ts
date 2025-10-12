@@ -248,6 +248,7 @@ describe('Model Capabilities', () => {
       const supportedProviders = [
         'openai',
         'azure-openai',
+        'mistral',
         'anthropic',
         'deepseek',
         'xai',

@@ -662,6 +662,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       const accessibleBlock = blocks[accessibleBlockId]
       if (!accessibleBlock) continue
 
+      // Skip the current block - blocks cannot reference their own outputs
+      if (accessibleBlockId === blockId) continue
+
       const blockConfig = getBlock(accessibleBlock.type)
 
       if (!blockConfig) {

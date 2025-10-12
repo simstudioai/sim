@@ -6,6 +6,7 @@ import { cerebrasProvider } from '@/providers/cerebras'
 import { deepseekProvider } from '@/providers/deepseek'
 import { googleProvider } from '@/providers/google'
 import { groqProvider } from '@/providers/groq'
+import { mistralProvider } from '@/providers/mistral'
 import {
   getComputerUseModels,
   getEmbeddingModelPricing,
@@ -83,6 +84,11 @@ export const providers: Record<
     ...groqProvider,
     models: getProviderModelsFromDefinitions('groq'),
     modelPatterns: PROVIDER_DEFINITIONS.groq.modelPatterns,
+  },
+  mistral: {
+    ...mistralProvider,
+    models: getProviderModelsFromDefinitions('mistral'),
+    modelPatterns: PROVIDER_DEFINITIONS.mistral.modelPatterns,
   },
   'azure-openai': {
     ...azureOpenAIProvider,

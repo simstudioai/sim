@@ -41,6 +41,11 @@ export const TOKENIZATION_CONFIG = {
       confidence: 'medium',
       supportedMethods: ['heuristic', 'fallback'],
     },
+    mistral: {
+      avgCharsPerToken: 4,
+      confidence: 'medium',
+      supportedMethods: ['heuristic', 'fallback'],
+    },
     groq: {
       avgCharsPerToken: 4,
       confidence: 'medium',
