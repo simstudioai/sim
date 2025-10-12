@@ -43,8 +43,8 @@ export async function createMicrosoftTeamsChatSubscription(
       if (listResponse.ok) {
         const data = await listResponse.json()
         const allSubscriptions = data.value || []
-        const chatSubscriptions = allSubscriptions.filter((sub: any) =>
-          sub.resource?.includes('/chats/') && sub.clientState === webhookData.id
+        const chatSubscriptions = allSubscriptions.filter(
+          (sub: any) => sub.resource?.includes('/chats/') && sub.clientState === webhookData.id
         )
 
         for (const sub of chatSubscriptions) {
