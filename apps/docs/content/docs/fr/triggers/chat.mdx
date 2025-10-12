@@ -24,20 +24,31 @@ Le déclencheur de chat crée une interface conversationnelle pour votre flux de
 
 Le déclencheur écrit trois champs que les blocs en aval peuvent référencer :
 
-| Référence | Description |
-|-----------|-------------|
-| `<chat.input>` | Dernier message de l'utilisateur |
-| `<chat.conversationId>` | ID du fil de conversation |
-| `<chat.files>` | Fichiers téléchargés optionnels |
+| Référence | Description | Type |
+|-----------|-------------|------|
+| `<chat.input>` | Dernier message de l'utilisateur | string |
+| `<chat.conversationId>` | ID du fil de conversation | string |
+| `<chat.files>` | Fichiers téléchargés optionnels | tableau de fichiers |
 
-Les fichiers incluent `name`, `mimeType`, et un `url` signé.
+### Propriétés des fichiers
+
+Accédez aux propriétés individuelles des fichiers en utilisant l'indexation de tableau :
+
+| Propriété | Description | Type |
+|----------|-------------|------|
+| `<chat.files[0].url>` | URL de téléchargement signée | string |
+| `<chat.files[0].name>` | Nom de fichier original | string |
+| `<chat.files[0].size>` | Taille du fichier en octets | number |
+| `<chat.files[0].type>` | Type MIME | string |
+| `<chat.files[0].uploadedAt>` | Horodatage du téléchargement (ISO 8601) | string |
+| `<chat.files[0].expiresAt>` | Horodatage d'expiration de l'URL (ISO 8601) | string |
 
 ## Notes d'utilisation
 
-1. Ajoutez un bloc Déclencheur de chat par flux de travail.
-2. Déployez le flux de travail en mode chat.
-3. Partagez le lien de déploiement — chaque réponse réutilise l'ID de conversation pour que le flux de travail puisse conserver le contexte.
+1. Ajoutez un bloc Déclencheur de chat par workflow.
+2. Déployez le workflow en mode chat.
+3. Partagez le lien de déploiement — chaque réponse réutilise l'ID de conversation pour que le workflow puisse conserver le contexte.
 
 <Callout type="info">
-Le constructeur bloque plusieurs blocs Déclencheur de chat dans le même flux de travail.
+Le constructeur bloque plusieurs blocs Déclencheur de chat dans le même workflow.
 </Callout>

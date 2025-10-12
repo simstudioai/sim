@@ -604,28 +604,114 @@ async function executeClientSideWorkflow() {
     });
 
     console.log('Workflow result:', result);
-    
+
     // Update UI with result
-    document.getElementById('result')!.textContent = 
+    document.getElementById('result')!.textContent =
       JSON.stringify(result.output, null, 2);
   } catch (error) {
     console.error('Error:', error);
   }
 }
+```
 
-// Attach to button click
+### Datei-Upload
+
+Dateiobjekte werden automatisch erkannt und in das base64-Format konvertiert. Fügen Sie sie in Ihrer Eingabe unter dem Feldnamen ein, der dem API-Trigger-Eingabeformat Ihres Workflows entspricht.
+
+Das SDK konvertiert Dateiobjekte in dieses Format:
+
+```typescript
+{
+  type: 'file',
+  data: 'data:mime/type;base64,base64data',
+  name: 'filename',
+  mime: 'mime/type'
+}
+```
+
+Alternativ können Sie Dateien manuell im URL-Format bereitstellen:
+
+```typescript
+{
+  type: 'url',
+  data: 'https://example.com/file.pdf',
+  name: 'file.pdf',
+  mime: 'application/pdf'
+}
+```
+
+<Tabs items={['Browser', 'Node.js']}>
+  <Tab value="Browser">
+
+    ```typescript
+    import { SimStudioClient } from 'simstudio-ts-sdk';
+
+    const client = new SimStudioClient({
+      apiKey: process.env.NEXT_PUBLIC_SIM_API_KEY!
+    });
+
+    // From file input
+    async function handleFileUpload(event: Event) {
+      const input = event.target as HTMLInputElement;
+      const files = Array.from(input.files || []);
+
+      // Include files under the field name from your API trigger's input format
+      const result = await client.executeWorkflow('workflow-id', {
+        input: {
+          documents: files,  // Must match your workflow's "files" field name
+          instructions: 'Analyze these documents'
+        }
+      });
+
+      console.log('Result:', result);
+    }
+    ```
+
+  </Tab>
+  <Tab value="Node.js">
+
+    ```typescript
+    import { SimStudioClient } from 'simstudio-ts-sdk';
+    import fs from 'fs';
+
+    const client = new SimStudioClient({
+      apiKey: process.env.SIM_API_KEY!
+    });
+
+    // Read file and create File object
+    const fileBuffer = fs.readFileSync('./document.pdf');
+    const file = new File([fileBuffer], 'document.pdf', {
+      type: 'application/pdf'
+    });
+
+    // Include files under the field name from your API trigger's input format
+    const result = await client.executeWorkflow('workflow-id', {
+      input: {
+        documents: [file],  // Must match your workflow's "files" field name
+        query: 'Summarize this document'
+      }
+    });
+    ```
+
+  </Tab>
+</Tabs>
+
+// An Button-Klick anhängen
 document.getElementById('executeBtn')?.addEventListener('click', executeClientSideWorkflow);
+
 ```
 
 <Callout type="warning">
-  Bei der Verwendung des SDK im Browser sollten Sie darauf achten, keine sensiblen API-Schlüssel offenzulegen. Erwägen Sie die Verwendung eines Backend-Proxys oder öffentlicher API-Schlüssel mit eingeschränkten Berechtigungen.
+  When using the SDK in the browser, be careful not to expose sensitive API keys. Consider using a backend proxy or public API keys with limited permissions.
 </Callout>
 
-### React Hook-Beispiel
+### React Hook Example
 
-Erstellen eines benutzerdefinierten React-Hooks für die Workflow-Ausführung:
+Create a custom React hook for workflow execution:
 
-```typescript
+```
+
+typescript
 import { useState, useCallback } from 'react';
 import { SimStudioClient, WorkflowExecutionResult } from 'simstudio-ts-sdk';
 
@@ -671,7 +757,7 @@ export function useWorkflow(): UseWorkflowResult {
   };
 }
 
-// Usage in component
+// Verwendung in Komponente
 function WorkflowComponent() {
   const { result, loading, error, executeWorkflow } = useWorkflow();
 
@@ -684,26 +770,29 @@ function WorkflowComponent() {
   return (
     <div>
       <button onClick={handleExecute} disabled={loading}>
-        {loading ? 'Executing...' : 'Execute Workflow'}
+        {loading ? 'Wird ausgeführt...' : 'Workflow ausführen'}
       </button>
 
-      {error && <div>Error: {error.message}</div>}
+      {error && <div>Fehler: {error.message}</div>}
       {result && (
         <div>
-          <h3>Result:</h3>
+          <h3>Ergebnis:</h3>
           <pre>{JSON.stringify(result, null, 2)}</pre>
         </div>
       )}
     </div>
   );
 }
+
 ```
 
-### Asynchrone Workflow-Ausführung
+### Async Workflow Execution
 
-Führen Sie Workflows asynchron für lang laufende Aufgaben aus:
+Execute workflows asynchronously for long-running tasks:
 
-```typescript
+```
+
+typescript
 import { SimStudioClient, AsyncExecutionResult } from 'simstudio-ts-sdk';
 
 const client = new SimStudioClient({
@@ -712,47 +801,50 @@ const client = new SimStudioClient({
 
 async function executeAsync() {
   try {
-    // Start async execution
+    // Starte asynchrone Ausführung
     const result = await client.executeWorkflow('workflow-id', {
       input: { data: 'large dataset' },
-      async: true  // Execute asynchronously
+      async: true  // Asynchron ausführen
     });
 
-    // Check if result is an async execution
+    // Prüfe, ob das Ergebnis eine asynchrone Ausführung ist
     if ('taskId' in result) {
       console.log('Task ID:', result.taskId);
-      console.log('Status endpoint:', result.links.status);
+      console.log('Status-Endpunkt:', result.links.status);
 
-      // Poll for completion
+      // Abfragen bis zur Fertigstellung
       let status = await client.getJobStatus(result.taskId);
 
       while (status.status === 'queued' || status.status === 'processing') {
-        console.log('Current status:', status.status);
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+        console.log('Aktueller Status:', status.status);
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Warte 2 Sekunden
         status = await client.getJobStatus(result.taskId);
       }
 
       if (status.status === 'completed') {
-        console.log('Workflow completed!');
-        console.log('Output:', status.output);
-        console.log('Duration:', status.metadata.duration);
+        console.log('Workflow abgeschlossen!');
+        console.log('Ausgabe:', status.output);
+        console.log('Dauer:', status.metadata.duration);
       } else {
-        console.error('Workflow failed:', status.error);
+        console.error('Workflow fehlgeschlagen:', status.error);
       }
     }
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Fehler:', error);
   }
 }
 
 executeAsync();
+
 ```
 
-### Rate-Limiting und Wiederholungsversuche
+### Rate Limiting and Retry
 
-Automatische Behandlung von Rate-Limits mit exponentiellem Backoff:
+Handle rate limits automatically with exponential backoff:
 
-```typescript
+```
+
+typescript
 import { SimStudioClient, SimStudioError } from 'simstudio-ts-sdk';
 
 const client = new SimStudioClient({
@@ -761,7 +853,7 @@ const client = new SimStudioClient({
 
 async function executeWithRetryHandling() {
   try {
-    // Automatically retries on rate limit
+    // Automatische Wiederholungsversuche bei Rate-Limit
     const result = await client.executeWithRetry('workflow-id', {
       input: { message: 'Process this' }
     }, {
@@ -771,26 +863,29 @@ async function executeWithRetryHandling() {
       backoffMultiplier: 2
     });
 
-    console.log('Success:', result);
+    console.log('Erfolg:', result);
   } catch (error) {
     if (error instanceof SimStudioError && error.code === 'RATE_LIMIT_EXCEEDED') {
-      console.error('Rate limit exceeded after all retries');
+      console.error('Rate-Limit nach allen Wiederholungsversuchen überschritten');
 
-      // Check rate limit info
+      // Rate-Limit-Informationen prüfen
       const rateLimitInfo = client.getRateLimitInfo();
       if (rateLimitInfo) {
-        console.log('Rate limit resets at:', new Date(rateLimitInfo.reset * 1000));
+        console.log('Rate-Limit wird zurückgesetzt um:', new Date(rateLimitInfo.reset * 1000));
       }
     }
   }
 }
+
 ```
 
-### Nutzungsüberwachung
+### Usage Monitoring
 
-Überwachen Sie Ihre Kontonutzung und -limits:
+Monitor your account usage and limits:
 
-```typescript
+```
+
+typescript
 import { SimStudioClient } from 'simstudio-ts-sdk';
 
 const client = new SimStudioClient({
@@ -802,26 +897,45 @@ async function checkUsage() {
     const limits = await client.getUsageLimits();
 
     console.log('=== Rate Limits ===');
-    console.log('Sync requests:');
+    console.log('Synchrone Anfragen:');
     console.log('  Limit:', limits.rateLimit.sync.limit);
-    console.log('  Remaining:', limits.rateLimit.sync.remaining);
-    console.log('  Resets at:', limits.rateLimit.sync.resetAt);
-    console.log('  Is limited:', limits.rateLimit.sync.isLimited);
+    console.log('  Verbleibend:', limits.rateLimit.sync.remaining);
+    console.log('  Zurückgesetzt um:', limits.rateLimit.sync.resetAt);
+    console.log('  Ist limitiert:', limits.rateLimit.sync.isLimited);
 
-    console.log('\nAsync requests:');
+    console.log('\nAsynchrone Anfragen:');
     console.log('  Limit:', limits.rateLimit.async.limit);
-    console.log('  Remaining:', limits.rateLimit.async.remaining);
-    console.log('  Resets at:', limits.rateLimit.async.resetAt);
-    console.log('  Is limited:', limits.rateLimit.async.isLimited);
+    console.log('  Verbleibend:', limits.rateLimit.async.remaining);
+    console.log('  Zurückgesetzt um:', limits.rateLimit.async.resetAt);
+    console.log('  Ist limitiert:', limits.rateLimit.async.isLimited);
 
-    console.log('\n=== Usage ===');
-    console.log('Current period cost: 
+    console.log('\n=== Nutzung ===');
+    console.log('Kosten der aktuellen Periode: $' + limits.usage.currentPeriodCost.toFixed(2));
+    console.log('Limit: $' + limits.usage.limit.toFixed(2));
+    console.log('Plan:', limits.usage.plan);
+
+    const percentUsed = (limits.usage.currentPeriodCost / limits.usage.limit) * 100;
+    console.log('Nutzung: ' + percentUsed.toFixed(1) + '%');
+
+    if (percentUsed > 80) {
+      console.warn('⚠️  Warnung: Sie nähern sich Ihrem Nutzungslimit!');
+    }
+  } catch (error) {
+    console.error('Fehler bei der Überprüfung der Nutzung:', error);
+  }
+}
+
+checkUsage();
+
+```
 
 ### Streaming Workflow Execution
 
 Execute workflows with real-time streaming responses:
 
-```typescript
+```
+
+typescript
 import { SimStudioClient } from 'simstudio-ts-sdk';
 
 const client = new SimStudioClient({
@@ -830,11 +944,11 @@ const client = new SimStudioClient({
 
 async function executeWithStreaming() {
   try {
-    // Streaming für bestimmte Block-Ausgaben aktivieren
+    // Streaming für bestimmte Block-Outputs aktivieren
     const result = await client.executeWorkflow('workflow-id', {
-      input: { message: 'Count to five' },
+      input: { message: 'Zähle bis fünf' },
       stream: true,
-      selectedOutputs: ['agent1.content'] // Format blockName.attribute verwenden
+      selectedOutputs: ['agent1.content'] // Verwende blockName.attribute Format
     });
 
     console.log('Workflow-Ergebnis:', result);
@@ -842,23 +956,28 @@ async function executeWithStreaming() {
     console.error('Fehler:', error);
   }
 }
+
 ```
 
 The streaming response follows the Server-Sent Events (SSE) format:
 
 ```
-data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":"One"}
+
+data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":"Eins"}
 
 data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":", zwei"}
 
 data: {"event":"done","success":true,"output":{},"metadata":{"duration":610}}
 
 data: [DONE]
+
 ```
 
 **React Streaming Example:**
 
-```typescript
+```
+
+typescript
 import { useState, useEffect } from 'react';
 
 function StreamingWorkflow() {
@@ -878,7 +997,7 @@ function StreamingWorkflow() {
         'X-API-Key': process.env.SIM_API_KEY! // Nur serverseitige Umgebungsvariable
       },
       body: JSON.stringify({
-        message: 'Generate a story',
+        message: 'Generiere eine Geschichte',
         stream: true,
         selectedOutputs: ['agent1.content']
       })
@@ -920,12 +1039,13 @@ function StreamingWorkflow() {
   return (
     <div>
       <button onClick={executeStreaming} disabled={loading}>
-        {loading ? 'Generiere...' : 'Streaming starten'}
+        {loading ? 'Wird generiert...' : 'Streaming starten'}
       </button>
       <div style={{ whiteSpace: 'pre-wrap' }}>{output}</div>
     </div>
   );
 }
+
 ```
 
 ## Getting Your API Key
@@ -961,7 +1081,9 @@ function StreamingWorkflow() {
 
 The SDK is written in TypeScript and provides full type safety:
 
-```typescript
+```
+
+typescript
 import { 
   SimStudioClient, 
   WorkflowExecutionResult, 
@@ -977,7 +1099,7 @@ const client: SimStudioClient = new SimStudioClient({
 // Typsichere Workflow-Ausführung
 const result: WorkflowExecutionResult = await client.executeWorkflow('workflow-id', {
   input: {
-    message: 'Hello, TypeScript!'
+    message: 'Hallo, TypeScript!'
   }
 });
 
@@ -985,6 +1107,6 @@ const result: WorkflowExecutionResult = await client.executeWorkflow('workflow-i
 const status: WorkflowStatus = await client.getWorkflowStatus('workflow-id');
 ```
 
-## License
+## Lizenz
 
 Apache-2.0
