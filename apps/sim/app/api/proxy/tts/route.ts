@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
+import { validateAlphanumericId } from '@/lib/security/input-validation'
 import { uploadFile } from '@/lib/uploads/storage-client'
 import { getBaseUrl } from '@/lib/urls/utils'
 
@@ -12,6 +13,12 @@ export async function POST(request: Request) {
 
     if (!text || !voiceId || !apiKey) {
       return new NextResponse('Missing required parameters', { status: 400 })
+    }
+
+    const voiceIdValidation = validateAlphanumericId(voiceId, 'voiceId', 255)
+    if (!voiceIdValidation.isValid) {
+      logger.error(`Invalid voice ID: ${voiceIdValidation.error}`)
+      return new NextResponse(voiceIdValidation.error, { status: 400 })
     }
 
     logger.info('Proxying TTS request for voice:', voiceId)
@@ -46,13 +53,11 @@ export async function POST(request: Request) {
       return new NextResponse('Empty audio received', { status: 422 })
     }
 
-    // Upload the audio file to storage and return multiple URL options
     const audioBuffer = Buffer.from(await audioBlob.arrayBuffer())
     const timestamp = Date.now()
     const fileName = `elevenlabs-tts-${timestamp}.mp3`
     const fileInfo = await uploadFile(audioBuffer, fileName, 'audio/mpeg')
 
-    // Generate the full URL for external use using the configured base URL
     const audioUrl = `${getBaseUrl()}${fileInfo.path}`
 
     return NextResponse.json({

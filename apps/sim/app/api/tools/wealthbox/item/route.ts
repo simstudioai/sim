@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { validateEnum, validatePathSegment } from '@/lib/security/input-validation'
 import { generateRequestId } from '@/lib/utils'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
@@ -11,23 +12,17 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('WealthboxItemAPI')
 
-/**
- * Get a single item (note, contact, task) from Wealthbox
- */
 export async function GET(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    // Get the session
     const session = await getSession()
 
-    // Check if the user is authenticated
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthenticated request rejected`)
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }
 
-    // Get parameters from query
     const { searchParams } = new URL(request.url)
     const credentialId = searchParams.get('credentialId')
     const itemId = searchParams.get('itemId')
@@ -38,13 +33,37 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Credential ID and Item ID are required' }, { status: 400 })
     }
 
-    // Validate item type
-    if (!['note', 'contact', 'task'].includes(type)) {
+    const ALLOWED_TYPES = ['note', 'contact', 'task'] as const
+    const typeValidation = validateEnum(type, ALLOWED_TYPES, 'type')
+    if (!typeValidation.isValid) {
       logger.warn(`[${requestId}] Invalid item type: ${type}`)
-      return NextResponse.json({ error: 'Invalid item type' }, { status: 400 })
+      return NextResponse.json({ error: typeValidation.error }, { status: 400 })
     }
 
-    // Get the credential from the database
+    const itemIdValidation = validatePathSegment(itemId, {
+      paramName: 'itemId',
+      maxLength: 100,
+      allowHyphens: true,
+      allowUnderscores: true,
+      allowDots: false,
+    })
+    if (!itemIdValidation.isValid) {
+      logger.warn(`[${requestId}] Invalid itemId format: ${itemId}`)
+      return NextResponse.json({ error: itemIdValidation.error }, { status: 400 })
+    }
+
+    const credentialIdValidation = validatePathSegment(credentialId, {
+      paramName: 'credentialId',
+      maxLength: 100,
+      allowHyphens: true,
+      allowUnderscores: true,
+      allowDots: false,
+    })
+    if (!credentialIdValidation.isValid) {
+      logger.warn(`[${requestId}] Invalid credentialId format: ${credentialId}`)
+      return NextResponse.json({ error: credentialIdValidation.error }, { status: 400 })
+    }
+
     const credentials = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
 
     if (!credentials.length) {
@@ -54,7 +73,6 @@ export async function GET(request: NextRequest) {
 
     const credential = credentials[0]
 
-    // Check if the credential belongs to the user
     if (credential.userId !== session.user.id) {
       logger.warn(`[${requestId}] Unauthorized credential access attempt`, {
         credentialUserId: credential.userId,
@@ -63,7 +81,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
-    // Refresh access token if needed
     const accessToken = await refreshAccessTokenIfNeeded(credentialId, session.user.id, requestId)
 
     if (!accessToken) {
@@ -71,7 +88,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })
     }
 
-    // Determine the endpoint based on item type
     const endpoints = {
       note: 'notes',
       contact: 'contacts',
@@ -81,7 +97,6 @@ export async function GET(request: NextRequest) {
 
     logger.info(`[${requestId}] Fetching ${type} ${itemId} from Wealthbox`)
 
-    // Make request to Wealthbox API
     const response = await fetch(`https://api.crmworkspace.com/v1/${endpoint}/${itemId}`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -112,7 +127,6 @@ export async function GET(request: NextRequest) {
 
     const data = await response.json()
 
-    // Transform the response to match our expected format
     const item = {
       id: data.id?.toString() || itemId,
       name:

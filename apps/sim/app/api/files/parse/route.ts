@@ -6,6 +6,7 @@ import binaryExtensionsList from 'binary-extensions'
 import { type NextRequest, NextResponse } from 'next/server'
 import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
 import { createLogger } from '@/lib/logs/console/logger'
+import { validateExternalUrl } from '@/lib/security/input-validation'
 import { downloadFile, isUsingCloudStorage } from '@/lib/uploads'
 import { UPLOAD_DIR_SERVER } from '@/lib/uploads/setup.server'
 import '@/lib/uploads/setup.server'
@@ -219,6 +220,16 @@ function validateFilePath(filePath: string): { isValid: boolean; error?: string 
 async function handleExternalUrl(url: string, fileType?: string): Promise<ParseResult> {
   try {
     logger.info('Fetching external URL:', url)
+
+    const urlValidation = validateExternalUrl(url, 'fileUrl')
+    if (!urlValidation.isValid) {
+      logger.warn(`Blocked external URL request: ${urlValidation.error}`)
+      return {
+        success: false,
+        error: urlValidation.error || 'Invalid external URL',
+        filePath: url,
+      }
+    }
 
     const response = await fetch(url, {
       signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),

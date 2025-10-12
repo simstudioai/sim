@@ -46,7 +46,6 @@ export const confluenceRetrieveTool: ToolConfig<
 
   request: {
     url: (params: ConfluenceRetrieveParams) => {
-      // Instead of calling Confluence API directly, use your API route
       return '/api/tools/confluence/page'
     },
     method: 'POST',

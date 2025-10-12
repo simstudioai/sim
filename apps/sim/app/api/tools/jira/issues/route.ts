@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
+import { validateAlphanumericId, validateJiraCloudId } from '@/lib/security/input-validation'
 import { getJiraCloudId } from '@/tools/jira/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('JiraIssuesAPI')
 
-// Helper functions
 const createErrorResponse = async (response: Response, defaultMessage: string) => {
   try {
     const errorData = await response.json()
@@ -38,13 +38,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ issues: [] })
     }
 
-    // Use provided cloudId or fetch it if not provided
     const cloudId = providedCloudId || (await getJiraCloudId(domain!, accessToken!))
 
-    // Build the URL using cloudId for Jira API
+    const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
+    if (!cloudIdValidation.isValid) {
+      return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
+    }
+
     const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/bulkfetch`
 
-    // Prepare the request body for bulk fetch
     const requestBody = {
       expand: ['names'],
       fields: ['summary', 'status', 'assignee', 'updated', 'project'],
@@ -53,7 +55,6 @@ export async function POST(request: Request) {
       properties: [],
     }
 
-    // Make the request to Jira API with OAuth Bearer token
     const requestConfig = {
       method: 'POST',
       headers: {
@@ -112,6 +113,29 @@ export async function GET(request: Request) {
     if (validationError) return validationError
 
     const cloudId = providedCloudId || (await getJiraCloudId(domain!, accessToken!))
+
+    const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
+    if (!cloudIdValidation.isValid) {
+      return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
+    }
+
+    if (projectId) {
+      const projectIdValidation = validateAlphanumericId(projectId, 'projectId', 100)
+      if (!projectIdValidation.isValid) {
+        return NextResponse.json({ error: projectIdValidation.error }, { status: 400 })
+      }
+    }
+    if (manualProjectId) {
+      const manualProjectIdValidation = validateAlphanumericId(
+        manualProjectId,
+        'manualProjectId',
+        100
+      )
+      if (!manualProjectIdValidation.isValid) {
+        return NextResponse.json({ error: manualProjectIdValidation.error }, { status: 400 })
+      }
+    }
+
     let data: any
 
     if (query) {

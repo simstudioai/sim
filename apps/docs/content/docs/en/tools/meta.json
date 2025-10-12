@@ -20,6 +20,7 @@
     "google_forms",
     "google_search",
     "google_sheets",
+    "google_vault",
     "huggingface",
     "hunter",
     "image_generator",

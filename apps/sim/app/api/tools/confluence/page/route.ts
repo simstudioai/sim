@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { validateAlphanumericId, validateJiraCloudId } from '@/lib/security/input-validation'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
 export const dynamic = 'force-dynamic'
@@ -19,13 +20,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Page ID is required' }, { status: 400 })
     }
 
-    // Use provided cloudId or fetch it if not provided
+    const pageIdValidation = validateAlphanumericId(pageId, 'pageId', 255)
+    if (!pageIdValidation.isValid) {
+      return NextResponse.json({ error: pageIdValidation.error }, { status: 400 })
+    }
+
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
 
-    // Build the URL for the Confluence API
+    const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
+    if (!cloudIdValidation.isValid) {
+      return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
+    }
+
     const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}?expand=body.storage,body.view,body.atlas_doc_format`
 
-    // Make the request to Confluence API
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -52,7 +60,6 @@ export async function POST(request: Request) {
 
     const data = await response.json()
 
-    // If body is empty, try to provide a minimal valid response
     return NextResponse.json({
       id: data.id,
       title: data.title,
@@ -103,9 +110,18 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Page ID is required' }, { status: 400 })
     }
 
+    const pageIdValidation = validateAlphanumericId(pageId, 'pageId', 255)
+    if (!pageIdValidation.isValid) {
+      return NextResponse.json({ error: pageIdValidation.error }, { status: 400 })
+    }
+
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
 
-    // First, get the current page to check its version
+    const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
+    if (!cloudIdValidation.isValid) {
+      return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
+    }
+
     const currentPageUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}`
     const currentPageResponse = await fetch(currentPageUrl, {
       headers: {
@@ -121,7 +137,6 @@ export async function PUT(request: Request) {
     const currentPage = await currentPageResponse.json()
     const currentVersion = currentPage.version.number
 
-    // Build the update body with incremented version
     const updateBody: any = {
       id: pageId,
       version: {

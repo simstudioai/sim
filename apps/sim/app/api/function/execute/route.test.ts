@@ -67,7 +67,7 @@ describe('Function Execute API Route', () => {
     })
 
     it.concurrent('should block SSRF attacks through secure fetch wrapper', async () => {
-      const { validateProxyUrl } = await import('@/lib/security/url-validation')
+      const { validateProxyUrl } = await import('@/lib/security/input-validation')
 
       expect(validateProxyUrl('http://169.254.169.254/latest/meta-data/').isValid).toBe(false)
       expect(validateProxyUrl('http://127.0.0.1:8080/admin').isValid).toBe(false)
@@ -76,15 +76,15 @@ describe('Function Execute API Route', () => {
     })
 
     it.concurrent('should allow legitimate external URLs', async () => {
-      const { validateProxyUrl } = await import('@/lib/security/url-validation')
+      const { validateProxyUrl } = await import('@/lib/security/input-validation')
 
       expect(validateProxyUrl('https://api.github.com/user').isValid).toBe(true)
       expect(validateProxyUrl('https://httpbin.org/get').isValid).toBe(true)
-      expect(validateProxyUrl('http://example.com/api').isValid).toBe(true)
+      expect(validateProxyUrl('https://example.com/api').isValid).toBe(true)
     })
 
     it.concurrent('should block dangerous protocols', async () => {
-      const { validateProxyUrl } = await import('@/lib/security/url-validation')
+      const { validateProxyUrl } = await import('@/lib/security/input-validation')
 
       expect(validateProxyUrl('file:///etc/passwd').isValid).toBe(false)
       expect(validateProxyUrl('ftp://internal.server/files').isValid).toBe(false)

@@ -48,14 +48,21 @@ export const makeApiRequestServerTool: BaseServerTool<MakeApiRequestParams, any>
         return String(val)
       }
     }
+
     const stripHtml = (html: string): string => {
       try {
-        return html
-          .replace(/<script[\s\S]*?<\/script>/gi, '')
-          .replace(/<style[\s\S]*?<\/style>/gi, '')
-          .replace(/<[^>]+>/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim()
+        let text = html
+        let previous: string
+
+        do {
+          previous = text
+          text = text.replace(/<script[\s\S]*?<\/script\s*>/gi, '')
+          text = text.replace(/<style[\s\S]*?<\/style\s*>/gi, '')
+          text = text.replace(/<[^>]*>/g, ' ')
+          text = text.replace(/[<>]/g, ' ')
+        } while (text !== previous)
+
+        return text.replace(/\s+/g, ' ').trim()
       } catch {
         return html
       }

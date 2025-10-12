@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { validateMicrosoftGraphId } from '@/lib/security/input-validation'
 import { generateRequestId } from '@/lib/utils'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
@@ -11,21 +12,15 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('MicrosoftFileAPI')
 
-/**
- * Get a single file from Microsoft OneDrive
- */
 export async function GET(request: NextRequest) {
   const requestId = generateRequestId()
   try {
-    // Get the session
     const session = await getSession()
 
-    // Check if the user is authenticated
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }
 
-    // Get the credential ID and file ID from the query params
     const { searchParams } = new URL(request.url)
     const credentialId = searchParams.get('credentialId')
     const fileId = searchParams.get('fileId')
@@ -34,7 +29,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Credential ID and File ID are required' }, { status: 400 })
     }
 
-    // Get the credential from the database
+    const fileIdValidation = validateMicrosoftGraphId(fileId, 'fileId')
+    if (!fileIdValidation.isValid) {
+      logger.warn(`[${requestId}] Invalid file ID: ${fileIdValidation.error}`)
+      return NextResponse.json({ error: fileIdValidation.error }, { status: 400 })
+    }
+
     const credentials = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
 
     if (!credentials.length) {
@@ -43,12 +43,10 @@ export async function GET(request: NextRequest) {
 
     const credential = credentials[0]
 
-    // Check if the credential belongs to the user
     if (credential.userId !== session.user.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
-    // Refresh access token if needed using the utility function
     const accessToken = await refreshAccessTokenIfNeeded(credentialId, session.user.id, requestId)
 
     if (!accessToken) {
@@ -80,7 +78,6 @@ export async function GET(request: NextRequest) {
 
     const file = await response.json()
 
-    // Transform the response to match expected format
     const transformedFile = {
       id: file.id,
       name: file.name,

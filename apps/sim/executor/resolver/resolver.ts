@@ -1,4 +1,3 @@
-import { BlockPathCalculator } from '@/lib/block-path-calculator'
 import { createLogger } from '@/lib/logs/console/logger'
 import { VariableManager } from '@/lib/variables/variable-manager'
 import { extractReferencePrefixes, SYSTEM_REFERENCE_PREFIXES } from '@/lib/workflows/references'
@@ -11,16 +10,10 @@ import { normalizeBlockName } from '@/stores/workflows/utils'
 
 const logger = createLogger('InputResolver')
 
-/**
- * Helper function to resolve property access
- */
 function resolvePropertyAccess(obj: any, property: string): any {
   return obj[property]
 }
 
-/**
- * Resolves input values for blocks by handling references and variable substitution.
- */
 export class InputResolver {
   private blockById: Map<string, SerializedBlock>
   private blockByNormalizedName: Map<string, SerializedBlock>
@@ -947,7 +940,12 @@ export class InputResolver {
    */
   private stringifyForCondition(value: any): string {
     if (typeof value === 'string') {
-      return `"${value.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"`
+      const sanitized = value
+        .replace(/\\/g, '\\\\')
+        .replace(/"/g, '\\"')
+        .replace(/\n/g, '\\n')
+        .replace(/\r/g, '\\r')
+      return `"${sanitized}"`
     }
     if (value === null) {
       return 'null'
@@ -1096,45 +1094,6 @@ export class InputResolver {
     }
 
     return accessibleBlocks
-  }
-
-  /**
-   * Gets block names that the current block can reference for helpful error messages.
-   * Uses shared utility when pre-calculated data is available.
-   *
-   * @param currentBlockId - ID of the block requesting references
-   * @returns Array of accessible block names and aliases
-   */
-  private getAccessibleBlockNames(currentBlockId: string): string[] {
-    // Use shared utility if pre-calculated data is available
-    if (this.accessibleBlocksMap) {
-      return BlockPathCalculator.getAccessibleBlockNames(
-        currentBlockId,
-        this.workflow,
-        this.accessibleBlocksMap
-      )
-    }
-
-    // Fallback to legacy calculation
-    const accessibleBlockIds = this.getAccessibleBlocks(currentBlockId)
-    const names: string[] = []
-
-    for (const blockId of accessibleBlockIds) {
-      const block = this.blockById.get(blockId)
-      if (block) {
-        // Add both the actual name and the normalized name
-        if (block.metadata?.name) {
-          names.push(block.metadata.name)
-          names.push(this.normalizeBlockName(block.metadata.name))
-        }
-        names.push(blockId)
-      }
-    }
-
-    // Add special aliases
-    names.push('start') // Always allow start alias
-
-    return [...new Set(names)] // Remove duplicates
   }
 
   /**

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { createLogger } from '@/lib/logs/console/logger'
+import { validateAlphanumericId } from '@/lib/security/input-validation'
 import { generateRequestId } from '@/lib/utils'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 export const dynamic = 'force-dynamic'
@@ -23,6 +24,12 @@ export async function GET(request: NextRequest) {
     if (!credentialId || !fileId) {
       logger.warn(`[${requestId}] Missing required parameters`)
       return NextResponse.json({ error: 'Credential ID and File ID are required' }, { status: 400 })
+    }
+
+    const fileIdValidation = validateAlphanumericId(fileId, 'fileId', 255)
+    if (!fileIdValidation.isValid) {
+      logger.warn(`[${requestId}] Invalid file ID: ${fileIdValidation.error}`)
+      return NextResponse.json({ error: fileIdValidation.error }, { status: 400 })
     }
 
     const authz = await authorizeCredentialUse(request, { credentialId: credentialId, workflowId })
@@ -67,10 +74,10 @@ export async function GET(request: NextRequest) {
     const file = await response.json()
 
     const exportFormats: { [key: string]: string } = {
-      'application/vnd.google-apps.document': 'application/pdf', // Google Docs to PDF
+      'application/vnd.google-apps.document': 'application/pdf',
       'application/vnd.google-apps.spreadsheet':
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // Google Sheets to XLSX
-      'application/vnd.google-apps.presentation': 'application/pdf', // Google Slides to PDF
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.google-apps.presentation': 'application/pdf',
     }
 
     if (

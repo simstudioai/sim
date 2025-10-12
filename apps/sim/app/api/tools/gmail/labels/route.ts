@@ -22,10 +22,8 @@ export async function GET(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    // Get the session
     const session = await getSession()
 
-    // Check if the user is authenticated
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthenticated labels request rejected`)
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
@@ -40,8 +38,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
     }
 
-    // Get the credential from the database. Prefer session-owned credential, but
-    // if not found, resolve by credential ID to support collaborator-owned credentials.
     let credentials = await db
       .select()
       .from(account)
@@ -58,26 +54,22 @@ export async function GET(request: NextRequest) {
 
     const credential = credentials[0]
 
-    // Log the credential info (without exposing sensitive data)
     logger.info(
       `[${requestId}] Using credential: ${credential.id}, provider: ${credential.providerId}`
     )
 
-    // Refresh access token if needed using the utility function
     const accessToken = await refreshAccessTokenIfNeeded(credentialId, credential.userId, requestId)
 
     if (!accessToken) {
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })
     }
 
-    // Fetch labels from Gmail API
     const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/labels', {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
     })
 
-    // Log the response status
     logger.info(`[${requestId}] Gmail API response status: ${response.status}`)
 
     if (!response.ok) {
@@ -98,14 +90,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid labels response' }, { status: 500 })
     }
 
-    // Transform the labels to a more usable format
     const labels = data.labels.map((label: GmailLabel) => {
-      // Format the label name with proper capitalization
       let formattedName = label.name
 
-      // Handle system labels (INBOX, SENT, etc.)
       if (label.type === 'system') {
-        // Convert to title case (first letter uppercase, rest lowercase)
         formattedName = label.name.charAt(0).toUpperCase() + label.name.slice(1).toLowerCase()
       }
 
@@ -118,7 +106,6 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Filter labels if a query is provided
     const filteredLabels = query
       ? labels.filter((label: GmailLabel) =>
           label.name.toLowerCase().includes((query as string).toLowerCase())

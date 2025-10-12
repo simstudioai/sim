@@ -9,7 +9,6 @@ export async function getConfluenceCloudId(domain: string, accessToken: string):
 
   const resources = await response.json()
 
-  // If we have resources, find the matching one
   if (Array.isArray(resources) && resources.length > 0) {
     const normalizedInput = `https://${domain}`.toLowerCase()
     const matchedResource = resources.find((r) => r.url.toLowerCase() === normalizedInput)
@@ -19,8 +18,6 @@ export async function getConfluenceCloudId(domain: string, accessToken: string):
     }
   }
 
-  // If we couldn't find a match, return the first resource's ID
-  // This is a fallback in case the URL matching fails
   if (Array.isArray(resources) && resources.length > 0) {
     return resources[0].id
   }
@@ -28,8 +25,38 @@ export async function getConfluenceCloudId(domain: string, accessToken: string):
   throw new Error('No Confluence resources found')
 }
 
+function decodeHtmlEntities(text: string): string {
+  let decoded = text
+  let previous: string
+
+  do {
+    previous = decoded
+    decoded = decoded
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+    decoded = decoded.replace(/&amp;/g, '&')
+  } while (decoded !== previous)
+
+  return decoded
+}
+
+function stripHtmlTags(html: string): string {
+  let text = html
+  let previous: string
+
+  do {
+    previous = text
+    text = text.replace(/<[^>]*>/g, '')
+    text = text.replace(/[<>]/g, '')
+  } while (text !== previous)
+
+  return text.trim()
+}
+
 export function transformPageData(data: any) {
-  // Get content from wherever we can find it
   const content =
     data.body?.view?.value ||
     data.body?.storage?.value ||
@@ -38,14 +65,9 @@ export function transformPageData(data: any) {
     data.description ||
     `Content for page ${data.title || 'Unknown'}`
 
-  const cleanContent = content
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/\s+/g, ' ')
-    .trim()
+  let cleanContent = stripHtmlTags(content)
+  cleanContent = decodeHtmlEntities(cleanContent)
+  cleanContent = cleanContent.replace(/\s+/g, ' ').trim()
 
   return {
     success: true,

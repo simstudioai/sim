@@ -11,6 +11,7 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { validateUUID } from '@/lib/security/input-validation'
 
 const logger = createLogger('CheckpointRevertAPI')
 
@@ -36,7 +37,6 @@ export async function POST(request: NextRequest) {
 
     logger.info(`[${tracker.requestId}] Reverting to checkpoint ${checkpointId}`)
 
-    // Get the checkpoint and verify ownership
     const checkpoint = await db
       .select()
       .from(workflowCheckpoints)
@@ -47,7 +47,6 @@ export async function POST(request: NextRequest) {
       return createNotFoundResponse('Checkpoint not found or access denied')
     }
 
-    // Verify user still has access to the workflow
     const workflowData = await db
       .select()
       .from(workflowTable)
@@ -62,10 +61,8 @@ export async function POST(request: NextRequest) {
       return createUnauthorizedResponse()
     }
 
-    // Apply the checkpoint state to the workflow using the existing state endpoint
     const checkpointState = checkpoint.workflowState as any // Cast to any for property access
 
-    // Clean the checkpoint state to remove any null/undefined values that could cause validation errors
     const cleanedState = {
       blocks: checkpointState?.blocks || {},
       edges: checkpointState?.edges || [],
@@ -74,7 +71,6 @@ export async function POST(request: NextRequest) {
       isDeployed: checkpointState?.isDeployed || false,
       deploymentStatuses: checkpointState?.deploymentStatuses || {},
       lastSaved: Date.now(),
-      // Only include deployedAt if it's a valid date string that can be converted
       ...(checkpointState?.deployedAt &&
       checkpointState.deployedAt !== null &&
       checkpointState.deployedAt !== undefined &&
@@ -90,13 +86,19 @@ export async function POST(request: NextRequest) {
       isDeployed: cleanedState.isDeployed,
     })
 
+    const workflowIdValidation = validateUUID(checkpoint.workflowId, 'workflowId')
+    if (!workflowIdValidation.isValid) {
+      logger.error(`[${tracker.requestId}] Invalid workflow ID: ${workflowIdValidation.error}`)
+      return NextResponse.json({ error: 'Invalid workflow ID format' }, { status: 400 })
+    }
+
     const stateResponse = await fetch(
       `${request.nextUrl.origin}/api/workflows/${checkpoint.workflowId}/state`,
       {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Cookie: request.headers.get('Cookie') || '', // Forward auth cookies
+          Cookie: request.headers.get('Cookie') || '',
         },
         body: JSON.stringify(cleanedState),
       }
@@ -123,7 +125,7 @@ export async function POST(request: NextRequest) {
       revertedAt: new Date().toISOString(),
       checkpoint: {
         id: checkpoint.id,
-        workflowState: cleanedState, // Return the reverted state for frontend use
+        workflowState: cleanedState,
       },
     })
   } catch (error) {

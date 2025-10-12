@@ -8,9 +8,10 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('GoogleDriveFilesAPI')
 
-/**
- * Get files from Google Drive
- */
+function escapeForDriveQuery(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+}
+
 export async function GET(request: NextRequest) {
   const requestId = generateRequestId()
   logger.info(`[${requestId}] Google Drive files request received`)
@@ -53,13 +54,13 @@ export async function GET(request: NextRequest) {
 
     const qParts: string[] = ['trashed = false']
     if (folderId) {
-      qParts.push(`'${folderId.replace(/'/g, "\\'")}' in parents`)
+      qParts.push(`'${escapeForDriveQuery(folderId)}' in parents`)
     }
     if (mimeType) {
-      qParts.push(`mimeType = '${mimeType.replace(/'/g, "\\'")}'`)
+      qParts.push(`mimeType = '${escapeForDriveQuery(mimeType)}'`)
     }
     if (query) {
-      qParts.push(`name contains '${query.replace(/'/g, "\\'")}'`)
+      qParts.push(`name contains '${escapeForDriveQuery(query)}'`)
     }
     const q = encodeURIComponent(qParts.join(' and '))
 

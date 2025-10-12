@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { validateAlphanumericId } from '@/lib/security/input-validation'
 
 const logger = createLogger('ProxyTTSStreamAPI')
 
@@ -11,6 +12,12 @@ export async function POST(request: NextRequest) {
 
     if (!text || !voiceId) {
       return new Response('Missing required parameters', { status: 400 })
+    }
+
+    const voiceIdValidation = validateAlphanumericId(voiceId, 'voiceId', 255)
+    if (!voiceIdValidation.isValid) {
+      logger.error(`Invalid voice ID: ${voiceIdValidation.error}`)
+      return new Response(voiceIdValidation.error, { status: 400 })
     }
 
     const apiKey = env.ELEVENLABS_API_KEY
@@ -31,7 +38,6 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         text,
         model_id: modelId,
-        // Maximum performance settings
         optimize_streaming_latency: 4,
         output_format: 'mp3_22050_32', // Fastest format
         voice_settings: {
@@ -42,9 +48,7 @@ export async function POST(request: NextRequest) {
         },
         enable_ssml_parsing: false,
         apply_text_normalization: 'off',
-        // Use auto mode for fastest possible streaming
-        // Note: This may sacrifice some quality for speed
-        use_pvc_as_ivc: false, // Use fastest voice processing
+        use_pvc_as_ivc: false,
       }),
     })
 
@@ -60,14 +64,11 @@ export async function POST(request: NextRequest) {
       return new Response('No audio stream received', { status: 422 })
     }
 
-    // Create optimized streaming response
     const { readable, writable } = new TransformStream({
       transform(chunk, controller) {
-        // Pass through chunks immediately without buffering
         controller.enqueue(chunk)
       },
       flush(controller) {
-        // Ensure all data is flushed immediately
         controller.terminate()
       },
     })
@@ -83,7 +84,6 @@ export async function POST(request: NextRequest) {
             await writer.close()
             break
           }
-          // Write immediately without waiting
           writer.write(value).catch(logger.error)
         }
       } catch (error) {
@@ -102,19 +102,15 @@ export async function POST(request: NextRequest) {
         'X-Content-Type-Options': 'nosniff',
         'Access-Control-Allow-Origin': '*',
         Connection: 'keep-alive',
-        // Stream headers for better streaming
-        'X-Accel-Buffering': 'no', // Disable nginx buffering
+        'X-Accel-Buffering': 'no',
         'X-Stream-Type': 'real-time',
       },
     })
   } catch (error) {
     logger.error('Error in Stream TTS:', error)
 
-    return new Response(
-      `Internal Server Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      {
-        status: 500,
-      }
-    )
+    return new Response('Internal Server Error', {
+      status: 500,
+    })
   }
 }
