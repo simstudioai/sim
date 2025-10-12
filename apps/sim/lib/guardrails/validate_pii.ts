@@ -80,7 +80,7 @@ async function executePythonPIIDetection(
   language: string,
   requestId: string
 ): Promise<PIIValidationResult> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     // Use path relative to project root
     // In Next.js, process.cwd() returns the project root
     const guardrailsDir = path.join(process.cwd(), 'lib/guardrails')
