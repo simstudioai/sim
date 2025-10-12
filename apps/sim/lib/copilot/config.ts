@@ -16,6 +16,7 @@ const VALID_PROVIDER_IDS: readonly ProviderId[] = [
   'deepseek',
   'xai',
   'cerebras',
+  'mistral',
   'groq',
   'ollama',
 ] as const

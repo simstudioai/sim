@@ -15,6 +15,7 @@ import {
   DeepseekIcon,
   GeminiIcon,
   GroqIcon,
+  MistralIcon,
   OllamaIcon,
   OpenAIIcon,
   OpenRouterIcon,
@@ -359,7 +360,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     id: 'anthropic',
     name: 'Anthropic',
     description: "Anthropic's Claude models",
-    defaultModel: 'claude-sonnet-4-0',
+    defaultModel: 'claude-sonnet-4-5',
     modelPatterns: [/^claude/],
     icon: AnthropicIcon,
     capabilities: {
@@ -367,12 +368,36 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     models: [
       {
+        id: 'claude-sonnet-4-5',
+        pricing: {
+          input: 3.0,
+          cachedInput: 1.5,
+          output: 15.0,
+          updatedAt: '2025-10-11',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+      },
+      {
         id: 'claude-sonnet-4-0',
         pricing: {
           input: 3.0,
           cachedInput: 1.5,
           output: 15.0,
           updatedAt: '2025-06-17',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+      },
+      {
+        id: 'claude-opus-4-1',
+        pricing: {
+          input: 15.0,
+          cachedInput: 7.5,
+          output: 75.0,
+          updatedAt: '2025-10-11',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -514,10 +539,46 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       {
         id: 'grok-4-latest',
         pricing: {
-          input: 5.0,
-          cachedInput: 2.5,
-          output: 25.0,
-          updatedAt: '2025-07-10',
+          input: 3.0,
+          cachedInput: 1.5,
+          output: 15.0,
+          updatedAt: '2025-10-11',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+      },
+      {
+        id: 'grok-4-fast-reasoning',
+        pricing: {
+          input: 0.2,
+          cachedInput: 0.25,
+          output: 0.5,
+          updatedAt: '2025-10-11',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+      },
+      {
+        id: 'grok-4-fast-non-reasoning',
+        pricing: {
+          input: 0.2,
+          cachedInput: 0.25,
+          output: 0.5,
+          updatedAt: '2025-10-11',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+      },
+      {
+        id: 'grok-code-fast-1',
+        pricing: {
+          input: 0.2,
+          cachedInput: 0.25,
+          output: 1.5,
+          updatedAt: '2025-10-11',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -561,12 +622,38 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     models: [
       {
+        id: 'cerebras/llama-3.1-8b',
+        pricing: {
+          input: 0.1,
+          output: 0.1,
+          updatedAt: '2025-10-11',
+        },
+        capabilities: {},
+      },
+      {
+        id: 'cerebras/llama-3.1-70b',
+        pricing: {
+          input: 0.6,
+          output: 0.6,
+          updatedAt: '2025-10-11',
+        },
+        capabilities: {},
+      },
+      {
         id: 'cerebras/llama-3.3-70b',
         pricing: {
-          input: 0.94,
-          cachedInput: 0.47,
-          output: 0.94,
-          updatedAt: '2025-03-21',
+          input: 0.6,
+          output: 0.6,
+          updatedAt: '2025-10-11',
+        },
+        capabilities: {},
+      },
+      {
+        id: 'cerebras/llama-4-scout-17b-16e-instruct',
+        pricing: {
+          input: 0.11,
+          output: 0.34,
+          updatedAt: '2025-10-11',
         },
         capabilities: {},
       },
@@ -576,7 +663,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     id: 'groq',
     name: 'Groq',
     description: "Groq's LLM models with high-performance inference",
-    defaultModel: 'groq/openai/gpt-oss-120b',
+    defaultModel: 'groq/llama-3.3-70b-versatile',
     modelPatterns: [/^groq/],
     icon: GroqIcon,
     capabilities: {
@@ -587,9 +674,8 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         id: 'groq/openai/gpt-oss-120b',
         pricing: {
           input: 0.15,
-          cachedInput: 0.075,
           output: 0.75,
-          updatedAt: '2025-08-05',
+          updatedAt: '2025-10-11',
         },
         capabilities: {},
       },
@@ -597,19 +683,8 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         id: 'groq/openai/gpt-oss-20b',
         pricing: {
           input: 0.01,
-          cachedInput: 0.005,
           output: 0.25,
-          updatedAt: '2025-08-05',
-        },
-        capabilities: {},
-      },
-      {
-        id: 'groq/gemma2-9b-it',
-        pricing: {
-          input: 0.04,
-          cachedInput: 0.02,
-          output: 0.04,
-          updatedAt: '2025-08-05',
+          updatedAt: '2025-10-11',
         },
         capabilities: {},
       },
@@ -617,19 +692,71 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         id: 'groq/llama-3.1-8b-instant',
         pricing: {
           input: 0.05,
-          cachedInput: 0.025,
           output: 0.08,
-          updatedAt: '2025-08-05',
+          updatedAt: '2025-10-11',
         },
         capabilities: {},
       },
       {
         id: 'groq/llama-3.3-70b-versatile',
         pricing: {
-          input: 0.35,
-          cachedInput: 0.175,
-          output: 0.61,
-          updatedAt: '2025-08-05',
+          input: 0.59,
+          output: 0.79,
+          updatedAt: '2025-10-11',
+        },
+        capabilities: {},
+      },
+      {
+        id: 'groq/llama-4-scout-17b-instruct',
+        pricing: {
+          input: 0.11,
+          output: 0.34,
+          updatedAt: '2025-10-11',
+        },
+        capabilities: {},
+      },
+      {
+        id: 'groq/llama-4-maverick-17b-instruct',
+        pricing: {
+          input: 0.5,
+          output: 0.77,
+          updatedAt: '2025-10-11',
+        },
+        capabilities: {},
+      },
+      {
+        id: 'groq/meta-llama/llama-4-maverick-17b-128e-instruct',
+        pricing: {
+          input: 0.5,
+          output: 0.77,
+          updatedAt: '2025-10-11',
+        },
+        capabilities: {},
+      },
+      {
+        id: 'groq/gemma2-9b-it',
+        pricing: {
+          input: 0.04,
+          output: 0.04,
+          updatedAt: '2025-10-11',
+        },
+        capabilities: {},
+      },
+      {
+        id: 'groq/deepseek-r1-distill-llama-70b',
+        pricing: {
+          input: 0.59,
+          output: 0.79,
+          updatedAt: '2025-10-11',
+        },
+        capabilities: {},
+      },
+      {
+        id: 'groq/moonshotai/kimi-k2-instruct',
+        pricing: {
+          input: 1.0,
+          output: 3.0,
+          updatedAt: '2025-10-11',
         },
         capabilities: {},
       },
@@ -637,31 +764,177 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         id: 'groq/meta-llama/llama-guard-4-12b',
         pricing: {
           input: 0.2,
-          cachedInput: 0.1,
           output: 0.2,
-          updatedAt: '2025-08-05',
+          updatedAt: '2025-10-11',
         },
         capabilities: {},
       },
+    ],
+  },
+  mistral: {
+    id: 'mistral',
+    name: 'Mistral AI',
+    description: "Mistral AI's language models",
+    defaultModel: 'mistral-large-latest',
+    modelPatterns: [/^mistral/, /^magistral/, /^open-mistral/, /^codestral/, /^ministral/],
+    icon: MistralIcon,
+    capabilities: {
+      toolUsageControl: true,
+    },
+    models: [
       {
-        id: 'groq/deepseek-r1-distill-llama-70b',
+        id: 'mistral-large-latest',
         pricing: {
-          input: 0.58,
-          cachedInput: 0.29,
-          output: 0.99,
-          updatedAt: '2025-08-05',
+          input: 2.0,
+          output: 6.0,
+          updatedAt: '2025-10-11',
         },
-        capabilities: {},
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
       },
       {
-        id: 'groq/meta-llama/llama-4-maverick-17b-128e-instruct',
+        id: 'mistral-large-2411',
+        pricing: {
+          input: 2.0,
+          output: 6.0,
+          updatedAt: '2025-10-11',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+      },
+      {
+        id: 'magistral-medium-latest',
+        pricing: {
+          input: 2.0,
+          output: 5.0,
+          updatedAt: '2025-10-11',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+      },
+      {
+        id: 'magistral-medium-2509',
+        pricing: {
+          input: 2.0,
+          output: 5.0,
+          updatedAt: '2025-10-11',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+      },
+      {
+        id: 'mistral-medium-latest',
+        pricing: {
+          input: 0.4,
+          output: 2.0,
+          updatedAt: '2025-10-11',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+      },
+      {
+        id: 'mistral-medium-2508',
+        pricing: {
+          input: 0.4,
+          output: 2.0,
+          updatedAt: '2025-10-11',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+      },
+      {
+        id: 'mistral-small-latest',
         pricing: {
           input: 0.2,
-          cachedInput: 0.1,
           output: 0.6,
-          updatedAt: '2025-08-05',
+          updatedAt: '2025-10-11',
         },
-        capabilities: {},
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+      },
+      {
+        id: 'mistral-small-2506',
+        pricing: {
+          input: 0.2,
+          output: 0.6,
+          updatedAt: '2025-10-11',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+      },
+      {
+        id: 'open-mistral-nemo',
+        pricing: {
+          input: 0.15,
+          output: 0.15,
+          updatedAt: '2025-10-11',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+      },
+      {
+        id: 'codestral-latest',
+        pricing: {
+          input: 0.3,
+          output: 0.9,
+          updatedAt: '2025-10-11',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+      },
+      {
+        id: 'codestral-2508',
+        pricing: {
+          input: 0.3,
+          output: 0.9,
+          updatedAt: '2025-10-11',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+      },
+      {
+        id: 'ministral-8b-latest',
+        pricing: {
+          input: 0.1,
+          output: 0.1,
+          updatedAt: '2025-10-11',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+      },
+      {
+        id: 'ministral-8b-2410',
+        pricing: {
+          input: 0.1,
+          output: 0.1,
+          updatedAt: '2025-10-11',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+      },
+      {
+        id: 'ministral-3b-latest',
+        pricing: {
+          input: 0.04,
+          output: 0.04,
+          updatedAt: '2025-10-11',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
       },
     ],
   },
