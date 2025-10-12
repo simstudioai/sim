@@ -1,0 +1,317 @@
+---
+title: Guardrails
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+
+Guardrails 模块通过针对多种验证类型检查内容，验证并保护您的 AI 工作流。在内容进入工作流之前，确保数据质量、防止幻觉、检测 PII（个人身份信息）并强制执行格式要求。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/guardrails.png"
+    alt="Guardrails 模块"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+## 概述
+
+Guardrails 模块使您能够：
+
+<Steps>
+  <Step>
+    <strong>验证 JSON 结构</strong>：确保 LLM 输出在解析之前是有效的 JSON
+  </Step>
+  <Step>
+    <strong>匹配正则表达式模式</strong>：验证内容是否符合特定格式（如电子邮件、电话号码、URL 等）
+  </Step>
+  <Step>
+    <strong>检测幻觉</strong>：使用 RAG + LLM 评分将 AI 输出与知识库内容进行验证
+  </Step>
+  <Step>
+    <strong>检测 PII</strong>：识别并可选择性地屏蔽 40 多种实体类型的个人身份信息
+  </Step>
+</Steps>
+
+## 验证类型
+
+### JSON 验证
+
+验证内容是否为正确格式的 JSON。这是确保结构化 LLM 输出可以安全解析的完美方法。
+
+**使用场景：**
+- 在解析之前验证来自 Agent 模块的 JSON 响应
+- 确保 API 负载格式正确
+- 检查结构化数据的完整性
+
+**输出：**
+- `passed`：如果是有效的 JSON，则为 `true`，否则为 `false`
+- `error`：如果验证失败，则为错误消息（例如，“无效的 JSON：意外的标记...”）
+
+### 正则表达式验证
+
+检查内容是否符合指定的正则表达式模式。
+
+**使用场景：**
+- 验证电子邮件地址
+- 检查电话号码格式
+- 验证 URL 或自定义标识符
+- 强制执行特定文本模式
+
+**配置：**
+- **正则表达式模式**：要匹配的正则表达式（例如，`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}---
+title: Guardrails
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+
+Guardrails 模块通过针对多种验证类型检查内容，验证并保护您的 AI 工作流。在内容进入工作流之前，确保数据质量、防止幻觉、检测 PII（个人身份信息）并强制执行格式要求。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/guardrails.png"
+    alt="Guardrails 模块"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+## 概述
+
+Guardrails 模块使您能够：
+
+<Steps>
+  <Step>
+    <strong>验证 JSON 结构</strong>：确保 LLM 输出在解析之前是有效的 JSON
+  </Step>
+  <Step>
+    <strong>匹配正则表达式模式</strong>：验证内容是否符合特定格式（如电子邮件、电话号码、URL 等）
+  </Step>
+  <Step>
+    <strong>检测幻觉</strong>：使用 RAG + LLM 评分将 AI 输出与知识库内容进行验证
+  </Step>
+  <Step>
+    <strong>检测 PII</strong>：识别并可选择性地屏蔽 40 多种实体类型的个人身份信息
+  </Step>
+</Steps>
+
+## 验证类型
+
+### JSON 验证
+
+验证内容是否为正确格式的 JSON。这是确保结构化 LLM 输出可以安全解析的完美方法。
+
+**使用场景：**
+- 在解析之前验证来自 Agent 模块的 JSON 响应
+- 确保 API 负载格式正确
+- 检查结构化数据的完整性
+
+**输出：**
+- `passed`：如果是有效的 JSON，则为 `true`，否则为 `false`
+- `error`：如果验证失败，则为错误消息（例如，“无效的 JSON：意外的标记...”）
+
+### 正则表达式验证
+
+检查内容是否符合指定的正则表达式模式。
+
+**使用场景：**
+- 验证电子邮件地址
+- 检查电话号码格式
+- 验证 URL 或自定义标识符
+- 强制执行特定文本模式
+
+**配置：**
+- **正则表达式模式**：要匹配的正则表达式（例如， 用于电子邮件）
+
+**输出：**
+- `passed`：如果内容符合模式，则为 `true`，否则为 `false`
+- `error`：验证失败时的错误信息
+
+### 幻觉检测
+
+使用基于检索增强生成 (RAG) 的方法，并结合 LLM 评分，检测 AI 生成的内容是否与您的知识库相矛盾或不符合实际。
+
+**工作原理：**
+1. 查询您的知识库以获取相关上下文
+2. 将 AI 输出和检索到的上下文发送到 LLM
+3. LLM 分配一个置信评分（0-10 分制）
+   - **0** = 完全幻觉（完全不符合实际）
+   - **10** = 完全符合实际（完全由知识库支持）
+4. 如果评分 ≥ 阈值（默认值：3），验证通过
+
+**配置：**
+- **知识库**：从现有知识库中选择
+- **模型**：选择用于评分的 LLM（需要强大的推理能力，推荐 GPT-4o 或 Claude 3.7 Sonnet）
+- **API 密钥**：所选 LLM 提供商的认证（托管/Ollama 模型会自动隐藏）
+- **置信阈值**：通过验证的最低评分（0-10，默认值：3）
+- **Top K**（高级）：检索的知识库块数量（默认值：10）
+
+**输出：**
+- `passed`：如果置信评分 ≥ 阈值，则为 `true`
+- `score`：置信评分（0-10）
+- `reasoning`：LLM 对评分的解释
+- `error`：验证失败时的错误信息
+
+**使用场景：**
+- 验证代理响应是否符合文档
+- 确保客户支持回答的事实准确性
+- 验证生成的内容是否与源材料一致
+- RAG 应用的质量控制
+
+### PII 检测
+
+使用 Microsoft Presidio 检测个人身份信息 (PII)。支持 40 多种实体类型，覆盖多个国家和语言。
+
+<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
+  <Video src="guardrails.mp4" width={500} height={350} />
+</div>
+
+**工作原理：**
+1. 使用模式匹配和 NLP 扫描内容中的 PII 实体
+2. 返回检测到的实体及其位置和置信评分
+3. 可选择在输出中屏蔽检测到的 PII
+
+**配置：**
+- **要检测的 PII 类型**：通过模态选择器从分组类别中选择
+  - **常见**：姓名、电子邮件、电话、信用卡、IP 地址等
+  - **美国**：社会安全号码 (SSN)、驾驶执照、护照等
+  - **英国**：NHS 编号、国家保险号码
+  - **西班牙**：NIF、NIE、CIF
+  - **意大利**：税号、驾驶执照、增值税号
+  - **波兰**：PESEL、NIP、REGON
+  - **新加坡**：NRIC/FIN、UEN
+  - **澳大利亚**：ABN、ACN、TFN、Medicare
+  - **印度**：Aadhaar、PAN、护照、选民编号
+- **模式：**
+  - **检测**：仅识别 PII（默认）
+  - **掩码**：将检测到的 PII 替换为掩码值
+- **语言：**检测语言（默认：英语）
+
+**输出：**
+- `passed`：如果检测到任何选定的 PII 类型，则为 `false`
+- `detectedEntities`：包含类型、位置和置信度的检测到的 PII 数组
+- `maskedText`：带有 PII 掩码的内容（仅当模式为 "掩码" 时）
+- `error`：如果验证失败的错误消息
+
+**使用场景：**
+- 阻止包含敏感个人信息的内容
+- 在记录或存储数据之前对 PII 进行掩码
+- 符合 GDPR、HIPAA 和其他隐私法规
+- 在处理之前清理用户输入
+
+## 配置
+
+### 要验证的内容
+
+要验证的输入内容。通常来自：
+- 代理块输出：`<agent.content>`
+- 功能块结果：`<function.output>`
+- API 响应：`<api.output>`
+- 任何其他块输出
+
+### 验证类型
+
+从四种验证类型中选择：
+- **有效 JSON**：检查内容是否为正确格式的 JSON
+- **正则表达式匹配**：验证内容是否匹配正则表达式模式
+- **幻觉检查**：通过 LLM 评分与知识库验证
+- **PII 检测**：检测并可选地掩码个人身份信息
+
+## 输出
+
+所有验证类型返回：
+
+- **`<guardrails.passed>`**：布尔值，指示验证是否通过
+- **`<guardrails.validationType>`**：执行的验证类型
+- **`<guardrails.input>`**：被验证的原始输入
+- **`<guardrails.error>`**：如果验证失败的错误信息（可选）
+
+按类型的其他输出：
+
+**幻觉检查：**
+- **`<guardrails.score>`**：置信分数（0-10）
+- **`<guardrails.reasoning>`**：LLM 的解释
+
+**PII 检测：**
+- **`<guardrails.detectedEntities>`**：检测到的 PII 实体数组
+- **`<guardrails.maskedText>`**：已屏蔽 PII 的内容（如果模式为 "Mask"）
+
+## 示例用例
+
+### 在解析前验证 JSON
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">场景：确保代理输出为有效的 JSON</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>代理生成结构化的 JSON 响应</li>
+    <li>Guardrails 验证 JSON 格式</li>
+    <li>条件块检查 `<guardrails.passed>`</li>
+    <li>如果通过 → 解析并使用数据，如果失败 → 重试或处理错误</li>
+  </ol>
+</div>
+
+### 防止幻觉
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">场景：验证客户支持的回复</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>代理生成对客户问题的回复</li>
+    <li>Guardrails 根据支持文档知识库进行检查</li>
+    <li>如果置信分数 ≥ 3 → 发送回复</li>
+    <li>如果置信分数 \< 3 → 标记为人工审核</li>
+  </ol>
+</div>
+
+### 阻止用户输入中的 PII
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">场景：清理用户提交的内容</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>用户提交带有文本内容的表单</li>
+    <li>Guardrails 检测 PII（电子邮件、电话号码、社会安全号码等）</li>
+    <li>如果检测到 PII → 拒绝提交或屏蔽敏感数据</li>
+    <li>如果没有 PII → 正常处理</li>
+  </ol>
+</div>
+
+<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
+  <Video src="guardrails-example.mp4" width={500} height={350} />
+</div>
+
+### 验证电子邮件格式
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">场景：检查电子邮件地址格式</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>代理从文本中提取电子邮件</li>
+    <li>Guardrails 使用正则表达式模式进行验证</li>
+    <li>如果有效 → 使用电子邮件进行通知</li>
+    <li>如果无效 → 请求更正</li>
+  </ol>
+</div>
+
+## 最佳实践
+
+- **结合条件块使用**：使用 `<guardrails.passed>` 根据验证结果分支工作流逻辑
+- **在解析前进行 JSON 验证**：在尝试解析 LLM 输出之前，始终验证 JSON 结构
+- **选择合适的 PII 类型**：仅选择与您的用例相关的 PII 实体类型以提高性能
+- **设置合理的置信度阈值**：对于幻觉检测，根据您的准确性要求调整阈值（更高 = 更严格）
+- **使用强大的模型进行幻觉检测**：GPT-4o 或 Claude 3.7 Sonnet 提供更准确的置信度评分
+- **对日志中的 PII 进行掩码**：当需要记录或存储可能包含 PII 的内容时，使用“掩码”模式
+- **测试正则表达式模式**：在部署到生产环境之前，彻底验证您的正则表达式模式
+- **监控验证失败**：跟踪 `<guardrails.error>` 消息以识别常见的验证问题
+
+<Callout type="info">
+  Guardrails 验证在您的工作流中同步进行。对于幻觉检测，如果延迟至关重要，请选择更快的模型（如 GPT-4o-mini）。
+</Callout>

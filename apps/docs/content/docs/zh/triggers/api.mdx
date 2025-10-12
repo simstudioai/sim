@@ -22,9 +22,17 @@ API 触发器将您的工作流公开为一个安全的 HTTP 端点。将 JSON �
   />
 </div>
 
-为每个参数添加一个 **输入格式** 字段。运行时输出键会镜像该模式，并且也可以在 `<api.input>` 下使用。
+为每个参数添加一个 **输入格式** 字段。支持的类型：
 
-在编辑器中手动运行使用 `value` 列，因此您可以在不发送请求的情况下进行测试。在执行过程中，解析器会填充 `<api.userId>` 和 `<api.input.userId>`。
+- **string** - 文本值
+- **number** - 数值
+- **boolean** - 真/假值
+- **json** - JSON 对象
+- **files** - 文件上传（通过 `<api.fieldName[0].url>`、`<api.fieldName[0].name>` 等访问）
+
+运行时输出键与模式相对应，并可通过 `<api.input>` 获取。
+
+编辑器中的手动运行使用 `value` 列，因此您可以在不发送请求的情况下进行测试。在执行期间，解析器会填充 `<api.fieldName>` 和 `<api.input.fieldName>`。
 
 ## 请求示例
 
@@ -55,7 +63,7 @@ curl -X POST \
 - 格式：`"blockName.attribute"`（例如，如果您想流式传输 Agent 1 块的内容，可以使用 `"agent1.content"`）
 - 块名称不区分大小写，空格会被忽略
 
-### 示例请求
+### 请求示例
 
 ```bash
 curl -X POST \
@@ -118,13 +126,64 @@ data: {"blockId":"agent1-uuid","chunk":" complete"}
 
 ## 输出参考
 
-| 参考 | 描述 |
+| 引用 | 描述 |
 |-----------|-------------|
 | `<api.field>` | 输入格式中定义的字段 |
 | `<api.input>` | 整个结构化请求体 |
 
+### 文件上传格式
+
+API 接受两种格式的文件：
+
+**1. Base64 编码文件**（推荐用于 SDK）：
+
+```json
+{
+  "documents": [{
+    "type": "file",
+    "data": "data:application/pdf;base64,JVBERi0xLjQK...",
+    "name": "document.pdf",
+    "mime": "application/pdf"
+  }]
+}
+```
+
+- 最大文件大小：每个文件 20MB
+- 文件上传到云存储并转换为具有所有属性的 UserFile 对象
+
+**2. 直接 URL 引用**：
+
+```json
+{
+  "documents": [{
+    "type": "url",
+    "data": "https://example.com/document.pdf",
+    "name": "document.pdf",
+    "mime": "application/pdf"
+  }]
+}
+```
+
+- 文件未上传，URL 直接传递
+- 适用于引用现有文件
+
+### 文件属性
+
+对于文件，可访问所有属性：
+
+| 属性 | 描述 | 类型 |
+|----------|-------------|------|
+| `<api.fieldName[0].url>` | 签名下载 URL | string |
+| `<api.fieldName[0].name>` | 原始文件名 | string |
+| `<api.fieldName[0].size>` | 文件大小（字节） | number |
+| `<api.fieldName[0].type>` | MIME 类型 | string |
+| `<api.fieldName[0].uploadedAt>` | 上传时间戳（ISO 8601） | string |
+| `<api.fieldName[0].expiresAt>` | URL 过期时间戳（ISO 8601） | string |
+
+对于 URL 引用的文件，除 `uploadedAt` 和 `expiresAt` 外，其他属性均可用，因为文件未上传到我们的存储中。
+
 如果未定义输入格式，执行器仅在 `<api.input>` 处暴露原始 JSON。
 
 <Callout type="warning">
-一个工作流只能包含一个 API 触发器。更改后发布新部署，以确保端点保持最新。
+一个工作流只能包含一个 API 触发器。更改后发布新部署，以便端点保持最新。
 </Callout>

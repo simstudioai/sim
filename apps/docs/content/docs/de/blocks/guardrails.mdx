@@ -1,0 +1,317 @@
+---
+title: Guardrails
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+
+Der Guardrails-Block validiert und schützt Ihre KI-Workflows, indem er Inhalte anhand mehrerer Validierungstypen überprüft. Stellen Sie die Datenqualität sicher, verhindern Sie Halluzinationen, erkennen Sie personenbezogene Daten und erzwingen Sie Formatanforderungen, bevor Inhalte durch Ihren Workflow fließen.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/guardrails.png"
+    alt="Guardrails-Block"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+## Überblick
+
+Mit dem Guardrails-Block können Sie:
+
+<Steps>
+  <Step>
+    <strong>JSON-Struktur validieren</strong>: Stellen Sie sicher, dass LLM-Ausgaben gültiges JSON sind, bevor sie geparst werden
+  </Step>
+  <Step>
+    <strong>Regex-Muster abgleichen</strong>: Überprüfen Sie, ob Inhalte bestimmten Formaten entsprechen (E-Mails, Telefonnummern, URLs usw.)
+  </Step>
+  <Step>
+    <strong>Halluzinationen erkennen</strong>: Verwenden Sie RAG + LLM-Scoring, um KI-Ausgaben anhand von Wissensdatenbankinhalten zu validieren
+  </Step>
+  <Step>
+    <strong>PII erkennen</strong>: Identifizieren und optional maskieren Sie personenbezogene Daten über mehr als 40 Entitätstypen hinweg
+  </Step>
+</Steps>
+
+## Validierungstypen
+
+### JSON-Validierung
+
+Überprüft, ob Inhalte korrekt formatiertes JSON sind. Perfekt, um sicherzustellen, dass strukturierte LLM-Ausgaben sicher geparst werden können.
+
+**Anwendungsfälle:**
+- Validieren von JSON-Antworten aus Agent-Blöcken vor dem Parsen
+- Sicherstellen, dass API-Payloads korrekt formatiert sind
+- Überprüfen der Integrität strukturierter Daten
+
+**Ausgabe:**
+- `passed`: `true` bei gültigem JSON, sonst `false`
+- `error`: Fehlermeldung bei fehlgeschlagener Validierung (z.B. "Ungültiges JSON: Unerwartetes Token...")
+
+### Regex-Validierung
+
+Überprüft, ob Inhalte einem bestimmten regulären Ausdrucksmuster entsprechen.
+
+**Anwendungsfälle:**
+- Validieren von E-Mail-Adressen
+- Überprüfen von Telefonnummernformaten
+- Verifizieren von URLs oder benutzerdefinierten Kennungen
+- Durchsetzen spezifischer Textmuster
+
+**Konfiguration:**
+- **Regex-Muster**: Der reguläre Ausdruck, der abgeglichen werden soll (z.B. `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}---
+title: Guardrails
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+
+Der Guardrails-Block validiert und schützt Ihre KI-Workflows, indem er Inhalte anhand mehrerer Validierungstypen überprüft. Stellen Sie die Datenqualität sicher, verhindern Sie Halluzinationen, erkennen Sie personenbezogene Daten und erzwingen Sie Formatanforderungen, bevor Inhalte durch Ihren Workflow fließen.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/guardrails.png"
+    alt="Guardrails-Block"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+## Überblick
+
+Mit dem Guardrails-Block können Sie:
+
+<Steps>
+  <Step>
+    <strong>JSON-Struktur validieren</strong>: Stellen Sie sicher, dass LLM-Ausgaben gültiges JSON sind, bevor sie geparst werden
+  </Step>
+  <Step>
+    <strong>Regex-Muster abgleichen</strong>: Überprüfen Sie, ob Inhalte bestimmten Formaten entsprechen (E-Mails, Telefonnummern, URLs usw.)
+  </Step>
+  <Step>
+    <strong>Halluzinationen erkennen</strong>: Verwenden Sie RAG + LLM-Scoring, um KI-Ausgaben anhand von Wissensdatenbankinhalten zu validieren
+  </Step>
+  <Step>
+    <strong>PII erkennen</strong>: Identifizieren und optional maskieren Sie personenbezogene Daten über mehr als 40 Entitätstypen hinweg
+  </Step>
+</Steps>
+
+## Validierungstypen
+
+### JSON-Validierung
+
+Überprüft, ob Inhalte korrekt formatiertes JSON sind. Perfekt, um sicherzustellen, dass strukturierte LLM-Ausgaben sicher geparst werden können.
+
+**Anwendungsfälle:**
+- Validieren von JSON-Antworten aus Agent-Blöcken vor dem Parsen
+- Sicherstellen, dass API-Payloads korrekt formatiert sind
+- Überprüfen der Integrität strukturierter Daten
+
+**Ausgabe:**
+- `passed`: `true` bei gültigem JSON, sonst `false`
+- `error`: Fehlermeldung bei fehlgeschlagener Validierung (z.B. "Ungültiges JSON: Unerwartetes Token...")
+
+### Regex-Validierung
+
+Überprüft, ob Inhalte einem bestimmten regulären Ausdrucksmuster entsprechen.
+
+**Anwendungsfälle:**
+- Validieren von E-Mail-Adressen
+- Überprüfen von Telefonnummernformaten
+- Verifizieren von URLs oder benutzerdefinierten Kennungen
+- Durchsetzen spezifischer Textmuster
+
+**Konfiguration:**
+- **Regex-Muster**: Der reguläre Ausdruck, der abgeglichen werden soll (z.B.  für E-Mails)
+
+**Ausgabe:**
+- `passed`: `true` wenn der Inhalt dem Muster entspricht, `false` andernfalls
+- `error`: Fehlermeldung, wenn die Validierung fehlschlägt
+
+### Halluzinationserkennung
+
+Verwendet Retrieval-Augmented Generation (RAG) mit LLM-Bewertung, um zu erkennen, wann KI-generierte Inhalte im Widerspruch zu Ihrer Wissensdatenbank stehen oder nicht darin begründet sind.
+
+**Funktionsweise:**
+1. Durchsucht Ihre Wissensdatenbank nach relevantem Kontext
+2. Sendet sowohl die KI-Ausgabe als auch den abgerufenen Kontext an ein LLM
+3. LLM weist einen Konfidenzwert zu (Skala 0-10)
+   - **0** = Vollständige Halluzination (völlig unbegründet)
+   - **10** = Vollständig begründet (komplett durch die Wissensdatenbank gestützt)
+4. Validierung besteht, wenn der Wert ≥ Schwellenwert (Standard: 3)
+
+**Konfiguration:**
+- **Wissensdatenbank**: Auswahl aus Ihren vorhandenen Wissensdatenbanken
+- **Modell**: LLM für die Bewertung auswählen (erfordert starke Argumentationsfähigkeit - GPT-4o, Claude 3.7 Sonnet empfohlen)
+- **API-Schlüssel**: Authentifizierung für den ausgewählten LLM-Anbieter (automatisch ausgeblendet für gehostete/Ollama-Modelle)
+- **Konfidenz-Schwellenwert**: Mindestwert zum Bestehen (0-10, Standard: 3)
+- **Top K** (Erweitert): Anzahl der abzurufenden Wissensdatenbank-Chunks (Standard: 10)
+
+**Ausgabe:**
+- `passed`: `true` wenn Konfidenzwert ≥ Schwellenwert
+- `score`: Konfidenzwert (0-10)
+- `reasoning`: Erklärung des LLM für den Wert
+- `error`: Fehlermeldung, wenn die Validierung fehlschlägt
+
+**Anwendungsfälle:**
+- Validierung von Agent-Antworten anhand der Dokumentation
+- Sicherstellung der faktischen Richtigkeit von Kundendienstantworten
+- Überprüfung, ob generierte Inhalte mit dem Quellmaterial übereinstimmen
+- Qualitätskontrolle für RAG-Anwendungen
+
+### PII-Erkennung
+
+Erkennt personenbezogene Daten mit Microsoft Presidio. Unterstützt über 40 Entitätstypen in mehreren Ländern und Sprachen.
+
+<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
+  <Video src="guardrails.mp4" width={500} height={350} />
+</div>
+
+**Funktionsweise:**
+1. Scannt Inhalte nach PII-Entitäten mittels Musterabgleich und NLP
+2. Gibt erkannte Entitäten mit Positionen und Konfidenzwerten zurück
+3. Maskiert optional erkannte PII in der Ausgabe
+
+**Konfiguration:**
+- **Zu erkennende PII-Typen**: Auswahl aus gruppierten Kategorien über Modal-Selektor
+  - **Allgemein**: Personenname, E-Mail, Telefon, Kreditkarte, IP-Adresse usw.
+  - **USA**: SSN, Führerschein, Reisepass usw.
+  - **UK**: NHS-Nummer, Sozialversicherungsnummer
+  - **Spanien**: NIF, NIE, CIF
+  - **Italien**: Steuernummer, Führerschein, Umsatzsteuer-ID
+  - **Polen**: PESEL, NIP, REGON
+  - **Singapur**: NRIC/FIN, UEN
+  - **Australien**: ABN, ACN, TFN, Medicare
+  - **Indien**: Aadhaar, PAN, Reisepass, Wählernummer
+- **Modus**: 
+  - **Erkennen**: Nur PII identifizieren (Standard)
+  - **Maskieren**: Erkannte PII durch maskierte Werte ersetzen
+- **Sprache**: Erkennungssprache (Standard: Englisch)
+
+**Ausgabe:**
+- `passed`: `false` wenn ausgewählte PII-Typen erkannt werden
+- `detectedEntities`: Array erkannter PII mit Typ, Position und Konfidenz
+- `maskedText`: Inhalt mit maskierter PII (nur wenn Modus = "Maskieren")
+- `error`: Fehlermeldung bei fehlgeschlagener Validierung
+
+**Anwendungsfälle:**
+- Blockieren von Inhalten mit sensiblen persönlichen Informationen
+- Maskieren von PII vor der Protokollierung oder Speicherung von Daten
+- Einhaltung von DSGVO, HIPAA und anderen Datenschutzbestimmungen
+- Bereinigung von Benutzereingaben vor der Verarbeitung
+
+## Konfiguration
+
+### Zu validierender Inhalt
+
+Der zu validierende Eingabeinhalt. Dieser stammt typischerweise aus:
+- Ausgaben von Agent-Blöcken: `<agent.content>`
+- Ergebnisse von Funktionsblöcken: `<function.output>`
+- API-Antworten: `<api.output>`
+- Jede andere Blockausgabe
+
+### Validierungstyp
+
+Wählen Sie aus vier Validierungstypen:
+- **Gültiges JSON**: Prüfen, ob der Inhalt korrekt formatiertes JSON ist
+- **Regex-Übereinstimmung**: Überprüfen, ob der Inhalt einem Regex-Muster entspricht
+- **Halluzinationsprüfung**: Validierung gegen Wissensdatenbank mit LLM-Bewertung
+- **PII-Erkennung**: Erkennung und optional Maskierung personenbezogener Daten
+
+## Ausgaben
+
+Alle Validierungstypen liefern zurück:
+
+- **`<guardrails.passed>`**: Boolean, der angibt, ob die Validierung erfolgreich war
+- **`<guardrails.validationType>`**: Die Art der durchgeführten Validierung
+- **`<guardrails.input>`**: Die ursprüngliche Eingabe, die validiert wurde
+- **`<guardrails.error>`**: Fehlermeldung, wenn die Validierung fehlgeschlagen ist (optional)
+
+Zusätzliche Ausgaben nach Typ:
+
+**Halluzinationsprüfung:**
+- **`<guardrails.score>`**: Konfidenzwert (0-10)
+- **`<guardrails.reasoning>`**: Erklärung des LLM
+
+**PII-Erkennung:**
+- **`<guardrails.detectedEntities>`**: Array erkannter PII-Entitäten
+- **`<guardrails.maskedText>`**: Inhalt mit maskierter PII (wenn Modus = "Mask")
+
+## Beispielanwendungsfälle
+
+### JSON vor dem Parsen validieren
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Szenario: Sicherstellen, dass die Agent-Ausgabe gültiges JSON ist</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Agent generiert strukturierte JSON-Antwort</li>
+    <li>Guardrails validiert das JSON-Format</li>
+    <li>Bedingungsblock prüft `<guardrails.passed>`</li>
+    <li>Bei Erfolg → Daten parsen und verwenden, Bei Misserfolg → Wiederholen oder Fehler behandeln</li>
+  </ol>
+</div>
+
+### Halluzinationen verhindern
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Szenario: Validierung von Kundendienstantworten</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Agent generiert Antwort auf Kundenfrage</li>
+    <li>Guardrails prüft anhand der Support-Dokumentationswissensbasis</li>
+    <li>Wenn Konfidenzwert ≥ 3 → Antwort senden</li>
+    <li>Wenn Konfidenzwert \< 3 → Für manuelle Überprüfung markieren</li>
+  </ol>
+</div>
+
+### PII in Benutzereingaben blockieren
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Szenario: Bereinigung von benutzerübermittelten Inhalten</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Benutzer reicht Formular mit Textinhalt ein</li>
+    <li>Guardrails erkennt PII (E-Mails, Telefonnummern, Sozialversicherungsnummern usw.)</li>
+    <li>Bei erkannter PII → Einreichung ablehnen oder sensible Daten maskieren</li>
+    <li>Ohne PII → Normal verarbeiten</li>
+  </ol>
+</div>
+
+<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
+  <Video src="guardrails-example.mp4" width={500} height={350} />
+</div>
+
+### E-Mail-Format validieren
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Szenario: E-Mail-Adressformat überprüfen</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Agent extrahiert E-Mail aus Text</li>
+    <li>Guardrails validiert mit Regex-Muster</li>
+    <li>Bei Gültigkeit → E-Mail für Benachrichtigung verwenden</li>
+    <li>Bei Ungültigkeit → Korrektur anfordern</li>
+  </ol>
+</div>
+
+## Best Practices
+
+- **Verkettung mit Condition-Blöcken**: Verwende `<guardrails.passed>` um Workflow-Logik basierend auf Validierungsergebnissen zu verzweigen
+- **JSON-Validierung vor dem Parsen verwenden**: Validiere immer die JSON-Struktur, bevor du versuchst, LLM-Ausgaben zu parsen
+- **Passende PII-Typen auswählen**: Wähle nur die PII-Entitätstypen aus, die für deinen Anwendungsfall relevant sind, um bessere Leistung zu erzielen
+- **Vernünftige Konfidenz-Schwellenwerte festlegen**: Passe für die Halluzinationserkennung den Schwellenwert basierend auf deinen Genauigkeitsanforderungen an (höher = strenger)
+- **Starke Modelle für Halluzinationserkennung verwenden**: GPT-4o oder Claude 3.7 Sonnet bieten genauere Konfidenz-Bewertungen
+- **PII für Logging maskieren**: Verwende den "Mask"-Modus, wenn du Inhalte protokollieren oder speichern musst, die PII enthalten könnten
+- **Regex-Muster testen**: Validiere deine Regex-Muster gründlich, bevor du sie in der Produktion einsetzt
+- **Validierungsfehler überwachen**: Verfolge `<guardrails.error>` Nachrichten, um häufige Validierungsprobleme zu identifizieren
+
+<Callout type="info">
+  Guardrails-Validierung erfolgt synchron in deinem Workflow. Für die Halluzinationserkennung solltest du schnellere Modelle (wie GPT-4o-mini) wählen, wenn Latenz kritisch ist.
+</Callout>
