@@ -118,6 +118,7 @@ export async function createStreamingResponse(
           workflowTriggerType: streamConfig.workflowTriggerType,
           onStream: onStreamCallback,
           onBlockComplete: onBlockCompleteCallback,
+          skipLoggingComplete: true, // We'll complete logging after tokenization
         })
 
         if (result.logs && streamedContent.size > 0) {
@@ -133,6 +134,22 @@ export async function createStreamingResponse(
 
           const { processStreamingBlockLogs } = await import('@/lib/tokenization')
           processStreamingBlockLogs(result.logs, streamedContent)
+        }
+
+        // Complete the logging session with updated trace spans that include cost data
+        if (result._streamingMetadata?.loggingSession) {
+          const { buildTraceSpans } = await import('@/lib/logs/execution/trace-spans/trace-spans')
+          const { traceSpans, totalDuration } = buildTraceSpans(result)
+
+          await result._streamingMetadata.loggingSession.safeComplete({
+            endedAt: new Date().toISOString(),
+            totalDurationMs: totalDuration || 0,
+            finalOutput: result.output || {},
+            traceSpans: (traceSpans || []) as any,
+            workflowInput: result._streamingMetadata.processedInput,
+          })
+
+          result._streamingMetadata = undefined
         }
 
         // Create a minimal result with only selected outputs
