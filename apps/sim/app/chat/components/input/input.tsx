@@ -35,6 +35,8 @@ export const ChatInput: React.FC<{
   const [inputValue, setInputValue] = useState('')
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
   const [uploadErrors, setUploadErrors] = useState<string[]>([])
+  const [dragCounter, setDragCounter] = useState(0)
+  const isDragOver = dragCounter > 0
 
   // Check if speech-to-text is available in the browser
   const isSttAvailable =
@@ -234,11 +236,42 @@ export const ChatInput: React.FC<{
 
           {/* Text Input Area with Controls */}
           <motion.div
-            className='rounded-2xl border border-gray-200 bg-white shadow-sm md:rounded-3xl'
+            className={`rounded-2xl border shadow-sm transition-all duration-200 md:rounded-3xl ${
+              isDragOver
+                ? 'border-purple-500 bg-purple-50/50 dark:border-purple-500 dark:bg-purple-950/20'
+                : 'border-gray-200 bg-white'
+            }`}
             onClick={handleActivate}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2 }}
+            onDragEnter={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              if (!isStreaming) {
+                setDragCounter((prev) => prev + 1)
+              }
+            }}
+            onDragOver={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              if (!isStreaming) {
+                e.dataTransfer.dropEffect = 'copy'
+              }
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setDragCounter((prev) => Math.max(0, prev - 1))
+            }}
+            onDrop={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setDragCounter(0)
+              if (!isStreaming) {
+                handleFileSelect(e.dataTransfer.files)
+              }
+            }}
           >
             {/* File Previews */}
             {attachedFiles.length > 0 && (
@@ -341,7 +374,7 @@ export const ChatInput: React.FC<{
                   value={inputValue}
                   onChange={handleInputChange}
                   className='flex w-full resize-none items-center overflow-hidden bg-transparent text-base outline-none placeholder:text-gray-400 md:font-[330]'
-                  placeholder={isActive ? '' : ''}
+                  placeholder={isDragOver ? 'Drop files here...' : isActive ? '' : ''}
                   rows={1}
                   style={{
                     minHeight: window.innerWidth >= 768 ? '24px' : '28px',
@@ -366,14 +399,14 @@ export const ChatInput: React.FC<{
                         className='-translate-y-1/2 absolute top-1/2 left-0 transform select-none text-base text-gray-400 md:hidden'
                         style={{ paddingTop: '3px', paddingBottom: '3px' }}
                       >
-                        {PLACEHOLDER_MOBILE}
+                        {isDragOver ? 'Drop files here...' : PLACEHOLDER_MOBILE}
                       </div>
                       {/* Desktop placeholder */}
                       <div
                         className='-translate-y-1/2 absolute top-1/2 left-0 hidden transform select-none font-[330] text-base text-gray-400 md:block'
                         style={{ paddingTop: '4px', paddingBottom: '4px' }}
                       >
-                        {PLACEHOLDER_DESKTOP}
+                        {isDragOver ? 'Drop files here...' : PLACEHOLDER_DESKTOP}
                       </div>
                     </>
                   )}

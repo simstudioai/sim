@@ -186,6 +186,11 @@ export interface ExecutionResult {
   error?: string // Error message if execution failed
   logs?: BlockLog[] // Execution logs for all blocks
   metadata?: ExecutionMetadata
+  _streamingMetadata?: {
+    // Internal metadata for streaming execution
+    loggingSession: any
+    processedInput: any
+  }
 }
 
 /**

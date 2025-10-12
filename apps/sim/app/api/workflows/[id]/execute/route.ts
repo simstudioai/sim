@@ -123,8 +123,9 @@ export async function executeWorkflow(
     workflowTriggerType?: 'api' | 'chat' // Which trigger block type to look for (default: 'api')
     onStream?: (streamingExec: any) => Promise<void> // Callback for streaming agent responses
     onBlockComplete?: (blockId: string, output: any) => Promise<void> // Callback when any block completes
+    skipLoggingComplete?: boolean // When true, skip calling loggingSession.safeComplete (for streaming)
   }
-): Promise<any> {
+): Promise<ExecutionResult> {
   const workflowId = workflow.id
   const executionId = uuidv4()
 
@@ -378,13 +379,20 @@ export async function executeWorkflow(
         .where(eq(userStats.userId, actorUserId))
     }
 
-    await loggingSession.safeComplete({
-      endedAt: new Date().toISOString(),
-      totalDurationMs: totalDuration || 0,
-      finalOutput: result.output || {},
-      traceSpans: (traceSpans || []) as any,
-      workflowInput: processedInput,
-    })
+    if (!streamConfig?.skipLoggingComplete) {
+      await loggingSession.safeComplete({
+        endedAt: new Date().toISOString(),
+        totalDurationMs: totalDuration || 0,
+        finalOutput: result.output || {},
+        traceSpans: traceSpans || [],
+        workflowInput: processedInput,
+      })
+    } else {
+      result._streamingMetadata = {
+        loggingSession,
+        processedInput,
+      }
+    }
 
     return result
   } catch (error: any) {
