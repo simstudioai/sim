@@ -24,20 +24,31 @@ import { Image } from '@/components/ui/image'
 
 触发器会写入三个字段，供下游模块引用：
 
-| 引用 | 描述 |
-|-----------|-------------|
-| `<chat.input>` | 最新的用户消息 |
-| `<chat.conversationId>` | 对话线程 ID |
-| `<chat.files>` | 可选的上传文件 |
+| 参考 | 描述 | 类型 |
+|-----------|-------------|------|
+| `<chat.input>` | 最新用户消息 | string |
+| `<chat.conversationId>` | 会话线程 ID | string |
+| `<chat.files>` | 可选上传文件 | 文件数组 |
 
-文件包括 `name`、`mimeType`，以及一个带签名的下载链接 `url`。
+### 文件属性
+
+使用数组索引访问单个文件属性：
+
+| 属性 | 描述 | 类型 |
+|----------|-------------|------|
+| `<chat.files[0].url>` | 签名下载 URL | string |
+| `<chat.files[0].name>` | 原始文件名 | string |
+| `<chat.files[0].size>` | 文件大小（字节） | number |
+| `<chat.files[0].type>` | MIME 类型 | string |
+| `<chat.files[0].uploadedAt>` | 上传时间戳（ISO 8601） | string |
+| `<chat.files[0].expiresAt>` | URL 过期时间戳（ISO 8601） | string |
 
 ## 使用说明
 
-1. 每个工作流添加一个聊天触发器模块。
-2. 以聊天模式部署工作流。
-3. 分享部署链接——每次回复都会重用对话 ID，以便工作流保持上下文。
+1. 每个工作流添加一个聊天触发器块。
+2. 在聊天模式下部署工作流。
+3. 分享部署链接——每次回复都会重用会话 ID，以便工作流保持上下文。
 
 <Callout type="info">
-构建器会阻止在同一工作流中添加多个聊天触发器模块。
+构建器会阻止在同一工作流中使用多个聊天触发器块。
 </Callout>
