@@ -64,6 +64,7 @@ import {
   listMattersHoldsTool,
   listMattersTool,
 } from '@/tools/google_vault'
+import { guardrailsValidateTool } from '@/tools/guardrails'
 import { requestTool as httpRequest } from '@/tools/http'
 import { huggingfaceChatTool } from '@/tools/huggingface'
 import {
@@ -215,6 +216,7 @@ export const tools: Record<string, ToolConfig> = {
   firecrawl_search: searchTool,
   firecrawl_crawl: crawlTool,
   google_search: googleSearchTool,
+  guardrails_validate: guardrailsValidateTool,
   jina_read_url: readUrlTool,
   linkup_search: linkupSearchTool,
   resend_send: mailSendTool,
