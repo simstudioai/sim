@@ -19,7 +19,6 @@ export async function GET(
   const { id, version } = await params
 
   try {
-    // Validate permissions and get workflow data
     const { error } = await validateWorkflowPermissions(id, requestId, 'read')
     if (error) {
       return createErrorResponse(error.message, error.status)
@@ -52,5 +51,68 @@ export async function GET(
       error
     )
     return createErrorResponse(error.message || 'Failed to fetch deployment version', 500)
+  }
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; version: string }> }
+) {
+  const requestId = generateRequestId()
+  const { id, version } = await params
+
+  try {
+    const { error } = await validateWorkflowPermissions(id, requestId, 'write')
+    if (error) {
+      return createErrorResponse(error.message, error.status)
+    }
+
+    const versionNum = Number(version)
+    if (!Number.isFinite(versionNum)) {
+      return createErrorResponse('Invalid version', 400)
+    }
+
+    const body = await request.json()
+    const { name } = body
+
+    if (typeof name !== 'string') {
+      return createErrorResponse('Name must be a string', 400)
+    }
+
+    const trimmedName = name.trim()
+    if (trimmedName.length === 0) {
+      return createErrorResponse('Name cannot be empty', 400)
+    }
+
+    if (trimmedName.length > 100) {
+      return createErrorResponse('Name must be 100 characters or less', 400)
+    }
+
+    const [updated] = await db
+      .update(workflowDeploymentVersion)
+      .set({ name: trimmedName })
+      .where(
+        and(
+          eq(workflowDeploymentVersion.workflowId, id),
+          eq(workflowDeploymentVersion.version, versionNum)
+        )
+      )
+      .returning({ id: workflowDeploymentVersion.id, name: workflowDeploymentVersion.name })
+
+    if (!updated) {
+      return createErrorResponse('Deployment version not found', 404)
+    }
+
+    logger.info(
+      `[${requestId}] Renamed deployment version ${version} for workflow ${id} to "${trimmedName}"`
+    )
+
+    return createSuccessResponse({ name: updated.name })
+  } catch (error: any) {
+    logger.error(
+      `[${requestId}] Error renaming deployment version ${version} for workflow ${id}`,
+      error
+    )
+    return createErrorResponse(error.message || 'Failed to rename deployment version', 500)
   }
 }

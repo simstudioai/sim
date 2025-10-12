@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Loader2, MoreVertical, X } from 'lucide-react'
 import {
   Button,
@@ -102,6 +102,18 @@ export function DeployModal({
   const [previewDeployedState, setPreviewDeployedState] = useState<WorkflowState | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 5
+  const [editingVersion, setEditingVersion] = useState<number | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const [isRenaming, setIsRenaming] = useState(false)
+  const [openDropdown, setOpenDropdown] = useState<number | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editingVersion !== null && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [editingVersion])
 
   const getInputFormatExample = (includeStreaming = false) => {
     let inputFormatExample = ''
@@ -419,6 +431,52 @@ export function DeployModal({
     }
   }
 
+  const handleStartRename = (version: number, currentName: string | null | undefined) => {
+    setOpenDropdown(null) // Close dropdown first
+    setEditingVersion(version)
+    setEditValue(currentName || `v${version}`)
+  }
+
+  const handleSaveRename = async (version: number) => {
+    if (!workflowId || !editValue.trim()) {
+      setEditingVersion(null)
+      return
+    }
+
+    const currentVersion = versions.find((v) => v.version === version)
+    const currentName = currentVersion?.name || `v${version}`
+
+    if (editValue.trim() === currentName) {
+      setEditingVersion(null)
+      return
+    }
+
+    setIsRenaming(true)
+    try {
+      const res = await fetch(`/api/workflows/${workflowId}/deployments/${version}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editValue.trim() }),
+      })
+
+      if (res.ok) {
+        await fetchVersions()
+        setEditingVersion(null)
+      } else {
+        logger.error('Failed to rename version')
+      }
+    } catch (error) {
+      logger.error('Error renaming version:', error)
+    } finally {
+      setIsRenaming(false)
+    }
+  }
+
+  const handleCancelRename = () => {
+    setEditingVersion(null)
+    setEditValue('')
+  }
+
   const handleUndeploy = async () => {
     try {
       setIsUndeploying(true)
@@ -539,7 +597,7 @@ export function DeployModal({
   return (
     <Dialog open={open} onOpenChange={handleCloseModal}>
       <DialogContent
-        className='flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]'
+        className='flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[700px]'
         hideCloseButton
       >
         <DialogHeader className='flex-shrink-0 border-b px-6 py-4'>
@@ -650,13 +708,13 @@ export function DeployModal({
                           <thead className='border-b bg-muted/50'>
                             <tr>
                               <th className='w-10' />
-                              <th className='px-4 py-2 text-left font-medium text-muted-foreground text-xs'>
+                              <th className='w-[200px] whitespace-nowrap px-4 py-2 text-left font-medium text-muted-foreground text-xs'>
                                 Version
                               </th>
-                              <th className='px-4 py-2 text-left font-medium text-muted-foreground text-xs'>
+                              <th className='whitespace-nowrap px-4 py-2 text-left font-medium text-muted-foreground text-xs'>
                                 Deployed By
                               </th>
-                              <th className='px-4 py-2 text-left font-medium text-muted-foreground text-xs'>
+                              <th className='whitespace-nowrap px-4 py-2 text-left font-medium text-muted-foreground text-xs'>
                                 Created
                               </th>
                               <th className='w-10' />
@@ -669,7 +727,11 @@ export function DeployModal({
                                 <tr
                                   key={v.id}
                                   className='cursor-pointer transition-colors hover:bg-muted/30'
-                                  onClick={() => openVersionPreview(v.version)}
+                                  onClick={() => {
+                                    if (editingVersion !== v.version) {
+                                      openVersionPreview(v.version)
+                                    }
+                                  }}
                                 >
                                   <td className='px-4 py-2.5'>
                                     <div
@@ -679,22 +741,54 @@ export function DeployModal({
                                       title={v.isActive ? 'Active' : 'Inactive'}
                                     />
                                   </td>
-                                  <td className='px-4 py-2.5'>
-                                    <span className='font-medium text-sm'>v{v.version}</span>
+                                  <td className='w-[220px] max-w-[220px] px-4 py-2.5'>
+                                    {editingVersion === v.version ? (
+                                      <input
+                                        ref={inputRef}
+                                        value={editValue}
+                                        onChange={(e) => setEditValue(e.target.value)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') {
+                                            e.preventDefault()
+                                            handleSaveRename(v.version)
+                                          } else if (e.key === 'Escape') {
+                                            e.preventDefault()
+                                            handleCancelRename()
+                                          }
+                                        }}
+                                        onBlur={() => handleSaveRename(v.version)}
+                                        className='w-full border-0 bg-transparent p-0 font-medium text-sm leading-5 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                                        maxLength={100}
+                                        disabled={isRenaming}
+                                        autoComplete='off'
+                                        autoCorrect='off'
+                                        autoCapitalize='off'
+                                        spellCheck='false'
+                                      />
+                                    ) : (
+                                      <span className='block whitespace-pre-wrap break-words break-all font-medium text-sm leading-5'>
+                                        {v.name || `v${v.version}`}
+                                      </span>
+                                    )}
                                   </td>
-                                  <td className='px-4 py-2.5'>
+                                  <td className='whitespace-nowrap px-4 py-2.5'>
                                     <span className='text-muted-foreground text-sm'>
                                       {v.deployedBy || 'Unknown'}
                                     </span>
                                   </td>
-                                  <td className='px-4 py-2.5'>
+                                  <td className='whitespace-nowrap px-4 py-2.5'>
                                     <span className='text-muted-foreground text-sm'>
                                       {new Date(v.createdAt).toLocaleDateString()}{' '}
                                       {new Date(v.createdAt).toLocaleTimeString()}
                                     </span>
                                   </td>
                                   <td className='px-4 py-2.5' onClick={(e) => e.stopPropagation()}>
-                                    <DropdownMenu>
+                                    <DropdownMenu
+                                      open={openDropdown === v.version}
+                                      onOpenChange={(open) =>
+                                        setOpenDropdown(open ? v.version : null)
+                                      }
+                                    >
                                       <DropdownMenuTrigger asChild>
                                         <Button
                                           variant='ghost'
@@ -705,7 +799,10 @@ export function DeployModal({
                                           <MoreVertical className='h-4 w-4' />
                                         </Button>
                                       </DropdownMenuTrigger>
-                                      <DropdownMenuContent align='end'>
+                                      <DropdownMenuContent
+                                        align='end'
+                                        onCloseAutoFocus={(event) => event.preventDefault()}
+                                      >
                                         <DropdownMenuItem
                                           onClick={() => activateVersion(v.version)}
                                           disabled={v.isActive || activatingVersion === v.version}
@@ -720,6 +817,11 @@ export function DeployModal({
                                           onClick={() => openVersionPreview(v.version)}
                                         >
                                           Inspect
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                          onClick={() => handleStartRename(v.version, v.name)}
+                                        >
+                                          Rename
                                         </DropdownMenuItem>
                                       </DropdownMenuContent>
                                     </DropdownMenu>
@@ -889,7 +991,9 @@ export function DeployModal({
           selectedVersion={previewVersion}
           onActivateVersion={() => activateVersion(previewVersion)}
           isActivating={activatingVersion === previewVersion}
-          selectedVersionLabel={`v${previewVersion}`}
+          selectedVersionLabel={
+            versions.find((v) => v.version === previewVersion)?.name || `v${previewVersion}`
+          }
           workflowId={workflowId}
           isSelectedVersionActive={versions.find((v) => v.version === previewVersion)?.isActive}
         />

@@ -22,6 +22,7 @@ export type WorkflowDeploymentVersion = InferSelectModel<typeof workflowDeployme
 export interface WorkflowDeploymentVersionResponse {
   id: string
   version: number
+  name?: string | null
   isActive: boolean
   createdAt: string
   createdBy?: string | null
