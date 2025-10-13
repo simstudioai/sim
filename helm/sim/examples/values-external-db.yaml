@@ -122,8 +122,9 @@ autoscaling:
 
 podDisruptionBudget:
   enabled: true
-  minAvailable: 1
-
+  minAvailable: null
+  maxUnavailable: 1  
+  unhealthyPodEvictionPolicy: AlwaysAllow 
 monitoring:
   serviceMonitor:
     enabled: true
