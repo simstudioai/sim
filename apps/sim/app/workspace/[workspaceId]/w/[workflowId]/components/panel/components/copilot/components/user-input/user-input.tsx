@@ -55,6 +55,7 @@ import { cn } from '@/lib/utils'
 import { useCopilotStore } from '@/stores/copilot/store'
 import type { ChatContext } from '@/stores/copilot/types'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { ContextUsagePill } from '../context-usage-pill/context-usage-pill'
 
 const logger = createLogger('CopilotUserInput')
 
@@ -182,7 +183,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const [isLoadingLogs, setIsLoadingLogs] = useState(false)
 
     const { data: session } = useSession()
-    const { currentChat, workflowId, enabledModels, setEnabledModels } = useCopilotStore()
+    const { currentChat, workflowId, enabledModels, setEnabledModels, contextUsage } =
+      useCopilotStore()
     const params = useParams()
     const workspaceId = params.workspaceId as string
     // Track per-chat preference for auto-adding workflow context
@@ -2050,7 +2052,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       <div className={cn('relative flex-none pb-4', className)}>
         <div
           className={cn(
-            'rounded-[8px] border border-[#E5E5E5] bg-[#FFFFFF] p-2 shadow-xs transition-all duration-200 dark:border-[#414141] dark:bg-[var(--surface-elevated)]',
+            'relative rounded-[8px] border border-[#E5E5E5] bg-[#FFFFFF] p-2 shadow-xs transition-all duration-200 dark:border-[#414141] dark:bg-[var(--surface-elevated)]',
             isDragging &&
               'border-[var(--brand-primary-hover-hex)] bg-purple-50/50 dark:border-[var(--brand-primary-hover-hex)] dark:bg-purple-950/20'
           )}
@@ -2059,6 +2061,12 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           onDragOver={handleDragOver}
           onDrop={handleDrop}
         >
+          {/* Context Usage Pill - Top Right */}
+          {contextUsage && contextUsage.percentage > 0 && (
+            <div className='absolute top-2 right-2 z-10'>
+              <ContextUsagePill percentage={contextUsage.percentage} />
+            </div>
+          )}
           {/* Attached Files Display with Thumbnails */}
           {attachedFiles.length > 0 && (
             <div className='mb-2 flex flex-wrap gap-1.5'>
@@ -3364,7 +3372,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             </div>
 
             {/* Right side: Attach Button + Send Button */}
-            <div className='flex items-center gap-1'>
+            <div className='flex items-center gap-1.5'>
               {/* Attach Button */}
               <Button
                 variant='ghost'
