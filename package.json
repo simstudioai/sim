@@ -42,7 +42,6 @@
     "postgres": "^3.4.5",
     "remark-gfm": "4.0.1",
     "socket.io-client": "4.8.1",
-    "tiktoken": "1.0.22",
     "twilio": "5.9.0"
   },
   "devDependencies": {
