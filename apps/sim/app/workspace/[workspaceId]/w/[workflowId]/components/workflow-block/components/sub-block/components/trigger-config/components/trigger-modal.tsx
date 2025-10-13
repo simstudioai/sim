@@ -134,6 +134,8 @@ export function TriggerModal({
     // Only update if there are actually default values to apply
     if (Object.keys(defaultConfig).length > 0) {
       setConfig(mergedConfig)
+      // Reset dirty snapshot when defaults are applied to avoid false-disabled Save
+      initialConfigRef.current = mergedConfig
     }
   }, [triggerDef.configFields, initialConfig])
 
@@ -420,6 +422,17 @@ export function TriggerModal({
     // Check required fields
     for (const [fieldId, fieldDef] of Object.entries(triggerDef.configFields)) {
       if (fieldDef.required && !config[fieldId]) {
+        return false
+      }
+    }
+
+    // Provider-specific validation: Teams chat scope requires chatId
+    if (
+      triggerDef.provider === 'microsoftteams' &&
+      typeof config.subscriptionScope === 'string' &&
+      config.subscriptionScope === 'chat'
+    ) {
+      if (!config.chatId || String(config.chatId).trim() === '') {
         return false
       }
     }

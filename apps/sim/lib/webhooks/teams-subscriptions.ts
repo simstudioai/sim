@@ -31,39 +31,23 @@ export async function createMicrosoftTeamsChatSubscription(
 
     if (!resource) return false
 
-    // Clean up existing Teams chat subscriptions for this credential
-    try {
-      const listResponse = await fetch('https://graph.microsoft.com/v1.0/subscriptions', {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      })
-
-      if (listResponse.ok) {
-        const data = await listResponse.json()
-        const allSubscriptions = data.value || []
-        const chatSubscriptions = allSubscriptions.filter(
-          (sub: any) => sub.resource?.includes('/chats/') && sub.clientState === webhookData.id
+    const existingSubscriptionId: string | undefined = providerConfig.externalSubscriptionId
+    if (existingSubscriptionId) {
+      try {
+        const checkRes = await fetch(
+          `https://graph.microsoft.com/v1.0/subscriptions/${existingSubscriptionId}`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
         )
-
-        for (const sub of chatSubscriptions) {
-          try {
-            const notificationUrl = sub.notificationUrl || ''
-            const isOurSubscription = notificationUrl.includes('/api/webhooks/trigger/')
-
-            if (isOurSubscription) {
-              await fetch(`https://graph.microsoft.com/v1.0/subscriptions/${sub.id}`, {
-                method: 'DELETE',
-                headers: {
-                  Authorization: `Bearer ${accessToken}`,
-                },
-              })
-            }
-          } catch {}
+        if (checkRes.ok) {
+          return true
         }
-      }
-    } catch {}
+      } catch {}
+    }
 
     const maxLifetimeMinutes = 4230
     const expirationDateTime = new Date(Date.now() + maxLifetimeMinutes * 60 * 1000).toISOString()

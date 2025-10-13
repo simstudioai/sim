@@ -58,6 +58,17 @@ export function TriggerConfigSection({
 
     if (credentialFields.length === 0) return
 
+    // Perform an initial sync from the store so required credential fields are populated on open
+    try {
+      const state = useSubBlockStore.getState()
+      credentialFields.forEach(([fieldId]) => {
+        const credentialValue = state.getValue(blockId, fieldId) as string | null
+        if (credentialValue && credentialValue !== config[fieldId]) {
+          onChange(fieldId, credentialValue)
+        }
+      })
+    } catch {}
+
     const unsubscribe = useSubBlockStore.subscribe((state) => {
       credentialFields.forEach(([fieldId]) => {
         const credentialValue = state.getValue(blockId, fieldId) as string | null
