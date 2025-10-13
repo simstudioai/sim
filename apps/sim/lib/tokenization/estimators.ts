@@ -2,7 +2,7 @@
  * Token estimation and accurate counting functions for different providers
  */
 
-import { encoding_for_model, type Tiktoken } from 'tiktoken'
+import { encodingForModel, type Tiktoken } from 'js-tiktoken'
 import { createLogger } from '@/lib/logs/console/logger'
 import { MIN_TEXT_LENGTH_FOR_ESTIMATION, TOKENIZATION_CONFIG } from '@/lib/tokenization/constants'
 import type { TokenEstimate } from '@/lib/tokenization/types'
@@ -21,12 +21,12 @@ function getEncoding(modelName: string): Tiktoken {
   }
 
   try {
-    const encoding = encoding_for_model(modelName as Parameters<typeof encoding_for_model>[0])
+    const encoding = encodingForModel(modelName as Parameters<typeof encodingForModel>[0])
     encodingCache.set(modelName, encoding)
     return encoding
   } catch (error) {
     logger.warn(`Failed to get encoding for model ${modelName}, falling back to cl100k_base`)
-    const encoding = encoding_for_model('gpt-4')
+    const encoding = encodingForModel('gpt-4')
     encodingCache.set(modelName, encoding)
     return encoding
   }
@@ -79,7 +79,7 @@ export function truncateToTokenLimit(
     }
 
     const truncatedTokens = tokens.slice(0, maxTokens)
-    const truncatedText = new TextDecoder().decode(encoding.decode(truncatedTokens))
+    const truncatedText = encoding.decode(truncatedTokens)
 
     logger.warn(
       `Truncated text from ${tokens.length} to ${maxTokens} tokens (${text.length} to ${truncatedText.length} chars)`
@@ -160,9 +160,6 @@ export function batchByTokenLimit(
  * Clean up cached encodings (call when shutting down)
  */
 export function clearEncodingCache(): void {
-  for (const encoding of encodingCache.values()) {
-    encoding.free()
-  }
   encodingCache.clear()
   logger.info('Cleared tiktoken encoding cache')
 }

@@ -1,0 +1,35 @@
+{{- if and .Values.postgresql.enabled .Values.postgresql.tls.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "sim.fullname" . }}-postgresql-tls-certificate
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.postgresql.labels" . | nindent 4 }}
+spec:
+  secretName: {{ .Values.postgresql.tls.certificatesSecret }}
+  duration: {{ .Values.postgresql.tls.duration | default "87600h" }}  # Default: 10 years
+  renewBefore: {{ .Values.postgresql.tls.renewBefore | default "2160h" }}  # Default: 90 days before expiry
+  isCA: false
+  {{- if .Values.postgresql.tls.rotationPolicy }}
+  rotationPolicy: {{ .Values.postgresql.tls.rotationPolicy }}
+  {{- end }}
+  privateKey:
+    algorithm: {{ .Values.postgresql.tls.privateKey.algorithm | default "RSA" }}
+    size: {{ .Values.postgresql.tls.privateKey.size | default 4096 }}
+  usages:
+    - server auth
+    - client auth
+  dnsNames:
+  - {{ include "sim.fullname" . }}-postgresql
+  - {{ include "sim.fullname" . }}-postgresql.{{ .Release.Namespace }}.svc.cluster.local
+  {{- with .Values.postgresql.tls.additionalDnsNames }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+  issuerRef:
+    name: {{ .Values.postgresql.tls.issuerRef.name }}
+    kind: {{ .Values.postgresql.tls.issuerRef.kind | default "ClusterIssuer" }}
+    {{- if .Values.postgresql.tls.issuerRef.group }}
+    group: {{ .Values.postgresql.tls.issuerRef.group }}
+    {{- end }}
+{{- end }}

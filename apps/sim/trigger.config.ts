@@ -1,3 +1,4 @@
+import { additionalPackages } from '@trigger.dev/build/extensions/core'
 import { defineConfig } from '@trigger.dev/sdk'
 import { env } from './lib/env'
 
@@ -13,4 +14,12 @@ export default defineConfig({
     },
   },
   dirs: ['./background'],
+  build: {
+    extensions: [
+      // pdf-parse has native bindings, keep as external package
+      additionalPackages({
+        packages: ['pdf-parse'],
+      }),
+    ],
+  },
 })
