@@ -1,10 +1,11 @@
 import { db, userStats, workflow, workflowSchedule } from '@sim/db'
 import { Cron } from 'croner'
 import { and, eq, lte, not, sql } from 'drizzle-orm'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { getApiKeyOwnerUserId } from '@/lib/api-key/service'
+import { verifyCronAuth } from '@/lib/auth/internal'
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
@@ -63,9 +64,15 @@ const EnvVarsSchema = z.record(z.string())
 
 const runningExecutions = new Set<string>()
 
-export async function GET() {
-  logger.info(`Scheduled execution triggered at ${new Date().toISOString()}`)
+export async function GET(request: NextRequest) {
   const requestId = generateRequestId()
+  logger.info(`[${requestId}] Scheduled execution triggered at ${new Date().toISOString()}`)
+
+  const authError = verifyCronAuth(request, 'Schedule execution')
+  if (authError) {
+    return authError
+  }
+
   const now = new Date()
 
   let dueSchedules: (typeof workflowSchedule.$inferSelect)[] = []

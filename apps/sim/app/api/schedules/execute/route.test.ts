@@ -3,6 +3,7 @@
  *
  * @vitest-environment node
  */
+import type { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   mockExecutionDependencies,
@@ -10,11 +11,30 @@ import {
   sampleWorkflowState,
 } from '@/app/api/__test-utils__/utils'
 
+function createMockRequest(): NextRequest {
+  const mockHeaders = new Map([
+    ['authorization', 'Bearer test-cron-secret'],
+    ['content-type', 'application/json'],
+  ])
+
+  return {
+    headers: {
+      get: (key: string) => mockHeaders.get(key.toLowerCase()) || null,
+    },
+    url: 'http://localhost:3000/api/schedules/execute',
+  } as NextRequest
+}
+
 describe('Scheduled Workflow Execution API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
     mockExecutionDependencies()
+
+    // Mock authentication
+    vi.doMock('@/lib/auth/internal', () => ({
+      verifyCronAuth: vi.fn().mockReturnValue(null),
+    }))
 
     // Mock all dependencies
     vi.doMock('@/services/queue', () => ({
@@ -154,7 +174,7 @@ describe('Scheduled Workflow Execution API Route', () => {
     }))
 
     const { GET } = await import('@/app/api/schedules/execute/route')
-    const response = await GET()
+    const response = await GET(createMockRequest())
     expect(response).toBeDefined()
 
     const data = await response.json()
@@ -170,7 +190,7 @@ describe('Scheduled Workflow Execution API Route', () => {
     }))
 
     const { GET } = await import('@/app/api/schedules/execute/route')
-    const response = await GET()
+    const response = await GET(createMockRequest())
 
     expect(response).toBeDefined()
 
@@ -199,7 +219,7 @@ describe('Scheduled Workflow Execution API Route', () => {
     })
 
     const { GET } = await import('@/app/api/schedules/execute/route')
-    const response = await GET()
+    const response = await GET(createMockRequest())
     expect(response.status).toBe(200)
     const data = await response.json()
     expect(data).toHaveProperty('executedCount', 0)
@@ -241,7 +261,7 @@ describe('Scheduled Workflow Execution API Route', () => {
     })
 
     const { GET } = await import('@/app/api/schedules/execute/route')
-    const response = await GET()
+    const response = await GET(createMockRequest())
 
     expect(response.status).toBe(200)
   })
@@ -271,7 +291,7 @@ describe('Scheduled Workflow Execution API Route', () => {
     })
 
     const { GET } = await import('@/app/api/schedules/execute/route')
-    const response = await GET()
+    const response = await GET(createMockRequest())
 
     expect(response.status).toBe(200)
     const data = await response.json()
