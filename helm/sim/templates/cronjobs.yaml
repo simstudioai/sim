@@ -41,6 +41,9 @@ spec:
             securityContext:
               {{- toYaml . | nindent 14 }}
             {{- end }}
+            env:
+            - name: CRON_SECRET
+              value: {{ $.Values.app.env.CRON_SECRET | quote }}
             command:
             - /bin/sh
             - -c
@@ -58,6 +61,7 @@ spec:
                 if curl -f -s -S --max-time 60 --retry 2 --retry-delay 5 \
                   -H "Content-Type: application/json" \
                   -H "User-Agent: Kubernetes-CronJob/{{ $jobConfig.name }}" \
+                  -H "Authorization: Bearer ${CRON_SECRET}" \
                   "$SERVICE_URL{{ $jobConfig.path }}"; then
                   echo "Success: HTTP request completed"
                   exit 0
