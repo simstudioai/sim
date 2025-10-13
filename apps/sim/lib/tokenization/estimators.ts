@@ -21,7 +21,7 @@ function getEncoding(modelName: string): Tiktoken {
   }
 
   try {
-    const encoding = encoding_for_model(modelName as any)
+    const encoding = encoding_for_model(modelName as Parameters<typeof encoding_for_model>[0])
     encodingCache.set(modelName, encoding)
     return encoding
   } catch (error) {
@@ -30,6 +30,12 @@ function getEncoding(modelName: string): Tiktoken {
     encodingCache.set(modelName, encoding)
     return encoding
   }
+}
+
+if (typeof process !== 'undefined') {
+  process.on('beforeExit', () => {
+    clearEncodingCache()
+  })
 }
 
 /**
