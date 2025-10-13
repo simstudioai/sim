@@ -14,7 +14,6 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { getTool } from '@/tools/utils'
-import { getTrigger, getTriggersByProvider } from '@/triggers'
 
 interface BlockTagGroup {
   blockName: string
@@ -126,26 +125,10 @@ const getOutputTypeForPath = (
   mergedSubBlocksOverride?: Record<string, any>
 ): string => {
   if (block?.triggerMode && blockConfig?.triggers?.enabled) {
-    const triggerId = blockConfig?.triggers?.available?.[0]
-    const firstTrigger = triggerId ? getTrigger(triggerId) : getTriggersByProvider(block.type)[0]
-
-    if (firstTrigger?.outputs) {
-      const pathParts = outputPath.split('.')
-      let currentObj: any = firstTrigger.outputs
-
-      for (const part of pathParts) {
-        if (currentObj && typeof currentObj === 'object') {
-          currentObj = currentObj[part]
-        } else {
-          break
-        }
-      }
-
-      if (currentObj && typeof currentObj === 'object' && 'type' in currentObj && currentObj.type) {
-        return currentObj.type
-      }
-    }
-  } else if (block?.type === 'starter') {
+    // When in trigger mode, derive types from the selected trigger's outputs
+    return getBlockOutputType(block.type, outputPath, mergedSubBlocksOverride, true)
+  }
+  if (block?.type === 'starter') {
     // Handle starter block specific outputs
     const startWorkflowValue =
       mergedSubBlocksOverride?.startWorkflow?.value ?? getSubBlockValue(blockId, 'startWorkflow')
@@ -487,15 +470,10 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             blockTags = []
           }
         } else if (sourceBlock?.triggerMode && blockConfig.triggers?.enabled) {
-          const triggerId = blockConfig?.triggers?.available?.[0]
-          const firstTrigger = triggerId
-            ? getTrigger(triggerId)
-            : getTriggersByProvider(sourceBlock.type)[0]
-
-          if (firstTrigger?.outputs) {
-            // Use trigger outputs instead of block outputs
-            const outputPaths = generateOutputPaths(firstTrigger.outputs)
-            blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+          // Use selected trigger from subblocks to determine outputs
+          const dynamicOutputs = getBlockOutputPaths(sourceBlock.type, mergedSubBlocks, true)
+          if (dynamicOutputs.length > 0) {
+            blockTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
           } else {
             const outputPaths = generateOutputPaths(blockConfig.outputs || {})
             blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
@@ -759,15 +737,10 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       } else {
         const blockState = blocks[accessibleBlockId]
         if (blockState?.triggerMode && blockConfig.triggers?.enabled) {
-          const triggerId = blockConfig?.triggers?.available?.[0]
-          const firstTrigger = triggerId
-            ? getTrigger(triggerId)
-            : getTriggersByProvider(blockState.type)[0]
-
-          if (firstTrigger?.outputs) {
-            // Use trigger outputs instead of block outputs
-            const outputPaths = generateOutputPaths(firstTrigger.outputs)
-            blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
+          // Use selected trigger (from subblocks) rather than defaulting to the first one
+          const dynamicOutputs = getBlockOutputPaths(accessibleBlock.type, mergedSubBlocks, true)
+          if (dynamicOutputs.length > 0) {
+            blockTags = dynamicOutputs.map((path) => `${normalizedBlockName}.${path}`)
           } else {
             const outputPaths = generateOutputPaths(blockConfig.outputs || {})
             blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)

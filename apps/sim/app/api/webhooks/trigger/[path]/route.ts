@@ -89,14 +89,6 @@ export async function POST(
 
   const { webhook: foundWebhook, workflow: foundWorkflow } = findResult
 
-  // Log successful webhook lookup for debugging
-  logger.info(`[${requestId}] Found webhook for path: ${path}`, {
-    webhookId: foundWebhook.id,
-    provider: foundWebhook.provider,
-    workflowId: foundWorkflow.id,
-    blockId: foundWebhook.blockId,
-  })
-
   const authError = await verifyProviderAuth(foundWebhook, request, rawBody, requestId)
   if (authError) {
     return authError

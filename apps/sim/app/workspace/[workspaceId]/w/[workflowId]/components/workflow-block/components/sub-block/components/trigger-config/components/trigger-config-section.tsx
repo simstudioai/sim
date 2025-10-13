@@ -102,12 +102,6 @@ export function TriggerConfigSection({
         )
 
       case 'select': {
-        // Hide Scope selector for microsoftteams_chat_subscription to simplify UI (single-chat only)
-        const isHiddenScope =
-          (triggerDef.id === 'microsoftteams_chat_subscription' &&
-            fieldId === 'subscriptionScope') ||
-          false
-        if (isHiddenScope) return null
         return (
           <div className='space-y-2'>
             <Label htmlFor={fieldId}>
