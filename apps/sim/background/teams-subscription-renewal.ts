@@ -1,3 +1,8 @@
+/**
+ * @deprecated This file is deprecated. Use @/background/subscription-renewal.ts instead.
+ * The new implementation uses the subscription manager system which supports all providers.
+ */
+
 import { db } from '@sim/db'
 import { webhook as webhookTable, workflow as workflowTable } from '@sim/db/schema'
 import { task } from '@trigger.dev/sdk/v3'
@@ -9,6 +14,8 @@ import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 const logger = createLogger('TeamsSubscriptionRenewal')
 
 /**
+ * @deprecated Use renewSubscriptions task from @/background/subscription-renewal.ts instead
+ *
  * Background job to renew Microsoft Teams Graph API subscriptions before they expire.
  * Runs periodically to check for subscriptions expiring soon and renews them.
  */

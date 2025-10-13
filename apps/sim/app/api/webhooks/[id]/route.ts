@@ -408,119 +408,28 @@ export async function DELETE(
       }
     }
 
-    // If it's a Microsoft Teams webhook with a subscription, delete the Graph subscription
-    if (foundWebhook.provider === 'microsoftteams') {
-      const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
-      const externalSubscriptionId = providerConfig.externalSubscriptionId
-      const credentialId = providerConfig.credentialId
-      const triggerId = providerConfig.triggerId
-
-      // Only attempt deletion for chat subscription triggers that have an external subscription
-      if (
-        triggerId === 'microsoftteams_chat_subscription' &&
-        externalSubscriptionId &&
-        credentialId
-      ) {
-        try {
-          logger.info(
-            `[${requestId}] Deleting Microsoft Teams subscription ${externalSubscriptionId}`
-          )
-
-          // Get access token for the user
-          const { refreshAccessTokenIfNeeded } = await import('@/app/api/auth/oauth/utils')
-          const accessToken = await refreshAccessTokenIfNeeded(
-            credentialId,
-            webhookData.workflow.userId,
-            requestId
-          )
-
-          if (accessToken) {
-            const deleteResponse = await fetch(
-              `https://graph.microsoft.com/v1.0/subscriptions/${externalSubscriptionId}`,
-              {
-                method: 'DELETE',
-                headers: {
-                  Authorization: `Bearer ${accessToken}`,
-                },
-              }
-            )
-
-            if (deleteResponse.ok || deleteResponse.status === 404) {
-              logger.info(
-                `[${requestId}] Successfully deleted Teams subscription ${externalSubscriptionId} (status: ${deleteResponse.status})`
-              )
-            } else {
-              const errorBody = await deleteResponse.text()
-              logger.warn(
-                `[${requestId}] Failed to delete Teams subscription ${externalSubscriptionId}. Status: ${deleteResponse.status}, Error: ${errorBody}`
-              )
-              // Don't fail the webhook deletion if subscription cleanup fails
-            }
-          } else {
-            logger.warn(`[${requestId}] Could not get access token to delete Teams subscription`)
-          }
-        } catch (error: any) {
-          logger.error(`[${requestId}] Error deleting Teams subscription`, {
-            webhookId: id,
-            subscriptionId: externalSubscriptionId,
-            error: error.message,
-          })
-          // Don't fail the webhook deletion if subscription cleanup fails
-        }
-      }
+    // Delete provider-managed subscriptions (Teams, Telegram, etc.)
+    const { getSubscriptionManager } = await import('@/lib/webhooks/subscriptions')
+    const webhookForManager = {
+      ...foundWebhook,
+      providerConfig: (foundWebhook.providerConfig as Record<string, unknown>) || {},
     }
+    const manager = getSubscriptionManager(webhookForManager)
 
-    // If it's a Telegram webhook, delete it from Telegram first
-    if (foundWebhook.provider === 'telegram') {
+    if (manager) {
+      logger.info(`[${requestId}] Deleting ${manager.id} subscription for webhook ${id}`)
       try {
-        const { botToken } = foundWebhook.providerConfig as { botToken: string }
-
-        if (!botToken) {
-          logger.warn(`[${requestId}] Missing botToken for Telegram webhook deletion.`, {
-            webhookId: id,
-          })
-          return NextResponse.json(
-            { error: 'Missing botToken for Telegram webhook deletion' },
-            { status: 400 }
-          )
+        const result = await manager.delete(webhookForManager, webhookData.workflow, requestId)
+        // Log result but don't fail webhook deletion if cleanup fails
+        if (!result.success) {
+          logger.warn(`[${requestId}] Failed to delete ${manager.id} subscription: ${result.error}`)
         }
-
-        const telegramApiUrl = `https://api.telegram.org/bot${botToken}/deleteWebhook`
-        const telegramResponse = await fetch(telegramApiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        })
-
-        const responseBody = await telegramResponse.json()
-        if (!telegramResponse.ok || !responseBody.ok) {
-          const errorMessage =
-            responseBody.description ||
-            `Failed to delete Telegram webhook. Status: ${telegramResponse.status}`
-          logger.error(`[${requestId}] ${errorMessage}`, {
-            response: responseBody,
-          })
-          return NextResponse.json(
-            { error: 'Failed to delete webhook from Telegram', details: errorMessage },
-            { status: 500 }
-          )
-        }
-
-        logger.info(`[${requestId}] Successfully deleted Telegram webhook for webhook ${id}`)
       } catch (error: any) {
-        logger.error(`[${requestId}] Error deleting Telegram webhook`, {
+        logger.error(`[${requestId}] Error deleting ${manager.id} subscription`, {
           webhookId: id,
           error: error.message,
-          stack: error.stack,
         })
-        return NextResponse.json(
-          {
-            error: 'Failed to delete webhook from Telegram',
-            details: error.message,
-          },
-          { status: 500 }
-        )
+        // Don't fail webhook deletion if subscription cleanup fails
       }
     }
 

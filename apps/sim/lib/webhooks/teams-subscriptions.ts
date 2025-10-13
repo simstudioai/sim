@@ -1,3 +1,8 @@
+/**
+ * @deprecated This file is deprecated. Use @/lib/webhooks/subscriptions instead.
+ * See TeamsChatSubscriptionManager for the new implementation.
+ */
+
 import { db } from '@sim/db'
 import { webhook as webhookTable } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
@@ -5,6 +10,9 @@ import type { NextRequest } from 'next/server'
 import { env } from '@/lib/env'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
+/**
+ * @deprecated Use TeamsChatSubscriptionManager.create() instead
+ */
 export async function createMicrosoftTeamsChatSubscription(
   request: NextRequest,
   userId: string,
