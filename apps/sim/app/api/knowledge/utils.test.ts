@@ -17,6 +17,7 @@ vi.mock('drizzle-orm', () => ({
 
 vi.mock('@/lib/env', () => ({
   env: { OPENAI_API_KEY: 'test-key' },
+  getEnv: (key: string) => process.env[key],
   isTruthy: (value: string | boolean | number | undefined) =>
     typeof value === 'string' ? value === 'true' || value === '1' : Boolean(value),
 }))
