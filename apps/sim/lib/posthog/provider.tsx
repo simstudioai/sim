@@ -17,8 +17,8 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
         defaults: '2025-05-24',
         person_profiles: 'identified_only',
         capture_pageview: true,
-        capture_pageleave: true,
-        capture_performance: true,
+        capture_pageleave: false,
+        capture_performance: false,
         session_recording: {
           maskAllInputs: false,
           maskInputOptions: {
@@ -26,13 +26,16 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
             email: false,
           },
           recordCrossOriginIframes: false,
-          recordHeaders: true,
-          recordBody: true,
+          recordHeaders: false,
+          recordBody: false,
         },
-        autocapture: true,
-        capture_dead_clicks: true,
+        autocapture: {
+          dom_event_allowlist: ['click', 'submit', 'change'],
+          element_allowlist: ['button', 'a', 'input'],
+        },
+        capture_dead_clicks: false,
         persistence: 'localStorage+cookie',
-        enable_heatmaps: true,
+        enable_heatmaps: false,
       })
     }
   }, [])
