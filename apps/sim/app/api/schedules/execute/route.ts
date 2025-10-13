@@ -12,8 +12,6 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('ScheduledExecuteAPI')
 
-const runningExecutions = new Set<string>()
-
 export async function GET(request: NextRequest) {
   const requestId = generateRequestId()
   logger.info(`[${requestId}] Scheduled execution triggered at ${new Date().toISOString()}`)
@@ -40,13 +38,6 @@ export async function GET(request: NextRequest) {
 
     if (useTrigger) {
       const triggerPromises = dueSchedules.map(async (schedule) => {
-        if (runningExecutions.has(schedule.workflowId)) {
-          logger.debug(`[${requestId}] Skipping workflow ${schedule.workflowId} - already running`)
-          return null
-        }
-
-        runningExecutions.add(schedule.workflowId)
-
         try {
           const payload = {
             scheduleId: schedule.id,
@@ -69,8 +60,6 @@ export async function GET(request: NextRequest) {
             error
           )
           return null
-        } finally {
-          runningExecutions.delete(schedule.workflowId)
         }
       })
 
@@ -79,37 +68,26 @@ export async function GET(request: NextRequest) {
       logger.info(`[${requestId}] Queued ${dueSchedules.length} schedule executions to Trigger.dev`)
     } else {
       const directExecutionPromises = dueSchedules.map(async (schedule) => {
-        if (runningExecutions.has(schedule.workflowId)) {
-          logger.debug(`[${requestId}] Skipping workflow ${schedule.workflowId} - already running`)
-          return
+        const payload = {
+          scheduleId: schedule.id,
+          workflowId: schedule.workflowId,
+          blockId: schedule.blockId || undefined,
+          cronExpression: schedule.cronExpression || undefined,
+          lastRanAt: schedule.lastRanAt?.toISOString(),
+          failedCount: schedule.failedCount || 0,
+          now: now.toISOString(),
         }
 
-        runningExecutions.add(schedule.workflowId)
-
-        try {
-          const payload = {
-            scheduleId: schedule.id,
-            workflowId: schedule.workflowId,
-            blockId: schedule.blockId || undefined,
-            cronExpression: schedule.cronExpression || undefined,
-            lastRanAt: schedule.lastRanAt?.toISOString(),
-            failedCount: schedule.failedCount || 0,
-            now: now.toISOString(),
-          }
-
-          void executeScheduleJob(payload).catch((error) => {
-            logger.error(
-              `[${requestId}] Direct schedule execution failed for workflow ${schedule.workflowId}`,
-              error
-            )
-          })
-
-          logger.info(
-            `[${requestId}] Queued direct schedule execution for workflow ${schedule.workflowId} (Trigger.dev disabled)`
+        void executeScheduleJob(payload).catch((error) => {
+          logger.error(
+            `[${requestId}] Direct schedule execution failed for workflow ${schedule.workflowId}`,
+            error
           )
-        } finally {
-          runningExecutions.delete(schedule.workflowId)
-        }
+        })
+
+        logger.info(
+          `[${requestId}] Queued direct schedule execution for workflow ${schedule.workflowId} (Trigger.dev disabled)`
+        )
       })
 
       await Promise.allSettled(directExecutionPromises)
