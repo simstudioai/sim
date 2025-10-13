@@ -505,8 +505,9 @@ podDisruptionBudget:
   # - maxUnavailable: maximum pods that can be unavailable (e.g., 1, "25%")
   minAvailable: null
   maxUnavailable: 1
-  # unhealthyPodEvictionPolicy: allows eviction of unhealthy pods during node drains (requires K8s 1.26+)
-  # Options: IfHealthyBudget (default) | AlwaysAllow (recommended for faster drains)
+  # unhealthyPodEvictionPolicy: allows eviction of unhealthy pods during node drains
+  # Options: IfHealthyBudget (default) | AlwaysAllow (recommended for production)
+  # Set to null to use K8s default (IfHealthyBudget)
   unhealthyPodEvictionPolicy: null
 
 # Monitoring configuration
