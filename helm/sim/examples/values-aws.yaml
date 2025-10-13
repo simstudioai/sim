@@ -200,8 +200,9 @@ ingress:
 # Pod disruption budget for high availability
 podDisruptionBudget:
   enabled: true
-  minAvailable: 1
-
+  minAvailable: null
+  maxUnavailable: 1  
+  unhealthyPodEvictionPolicy: AlwaysAllow 
 # Network policies
 networkPolicy:
   enabled: true

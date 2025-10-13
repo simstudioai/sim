@@ -495,9 +495,19 @@ autoscaling:
   behavior: {}
 
 # Pod disruption budget
+# Note: PDBs only protect against voluntary disruptions (node drains, autoscaler)
+# They do NOT affect rolling updates - use deployment.strategy.rollingUpdate for that
 podDisruptionBudget:
   enabled: false
-  minAvailable: 1
+  # Use either minAvailable or maxUnavailable (not both)
+  # Recommendation: Use maxUnavailable as it scales better with HPA
+  # - minAvailable: minimum pods that must remain available (e.g., 1, "50%")
+  # - maxUnavailable: maximum pods that can be unavailable (e.g., 1, "25%")
+  minAvailable: null
+  maxUnavailable: 1
+  # unhealthyPodEvictionPolicy: allows eviction of unhealthy pods during node drains (requires K8s 1.26+)
+  # Options: IfHealthyBudget (default) | AlwaysAllow (recommended for faster drains)
+  unhealthyPodEvictionPolicy: null
 
 # Monitoring configuration
 monitoring:
