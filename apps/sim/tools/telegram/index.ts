@@ -1,9 +1,9 @@
-import { telegramSendAudioTool } from '@/tools/telegram/audio'
-import { telegramDeleteMessageTool } from '@/tools/telegram/delete'
+import { telegramDeleteMessageTool } from '@/tools/telegram/delete_message'
 import { telegramMessageTool } from '@/tools/telegram/message'
-import { telegramSendPhotoTool } from '@/tools/telegram/photo'
 import { telegramSendAnimationTool } from '@/tools/telegram/send_animation'
-import { telegramSendVideoTool } from '@/tools/telegram/video'
+import { telegramSendAudioTool } from '@/tools/telegram/send_audio'
+import { telegramSendPhotoTool } from '@/tools/telegram/send_photo'
+import { telegramSendVideoTool } from '@/tools/telegram/send_video'
 
 export {
   telegramSendAnimationTool,
