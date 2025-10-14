@@ -12,20 +12,12 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
 
   // Credentials are handled by requiresCredentials below, not in configFields
   configFields: {
-    subscriptionScope: {
-      type: 'select',
-      label: 'Scope',
-      options: ['chat', 'all-chats'],
-      defaultValue: 'chat',
-      description: 'Subscribe to a single chat or all chats (requires higher permissions)',
-      required: true,
-    },
     chatId: {
       type: 'string',
       label: 'Chat ID',
       placeholder: 'Enter chat ID',
-      description: 'Required when scope is chat',
-      required: false,
+      description: 'The ID of the Teams chat to monitor',
+      required: true,
     },
     includeAttachments: {
       type: 'boolean',
@@ -58,8 +50,7 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
 
   instructions: [
     'Connect your Microsoft Teams account and grant the required permissions.',
-    'Choose the subscription scope: a single chat or all chats in the tenant.',
-    'For chat scope, provide the Chat ID to subscribe to.',
+    'Enter the Chat ID of the Teams chat you want to monitor.',
     'We will create a Microsoft Graph change notification subscription that delivers chat message events to your Sim webhook URL.',
   ],
 

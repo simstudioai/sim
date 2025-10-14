@@ -426,16 +426,6 @@ export function TriggerModal({
       }
     }
 
-    // Provider-specific validation: Teams chat scope requires chatId
-    if (
-      triggerDef.provider === 'microsoftteams' &&
-      typeof config.subscriptionScope === 'string' &&
-      config.subscriptionScope === 'chat'
-    ) {
-      if (!config.chatId || String(config.chatId).trim() === '') {
-        return false
-      }
-    }
     return true
   }
 

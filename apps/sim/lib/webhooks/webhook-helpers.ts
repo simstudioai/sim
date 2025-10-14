@@ -29,12 +29,16 @@ export async function createTeamsSubscription(
 
     const credentialId = config.credentialId as string | undefined
     const chatId = config.chatId as string | undefined
-    const subscriptionScope = (config.subscriptionScope as string) || 'chat'
 
     if (!credentialId) {
       teamsLogger.warn(
         `[${requestId}] Missing credentialId for Teams chat subscription ${webhook.id}`
       )
+      return false
+    }
+
+    if (!chatId) {
+      teamsLogger.warn(`[${requestId}] Missing chatId for Teams chat subscription ${webhook.id}`)
       return false
     }
 
@@ -73,20 +77,8 @@ export async function createTeamsSubscription(
       : requestOrigin
     const notificationUrl = `${effectiveOrigin}/api/webhooks/trigger/${webhook.path}`
 
-    // Determine resource based on scope
-    const resource =
-      subscriptionScope === 'all-chats'
-        ? '/chats/getAllMessages'
-        : chatId
-          ? `/chats/${chatId}/messages`
-          : null
-
-    if (!resource) {
-      teamsLogger.error(
-        `[${requestId}] Cannot determine resource for Teams subscription ${webhook.id}`
-      )
-      return false
-    }
+    // Subscribe to the specified chat
+    const resource = `/chats/${chatId}/messages`
 
     // Create subscription with max lifetime (4230 minutes = ~3 days)
     const maxLifetimeMinutes = 4230
