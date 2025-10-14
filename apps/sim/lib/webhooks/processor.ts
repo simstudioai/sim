@@ -400,6 +400,10 @@ export async function queueWebhookExecution(
       }
     }
 
+    // Extract credentialId from webhook config for credential-based webhooks
+    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+    const credentialId = providerConfig.credentialId as string | undefined
+
     const payload = {
       webhookId: foundWebhook.id,
       workflowId: foundWorkflow.id,
@@ -411,6 +415,7 @@ export async function queueWebhookExecution(
       blockId: foundWebhook.blockId,
       testMode: options.testMode,
       executionTarget: options.executionTarget,
+      ...(credentialId ? { credentialId } : {}),
     }
 
     const useTrigger = isTruthy(env.TRIGGER_DEV_ENABLED)

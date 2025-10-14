@@ -34,6 +34,7 @@ export type WebhookExecutionPayload = {
   blockId?: string
   testMode?: boolean
   executionTarget?: 'deployed' | 'live'
+  credentialId?: string
 }
 
 export async function executeWebhookJob(payload: WebhookExecutionPayload) {
@@ -281,26 +282,9 @@ async function executeWebhookJobInternal(
     }
 
     // Format input for standard webhooks
-    // For Teams, we need the full webhook data to get credentialId for attachment processing
-    let mockWebhook: any
-    if (payload.provider === 'microsoftteams') {
-      const webhookData = await db
-        .select()
-        .from(webhook)
-        .where(eq(webhook.id, payload.webhookId))
-        .limit(1)
-
-      mockWebhook = webhookData[0] || {
-        id: payload.webhookId,
-        provider: payload.provider,
-        blockId: payload.blockId,
-        providerConfig: {},
-      }
-    } else {
-      mockWebhook = {
-        provider: payload.provider,
-        blockId: payload.blockId,
-      }
+    const mockWebhook = {
+      provider: payload.provider,
+      blockId: payload.blockId,
     }
 
     const mockWorkflow = {
