@@ -1,5 +1,8 @@
+import { createLogger } from '@/lib/logs/console/logger'
 import type { ParameterVisibility, ToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
+
+const logger = createLogger('ToolsParams')
 
 export interface Option {
   label: string
@@ -133,13 +136,13 @@ export function getToolParametersConfig(
   try {
     const toolConfig = getTool(toolId)
     if (!toolConfig) {
-      console.warn(`Tool not found: ${toolId}`)
+      logger.warn(`Tool not found: ${toolId}`)
       return null
     }
 
     // Validate that toolConfig has required properties
     if (!toolConfig.params || typeof toolConfig.params !== 'object') {
-      console.warn(`Tool ${toolId} has invalid params configuration`)
+      logger.warn(`Tool ${toolId} has invalid params configuration`)
       return null
     }
 
@@ -265,7 +268,7 @@ export function getToolParametersConfig(
       optionalParameters,
     }
   } catch (error) {
-    console.error('Error getting tool parameters config:', error)
+    logger.error('Error getting tool parameters config:', error)
     return null
   }
 }
@@ -306,8 +309,13 @@ export function createLLMToolSchema(
     }
 
     // Add parameter to LLM schema
+    let schemaType = param.type
+    if (param.type === 'json' || param.type === 'any') {
+      schemaType = 'object'
+    }
+
     schema.properties[paramId] = {
-      type: param.type === 'json' ? 'object' : param.type,
+      type: schemaType,
       description: param.description || '',
     }
 

@@ -194,8 +194,6 @@ export function TraceSpansDisplay({
     return () => ro.disconnect()
   }, [])
 
-  // Removed no-op effect; was not performing any action
-
   return (
     <div className='w-full'>
       <div className='mb-2 flex items-center justify-between'>
