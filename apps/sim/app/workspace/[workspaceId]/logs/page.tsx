@@ -1,3 +1,3 @@
-import Logs from '@/app/workspace/[workspaceId]/logs/logs'
+import LogsWrapper from '@/app/workspace/[workspaceId]/logs/logs-wrapper'
 
-export default Logs
+export default LogsWrapper

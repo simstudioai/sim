@@ -662,7 +662,7 @@ export default function Logs() {
   }, [logs, selectedLogIndex, isSidebarOpen, selectedLog, handleNavigateNext, handleNavigatePrev])
 
   return (
-    <div className='flex h-[100vh] min-w-0 flex-col pl-64'>
+    <div className='flex h-full min-w-0 flex-col pl-64'>
       {/* Add the animation styles */}
       <style jsx global>
         {selectedRowAnimation}
@@ -670,13 +670,6 @@ export default function Logs() {
 
       <div className='flex min-w-0 flex-1 overflow-hidden'>
         <div className='flex flex-1 flex-col overflow-auto p-6'>
-          {/* Header */}
-          <div className='mb-5'>
-            <h1 className='font-sans font-semibold text-3xl text-foreground tracking-[0.01em]'>
-              Logs
-            </h1>
-          </div>
-
           {/* Search and Controls */}
           <div className='mb-8 flex flex-col items-stretch justify-between gap-4 sm:flex-row sm:items-start'>
             <AutocompleteSearch
