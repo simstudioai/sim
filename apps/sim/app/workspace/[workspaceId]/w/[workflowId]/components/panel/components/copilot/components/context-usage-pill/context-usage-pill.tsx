@@ -1,7 +1,7 @@
 'use client'
 
-import { Plus } from 'lucide-react'
 import { memo } from 'react'
+import { Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface ContextUsagePillProps {
@@ -45,11 +45,11 @@ export const ContextUsagePill = memo(
               e.stopPropagation()
               onCreateNewChat()
             }}
-            className="inline-flex items-center justify-center hover:opacity-70 transition-opacity"
-            title="Recommended: Start a new chat for better quality"
-            type="button"
+            className='inline-flex items-center justify-center transition-opacity hover:opacity-70'
+            title='Recommended: Start a new chat for better quality'
+            type='button'
           >
-            <Plus className="h-3 w-3" />
+            <Plus className='h-3 w-3' />
           </button>
         )}
       </div>

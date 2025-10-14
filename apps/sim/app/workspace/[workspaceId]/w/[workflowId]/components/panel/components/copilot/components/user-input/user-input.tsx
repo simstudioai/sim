@@ -183,8 +183,14 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const [isLoadingLogs, setIsLoadingLogs] = useState(false)
 
     const { data: session } = useSession()
-    const { currentChat, workflowId, enabledModels, setEnabledModels, contextUsage, createNewChat } =
-      useCopilotStore()
+    const {
+      currentChat,
+      workflowId,
+      enabledModels,
+      setEnabledModels,
+      contextUsage,
+      createNewChat,
+    } = useCopilotStore()
     const params = useParams()
     const workspaceId = params.workspaceId as string
 
@@ -243,7 +249,6 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         logger.error('Error fetching enabled models', { error })
       }
     }, [enabledModels, setEnabledModels])
-
 
     // Auto-resize textarea and toggle vertical scroll when exceeding max height
     useEffect(() => {
@@ -1930,7 +1935,10 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           {/* Context Usage Pill - Top Right */}
           {contextUsage && contextUsage.percentage > 0 && (
             <div className='absolute top-2 right-2 z-10'>
-              <ContextUsagePill percentage={contextUsage.percentage} onCreateNewChat={createNewChat} />
+              <ContextUsagePill
+                percentage={contextUsage.percentage}
+                onCreateNewChat={createNewChat}
+              />
             </div>
           )}
           {/* Attached Files Display with Thumbnails */}

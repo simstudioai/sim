@@ -60,7 +60,7 @@ export function useSubBlockValue<T = any>(
   const wasStreamingRef = useRef<boolean>(false)
 
   // Get value from subblock store, keyed by active workflow id
-  // We intentionally depend on activeWorkflowId so this recomputes when it changes.
+  // Optimized: use shallow equality comparison to prevent re-renders when other fields change
   const storeValue = useSubBlockStore(
     useCallback(
       (state) => {
@@ -69,7 +69,8 @@ export function useSubBlockValue<T = any>(
         return state.workflowValues[activeWorkflowId]?.[blockId]?.[subBlockId] ?? null
       },
       [activeWorkflowId, blockId, subBlockId]
-    )
+    ),
+    (a, b) => isEqual(a, b) // Use deep equality to prevent re-renders for same values
   )
 
   // Check if we're in diff mode and get diff value if available
@@ -84,8 +85,10 @@ export function useSubBlockValue<T = any>(
     subBlockId === 'apiKey' || (subBlockId?.toLowerCase().includes('apikey') ?? false)
 
   // Always call this hook unconditionally - don't wrap it in a condition
-  const modelSubBlockValue = useSubBlockStore((state) =>
-    blockId ? state.getValue(blockId, 'model') : null
+  // Optimized: only re-render if model value actually changes
+  const modelSubBlockValue = useSubBlockStore(
+    useCallback((state) => (blockId ? state.getValue(blockId, 'model') : null), [blockId]),
+    (a, b) => a === b
   )
 
   // Determine if this is a provider-based block type
