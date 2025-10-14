@@ -44,11 +44,6 @@ export const DiffControls = memo(function DiffControls() {
     useCallback((state) => ({ activeWorkflowId: state.activeWorkflowId }), [])
   )
 
-  // Don't show anything if no diff is available or diff is not ready
-  if (!diffWorkflow || !isDiffReady) {
-    return null
-  }
-
   const handleToggleDiff = useCallback(() => {
     logger.info('Toggling diff view', { currentState: isShowingDiff })
     toggleDiffView()
@@ -301,6 +296,11 @@ export const DiffControls = memo(function DiffControls() {
       logger.error('Failed to reject changes (background):', error)
     })
   }, [clearPreviewYaml, updatePreviewToolCallState, rejectChanges])
+
+  // Don't show anything if no diff is available or diff is not ready
+  if (!diffWorkflow || !isDiffReady) {
+    return null
+  }
 
   return (
     <div className='-translate-x-1/2 fixed bottom-20 left-1/2 z-30'>
