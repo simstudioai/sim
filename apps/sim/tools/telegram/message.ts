@@ -6,11 +6,11 @@ import type {
 import { convertMarkdownToHTML } from '@/tools/telegram/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const telegramSendMessageTool: ToolConfig<
+export const telegramMessageTool: ToolConfig<
   TelegramSendMessageParams,
   TelegramSendMessageResponse
 > = {
-  id: 'telegram_send_message',
+  id: 'telegram_message',
   name: 'Telegram Send Message',
   description:
     'Send messages to Telegram channels or users through the Telegram Bot API. Enables direct communication and notifications with message tracking and chat confirmation.',

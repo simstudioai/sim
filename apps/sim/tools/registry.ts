@@ -177,9 +177,9 @@ import {
 import { tavilyExtractTool, tavilySearchTool } from '@/tools/tavily'
 import {
   telegramDeleteMessageTool,
+  telegramMessageTool,
   telegramSendAnimationTool,
   telegramSendAudioTool,
-  telegramSendMessageTool,
   telegramSendPhotoTool,
   telegramSendVideoTool,
 } from '@/tools/telegram'
@@ -332,7 +332,7 @@ export const tools: Record<string, ToolConfig> = {
   knowledge_create_document: knowledgeCreateDocumentTool,
   elevenlabs_tts: elevenLabsTtsTool,
   s3_get_object: s3GetObjectTool,
-  telegram_send_message: telegramSendMessageTool,
+  telegram_message: telegramMessageTool,
   telegram_delete_message: telegramDeleteMessageTool,
   telegram_send_audio: telegramSendAudioTool,
   telegram_send_animation: telegramSendAnimationTool,

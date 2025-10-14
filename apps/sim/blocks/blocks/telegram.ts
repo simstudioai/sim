@@ -22,14 +22,14 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       type: 'dropdown',
       layout: 'full',
       options: [
-        { label: 'Send Message', id: 'telegram_send_message' },
+        { label: 'Send Message', id: 'telegram_message' },
         { label: 'Send Photo', id: 'telegram_send_photo' },
         { label: 'Send Video', id: 'telegram_send_video' },
         { label: 'Send Audio', id: 'telegram_send_audio' },
         { label: 'Send Animation', id: 'telegram_send_animation' },
         { label: 'Delete Message', id: 'telegram_delete_message' },
       ],
-      value: () => 'telegram_send_message',
+      value: () => 'telegram_message',
     },
     {
       id: 'botToken',
@@ -65,7 +65,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       layout: 'full',
       placeholder: 'Enter the message to send',
       required: true,
-      condition: { field: 'operation', value: 'telegram_send_message' },
+      condition: { field: 'operation', value: 'telegram_message' },
     },
     {
       id: 'photo',
@@ -146,7 +146,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
   ],
   tools: {
     access: [
-      'telegram_send_message',
+      'telegram_message',
       'telegram_delete_message',
       'telegram_send_photo',
       'telegram_send_video',
@@ -156,8 +156,8 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
     config: {
       tool: (params) => {
         switch (params.operation) {
-          case 'telegram_send_message':
-            return 'telegram_send_message'
+          case 'telegram_message':
+            return 'telegram_message'
           case 'telegram_delete_message':
             return 'telegram_delete_message'
           case 'telegram_send_photo':
@@ -169,7 +169,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
           case 'telegram_send_animation':
             return 'telegram_send_animation'
           default:
-            return 'telegram_send_message'
+            return 'telegram_message'
         }
       },
       params: (params) => {
@@ -186,7 +186,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
         }
 
         switch (params.operation) {
-          case 'telegram_send_message':
+          case 'telegram_message':
             if (!params.text) {
               throw new Error('Message text is required.')
             }
