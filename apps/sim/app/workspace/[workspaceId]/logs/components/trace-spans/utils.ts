@@ -77,7 +77,6 @@ export function transformBlockData(data: unknown, blockType: string, isInput: bo
     return cleanInput
   }
 
-  // Type guard to check if data is an object with a response property
   if (typeof data === 'object' && data !== null && 'response' in data) {
     const dataWithResponse = data as Record<string, unknown>
     const response = dataWithResponse.response as Record<string, unknown>
