@@ -614,6 +614,15 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
       
+    renewSubscriptions:
+      enabled: true
+      name: renew-subscriptions
+      schedule: "0 */12 * * *"
+      path: "/api/cron/renew-subscriptions"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+      
 
   # Global CronJob settings
   image:
