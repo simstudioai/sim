@@ -335,6 +335,94 @@ export async function POST(request: NextRequest) {
     }
     // --- End Teams subscription setup ---
 
+    // --- Telegram webhook setup ---
+    if (savedWebhook && provider === 'telegram') {
+      logger.info(`[${requestId}] Telegram provider detected. Setting up Telegram webhook.`)
+      try {
+        const { botToken } = (providerConfig || {}) as { botToken?: string }
+
+        if (!botToken) {
+          logger.warn(`[${requestId}] Missing botToken for Telegram webhook creation.`, {
+            webhookId: savedWebhook.id,
+          })
+          return NextResponse.json(
+            { error: 'Missing botToken for Telegram webhook creation', code: 'MISSING_BOT_TOKEN' },
+            { status: 400 }
+          )
+        }
+
+        if (!env.NEXT_PUBLIC_APP_URL) {
+          logger.error(
+            `[${requestId}] NEXT_PUBLIC_APP_URL not configured, cannot register Telegram webhook`
+          )
+          return NextResponse.json(
+            { error: 'NEXT_PUBLIC_APP_URL must be configured for Telegram webhook registration' },
+            { status: 500 }
+          )
+        }
+
+        const notificationUrl = `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/trigger/${finalPath}`
+        const telegramApiUrl = `https://api.telegram.org/bot${botToken}/setWebhook`
+
+        const telegramResponse = await fetch(telegramApiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'TelegramBot/1.0',
+          },
+          body: JSON.stringify({
+            url: notificationUrl,
+            allowed_updates: ['message'],
+          }),
+        })
+
+        const responseBody = await telegramResponse.json()
+        if (!telegramResponse.ok || !responseBody.ok) {
+          const errorMessage =
+            responseBody.description ||
+            `Failed to create Telegram webhook. Status: ${telegramResponse.status}`
+          logger.error(`[${requestId}] ${errorMessage}`, { response: responseBody })
+          return NextResponse.json(
+            { error: 'Failed to create webhook in Telegram', details: errorMessage },
+            { status: 500 }
+          )
+        }
+
+        logger.info(
+          `[${requestId}] Successfully created Telegram webhook for webhook ${savedWebhook.id}`
+        )
+
+        // Get webhook info for verification (non-critical)
+        try {
+          const webhookInfoUrl = `https://api.telegram.org/bot${botToken}/getWebhookInfo`
+          const webhookInfo = await fetch(webhookInfoUrl, {
+            headers: { 'User-Agent': 'TelegramBot/1.0' },
+          })
+          const webhookInfoJson = await webhookInfo.json()
+
+          if (webhookInfoJson.ok) {
+            logger.info(`[${requestId}] Telegram webhook info:`, {
+              url: webhookInfoJson.result.url,
+              has_custom_certificate: webhookInfoJson.result.has_custom_certificate,
+              pending_update_count: webhookInfoJson.result.pending_update_count,
+            })
+          }
+        } catch (error) {
+          logger.debug(`[${requestId}] Could not fetch Telegram webhook info`)
+        }
+      } catch (err) {
+        logger.error(`[${requestId}] Error setting up Telegram webhook`, err)
+        return NextResponse.json(
+          {
+            error: 'Failed to configure Telegram webhook',
+            details: err instanceof Error ? err.message : 'Unknown error',
+          },
+          { status: 500 }
+        )
+      }
+    }
+    // --- End Telegram webhook setup ---
+
     // --- Gmail webhook setup ---
     if (savedWebhook && provider === 'gmail') {
       logger.info(`[${requestId}] Gmail provider detected. Setting up Gmail webhook configuration.`)
