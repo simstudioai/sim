@@ -10,16 +10,8 @@ const logger = createLogger('SubscriptionRenewal')
 /**
  * Cron endpoint to renew provider subscriptions before they expire
  *
- * Configure in vercel.json or your deployment platform:
- * Schedule: Every 2 days (or daily for safety)
+ * Configured in helm/sim/values.yaml under cronjobs.jobs.renewSubscriptions
  *
- * Example vercel.json:
- * {
- *   "crons": [{
- *     "path": "/api/cron/renew-subscriptions",
- *     "schedule": "0 0 * * *"
- *   }]
- * }
  */
 export async function GET(request: Request) {
   try {
