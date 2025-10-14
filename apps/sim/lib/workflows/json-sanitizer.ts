@@ -234,6 +234,11 @@ function sanitizeSubBlocks(
       return
     }
 
+    // Skip knowledge base tag filters and document tags (workspace-specific data)
+    if (key === 'tagFilters' || key === 'documentTags') {
+      return
+    }
+
     sanitized[key] = subBlock.value
   })
 
@@ -382,6 +387,10 @@ export function sanitizeForExport(state: WorkflowState): ExportWorkflowState {
           /credential|oauth|api[_-]?key|token|secret|auth|password|bearer/i.test(key) ||
           subBlock.type === 'oauth-input'
         ) {
+          subBlock.value = ''
+        }
+        // Remove knowledge base tag filters and document tags (workspace-specific data)
+        if (key === 'tagFilters' || key === 'documentTags') {
           subBlock.value = ''
         }
       })
