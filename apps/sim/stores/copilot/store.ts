@@ -1166,6 +1166,25 @@ const sseHandlers: Record<string, SSEHandler> = {
     context.currentTextBlock = null
     updateStreamingMessage(set, context)
   },
+  context_usage: (data, _context, _get, set) => {
+    try {
+      const usageData = data?.data
+      if (usageData) {
+        set({
+          contextUsage: {
+            usage: usageData.usage || 0,
+            percentage: usageData.percentage || 0,
+            model: usageData.model || '',
+            contextWindow: usageData.context_window || usageData.contextWindow || 0,
+            when: usageData.when || 'start',
+            estimatedTokens: usageData.estimated_tokens || usageData.estimatedTokens,
+          },
+        })
+      }
+    } catch (err) {
+      logger.warn('Failed to handle context_usage event:', err)
+    }
+  },
   default: () => {},
 }
 
@@ -1304,6 +1323,7 @@ const initialState = {
   showPlanTodos: false,
   toolCallsById: {} as Record<string, CopilotToolCall>,
   suppressAutoSelect: false,
+  contextUsage: null,
 }
 
 export const useCopilotStore = create<CopilotStore>()(
@@ -1314,7 +1334,7 @@ export const useCopilotStore = create<CopilotStore>()(
     setMode: (mode) => set({ mode }),
 
     // Clear messages
-    clearMessages: () => set({ messages: [] }),
+    clearMessages: () => set({ messages: [], contextUsage: null }),
 
     // Workflow selection
     setWorkflowId: async (workflowId: string | null) => {
@@ -1374,6 +1394,7 @@ export const useCopilotStore = create<CopilotStore>()(
         planTodos: [],
         showPlanTodos: false,
         suppressAutoSelect: false,
+        contextUsage: null,
       })
 
       // Background-save the previous chat's latest messages before switching (optimistic)
@@ -1442,6 +1463,7 @@ export const useCopilotStore = create<CopilotStore>()(
         planTodos: [],
         showPlanTodos: false,
         suppressAutoSelect: true,
+        contextUsage: null,
       })
     },
 
@@ -2041,6 +2063,7 @@ export const useCopilotStore = create<CopilotStore>()(
         for await (const data of parseSSEStream(reader, decoder)) {
           const { abortController } = get()
           if (abortController?.signal.aborted) break
+
           const handler = sseHandlers[data.type] || sseHandlers.default
           await handler(data, context, get, set)
           if (context.streamComplete) break

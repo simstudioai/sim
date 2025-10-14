@@ -1,3 +1,4 @@
+import { memo, useCallback } from 'react'
 import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, Copy, LogOut, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -12,42 +13,53 @@ interface ActionBarProps {
   disabled?: boolean
 }
 
-export function ActionBar({ blockId, blockType, disabled = false }: ActionBarProps) {
-  const {
-    collaborativeRemoveBlock,
-    collaborativeToggleBlockEnabled,
-    collaborativeDuplicateBlock,
-    collaborativeToggleBlockHandles,
-  } = useCollaborativeWorkflow()
-  const isEnabled = useWorkflowStore((state) => state.blocks[blockId]?.enabled ?? true)
-  const horizontalHandles = useWorkflowStore(
-    (state) => state.blocks[blockId]?.horizontalHandles ?? false
-  )
-  const parentId = useWorkflowStore((state) => state.blocks[blockId]?.data?.parentId)
-  const parentType = useWorkflowStore((state) =>
-    parentId ? state.blocks[parentId]?.type : undefined
-  )
-  const userPermissions = useUserPermissionsContext()
+export const ActionBar = memo(
+  function ActionBar({ blockId, blockType, disabled = false }: ActionBarProps) {
+    const {
+      collaborativeRemoveBlock,
+      collaborativeToggleBlockEnabled,
+      collaborativeDuplicateBlock,
+      collaborativeToggleBlockHandles,
+    } = useCollaborativeWorkflow()
 
-  const isStarterBlock = blockType === 'starter'
+    // Optimized: Single store subscription for all block data
+    const { isEnabled, horizontalHandles, parentId, parentType } = useWorkflowStore(
+      useCallback(
+        (state) => {
+          const block = state.blocks[blockId]
+          const parentId = block?.data?.parentId
+          return {
+            isEnabled: block?.enabled ?? true,
+            horizontalHandles: block?.horizontalHandles ?? false,
+            parentId,
+            parentType: parentId ? state.blocks[parentId]?.type : undefined,
+          }
+        },
+        [blockId]
+      )
+    )
 
-  const getTooltipMessage = (defaultMessage: string) => {
-    if (disabled) {
-      return userPermissions.isOfflineMode ? 'Connection lost - please refresh' : 'Read-only mode'
+    const userPermissions = useUserPermissionsContext()
+
+    const isStarterBlock = blockType === 'starter'
+
+    const getTooltipMessage = (defaultMessage: string) => {
+      if (disabled) {
+        return userPermissions.isOfflineMode ? 'Connection lost - please refresh' : 'Read-only mode'
+      }
+      return defaultMessage
     }
-    return defaultMessage
-  }
 
-  return (
-    <div
-      className={cn(
-        '-right-20 absolute top-0',
-        'flex flex-col items-center gap-2 p-2',
-        'rounded-md border border-gray-200 bg-background shadow-sm dark:border-gray-800',
-        'opacity-0 transition-opacity duration-200 group-hover:opacity-100'
-      )}
-    >
-      {/* <Tooltip>
+    return (
+      <div
+        className={cn(
+          '-right-20 absolute top-0',
+          'flex flex-col items-center gap-2 p-2',
+          'rounded-md border border-gray-200 bg-background shadow-sm dark:border-gray-800',
+          'opacity-0 transition-opacity duration-200 group-hover:opacity-100'
+        )}
+      >
+        {/* <Tooltip>
         <TooltipTrigger asChild>
           <Button
             className={cn(
@@ -64,28 +76,6 @@ export function ActionBar({ blockId, blockType, disabled = false }: ActionBarPro
         <TooltipContent side="right">Run Block</TooltipContent>
       </Tooltip> */}
 
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant='ghost'
-            size='sm'
-            onClick={() => {
-              if (!disabled) {
-                collaborativeToggleBlockEnabled(blockId)
-              }
-            }}
-            className={cn('text-gray-500', disabled && 'cursor-not-allowed opacity-50')}
-            disabled={disabled}
-          >
-            {isEnabled ? <Circle className='h-4 w-4' /> : <CircleOff className='h-4 w-4' />}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side='right'>
-          {getTooltipMessage(isEnabled ? 'Disable Block' : 'Enable Block')}
-        </TooltipContent>
-      </Tooltip>
-
-      {!isStarterBlock && (
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -93,72 +83,68 @@ export function ActionBar({ blockId, blockType, disabled = false }: ActionBarPro
               size='sm'
               onClick={() => {
                 if (!disabled) {
-                  collaborativeDuplicateBlock(blockId)
+                  collaborativeToggleBlockEnabled(blockId)
                 }
               }}
               className={cn('text-gray-500', disabled && 'cursor-not-allowed opacity-50')}
               disabled={disabled}
             >
-              <Copy className='h-4 w-4' />
+              {isEnabled ? <Circle className='h-4 w-4' /> : <CircleOff className='h-4 w-4' />}
             </Button>
           </TooltipTrigger>
-          <TooltipContent side='right'>{getTooltipMessage('Duplicate Block')}</TooltipContent>
+          <TooltipContent side='right'>
+            {getTooltipMessage(isEnabled ? 'Disable Block' : 'Enable Block')}
+          </TooltipContent>
         </Tooltip>
-      )}
 
-      {/* Remove from subflow - only show when inside loop/parallel */}
-      {!isStarterBlock && parentId && (parentType === 'loop' || parentType === 'parallel') && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={() => {
-                if (!disabled && userPermissions.canEdit) {
-                  window.dispatchEvent(
-                    new CustomEvent('remove-from-subflow', { detail: { blockId } })
-                  )
-                }
-              }}
-              className={cn(
-                'text-gray-500',
-                (disabled || !userPermissions.canEdit) && 'cursor-not-allowed opacity-50'
-              )}
-              disabled={disabled || !userPermissions.canEdit}
-            >
-              <LogOut className='h-4 w-4' />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side='right'>{getTooltipMessage('Remove From Subflow')}</TooltipContent>
-        </Tooltip>
-      )}
+        {!isStarterBlock && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant='ghost'
+                size='sm'
+                onClick={() => {
+                  if (!disabled) {
+                    collaborativeDuplicateBlock(blockId)
+                  }
+                }}
+                className={cn('text-gray-500', disabled && 'cursor-not-allowed opacity-50')}
+                disabled={disabled}
+              >
+                <Copy className='h-4 w-4' />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side='right'>{getTooltipMessage('Duplicate Block')}</TooltipContent>
+          </Tooltip>
+        )}
 
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant='ghost'
-            size='sm'
-            onClick={() => {
-              if (!disabled) {
-                collaborativeToggleBlockHandles(blockId)
-              }
-            }}
-            className={cn('text-gray-500', disabled && 'cursor-not-allowed opacity-50')}
-            disabled={disabled}
-          >
-            {horizontalHandles ? (
-              <ArrowLeftRight className='h-4 w-4' />
-            ) : (
-              <ArrowUpDown className='h-4 w-4' />
-            )}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side='right'>
-          {getTooltipMessage(horizontalHandles ? 'Vertical Ports' : 'Horizontal Ports')}
-        </TooltipContent>
-      </Tooltip>
+        {/* Remove from subflow - only show when inside loop/parallel */}
+        {!isStarterBlock && parentId && (parentType === 'loop' || parentType === 'parallel') && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant='ghost'
+                size='sm'
+                onClick={() => {
+                  if (!disabled && userPermissions.canEdit) {
+                    window.dispatchEvent(
+                      new CustomEvent('remove-from-subflow', { detail: { blockId } })
+                    )
+                  }
+                }}
+                className={cn(
+                  'text-gray-500',
+                  (disabled || !userPermissions.canEdit) && 'cursor-not-allowed opacity-50'
+                )}
+                disabled={disabled || !userPermissions.canEdit}
+              >
+                <LogOut className='h-4 w-4' />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side='right'>{getTooltipMessage('Remove From Subflow')}</TooltipContent>
+          </Tooltip>
+        )}
 
-      {!isStarterBlock && (
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -166,21 +152,56 @@ export function ActionBar({ blockId, blockType, disabled = false }: ActionBarPro
               size='sm'
               onClick={() => {
                 if (!disabled) {
-                  collaborativeRemoveBlock(blockId)
+                  collaborativeToggleBlockHandles(blockId)
                 }
               }}
-              className={cn(
-                'text-gray-500 hover:text-red-600',
-                disabled && 'cursor-not-allowed opacity-50'
-              )}
+              className={cn('text-gray-500', disabled && 'cursor-not-allowed opacity-50')}
               disabled={disabled}
             >
-              <Trash2 className='h-4 w-4' />
+              {horizontalHandles ? (
+                <ArrowLeftRight className='h-4 w-4' />
+              ) : (
+                <ArrowUpDown className='h-4 w-4' />
+              )}
             </Button>
           </TooltipTrigger>
-          <TooltipContent side='right'>{getTooltipMessage('Delete Block')}</TooltipContent>
+          <TooltipContent side='right'>
+            {getTooltipMessage(horizontalHandles ? 'Vertical Ports' : 'Horizontal Ports')}
+          </TooltipContent>
         </Tooltip>
-      )}
-    </div>
-  )
-}
+
+        {!isStarterBlock && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant='ghost'
+                size='sm'
+                onClick={() => {
+                  if (!disabled) {
+                    collaborativeRemoveBlock(blockId)
+                  }
+                }}
+                className={cn(
+                  'text-gray-500 hover:text-red-600',
+                  disabled && 'cursor-not-allowed opacity-50'
+                )}
+                disabled={disabled}
+              >
+                <Trash2 className='h-4 w-4' />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side='right'>{getTooltipMessage('Delete Block')}</TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+    )
+  },
+  (prevProps, nextProps) => {
+    // Only re-render if props actually changed
+    return (
+      prevProps.blockId === nextProps.blockId &&
+      prevProps.blockType === nextProps.blockType &&
+      prevProps.disabled === nextProps.disabled
+    )
+  }
+)

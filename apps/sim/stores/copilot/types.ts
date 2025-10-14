@@ -124,6 +124,16 @@ export interface CopilotState {
   currentUserMessageId?: string | null
 
   // Per-message metadata captured at send-time for reliable stats
+
+  // Context usage tracking for percentage pill
+  contextUsage: {
+    usage: number
+    percentage: number
+    model: string
+    contextWindow: number
+    when: 'start' | 'end'
+    estimatedTokens?: number
+  } | null
 }
 
 export interface CopilotActions {
