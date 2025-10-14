@@ -45,35 +45,28 @@ if (typeof window !== 'undefined') {
    * Sanitize event data to remove sensitive information
    */
   function sanitizeEvent(event: any): any {
-    if (!event || typeof event !== 'object') return event
+    const patterns = ['password', 'token', 'secret', 'key', 'auth', 'credential', 'private']
+    const sensitiveRe = new RegExp(patterns.join('|'), 'i')
 
-    const sanitized: any = {}
-    const sensitivePatterns = [
-      'password',
-      'token',
-      'secret',
-      'key',
-      'auth',
-      'credential',
-      'private',
-    ]
+    const scrubString = (s: string) => (s && sensitiveRe.test(s) ? '[redacted]' : s)
 
+    if (event == null) return event
+    if (typeof event === 'string') return scrubString(event)
+    if (typeof event !== 'object') return event
+
+    if (Array.isArray(event)) {
+      return event.map((item) => sanitizeEvent(item))
+    }
+
+    const sanitized: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(event)) {
       const lowerKey = key.toLowerCase()
+      if (patterns.some((p) => lowerKey.includes(p))) continue
 
-      if (sensitivePatterns.some((pattern) => lowerKey.includes(pattern))) {
-        continue
-      }
-
-      if (value && typeof value === 'object' && !Array.isArray(value)) {
-        sanitized[key] = sanitizeEvent(value)
-      } else if (Array.isArray(value)) {
-        sanitized[key] = value.map((item) =>
-          item && typeof item === 'object' ? sanitizeEvent(item) : item
-        )
-      } else {
-        sanitized[key] = value
-      }
+      if (typeof value === 'string') sanitized[key] = scrubString(value)
+      else if (Array.isArray(value)) sanitized[key] = value.map((v) => sanitizeEvent(v))
+      else if (value && typeof value === 'object') sanitized[key] = sanitizeEvent(value)
+      else sanitized[key] = value
     }
 
     return sanitized
