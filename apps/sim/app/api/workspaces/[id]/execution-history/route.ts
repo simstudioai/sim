@@ -144,17 +144,13 @@ export async function GET(
           const hasExecutions = segmentTotal > 0
           const successRate = hasExecutions ? (segmentSuccess / segmentTotal) * 100 : 100
 
-          const segmentData = {
+          segments.push({
             successRate,
             timestamp: segmentStart.toISOString(),
             hasExecutions,
             totalExecutions: segmentTotal,
             successfulExecutions: segmentSuccess,
-          }
-          segments.push(segmentData)
-          if (i === 0) {
-            logger.debug(`First segment data:`, segmentData)
-          }
+          })
 
           totalExecutions += segmentTotal
           totalSuccess += segmentSuccess
