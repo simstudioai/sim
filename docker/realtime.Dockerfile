@@ -36,11 +36,18 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# Create non-root user and group
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nextjs -u 1001
+
 # Copy the sim app and the shared db package needed by socket-server
-COPY --from=builder /app/apps/sim ./apps/sim
-COPY --from=builder /app/packages/db ./packages/db
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
+COPY --from=builder --chown=nextjs:nodejs /app/apps/sim ./apps/sim
+COPY --from=builder --chown=nextjs:nodejs /app/packages/db ./packages/db
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
+
+# Switch to non-root user
+USER nextjs
 
 # Expose socket server port (default 3002, but configurable via PORT env var)
 EXPOSE 3002
