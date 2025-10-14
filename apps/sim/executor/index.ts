@@ -257,15 +257,7 @@ export class Executor {
     this.validateWorkflow(startBlockId)
     const validationTime = Date.now() - beforeValidation
 
-    const beforeContext = Date.now()
     const context = this.createExecutionContext(workflowId, startTime, startBlockId)
-    const contextTime = Date.now() - beforeContext
-
-    console.log('[Executor Timing] Initialization:', {
-      validationTime: `${validationTime}ms`,
-      contextCreationTime: `${contextTime}ms`,
-      totalInitTime: `${Date.now() - executorStartMs}ms`,
-    })
 
     try {
       // Only manage global execution state for parent executions
@@ -279,19 +271,13 @@ export class Executor {
 
       let hasMoreLayers = true
       let iteration = 0
-      let firstBlockExecutionTime: number | null = null
+      const firstBlockExecutionTime: number | null = null
       const maxIterations = 500 // Safety limit for infinite loops
 
       while (hasMoreLayers && iteration < maxIterations && !this.isCancelled) {
         const iterationStart = Date.now()
         const nextLayer = this.getNextExecutionLayer(context)
         const getNextLayerTime = Date.now() - iterationStart
-
-        if (iteration > 0) {
-          console.log(
-            `[Executor Timing] Iteration ${iteration} - getNextLayer took ${getNextLayerTime}ms, executing ${nextLayer.length} blocks`
-          )
-        }
 
         if (this.isDebugging) {
           // In debug mode, update the pending blocks and wait for user interaction
@@ -325,25 +311,8 @@ export class Executor {
           if (nextLayer.length === 0) {
             hasMoreLayers = this.hasMoreParallelWork(context)
           } else {
-            if (firstBlockExecutionTime === null && nextLayer.length > 0) {
-              firstBlockExecutionTime = Date.now()
-              console.log('[Executor Timing] Time to first block execution:', {
-                delayMs: `${firstBlockExecutionTime - executorStartMs}ms`,
-                firstBlocks: nextLayer,
-              })
-            }
-
-            const beforeExecuteLayer = Date.now()
             const outputs = await this.executeLayer(nextLayer, context)
-            const executeLayerTime = Date.now() - beforeExecuteLayer
 
-            if (iteration > 0) {
-              console.log(
-                `[Executor Timing] Iteration ${iteration} - executeLayer took ${executeLayerTime}ms`
-              )
-            }
-
-            const beforeOutputProcessing = Date.now()
             for (const output of outputs) {
               if (
                 output &&
@@ -443,26 +412,11 @@ export class Executor {
               finalOutput = normalizedOutputs[normalizedOutputs.length - 1]
             }
 
-            const outputProcessingTime = Date.now() - beforeOutputProcessing
-            if (iteration > 0 && outputProcessingTime > 10) {
-              console.log(
-                `[Executor Timing] Iteration ${iteration} - output processing took ${outputProcessingTime}ms`
-              )
-            }
-
-            const beforeLoopProcessing = Date.now()
             // Process loop iterations - this will activate external paths when loops complete
             await this.loopManager.processLoopIterations(context)
 
             // Process parallel iterations - similar to loops but conceptually for parallel execution
             await this.parallelManager.processParallelIterations(context)
-
-            const loopProcessingTime = Date.now() - beforeLoopProcessing
-            if (iteration > 0 && loopProcessingTime > 10) {
-              console.log(
-                `[Executor Timing] Iteration ${iteration} - loop/parallel processing took ${loopProcessingTime}ms`
-              )
-            }
 
             // Continue execution for any newly activated paths
             // Only stop execution if there are no more blocks to execute

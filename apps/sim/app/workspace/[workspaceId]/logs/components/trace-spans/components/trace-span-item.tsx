@@ -144,7 +144,16 @@ export function TraceSpanItem({
     }
   }
 
-  const spanColor = getSpanColor(span.type)
+  // Prefer registry-provided block color; fallback to legacy per-type colors
+  const getBlockColor = (type: string) => {
+    try {
+      const block = getBlock(type)
+      const color = (block as any)?.bgColor
+      if (color) return color as string
+    } catch {}
+    return getSpanColor(type)
+  }
+  const spanColor = getBlockColor(span.type)
 
   const formatDuration = (ms: number) => {
     if (ms < 1000) return `${ms}ms`
@@ -200,6 +209,37 @@ export function TraceSpanItem({
     return span.name
   }
 
+  // Utilities: soften block colors so they are less harsh in light mode and visible in dark mode
+  const hexToRgb = (hex: string) => {
+    const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+    if (!m) return null
+    return {
+      r: Number.parseInt(m[1], 16),
+      g: Number.parseInt(m[2], 16),
+      b: Number.parseInt(m[3], 16),
+    }
+  }
+
+  const rgbToHex = (r: number, g: number, b: number) =>
+    `#${[r, g, b]
+      .map((v) =>
+        Math.max(0, Math.min(255, Math.round(v)))
+          .toString(16)
+          .padStart(2, '0')
+      )
+      .join('')}`
+
+  const softenColor = (hex: string, isDark: boolean, factor = 0.22) => {
+    const rgb = hexToRgb(hex)
+    if (!rgb) return hex
+    // Blend toward white a bit to reduce harshness and increase visibility in dark mode
+    const t = isDark ? factor : factor + 0.08
+    const r = rgb.r + (255 - rgb.r) * t
+    const g = rgb.g + (255 - rgb.g) * t
+    const b = rgb.b + (255 - rgb.b) * t
+    return rgbToHex(r, g, b)
+  }
+
   return (
     <div
       className={cn(
@@ -245,8 +285,9 @@ export function TraceSpanItem({
                     <TooltipTrigger asChild>
                       <span className='inline-flex cursor-default items-center gap-1 rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground tabular-nums'>
                         {(() => {
-                          const Icon = getProviderIcon(String((span as any).model) || '') as any
-                          return Icon ? <Icon className='h-3 w-3' /> : null
+                          const model = String((span as any).model) || ''
+                          const IconComp = getProviderIcon(model) as any
+                          return IconComp ? <IconComp className='h-3 w-3' /> : null
                         })()}
                         {String((span as any).model)}
                       </span>
@@ -407,16 +448,15 @@ export function TraceSpanItem({
                 const hasSegs =
                   Array.isArray(providerTiming?.segments) && providerTiming.segments.length > 0
                 const type = String(span.type || '').toLowerCase()
-                const colorizedTypes = new Set(['model', 'tool', 'api', 'function'])
                 const isDark =
                   typeof document !== 'undefined' &&
                   document.documentElement.classList.contains('dark')
-                // Use a slightly stronger neutral in both modes; keep dark a bit lighter
+                // Base rail: keep workflow neutral so overlays stand out; otherwise use block color
                 const neutralRail = isDark
                   ? 'rgba(148, 163, 184, 0.28)'
                   : 'rgba(148, 163, 184, 0.32)'
-                const baseColor = !hasSegs && colorizedTypes.has(type) ? spanColor : neutralRail
-                const isFlatBase = colorizedTypes.has(type)
+                const baseColor = type === 'workflow' ? neutralRail : softenColor(spanColor, isDark)
+                const isFlatBase = type !== 'workflow'
                 return (
                   <div
                     className='absolute h-full'
@@ -431,6 +471,76 @@ export function TraceSpanItem({
                 )
               })()}
 
+              {/* Workflow-level overlay of child spans (no duplication of agent's model/streaming) */}
+              {(() => {
+                if (String(span.type || '').toLowerCase() !== 'workflow') return null
+                const children = (span.children || []) as TraceSpan[]
+                if (!children.length) return null
+                // Build overlay segments (exclude agent-internal pieces like model/streaming)
+                const overlay = children
+                  .filter(
+                    (c) => c.type !== 'model' && c.name?.toLowerCase() !== 'streaming response'
+                  )
+                  .map((c) => ({
+                    startMs: new Date(c.startTime).getTime(),
+                    endMs: new Date(c.endTime).getTime(),
+                    type: String(c.type || ''),
+                    name: c.name || '',
+                  }))
+                  .sort((a, b) => a.startMs - b.startMs)
+
+                if (!overlay.length) return null
+
+                const render: React.ReactNode[] = []
+                const isDark = document?.documentElement?.classList?.contains('dark') ?? false
+                const msToPercent = (ms: number) =>
+                  totalDuration > 0 ? (ms / totalDuration) * 100 : 0
+
+                for (let i = 0; i < overlay.length; i++) {
+                  const seg = overlay[i]
+                  const prevEnd = i > 0 ? overlay[i - 1].endMs : undefined
+                  // Render gap between previous and current overlay segment (like in row-level spans)
+                  if (prevEnd && seg.startMs - prevEnd > 5) {
+                    const gapStartPercent = msToPercent(prevEnd - workflowStartTime)
+                    const gapWidthPercent = msToPercent(seg.startMs - prevEnd)
+                    render.push(
+                      <div
+                        key={`wf-gap-${i}`}
+                        className='absolute h-full border-yellow-500/40 border-r border-l bg-yellow-500/20'
+                        style={{
+                          left: `${Math.max(0, Math.min(100, gapStartPercent))}%`,
+                          width: `${Math.max(0.1, Math.min(100, gapWidthPercent))}%`,
+                          zIndex: 8,
+                        }}
+                        title={`${Math.round(seg.startMs - prevEnd)}ms between blocks`}
+                      />
+                    )
+                  }
+
+                  const segStartPercent = msToPercent(seg.startMs - workflowStartTime)
+                  const segWidthPercent = msToPercent(seg.endMs - seg.startMs)
+                  const childColor = softenColor(getBlockColor(seg.type), isDark, 0.18)
+                  render.push(
+                    <div
+                      key={`wfseg-${i}`}
+                      className='absolute h-full'
+                      style={{
+                        left: `${Math.max(0, Math.min(100, segStartPercent))}%`,
+                        width: `${Math.max(0.1, Math.min(100, segWidthPercent))}%`,
+                        backgroundColor: childColor,
+                        opacity: 1,
+                        zIndex: 6,
+                      }}
+                      title={`${seg.type}${seg.name ? `: ${seg.name}` : ''} - ${Math.round(
+                        seg.endMs - seg.startMs
+                      )}ms`}
+                    />
+                  )
+                }
+
+                return render
+              })()}
+
               {(() => {
                 const providerTiming = (span as any).providerTiming
                 const segments: Array<{
@@ -440,18 +550,15 @@ export function TraceSpanItem({
                   name?: string
                 }> = []
 
-                if (hasChildren) {
-                  ;(span.children || [])
-                    .filter((c) => c.type === 'model' || c.type === 'tool')
-                    .forEach((c) =>
-                      segments.push({
-                        type: c.type,
-                        startTime: c.startTime,
-                        endTime: c.endTime,
-                        name: c.name,
-                      })
-                    )
-                } else if (providerTiming?.segments && Array.isArray(providerTiming.segments)) {
+                const isWorkflow = String(span.type || '').toLowerCase() === 'workflow'
+
+                // For workflow rows, avoid duplicating model/streaming info on the base rail –
+                // those are already represented inside Agent. Only show provider timing if present.
+                if (
+                  !hasChildren &&
+                  providerTiming?.segments &&
+                  Array.isArray(providerTiming.segments)
+                ) {
                   providerTiming.segments.forEach((seg: any) =>
                     segments.push({
                       type: seg.type || 'segment',
@@ -470,6 +577,8 @@ export function TraceSpanItem({
                     const endMs = new Date(seg.endTime).getTime()
                     const segDuration = endMs - startMs
 
+                    // Calculate position on the GLOBAL workflow timeline
+                    // This ensures overlay segments align with their corresponding child rows
                     const segmentStartPercent =
                       totalDuration > 0 ? ((startMs - workflowStartTime) / totalDuration) * 100 : 0
                     const segmentWidthPercent =

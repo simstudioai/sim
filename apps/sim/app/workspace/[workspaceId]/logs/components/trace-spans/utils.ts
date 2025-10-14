@@ -62,15 +62,12 @@ export function normalizeChildWorkflowSpan(span: TraceSpan): TraceSpan {
   return enrichedSpan
 }
 
-// Transform raw block data into clean, user-friendly format
 export function transformBlockData(data: any, blockType: string, isInput: boolean) {
   if (!data) return null
 
-  // For input data, filter out sensitive information
   if (isInput) {
     const cleanInput = redactApiKeys(data)
 
-    // Remove null/undefined values for cleaner display
     Object.keys(cleanInput).forEach((key) => {
       if (cleanInput[key] === null || cleanInput[key] === undefined) {
         delete cleanInput[key]
@@ -80,7 +77,6 @@ export function transformBlockData(data: any, blockType: string, isInput: boolea
     return cleanInput
   }
 
-  // For output data, extract meaningful information based on block type
   if (data.response) {
     const response = data.response
 
@@ -109,11 +105,9 @@ export function transformBlockData(data: any, blockType: string, isInput: boolea
         }
 
       case 'tool':
-        // For tool calls, show the result data directly
         return response
 
       default:
-        // For other block types, show the response content
         return response
     }
   }

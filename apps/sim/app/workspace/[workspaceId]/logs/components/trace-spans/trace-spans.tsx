@@ -9,17 +9,13 @@ import {
 } from '@/app/workspace/[workspaceId]/logs/components/trace-spans'
 import type { TraceSpan } from '@/stores/logs/filters/types'
 
-interface TraceSpansDisplayProps {
+interface TraceSpansProps {
   traceSpans?: TraceSpan[]
   totalDuration?: number
   onExpansionChange?: (expanded: boolean) => void
 }
 
-export function TraceSpansDisplay({
-  traceSpans,
-  totalDuration = 0,
-  onExpansionChange,
-}: TraceSpansDisplayProps) {
+export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }: TraceSpansProps) {
   const [expandedSpans, setExpandedSpans] = useState<Set<string>>(new Set())
   const [typeFilters, setTypeFilters] = useState<Record<string, boolean>>({})
   const containerRef = useRef<HTMLDivElement | null>(null)

@@ -12,7 +12,7 @@ import { FrozenCanvasModal } from '@/app/workspace/[workspaceId]/logs/components
 import { FileDownload } from '@/app/workspace/[workspaceId]/logs/components/sidebar/components/file-download'
 import LogMarkdownRenderer from '@/app/workspace/[workspaceId]/logs/components/sidebar/components/markdown-renderer'
 import { ToolCallsDisplay } from '@/app/workspace/[workspaceId]/logs/components/tool-calls/tool-calls-display'
-import { TraceSpansDisplay } from '@/app/workspace/[workspaceId]/logs/components/trace-spans/trace-spans-display'
+import { TraceSpans } from '@/app/workspace/[workspaceId]/logs/components/trace-spans/trace-spans'
 import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils/format-date'
 import { formatCost } from '@/providers/utils'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
@@ -532,7 +532,7 @@ export function Sidebar({
                 {isWorkflowExecutionLog && log.executionData?.traceSpans && (
                   <div className='w-full'>
                     <div className='w-full overflow-x-hidden'>
-                      <TraceSpansDisplay
+                      <TraceSpans
                         traceSpans={log.executionData.traceSpans}
                         totalDuration={log.executionData.totalDuration}
                         onExpansionChange={handleTraceSpanToggle}
