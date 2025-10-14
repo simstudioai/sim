@@ -353,6 +353,31 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     logger.info(`[${requestId}] Workflow deployed successfully: ${id}`)
 
+    // Track workflow deployment
+    try {
+      const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+
+      // Aggregate block types to understand which blocks are being used
+      const blockTypeCounts: Record<string, number> = {}
+      for (const block of Object.values(currentState.blocks)) {
+        const blockType = (block as any).type || 'unknown'
+        blockTypeCounts[blockType] = (blockTypeCounts[blockType] || 0) + 1
+      }
+
+      trackPlatformEvent('platform.workflow.deployed', {
+        'workflow.id': id,
+        'workflow.name': workflowData!.name,
+        'workflow.blocks_count': Object.keys(currentState.blocks).length,
+        'workflow.edges_count': currentState.edges.length,
+        'workflow.has_loops': Object.keys(currentState.loops).length > 0,
+        'workflow.has_parallels': Object.keys(currentState.parallels).length > 0,
+        'workflow.api_key_type': keyInfo?.type || 'default',
+        'workflow.block_types': JSON.stringify(blockTypeCounts),
+      })
+    } catch (_e) {
+      // Silently fail
+    }
+
     const responseApiKeyInfo = keyInfo ? `${keyInfo.name} (${keyInfo.type})` : 'Default key'
 
     return createSuccessResponse({
@@ -400,6 +425,17 @@ export async function DELETE(
     })
 
     logger.info(`[${requestId}] Workflow undeployed successfully: ${id}`)
+
+    // Track workflow undeployment
+    try {
+      const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+      trackPlatformEvent('platform.workflow.undeployed', {
+        'workflow.id': id,
+      })
+    } catch (_e) {
+      // Silently fail
+    }
+
     return createSuccessResponse({
       isDeployed: false,
       deployedAt: null,

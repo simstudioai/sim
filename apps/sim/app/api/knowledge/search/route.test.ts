@@ -214,10 +214,6 @@ describe('Knowledge Search API Route', () => {
       const response = await POST(req)
       const data = await response.json()
 
-      if (response.status !== 200) {
-        console.log('Test failed with response:', data)
-      }
-
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
       expect(data.data.results).toHaveLength(2)
@@ -723,10 +719,6 @@ describe('Knowledge Search API Route', () => {
       const response = await POST(req)
       const data = await response.json()
 
-      if (response.status !== 200) {
-        console.log('Tag-only search test error:', data)
-      }
-
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
       expect(data.data.results).toHaveLength(2)
@@ -782,10 +774,6 @@ describe('Knowledge Search API Route', () => {
       const { POST } = await import('@/app/api/knowledge/search/route')
       const response = await POST(req)
       const data = await response.json()
-
-      if (response.status !== 200) {
-        console.log('Query+tag combination test error:', data)
-      }
 
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)

@@ -366,6 +366,19 @@ export async function POST(req: NextRequest) {
       cronExpression,
     })
 
+    // Track schedule creation/update
+    try {
+      const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+      trackPlatformEvent('platform.schedule.created', {
+        'workflow.id': workflowId,
+        'schedule.type': scheduleType || 'daily',
+        'schedule.timezone': timezone,
+        'schedule.is_custom': scheduleType === 'custom',
+      })
+    } catch (_e) {
+      // Silently fail
+    }
+
     return NextResponse.json({
       message: 'Schedule updated',
       nextRunAt,

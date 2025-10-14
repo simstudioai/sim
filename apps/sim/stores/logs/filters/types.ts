@@ -12,8 +12,8 @@ export interface ToolCall {
   startTime: string // ISO timestamp
   endTime: string // ISO timestamp
   status: 'success' | 'error' // Status of the tool call
-  input?: Record<string, any> // Input parameters (optional)
-  output?: Record<string, any> // Output data (optional)
+  input?: Record<string, unknown> // Input parameters (optional)
+  output?: Record<string, unknown> // Output data (optional)
   error?: string // Error message if status is 'error'
 }
 
@@ -51,6 +51,27 @@ export interface CostMetadata {
   }
 }
 
+export interface TokenInfo {
+  input?: number
+  output?: number
+  total?: number
+  prompt?: number
+  completion?: number
+}
+
+export interface ProviderTiming {
+  duration: number
+  startTime: string
+  endTime: string
+  segments: Array<{
+    type: string
+    name?: string
+    startTime: string | number
+    endTime: string | number
+    duration: number
+  }>
+}
+
 export interface TraceSpan {
   id: string
   name: string
@@ -61,11 +82,18 @@ export interface TraceSpan {
   children?: TraceSpan[]
   toolCalls?: ToolCall[]
   status?: 'success' | 'error'
-  tokens?: number
+  tokens?: number | TokenInfo
   relativeStartMs?: number // Time in ms from the start of the parent span
   blockId?: string // Added to track the original block ID for relationship mapping
-  input?: Record<string, any> // Added to store input data for this span
-  output?: Record<string, any> // Added to store output data for this span
+  input?: Record<string, unknown> // Added to store input data for this span
+  output?: Record<string, unknown> // Added to store output data for this span
+  model?: string
+  cost?: {
+    input?: number
+    output?: number
+    total?: number
+  }
+  providerTiming?: ProviderTiming
 }
 
 export interface WorkflowLog {
@@ -93,7 +121,7 @@ export interface WorkflowLog {
   executionData?: ToolCallMetadata & {
     traceSpans?: TraceSpan[]
     totalDuration?: number
-    blockInput?: Record<string, any>
+    blockInput?: Record<string, unknown>
     enhanced?: boolean
 
     blockExecutions?: Array<{
@@ -107,10 +135,10 @@ export interface WorkflowLog {
       status: 'success' | 'error' | 'skipped'
       errorMessage?: string
       errorStackTrace?: string
-      inputData: any
-      outputData: any
+      inputData: unknown
+      outputData: unknown
       cost?: CostMetadata
-      metadata: any
+      metadata: Record<string, unknown>
     }>
   }
 }

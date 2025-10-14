@@ -12,6 +12,7 @@ const ALLOWED_CATEGORIES = [
   'error',
   'workflow',
   'consent',
+  'batch',
 ]
 
 const DEFAULT_TIMEOUT = 5000 // 5 seconds timeout
@@ -132,7 +133,6 @@ async function forwardToCollector(data: any): Promise<boolean> {
       ],
     }
 
-    // Create explicit AbortController for timeout
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), timeout)
 

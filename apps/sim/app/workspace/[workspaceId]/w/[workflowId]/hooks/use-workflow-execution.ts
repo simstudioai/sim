@@ -406,11 +406,14 @@ export function useWorkflowExecution() {
               }
             }
 
+            const streamCompletionTimes = new Map<string, number>()
+
             const onStream = async (streamingExecution: StreamingExecution) => {
               const promise = (async () => {
                 if (!streamingExecution.stream) return
                 const reader = streamingExecution.stream.getReader()
                 const blockId = (streamingExecution.execution as any)?.blockId
+                const streamStartTime = Date.now()
                 let isFirstChunk = true
 
                 if (blockId) {
@@ -420,6 +423,10 @@ export function useWorkflowExecution() {
                   while (true) {
                     const { done, value } = await reader.read()
                     if (done) {
+                      // Record when this stream completed
+                      if (blockId) {
+                        streamCompletionTimes.set(blockId, Date.now())
+                      }
                       break
                     }
                     const chunk = new TextDecoder().decode(value)
@@ -517,6 +524,25 @@ export function useWorkflowExecution() {
                   result.metadata = { duration: 0, startTime: new Date().toISOString() }
                 }
                 ;(result.metadata as any).source = 'chat'
+
+                // Update block logs with actual stream completion times
+                if (result.logs && streamCompletionTimes.size > 0) {
+                  const streamCompletionEndTime = new Date(
+                    Math.max(...Array.from(streamCompletionTimes.values()))
+                  ).toISOString()
+
+                  result.logs.forEach((log: BlockLog) => {
+                    if (streamCompletionTimes.has(log.blockId)) {
+                      const completionTime = streamCompletionTimes.get(log.blockId)!
+                      const startTime = new Date(log.startedAt).getTime()
+
+                      // Update the log with actual stream completion time
+                      log.endedAt = new Date(completionTime).toISOString()
+                      log.durationMs = completionTime - startTime
+                    }
+                  })
+                }
+
                 // Update streamed content and apply tokenization
                 if (result.logs) {
                   result.logs.forEach((log: BlockLog) => {
