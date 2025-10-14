@@ -84,7 +84,7 @@ export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }:
           if (tl !== 'workflow') set.add(tl) // Never expose 'workflow' as a filter
         }
         if (s?.children?.length) visit(s.children)
-        if ((s as any)?.toolCalls?.length) set.add('tool')
+        if (s?.toolCalls?.length) set.add('tool')
       }
     }
     visit(traceSpans)
@@ -114,7 +114,7 @@ export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }:
           const id = s.id || `span-${s.name}-${s.startTime}`
           next.add(id)
           if (s.children?.length) collect(s.children)
-          if ((s as any)?.toolCalls?.length) next.add(`${id}-tools`)
+          if (s?.toolCalls?.length) next.add(`${id}-tools`)
         }
       }
       collect(traceSpans)
@@ -181,7 +181,7 @@ export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }:
   useEffect(() => {
     if (!containerRef.current) return
     const el = containerRef.current
-    const ro = new (window as any).ResizeObserver((entries: any[]) => {
+    const ro = new ResizeObserver((entries: ResizeObserverEntry[]) => {
       const width = entries?.[0]?.contentRect?.width || el.clientWidth
       setContainerWidth(width)
     })

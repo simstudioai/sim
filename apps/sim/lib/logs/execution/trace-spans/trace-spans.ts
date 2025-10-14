@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import type { TraceSpan } from '@/lib/logs/types'
+import type { ToolCall, TraceSpan } from '@/lib/logs/types'
 import { isWorkflowBlockType } from '@/executor/consts'
 import type { ExecutionResult } from '@/executor/types'
 
@@ -113,9 +113,20 @@ export function buildTraceSpans(result: ExecutionResult): {
     }
 
     if (log.output?.providerTiming) {
-      const providerTiming = log.output.providerTiming
+      const providerTiming = log.output.providerTiming as {
+        duration: number
+        startTime: string
+        endTime: string
+        timeSegments?: Array<{
+          type: string
+          name?: string
+          startTime: string | number
+          endTime: string | number
+          duration: number
+        }>
+      }
 
-      ;(span as any).providerTiming = {
+      span.providerTiming = {
         duration: providerTiming.duration,
         startTime: providerTiming.startTime,
         endTime: providerTiming.endTime,
@@ -124,13 +135,25 @@ export function buildTraceSpans(result: ExecutionResult): {
     }
 
     if (log.output?.cost) {
-      ;(span as any).cost = log.output.cost
+      span.cost = log.output.cost as {
+        input?: number
+        output?: number
+        total?: number
+      }
     }
 
     if (log.output?.tokens) {
-      const t: any = log.output.tokens
+      const t = log.output.tokens as
+        | number
+        | {
+            input?: number
+            output?: number
+            total?: number
+            prompt?: number
+            completion?: number
+          }
       if (typeof t === 'number') {
-        ;(span as any).tokens = t
+        span.tokens = t
       } else if (typeof t === 'object') {
         const input = t.input ?? t.prompt
         const output = t.output ?? t.completion
@@ -139,18 +162,18 @@ export function buildTraceSpans(result: ExecutionResult): {
           (typeof input === 'number' || typeof output === 'number'
             ? (input || 0) + (output || 0)
             : undefined)
-        ;(span as any).tokens = {
+        span.tokens = {
           ...(typeof input === 'number' ? { input } : {}),
           ...(typeof output === 'number' ? { output } : {}),
           ...(typeof total === 'number' ? { total } : {}),
         }
       } else {
-        ;(span as any).tokens = t
+        span.tokens = t
       }
     }
 
     if (log.output?.model) {
-      ;(span as any).model = log.output.model
+      span.model = log.output.model as string
     }
 
     if (
@@ -161,53 +184,65 @@ export function buildTraceSpans(result: ExecutionResult): {
       const timeSegments = log.output.providerTiming.timeSegments
       const toolCallsData = log.output?.toolCalls?.list || log.output?.toolCalls || []
 
-      span.children = timeSegments.map((segment: any, index: number) => {
-        const segmentStartTime = new Date(segment.startTime).toISOString()
-        let segmentEndTime = new Date(segment.endTime).toISOString()
-        let segmentDuration = segment.duration
+      span.children = timeSegments.map(
+        (
+          segment: {
+            type: string
+            name?: string
+            startTime: string | number
+            endTime: string | number
+            duration: number
+          },
+          index: number
+        ) => {
+          const segmentStartTime = new Date(segment.startTime).toISOString()
+          let segmentEndTime = new Date(segment.endTime).toISOString()
+          let segmentDuration = segment.duration
 
-        if (segment.name?.toLowerCase().includes('streaming') && log.endedAt) {
-          const blockEndTime = new Date(log.endedAt).getTime()
-          const segmentEndTimeMs = new Date(segment.endTime).getTime()
+          if (segment.name?.toLowerCase().includes('streaming') && log.endedAt) {
+            const blockEndTime = new Date(log.endedAt).getTime()
+            const segmentEndTimeMs = new Date(segment.endTime).getTime()
 
-          if (blockEndTime > segmentEndTimeMs) {
-            segmentEndTime = log.endedAt
-            segmentDuration = blockEndTime - new Date(segment.startTime).getTime()
+            if (blockEndTime > segmentEndTimeMs) {
+              segmentEndTime = log.endedAt
+              segmentDuration = blockEndTime - new Date(segment.startTime).getTime()
+            }
           }
-        }
 
-        if (segment.type === 'tool') {
-          const matchingToolCall = toolCallsData.find(
-            (tc: any) => tc.name === segment.name || stripCustomToolPrefix(tc.name) === segment.name
-          )
+          if (segment.type === 'tool') {
+            const matchingToolCall = toolCallsData.find(
+              (tc: { name?: string; [key: string]: unknown }) =>
+                tc.name === segment.name || stripCustomToolPrefix(tc.name || '') === segment.name
+            )
 
+            return {
+              id: `${span.id}-segment-${index}`,
+              name: stripCustomToolPrefix(segment.name || ''),
+              type: 'tool',
+              duration: segment.duration,
+              startTime: segmentStartTime,
+              endTime: segmentEndTime,
+              status: matchingToolCall?.error ? 'error' : 'success',
+              input: matchingToolCall?.arguments || matchingToolCall?.input,
+              output: matchingToolCall?.error
+                ? {
+                    error: matchingToolCall.error,
+                    ...(matchingToolCall.result || matchingToolCall.output || {}),
+                  }
+                : matchingToolCall?.result || matchingToolCall?.output,
+            }
+          }
           return {
             id: `${span.id}-segment-${index}`,
-            name: stripCustomToolPrefix(segment.name),
-            type: 'tool',
-            duration: segment.duration,
+            name: segment.name,
+            type: 'model',
+            duration: segmentDuration,
             startTime: segmentStartTime,
             endTime: segmentEndTime,
-            status: matchingToolCall?.error ? 'error' : 'success',
-            input: matchingToolCall?.arguments || matchingToolCall?.input,
-            output: matchingToolCall?.error
-              ? {
-                  error: matchingToolCall.error,
-                  ...(matchingToolCall.result || matchingToolCall.output || {}),
-                }
-              : matchingToolCall?.result || matchingToolCall?.output,
+            status: 'success',
           }
         }
-        return {
-          id: `${span.id}-segment-${index}`,
-          name: segment.name,
-          type: 'model',
-          duration: segmentDuration,
-          startTime: segmentStartTime,
-          endTime: segmentEndTime,
-          status: 'success',
-        }
-      })
+      )
     } else {
       let toolCallsList = null
 
@@ -234,27 +269,49 @@ export function buildTraceSpans(result: ExecutionResult): {
       }
 
       if (toolCallsList && toolCallsList.length > 0) {
-        span.toolCalls = toolCallsList
-          .map((tc: any) => {
-            if (!tc) return null
+        const processedToolCalls: ToolCall[] = []
 
-            try {
-              return {
-                name: stripCustomToolPrefix(tc.name || 'unnamed-tool'),
-                duration: tc.duration || 0,
-                startTime: tc.startTime || log.startedAt,
-                endTime: tc.endTime || log.endedAt,
-                status: tc.error ? 'error' : 'success',
-                input: tc.arguments || tc.input,
-                output: tc.result || tc.output,
-                error: tc.error,
-              }
-            } catch (tcError) {
-              logger.error(`Error processing tool call in block ${log.blockId}:`, tcError)
-              return null
+        for (const tc of toolCallsList as Array<{
+          name?: string
+          duration?: number
+          startTime?: string
+          endTime?: string
+          error?: string
+          arguments?: Record<string, unknown>
+          input?: Record<string, unknown>
+          result?: Record<string, unknown>
+          output?: Record<string, unknown>
+        }>) {
+          if (!tc) continue
+
+          try {
+            const toolCall: ToolCall = {
+              name: stripCustomToolPrefix(tc.name || 'unnamed-tool'),
+              duration: tc.duration || 0,
+              startTime: tc.startTime || log.startedAt,
+              endTime: tc.endTime || log.endedAt,
+              status: tc.error ? 'error' : 'success',
             }
-          })
-          .filter(Boolean)
+
+            if (tc.arguments || tc.input) {
+              toolCall.input = tc.arguments || tc.input
+            }
+
+            if (tc.result || tc.output) {
+              toolCall.output = tc.result || tc.output
+            }
+
+            if (tc.error) {
+              toolCall.error = tc.error
+            }
+
+            processedToolCalls.push(toolCall)
+          } catch (tcError) {
+            logger.error(`Error processing tool call in block ${log.blockId}:`, tcError)
+          }
+        }
+
+        span.toolCalls = processedToolCalls
       }
     }
 

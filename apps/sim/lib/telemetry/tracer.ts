@@ -81,35 +81,37 @@ const BLOCK_TYPE_MAPPING: Record<
   {
     spanName: string
     spanKind: string
-    getAttributes: (traceSpan: TraceSpan) => Record<string, any>
+    getAttributes: (traceSpan: TraceSpan) => Record<string, string | number | boolean | undefined>
   }
 > = {
   agent: {
     spanName: 'gen_ai.agent.execute',
     spanKind: 'gen_ai.agent',
     getAttributes: (span) => {
-      const attrs: Record<string, any> = {
+      const attrs: Record<string, string | number | boolean | undefined> = {
         [GenAIAttributes.AGENT_ID]: span.blockId || span.id,
         [GenAIAttributes.AGENT_NAME]: span.name,
       }
 
-      const model = (span as any).model
-      if (model) {
-        attrs[GenAIAttributes.REQUEST_MODEL] = model
+      if (span.model) {
+        attrs[GenAIAttributes.REQUEST_MODEL] = span.model
       }
 
-      const tokens = (span as any).tokens
-      if (tokens && typeof tokens === 'object') {
-        attrs[GenAIAttributes.USAGE_INPUT_TOKENS] = tokens.prompt || 0
-        attrs[GenAIAttributes.USAGE_OUTPUT_TOKENS] = tokens.completion || 0
-        attrs[GenAIAttributes.USAGE_TOTAL_TOKENS] = tokens.total || 0
+      if (span.tokens) {
+        if (typeof span.tokens === 'number') {
+          attrs[GenAIAttributes.USAGE_TOTAL_TOKENS] = span.tokens
+        } else {
+          attrs[GenAIAttributes.USAGE_INPUT_TOKENS] = span.tokens.input || span.tokens.prompt || 0
+          attrs[GenAIAttributes.USAGE_OUTPUT_TOKENS] =
+            span.tokens.output || span.tokens.completion || 0
+          attrs[GenAIAttributes.USAGE_TOTAL_TOKENS] = span.tokens.total || 0
+        }
       }
 
-      const cost = (span as any).cost
-      if (cost && typeof cost === 'object') {
-        attrs[GenAIAttributes.COST_INPUT] = cost.input || 0
-        attrs[GenAIAttributes.COST_OUTPUT] = cost.output || 0
-        attrs[GenAIAttributes.COST_TOTAL] = cost.total || 0
+      if (span.cost) {
+        attrs[GenAIAttributes.COST_INPUT] = span.cost.input || 0
+        attrs[GenAIAttributes.COST_OUTPUT] = span.cost.output || 0
+        attrs[GenAIAttributes.COST_TOTAL] = span.cost.total || 0
       }
 
       return attrs
@@ -145,12 +147,12 @@ const BLOCK_TYPE_MAPPING: Record<
     spanName: 'http.client.request',
     spanKind: 'http.client',
     getAttributes: (span) => {
-      const input: any = span.input || {}
-      const output: any = span.output || {}
+      const input = span.input as { method?: string; url?: string } | undefined
+      const output = span.output as { status?: number } | undefined
       return {
-        'http.request.method': input.method || 'GET',
-        'http.request.url': input.url || '',
-        'http.response.status_code': output.status || 0,
+        'http.request.method': input?.method || 'GET',
+        'http.request.url': input?.url || '',
+        'http.response.status_code': output?.status || 0,
         'block.id': span.blockId,
         'block.name': span.name,
       }
@@ -169,12 +171,11 @@ const BLOCK_TYPE_MAPPING: Record<
     spanName: 'router.evaluate',
     spanKind: 'router',
     getAttributes: (span) => {
-      const output: any = span.output || {}
-      const selectedPath: any = output.selectedPath || {}
+      const output = span.output as { selectedPath?: { blockId?: string } } | undefined
       return {
         'router.name': span.name,
         'router.id': span.blockId,
-        'router.selected_path': selectedPath.blockId,
+        'router.selected_path': output?.selectedPath?.blockId,
       }
     },
   },
@@ -182,11 +183,11 @@ const BLOCK_TYPE_MAPPING: Record<
     spanName: 'condition.evaluate',
     spanKind: 'condition',
     getAttributes: (span) => {
-      const output: any = span.output || {}
+      const output = span.output as { conditionResult?: boolean | string } | undefined
       return {
         'condition.name': span.name,
         'condition.id': span.blockId,
-        'condition.result': output.conditionResult,
+        'condition.result': output?.conditionResult,
       }
     },
   },

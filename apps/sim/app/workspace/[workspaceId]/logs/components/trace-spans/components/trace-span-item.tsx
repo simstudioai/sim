@@ -103,8 +103,11 @@ export function TraceSpanItem({
         const candidate = parts.slice(0, i).join('_')
         const block = getBlock(candidate)
         if (block?.icon) {
-          const Icon = block.icon as any
-          const color = (block as any).bgColor || '#f97316'
+          const Icon = block.icon as React.ComponentType<{
+            className?: string
+            style?: React.CSSProperties
+          }>
+          const color = (block as { bgColor?: string }).bgColor || '#f97316'
           return <Icon className='h-3 w-3' style={{ color }} />
         }
       }
@@ -148,7 +151,7 @@ export function TraceSpanItem({
   const getBlockColor = (type: string) => {
     try {
       const block = getBlock(type)
-      const color = (block as any)?.bgColor
+      const color = (block as { bgColor?: string } | null)?.bgColor
       if (color) return color as string
     } catch {}
     return getSpanColor(type)
@@ -279,17 +282,19 @@ export function TraceSpanItem({
               >
                 {formatSpanName(span)}
               </span>
-              {chipVisibility.model && (span as any).model && (
+              {chipVisibility.model && span.model && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className='inline-flex cursor-default items-center gap-1 rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground tabular-nums'>
                         {(() => {
-                          const model = String((span as any).model) || ''
-                          const IconComp = getProviderIcon(model) as any
+                          const model = String(span.model) || ''
+                          const IconComp = getProviderIcon(model) as React.ComponentType<{
+                            className?: string
+                          }> | null
                           return IconComp ? <IconComp className='h-3 w-3' /> : null
                         })()}
-                        {String((span as any).model)}
+                        {String(span.model)}
                       </span>
                     </TooltipTrigger>
                     <TooltipContent side='top'>Model</TooltipContent>
@@ -299,9 +304,9 @@ export function TraceSpanItem({
               {chipVisibility.toolProvider &&
                 span.type === 'tool' &&
                 (() => {
-                  const raw = String((span as any).name || '')
+                  const raw = String(span.name || '')
                   const parts = raw.split('_')
-                  let block: any
+                  let block: ReturnType<typeof getBlock> | null = null
                   for (let i = parts.length; i > 0; i--) {
                     const candidate = parts.slice(0, i).join('_')
                     const b = getBlock(candidate)
@@ -311,20 +316,20 @@ export function TraceSpanItem({
                     }
                   }
                   if (!block?.icon) return null
-                  const Icon = block.icon as any
+                  const Icon = block.icon as React.ComponentType<{ className?: string }>
                   return (
                     <span className='inline-flex items-center gap-1 rounded bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground'>
                       <Icon className='h-3 w-3 text-muted-foreground' />
                     </span>
                   )
                 })()}
-              {chipVisibility.tokens && (span as any).tokens && (
+              {chipVisibility.tokens && span.tokens && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className='cursor-default rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground tabular-nums'>
                         {(() => {
-                          const t = (span as any).tokens
+                          const t = span.tokens
                           const total =
                             typeof t === 'number'
                               ? t
@@ -335,7 +340,7 @@ export function TraceSpanItem({
                     </TooltipTrigger>
                     <TooltipContent side='top'>
                       {(() => {
-                        const t = (span as any).tokens
+                        const t = span.tokens
                         if (typeof t === 'number') return <span>{t} tokens</span>
                         const hasIn = typeof t.input === 'number'
                         const hasOut = typeof t.output === 'number'
@@ -361,7 +366,7 @@ export function TraceSpanItem({
                   </Tooltip>
                 </TooltipProvider>
               )}
-              {chipVisibility.cost && (span as any).cost?.total !== undefined && (
+              {chipVisibility.cost && span.cost?.total !== undefined && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -369,16 +374,16 @@ export function TraceSpanItem({
                         {(() => {
                           try {
                             const { formatCost } = require('@/providers/utils')
-                            return formatCost(Number((span as any).cost.total) || 0)
+                            return formatCost(Number(span.cost.total) || 0)
                           } catch {
-                            return `$${Number.parseFloat(String((span as any).cost.total)).toFixed(4)}`
+                            return `$${Number.parseFloat(String(span.cost.total)).toFixed(4)}`
                           }
                         })()}
                       </span>
                     </TooltipTrigger>
                     <TooltipContent side='top'>
                       {(() => {
-                        const c = (span as any).cost || {}
+                        const c = span.cost || {}
                         const input = typeof c.input === 'number' ? c.input : undefined
                         const output = typeof c.output === 'number' ? c.output : undefined
                         const total =
@@ -387,9 +392,12 @@ export function TraceSpanItem({
                             : typeof input === 'number' && typeof output === 'number'
                               ? input + output
                               : undefined
-                        let formatCostFn: any = (v: number) => `$${Number(v).toFixed(4)}`
+                        let formatCostFn: (v: number) => string = (v: number) =>
+                          `$${Number(v).toFixed(4)}`
                         try {
-                          formatCostFn = require('@/providers/utils').formatCost
+                          formatCostFn = require('@/providers/utils').formatCost as (
+                            v: number
+                          ) => string
                         } catch {}
                         return (
                           <div className='space-y-0.5'>
@@ -444,7 +452,7 @@ export function TraceSpanItem({
               )}
 
               {(() => {
-                const providerTiming = (span as any).providerTiming
+                const providerTiming = span.providerTiming
                 const hasSegs =
                   Array.isArray(providerTiming?.segments) && providerTiming.segments.length > 0
                 const type = String(span.type || '').toLowerCase()
@@ -542,7 +550,7 @@ export function TraceSpanItem({
               })()}
 
               {(() => {
-                const providerTiming = (span as any).providerTiming
+                const providerTiming = span.providerTiming
                 const segments: Array<{
                   type: string
                   startTime: string | number
@@ -559,7 +567,7 @@ export function TraceSpanItem({
                   providerTiming?.segments &&
                   Array.isArray(providerTiming.segments)
                 ) {
-                  providerTiming.segments.forEach((seg: any) =>
+                  providerTiming.segments.forEach((seg) =>
                     segments.push({
                       type: seg.type || 'segment',
                       startTime: seg.startTime,

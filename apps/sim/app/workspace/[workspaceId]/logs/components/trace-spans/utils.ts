@@ -62,7 +62,7 @@ export function normalizeChildWorkflowSpan(span: TraceSpan): TraceSpan {
   return enrichedSpan
 }
 
-export function transformBlockData(data: any, blockType: string, isInput: boolean) {
+export function transformBlockData(data: unknown, blockType: string, isInput: boolean) {
   if (!data) return null
 
   if (isInput) {
@@ -77,24 +77,30 @@ export function transformBlockData(data: any, blockType: string, isInput: boolea
     return cleanInput
   }
 
-  if (data.response) {
-    const response = data.response
+  // Type guard to check if data is an object with a response property
+  if (typeof data === 'object' && data !== null && 'response' in data) {
+    const dataWithResponse = data as Record<string, unknown>
+    const response = dataWithResponse.response as Record<string, unknown>
 
     switch (blockType) {
       case 'agent':
         return {
           content: response.content,
-          model: data.model,
-          tokens: data.tokens,
+          model: 'model' in dataWithResponse ? dataWithResponse.model : undefined,
+          tokens: 'tokens' in dataWithResponse ? dataWithResponse.tokens : undefined,
           toolCalls: response.toolCalls,
-          ...(data.cost && { cost: data.cost }),
+          ...('cost' in dataWithResponse && dataWithResponse.cost
+            ? { cost: dataWithResponse.cost }
+            : {}),
         }
 
       case 'function':
         return {
           result: response.result,
           stdout: response.stdout,
-          ...(response.executionTime && { executionTime: `${response.executionTime}ms` }),
+          ...('executionTime' in response && response.executionTime
+            ? { executionTime: `${response.executionTime}ms` }
+            : {}),
         }
 
       case 'api':

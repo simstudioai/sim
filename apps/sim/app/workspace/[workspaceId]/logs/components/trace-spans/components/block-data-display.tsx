@@ -7,14 +7,14 @@ export function BlockDataDisplay({
   isInput = false,
   isError = false,
 }: {
-  data: any
+  data: unknown
   blockType?: string
   isInput?: boolean
   isError?: boolean
 }) {
   if (!data) return null
 
-  const renderValue = (value: any, key?: string): React.ReactNode => {
+  const renderValue = (value: unknown, key?: string): React.ReactNode => {
     if (value === null) return <span className='text-muted-foreground italic'>null</span>
     if (value === undefined) return <span className='text-muted-foreground italic'>undefined</span>
 
@@ -75,12 +75,13 @@ export function BlockDataDisplay({
 
   const transformedData = transformBlockData(data, blockType || 'unknown', isInput)
 
-  if (isError && data.error) {
+  if (isError && typeof data === 'object' && data !== null && 'error' in data) {
+    const errorData = data as { error: string; [key: string]: unknown }
     return (
       <div className='space-y-2 text-xs'>
         <div className='rounded border border-red-200 bg-red-50 p-2 dark:border-red-800 dark:bg-red-950/20'>
           <div className='mb-1 font-medium text-red-800 dark:text-red-400'>Error</div>
-          <div className='text-red-700 dark:text-red-300'>{data.error}</div>
+          <div className='text-red-700 dark:text-red-300'>{errorData.error}</div>
         </div>
         {transformedData &&
           Object.keys(transformedData).filter((key) => key !== 'error' && key !== 'success')
