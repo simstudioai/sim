@@ -468,35 +468,55 @@ async function formatTeamsGraphNotification(
           }
         }
       }
-    } catch {}
-  } else {
-    try {
-      accessToken = await getOAuthToken(foundWorkflow.userId, 'microsoft-teams')
-      if (accessToken) {
-        const msgUrl = `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(resolvedChatId)}/messages/${encodeURIComponent(resolvedMessageId)}`
-        const res = await fetch(msgUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
-        if (res.ok) {
-          message = await res.json()
-        } else {
-          const listUrl = `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(resolvedChatId)}/messages?$top=20&$orderby=createdDateTime desc`
-          const listRes = await fetch(listUrl, {
-            headers: { Authorization: `Bearer ${accessToken}` },
-          })
-          if (listRes.ok) {
-            const listData = await listRes.json()
-            const items: any[] = Array.isArray(listData?.value) ? listData.value : []
-            message = items.find((m) => m?.id === resolvedMessageId) || items[0] || null
-          }
-        }
-      }
-    } catch {}
+    } catch (error) {
+      logger.error('Failed to fetch Teams message', {
+        error,
+        chatId: resolvedChatId,
+        messageId: resolvedMessageId,
+      })
+    }
   }
 
-  // Prefer body.content; fall back to summary or empty string
-  const messageText =
-    (message?.body?.content as string | undefined) || (message?.summary as string | undefined) || ''
-  const from = message?.from?.user || {}
-  const createdAt = message?.createdDateTime || notification.resourceData?.createdDateTime || ''
+  // If no message was fetched, return minimal data
+  if (!message) {
+    logger.warn('No message data available for Teams notification', {
+      chatId: resolvedChatId,
+      messageId: resolvedMessageId,
+      hasCredential: !!credentialId,
+    })
+    return {
+      input: '',
+      message_id: messageId,
+      chat_id: chatId,
+      from_name: 'Unknown',
+      text: '',
+      created_at: notification.resourceData?.createdDateTime || '',
+      change_type: changeType,
+      subscription_id: subscriptionId,
+      attachments: [],
+      microsoftteams: {
+        message: { id: messageId, text: '', timestamp: '', chatId, raw: null },
+        from: { id: '', name: 'Unknown', aadObjectId: '' },
+        notification: { changeType, subscriptionId, resource },
+      },
+      webhook: {
+        data: {
+          provider: 'microsoftteams',
+          path: foundWebhook?.path || '',
+          providerConfig: foundWebhook?.providerConfig || {},
+          payload: body,
+          headers: Object.fromEntries(request.headers.entries()),
+          method: request.method,
+        },
+      },
+      workflowId: foundWorkflow.id,
+    }
+  }
+
+  // Extract data from message - we know it exists now
+  const messageText = message.body?.content || message.summary || ''
+  const from = message.from?.user || {}
+  const createdAt = message.createdDateTime || ''
 
   return {
     input: messageText,
