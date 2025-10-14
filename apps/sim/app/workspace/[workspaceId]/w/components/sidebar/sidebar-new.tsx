@@ -3,7 +3,14 @@
 import { useCallback, useRef, useState } from 'react'
 import { ArrowDown, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Badge, ChevronDown, PanelLeft } from '@/components/emcn'
+import {
+  Badge,
+  ChevronDown,
+  PanelLeft,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/emcn'
 import { Button } from '@/components/emcn/components/button'
 import { FolderPlus } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth-client'
@@ -139,33 +146,51 @@ export function SidebarNew() {
                   Workflows
                 </div>
                 <div className='flex items-center justify-center gap-[10px]'>
-                  <Button
-                    variant='default'
-                    className='translate-y-[-0.25px] p-[1px]'
-                    onClick={handleImportWorkflow}
-                    disabled={isImporting}
-                    title={isImporting ? 'Importing workflow...' : 'Import workflow from JSON'}
-                  >
-                    <ArrowDown className='h-[14px] w-[14px]' />
-                  </Button>
-                  <Button
-                    variant='default'
-                    className='mr-[1px] translate-y-[-0.25px] p-[1px]'
-                    onClick={handleCreateFolder}
-                    disabled={isCreatingFolder}
-                    title={isCreatingFolder ? 'Creating folder...' : 'Create new folder'}
-                  >
-                    <FolderPlus className='h-[14px] w-[14px]' />
-                  </Button>
-                  <Button
-                    variant='outline'
-                    className='translate-y-[-0.25px] p-[1px]'
-                    onClick={handleCreateWorkflow}
-                    disabled={isCreatingWorkflow}
-                    title={isCreatingWorkflow ? 'Creating workflow...' : 'Create new workflow'}
-                  >
-                    <Plus className='h-[14px] w-[14px]' />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant='default'
+                        className='translate-y-[-0.25px] p-[1px]'
+                        onClick={handleImportWorkflow}
+                        disabled={isImporting}
+                      >
+                        <ArrowDown className='h-[14px] w-[14px]' />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{isImporting ? 'Importing workflow...' : 'Import from JSON'}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant='default'
+                        className='mr-[1px] translate-y-[-0.25px] p-[1px]'
+                        onClick={handleCreateFolder}
+                        disabled={isCreatingFolder}
+                      >
+                        <FolderPlus className='h-[14px] w-[14px]' />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{isCreatingFolder ? 'Creating folder...' : 'Create folder'}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant='outline'
+                        className='translate-y-[-0.25px] p-[1px]'
+                        onClick={handleCreateWorkflow}
+                        disabled={isCreatingWorkflow}
+                      >
+                        <Plus className='h-[14px] w-[14px]' />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{isCreatingWorkflow ? 'Creating workflow...' : 'Create workflow'}</p>
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
               </div>
             </div>

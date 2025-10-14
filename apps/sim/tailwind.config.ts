@@ -15,6 +15,7 @@ export default {
         season: ['var(--font-season)'],
       },
       fontSize: {
+        xs: '11px',
         small: '13px', // Override default 14px to 13px
         base: '15px', // Override default 16px to 15px
       },
@@ -65,6 +66,7 @@ export default {
         },
       },
       fontWeight: {
+        base: '430',
         medium: '450',
         semibold: '550',
       },
