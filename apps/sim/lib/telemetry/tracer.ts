@@ -22,7 +22,6 @@ import type { TraceSpan } from '@/lib/logs/types'
 
 /**
  * GenAI Semantic Convention Attributes
- * Based on OpenTelemetry GenAI specification
  */
 const GenAIAttributes = {
   // System attributes
@@ -213,7 +212,7 @@ const BLOCK_TYPE_MAPPING: Record<
 
 /**
  * Convert a TraceSpan to an OpenTelemetry span
- * This creates a proper OTel span with all the metadata from the trace span
+ * Creates a proper OTel span with all the metadata from the trace span
  */
 export function createOTelSpanFromTraceSpan(traceSpan: TraceSpan, parentSpan?: Span): Span | null {
   try {
@@ -383,7 +382,7 @@ export function createOTelSpansForWorkflowExecution(params: {
 
 /**
  * Create a real-time OpenTelemetry span for a block execution
- * This can be called from block handlers during execution for real-time tracing
+ * Can be called from block handlers during execution for real-time tracing
  */
 export async function traceBlockExecution<T>(
   blockType: string,
@@ -429,8 +428,6 @@ export async function traceBlockExecution<T>(
 
 /**
  * Track platform events (workflow creation, knowledge base operations, etc.)
- * These are lightweight event spans that help understand platform usage patterns
- * without being intrusive.
  */
 export function trackPlatformEvent(
   eventName: string,
