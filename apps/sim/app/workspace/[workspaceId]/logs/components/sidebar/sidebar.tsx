@@ -530,10 +530,10 @@ export function Sidebar({
                       Workflow State
                     </h3>
                     <Button
-                      variant='outline'
+                      variant='ghost'
                       size='sm'
                       onClick={() => setIsFrozenCanvasOpen(true)}
-                      className='w-full justify-start gap-2'
+                      className='w-full justify-start gap-2 rounded-md border bg-muted/30 hover:bg-muted/50'
                     >
                       <Eye className='h-4 w-4' />
                       View Snapshot

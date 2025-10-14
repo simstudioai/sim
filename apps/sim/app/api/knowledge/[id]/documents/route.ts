@@ -186,6 +186,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           `[${requestId}] Starting controlled async processing of ${createdDocuments.length} documents`
         )
 
+        // Track bulk document upload
+        try {
+          const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+          trackPlatformEvent('platform.knowledge_base.documents_uploaded', {
+            'knowledge_base.id': knowledgeBaseId,
+            'documents.count': createdDocuments.length,
+            'documents.upload_type': 'bulk',
+            'processing.chunk_size': validatedData.processingOptions.chunkSize,
+            'processing.recipe': validatedData.processingOptions.recipe,
+          })
+        } catch (_e) {
+          // Silently fail
+        }
+
         processDocumentsWithQueue(
           createdDocuments,
           knowledgeBaseId,
@@ -230,6 +244,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         const validatedData = CreateDocumentSchema.parse(body)
 
         const newDocument = await createSingleDocument(validatedData, knowledgeBaseId, requestId)
+
+        // Track single document upload
+        try {
+          const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+          trackPlatformEvent('platform.knowledge_base.documents_uploaded', {
+            'knowledge_base.id': knowledgeBaseId,
+            'documents.count': 1,
+            'documents.upload_type': 'single',
+            'document.mime_type': validatedData.mimeType,
+            'document.file_size': validatedData.fileSize,
+          })
+        } catch (_e) {
+          // Silently fail
+        }
 
         return NextResponse.json({
           success: true,

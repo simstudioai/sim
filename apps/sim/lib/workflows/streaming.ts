@@ -39,6 +39,7 @@ export async function createStreamingResponse(
       try {
         const streamedContent = new Map<string, string>()
         const processedOutputs = new Set<string>()
+        const streamCompletionTimes = new Map<string, number>()
 
         const sendChunk = (blockId: string, content: string) => {
           const separator = processedOutputs.size > 0 ? '\n\n' : ''
@@ -58,7 +59,11 @@ export async function createStreamingResponse(
           try {
             while (true) {
               const { done, value } = await reader.read()
-              if (done) break
+              if (done) {
+                // Record when this stream completed
+                streamCompletionTimes.set(blockId, Date.now())
+                break
+              }
 
               const textChunk = decoder.decode(value, { stream: true })
               streamedContent.set(blockId, (streamedContent.get(blockId) || '') + textChunk)
@@ -124,6 +129,15 @@ export async function createStreamingResponse(
           result.logs = result.logs.map((log: any) => {
             if (streamedContent.has(log.blockId)) {
               const content = streamedContent.get(log.blockId)
+
+              // Update timing to reflect actual stream completion
+              if (streamCompletionTimes.has(log.blockId)) {
+                const completionTime = streamCompletionTimes.get(log.blockId)!
+                const startTime = new Date(log.startedAt).getTime()
+                log.endedAt = new Date(completionTime).toISOString()
+                log.durationMs = completionTime - startTime
+              }
+
               if (log.output && content) {
                 return { ...log, output: { ...log.output, content } }
               }

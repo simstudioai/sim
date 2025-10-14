@@ -97,6 +97,18 @@ export const auth = betterAuth({
         },
       },
     },
+    account: {
+      create: {
+        after: async (account) => {
+          try {
+            const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+            trackPlatformEvent('platform.integration.connected', {
+              'integration.provider_id': account.providerId,
+            })
+          } catch (_e) {}
+        },
+      },
+    },
     session: {
       create: {
         before: async (session) => {

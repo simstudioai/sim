@@ -150,7 +150,25 @@ export function buildTraceSpans(result: ExecutionResult): {
     }
 
     if (log.output?.tokens) {
-      ;(span as any).tokens = log.output.tokens
+      const t: any = log.output.tokens
+      if (typeof t === 'number') {
+        ;(span as any).tokens = t
+      } else if (typeof t === 'object') {
+        const input = t.input ?? t.prompt
+        const output = t.output ?? t.completion
+        const total =
+          t.total ??
+          (typeof input === 'number' || typeof output === 'number'
+            ? (input || 0) + (output || 0)
+            : undefined)
+        ;(span as any).tokens = {
+          ...(typeof input === 'number' ? { input } : {}),
+          ...(typeof output === 'number' ? { output } : {}),
+          ...(typeof total === 'number' ? { total } : {}),
+        }
+      } else {
+        ;(span as any).tokens = t
+      }
     }
 
     if (log.output?.model) {
@@ -171,7 +189,20 @@ export function buildTraceSpans(result: ExecutionResult): {
       // Create child spans for each time segment
       span.children = timeSegments.map((segment: any, index: number) => {
         const segmentStartTime = new Date(segment.startTime).toISOString()
-        const segmentEndTime = new Date(segment.endTime).toISOString()
+        let segmentEndTime = new Date(segment.endTime).toISOString()
+        let segmentDuration = segment.duration
+
+        // For streaming segments, use the block's actual endTime if it's later
+        // This captures the full stream reading time, not just when the provider returned
+        if (segment.name?.toLowerCase().includes('streaming') && log.endedAt) {
+          const blockEndTime = new Date(log.endedAt).getTime()
+          const segmentEndTimeMs = new Date(segment.endTime).getTime()
+
+          if (blockEndTime > segmentEndTimeMs) {
+            segmentEndTime = log.endedAt
+            segmentDuration = blockEndTime - new Date(segment.startTime).getTime()
+          }
+        }
 
         if (segment.type === 'tool') {
           // Find matching tool call data for this segment
@@ -201,7 +232,7 @@ export function buildTraceSpans(result: ExecutionResult): {
           id: `${span.id}-segment-${index}`,
           name: segment.name,
           type: 'model',
-          duration: segment.duration,
+          duration: segmentDuration,
           startTime: segmentStartTime,
           endTime: segmentEndTime,
           status: 'success',
@@ -382,6 +413,17 @@ export function buildTraceSpans(result: ExecutionResult): {
     }, 0)
 
     const actualWorkflowDuration = latestEnd - earliestStart
+
+    // Add relative timestamps to all spans for timeline visualization
+    const addRelativeTimestamps = (spans: TraceSpan[], workflowStartMs: number) => {
+      spans.forEach((span) => {
+        span.relativeStartMs = new Date(span.startTime).getTime() - workflowStartMs
+        if (span.children && span.children.length > 0) {
+          addRelativeTimestamps(span.children, workflowStartMs)
+        }
+      })
+    }
+    addRelativeTimestamps(groupedRootSpans, earliestStart)
 
     const hasErrors = groupedRootSpans.some((span) => {
       if (span.status === 'error') return true

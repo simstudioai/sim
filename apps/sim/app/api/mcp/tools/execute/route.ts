@@ -174,6 +174,20 @@ export const POST = withMcpAuth('read')(
         )
       }
       logger.info(`[${requestId}] Successfully executed tool ${toolName} on server ${serverId}`)
+
+      // Track MCP tool execution
+      try {
+        const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+        trackPlatformEvent('platform.mcp.tool_executed', {
+          'mcp.server_id': serverId,
+          'mcp.tool_name': toolName,
+          'mcp.execution_status': 'success',
+          'workspace.id': workspaceId,
+        })
+      } catch (_e) {
+        // Silently fail
+      }
+
       return createMcpSuccessResponse(transformedResult)
     } catch (error) {
       logger.error(`[${requestId}] Error executing MCP tool:`, error)

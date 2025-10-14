@@ -106,6 +106,20 @@ export const POST = withMcpAuth('write')(
       mcpService.clearCache(workspaceId)
 
       logger.info(`[${requestId}] Successfully registered MCP server: ${body.name}`)
+
+      // Track MCP server registration
+      try {
+        const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+        trackPlatformEvent('platform.mcp.server_added', {
+          'mcp.server_id': serverId,
+          'mcp.server_name': body.name,
+          'mcp.transport': body.transport,
+          'workspace.id': workspaceId,
+        })
+      } catch (_e) {
+        // Silently fail
+      }
+
       return createMcpSuccessResponse({ serverId }, 201)
     } catch (error) {
       logger.error(`[${requestId}] Error registering MCP server:`, error)
