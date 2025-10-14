@@ -408,29 +408,12 @@ export async function DELETE(
       }
     }
 
-    // Delete provider-managed subscriptions (Teams, Telegram, etc.)
-    const { getSubscriptionManager } = await import('@/lib/webhooks/subscriptions')
-    const webhookForManager = {
-      ...foundWebhook,
-      providerConfig: (foundWebhook.providerConfig as Record<string, unknown>) || {},
-    }
-    const manager = getSubscriptionManager(webhookForManager)
-
-    if (manager) {
-      logger.info(`[${requestId}] Deleting ${manager.id} subscription for webhook ${id}`)
-      try {
-        const result = await manager.delete(webhookForManager, webhookData.workflow, requestId)
-        // Log result but don't fail webhook deletion if cleanup fails
-        if (!result.success) {
-          logger.warn(`[${requestId}] Failed to delete ${manager.id} subscription: ${result.error}`)
-        }
-      } catch (error: any) {
-        logger.error(`[${requestId}] Error deleting ${manager.id} subscription`, {
-          webhookId: id,
-          error: error.message,
-        })
-        // Don't fail webhook deletion if subscription cleanup fails
-      }
+    // Delete Microsoft Teams subscription if applicable
+    if (foundWebhook.provider === 'microsoftteams') {
+      const { deleteTeamsSubscription } = await import('@/lib/webhooks/teams-subscription-helpers')
+      logger.info(`[${requestId}] Deleting Teams subscription for webhook ${id}`)
+      await deleteTeamsSubscription(foundWebhook, webhookData.workflow, requestId)
+      // Don't fail webhook deletion if subscription cleanup fails
     }
 
     // Delete the webhook from the database

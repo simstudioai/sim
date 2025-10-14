@@ -1,17 +1,17 @@
 import { db } from '@sim/db'
 import { webhook as webhookTable, workflow as workflowTable } from '@sim/db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getAllSubscriptionManagers } from '@/lib/webhooks/subscriptions'
+import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
-const logger = createLogger('SubscriptionRenewal')
+const logger = createLogger('TeamsSubscriptionRenewal')
 
 /**
- * Cron endpoint to renew provider subscriptions before they expire
+ * Cron endpoint to renew Microsoft Teams chat subscriptions before they expire
  *
+ * Teams subscriptions expire after ~3 days and must be renewed.
  * Configured in helm/sim/values.yaml under cronjobs.jobs.renewSubscriptions
- *
  */
 export async function GET(request: Request) {
   try {
@@ -24,14 +24,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    logger.info('Starting subscription renewal job')
+    logger.info('Starting Teams subscription renewal job')
 
-    const managers = getAllSubscriptionManagers()
     let totalRenewed = 0
     let totalFailed = 0
     let totalChecked = 0
 
-    // Get all active webhooks with their workflows
+    // Get all active Microsoft Teams webhooks with their workflows
     const webhooksWithWorkflows = await db
       .select({
         webhook: webhookTable,
@@ -39,46 +38,101 @@ export async function GET(request: Request) {
       })
       .from(webhookTable)
       .innerJoin(workflowTable, eq(webhookTable.workflowId, workflowTable.id))
-      .where(eq(webhookTable.isActive, true))
+      .where(and(eq(webhookTable.isActive, true), eq(webhookTable.provider, 'microsoftteams')))
 
     logger.info(
-      `Found ${webhooksWithWorkflows.length} active webhooks, checking for expiring subscriptions`
+      `Found ${webhooksWithWorkflows.length} active Teams webhooks, checking for expiring subscriptions`
     )
 
+    // Renewal threshold: 48 hours before expiration
+    const renewalThreshold = new Date(Date.now() + 48 * 60 * 60 * 1000)
+
     for (const { webhook, workflow } of webhooksWithWorkflows) {
-      // Normalize webhook data for manager
-      const webhookForManager = {
-        ...webhook,
-        providerConfig: (webhook.providerConfig as Record<string, unknown>) || {},
-      }
+      const config = (webhook.providerConfig as Record<string, any>) || {}
 
-      // Find a manager that can handle this webhook
-      const manager = managers.find((m) => m.canHandle(webhookForManager))
-      if (!manager) continue
+      // Check if this is a Teams chat subscription that needs renewal
+      if (config.triggerId !== 'microsoftteams_chat_subscription') continue
 
-      // Check if this subscription needs renewal
-      if (!manager.needsRenewal(webhookForManager)) continue
+      const expirationStr = config.subscriptionExpiration as string | undefined
+      if (!expirationStr) continue
+
+      const expiresAt = new Date(expirationStr)
+      if (expiresAt > renewalThreshold) continue // Not expiring soon
 
       totalChecked++
 
       try {
         logger.info(
-          `Renewing ${manager.id} subscription for webhook ${webhook.id} (workflow ${workflow.id})`
+          `Renewing Teams subscription for webhook ${webhook.id} (expires: ${expiresAt.toISOString()})`
         )
 
-        const result = await manager.renew(webhookForManager, workflow, `renewal-${webhook.id}`)
+        const credentialId = config.credentialId as string | undefined
+        const externalSubscriptionId = config.externalSubscriptionId as string | undefined
 
-        if (result.success) {
-          logger.info(
-            `Successfully renewed ${manager.id} subscription for webhook ${webhook.id}${result.expiresAt ? `. New expiration: ${result.expiresAt.toISOString()}` : ''}`
-          )
-          totalRenewed++
-        } else {
+        if (!credentialId || !externalSubscriptionId) {
+          logger.error(`Missing credentialId or externalSubscriptionId for webhook ${webhook.id}`)
+          totalFailed++
+          continue
+        }
+
+        // Get fresh access token
+        const accessToken = await refreshAccessTokenIfNeeded(
+          credentialId,
+          workflow.userId,
+          `renewal-${webhook.id}`
+        )
+
+        if (!accessToken) {
+          logger.error(`Failed to get access token for webhook ${webhook.id}`)
+          totalFailed++
+          continue
+        }
+
+        // Extend subscription to maximum lifetime (4230 minutes = ~3 days)
+        const maxLifetimeMinutes = 4230
+        const newExpirationDateTime = new Date(
+          Date.now() + maxLifetimeMinutes * 60 * 1000
+        ).toISOString()
+
+        const res = await fetch(
+          `https://graph.microsoft.com/v1.0/subscriptions/${externalSubscriptionId}`,
+          {
+            method: 'PATCH',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ expirationDateTime: newExpirationDateTime }),
+          }
+        )
+
+        if (!res.ok) {
+          const error = await res.json()
           logger.error(
-            `Failed to renew ${manager.id} subscription for webhook ${webhook.id}: ${result.error}`
+            `Failed to renew Teams subscription ${externalSubscriptionId} for webhook ${webhook.id}`,
+            { status: res.status, error: error.error }
           )
           totalFailed++
+          continue
         }
+
+        const payload = await res.json()
+
+        // Update webhook config with new expiration
+        const updatedConfig = {
+          ...config,
+          subscriptionExpiration: payload.expirationDateTime,
+        }
+
+        await db
+          .update(webhookTable)
+          .set({ providerConfig: updatedConfig, updatedAt: new Date() })
+          .where(eq(webhookTable.id, webhook.id))
+
+        logger.info(
+          `Successfully renewed Teams subscription for webhook ${webhook.id}. New expiration: ${payload.expirationDateTime}`
+        )
+        totalRenewed++
       } catch (error) {
         logger.error(`Error renewing subscription for webhook ${webhook.id}:`, error)
         totalFailed++
@@ -86,7 +140,7 @@ export async function GET(request: Request) {
     }
 
     logger.info(
-      `Subscription renewal job completed. Checked: ${totalChecked}, Renewed: ${totalRenewed}, Failed: ${totalFailed}`
+      `Teams subscription renewal job completed. Checked: ${totalChecked}, Renewed: ${totalRenewed}, Failed: ${totalFailed}`
     )
 
     return NextResponse.json({
@@ -97,7 +151,7 @@ export async function GET(request: Request) {
       total: webhooksWithWorkflows.length,
     })
   } catch (error) {
-    logger.error('Error in subscription renewal job:', error)
+    logger.error('Error in Teams subscription renewal job:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -311,39 +311,29 @@ export async function POST(request: NextRequest) {
     }
     // --- End Airtable specific logic ---
 
-    // --- Provider subscription setup (Teams, Telegram, etc.) ---
-    if (savedWebhook) {
-      const { getSubscriptionManager } = await import('@/lib/webhooks/subscriptions')
-      const manager = getSubscriptionManager(savedWebhook)
+    // --- Microsoft Teams subscription setup ---
+    if (savedWebhook && provider === 'microsoftteams') {
+      const { createTeamsSubscription } = await import('@/lib/webhooks/teams-subscription-helpers')
+      logger.info(`[${requestId}] Creating Teams subscription for webhook ${savedWebhook.id}`)
 
-      if (manager) {
-        logger.info(
-          `[${requestId}] Provider subscription detected (${manager.id}). Creating subscription.`
+      const success = await createTeamsSubscription(
+        request,
+        savedWebhook,
+        workflowRecord,
+        requestId
+      )
+
+      if (!success) {
+        return NextResponse.json(
+          {
+            error: 'Failed to create Teams subscription',
+            details: 'Could not create subscription with Microsoft Graph API',
+          },
+          { status: 500 }
         )
-        try {
-          const result = await manager.create(request, savedWebhook, workflowRecord, requestId)
-          if (!result.success) {
-            return NextResponse.json(
-              {
-                error: `Failed to create ${manager.id} subscription`,
-                details: result.error || 'Unknown error',
-              },
-              { status: 500 }
-            )
-          }
-        } catch (err) {
-          logger.error(`[${requestId}] Error creating ${manager.id} subscription`, err)
-          return NextResponse.json(
-            {
-              error: `Failed to configure ${manager.id} subscription`,
-              details: err instanceof Error ? err.message : 'Unknown error',
-            },
-            { status: 500 }
-          )
-        }
       }
     }
-    // --- End provider subscription setup ---
+    // --- End Teams subscription setup ---
 
     // --- Gmail webhook setup ---
     if (savedWebhook && provider === 'gmail') {
