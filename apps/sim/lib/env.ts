@@ -75,6 +75,7 @@ export const env = createEnv({
     OLLAMA_URL:                            z.string().url().optional(),            // Ollama local LLM server URL
     ELEVENLABS_API_KEY:                    z.string().min(1).optional(),           // ElevenLabs API key for text-to-speech in deployed chat
     SERPER_API_KEY:                        z.string().min(1).optional(),           // Serper API key for online search
+    EXA_API_KEY:                           z.string().min(1).optional(),           // Exa AI API key for enhanced online search
 
     // Azure Configuration - Shared credentials with feature-specific models
     AZURE_OPENAI_ENDPOINT:                 z.string().url().optional(),            // Shared Azure OpenAI service endpoint
