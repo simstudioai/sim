@@ -1,7 +1,8 @@
 import { db } from '@sim/db'
 import { webhook as webhookTable, workflow as workflowTable } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { verifyCronAuth } from '@/lib/auth/internal'
 import { createLogger } from '@/lib/logs/console/logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
@@ -13,15 +14,11 @@ const logger = createLogger('TeamsSubscriptionRenewal')
  * Teams subscriptions expire after ~3 days and must be renewed.
  * Configured in helm/sim/values.yaml under cronjobs.jobs.renewSubscriptions
  */
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    // Verify cron secret for security
-    const authHeader = request.headers.get('authorization')
-    const cronSecret = process.env.CRON_SECRET
-
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-      logger.warn('Unauthorized cron request')
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const authError = verifyCronAuth(request, 'Teams subscription renewal')
+    if (authError) {
+      return authError
     }
 
     logger.info('Starting Teams subscription renewal job')

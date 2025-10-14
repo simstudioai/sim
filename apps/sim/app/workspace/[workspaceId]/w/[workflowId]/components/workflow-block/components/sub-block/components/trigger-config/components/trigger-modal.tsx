@@ -419,9 +419,9 @@ export function TriggerModal({
       return false
     }
 
-    // Check required fields
+    // Check required fields (skip credential fields - they're stored separately in subblock store)
     for (const [fieldId, fieldDef] of Object.entries(triggerDef.configFields)) {
-      if (fieldDef.required && !config[fieldId]) {
+      if (fieldDef.required && fieldDef.type !== 'credential' && !config[fieldId]) {
         return false
       }
     }

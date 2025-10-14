@@ -10,26 +10,8 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: MicrosoftTeamsIcon,
 
+  // Credentials are handled by requiresCredentials below, not in configFields
   configFields: {
-    credentialId: {
-      type: 'credential',
-      label: 'Microsoft Teams Account',
-      placeholder: 'Select Microsoft Teams credential',
-      required: true,
-      provider: 'microsoft-teams',
-      requiredScopes: [
-        'openid',
-        'profile',
-        'email',
-        'User.Read',
-        'Chat.Read',
-        'Chat.ReadWrite',
-        'Chat.ReadBasic',
-        'offline_access',
-        'Files.Read',
-        'Sites.Read.All',
-      ],
-    },
     subscriptionScope: {
       type: 'select',
       label: 'Scope',
@@ -51,6 +33,16 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
       defaultValue: true,
       description: 'Fetch hosted contents and upload to storage',
       required: false,
+    },
+  },
+
+  // Require Microsoft Teams OAuth credentials
+  requiresCredentials: true,
+  credentialProvider: 'microsoft-teams',
+  webhook: {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
     },
   },
 

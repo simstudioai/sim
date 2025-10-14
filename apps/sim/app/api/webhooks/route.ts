@@ -313,7 +313,7 @@ export async function POST(request: NextRequest) {
 
     // --- Microsoft Teams subscription setup ---
     if (savedWebhook && provider === 'microsoftteams') {
-      const { createTeamsSubscription } = await import('@/lib/webhooks/teams-subscription-helpers')
+      const { createTeamsSubscription } = await import('@/lib/webhooks/webhook-helpers')
       logger.info(`[${requestId}] Creating Teams subscription for webhook ${savedWebhook.id}`)
 
       const success = await createTeamsSubscription(

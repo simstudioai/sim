@@ -129,27 +129,6 @@ export async function findWebhookAndWorkflow(
   }
 
   if (options.path) {
-    // First, check if any webhook exists with this path (regardless of isActive status)
-    const allWebhooksWithPath = await db
-      .select({
-        webhook: webhook,
-        workflow: workflow,
-      })
-      .from(webhook)
-      .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-      .where(eq(webhook.path, options.path))
-      .limit(1)
-
-    if (allWebhooksWithPath.length > 0 && !allWebhooksWithPath[0].webhook.isActive) {
-      logger.warn(`[${options.requestId}] Found inactive webhook for path: ${options.path}`, {
-        webhookId: allWebhooksWithPath[0].webhook.id,
-        provider: allWebhooksWithPath[0].webhook.provider,
-        workflowId: allWebhooksWithPath[0].workflow.id,
-        isActive: false,
-      })
-    }
-
-    // Now check for active webhooks only
     const results = await db
       .select({
         webhook: webhook,
@@ -161,10 +140,7 @@ export async function findWebhookAndWorkflow(
       .limit(1)
 
     if (results.length === 0) {
-      logger.warn(`[${options.requestId}] No active webhook found for path: ${options.path}`, {
-        path: options.path,
-        hasInactiveWebhook: allWebhooksWithPath.length > 0,
-      })
+      logger.warn(`[${options.requestId}] No active webhook found for path: ${options.path}`)
       return null
     }
 
@@ -458,7 +434,19 @@ export async function queueWebhookExecution(
     }
 
     if (foundWebhook.provider === 'microsoftteams') {
-      return new NextResponse(null, { status: 202 })
+      const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+      const triggerId = providerConfig.triggerId as string | undefined
+
+      // Chat subscription (Graph API) returns 202
+      if (triggerId === 'microsoftteams_chat_subscription') {
+        return new NextResponse(null, { status: 202 })
+      }
+
+      // Channel webhook (outgoing webhook) returns message response
+      return NextResponse.json({
+        type: 'message',
+        text: 'Sim',
+      })
     }
 
     return NextResponse.json({ message: 'Webhook processed' })

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Check, ChevronDown, Copy, Eye, EyeOff, Info } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -25,7 +25,6 @@ import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { TriggerConfig } from '@/triggers/types'
 import { CredentialSelector } from '../../credential-selector/credential-selector'
 
@@ -49,37 +48,6 @@ export function TriggerConfigSection({
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({})
   const [copied, setCopied] = useState<string | null>(null)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
-
-  // Sync credential field values from subblock store to config
-  useEffect(() => {
-    const credentialFields = Object.entries(triggerDef.configFields).filter(
-      ([, field]) => field.type === 'credential'
-    )
-
-    if (credentialFields.length === 0) return
-
-    // Perform an initial sync from the store so required credential fields are populated on open
-    try {
-      const state = useSubBlockStore.getState()
-      credentialFields.forEach(([fieldId]) => {
-        const credentialValue = state.getValue(blockId, fieldId) as string | null
-        if (credentialValue && credentialValue !== config[fieldId]) {
-          onChange(fieldId, credentialValue)
-        }
-      })
-    } catch {}
-
-    const unsubscribe = useSubBlockStore.subscribe((state) => {
-      credentialFields.forEach(([fieldId]) => {
-        const credentialValue = state.getValue(blockId, fieldId) as string | null
-        if (credentialValue && credentialValue !== config[fieldId]) {
-          onChange(fieldId, credentialValue)
-        }
-      })
-    })
-
-    return unsubscribe
-  }, [blockId, triggerDef.configFields, config, onChange])
 
   const copyToClipboard = (text: string, type: string) => {
     navigator.clipboard.writeText(text)

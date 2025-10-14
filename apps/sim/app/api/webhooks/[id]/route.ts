@@ -410,7 +410,7 @@ export async function DELETE(
 
     // Delete Microsoft Teams subscription if applicable
     if (foundWebhook.provider === 'microsoftteams') {
-      const { deleteTeamsSubscription } = await import('@/lib/webhooks/teams-subscription-helpers')
+      const { deleteTeamsSubscription } = await import('@/lib/webhooks/webhook-helpers')
       logger.info(`[${requestId}] Deleting Teams subscription for webhook ${id}`)
       await deleteTeamsSubscription(foundWebhook, webhookData.workflow, requestId)
       // Don't fail webhook deletion if subscription cleanup fails
