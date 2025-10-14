@@ -67,19 +67,22 @@ ENV NODE_ENV=production
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nextjs -u 1001
 
-COPY --from=builder /app/apps/sim/public ./apps/sim/public
+COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/public ./apps/sim/public
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/.next/static ./apps/sim/.next/static
 
-# Guardrails setup
-COPY --from=builder /app/apps/sim/lib/guardrails/setup.sh ./apps/sim/lib/guardrails/setup.sh
-COPY --from=builder /app/apps/sim/lib/guardrails/requirements.txt ./apps/sim/lib/guardrails/requirements.txt
-COPY --from=builder /app/apps/sim/lib/guardrails/validate_pii.py ./apps/sim/lib/guardrails/validate_pii.py
+# Guardrails setup (files need to be owned by nextjs for runtime)
+COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/guardrails/setup.sh ./apps/sim/lib/guardrails/setup.sh
+COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/guardrails/requirements.txt ./apps/sim/lib/guardrails/requirements.txt
+COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/guardrails/validate_pii.py ./apps/sim/lib/guardrails/validate_pii.py
+
+# Run guardrails setup as root, then fix ownership of generated venv files
 RUN chmod +x ./apps/sim/lib/guardrails/setup.sh && \
     cd ./apps/sim/lib/guardrails && \
-    ./setup.sh
+    ./setup.sh && \
+    chown -R nextjs:nodejs /app/apps/sim/lib/guardrails
 
-# Create .next/cache directory and set ownership to non-root user
+# Create .next/cache directory with correct ownership
 RUN mkdir -p apps/sim/.next/cache && \
     chown -R nextjs:nodejs /app
 
