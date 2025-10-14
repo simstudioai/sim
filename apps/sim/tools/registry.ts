@@ -175,7 +175,14 @@ import {
   supabaseUpsertTool,
 } from '@/tools/supabase'
 import { tavilyExtractTool, tavilySearchTool } from '@/tools/tavily'
-import { telegramMessageTool } from '@/tools/telegram'
+import {
+  telegramDeleteMessageTool,
+  telegramMessageTool,
+  telegramSendAnimationTool,
+  telegramSendAudioTool,
+  telegramSendPhotoTool,
+  telegramSendVideoTool,
+} from '@/tools/telegram'
 import { thinkingTool } from '@/tools/thinking'
 import { sendSMSTool } from '@/tools/twilio'
 import { typeformFilesTool, typeformInsightsTool, typeformResponsesTool } from '@/tools/typeform'
@@ -326,6 +333,11 @@ export const tools: Record<string, ToolConfig> = {
   elevenlabs_tts: elevenLabsTtsTool,
   s3_get_object: s3GetObjectTool,
   telegram_message: telegramMessageTool,
+  telegram_delete_message: telegramDeleteMessageTool,
+  telegram_send_audio: telegramSendAudioTool,
+  telegram_send_animation: telegramSendAnimationTool,
+  telegram_send_photo: telegramSendPhotoTool,
+  telegram_send_video: telegramSendVideoTool,
   clay_populate: clayPopulateTool,
   discord_send_message: discordSendMessageTool,
   discord_get_messages: discordGetMessagesTool,
