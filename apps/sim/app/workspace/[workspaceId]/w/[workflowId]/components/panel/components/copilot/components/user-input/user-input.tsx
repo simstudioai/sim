@@ -2054,7 +2054,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             {/* Highlight overlay */}
             <div
               ref={overlayRef}
-              className='pointer-events-none absolute inset-0 z-[1] max-h-[120px] overflow-y-auto overflow-x-hidden px-[2px] py-1 [&::-webkit-scrollbar]:hidden'
+              className='pointer-events-none absolute inset-0 z-[1] max-h-[120px] overflow-y-auto overflow-x-hidden pl-[2px] pr-14 py-1 [&::-webkit-scrollbar]:hidden'
             >
               <pre className='whitespace-pre-wrap break-words font-sans text-foreground text-sm leading-[1.25rem]'>
                 {(() => {
@@ -2102,7 +2102,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               placeholder={isDragging ? 'Drop files here...' : effectivePlaceholder}
               disabled={disabled}
               rows={1}
-              className='relative z-[2] mb-2 min-h-[32px] w-full resize-none overflow-y-auto overflow-x-hidden break-words border-0 bg-transparent px-[2px] py-1 font-sans text-sm text-transparent leading-[1.25rem] caret-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
+              className='relative z-[2] mb-2 min-h-[32px] w-full resize-none overflow-y-auto overflow-x-hidden break-words border-0 bg-transparent pl-[2px] pr-14 py-1 font-sans text-sm text-transparent leading-[1.25rem] caret-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
               style={{ height: 'auto', wordBreak: 'break-word' }}
             />
 
