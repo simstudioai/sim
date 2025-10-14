@@ -358,8 +358,7 @@ export async function POST(request: NextRequest) {
       logger.info(`[${requestId}] Gmail provider detected. Setting up Gmail webhook configuration.`)
       try {
         const { configureGmailPolling } = await import('@/lib/webhooks/utils')
-        // Pass workflow owner for backward-compat fallback (utils prefers credentialId if present)
-        const success = await configureGmailPolling(workflowRecord.userId, savedWebhook, requestId)
+        const success = await configureGmailPolling(savedWebhook, requestId)
 
         if (!success) {
           logger.error(`[${requestId}] Failed to configure Gmail polling`)
@@ -393,12 +392,7 @@ export async function POST(request: NextRequest) {
       )
       try {
         const { configureOutlookPolling } = await import('@/lib/webhooks/utils')
-        // Pass workflow owner for backward-compat fallback (utils prefers credentialId if present)
-        const success = await configureOutlookPolling(
-          workflowRecord.userId,
-          savedWebhook,
-          requestId
-        )
+        const success = await configureOutlookPolling(savedWebhook, requestId)
 
         if (!success) {
           logger.error(`[${requestId}] Failed to configure Outlook polling`)

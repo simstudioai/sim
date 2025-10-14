@@ -5,7 +5,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getPresignedUrlWithConfig, uploadToS3 } from '@/lib/uploads/s3/s3-client'
 import { S3_EXECUTION_FILES_CONFIG } from '@/lib/uploads/setup'
-import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('WebhookUtils')
 
@@ -223,30 +223,28 @@ async function formatTeamsGraphNotification(
   let uploadedFiles: any[] = []
   let accessToken: string | null = null
 
-  if (credentialId) {
+  // Teams chat subscriptions require credentials
+  if (!credentialId) {
+    logger.error('Missing credentialId for Teams chat subscription', {
+      chatId: resolvedChatId,
+      messageId: resolvedMessageId,
+    })
+  } else {
     try {
-      let effectiveUserId: string | null = null
-      try {
-        const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
-        effectiveUserId = rows.length ? rows[0].userId : null
-      } catch {
-        effectiveUserId = null
+      // Get userId from credential
+      const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+      if (rows.length === 0) {
+        logger.error('Teams credential not found', { credentialId, chatId: resolvedChatId })
+        // Continue without message data
+      } else {
+        const effectiveUserId = rows[0].userId
+        accessToken = await refreshAccessTokenIfNeeded(
+          credentialId,
+          effectiveUserId,
+          'teams-graph-notification'
+        )
       }
-      accessToken = await refreshAccessTokenIfNeeded(
-        credentialId,
-        effectiveUserId || foundWorkflow.userId,
-        'teams-graph-notification'
-      )
-      if (!accessToken) {
-        try {
-          accessToken = await getOAuthToken(
-            effectiveUserId || foundWorkflow.userId,
-            'microsoft-teams'
-          )
-        } catch {
-          accessToken = null
-        }
-      }
+
       if (accessToken) {
         const msgUrl = `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(resolvedChatId)}/messages/${encodeURIComponent(resolvedMessageId)}`
         const res = await fetch(msgUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
@@ -1736,54 +1734,35 @@ export interface AirtableChange {
 /**
  * Configure Gmail polling for a webhook
  */
-export async function configureGmailPolling(
-  userId: string,
-  webhookData: any,
-  requestId: string
-): Promise<boolean> {
+export async function configureGmailPolling(webhookData: any, requestId: string): Promise<boolean> {
   const logger = createLogger('GmailWebhookSetup')
   logger.info(`[${requestId}] Setting up Gmail polling for webhook ${webhookData.id}`)
 
   try {
     const providerConfig = (webhookData.providerConfig as Record<string, any>) || {}
-
     const credentialId: string | undefined = providerConfig.credentialId
 
-    let effectiveUserId: string | null = null
-    let accessToken: string | null = null
+    if (!credentialId) {
+      logger.error(`[${requestId}] Missing credentialId for Gmail webhook ${webhookData.id}`)
+      return false
+    }
 
-    if (credentialId) {
-      const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
-      if (rows.length === 0) {
-        logger.error(
-          `[${requestId}] Credential ${credentialId} not found for Gmail webhook ${webhookData.id}`
-        )
-        return false
-      }
-      effectiveUserId = rows[0].userId
-      accessToken = await refreshAccessTokenIfNeeded(credentialId, effectiveUserId, requestId)
-      if (!accessToken) {
-        logger.error(
-          `[${requestId}] Failed to refresh/access Gmail token for credential ${credentialId}`
-        )
-        return false
-      }
-    } else {
-      // Backward-compat: fall back to workflow owner
-      if (!userId) {
-        logger.error(
-          `[${requestId}] Missing credentialId and userId for Gmail webhook ${webhookData.id}`
-        )
-        return false
-      }
-      effectiveUserId = userId
-      accessToken = await getOAuthToken(effectiveUserId, 'google-email')
-      if (!accessToken) {
-        logger.error(
-          `[${requestId}] Failed to obtain Gmail token for user ${effectiveUserId} (fallback)`
-        )
-        return false
-      }
+    // Get userId from credential
+    const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+    if (rows.length === 0) {
+      logger.error(
+        `[${requestId}] Credential ${credentialId} not found for Gmail webhook ${webhookData.id}`
+      )
+      return false
+    }
+
+    const effectiveUserId = rows[0].userId
+    const accessToken = await refreshAccessTokenIfNeeded(credentialId, effectiveUserId, requestId)
+    if (!accessToken) {
+      logger.error(
+        `[${requestId}] Failed to refresh/access Gmail token for credential ${credentialId}`
+      )
+      return false
     }
 
     const maxEmailsPerPoll =
@@ -1836,54 +1815,37 @@ export async function configureGmailPolling(
  * Configure Outlook polling for a webhook
  */
 export async function configureOutlookPolling(
-  userId: string,
   webhookData: any,
   requestId: string
 ): Promise<boolean> {
   const logger = createLogger('OutlookWebhookSetup')
   logger.info(`[${requestId}] Setting up Outlook polling for webhook ${webhookData.id}`)
-  logger.info(`[${requestId}] Setting up Outlook polling for webhook ${webhookData.id}`)
 
   try {
     const providerConfig = (webhookData.providerConfig as Record<string, any>) || {}
-
     const credentialId: string | undefined = providerConfig.credentialId
 
-    let effectiveUserId: string | null = null
-    let accessToken: string | null = null
+    if (!credentialId) {
+      logger.error(`[${requestId}] Missing credentialId for Outlook webhook ${webhookData.id}`)
+      return false
+    }
 
-    if (credentialId) {
-      const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
-      if (rows.length === 0) {
-        logger.error(
-          `[${requestId}] Credential ${credentialId} not found for Outlook webhook ${webhookData.id}`
-        )
-        return false
-      }
-      effectiveUserId = rows[0].userId
-      accessToken = await refreshAccessTokenIfNeeded(credentialId, effectiveUserId, requestId)
-      if (!accessToken) {
-        logger.error(
-          `[${requestId}] Failed to refresh/access Outlook token for credential ${credentialId}`
-        )
-        return false
-      }
-    } else {
-      // Backward-compat: fall back to workflow owner
-      if (!userId) {
-        logger.error(
-          `[${requestId}] Missing credentialId and userId for Outlook webhook ${webhookData.id}`
-        )
-        return false
-      }
-      effectiveUserId = userId
-      accessToken = await getOAuthToken(effectiveUserId, 'outlook')
-      if (!accessToken) {
-        logger.error(
-          `[${requestId}] Failed to obtain Outlook token for user ${effectiveUserId} (fallback)`
-        )
-        return false
-      }
+    // Get userId from credential
+    const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+    if (rows.length === 0) {
+      logger.error(
+        `[${requestId}] Credential ${credentialId} not found for Outlook webhook ${webhookData.id}`
+      )
+      return false
+    }
+
+    const effectiveUserId = rows[0].userId
+    const accessToken = await refreshAccessTokenIfNeeded(credentialId, effectiveUserId, requestId)
+    if (!accessToken) {
+      logger.error(
+        `[${requestId}] Failed to refresh/access Outlook token for credential ${credentialId}`
+      )
+      return false
     }
 
     const providerCfg = (webhookData.providerConfig as Record<string, any>) || {}
