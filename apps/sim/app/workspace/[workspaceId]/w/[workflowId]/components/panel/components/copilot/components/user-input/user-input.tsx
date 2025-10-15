@@ -20,6 +20,7 @@ import {
   BrainCircuit,
   Check,
   ChevronRight,
+  Edit,
   FileText,
   Image,
   Infinity as InfinityIcon,
@@ -54,7 +55,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useCopilotStore } from '@/stores/copilot/store'
 import type { ChatContext } from '@/stores/copilot/types'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store' 
 import { ContextUsagePill } from '../context-usage-pill/context-usage-pill'
 
 const logger = createLogger('CopilotUserInput')
@@ -95,6 +96,7 @@ interface UserInputProps {
   value?: string // Controlled value from outside
   onChange?: (value: string) => void // Callback when value changes
   panelWidth?: number // Panel width to adjust truncation
+  hideContextUsage?: boolean // Hide the context usage pill
 }
 
 interface UserInputRef {
@@ -116,6 +118,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       value: controlledValue,
       onChange: onControlledChange,
       panelWidth = 308,
+      hideContextUsage = false,
     },
     ref
   ) => {
@@ -1919,11 +1922,45 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       setOpenSubmenuFor(null)
     }
 
+    useEffect(() => {
+      const textarea = textareaRef.current
+      const overlay = overlayRef.current
+      if (!textarea || !overlay || typeof window === 'undefined') return
+
+      const syncOverlayStyles = () => {
+        const styles = window.getComputedStyle(textarea)
+        overlay.style.font = styles.font
+        overlay.style.letterSpacing = styles.letterSpacing
+        overlay.style.padding = styles.padding
+        overlay.style.lineHeight = styles.lineHeight
+        overlay.style.color = styles.color
+        overlay.style.whiteSpace = styles.whiteSpace
+        overlay.style.wordBreak = styles.wordBreak
+        overlay.style.width = `${textarea.clientWidth}px`
+        overlay.style.height = `${textarea.clientHeight}px`
+        overlay.style.borderRadius = styles.borderRadius
+      }
+
+      syncOverlayStyles()
+
+      let resizeObserver: ResizeObserver | null = null
+      if (typeof ResizeObserver !== 'undefined') {
+        resizeObserver = new ResizeObserver(() => syncOverlayStyles())
+        resizeObserver.observe(textarea)
+      }
+      window.addEventListener('resize', syncOverlayStyles)
+
+      return () => {
+        resizeObserver?.disconnect()
+        window.removeEventListener('resize', syncOverlayStyles)
+      }
+    }, [panelWidth, message, selectedContexts])
+
     return (
-      <div className={cn('relative flex-none pb-4', className)}>
+      <div className={cn('relative flex-none pb-3', className)}>
         <div
           className={cn(
-            'relative rounded-[8px] border border-[#E5E5E5] bg-[#FFFFFF] p-2 shadow-xs transition-all duration-200 dark:border-[#414141] dark:bg-[var(--surface-elevated)]',
+            'relative rounded-[8px] border border-[#E5E5E5] bg-[#FFFFFF] px-3 py-1.5 shadow-xs transition-all duration-200 dark:border-[#414141] dark:bg-[var(--surface-elevated)]',
             isDragging &&
               'border-[var(--brand-primary-hover-hex)] bg-purple-50/50 dark:border-[var(--brand-primary-hover-hex)] dark:bg-purple-950/20'
           )}
@@ -1933,7 +1970,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           onDrop={handleDrop}
         >
           {/* Context Usage Pill - Top Right */}
-          {contextUsage && contextUsage.percentage > 0 && (
+          {!hideContextUsage && contextUsage && contextUsage.percentage > 0 && (
             <div className='absolute top-2 right-2 z-10'>
               <ContextUsagePill
                 percentage={contextUsage.percentage}
@@ -1941,6 +1978,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               />
             </div>
           )}
+
           {/* Attached Files Display with Thumbnails */}
           {attachedFiles.length > 0 && (
             <div className='mb-2 flex flex-wrap gap-1.5'>
@@ -2054,9 +2092,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             {/* Highlight overlay */}
             <div
               ref={overlayRef}
-              className='pointer-events-none absolute inset-0 z-[1] max-h-[120px] overflow-y-auto overflow-x-hidden pl-[2px] pr-14 py-1 [&::-webkit-scrollbar]:hidden'
+              className='pointer-events-none absolute inset-0 z-[1] max-h-[120px] overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words [&::-webkit-scrollbar]:hidden'
             >
-              <pre className='whitespace-pre-wrap break-words font-sans text-foreground text-sm leading-[1.25rem]'>
+              <pre className='m-0 whitespace-pre-wrap break-words font-sans text-sm text-foreground leading-[1.25rem]'>
                 {(() => {
                   const elements: React.ReactNode[] = []
                   const remaining = message
@@ -2065,7 +2103,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                   // Build regex for all labels
                   const labels = contexts.map((c) => c.label).filter(Boolean)
                   const pattern = new RegExp(
-                    `@(${labels.map((l) => l.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')).join('|')})`,
+                    `@(${labels.map((l) => l.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')).join('|')})`,
                     'g'
                   )
                   let lastIndex = 0
@@ -2075,11 +2113,14 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                     const before = remaining.slice(lastIndex, i)
                     if (before) elements.push(before)
                     const mentionText = match[0]
-                    const mentionLabel = match[1]
                     elements.push(
                       <span
                         key={`${mentionText}-${i}-${lastIndex}`}
-                        className='rounded-[6px] bg-[color-mix(in_srgb,var(--brand-primary-hover-hex)_14%,transparent)]'
+                        style={{
+                          backgroundColor:
+                            'color-mix(in srgb, var(--brand-primary-hover-hex) 14%, transparent)',
+                          borderRadius: '6px',
+                        }}
                       >
                         {mentionText}
                       </span>
@@ -2099,6 +2140,12 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               onKeyDown={handleKeyDown}
               onSelect={handleSelectAdjust}
               onMouseUp={handleSelectAdjust}
+              onScroll={(e) => {
+                if (overlayRef.current) {
+                  overlayRef.current.scrollTop = e.currentTarget.scrollTop
+                  overlayRef.current.scrollLeft = e.currentTarget.scrollLeft
+                }
+              }}
               placeholder={isDragging ? 'Drop files here...' : effectivePlaceholder}
               disabled={disabled}
               rows={1}

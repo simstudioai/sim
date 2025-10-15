@@ -156,6 +156,7 @@ export interface CopilotActions {
       stream?: boolean
       fileAttachments?: MessageFileAttachment[]
       contexts?: ChatContext[]
+      messageId?: string
     }
   ) => Promise<void>
   abortMessage: () => void

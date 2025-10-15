@@ -431,10 +431,11 @@ class StringBuilder {
 function createUserMessage(
   content: string,
   fileAttachments?: MessageFileAttachment[],
-  contexts?: ChatContext[]
+  contexts?: ChatContext[],
+  messageId?: string
 ): CopilotMessage {
   return {
-    id: crypto.randomUUID(),
+    id: messageId || crypto.randomUUID(),
     role: 'user',
     content,
     timestamp: new Date().toISOString(),
@@ -1549,17 +1550,19 @@ export const useCopilotStore = create<CopilotStore>()(
         stream = true,
         fileAttachments,
         contexts,
+        messageId,
       } = options as {
         stream?: boolean
         fileAttachments?: MessageFileAttachment[]
         contexts?: ChatContext[]
+        messageId?: string
       }
       if (!workflowId) return
 
       const abortController = new AbortController()
       set({ isSendingMessage: true, error: null, abortController })
 
-      const userMessage = createUserMessage(message, fileAttachments, contexts)
+      const userMessage = createUserMessage(message, fileAttachments, contexts, messageId)
       const streamingMessage = createStreamingMessage()
 
       let newMessages: CopilotMessage[]
