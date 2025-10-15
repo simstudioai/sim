@@ -71,11 +71,14 @@ export async function createTeamsSubscription(
     }
 
     // Build notification URL
-    const requestOrigin = new URL(request.url).origin
-    const effectiveOrigin = requestOrigin.includes('localhost')
-      ? env.NEXT_PUBLIC_APP_URL || requestOrigin
-      : requestOrigin
-    const notificationUrl = `${effectiveOrigin}/api/webhooks/trigger/${webhook.path}`
+    // Always use NEXT_PUBLIC_APP_URL to ensure Microsoft Graph can reach the public endpoint
+    if (!env.NEXT_PUBLIC_APP_URL) {
+      teamsLogger.error(
+        `[${requestId}] NEXT_PUBLIC_APP_URL not configured, cannot create Teams subscription`
+      )
+      return false
+    }
+    const notificationUrl = `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/trigger/${webhook.path}`
 
     // Subscribe to the specified chat
     const resource = `/chats/${chatId}/messages`
