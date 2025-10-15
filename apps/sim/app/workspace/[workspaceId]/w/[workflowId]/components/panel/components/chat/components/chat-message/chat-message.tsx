@@ -95,16 +95,40 @@ export function ChatMessage({ message }: ChatMessageProps) {
                   <div
                     key={attachment.id}
                     className={`relative overflow-hidden rounded-md border border-border/50 bg-muted/20 ${
-                      attachment.dataUrl?.trim() ? 'cursor-pointer' : ''
+                      attachment.dataUrl?.trim() && attachment.dataUrl.startsWith('data:')
+                        ? 'cursor-pointer'
+                        : ''
                     } ${isImage ? 'h-16 w-16' : 'flex h-16 min-w-[120px] max-w-[200px] items-center gap-2 px-2'}`}
                     onClick={(e) => {
-                      if (attachment.dataUrl?.trim()) {
+                      const validDataUrl = attachment.dataUrl?.trim()
+                      if (validDataUrl?.startsWith('data:')) {
                         e.preventDefault()
-                        window.open(attachment.dataUrl, '_blank')
+                        e.stopPropagation()
+                        const newWindow = window.open('', '_blank')
+                        if (newWindow) {
+                          newWindow.document.write(`
+                            <!DOCTYPE html>
+                            <html>
+                              <head>
+                                <title>${attachment.name}</title>
+                                <style>
+                                  body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #000; }
+                                  img { max-width: 100%; max-height: 100vh; object-fit: contain; }
+                                </style>
+                              </head>
+                              <body>
+                                <img src="${validDataUrl}" alt="${attachment.name}" />
+                              </body>
+                            </html>
+                          `)
+                          newWindow.document.close()
+                        }
                       }
                     }}
                   >
-                    {isImage && attachment.dataUrl ? (
+                    {isImage &&
+                    attachment.dataUrl?.trim() &&
+                    attachment.dataUrl.startsWith('data:') ? (
                       <img
                         src={attachment.dataUrl}
                         alt={attachment.name}
@@ -134,18 +158,18 @@ export function ChatMessage({ message }: ChatMessageProps) {
           </div>
         )}
 
-        <div className='flex justify-end'>
-          <div className='max-w-[80%]'>
-            <div className='rounded-[10px] bg-secondary px-3 py-2'>
-              {/* Render text content if present and not just file count message */}
-              {formattedContent && !formattedContent.startsWith('Uploaded') && (
+        {/* Only render message bubble if there's actual text content (not just file count message) */}
+        {formattedContent && !formattedContent.startsWith('Uploaded') && (
+          <div className='flex justify-end'>
+            <div className='max-w-[80%]'>
+              <div className='rounded-[10px] bg-secondary px-3 py-2'>
                 <div className='whitespace-pre-wrap break-words font-normal text-foreground text-sm leading-normal'>
                   <WordWrap text={formattedContent} />
                 </div>
-              )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     )
   }

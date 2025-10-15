@@ -476,6 +476,8 @@ export function Chat({ chatMessage, setChatMessage }: ChatProps) {
     focusInput(100)
   }, [
     chatMessage,
+    chatFiles,
+    isUploadingFiles,
     activeWorkflowId,
     isExecuting,
     promptHistory,
@@ -487,6 +489,9 @@ export function Chat({ chatMessage, setChatMessage }: ChatProps) {
     appendMessageContent,
     finalizeMessageStream,
     focusInput,
+    setChatMessage,
+    setChatFiles,
+    setUploadErrors,
   ])
 
   // Handle key press
