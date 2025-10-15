@@ -132,7 +132,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     logger.debug(`[${requestId}] Found ${workflows.length} workflows`)
 
-    // For each workflow, get execution logs and calculate segments
+    // Use Promise.all to fetch logs in parallel per workflow
+    // This is better than single query when workflows have 10k+ logs each
     const workflowExecutions: WorkflowExecution[] = await Promise.all(
       workflows.map(async (wf) => {
         // Build conditions for log filtering
@@ -147,7 +148,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           logConditions.push(inArray(workflowExecutionLogs.trigger, triggerList))
         }
 
-        // Fetch all logs for this workflow in the time range
+        // Fetch logs for this workflow - runs in parallel with others
         const logs = await db
           .select({
             id: workflowExecutionLogs.id,

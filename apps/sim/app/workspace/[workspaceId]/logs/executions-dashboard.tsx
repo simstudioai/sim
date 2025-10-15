@@ -362,6 +362,8 @@ export default function ExecutionsDashboard() {
       case '1h':
         start.setHours(endTime.getHours() - 1)
         break
+      default:
+        start.setHours(endTime.getHours() - 24) // Default to 24h
     }
 
     return start
@@ -508,16 +510,16 @@ export default function ExecutionsDashboard() {
     [expandedWorkflowId, workflowDetails, fetchWorkflowDetails, selectedSegmentIndex]
   )
 
-  // Initial load
+  // Initial load and refetch on dependencies change
   const isInitialMount = useRef(true)
   useEffect(() => {
-    if (isInitialMount.current) {
-      fetchExecutions(true)
+    const isInitial = isInitialMount.current
+    if (isInitial) {
       isInitialMount.current = false
-    } else {
-      fetchExecutions(false)
     }
-  }, [fetchExecutions])
+    fetchExecutions(isInitial)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceId, timeFilter, endTime, workflowIds, folderIds, triggers])
 
   // Refetch workflow details when time, filters, or expanded workflow changes
   useEffect(() => {
@@ -553,14 +555,23 @@ export default function ExecutionsDashboard() {
   }
 
   const shiftTimeWindow = (direction: 'back' | 'forward') => {
-    const shift =
-      timeFilter === '1h'
-        ? 60 * 60 * 1000
-        : timeFilter === '12h'
-          ? 12 * 60 * 60 * 1000
-          : timeFilter === '24h'
-            ? 24 * 60 * 60 * 1000
-            : 7 * 24 * 60 * 60 * 1000 // 1w
+    let shift: number
+    switch (timeFilter) {
+      case '1h':
+        shift = 60 * 60 * 1000
+        break
+      case '12h':
+        shift = 12 * 60 * 60 * 1000
+        break
+      case '24h':
+        shift = 24 * 60 * 60 * 1000
+        break
+      case '1w':
+        shift = 7 * 24 * 60 * 60 * 1000
+        break
+      default:
+        shift = 24 * 60 * 60 * 1000
+    }
 
     setEndTime((prev) => new Date(prev.getTime() + (direction === 'forward' ? shift : -shift)))
   }
