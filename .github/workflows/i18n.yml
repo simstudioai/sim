@@ -1,7 +1,6 @@
 name: 'Auto-translate Documentation'
 
-# Temporarily disabled - fixing translation corruption issues
-# Re-enable after i18n pipeline is fully stabilized
+# Temporarily disabled
 on:
   workflow_dispatch: # Allow manual triggers only
   # push:
