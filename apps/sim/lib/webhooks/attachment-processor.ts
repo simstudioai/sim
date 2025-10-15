@@ -26,15 +26,15 @@ export class WebhookAttachmentProcessor {
       workspaceId: string
       workflowId: string
       executionId: string
-    },
-    requestId: string
+      requestId: string
+    }
   ): Promise<UserFile[]> {
     if (!attachments || attachments.length === 0) {
       return []
     }
 
     logger.info(
-      `[${requestId}] Processing ${attachments.length} attachments for execution ${executionContext.executionId}`
+      `[${executionContext.requestId}] Processing ${attachments.length} attachments for execution ${executionContext.executionId}`
     )
 
     const processedFiles: UserFile[] = []
@@ -43,18 +43,20 @@ export class WebhookAttachmentProcessor {
       try {
         const userFile = await WebhookAttachmentProcessor.processAttachment(
           attachment,
-          executionContext,
-          requestId
+          executionContext
         )
         processedFiles.push(userFile)
       } catch (error) {
-        logger.error(`[${requestId}] Error processing attachment '${attachment.name}':`, error)
+        logger.error(
+          `[${executionContext.requestId}] Error processing attachment '${attachment.name}':`,
+          error
+        )
         // Continue with other attachments rather than failing the entire request
       }
     }
 
     logger.info(
-      `[${requestId}] Successfully processed ${processedFiles.length}/${attachments.length} attachments`
+      `[${executionContext.requestId}] Successfully processed ${processedFiles.length}/${attachments.length} attachments`
     )
 
     return processedFiles
@@ -69,32 +71,35 @@ export class WebhookAttachmentProcessor {
       workspaceId: string
       workflowId: string
       executionId: string
-    },
-    requestId: string
+      requestId: string
+    }
   ): Promise<UserFile> {
-    // Validate attachment
-    if (!Buffer.isBuffer(attachment.data)) {
-      throw new Error(`Attachment '${attachment.name}' data must be a Buffer`)
+    const data = attachment.data as any
+
+    if (!data || typeof data !== 'object' || data.type !== 'Buffer' || !Array.isArray(data.data)) {
+      throw new Error(`Attachment '${attachment.name}' data must be a serialized Buffer`)
     }
 
-    if (attachment.data.length === 0) {
+    const buffer = Buffer.from(data.data)
+
+    if (buffer.length === 0) {
       throw new Error(`Attachment '${attachment.name}' has zero bytes`)
     }
 
     logger.info(
-      `[${requestId}] Uploading attachment '${attachment.name}' (${attachment.size} bytes, ${attachment.contentType})`
+      `[${executionContext.requestId}] Uploading attachment '${attachment.name}' (${attachment.size} bytes, ${attachment.contentType})`
     )
 
     // Upload to execution storage
     const userFile = await uploadExecutionFile(
       executionContext,
-      attachment.data,
+      buffer,
       attachment.name,
       attachment.contentType
     )
 
     logger.info(
-      `[${requestId}] Successfully stored attachment '${attachment.name}' with key: ${userFile.key}`
+      `[${executionContext.requestId}] Successfully stored attachment '${attachment.name}' with key: ${userFile.key}`
     )
 
     return userFile

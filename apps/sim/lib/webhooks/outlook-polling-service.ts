@@ -1,14 +1,12 @@
 import { db } from '@sim/db'
-import { account, webhook, workflow as workflowTable } from '@sim/db/schema'
+import { account, webhook } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { htmlToText } from 'html-to-text'
 import { nanoid } from 'nanoid'
 import { pollingIdempotency } from '@/lib/idempotency'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
-import { WebhookAttachmentProcessor } from '@/lib/webhooks/attachment-processor'
 import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('OutlookPollingService')
 
@@ -76,7 +74,7 @@ export interface SimplifiedOutlookEmail {
   bodyText: string
   bodyHtml: string
   hasAttachments: boolean
-  attachments: UserFile[]
+  attachments: OutlookAttachment[]
   isRead: boolean
   folderId: string
   // Thread support fields
@@ -354,45 +352,15 @@ async function processOutlookEmails(
         'outlook',
         `${webhookData.id}:${email.id}`,
         async () => {
-          // Download and upload attachments if requested
-          let processedAttachments: UserFile[] = []
+          let attachments: OutlookAttachment[] = []
           if (config.includeAttachments && email.hasAttachments) {
             try {
-              const rawAttachments = await downloadOutlookAttachments(
-                accessToken,
-                email.id,
-                requestId
-              )
-
-              // Get workspaceId from workflow
-              let workspaceId = ''
-              if (webhookData.workflowId) {
-                const wfRows = await db
-                  .select({ workspaceId: workflowTable.workspaceId })
-                  .from(workflowTable)
-                  .where(eq(workflowTable.id, webhookData.workflowId))
-                  .limit(1)
-                workspaceId = wfRows[0]?.workspaceId || ''
-              }
-
-              // Create a temporary execution ID for attachment storage
-              const executionId = nanoid()
-
-              processedAttachments = await WebhookAttachmentProcessor.processAttachments(
-                rawAttachments,
-                {
-                  workspaceId,
-                  workflowId: webhookData.workflowId || '',
-                  executionId,
-                },
-                requestId
-              )
+              attachments = await downloadOutlookAttachments(accessToken, email.id, requestId)
             } catch (error) {
               logger.error(
-                `[${requestId}] Error processing attachments for email ${email.id}:`,
+                `[${requestId}] Error downloading attachments for email ${email.id}:`,
                 error
               )
-              // Continue without attachments rather than failing the entire request
             }
           }
 
@@ -418,7 +386,7 @@ async function processOutlookEmails(
             })(),
             bodyHtml: email.body?.content || '',
             hasAttachments: email.hasAttachments,
-            attachments: processedAttachments,
+            attachments,
             isRead: email.isRead,
             folderId: email.parentFolderId,
             // Thread support fields

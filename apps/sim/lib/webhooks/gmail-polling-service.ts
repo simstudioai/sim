@@ -1,13 +1,11 @@
 import { db } from '@sim/db'
-import { account, webhook, workflow as workflowTable } from '@sim/db/schema'
+import { account, webhook } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { pollingIdempotency } from '@/lib/idempotency/service'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
-import { WebhookAttachmentProcessor } from '@/lib/webhooks/attachment-processor'
 import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-import type { UserFile } from '@/executor/types'
 import type { GmailAttachment } from '@/tools/gmail/types'
 import { downloadAttachments, extractAttachmentInfo } from '@/tools/gmail/utils'
 
@@ -47,7 +45,7 @@ export interface SimplifiedEmail {
   bodyHtml: string
   labels: string[]
   hasAttachments: boolean
-  attachments: UserFile[]
+  attachments: GmailAttachment[]
 }
 
 export interface GmailWebhookPayload {
@@ -535,65 +533,24 @@ async function processEmails(
             date = new Date(Number.parseInt(email.internalDate)).toISOString()
           }
 
-          // Download and upload attachments if requested
-          let processedAttachments: UserFile[] = []
-          if (config.includeAttachments && email.payload) {
+          // Download attachments if requested (raw Buffers - will be uploaded during execution)
+          let attachments: GmailAttachment[] = []
+          const hasAttachments = email.payload
+            ? extractAttachmentInfo(email.payload).length > 0
+            : false
+
+          if (config.includeAttachments && hasAttachments && email.payload) {
             try {
               const attachmentInfo = extractAttachmentInfo(email.payload)
-
-              if (attachmentInfo.length > 0) {
-                // Download attachments from Gmail
-                const gmailAttachments: GmailAttachment[] = await downloadAttachments(
-                  email.id,
-                  attachmentInfo,
-                  accessToken
-                )
-
-                // Get workspaceId from workflow
-                let workspaceId = ''
-                if (webhookData.workflowId) {
-                  const wfRows = await db
-                    .select({ workspaceId: workflowTable.workspaceId })
-                    .from(workflowTable)
-                    .where(eq(workflowTable.id, webhookData.workflowId))
-                    .limit(1)
-                  workspaceId = wfRows[0]?.workspaceId || ''
-                }
-
-                // Create a temporary execution ID for attachment storage
-                const executionId = nanoid()
-
-                // Convert GmailAttachment to WebhookAttachment format
-                const webhookAttachments = gmailAttachments.map((att) => ({
-                  name: att.name,
-                  data: att.data,
-                  contentType: att.mimeType,
-                  size: att.size,
-                }))
-
-                processedAttachments = await WebhookAttachmentProcessor.processAttachments(
-                  webhookAttachments,
-                  {
-                    workspaceId,
-                    workflowId: webhookData.workflowId || '',
-                    executionId,
-                  },
-                  requestId
-                )
-              }
+              attachments = await downloadAttachments(email.id, attachmentInfo, accessToken)
             } catch (error) {
               logger.error(
-                `[${requestId}] Error processing attachments for email ${email.id}:`,
+                `[${requestId}] Error downloading attachments for email ${email.id}:`,
                 error
               )
               // Continue without attachments rather than failing the entire request
             }
           }
-
-          // Check if email has attachments
-          const hasAttachments = email.payload
-            ? extractAttachmentInfo(email.payload).length > 0
-            : false
 
           // Create simplified email object
           const simplifiedEmail: SimplifiedEmail = {
@@ -608,7 +565,7 @@ async function processEmails(
             bodyHtml: htmlContent,
             labels: email.labelIds || [],
             hasAttachments,
-            attachments: processedAttachments,
+            attachments,
           }
 
           // Prepare webhook payload with simplified email and optionally raw email
