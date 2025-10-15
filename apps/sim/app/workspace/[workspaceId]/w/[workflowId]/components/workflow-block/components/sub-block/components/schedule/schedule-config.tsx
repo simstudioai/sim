@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Calendar, ExternalLink } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -33,17 +33,23 @@ export function ScheduleConfig({
   disabled = false,
 }: ScheduleConfigProps) {
   const [error, setError] = useState<string | null>(null)
-  const [scheduleId, setScheduleId] = useState<string | null>(null)
-  const [nextRunAt, setNextRunAt] = useState<string | null>(null)
-  const [lastRanAt, setLastRanAt] = useState<string | null>(null)
-  const [cronExpression, setCronExpression] = useState<string | null>(null)
-  const [timezone, setTimezone] = useState<string>('UTC')
+  const [scheduleData, setScheduleData] = useState<{
+    id: string | null
+    nextRunAt: string | null
+    lastRanAt: string | null
+    cronExpression: string | null
+    timezone: string
+  }>({
+    id: null,
+    nextRunAt: null,
+    lastRanAt: null,
+    cronExpression: null,
+    timezone: 'UTC',
+  })
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  // Track when we need to force a refresh of schedule data
-  const [refreshCounter, setRefreshCounter] = useState(0)
 
   const params = useParams()
   const workflowId = params.workflowId as string
@@ -61,79 +67,88 @@ export function ScheduleConfig({
   const blockWithValues = getBlockWithValues(blockId)
   const isScheduleTriggerBlock = blockWithValues?.type === 'schedule'
 
-  // Function to check if schedule exists in the database
-  const checkSchedule = async () => {
+  // Fetch schedule data from API
+  const fetchSchedule = useCallback(async () => {
+    if (!workflowId) return
+
     setIsLoading(true)
     try {
-      // Check if there's a schedule for this workflow, passing the mode parameter
-      // For schedule trigger blocks, include blockId to get the specific schedule
-      const url = new URL('/api/schedules', window.location.origin)
-      url.searchParams.set('workflowId', workflowId)
-      url.searchParams.set('mode', 'schedule')
-
+      const params = new URLSearchParams({
+        workflowId,
+        mode: 'schedule',
+      })
       if (isScheduleTriggerBlock) {
-        url.searchParams.set('blockId', blockId)
+        params.set('blockId', blockId)
       }
 
-      const response = await fetch(url.toString(), {
-        // Add cache: 'no-store' to prevent caching of this request
+      const response = await fetch(`/api/schedules?${params}`, {
         cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache',
-        },
+        headers: { 'Cache-Control': 'no-cache' },
       })
 
       if (response.ok) {
         const data = await response.json()
-        logger.debug('Schedule check response:', data)
-
         if (data.schedule) {
-          setScheduleId(data.schedule.id)
-          setNextRunAt(data.schedule.nextRunAt)
-          setLastRanAt(data.schedule.lastRanAt)
-          setCronExpression(data.schedule.cronExpression)
-          setTimezone(data.schedule.timezone || 'UTC')
-
-          // Note: We no longer set global schedule status from individual components
-          // The global schedule status should be managed by a higher-level component
+          setScheduleData({
+            id: data.schedule.id,
+            nextRunAt: data.schedule.nextRunAt,
+            lastRanAt: data.schedule.lastRanAt,
+            cronExpression: data.schedule.cronExpression,
+            timezone: data.schedule.timezone || 'UTC',
+          })
         } else {
-          setScheduleId(null)
-          setNextRunAt(null)
-          setLastRanAt(null)
-          setCronExpression(null)
-
-          // Note: We no longer set global schedule status from individual components
+          setScheduleData({
+            id: null,
+            nextRunAt: null,
+            lastRanAt: null,
+            cronExpression: null,
+            timezone: 'UTC',
+          })
         }
       }
     } catch (error) {
-      logger.error('Error checking schedule:', { error })
-      setError('Failed to check schedule status')
+      logger.error('Error fetching schedule:', error)
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [workflowId, blockId, isScheduleTriggerBlock])
 
-  // Check for schedule on mount and when relevant dependencies change
+  // Fetch schedule data on mount and when dependencies change
   useEffect(() => {
-    // Check for schedules when workflowId changes, modal opens, or on initial mount
-    if (workflowId) {
-      checkSchedule()
+    fetchSchedule()
+  }, [fetchSchedule])
+
+  // Separate effect for event listener to avoid removing/re-adding on every dependency change
+  useEffect(() => {
+    const handleScheduleUpdate = (event: CustomEvent) => {
+      if (event.detail?.workflowId === workflowId && event.detail?.blockId === blockId) {
+        logger.debug('Schedule update event received in schedule-config, refetching')
+        fetchSchedule()
+      }
     }
 
-    // Cleanup function to reset loading state
+    window.addEventListener('schedule-updated', handleScheduleUpdate as EventListener)
+
     return () => {
-      setIsLoading(false)
+      window.removeEventListener('schedule-updated', handleScheduleUpdate as EventListener)
     }
-  }, [workflowId, isModalOpen, refreshCounter])
+  }, [workflowId, blockId, fetchSchedule])
+
+  // Refetch when modal opens to get latest data
+  useEffect(() => {
+    if (isModalOpen) {
+      fetchSchedule()
+    }
+  }, [isModalOpen, fetchSchedule])
 
   // Format the schedule information for display
   const getScheduleInfo = () => {
-    if (!scheduleId || !nextRunAt) return null
+    if (!scheduleData.id || !scheduleData.nextRunAt) return null
 
     let scheduleTiming = 'Unknown schedule'
 
-    if (cronExpression) {
-      scheduleTiming = parseCronToHumanReadable(cronExpression)
+    if (scheduleData.cronExpression) {
+      scheduleTiming = parseCronToHumanReadable(scheduleData.cronExpression, scheduleData.timezone)
     } else if (scheduleType) {
       scheduleTiming = `${scheduleType.charAt(0).toUpperCase() + scheduleType.slice(1)}`
     }
@@ -142,8 +157,14 @@ export function ScheduleConfig({
       <>
         <div className='truncate font-normal text-sm'>{scheduleTiming}</div>
         <div className='text-muted-foreground text-xs'>
-          <div>Next run: {formatDateTime(new Date(nextRunAt), timezone)}</div>
-          {lastRanAt && <div>Last run: {formatDateTime(new Date(lastRanAt), timezone)}</div>}
+          <div>
+            Next run: {formatDateTime(new Date(scheduleData.nextRunAt), scheduleData.timezone)}
+          </div>
+          {scheduleData.lastRanAt && (
+            <div>
+              Last run: {formatDateTime(new Date(scheduleData.lastRanAt), scheduleData.timezone)}
+            </div>
+          )}
         </div>
       </>
     )
@@ -154,16 +175,11 @@ export function ScheduleConfig({
     setIsModalOpen(true)
   }
 
-  const handleCloseModal = () => {
+  const handleCloseModal = useCallback(() => {
     setIsModalOpen(false)
-    // Force a refresh when closing the modal
-    // Use a small timeout to ensure backend updates are complete
-    setTimeout(() => {
-      setRefreshCounter((prev) => prev + 1)
-    }, 500)
-  }
+  }, [])
 
-  const handleSaveSchedule = async (): Promise<boolean> => {
+  const handleSaveSchedule = useCallback(async (): Promise<boolean> => {
     if (isPreview || disabled) return false
 
     setIsSaving(true)
@@ -246,17 +262,24 @@ export function ScheduleConfig({
       logger.debug('Schedule save response:', responseData)
 
       // 5. Update our local state with the response data
-      if (responseData.cronExpression) {
-        setCronExpression(responseData.cronExpression)
+      if (responseData.cronExpression || responseData.nextRunAt) {
+        setScheduleData((prev) => ({
+          ...prev,
+          cronExpression: responseData.cronExpression || prev.cronExpression,
+          nextRunAt:
+            typeof responseData.nextRunAt === 'string'
+              ? responseData.nextRunAt
+              : responseData.nextRunAt?.toISOString?.() || prev.nextRunAt,
+        }))
       }
 
-      if (responseData.nextRunAt) {
-        setNextRunAt(
-          typeof responseData.nextRunAt === 'string'
-            ? responseData.nextRunAt
-            : responseData.nextRunAt.toISOString?.() || responseData.nextRunAt
-        )
-      }
+      // 6. Dispatch custom event to notify parent workflow-block component to refetch schedule info
+      // This ensures the badge updates immediately after saving
+      const event = new CustomEvent('schedule-updated', {
+        detail: { workflowId, blockId },
+      })
+      window.dispatchEvent(event)
+      logger.debug('Dispatched schedule-updated event', { workflowId, blockId })
 
       // 6. Update the schedule status and trigger a workflow update
       // Note: Global schedule status is managed at a higher level
@@ -266,15 +289,8 @@ export function ScheduleConfig({
       workflowStore.updateLastSaved()
       workflowStore.triggerUpdate()
 
-      // 8. Force a refresh to update the UI
-      // Use a timeout to ensure the API changes are completed
-      setTimeout(() => {
-        logger.debug('Refreshing schedule information after save')
-        setRefreshCounter((prev) => prev + 1)
-
-        // Make a separate API call to ensure we get the latest schedule info
-        checkSchedule()
-      }, 500)
+      // 8. Refetch the schedule to update local state
+      await fetchSchedule()
 
       return true
     } catch (error) {
@@ -284,10 +300,10 @@ export function ScheduleConfig({
     } finally {
       setIsSaving(false)
     }
-  }
+  }, [workflowId, blockId, isScheduleTriggerBlock, setStartWorkflow, fetchSchedule])
 
-  const handleDeleteSchedule = async (): Promise<boolean> => {
-    if (isPreview || !scheduleId || disabled) return false
+  const handleDeleteSchedule = useCallback(async (): Promise<boolean> => {
+    if (isPreview || !scheduleData.id || disabled) return false
 
     setIsDeleting(true)
     try {
@@ -315,7 +331,7 @@ export function ScheduleConfig({
       }
 
       // 4. Make the DELETE API call to remove the schedule
-      const response = await fetch(`/api/schedules/${scheduleId}`, {
+      const response = await fetch(`/api/schedules/${scheduleData.id}`, {
         method: 'DELETE',
       })
 
@@ -326,14 +342,23 @@ export function ScheduleConfig({
       }
 
       // 5. Clear schedule state
-      setScheduleId(null)
-      setNextRunAt(null)
-      setLastRanAt(null)
-      setCronExpression(null)
+      setScheduleData({
+        id: null,
+        nextRunAt: null,
+        lastRanAt: null,
+        cronExpression: null,
+        timezone: 'UTC',
+      })
 
       // 6. Update schedule status and refresh UI
       // Note: Global schedule status is managed at a higher level
-      setRefreshCounter((prev) => prev + 1)
+
+      // 7. Dispatch custom event to notify parent workflow-block component
+      const event = new CustomEvent('schedule-updated', {
+        detail: { workflowId, blockId },
+      })
+      window.dispatchEvent(event)
+      logger.debug('Dispatched schedule-updated event after delete', { workflowId, blockId })
 
       return true
     } catch (error) {
@@ -343,10 +368,18 @@ export function ScheduleConfig({
     } finally {
       setIsDeleting(false)
     }
-  }
+  }, [
+    scheduleData.id,
+    isPreview,
+    disabled,
+    isScheduleTriggerBlock,
+    setStartWorkflow,
+    workflowId,
+    blockId,
+  ])
 
   // Check if the schedule is active
-  const isScheduleActive = !!scheduleId && !!nextRunAt
+  const isScheduleActive = !!scheduleData.id && !!scheduleData.nextRunAt
 
   return (
     <div className='w-full' onClick={(e) => e.stopPropagation()}>
@@ -399,7 +432,7 @@ export function ScheduleConfig({
           blockId={blockId}
           onSave={handleSaveSchedule}
           onDelete={handleDeleteSchedule}
-          scheduleId={scheduleId}
+          scheduleId={scheduleData.id}
         />
       </Dialog>
     </div>

@@ -49,8 +49,14 @@ function calculateNextRunTime(
   const scheduleType = getSubBlockValue(scheduleBlock, 'scheduleType')
   const scheduleValues = getScheduleTimeValues(scheduleBlock)
 
+  // Get timezone from schedule configuration (default to UTC)
+  const timezone = scheduleValues.timezone || 'UTC'
+
   if (schedule.cronExpression) {
-    const cron = new Cron(schedule.cronExpression)
+    // Use Croner with timezone support for accurate scheduling
+    const cron = new Cron(schedule.cronExpression, {
+      timezone,
+    })
     const nextDate = cron.nextRun()
     if (!nextDate) throw new Error('Invalid cron expression or no future occurrences')
     return nextDate

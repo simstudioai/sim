@@ -280,83 +280,59 @@ export const WorkflowBlock = memo(
       }
     }
 
-    const fetchScheduleInfo = async (workflowId: string) => {
-      if (!workflowId) return
-
-      try {
-        setIsLoadingScheduleInfo(true)
-
-        // For schedule trigger blocks, always include the blockId parameter
-        const url = new URL('/api/schedules', window.location.origin)
-        url.searchParams.set('workflowId', workflowId)
-        url.searchParams.set('mode', 'schedule')
-        url.searchParams.set('blockId', id) // Always include blockId for schedule blocks
-
-        const response = await fetch(url.toString(), {
-          cache: 'no-store',
-          headers: {
-            'Cache-Control': 'no-cache',
-          },
-        })
-
-        if (!response.ok) {
-          setScheduleInfo(null)
-          return
-        }
-
-        const data = await response.json()
-
-        if (!data.schedule) {
-          setScheduleInfo(null)
-          return
-        }
-
-        let scheduleTiming = 'Unknown schedule'
-        if (data.schedule.cronExpression) {
-          scheduleTiming = parseCronToHumanReadable(data.schedule.cronExpression)
-        }
-
-        const baseInfo = {
-          scheduleTiming,
-          nextRunAt: data.schedule.nextRunAt as string | null,
-          lastRanAt: data.schedule.lastRanAt as string | null,
-          timezone: data.schedule.timezone || 'UTC',
-          status: data.schedule.status as string,
-          isDisabled: data.schedule.status === 'disabled',
-          id: data.schedule.id as string,
-        }
+    const fetchScheduleInfo = useCallback(
+      async (workflowId: string) => {
+        if (!workflowId) return
 
         try {
-          const statusRes = await fetch(`/api/schedules/${baseInfo.id}/status`, {
+          setIsLoadingScheduleInfo(true)
+
+          const params = new URLSearchParams({
+            workflowId,
+            mode: 'schedule',
+            blockId: id,
+          })
+
+          const response = await fetch(`/api/schedules?${params}`, {
             cache: 'no-store',
             headers: { 'Cache-Control': 'no-cache' },
           })
 
-          if (statusRes.ok) {
-            const statusData = await statusRes.json()
-            setScheduleInfo({
-              scheduleTiming: baseInfo.scheduleTiming,
-              nextRunAt: statusData.nextRunAt ?? baseInfo.nextRunAt,
-              lastRanAt: statusData.lastRanAt ?? baseInfo.lastRanAt,
-              timezone: baseInfo.timezone,
-              status: statusData.status ?? baseInfo.status,
-              isDisabled: statusData.isDisabled ?? baseInfo.isDisabled,
-              id: baseInfo.id,
-            })
+          if (!response.ok) {
+            setScheduleInfo(null)
             return
           }
-        } catch (err) {
-          logger.error('Error fetching schedule status:', err)
-        }
 
-        setScheduleInfo(baseInfo)
-      } catch (error) {
-        logger.error('Error fetching schedule info:', error)
-        setScheduleInfo(null)
-      } finally {
-        setIsLoadingScheduleInfo(false)
-      }
-    }
+          const data = await response.json()
+
+          if (!data.schedule) {
+            setScheduleInfo(null)
+            return
+          }
+
+          const schedule = data.schedule
+          const scheduleTimezone = schedule.timezone || 'UTC'
+
+          setScheduleInfo({
+            scheduleTiming: schedule.cronExpression
+              ? parseCronToHumanReadable(schedule.cronExpression, scheduleTimezone)
+              : 'Unknown schedule',
+            nextRunAt: schedule.nextRunAt,
+            lastRanAt: schedule.lastRanAt,
+            timezone: scheduleTimezone,
+            status: schedule.status,
+            isDisabled: schedule.status === 'disabled',
+            id: schedule.id,
+          })
+        } catch (error) {
+          logger.error('Error fetching schedule info:', error)
+          setScheduleInfo(null)
+        } finally {
+          setIsLoadingScheduleInfo(false)
+        }
+      },
+      [id]
+    )
 
     useEffect(() => {
       if (type === 'schedule' && currentWorkflowId) {
@@ -366,11 +342,25 @@ export const WorkflowBlock = memo(
         setIsLoadingScheduleInfo(false) // Reset loading state when not a schedule block
       }
 
-      // Cleanup function to reset loading state when component unmounts or workflow changes
+      // Listen for schedule updates from the schedule-config component
+      const handleScheduleUpdate = (event: CustomEvent) => {
+        // Check if the update is for this workflow and block
+        if (event.detail?.workflowId === currentWorkflowId && event.detail?.blockId === id) {
+          logger.debug('Schedule update event received, refetching schedule info')
+          if (type === 'schedule') {
+            fetchScheduleInfo(currentWorkflowId)
+          }
+        }
+      }
+
+      window.addEventListener('schedule-updated', handleScheduleUpdate as EventListener)
+
+      // Cleanup function to reset loading state and remove listener
       return () => {
         setIsLoadingScheduleInfo(false)
+        window.removeEventListener('schedule-updated', handleScheduleUpdate as EventListener)
       }
-    }, [isStarterBlock, isTriggerBlock, type, currentWorkflowId])
+    }, [type, currentWorkflowId, id, fetchScheduleInfo])
 
     // Get webhook information for the tooltip
     useEffect(() => {

@@ -309,7 +309,8 @@ export async function POST(req: NextRequest) {
 
       // Additional validation for custom cron expressions
       if (defaultScheduleType === 'custom' && cronExpression) {
-        const validation = validateCronExpression(cronExpression)
+        // Validate with timezone for accurate validation
+        const validation = validateCronExpression(cronExpression, timezone)
         if (!validation.isValid) {
           logger.error(`[${requestId}] Invalid cron expression: ${validation.error}`)
           return NextResponse.json(
