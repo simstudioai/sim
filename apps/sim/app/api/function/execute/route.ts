@@ -8,7 +8,7 @@ import { validateProxyUrl } from '@/lib/security/input-validation'
 import { generateRequestId } from '@/lib/utils'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-export const maxDuration = 60
+export const maxDuration = 300
 
 const logger = createLogger('FunctionExecuteAPI')
 
@@ -652,7 +652,7 @@ export async function POST(req: NextRequest) {
     const {
       code,
       params = {},
-      timeout = 5000,
+      timeout = 180000,
       language = DEFAULT_CODE_LANGUAGE,
       useLocalVM = false,
       envVars = {},

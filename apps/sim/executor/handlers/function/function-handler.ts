@@ -61,7 +61,7 @@ export class FunctionBlockHandler implements BlockHandler {
         code: codeContent,
         language: inputs.language || DEFAULT_CODE_LANGUAGE,
         useLocalVM: !inputs.remoteExecution,
-        timeout: inputs.timeout || 5000,
+        timeout: inputs.timeout || 180000,
         envVars: context.environmentVariables || {},
         workflowVariables: context.workflowVariables || {},
         blockData: blockData, // Pass block data for variable resolution

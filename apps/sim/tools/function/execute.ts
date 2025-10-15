@@ -2,7 +2,7 @@ import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
 import type { CodeExecutionInput, CodeExecutionOutput } from '@/tools/function/types'
 import type { ToolConfig } from '@/tools/types'
 
-const DEFAULT_TIMEOUT = 10000 // 10 seconds
+const DEFAULT_TIMEOUT = 180000 // 3 minutes
 
 export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOutput> = {
   id: 'function_execute',
