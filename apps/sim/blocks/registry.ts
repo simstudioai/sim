@@ -87,6 +87,7 @@ import { WorkflowBlock } from '@/blocks/blocks/workflow'
 import { WorkflowInputBlock } from '@/blocks/blocks/workflow_input'
 import { XBlock } from '@/blocks/blocks/x'
 import { YouTubeBlock } from '@/blocks/blocks/youtube'
+import { ZepBlock } from '@/blocks/blocks/zep'
 import type { BlockConfig } from '@/blocks/types'
 
 // Registry of all available blocks, alphabetically sorted
@@ -127,6 +128,7 @@ export const registry: Record<string, BlockConfig> = {
   linkup: LinkupBlock,
   mcp: McpBlock,
   mem0: Mem0Block,
+  zep: ZepBlock,
   microsoft_excel: MicrosoftExcelBlock,
   microsoft_planner: MicrosoftPlannerBlock,
   microsoft_teams: MicrosoftTeamsBlock,
