@@ -49,6 +49,11 @@ WORKDIR /app
 ARG DATABASE_URL="postgresql://user:pass@localhost:5432/dummy"
 ENV DATABASE_URL=${DATABASE_URL}
 
+# Provide dummy NEXT_PUBLIC_APP_URL for build-time evaluation
+# Runtime environments should override this with the actual URL
+ARG NEXT_PUBLIC_APP_URL="http://localhost:3000"
+ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
+
 RUN bun run build
 
 # ========================================
