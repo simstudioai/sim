@@ -2,8 +2,8 @@ import { db } from '@sim/db'
 import { webhook as webhookTable } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 const teamsLogger = createLogger('TeamsSubscription')
@@ -72,13 +72,7 @@ export async function createTeamsSubscription(
 
     // Build notification URL
     // Always use NEXT_PUBLIC_APP_URL to ensure Microsoft Graph can reach the public endpoint
-    if (!env.NEXT_PUBLIC_APP_URL) {
-      teamsLogger.error(
-        `[${requestId}] NEXT_PUBLIC_APP_URL not configured, cannot create Teams subscription`
-      )
-      return false
-    }
-    const notificationUrl = `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/trigger/${webhook.path}`
+    const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${webhook.path}`
 
     // Subscribe to the specified chat
     const resource = `/chats/${chatId}/messages`
@@ -224,14 +218,7 @@ export async function createTelegramWebhook(
       return false
     }
 
-    if (!env.NEXT_PUBLIC_APP_URL) {
-      telegramLogger.error(
-        `[${requestId}] NEXT_PUBLIC_APP_URL not configured, cannot register Telegram webhook`
-      )
-      return false
-    }
-
-    const notificationUrl = `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/trigger/${webhook.path}`
+    const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${webhook.path}`
 
     const telegramApiUrl = `https://api.telegram.org/bot${botToken}/setWebhook`
     const telegramResponse = await fetch(telegramApiUrl, {

@@ -4,8 +4,8 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
-import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 
 const logger = createLogger('BillingPortal')
 
@@ -21,8 +21,7 @@ export async function POST(request: NextRequest) {
     const context: 'user' | 'organization' =
       body?.context === 'organization' ? 'organization' : 'user'
     const organizationId: string | undefined = body?.organizationId || undefined
-    const returnUrl: string =
-      body?.returnUrl || `${env.NEXT_PUBLIC_APP_URL}/workspace?billing=updated`
+    const returnUrl: string = body?.returnUrl || `${getBaseUrl()}/workspace?billing=updated`
 
     const stripe = requireStripeClient()
 

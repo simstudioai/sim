@@ -40,9 +40,7 @@ export function generateBrandedMetadata(override: Partial<Metadata> = {}): Metad
     referrer: 'origin-when-cross-origin',
     creator: brand.name,
     publisher: brand.name,
-    metadataBase: env.NEXT_PUBLIC_APP_URL
-      ? new URL(env.NEXT_PUBLIC_APP_URL)
-      : new URL('https://sim.ai'),
+    metadataBase: new URL(getBaseUrl()),
     alternates: {
       canonical: '/',
       languages: {
