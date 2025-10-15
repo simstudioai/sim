@@ -650,7 +650,6 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
 
-    // Import timeout constant dynamically to avoid circular deps
     const { DEFAULT_EXECUTION_TIMEOUT_MS } = await import('@/lib/execution/constants')
 
     const {
