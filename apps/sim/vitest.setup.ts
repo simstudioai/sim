@@ -8,6 +8,19 @@ global.fetch = vi.fn(() =>
   })
 ) as any
 
+// Mock localStorage and sessionStorage for Zustand persist middleware
+const storageMock = {
+  getItem: vi.fn(() => null),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
+  key: vi.fn(),
+  length: 0,
+}
+
+global.localStorage = storageMock as any
+global.sessionStorage = storageMock as any
+
 // Mock drizzle-orm sql template literal globally for tests
 vi.mock('drizzle-orm', () => ({
   sql: vi.fn((strings, ...values) => ({
