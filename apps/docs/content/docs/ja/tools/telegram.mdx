@@ -1,6 +1,6 @@
 ---
 title: Telegram
-description: Telegramを通じてメッセージを送信したり、Telegramイベントからワークフローをトリガーしたりする
+description: Telegramとの連携
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -66,7 +66,7 @@ Simでは、Telegramの統合により、エージェントがワークフロー
 
 ## 使用方法
 
-Telegramをワークフローに統合します。メッセージを送信できます。チャットにメッセージが送信されたときにワークフローをトリガーするトリガーモードでも使用できます。
+ワークフローにTelegramを統合します。メッセージの送信と削除が可能です。チャットにメッセージが送信されたときにワークフローをトリガーするトリガーモードでも使用できます。
 
 ## ツール
 
@@ -92,6 +92,105 @@ Telegram Bot APIを通じてTelegramチャンネルまたはユーザーにメ�
 | `text` | string | 送信されたメッセージのテキスト内容 |
 | `timestamp` | number | メッセージが送信されたUnixタイムスタンプ |
 | `from` | object | メッセージを送信したボットに関する情報 |
+
+### `telegram_delete_message`
+
+Telegram Bot APIを通じてTelegramチャンネルやチャットのメッセージを削除します。削除するメッセージのメッセージIDが必要です。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | あなたのTelegram Bot APIトークン |
+| `chatId` | string | はい | 対象のTelegramチャットID |
+| `messageId` | string | はい | 削除するメッセージID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | 削除操作の結果 |
+
+### `telegram_send_photo`
+
+Telegram Bot APIを通じてTelegramチャンネルやユーザーに写真を送信します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | あなたのTelegram Bot APIトークン |
+| `chatId` | string | はい | 対象のTelegramチャットID |
+| `photo` | string | はい | 送信する写真。file_idまたはHTTP URLを指定 |
+| `caption` | string | いいえ | 写真のキャプション（オプション） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | 写真（オプション）を含むTelegramメッセージデータ |
+
+### `telegram_send_video`
+
+Telegram Bot APIを通じて、Telegramチャンネルまたはユーザーに動画を送信します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | あなたのTelegram Bot APIトークン |
+| `chatId` | string | はい | 対象のTelegramチャットID |
+| `video` | string | はい | 送信する動画。file_idまたはHTTP URLを指定 |
+| `caption` | string | いいえ | 動画のキャプション（任意） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | メディア情報を含むTelegramメッセージデータ |
+
+### `telegram_send_audio`
+
+Telegram Bot APIを通じて、Telegramチャンネルまたはユーザーに音声ファイルを送信します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | あなたのTelegram Bot APIトークン |
+| `chatId` | string | はい | 対象のTelegramチャットID |
+| `audio` | string | はい | 送信する音声ファイル。file_idまたはHTTP URLを指定 |
+| `caption` | string | いいえ | 音声のキャプション（任意） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | 音声/オーディオ情報を含むTelegramメッセージデータ |
+
+### `telegram_send_animation`
+
+Telegram Bot APIを通じてTelegramチャンネルまたはユーザーにアニメーション（GIF）を送信します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | あなたのTelegram Bot APIトークン |
+| `chatId` | string | はい | 対象のTelegramチャットID |
+| `animation` | string | はい | 送信するアニメーション。file_idまたはHTTP URLを指定 |
+| `caption` | string | いいえ | アニメーションのキャプション（任意） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | オプションのメディアを含むTelegramメッセージデータ |
 
 ## 注意事項
 

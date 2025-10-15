@@ -22,9 +22,17 @@ Le déclencheur d'API expose votre flux de travail en tant que point de terminai
   />
 </div>
 
-Ajoutez un champ **Format d'entrée** pour chaque paramètre. Les clés de sortie d'exécution reflètent le schéma et sont également disponibles sous `<api.input>`.
+Ajoutez un champ **Format d'entrée** pour chaque paramètre. Types pris en charge :
 
-Les exécutions manuelles dans l'éditeur utilisent la colonne `value` pour que vous puissiez tester sans envoyer de requête. Pendant l'exécution, le résolveur remplit à la fois `<api.userId>` et `<api.input.userId>`.
+- **string** - Valeurs textuelles
+- **number** - Valeurs numériques
+- **boolean** - Valeurs vrai/faux
+- **json** - Objets JSON
+- **files** - Téléchargements de fichiers (accès via `<api.fieldName[0].url>`, `<api.fieldName[0].name>`, etc.)
+
+Les clés de sortie d'exécution reflètent le schéma et sont disponibles sous `<api.input>`.
+
+Les exécutions manuelles dans l'éditeur utilisent la colonne `value` pour que vous puissiez tester sans envoyer de requête. Pendant l'exécution, le résolveur remplit à la fois `<api.fieldName>` et `<api.input.fieldName>`.
 
 ## Exemple de requête
 
@@ -36,23 +44,23 @@ curl -X POST \
   -d '{"userId":"demo-user","maxTokens":1024}'
 ```
 
-Les réponses réussies renvoient le résultat d'exécution sérialisé de l'exécuteur. Les erreurs révèlent des problèmes de validation, d'authentification ou d'échec du workflow.
+Les réponses réussies renvoient le résultat d'exécution sérialisé de l'Exécuteur. Les erreurs révèlent des problèmes de validation, d'authentification ou d'échec de workflow.
 
 ## Réponses en streaming
 
-Activez le streaming en temps réel pour recevoir les résultats du workflow au fur et à mesure qu'ils sont générés, caractère par caractère. Cela est utile pour afficher progressivement les réponses de l'IA aux utilisateurs.
+Activez le streaming en temps réel pour recevoir la sortie du workflow au fur et à mesure qu'elle est générée, caractère par caractère. Cela est utile pour afficher progressivement les réponses d'IA aux utilisateurs.
 
 ### Paramètres de requête
 
 Ajoutez ces paramètres pour activer le streaming :
 
 - `stream` - Définissez à `true` pour activer le streaming Server-Sent Events (SSE)
-- `selectedOutputs` - Tableau des sorties de blocs à diffuser en streaming (par exemple, `["agent1.content"]`)
+- `selectedOutputs` - Tableau des sorties de bloc à diffuser en streaming (par ex., `["agent1.content"]`)
 
 ### Format de sortie de bloc
 
-Utilisez le format `blockName.attribute` pour spécifier quelles sorties de blocs diffuser en streaming :
-- Format : `"blockName.attribute"` (par exemple, si vous souhaitez diffuser en streaming le contenu du bloc Agent 1, vous utiliseriez `"agent1.content"`)
+Utilisez le format `blockName.attribute` pour spécifier quelles sorties de bloc diffuser en streaming :
+- Format : `"blockName.attribute"` (par ex., si vous souhaitez diffuser le contenu du bloc Agent 1, vous utiliseriez `"agent1.content"`)
 - Les noms de blocs ne sont pas sensibles à la casse et les espaces sont ignorés
 
 ### Exemple de requête
@@ -86,7 +94,7 @@ data: [DONE]
 ```
 
 Chaque événement comprend :
-- **Fragments en streaming** : `{"blockId": "...", "chunk": "text"}` - Texte en temps réel au fur et à mesure qu'il est généré
+- **Fragments en streaming** : `{"blockId": "...", "chunk": "text"}` - Texte en temps réel au fur et à mesure de sa génération
 - **Événement final** : `{"event": "done", ...}` - Métadonnées d'exécution et résultats complets
 - **Terminateur** : `[DONE]` - Signale la fin du flux
 
@@ -94,26 +102,22 @@ Chaque événement comprend :
 
 Lorsque `selectedOutputs` inclut plusieurs blocs, chaque fragment indique quel bloc l'a produit :
 
-```bash
-curl -X POST \
-  https://sim.ai/api/workflows/WORKFLOW_ID/execute \
-  -H 'Content-Type: application/json' \
-  -H 'X-API-Key: YOUR_KEY' \
-  -d '{
-    "message": "Process this request",
-    "stream": true,
-    "selectedOutputs": ["agent1.content", "agent2.content"]
-  }'
+```json
+{
+  "type": "block",
+  "blockType": "text",
+  "text": "Voici une réponse en streaming"
+}
 ```
 
 Le champ `blockId` dans chaque fragment vous permet d'acheminer la sortie vers l'élément d'interface utilisateur approprié :
 
-```
-data: {"blockId":"agent1-uuid","chunk":"Processing..."}
-
-data: {"blockId":"agent2-uuid","chunk":"Analyzing..."}
-
-data: {"blockId":"agent1-uuid","chunk":" complete"}
+```json
+{
+  "type": "block",
+  "blockType": "code",
+  "text": "console.log('Ceci est un bloc de code');"
+}
 ```
 
 ## Référence des sorties
@@ -121,10 +125,57 @@ data: {"blockId":"agent1-uuid","chunk":" complete"}
 | Référence | Description |
 |-----------|-------------|
 | `<api.field>` | Champ défini dans le format d'entrée |
-| `<api.input>` | Corps de requête structuré complet |
+| `<api.input>` | Corps complet de la requête structurée |
+
+### Format de téléchargement de fichiers
+
+L'API accepte les fichiers dans deux formats :
+
+**1. Fichiers encodés en Base64** (recommandé pour les SDK) :
+
+```json
+{
+  "file": {
+    "data": "data:application/pdf;base64,JVBERi0xLjMKJcTl8uXrp...",
+    "name": "document.pdf"
+  }
+}
+```
+
+- Taille maximale de fichier : 20 Mo par fichier
+- Les fichiers sont téléchargés vers le stockage cloud et convertis en objets UserFile avec toutes les propriétés
+
+**2. Références directes par URL** :
+
+```json
+{
+  "file": {
+    "url": "https://example.com/document.pdf",
+    "name": "document.pdf"
+  }
+}
+```
+
+- Le fichier n'est pas téléchargé, l'URL est transmise directement
+- Utile pour référencer des fichiers existants
+
+### Propriétés des fichiers
+
+Pour les fichiers, accédez à toutes les propriétés :
+
+| Propriété | Description | Type |
+|----------|-------------|------|
+| `<api.fieldName[0].url>` | URL de téléchargement signée | chaîne |
+| `<api.fieldName[0].name>` | Nom de fichier original | chaîne |
+| `<api.fieldName[0].size>` | Taille du fichier en octets | nombre |
+| `<api.fieldName[0].type>` | Type MIME | chaîne |
+| `<api.fieldName[0].uploadedAt>` | Horodatage du téléchargement (ISO 8601) | chaîne |
+| `<api.fieldName[0].expiresAt>` | Horodatage d'expiration de l'URL (ISO 8601) | chaîne |
+
+Pour les fichiers référencés par URL, les mêmes propriétés sont disponibles à l'exception de `uploadedAt` et `expiresAt` puisque le fichier n'est pas téléchargé dans notre stockage.
 
 Si aucun format d'entrée n'est défini, l'exécuteur expose uniquement le JSON brut à `<api.input>`.
 
 <Callout type="warning">
-Un workflow ne peut contenir qu'un seul déclencheur API. Publiez un nouveau déploiement après les modifications pour que le point de terminaison reste à jour.
+Un flux de travail ne peut contenir qu'un seul déclencheur d'API. Publiez un nouveau déploiement après les modifications pour que le point de terminaison reste à jour.
 </Callout>

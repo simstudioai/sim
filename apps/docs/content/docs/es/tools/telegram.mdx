@@ -1,7 +1,6 @@
 ---
 title: Telegram
-description: Envía mensajes a través de Telegram o activa flujos de trabajo
-  desde eventos de Telegram
+description: Interactúa con Telegram
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -67,7 +66,7 @@ En Sim, la integración con Telegram permite a tus agentes aprovechar estas pote
 
 ## Instrucciones de uso
 
-Integra Telegram en el flujo de trabajo. Puede enviar mensajes. Se puede usar en modo de activación para iniciar un flujo de trabajo cuando se envía un mensaje a un chat.
+Integra Telegram en el flujo de trabajo. Puede enviar y eliminar mensajes. Se puede usar en modo disparador para iniciar un flujo de trabajo cuando se envía un mensaje a un chat.
 
 ## Herramientas
 
@@ -93,6 +92,105 @@ Envía mensajes a canales o usuarios de Telegram a través de la API de Bot de T
 | `text` | string | Contenido de texto del mensaje enviado |
 | `timestamp` | number | Marca de tiempo Unix cuando se envió el mensaje |
 | `from` | object | Información sobre el bot que envió el mensaje |
+
+### `telegram_delete_message`
+
+Elimina mensajes en canales o chats de Telegram a través de la API de Bot de Telegram. Requiere el ID del mensaje que se desea eliminar.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `botToken` | string | Sí | Tu token de API de Bot de Telegram |
+| `chatId` | string | Sí | ID del chat de Telegram objetivo |
+| `messageId` | string | Sí | ID del mensaje a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+| `data` | object | Resultado de la operación de eliminación |
+
+### `telegram_send_photo`
+
+Envía fotos a canales o usuarios de Telegram a través de la API de Bot de Telegram.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `botToken` | string | Sí | Tu token de API de Bot de Telegram |
+| `chatId` | string | Sí | ID del chat de Telegram objetivo |
+| `photo` | string | Sí | Foto a enviar. Proporciona un file_id o URL HTTP |
+| `caption` | string | No | Pie de foto \(opcional\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+| `data` | object | Datos del mensaje de Telegram incluyendo foto\(s\) opcional\(es\) |
+
+### `telegram_send_video`
+
+Envía videos a canales o usuarios de Telegram a través de la API de Bot de Telegram.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `botToken` | string | Sí | Tu token de API de Bot de Telegram |
+| `chatId` | string | Sí | ID del chat de Telegram objetivo |
+| `video` | string | Sí | Video a enviar. Proporciona un file_id o URL HTTP |
+| `caption` | string | No | Pie de foto del video \(opcional\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+| `data` | object | Datos del mensaje de Telegram incluyendo medios opcionales |
+
+### `telegram_send_audio`
+
+Envía archivos de audio a canales o usuarios de Telegram a través de la API de Bot de Telegram.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `botToken` | string | Sí | Tu token de API de Bot de Telegram |
+| `chatId` | string | Sí | ID del chat de Telegram objetivo |
+| `audio` | string | Sí | Archivo de audio a enviar. Proporciona un file_id o URL HTTP |
+| `caption` | string | No | Pie de foto del audio \(opcional\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+| `data` | object | Datos del mensaje de Telegram incluyendo información de voz/audio |
+
+### `telegram_send_animation`
+
+Envía animaciones (GIFs) a canales o usuarios de Telegram a través de la API de Bot de Telegram.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `botToken` | string | Sí | Tu token de API de Bot de Telegram |
+| `chatId` | string | Sí | ID del chat de Telegram objetivo |
+| `animation` | string | Sí | Animación a enviar. Pasa un file_id o URL HTTP |
+| `caption` | string | No | Pie de la animación \(opcional\) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de éxito o error |
+| `data` | object | Datos del mensaje de Telegram incluyendo medios opcionales |
 
 ## Notas
 

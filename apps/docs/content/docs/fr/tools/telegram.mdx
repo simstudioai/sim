@@ -1,7 +1,6 @@
 ---
 title: Telegram
-description: Envoyez des messages via Telegram ou déclenchez des workflows à
-  partir d'événements Telegram
+description: Interagir avec Telegram
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -67,7 +66,7 @@ Dans Sim, l'intégration de Telegram permet à vos agents d'exploiter ces puissa
 
 ## Instructions d'utilisation
 
-Intégrer Telegram dans le flux de travail. Peut envoyer des messages. Peut être utilisé en mode déclencheur pour lancer un flux de travail lorsqu'un message est envoyé à une conversation.
+Intégrez Telegram dans le flux de travail. Peut envoyer et supprimer des messages. Peut être utilisé en mode déclencheur pour lancer un flux de travail lorsqu'un message est envoyé à un chat.
 
 ## Outils
 
@@ -93,6 +92,105 @@ Envoyez des messages aux canaux ou utilisateurs Telegram via l'API Bot Telegram.
 | `text` | string | Contenu textuel du message envoyé |
 | `timestamp` | number | Horodatage Unix lorsque le message a été envoyé |
 | `from` | object | Informations sur le bot qui a envoyé le message |
+
+### `telegram_delete_message`
+
+Supprimez des messages dans les canaux ou chats Telegram via l'API Bot Telegram. Nécessite l'ID du message à supprimer.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `botToken` | chaîne | Oui | Votre jeton d'API Bot Telegram |
+| `chatId` | chaîne | Oui | ID du chat Telegram cible |
+| `messageId` | chaîne | Oui | ID du message à supprimer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `data` | objet | Résultat de l'opération de suppression |
+
+### `telegram_send_photo`
+
+Envoyez des photos aux canaux ou utilisateurs Telegram via l'API Bot Telegram.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `botToken` | chaîne | Oui | Votre jeton d'API Bot Telegram |
+| `chatId` | chaîne | Oui | ID du chat Telegram cible |
+| `photo` | chaîne | Oui | Photo à envoyer. Indiquez un file_id ou une URL HTTP |
+| `caption` | chaîne | Non | Légende de la photo \(facultatif\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `data` | objet | Données du message Telegram incluant la/les photo\(s\) facultative\(s\) |
+
+### `telegram_send_video`
+
+Envoyez des vidéos aux canaux ou utilisateurs Telegram via l'API Bot Telegram.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `botToken` | chaîne | Oui | Votre jeton d'API Bot Telegram |
+| `chatId` | chaîne | Oui | ID du chat Telegram cible |
+| `video` | chaîne | Oui | Vidéo à envoyer. Passez un file_id ou une URL HTTP |
+| `caption` | chaîne | Non | Légende de la vidéo \(facultatif\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `data` | objet | Données du message Telegram incluant les médias facultatifs |
+
+### `telegram_send_audio`
+
+Envoyez des fichiers audio aux canaux ou utilisateurs Telegram via l'API Bot Telegram.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `botToken` | chaîne | Oui | Votre jeton d'API Bot Telegram |
+| `chatId` | chaîne | Oui | ID du chat Telegram cible |
+| `audio` | chaîne | Oui | Fichier audio à envoyer. Passez un file_id ou une URL HTTP |
+| `caption` | chaîne | Non | Légende audio \(facultatif\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `data` | objet | Données du message Telegram incluant les informations vocales/audio |
+
+### `telegram_send_animation`
+
+Envoyez des animations (GIFs) aux canaux ou utilisateurs Telegram via l'API Bot Telegram.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `botToken` | chaîne | Oui | Votre jeton d'API Bot Telegram |
+| `chatId` | chaîne | Oui | ID du chat Telegram cible |
+| `animation` | chaîne | Oui | Animation à envoyer. Passez un file_id ou une URL HTTP |
+| `caption` | chaîne | Non | Légende de l'animation \(facultatif\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `data` | objet | Données du message Telegram incluant les médias optionnels |
 
 ## Notes
 

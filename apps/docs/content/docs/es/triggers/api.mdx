@@ -22,9 +22,17 @@ El disparador de API expone tu flujo de trabajo como un punto de conexión HTTP 
   />
 </div>
 
-Añade un campo de **Formato de entrada** para cada parámetro. Las claves de salida en tiempo de ejecución reflejan el esquema y también están disponibles bajo `<api.input>`.
+Añade un campo de **Formato de entrada** para cada parámetro. Tipos admitidos:
 
-Las ejecuciones manuales en el editor utilizan la columna `value` para que puedas realizar pruebas sin enviar una solicitud. Durante la ejecución, el resolutor completa tanto `<api.userId>` como `<api.input.userId>`.
+- **string** - Valores de texto
+- **number** - Valores numéricos
+- **boolean** - Valores verdadero/falso
+- **json** - Objetos JSON
+- **files** - Carga de archivos (acceso mediante `<api.fieldName[0].url>`, `<api.fieldName[0].name>`, etc.)
+
+Las claves de salida en tiempo de ejecución reflejan el esquema y están disponibles bajo `<api.input>`.
+
+Las ejecuciones manuales en el editor utilizan la columna `value` para que puedas realizar pruebas sin enviar una solicitud. Durante la ejecución, el resolvedor completa tanto `<api.fieldName>` como `<api.input.fieldName>`.
 
 ## Ejemplo de solicitud
 
@@ -40,7 +48,7 @@ Las respuestas exitosas devuelven el resultado de ejecución serializado del Eje
 
 ## Respuestas en streaming
 
-Habilita el streaming en tiempo real para recibir la salida del flujo de trabajo a medida que se genera, carácter por carácter. Esto es útil para mostrar las respuestas de IA progresivamente a los usuarios.
+Habilita el streaming en tiempo real para recibir la salida del flujo de trabajo a medida que se genera, carácter por carácter. Esto es útil para mostrar respuestas de IA progresivamente a los usuarios.
 
 ### Parámetros de solicitud
 
@@ -51,7 +59,7 @@ Añade estos parámetros para habilitar el streaming:
 
 ### Formato de salida de bloque
 
-Usa el formato `blockName.attribute` para especificar qué salidas de bloques transmitir:
+Utiliza el formato `blockName.attribute` para especificar qué salidas de bloque transmitir:
 - Formato: `"blockName.attribute"` (p. ej., si quieres transmitir el contenido del bloque Agente 1, usarías `"agent1.content"`)
 - Los nombres de los bloques no distinguen entre mayúsculas y minúsculas y se ignoran los espacios
 
@@ -86,34 +94,37 @@ data: [DONE]
 ```
 
 Cada evento incluye:
-- **Fragmentos de streaming**: `{"blockId": "...", "chunk": "text"}` - Texto en tiempo real a medida que se genera
+- **Fragmentos en streaming**: `{"blockId": "...", "chunk": "text"}` - Texto en tiempo real a medida que se genera
 - **Evento final**: `{"event": "done", ...}` - Metadatos de ejecución y resultados completos
-- **Terminador**: `[DONE]` - Señala el fin del stream
+- **Terminador**: `[DONE]` - Indica el final del stream
 
 ### Streaming de múltiples bloques
 
 Cuando `selectedOutputs` incluye múltiples bloques, cada fragmento indica qué bloque lo produjo:
 
-```bash
-curl -X POST \
-  https://sim.ai/api/workflows/WORKFLOW_ID/execute \
-  -H 'Content-Type: application/json' \
-  -H 'X-API-Key: YOUR_KEY' \
-  -d '{
-    "message": "Process this request",
-    "stream": true,
-    "selectedOutputs": ["agent1.content", "agent2.content"]
-  }'
+```json
+{
+  "type": "block",
+  "blockType": "text",
+  "text": "Este es el primer bloque de texto."
+}
+
+{
+  "type": "block",
+  "blockType": "text",
+  "text": "Este es el segundo bloque de texto."
+}
 ```
 
-El campo `blockId` en cada fragmento te permite dirigir la salida al elemento de UI correcto:
+El campo `blockId` en cada fragmento te permite dirigir la salida al elemento de interfaz correcto:
 
-```
-data: {"blockId":"agent1-uuid","chunk":"Processing..."}
-
-data: {"blockId":"agent2-uuid","chunk":"Analyzing..."}
-
-data: {"blockId":"agent1-uuid","chunk":" complete"}
+```json
+{
+  "type": "block",
+  "blockType": "code",
+  "text": "console.log('Hola mundo');",
+  "language": "javascript"
+}
 ```
 
 ## Referencia de salida
@@ -121,10 +132,56 @@ data: {"blockId":"agent1-uuid","chunk":" complete"}
 | Referencia | Descripción |
 |-----------|-------------|
 | `<api.field>` | Campo definido en el formato de entrada |
-| `<api.input>` | Cuerpo de solicitud estructurado completo |
+| `<api.input>` | Cuerpo completo de la solicitud estructurada |
+
+### Formato de carga de archivos
+
+La API acepta archivos en dos formatos:
+
+**1. Archivos codificados en Base64** (recomendado para SDKs):
+
+```json
+{
+  "files": [{
+    "name": "example.pdf",
+    "data": "JVBERi0xLjMKJcTl8uXrp/Og0MTGCjQgMCBvYmoKPDwgL0xlbmd0aCA1IDAgUiAvRmls..."
+  }]
+}
+```
+
+- Tamaño máximo de archivo: 20MB por archivo
+- Los archivos se suben al almacenamiento en la nube y se convierten en objetos UserFile con todas las propiedades
+
+**2. Referencias directas de URL**:
+
+```json
+{
+  "files": [{
+    "url": "https://example.com/path/to/file.pdf"
+  }]
+}
+```
+
+- El archivo no se sube, la URL se pasa directamente
+- Útil para referenciar archivos existentes
+
+### Propiedades de archivos
+
+Para archivos, accede a todas las propiedades:
+
+| Propiedad | Descripción | Tipo |
+|----------|-------------|------|
+| `<api.fieldName[0].url>` | URL de descarga firmada | string |
+| `<api.fieldName[0].name>` | Nombre original del archivo | string |
+| `<api.fieldName[0].size>` | Tamaño del archivo en bytes | number |
+| `<api.fieldName[0].type>` | Tipo MIME | string |
+| `<api.fieldName[0].uploadedAt>` | Marca de tiempo de subida (ISO 8601) | string |
+| `<api.fieldName[0].expiresAt>` | Marca de tiempo de caducidad de URL (ISO 8601) | string |
+
+Para archivos referenciados por URL, las mismas propiedades están disponibles excepto `uploadedAt` y `expiresAt` ya que el archivo no se sube a nuestro almacenamiento.
 
 Si no se define un formato de entrada, el ejecutor expone el JSON sin procesar solo en `<api.input>`.
 
 <Callout type="warning">
-Un flujo de trabajo puede contener solo un disparador de API. Publica una nueva implementación después de los cambios para que el endpoint se mantenga actualizado.
+Un flujo de trabajo solo puede contener un disparador de API. Publica una nueva implementación después de los cambios para que el punto de conexión se mantenga actualizado.
 </Callout>
