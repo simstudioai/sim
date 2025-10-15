@@ -178,20 +178,50 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       type: 'personal' | 'workspace'
     } | null = null
 
-    if (!providedApiKey) {
+    // Use provided API key, or fall back to existing pinned API key for redeployment
+    const apiKeyToUse = providedApiKey || workflowData!.pinnedApiKeyId
+
+    if (!apiKeyToUse) {
       return NextResponse.json(
         { error: 'API key is required. Please create or select an API key before deploying.' },
         { status: 400 }
       )
     }
 
-    if (providedApiKey) {
-      let isValidKey = false
+    let isValidKey = false
 
-      const currentUserId = session?.user?.id
+    const currentUserId = session?.user?.id
 
-      if (currentUserId) {
-        const [personalKey] = await db
+    if (currentUserId) {
+      const [personalKey] = await db
+        .select({
+          id: apiKey.id,
+          key: apiKey.key,
+          name: apiKey.name,
+          expiresAt: apiKey.expiresAt,
+        })
+        .from(apiKey)
+        .where(
+          and(
+            eq(apiKey.id, apiKeyToUse),
+            eq(apiKey.userId, currentUserId),
+            eq(apiKey.type, 'personal')
+          )
+        )
+        .limit(1)
+
+      if (personalKey) {
+        if (!personalKey.expiresAt || personalKey.expiresAt >= new Date()) {
+          matchedKey = { ...personalKey, type: 'personal' }
+          isValidKey = true
+          keyInfo = { name: personalKey.name, type: 'personal' }
+        }
+      }
+    }
+
+    if (!isValidKey) {
+      if (workflowData!.workspaceId) {
+        const [workspaceKey] = await db
           .select({
             id: apiKey.id,
             key: apiKey.key,
@@ -201,55 +231,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           .from(apiKey)
           .where(
             and(
-              eq(apiKey.id, providedApiKey),
-              eq(apiKey.userId, currentUserId),
-              eq(apiKey.type, 'personal')
+              eq(apiKey.id, apiKeyToUse),
+              eq(apiKey.workspaceId, workflowData!.workspaceId),
+              eq(apiKey.type, 'workspace')
             )
           )
           .limit(1)
 
-        if (personalKey) {
-          if (!personalKey.expiresAt || personalKey.expiresAt >= new Date()) {
-            matchedKey = { ...personalKey, type: 'personal' }
+        if (workspaceKey) {
+          if (!workspaceKey.expiresAt || workspaceKey.expiresAt >= new Date()) {
+            matchedKey = { ...workspaceKey, type: 'workspace' }
             isValidKey = true
-            keyInfo = { name: personalKey.name, type: 'personal' }
+            keyInfo = { name: workspaceKey.name, type: 'workspace' }
           }
         }
       }
+    }
 
-      if (!isValidKey) {
-        if (workflowData!.workspaceId) {
-          const [workspaceKey] = await db
-            .select({
-              id: apiKey.id,
-              key: apiKey.key,
-              name: apiKey.name,
-              expiresAt: apiKey.expiresAt,
-            })
-            .from(apiKey)
-            .where(
-              and(
-                eq(apiKey.id, providedApiKey),
-                eq(apiKey.workspaceId, workflowData!.workspaceId),
-                eq(apiKey.type, 'workspace')
-              )
-            )
-            .limit(1)
-
-          if (workspaceKey) {
-            if (!workspaceKey.expiresAt || workspaceKey.expiresAt >= new Date()) {
-              matchedKey = { ...workspaceKey, type: 'workspace' }
-              isValidKey = true
-              keyInfo = { name: workspaceKey.name, type: 'workspace' }
-            }
-          }
-        }
-      }
-
-      if (!isValidKey) {
-        logger.warn(`[${requestId}] Invalid API key ID provided for workflow deployment: ${id}`)
-        return createErrorResponse('Invalid API key provided', 400)
-      }
+    if (!isValidKey) {
+      logger.warn(`[${requestId}] Invalid API key ID provided for workflow deployment: ${id}`)
+      return createErrorResponse('Invalid API key provided', 400)
     }
 
     // Attribution: this route is UI-only; require session user as actor

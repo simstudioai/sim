@@ -461,7 +461,7 @@ export const WorkflowBlock = memo(
       } else {
         // In normal mode, use merged state
         const blocks = useWorkflowStore.getState().blocks
-        const mergedState = mergeSubblockState(blocks, activeWorkflowId, id)[id]
+        const mergedState = mergeSubblockState(blocks, activeWorkflowId || undefined, id)[id]
         stateToUse = mergedState?.subBlocks || {}
       }
 
