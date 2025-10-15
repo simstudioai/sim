@@ -1,9 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertCircle, Info, Loader2, Play, RefreshCw, Square } from 'lucide-react'
+import { AlertCircle, BarChart3, Info, List, Loader2, Play, RefreshCw, Square } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
@@ -15,6 +16,7 @@ import { useDebounce } from '@/hooks/use-debounce'
 import { useFolderStore } from '@/stores/folders/store'
 import { useFilterStore } from '@/stores/logs/filters/store'
 import type { LogsResponse, WorkflowLog } from '@/stores/logs/filters/types'
+import ExecutionsDashboard from '@/app/workspace/[workspaceId]/logs/executions-dashboard'
 
 const logger = createLogger('Logs')
 const LOGS_PER_PAGE = 50
@@ -76,6 +78,8 @@ export default function Logs() {
     searchQuery: storeSearchQuery,
     setSearchQuery: setStoreSearchQuery,
     triggers,
+    viewMode,
+    setViewMode,
   } = useFilterStore()
 
   useEffect(() => {
@@ -661,6 +665,11 @@ export default function Logs() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [logs, selectedLogIndex, isSidebarOpen, selectedLog, handleNavigateNext, handleNavigatePrev])
 
+  // If in dashboard mode, show the dashboard
+  if (viewMode === 'dashboard') {
+    return <ExecutionsDashboard />
+  }
+
   return (
     <div className='flex h-full min-w-0 flex-col pl-64'>
       {/* Add the animation styles */}
@@ -747,6 +756,21 @@ export default function Logs() {
                 )}
                 <span>Live</span>
               </Button>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className='flex items-center rounded-[11px] border bg-card p-2'>
+                    <Switch
+                      checked={(viewMode as string) === 'dashboard'}
+                      onCheckedChange={(checked) => setViewMode(checked ? 'dashboard' : 'logs')}
+                      className='data-[state=checked]:bg-primary'
+                    />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {(viewMode as string) === 'dashboard' ? 'Switch to logs view' : 'Switch to executions dashboard'}
+                </TooltipContent>
+              </Tooltip>
             </div>
           </div>
 

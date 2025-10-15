@@ -21,6 +21,8 @@ const parseTimeRangeFromURL = (value: string | null): TimeRange => {
       return 'Past 30 minutes'
     case 'past-hour':
       return 'Past hour'
+    case 'past-12-hours':
+      return 'Past 12 hours'
     case 'past-24-hours':
       return 'Past 24 hours'
     default:
@@ -51,6 +53,8 @@ const timeRangeToURL = (timeRange: TimeRange): string => {
       return 'past-30-minutes'
     case 'Past hour':
       return 'past-hour'
+    case 'Past 12 hours':
+      return 'past-12-hours'
     case 'Past 24 hours':
       return 'past-24-hours'
     default:
@@ -61,6 +65,7 @@ const timeRangeToURL = (timeRange: TimeRange): string => {
 export const useFilterStore = create<FilterState>((set, get) => ({
   logs: [],
   workspaceId: '',
+  viewMode: 'logs',
   timeRange: 'All time',
   level: 'all',
   workflowIds: [],
@@ -85,6 +90,8 @@ export const useFilterStore = create<FilterState>((set, get) => ({
   },
 
   setWorkspaceId: (workspaceId) => set({ workspaceId }),
+
+  setViewMode: (viewMode) => set({ viewMode }),
 
   setTimeRange: (timeRange) => {
     set({ timeRange })
@@ -297,6 +304,9 @@ export const useFilterStore = create<FilterState>((set, get) => ({
           break
         case 'Past hour':
           startDate = new Date(now.getTime() - 60 * 60 * 1000)
+          break
+        case 'Past 12 hours':
+          startDate = new Date(now.getTime() - 12 * 60 * 60 * 1000)
           break
         case 'Past 24 hours':
           startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000)

@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { permissions, workflowExecutionLogs } from '@sim/db/schema'
-import { and, desc, eq, gte } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -10,7 +10,10 @@ import { generateRequestId } from '@/lib/utils'
 const logger = createLogger('WorkflowExecutionDetailsAPI')
 
 const QueryParamsSchema = z.object({
-  timeFilter: z.enum(['1h', '12h', '24h', '1w']).default('24h'),
+  timeFilter: z.enum(['1h', '12h', '24h', '1w']).optional(),
+  startTime: z.string().optional(),
+  endTime: z.string().optional(),
+  triggers: z.string().optional(),
 })
 
 function getTimeRangeMs(filter: string): number {
@@ -46,10 +49,20 @@ export async function GET(
     const { searchParams } = new URL(request.url)
     const queryParams = QueryParamsSchema.parse(Object.fromEntries(searchParams.entries()))
 
-    // Calculate time range
-    const endTime = new Date()
-    const timeRangeMs = getTimeRangeMs(queryParams.timeFilter)
-    const startTime = new Date(endTime.getTime() - timeRangeMs)
+    // Calculate time range - use custom times if provided, otherwise use timeFilter
+    let endTime: Date
+    let startTime: Date
+    
+    if (queryParams.startTime && queryParams.endTime) {
+      startTime = new Date(queryParams.startTime)
+      endTime = new Date(queryParams.endTime)
+    } else {
+      endTime = new Date()
+      const timeRangeMs = getTimeRangeMs(queryParams.timeFilter || '24h')
+      startTime = new Date(endTime.getTime() - timeRangeMs)
+    }
+    
+    const timeRangeMs = endTime.getTime() - startTime.getTime()
 
     // Number of data points for the line charts
     const dataPoints = 30
@@ -75,6 +88,18 @@ export async function GET(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    // Build conditions for log filtering
+    const logConditions = [
+      eq(workflowExecutionLogs.workflowId, workflowId),
+      gte(workflowExecutionLogs.startedAt, startTime)
+    ]
+
+    // Add trigger filter if specified
+    if (queryParams.triggers) {
+      const triggerList = queryParams.triggers.split(',')
+      logConditions.push(inArray(workflowExecutionLogs.trigger, triggerList))
+    }
+
     // Fetch all logs for this workflow in the time range
     const logs = await db
       .select({
@@ -88,12 +113,7 @@ export async function GET(
         cost: workflowExecutionLogs.cost,
       })
       .from(workflowExecutionLogs)
-      .where(
-        and(
-          eq(workflowExecutionLogs.workflowId, workflowId),
-          gte(workflowExecutionLogs.startedAt, startTime)
-        )
-      )
+      .where(and(...logConditions))
       .orderBy(desc(workflowExecutionLogs.startedAt))
       .limit(50)
 
@@ -257,12 +277,13 @@ export async function GET(
 
     logger.debug(`[${requestId}] Successfully calculated workflow details`)
 
+    logger.debug(`[${requestId}] Returning ${formattedLogs.length} execution logs`)
+
     return NextResponse.json({
       errorRates,
       durations,
       executionCounts,
       logs: formattedLogs,
-      timeFilter: queryParams.timeFilter,
       startTime: startTime.toISOString(),
       endTime: endTime.toISOString(),
     })

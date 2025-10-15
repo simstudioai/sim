@@ -123,7 +123,7 @@ export interface LogsResponse {
   totalPages: number
 }
 
-export type TimeRange = 'Past 30 minutes' | 'Past hour' | 'Past 24 hours' | 'All time'
+export type TimeRange = 'Past 30 minutes' | 'Past hour' | 'Past 12 hours' | 'Past 24 hours' | 'All time'
 export type LogLevel = 'error' | 'info' | 'all'
 export type TriggerType = 'chat' | 'api' | 'webhook' | 'manual' | 'schedule' | 'all'
 
@@ -133,6 +133,9 @@ export interface FilterState {
 
   // Workspace context
   workspaceId: string
+
+  // View mode
+  viewMode: 'logs' | 'dashboard'
 
   // Filter states
   timeRange: TimeRange
@@ -157,6 +160,7 @@ export interface FilterState {
   // Actions
   setLogs: (logs: WorkflowLog[], append?: boolean) => void
   setWorkspaceId: (workspaceId: string) => void
+  setViewMode: (viewMode: 'logs' | 'dashboard') => void
   setTimeRange: (timeRange: TimeRange) => void
   setLevel: (level: LogLevel) => void
   setWorkflowIds: (workflowIds: string[]) => void
