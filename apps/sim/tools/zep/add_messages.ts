@@ -63,7 +63,7 @@ export const zepAddMessagesTool: ToolConfig<any, ZepResponse> = {
   },
 
   transformResponse: async (response, params) => {
-    const threadId = params._threadId
+    const threadId = params.threadId
 
     const text = await response.text()
 
