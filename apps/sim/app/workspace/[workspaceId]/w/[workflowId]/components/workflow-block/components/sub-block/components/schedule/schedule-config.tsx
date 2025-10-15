@@ -113,11 +113,13 @@ export function ScheduleConfig({
     }
   }, [workflowId, blockId, isScheduleTriggerBlock])
 
-  // Fetch schedule data on mount
+  // Fetch schedule data on mount and when dependencies change
   useEffect(() => {
     fetchSchedule()
+  }, [fetchSchedule])
 
-    // Listen for schedule updates from other components
+  // Separate effect for event listener to avoid removing/re-adding on every dependency change
+  useEffect(() => {
     const handleScheduleUpdate = (event: CustomEvent) => {
       if (event.detail?.workflowId === workflowId && event.detail?.blockId === blockId) {
         logger.debug('Schedule update event received in schedule-config, refetching')
@@ -130,7 +132,7 @@ export function ScheduleConfig({
     return () => {
       window.removeEventListener('schedule-updated', handleScheduleUpdate as EventListener)
     }
-  }, [fetchSchedule, workflowId, blockId])
+  }, [workflowId, blockId, fetchSchedule])
 
   // Refetch when modal opens to get latest data
   useEffect(() => {
