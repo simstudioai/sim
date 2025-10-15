@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertCircle, BarChart3, Info, List, Loader2, Play, RefreshCw, Square } from 'lucide-react'
+import { AlertCircle, Info, Loader2, Play, RefreshCw, Square } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -11,12 +11,12 @@ import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
 import { cn } from '@/lib/utils'
 import { AutocompleteSearch } from '@/app/workspace/[workspaceId]/logs/components/search/search'
 import { Sidebar } from '@/app/workspace/[workspaceId]/logs/components/sidebar/sidebar'
+import ExecutionsDashboard from '@/app/workspace/[workspaceId]/logs/executions-dashboard'
 import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils/format-date'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useFolderStore } from '@/stores/folders/store'
 import { useFilterStore } from '@/stores/logs/filters/store'
 import type { LogsResponse, WorkflowLog } from '@/stores/logs/filters/types'
-import ExecutionsDashboard from '@/app/workspace/[workspaceId]/logs/executions-dashboard'
 
 const logger = createLogger('Logs')
 const LOGS_PER_PAGE = 50
@@ -768,7 +768,9 @@ export default function Logs() {
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {(viewMode as string) === 'dashboard' ? 'Switch to logs view' : 'Switch to executions dashboard'}
+                  {(viewMode as string) === 'dashboard'
+                    ? 'Switch to logs view'
+                    : 'Switch to executions dashboard'}
                 </TooltipContent>
               </Tooltip>
             </div>

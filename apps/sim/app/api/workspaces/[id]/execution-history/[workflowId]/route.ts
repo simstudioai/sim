@@ -52,7 +52,7 @@ export async function GET(
     // Calculate time range - use custom times if provided, otherwise use timeFilter
     let endTime: Date
     let startTime: Date
-    
+
     if (queryParams.startTime && queryParams.endTime) {
       startTime = new Date(queryParams.startTime)
       endTime = new Date(queryParams.endTime)
@@ -61,7 +61,7 @@ export async function GET(
       const timeRangeMs = getTimeRangeMs(queryParams.timeFilter || '24h')
       startTime = new Date(endTime.getTime() - timeRangeMs)
     }
-    
+
     const timeRangeMs = endTime.getTime() - startTime.getTime()
 
     // Number of data points for the line charts
@@ -91,7 +91,7 @@ export async function GET(
     // Build conditions for log filtering
     const logConditions = [
       eq(workflowExecutionLogs.workflowId, workflowId),
-      gte(workflowExecutionLogs.startedAt, startTime)
+      gte(workflowExecutionLogs.startedAt, startTime),
     ]
 
     // Add trigger filter if specified
@@ -194,7 +194,7 @@ export async function GET(
       const executionData = log.executionData as any
       const triggerData = executionData?.trigger || {}
       const traceSpans = executionData?.traceSpans || []
-      
+
       // Extract error message from trace spans
       let errorMessage = null
       if (log.level === 'error') {
@@ -204,26 +204,25 @@ export async function GET(
           errorMessage = executionData?.errorDetails?.error || null
         }
       }
-      
+
       // Extract outputs from the last block in trace spans
       let outputs = null
       let cost = null
-      
+
       if (traceSpans.length > 0) {
         // Flatten all blocks from trace spans
         const allBlocks = flattenTraceSpans(traceSpans)
-        
+
         // Find the last successful block execution
-        const successBlocks = allBlocks.filter((span: any) => 
-          span.status !== 'error' && 
-          span.output &&
-          Object.keys(span.output).length > 0
+        const successBlocks = allBlocks.filter(
+          (span: any) =>
+            span.status !== 'error' && span.output && Object.keys(span.output).length > 0
         )
-        
+
         if (successBlocks.length > 0) {
           const lastBlock = successBlocks[successBlocks.length - 1]
           const blockOutput = lastBlock.output || {}
-          
+
           // Clean up the output to show meaningful data
           // Priority: content > result > data > the whole output object
           if (blockOutput.content) {
@@ -236,7 +235,17 @@ export async function GET(
             // Filter out internal/metadata fields for cleaner display
             const cleanOutput: any = {}
             for (const [key, value] of Object.entries(blockOutput)) {
-              if (!['executionTime', 'tokens', 'model', 'cost', 'childTraceSpans', 'error', 'stackTrace'].includes(key)) {
+              if (
+                ![
+                  'executionTime',
+                  'tokens',
+                  'model',
+                  'cost',
+                  'childTraceSpans',
+                  'error',
+                  'stackTrace',
+                ].includes(key)
+              ) {
                 cleanOutput[key] = value
               }
             }
@@ -244,18 +253,18 @@ export async function GET(
               outputs = cleanOutput
             }
           }
-          
+
           // Extract cost from the block output
           if (blockOutput.cost) {
             cost = blockOutput.cost
           }
         }
       }
-      
+
       // Use the cost stored at the top-level in workflowExecutionLogs table
       // This is the same cost shown in the logs page
       const logCost = log.cost as any
-      
+
       return {
         id: log.id,
         executionId: log.executionId,
@@ -267,11 +276,13 @@ export async function GET(
         outputs,
         errorMessage,
         duration: log.totalDurationMs,
-        cost: logCost ? {
-          input: logCost.input || 0,
-          output: logCost.output || 0,
-          total: logCost.total || 0,
-        } : null,
+        cost: logCost
+          ? {
+              input: logCost.input || 0,
+              output: logCost.output || 0,
+              total: logCost.total || 0,
+            }
+          : null,
       }
     })
 
@@ -292,4 +303,3 @@ export async function GET(
     return NextResponse.json({ error: 'Failed to fetch workflow details' }, { status: 500 })
   }
 }
-

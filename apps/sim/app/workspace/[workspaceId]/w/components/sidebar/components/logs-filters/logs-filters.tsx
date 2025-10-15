@@ -11,7 +11,7 @@ import { useFilterStore } from '@/stores/logs/filters/store'
 
 export function LogsFilters() {
   const viewMode = useFilterStore((state) => state.viewMode)
-  
+
   const sections = [
     { key: 'level', title: 'Level', component: <Level />, showInDashboard: false },
     { key: 'workflow', title: 'Workflow', component: <Workflow />, showInDashboard: true },
@@ -20,9 +20,8 @@ export function LogsFilters() {
     { key: 'timeline', title: 'Timeline', component: <Timeline />, showInDashboard: true },
   ]
 
-  const filteredSections = viewMode === 'dashboard' 
-    ? sections.filter(section => section.showInDashboard)
-    : sections
+  const filteredSections =
+    viewMode === 'dashboard' ? sections.filter((section) => section.showInDashboard) : sections
 
   return (
     <div className='h-full'>

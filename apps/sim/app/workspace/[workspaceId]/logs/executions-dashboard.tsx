@@ -1,17 +1,25 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight, ExternalLink, Info, List, Loader2, RotateCcw, Search } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Info,
+  Loader2,
+  RotateCcw,
+  Search,
+} from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
+import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
+import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils/format-date'
 import { formatCost } from '@/providers/utils'
 import { useFilterStore } from '@/stores/logs/filters/store'
-import { cn } from '@/lib/utils'
-import { Input } from '@/components/ui/input'
-import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils/format-date'
 
 type TimeFilter = '1w' | '24h' | '12h' | '1h'
 
@@ -320,8 +328,15 @@ export default function ExecutionsDashboard() {
   const [selectedSegmentTimestamp, setSelectedSegmentTimestamp] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
 
-  const { workflowIds, folderIds, triggers, viewMode, setViewMode, timeRange: sidebarTimeRange } = useFilterStore()
-  
+  const {
+    workflowIds,
+    folderIds,
+    triggers,
+    viewMode,
+    setViewMode,
+    timeRange: sidebarTimeRange,
+  } = useFilterStore()
+
   const timeFilter = getTimeFilterFromRange(sidebarTimeRange)
 
   // Filter executions based on search query
@@ -352,61 +367,64 @@ export default function ExecutionsDashboard() {
     return start
   }, [endTime, timeFilter])
 
-  const fetchExecutions = useCallback(async (isInitialLoad = false) => {
-    try {
-      if (isInitialLoad) {
-        setLoading(true)
-      } else {
-        setIsRefetching(true)
+  const fetchExecutions = useCallback(
+    async (isInitialLoad = false) => {
+      try {
+        if (isInitialLoad) {
+          setLoading(true)
+        } else {
+          setIsRefetching(true)
+        }
+        setError(null)
+
+        const startTime = getStartTime()
+        const params = new URLSearchParams({
+          segments: BAR_COUNT.toString(),
+          startTime: startTime.toISOString(),
+          endTime: endTime.toISOString(),
+        })
+
+        // Add workflow filters if any
+        if (workflowIds.length > 0) {
+          params.set('workflowIds', workflowIds.join(','))
+        }
+
+        // Add folder filters if any
+        if (folderIds.length > 0) {
+          params.set('folderIds', folderIds.join(','))
+        }
+
+        // Add trigger filters if any
+        if (triggers.length > 0) {
+          params.set('triggers', triggers.join(','))
+        }
+
+        const response = await fetch(
+          `/api/workspaces/${workspaceId}/execution-history?${params.toString()}`
+        )
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch execution history')
+        }
+
+        const data = await response.json()
+        // Sort workflows by error rate (highest first)
+        const sortedWorkflows = [...data.workflows].sort((a, b) => {
+          const errorRateA = 100 - a.overallSuccessRate
+          const errorRateB = 100 - b.overallSuccessRate
+          return errorRateB - errorRateA
+        })
+        setExecutions(sortedWorkflows)
+      } catch (err) {
+        console.error('Error fetching executions:', err)
+        setError(err instanceof Error ? err.message : 'An error occurred')
+      } finally {
+        setLoading(false)
+        setIsRefetching(false)
       }
-      setError(null)
-
-      const startTime = getStartTime()
-      const params = new URLSearchParams({
-        segments: BAR_COUNT.toString(),
-        startTime: startTime.toISOString(),
-        endTime: endTime.toISOString(),
-      })
-
-      // Add workflow filters if any
-      if (workflowIds.length > 0) {
-        params.set('workflowIds', workflowIds.join(','))
-      }
-
-      // Add folder filters if any
-      if (folderIds.length > 0) {
-        params.set('folderIds', folderIds.join(','))
-      }
-
-      // Add trigger filters if any
-      if (triggers.length > 0) {
-        params.set('triggers', triggers.join(','))
-      }
-
-      const response = await fetch(
-        `/api/workspaces/${workspaceId}/execution-history?${params.toString()}`
-      )
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch execution history')
-      }
-
-      const data = await response.json()
-      // Sort workflows by error rate (highest first)
-      const sortedWorkflows = [...data.workflows].sort((a, b) => {
-        const errorRateA = 100 - a.overallSuccessRate
-        const errorRateB = 100 - b.overallSuccessRate
-        return errorRateB - errorRateA
-      })
-      setExecutions(sortedWorkflows)
-    } catch (err) {
-      console.error('Error fetching executions:', err)
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    } finally {
-      setLoading(false)
-      setIsRefetching(false)
-    }
-  }, [workspaceId, timeFilter, endTime, getStartTime, workflowIds, folderIds, triggers])
+    },
+    [workspaceId, timeFilter, endTime, getStartTime, workflowIds, folderIds, triggers]
+  )
 
   const fetchWorkflowDetails = useCallback(
     async (workflowId: string, silent = false) => {
@@ -563,18 +581,18 @@ export default function ExecutionsDashboard() {
           <div className='mb-8 flex flex-col items-stretch justify-between gap-4 sm:flex-row sm:items-start'>
             {/* Search Bar */}
             <div className='relative w-full max-w-md'>
-              <Search className='absolute top-1/2 left-3 h-[18px] w-[18px] -translate-y-1/2 text-muted-foreground' />
+              <Search className='-translate-y-1/2 absolute top-1/2 left-3 h-[18px] w-[18px] text-muted-foreground' />
               <Input
                 type='text'
                 placeholder='Search workflows...'
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className='h-9 w-full rounded-[11px] border-[#E5E5E5] bg-[#FFFFFF] pl-9 pr-10 dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
+                className='h-9 w-full rounded-[11px] border-[#E5E5E5] bg-[#FFFFFF] pr-10 pl-9 dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className='absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground'
+                  className='-translate-y-1/2 absolute top-1/2 right-3 text-muted-foreground hover:text-foreground'
                 >
                   <svg
                     width='14'
@@ -590,7 +608,7 @@ export default function ExecutionsDashboard() {
                 </button>
               )}
             </div>
-        
+
             <div className='ml-auto flex flex-shrink-0 items-center gap-3'>
               {/* View Mode Toggle */}
               <Tooltip>
@@ -604,7 +622,9 @@ export default function ExecutionsDashboard() {
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {(viewMode as string) === 'dashboard' ? 'Switch to logs view' : 'Switch to executions dashboard'}
+                  {(viewMode as string) === 'dashboard'
+                    ? 'Switch to logs view'
+                    : 'Switch to executions dashboard'}
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -612,496 +632,511 @@ export default function ExecutionsDashboard() {
 
           {/* Content */}
           {loading ? (
-        <div className='flex flex-1 items-center justify-center'>
-          <div className='flex items-center gap-2 text-muted-foreground'>
-            <Loader2 className='h-5 w-5 animate-spin' />
-            <span>Loading execution history...</span>
-          </div>
-        </div>
-      ) : error ? (
-        <div className='flex flex-1 items-center justify-center'>
-          <div className='text-destructive'>
-            <p className='font-medium'>Error loading data</p>
-            <p className='text-sm'>{error}</p>
-          </div>
-        </div>
-      ) : executions.length === 0 ? (
-        <div className='flex flex-1 items-center justify-center'>
-          <div className='text-center text-muted-foreground'>
-            <p className='font-medium'>No execution history</p>
-            <p className='mt-1 text-sm'>Execute some workflows to see their history here</p>
-          </div>
-        </div>
-      ) : (
-        <>
-          {/* Time Range Display */}
-          <div className='mb-4 flex items-center justify-between'>
-            <div className='flex items-center gap-3'>
-              <span className='text-muted-foreground text-sm font-medium'>{getDateRange()}</span>
-              {!isLive && (
-                <span className='inline-flex items-center rounded-md bg-amber-500/10 px-2 py-0.5 text-amber-600 text-xs dark:text-amber-400'>
-                  Historical
-                </span>
-              )}
-              {(workflowIds.length > 0 || folderIds.length > 0 || triggers.length > 0) && (
-                <div className='flex items-center gap-2 text-muted-foreground text-xs'>
-                  <span>Filters:</span>
-                  {workflowIds.length > 0 && (
-                    <span className='inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-primary text-xs'>
-                      {workflowIds.length} workflow{workflowIds.length !== 1 ? 's' : ''}
+            <div className='flex flex-1 items-center justify-center'>
+              <div className='flex items-center gap-2 text-muted-foreground'>
+                <Loader2 className='h-5 w-5 animate-spin' />
+                <span>Loading execution history...</span>
+              </div>
+            </div>
+          ) : error ? (
+            <div className='flex flex-1 items-center justify-center'>
+              <div className='text-destructive'>
+                <p className='font-medium'>Error loading data</p>
+                <p className='text-sm'>{error}</p>
+              </div>
+            </div>
+          ) : executions.length === 0 ? (
+            <div className='flex flex-1 items-center justify-center'>
+              <div className='text-center text-muted-foreground'>
+                <p className='font-medium'>No execution history</p>
+                <p className='mt-1 text-sm'>Execute some workflows to see their history here</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Time Range Display */}
+              <div className='mb-4 flex items-center justify-between'>
+                <div className='flex items-center gap-3'>
+                  <span className='font-medium text-muted-foreground text-sm'>
+                    {getDateRange()}
+                  </span>
+                  {!isLive && (
+                    <span className='inline-flex items-center rounded-md bg-amber-500/10 px-2 py-0.5 text-amber-600 text-xs dark:text-amber-400'>
+                      Historical
                     </span>
                   )}
-                  {folderIds.length > 0 && (
-                    <span className='inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-primary text-xs'>
-                      {folderIds.length} folder{folderIds.length !== 1 ? 's' : ''}
-                    </span>
-                  )}
-                  {triggers.length > 0 && (
-                    <span className='inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-primary text-xs'>
-                      {triggers.length} trigger{triggers.length !== 1 ? 's' : ''}
-                    </span>
+                  {(workflowIds.length > 0 || folderIds.length > 0 || triggers.length > 0) && (
+                    <div className='flex items-center gap-2 text-muted-foreground text-xs'>
+                      <span>Filters:</span>
+                      {workflowIds.length > 0 && (
+                        <span className='inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-primary text-xs'>
+                          {workflowIds.length} workflow{workflowIds.length !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                      {folderIds.length > 0 && (
+                        <span className='inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-primary text-xs'>
+                          {folderIds.length} folder{folderIds.length !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                      {triggers.length > 0 && (
+                        <span className='inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-primary text-xs'>
+                          {triggers.length} trigger{triggers.length !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
 
-            {/* Time Navigation Controls - Far Right */}
-            <div className='flex items-center gap-1'>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant='outline'
-                    size='icon'
-                    onClick={() => shiftTimeWindow('back')}
-                    className='h-7 w-7'
-                  >
-                    <ChevronLeft className='h-3.5 w-3.5' />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  Previous {getShiftLabel()}
-                </TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant='outline'
-                    size='icon'
-                    onClick={resetToNow}
-                    disabled={isLive}
-                    className='h-7 w-7'
-                  >
-                    <RotateCcw className='h-3.5 w-3.5' />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Jump to now</TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant='outline'
-                    size='icon'
-                    onClick={() => shiftTimeWindow('forward')}
-                    disabled={isLive}
-                    className='h-7 w-7'
-                  >
-                    <ChevronRight className='h-3.5 w-3.5' />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Next {getShiftLabel()}</TooltipContent>
-              </Tooltip>
-            </div>
-          </div>
-
-          <div
-            className='overflow-hidden rounded-lg border bg-card shadow-sm'
-            style={{ maxHeight: '350px', display: 'flex', flexDirection: 'column' }}
-          >
-            <div className='border-b bg-muted/30 px-4 py-2.5 flex-shrink-0'>
-              <div className='flex items-center justify-between'>
-                <h3 className='font-medium text-sm'>Workflows</h3>
-                <span className='text-muted-foreground text-xs'>
-                  {filteredExecutions.length} workflow{filteredExecutions.length !== 1 ? 's' : ''}
-                  {searchQuery && ` (filtered from ${executions.length})`}
-                </span>
-              </div>
-            </div>
-            <ScrollArea className='flex-1' style={{ height: 'calc(350px - 41px)' }}>
-              <div className='space-y-1 p-3'>
-                {filteredExecutions.length === 0 ? (
-                  <div className='py-8 text-center text-muted-foreground text-sm'>
-                    No workflows found matching "{searchQuery}"
-                  </div>
-                ) : (
-                  filteredExecutions.map((workflow) => {
-                  const isSelected = expandedWorkflowId === workflow.workflowId
-
-                  return (
-                    <div
-                      key={workflow.workflowId}
-                      className={`flex cursor-pointer items-center gap-4 rounded-lg px-2 py-1.5 transition-colors ${
-                        isSelected ? 'bg-accent/40' : 'hover:bg-accent/20'
-                      }`}
-                      onClick={() => toggleWorkflow(workflow.workflowId)}
-                    >
-                      <div className='w-52 min-w-0 flex-shrink-0'>
-                        <h3
-                          className='truncate font-medium text-sm transition-colors hover:text-primary'
-                          title={workflow.workflowName}
-                        >
-                          {workflow.workflowName}
-                        </h3>
-                      </div>
-
-                      <div className='flex-1'>
-                        <StatusBar
-                          segments={workflow.segments}
-                          selectedSegmentIndex={isSelected ? selectedSegmentIndex : null}
-                          onSegmentClick={handleSegmentClick}
-                          workflowId={workflow.workflowId}
-                        />
-                      </div>
-
-                      <div className='w-16 flex-shrink-0 text-right'>
-                        <span className='font-medium text-muted-foreground text-sm'>
-                          {workflow.overallSuccessRate.toFixed(1)}%
-                        </span>
-                      </div>
-                    </div>
-                  )
-                })
-                )}
-              </div>
-            </ScrollArea>
-          </div>
-
-          {/* Details section below the entire bars component */}
-          {expandedWorkflowId && (
-            <div className='mt-6 rounded-lg border bg-card shadow-sm'>
-              <div className='border-b bg-muted/30 px-6 py-4'>
-                <div className='flex items-center gap-2'>
-                  <h3 className='font-semibold text-lg tracking-tight'>
-                    {executions.find((w) => w.workflowId === expandedWorkflowId)?.workflowName}
-                  </h3>
+                {/* Time Navigation Controls - Far Right */}
+                <div className='flex items-center gap-1'>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <button
-                        onClick={() => router.push(`/workspace/${workspaceId}/w/${expandedWorkflowId}`)}
-                        className='rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground'
+                      <Button
+                        variant='outline'
+                        size='icon'
+                        onClick={() => shiftTimeWindow('back')}
+                        className='h-7 w-7'
                       >
-                        <ExternalLink className='h-4 w-4' />
-                      </button>
+                        <ChevronLeft className='h-3.5 w-3.5' />
+                      </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Open workflow</TooltipContent>
+                    <TooltipContent>Previous {getShiftLabel()}</TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant='outline'
+                        size='icon'
+                        onClick={resetToNow}
+                        disabled={isLive}
+                        className='h-7 w-7'
+                      >
+                        <RotateCcw className='h-3.5 w-3.5' />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Jump to now</TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant='outline'
+                        size='icon'
+                        onClick={() => shiftTimeWindow('forward')}
+                        disabled={isLive}
+                        className='h-7 w-7'
+                      >
+                        <ChevronRight className='h-3.5 w-3.5' />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Next {getShiftLabel()}</TooltipContent>
                   </Tooltip>
                 </div>
               </div>
-              <div className='p-6'>
-                 {workflowDetails[expandedWorkflowId] ? (
-                  <>
-                    {/* Filter info banner */}
-                    {selectedSegmentIndex !== null &&
-                      (() => {
-                        const workflow = executions.find((w) => w.workflowId === expandedWorkflowId)
-                        const segment = workflow?.segments[selectedSegmentIndex]
-                        if (!segment) return null
 
-                        const segmentStart = new Date(segment.timestamp)
-                        const timeRangeMs =
-                          timeFilter === '1h'
-                            ? 60 * 60 * 1000
-                            : timeFilter === '12h'
-                              ? 12 * 60 * 60 * 1000
-                              : timeFilter === '24h'
-                                ? 24 * 60 * 60 * 1000
-                                : 7 * 24 * 60 * 60 * 1000
-                        const segmentDurationMs = timeRangeMs / BAR_COUNT
-                        const segmentEnd = new Date(segmentStart.getTime() + segmentDurationMs)
-
-                        const formatOptions: Intl.DateTimeFormatOptions = {
-                          month: 'short',
-                          day: 'numeric',
-                          hour: 'numeric',
-                          minute: '2-digit',
-                          hour12: true,
-                        }
-
-                        const startStr = segmentStart.toLocaleString('en-US', formatOptions)
-                        const endStr = segmentEnd.toLocaleString('en-US', formatOptions)
+              <div
+                className='overflow-hidden rounded-lg border bg-card shadow-sm'
+                style={{ maxHeight: '350px', display: 'flex', flexDirection: 'column' }}
+              >
+                <div className='flex-shrink-0 border-b bg-muted/30 px-4 py-2.5'>
+                  <div className='flex items-center justify-between'>
+                    <h3 className='font-medium text-sm'>Workflows</h3>
+                    <span className='text-muted-foreground text-xs'>
+                      {filteredExecutions.length} workflow
+                      {filteredExecutions.length !== 1 ? 's' : ''}
+                      {searchQuery && ` (filtered from ${executions.length})`}
+                    </span>
+                  </div>
+                </div>
+                <ScrollArea className='flex-1' style={{ height: 'calc(350px - 41px)' }}>
+                  <div className='space-y-1 p-3'>
+                    {filteredExecutions.length === 0 ? (
+                      <div className='py-8 text-center text-muted-foreground text-sm'>
+                        No workflows found matching "{searchQuery}"
+                      </div>
+                    ) : (
+                      filteredExecutions.map((workflow) => {
+                        const isSelected = expandedWorkflowId === workflow.workflowId
 
                         return (
-                          <div className='mb-4 flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-4 py-2.5 text-sm'>
-                            <div className='flex items-center gap-2'>
-                              <div className='h-2 w-2 animate-pulse rounded-full bg-primary' />
-                              <span className='font-medium text-primary'>
-                                Filtered to {startStr} — {endStr} ({segment.totalExecutions}{' '}
-                                execution{segment.totalExecutions !== 1 ? 's' : ''})
+                          <div
+                            key={workflow.workflowId}
+                            className={`flex cursor-pointer items-center gap-4 rounded-lg px-2 py-1.5 transition-colors ${
+                              isSelected ? 'bg-accent/40' : 'hover:bg-accent/20'
+                            }`}
+                            onClick={() => toggleWorkflow(workflow.workflowId)}
+                          >
+                            <div className='w-52 min-w-0 flex-shrink-0'>
+                              <h3
+                                className='truncate font-medium text-sm transition-colors hover:text-primary'
+                                title={workflow.workflowName}
+                              >
+                                {workflow.workflowName}
+                              </h3>
+                            </div>
+
+                            <div className='flex-1'>
+                              <StatusBar
+                                segments={workflow.segments}
+                                selectedSegmentIndex={isSelected ? selectedSegmentIndex : null}
+                                onSegmentClick={handleSegmentClick}
+                                workflowId={workflow.workflowId}
+                              />
+                            </div>
+
+                            <div className='w-16 flex-shrink-0 text-right'>
+                              <span className='font-medium text-muted-foreground text-sm'>
+                                {workflow.overallSuccessRate.toFixed(1)}%
                               </span>
                             </div>
-                            <button
-                              onClick={() => {
-                                setSelectedSegmentIndex(null)
-                                setSelectedSegmentTimestamp(null)
-                              }}
-                              className='text-primary text-xs hover:underline'
-                            >
-                              Clear filter
-                            </button>
                           </div>
                         )
-                      })()}
+                      })
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
 
-                    <div className='mb-6 grid grid-cols-3 gap-6'>
-                      <LineChart
-                        data={workflowDetails[expandedWorkflowId].errorRates}
-                        label='Error Rate'
-                        color='#ef4444'
-                        unit='%'
-                      />
-                      <LineChart
-                        data={workflowDetails[expandedWorkflowId].durations}
-                        label='Workflow Duration'
-                        color='#3b82f6'
-                        unit='ms'
-                      />
-                      <LineChart
-                        data={workflowDetails[expandedWorkflowId].executionCounts}
-                        label='Usage'
-                        color='#10b981'
-                        unit=' execs'
-                      />
+              {/* Details section below the entire bars component */}
+              {expandedWorkflowId && (
+                <div className='mt-6 rounded-lg border bg-card shadow-sm'>
+                  <div className='border-b bg-muted/30 px-6 py-4'>
+                    <div className='flex items-center gap-2'>
+                      <h3 className='font-semibold text-lg tracking-tight'>
+                        {executions.find((w) => w.workflowId === expandedWorkflowId)?.workflowName}
+                      </h3>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() =>
+                              router.push(`/workspace/${workspaceId}/w/${expandedWorkflowId}`)
+                            }
+                            className='rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground'
+                          >
+                            <ExternalLink className='h-4 w-4' />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>Open workflow</TooltipContent>
+                      </Tooltip>
                     </div>
+                  </div>
+                  <div className='p-6'>
+                    {workflowDetails[expandedWorkflowId] ? (
+                      <>
+                        {/* Filter info banner */}
+                        {selectedSegmentIndex !== null &&
+                          (() => {
+                            const workflow = executions.find(
+                              (w) => w.workflowId === expandedWorkflowId
+                            )
+                            const segment = workflow?.segments[selectedSegmentIndex]
+                            if (!segment) return null
 
-                  {/* Logs Table */}
-                  <TooltipProvider delayDuration={0}>
-                    <div className='flex flex-1 flex-col overflow-hidden'>
-                      {/* Table header */}
-                      <div className='w-full overflow-x-auto'>
-                        <div>
-                          <div className='border-border border-b'>
-                            <div className='grid min-w-[700px] grid-cols-[140px_90px_100px_90px_100px_1fr_90px] gap-2 px-2 pb-3 md:gap-3 lg:min-w-0 lg:gap-4'>
-                              <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
-                                Time
+                            const segmentStart = new Date(segment.timestamp)
+                            const timeRangeMs =
+                              timeFilter === '1h'
+                                ? 60 * 60 * 1000
+                                : timeFilter === '12h'
+                                  ? 12 * 60 * 60 * 1000
+                                  : timeFilter === '24h'
+                                    ? 24 * 60 * 60 * 1000
+                                    : 7 * 24 * 60 * 60 * 1000
+                            const segmentDurationMs = timeRangeMs / BAR_COUNT
+                            const segmentEnd = new Date(segmentStart.getTime() + segmentDurationMs)
+
+                            const formatOptions: Intl.DateTimeFormatOptions = {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: 'numeric',
+                              minute: '2-digit',
+                              hour12: true,
+                            }
+
+                            const startStr = segmentStart.toLocaleString('en-US', formatOptions)
+                            const endStr = segmentEnd.toLocaleString('en-US', formatOptions)
+
+                            return (
+                              <div className='mb-4 flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-4 py-2.5 text-sm'>
+                                <div className='flex items-center gap-2'>
+                                  <div className='h-2 w-2 animate-pulse rounded-full bg-primary' />
+                                  <span className='font-medium text-primary'>
+                                    Filtered to {startStr} — {endStr} ({segment.totalExecutions}{' '}
+                                    execution{segment.totalExecutions !== 1 ? 's' : ''})
+                                  </span>
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    setSelectedSegmentIndex(null)
+                                    setSelectedSegmentTimestamp(null)
+                                  }}
+                                  className='text-primary text-xs hover:underline'
+                                >
+                                  Clear filter
+                                </button>
                               </div>
-                              <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
-                                Status
+                            )
+                          })()}
+
+                        <div className='mb-6 grid grid-cols-3 gap-6'>
+                          <LineChart
+                            data={workflowDetails[expandedWorkflowId].errorRates}
+                            label='Error Rate'
+                            color='#ef4444'
+                            unit='%'
+                          />
+                          <LineChart
+                            data={workflowDetails[expandedWorkflowId].durations}
+                            label='Workflow Duration'
+                            color='#3b82f6'
+                            unit='ms'
+                          />
+                          <LineChart
+                            data={workflowDetails[expandedWorkflowId].executionCounts}
+                            label='Usage'
+                            color='#10b981'
+                            unit=' execs'
+                          />
+                        </div>
+
+                        {/* Logs Table */}
+                        <TooltipProvider delayDuration={0}>
+                          <div className='flex flex-1 flex-col overflow-hidden'>
+                            {/* Table header */}
+                            <div className='w-full overflow-x-auto'>
+                              <div>
+                                <div className='border-border border-b'>
+                                  <div className='grid min-w-[700px] grid-cols-[140px_90px_100px_90px_100px_1fr_90px] gap-2 px-2 pb-3 md:gap-3 lg:min-w-0 lg:gap-4'>
+                                    <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
+                                      Time
+                                    </div>
+                                    <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
+                                      Status
+                                    </div>
+                                    <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
+                                      Trigger
+                                    </div>
+                                    <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
+                                      Cost
+                                    </div>
+                                    <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
+                                      User
+                                    </div>
+                                    <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
+                                      Output
+                                    </div>
+                                    <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
+                                      Duration
+                                    </div>
+                                  </div>
+                                </div>
                               </div>
-                              <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
-                                Trigger
-                              </div>
-                              <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
-                                Cost
-                              </div>
-                              <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
-                                User
-                              </div>
-                              <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
-                                Output
-                              </div>
-                              <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
-                                Duration
+                            </div>
+
+                            {/* Table body - scrollable */}
+                            <div className='flex-1 overflow-auto' style={{ maxHeight: '400px' }}>
+                              <div className='pb-4'>
+                                {(() => {
+                                  const details = workflowDetails[expandedWorkflowId]
+                                  let logsToDisplay = details.logs
+
+                                  // Filter logs if a segment is selected
+                                  if (selectedSegmentIndex !== null && selectedSegmentTimestamp) {
+                                    const workflow = executions.find(
+                                      (w) => w.workflowId === expandedWorkflowId
+                                    )
+                                    if (workflow?.segments[selectedSegmentIndex]) {
+                                      const segment = workflow.segments[selectedSegmentIndex]
+                                      const segmentStart = new Date(segment.timestamp)
+
+                                      // Calculate segment duration based on time filter
+                                      const timeRangeMs =
+                                        timeFilter === '1h'
+                                          ? 60 * 60 * 1000
+                                          : timeFilter === '12h'
+                                            ? 12 * 60 * 60 * 1000
+                                            : timeFilter === '24h'
+                                              ? 24 * 60 * 60 * 1000
+                                              : 7 * 24 * 60 * 60 * 1000 // 1w
+                                      const segmentDurationMs = timeRangeMs / BAR_COUNT
+                                      const segmentEnd = new Date(
+                                        segmentStart.getTime() + segmentDurationMs
+                                      )
+
+                                      // Filter logs to only those within this segment
+                                      logsToDisplay = details.allLogs.filter((log) => {
+                                        const logTime = new Date(log.startedAt).getTime()
+                                        return (
+                                          logTime >= segmentStart.getTime() &&
+                                          logTime < segmentEnd.getTime()
+                                        )
+                                      })
+                                    }
+                                  }
+
+                                  if (logsToDisplay.length === 0) {
+                                    return (
+                                      <div className='flex h-full items-center justify-center py-8'>
+                                        <div className='flex items-center gap-2 text-muted-foreground'>
+                                          <Info className='h-5 w-5' />
+                                          <span className='text-sm'>
+                                            No executions found in this time segment
+                                          </span>
+                                        </div>
+                                      </div>
+                                    )
+                                  }
+
+                                  return logsToDisplay.map((log) => {
+                                    const logDate = new Date(log.startedAt)
+                                    const formattedDate = formatDate(logDate.toISOString())
+                                    const outputsStr = log.outputs
+                                      ? JSON.stringify(log.outputs)
+                                      : '—'
+                                    const errorStr = log.errorMessage || ''
+
+                                    return (
+                                      <div
+                                        key={log.id}
+                                        className='cursor-pointer border-border border-b transition-all duration-200 hover:bg-accent/20'
+                                      >
+                                        <div className='grid min-w-[700px] grid-cols-[140px_90px_100px_90px_100px_1fr_90px] items-center gap-2 px-2 py-4 md:gap-3 lg:min-w-0 lg:gap-4'>
+                                          {/* Time */}
+                                          <div>
+                                            <div className='text-[13px]'>
+                                              <span className='font-sm text-muted-foreground'>
+                                                {formattedDate.compactDate}
+                                              </span>
+                                              <span
+                                                style={{ marginLeft: '8px' }}
+                                                className='hidden font-medium sm:inline'
+                                              >
+                                                {formattedDate.compactTime}
+                                              </span>
+                                            </div>
+                                          </div>
+
+                                          {/* Status */}
+                                          <div>
+                                            <div
+                                              className={cn(
+                                                'inline-flex items-center rounded-[8px] px-[6px] py-[2px] font-medium text-xs transition-all duration-200 lg:px-[8px]',
+                                                log.level === 'error'
+                                                  ? 'bg-red-500 text-white'
+                                                  : 'bg-secondary text-card-foreground'
+                                              )}
+                                            >
+                                              {log.level}
+                                            </div>
+                                          </div>
+
+                                          {/* Trigger */}
+                                          <div>
+                                            {log.trigger ? (
+                                              <div
+                                                className={cn(
+                                                  'inline-flex items-center rounded-[8px] px-[6px] py-[2px] font-medium text-xs transition-all duration-200 lg:px-[8px]',
+                                                  log.trigger.toLowerCase() === 'manual'
+                                                    ? 'bg-secondary text-card-foreground'
+                                                    : 'text-white'
+                                                )}
+                                                style={
+                                                  log.trigger.toLowerCase() === 'manual'
+                                                    ? undefined
+                                                    : {
+                                                        backgroundColor: getTriggerColor(
+                                                          log.trigger
+                                                        ),
+                                                      }
+                                                }
+                                              >
+                                                {log.trigger}
+                                              </div>
+                                            ) : (
+                                              <div className='text-muted-foreground text-xs'>—</div>
+                                            )}
+                                          </div>
+
+                                          {/* Cost */}
+                                          <div>
+                                            <div className='font-medium text-muted-foreground text-xs'>
+                                              {log.cost && log.cost.total > 0
+                                                ? formatCost(log.cost.total)
+                                                : '—'}
+                                            </div>
+                                          </div>
+
+                                          {/* User */}
+                                          <div>
+                                            <div className='text-muted-foreground text-xs'>
+                                              {log.triggerUserId || '—'}
+                                            </div>
+                                          </div>
+
+                                          {/* Output */}
+                                          <div className='min-w-0'>
+                                            <Tooltip delayDuration={0}>
+                                              <TooltipTrigger asChild>
+                                                <div
+                                                  className={cn(
+                                                    'cursor-default truncate text-[13px]',
+                                                    log.level === 'error' && errorStr
+                                                      ? 'font-medium text-red-600 dark:text-red-400'
+                                                      : 'text-muted-foreground'
+                                                  )}
+                                                >
+                                                  {log.level === 'error' && errorStr
+                                                    ? errorStr
+                                                    : outputsStr}
+                                                </div>
+                                              </TooltipTrigger>
+                                              <TooltipContent
+                                                side='bottom'
+                                                align='start'
+                                                className='max-w-lg px-3 py-2'
+                                              >
+                                                <pre
+                                                  className={cn(
+                                                    'whitespace-pre-wrap break-words text-xs',
+                                                    log.level === 'error' &&
+                                                      errorStr &&
+                                                      'text-red-600 dark:text-red-400'
+                                                  )}
+                                                >
+                                                  {log.level === 'error' && errorStr
+                                                    ? errorStr
+                                                    : outputsStr}
+                                                </pre>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          </div>
+
+                                          {/* Duration */}
+                                          <div>
+                                            <div className='text-muted-foreground text-xs'>
+                                              {log.duration ? `${log.duration}ms` : '—'}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )
+                                  })
+                                })()}
                               </div>
                             </div>
                           </div>
-                        </div>
+                        </TooltipProvider>
+                      </>
+                    ) : (
+                      <div className='flex items-center justify-center py-12'>
+                        <Loader2 className='h-6 w-6 animate-spin text-muted-foreground' />
                       </div>
-
-                      {/* Table body - scrollable */}
-                      <div className='flex-1 overflow-auto' style={{ maxHeight: '400px' }}>
-                        <div className='pb-4'>
-                          {(() => {
-                            const details = workflowDetails[expandedWorkflowId]
-                            let logsToDisplay = details.logs
-
-                            // Filter logs if a segment is selected
-                            if (selectedSegmentIndex !== null && selectedSegmentTimestamp) {
-                              const workflow = executions.find(
-                                (w) => w.workflowId === expandedWorkflowId
-                              )
-                              if (workflow?.segments[selectedSegmentIndex]) {
-                                const segment = workflow.segments[selectedSegmentIndex]
-                                const segmentStart = new Date(segment.timestamp)
-
-                                // Calculate segment duration based on time filter
-                                const timeRangeMs =
-                                  timeFilter === '1h'
-                                    ? 60 * 60 * 1000
-                                    : timeFilter === '12h'
-                                      ? 12 * 60 * 60 * 1000
-                                      : timeFilter === '24h'
-                                        ? 24 * 60 * 60 * 1000
-                                        : 7 * 24 * 60 * 60 * 1000 // 1w
-                                const segmentDurationMs = timeRangeMs / BAR_COUNT
-                                const segmentEnd = new Date(
-                                  segmentStart.getTime() + segmentDurationMs
-                                )
-
-                                // Filter logs to only those within this segment
-                                logsToDisplay = details.allLogs.filter((log) => {
-                                  const logTime = new Date(log.startedAt).getTime()
-                                  return (
-                                    logTime >= segmentStart.getTime() &&
-                                    logTime < segmentEnd.getTime()
-                                  )
-                                })
-                              }
-                            }
-
-                            if (logsToDisplay.length === 0) {
-                              return (
-                                <div className='flex h-full items-center justify-center py-8'>
-                                  <div className='flex items-center gap-2 text-muted-foreground'>
-                                    <Info className='h-5 w-5' />
-                                    <span className='text-sm'>No executions found in this time segment</span>
-                                  </div>
-                                </div>
-                              )
-                            }
-
-                            return logsToDisplay.map((log) => {
-                              const logDate = new Date(log.startedAt)
-                              const formattedDate = formatDate(logDate.toISOString())
-                              const outputsStr = log.outputs ? JSON.stringify(log.outputs) : '—'
-                              const errorStr = log.errorMessage || ''
-
-                              return (
-                                <div
-                                  key={log.id}
-                                  className='cursor-pointer border-border border-b transition-all duration-200 hover:bg-accent/20'
-                                >
-                                  <div className='grid min-w-[700px] grid-cols-[140px_90px_100px_90px_100px_1fr_90px] items-center gap-2 px-2 py-4 md:gap-3 lg:min-w-0 lg:gap-4'>
-                                    {/* Time */}
-                                    <div>
-                                      <div className='text-[13px]'>
-                                        <span className='font-sm text-muted-foreground'>
-                                          {formattedDate.compactDate}
-                                        </span>
-                                        <span
-                                          style={{ marginLeft: '8px' }}
-                                          className='hidden font-medium sm:inline'
-                                        >
-                                          {formattedDate.compactTime}
-                                        </span>
-                                      </div>
-                                    </div>
-
-                                    {/* Status */}
-                                    <div>
-                                      <div
-                                        className={cn(
-                                          'inline-flex items-center rounded-[8px] px-[6px] py-[2px] font-medium text-xs transition-all duration-200 lg:px-[8px]',
-                                          log.level === 'error'
-                                            ? 'bg-red-500 text-white'
-                                            : 'bg-secondary text-card-foreground'
-                                        )}
-                                      >
-                                        {log.level}
-                                      </div>
-                                    </div>
-
-                                    {/* Trigger */}
-                                    <div>
-                                      {log.trigger ? (
-                                        <div
-                                          className={cn(
-                                            'inline-flex items-center rounded-[8px] px-[6px] py-[2px] font-medium text-xs transition-all duration-200 lg:px-[8px]',
-                                            log.trigger.toLowerCase() === 'manual'
-                                              ? 'bg-secondary text-card-foreground'
-                                              : 'text-white'
-                                          )}
-                                          style={
-                                            log.trigger.toLowerCase() === 'manual'
-                                              ? undefined
-                                              : { backgroundColor: getTriggerColor(log.trigger) }
-                                          }
-                                        >
-                                          {log.trigger}
-                                        </div>
-                                      ) : (
-                                        <div className='text-muted-foreground text-xs'>—</div>
-                                      )}
-                                    </div>
-
-                                    {/* Cost */}
-                                    <div>
-                                      <div className='font-medium text-muted-foreground text-xs'>
-                                        {log.cost && log.cost.total > 0
-                                          ? formatCost(log.cost.total)
-                                          : '—'}
-                                      </div>
-                                    </div>
-
-                                    {/* User */}
-                                    <div>
-                                      <div className='text-muted-foreground text-xs'>
-                                        {log.triggerUserId || '—'}
-                                      </div>
-                                    </div>
-
-                                    {/* Output */}
-                                    <div className='min-w-0'>
-                                      <Tooltip delayDuration={0}>
-                                        <TooltipTrigger asChild>
-                                          <div
-                                            className={cn(
-                                              'truncate text-[13px] cursor-default',
-                                              log.level === 'error' && errorStr
-                                                ? 'font-medium text-red-600 dark:text-red-400'
-                                                : 'text-muted-foreground'
-                                            )}
-                                          >
-                                            {log.level === 'error' && errorStr
-                                              ? errorStr
-                                              : outputsStr}
-                                          </div>
-                                        </TooltipTrigger>
-                                        <TooltipContent 
-                                          side='bottom' 
-                                          align='start'
-                                          className='max-w-lg px-3 py-2'
-                                        >
-                                          <pre
-                                            className={cn(
-                                              'whitespace-pre-wrap break-words text-xs',
-                                              log.level === 'error' && errorStr && 'text-red-600 dark:text-red-400'
-                                            )}
-                                          >
-                                            {log.level === 'error' && errorStr
-                                              ? errorStr
-                                              : outputsStr}
-                                          </pre>
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    </div>
-
-                                    {/* Duration */}
-                                    <div>
-                                      <div className='text-muted-foreground text-xs'>
-                                        {log.duration ? `${log.duration}ms` : '—'}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              )
-                            })
-                          })()}
-                        </div>
-                      </div>
-                    </div>
-                  </TooltipProvider>
-                   </>
-                 ) : (
-                   <div className='flex items-center justify-center py-12'>
-                     <Loader2 className='h-6 w-6 animate-spin text-muted-foreground' />
-                   </div>
-                 )}
-              </div>
-            </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
           )}
-        </>
-        )}
         </div>
       </div>
     </div>

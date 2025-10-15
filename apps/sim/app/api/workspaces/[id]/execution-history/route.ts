@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { permissions, workflow, workflowExecutionLogs } from '@sim/db/schema'
-import { and, count, eq, gte, inArray, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -49,10 +49,7 @@ function getTimeRangeMs(filter: string): number {
   }
 }
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = generateRequestId()
 
   try {
@@ -70,7 +67,7 @@ export async function GET(
     // Calculate time range - use custom times if provided, otherwise use timeFilter
     let endTime: Date
     let startTime: Date
-    
+
     if (queryParams.startTime && queryParams.endTime) {
       startTime = new Date(queryParams.startTime)
       endTime = new Date(queryParams.endTime)
@@ -79,7 +76,7 @@ export async function GET(
       const timeRangeMs = getTimeRangeMs(queryParams.timeFilter || '24h')
       startTime = new Date(endTime.getTime() - timeRangeMs)
     }
-    
+
     const timeRangeMs = endTime.getTime() - startTime.getTime()
     const segmentDurationMs = timeRangeMs / queryParams.segments
 
@@ -87,7 +84,9 @@ export async function GET(
     logger.debug(
       `[${requestId}] Time range: ${startTime.toISOString()} to ${endTime.toISOString()}`
     )
-    logger.debug(`[${requestId}] Segments: ${queryParams.segments}, duration: ${segmentDurationMs}ms`)
+    logger.debug(
+      `[${requestId}] Segments: ${queryParams.segments}, duration: ${segmentDurationMs}ms`
+    )
 
     // Check permissions
     const [permission] = await db
@@ -139,7 +138,7 @@ export async function GET(
         // Build conditions for log filtering
         const logConditions = [
           eq(workflowExecutionLogs.workflowId, wf.id),
-          gte(workflowExecutionLogs.startedAt, startTime)
+          gte(workflowExecutionLogs.startedAt, startTime),
         ]
 
         // Add trigger filter if specified
@@ -194,7 +193,8 @@ export async function GET(
         }
 
         // Calculate overall success rate (percentage of non-errored executions)
-        const overallSuccessRate = totalExecutions > 0 ? (totalSuccess / totalExecutions) * 100 : 100
+        const overallSuccessRate =
+          totalExecutions > 0 ? (totalSuccess / totalExecutions) * 100 : 100
 
         return {
           workflowId: wf.id,
@@ -205,7 +205,9 @@ export async function GET(
       })
     )
 
-    logger.debug(`[${requestId}] Successfully calculated execution history for ${workflowExecutions.length} workflows`)
+    logger.debug(
+      `[${requestId}] Successfully calculated execution history for ${workflowExecutions.length} workflows`
+    )
 
     return NextResponse.json({
       workflows: workflowExecutions,
@@ -215,10 +217,6 @@ export async function GET(
     })
   } catch (error) {
     logger.error(`[${requestId}] Error fetching execution history:`, error)
-    return NextResponse.json(
-      { error: 'Failed to fetch execution history' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to fetch execution history' }, { status: 500 })
   }
 }
-

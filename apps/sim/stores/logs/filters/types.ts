@@ -123,7 +123,12 @@ export interface LogsResponse {
   totalPages: number
 }
 
-export type TimeRange = 'Past 30 minutes' | 'Past hour' | 'Past 12 hours' | 'Past 24 hours' | 'All time'
+export type TimeRange =
+  | 'Past 30 minutes'
+  | 'Past hour'
+  | 'Past 12 hours'
+  | 'Past 24 hours'
+  | 'All time'
 export type LogLevel = 'error' | 'info' | 'all'
 export type TriggerType = 'chat' | 'api' | 'webhook' | 'manual' | 'schedule' | 'all'
 

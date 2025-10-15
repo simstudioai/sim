@@ -12,7 +12,12 @@ import type { TimeRange } from '@/stores/logs/filters/types'
 
 export default function Timeline() {
   const { timeRange, setTimeRange } = useFilterStore()
-  const specificTimeRanges: TimeRange[] = ['Past 30 minutes', 'Past hour', 'Past 12 hours', 'Past 24 hours']
+  const specificTimeRanges: TimeRange[] = [
+    'Past 30 minutes',
+    'Past hour',
+    'Past 12 hours',
+    'Past 24 hours',
+  ]
 
   return (
     <DropdownMenu>
