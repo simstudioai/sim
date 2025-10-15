@@ -38,7 +38,6 @@ export default function manifest(): MetadataRoute.Manifest {
         short_name: 'New',
         description: 'Create a new AI workflow',
         url: '/workspace',
-        icons: [{ src: '/icons/new-workflow.png', sizes: '192x192' }],
       },
     ],
     lang: 'en-US',
