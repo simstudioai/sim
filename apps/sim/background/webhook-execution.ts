@@ -308,6 +308,7 @@ async function executeWebhookJobInternal(
           totalDurationMs: totalDuration || 0,
           finalOutput: executionResult.output || {},
           traceSpans: traceSpans as any,
+          workflowInput: airtableInput,
         })
 
         return {
@@ -451,6 +452,7 @@ async function executeWebhookJobInternal(
       totalDurationMs: totalDuration || 0,
       finalOutput: executionResult.output || {},
       traceSpans: traceSpans as any,
+      workflowInput: input,
     })
 
     return {
