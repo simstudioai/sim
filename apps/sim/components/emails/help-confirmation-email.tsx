@@ -12,7 +12,7 @@ import {
 } from '@react-email/components'
 import { format } from 'date-fns'
 import { getBrandConfig } from '@/lib/branding/branding'
-import { getEnv } from '@/lib/env'
+import { getBaseUrl } from '@/lib/urls/utils'
 import { baseStyles } from './base-styles'
 import EmailFooter from './footer'
 
@@ -23,7 +23,7 @@ interface HelpConfirmationEmailProps {
   submittedDate?: Date
 }
 
-const baseUrl = getEnv('NEXT_PUBLIC_APP_URL') || 'https://sim.ai'
+const baseUrl = getBaseUrl()
 
 const getTypeLabel = (type: string) => {
   switch (type) {

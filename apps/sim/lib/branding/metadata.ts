@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { getBrandConfig } from '@/lib/branding/branding'
-import { env } from '@/lib/env'
+import { getBaseUrl } from '@/lib/urls/utils'
 
 /**
  * Generate dynamic metadata based on brand configuration
@@ -63,7 +63,7 @@ export function generateBrandedMetadata(override: Partial<Metadata> = {}): Metad
     openGraph: {
       type: 'website',
       locale: 'en_US',
-      url: env.NEXT_PUBLIC_APP_URL || 'https://sim.ai',
+      url: getBaseUrl(),
       title: defaultTitle,
       description: summaryFull,
       siteName: brand.name,

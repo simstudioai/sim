@@ -9,16 +9,13 @@ import {
 } from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
 import type { auth } from '@/lib/auth'
-import { env, getEnv } from '@/lib/env'
+import { env } from '@/lib/env'
 import { isBillingEnabled } from '@/lib/environment'
 import { SessionContext, type SessionHookResult } from '@/lib/session/session-context'
-
-export function getBaseURL() {
-  return getEnv('NEXT_PUBLIC_APP_URL') || 'http://localhost:3000'
-}
+import { getBaseUrl } from '@/lib/urls/utils'
 
 export const client = createAuthClient({
-  baseURL: getBaseURL(),
+  baseURL: getBaseUrl(),
   plugins: [
     emailOTPClient(),
     genericOAuthClient(),

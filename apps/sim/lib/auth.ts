@@ -22,7 +22,6 @@ import {
   renderOTPEmail,
   renderPasswordResetEmail,
 } from '@/components/emails/render-email'
-import { getBaseURL } from '@/lib/auth-client'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
 import { handleNewUser } from '@/lib/billing/core/usage'
@@ -44,6 +43,7 @@ import { quickValidateEmail } from '@/lib/email/validation'
 import { env, isTruthy } from '@/lib/env'
 import { isBillingEnabled, isEmailVerificationEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 import { SSO_TRUSTED_PROVIDERS } from './sso/consts'
 
 const logger = createLogger('Auth')
@@ -60,7 +60,7 @@ if (validStripeKey) {
 }
 
 export const auth = betterAuth({
-  baseURL: getBaseURL(),
+  baseURL: getBaseUrl(),
   trustedOrigins: [
     env.NEXT_PUBLIC_APP_URL,
     ...(env.NEXT_PUBLIC_SOCKET_URL ? [env.NEXT_PUBLIC_SOCKET_URL] : []),

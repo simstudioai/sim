@@ -14,7 +14,7 @@ import {
 } from '@react-email/components'
 import EmailFooter from '@/components/emails/footer'
 import { getBrandConfig } from '@/lib/branding/branding'
-import { getEnv } from '@/lib/env'
+import { getBaseUrl } from '@/lib/urls/utils'
 import { baseStyles } from './base-styles'
 
 interface UsageThresholdEmailProps {
@@ -37,7 +37,7 @@ export function UsageThresholdEmail({
   updatedDate = new Date(),
 }: UsageThresholdEmailProps) {
   const brand = getBrandConfig()
-  const baseUrl = getEnv('NEXT_PUBLIC_APP_URL') || 'https://sim.ai'
+  const baseUrl = getBaseUrl()
 
   const previewText = `${brand.name}: You're at ${percentUsed}% of your ${planName} monthly budget`
 

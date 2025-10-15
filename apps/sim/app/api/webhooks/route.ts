@@ -4,9 +4,9 @@ import { and, desc, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
+import { getBaseUrl } from '@/lib/urls/utils'
 import { generateRequestId } from '@/lib/utils'
 import { getOAuthToken } from '@/app/api/auth/oauth/utils'
 
@@ -467,14 +467,7 @@ async function createAirtableWebhookSubscription(
       )
     }
 
-    if (!env.NEXT_PUBLIC_APP_URL) {
-      logger.error(
-        `[${requestId}] NEXT_PUBLIC_APP_URL not configured, cannot register Airtable webhook`
-      )
-      throw new Error('NEXT_PUBLIC_APP_URL must be configured for Airtable webhook registration')
-    }
-
-    const notificationUrl = `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/trigger/${path}`
+    const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
 
     const airtableApiUrl = `https://api.airtable.com/v0/bases/${baseId}/webhooks`
 

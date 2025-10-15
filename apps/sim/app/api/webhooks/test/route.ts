@@ -2,8 +2,8 @@ import { db } from '@sim/db'
 import { webhook } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 import { generateRequestId } from '@/lib/utils'
 
 const logger = createLogger('WebhookTestAPI')
@@ -35,15 +35,7 @@ export async function GET(request: NextRequest) {
     const provider = foundWebhook.provider || 'generic'
     const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
 
-    if (!env.NEXT_PUBLIC_APP_URL) {
-      logger.error(`[${requestId}] NEXT_PUBLIC_APP_URL not configured, cannot test webhook`)
-      return NextResponse.json(
-        { success: false, error: 'NEXT_PUBLIC_APP_URL must be configured' },
-        { status: 500 }
-      )
-    }
-    const baseUrl = env.NEXT_PUBLIC_APP_URL
-    const webhookUrl = `${baseUrl}/api/webhooks/trigger/${foundWebhook.path}`
+    const webhookUrl = `${getBaseUrl()}/api/webhooks/trigger/${foundWebhook.path}`
 
     logger.info(`[${requestId}] Testing webhook for provider: ${provider}`, {
       webhookId,

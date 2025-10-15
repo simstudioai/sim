@@ -178,9 +178,8 @@ export async function updateWorkflowRunCounts(workflowId: string, runs = 1) {
       throw new Error(`Workflow ${workflowId} not found`)
     }
 
-    // Get the origin from the environment or use direct DB update as fallback
-    const origin =
-      getEnv('NEXT_PUBLIC_APP_URL') || (typeof window !== 'undefined' ? window.location.origin : '')
+    // Get the origin from the environment
+    const origin = getEnv('NEXT_PUBLIC_APP_URL')
 
     if (origin) {
       // Use absolute URL with origin

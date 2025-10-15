@@ -18,6 +18,7 @@ import { client } from '@/lib/auth-client'
 import { quickValidateEmail } from '@/lib/email/validation'
 import { env, isFalsy, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 import { cn } from '@/lib/utils'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
@@ -322,7 +323,7 @@ export default function LoginPage({
         },
         body: JSON.stringify({
           email: forgotPasswordEmail,
-          redirectTo: `${window.location.origin}/reset-password`,
+          redirectTo: `${getBaseUrl()}/reset-password`,
         }),
       })
 

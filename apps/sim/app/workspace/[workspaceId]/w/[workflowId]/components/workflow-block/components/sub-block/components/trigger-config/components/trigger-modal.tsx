@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 import { cn } from '@/lib/utils'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { getTrigger } from '@/triggers'
@@ -284,8 +285,7 @@ export function TriggerModal({
     }
 
     if (finalPath) {
-      const baseUrl = window.location.origin
-      setWebhookUrl(`${baseUrl}/api/webhooks/trigger/${finalPath}`)
+      setWebhookUrl(`${getBaseUrl()}/api/webhooks/trigger/${finalPath}`)
     }
   }, [
     triggerPath,
