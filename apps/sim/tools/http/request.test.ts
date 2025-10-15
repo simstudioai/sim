@@ -18,7 +18,7 @@ describe('HTTP Request Tool', () => {
 
   beforeEach(() => {
     tester = new ToolTester(requestTool)
-    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
+    process.env.NEXT_PUBLIC_APP_URL = 'https://app.simstudio.dev'
   })
 
   afterEach(() => {

@@ -4,6 +4,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useActiveOrganization } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 import { UsageHeader } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/shared/usage-header'
 import {
   UsageLimit,
@@ -122,7 +123,7 @@ export function TeamUsage({ hasAdminAccess }: TeamUsageProps) {
             body: JSON.stringify({
               context: 'organization',
               organizationId: activeOrg?.id,
-              returnUrl: `${window.location.origin}/workspace?billing=updated`,
+              returnUrl: `${getBaseUrl()}/workspace?billing=updated`,
             }),
           })
           const data = await res.json()

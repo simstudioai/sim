@@ -13,6 +13,7 @@ import { sendEmail } from '@/lib/email/mailer'
 import { getEmailPreferences } from '@/lib/email/unsubscribe'
 import { isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 
 const logger = createLogger('UsageManagement')
 
@@ -617,7 +618,7 @@ export async function maybeSendUsageThresholdEmail(params: {
     if (!(params.percentBefore < 80 && params.percentAfter >= 80)) return
     if (params.limit <= 0 || params.currentUsageAfter <= 0) return
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
+    const baseUrl = getBaseUrl()
     const ctaLink = `${baseUrl}/workspace?billing=usage`
     const sendTo = async (email: string, name?: string) => {
       const prefs = await getEmailPreferences(email)

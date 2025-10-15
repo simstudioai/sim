@@ -1,7 +1,7 @@
 import { Container, Img, Link, Section, Text } from '@react-email/components'
 import { getBrandConfig } from '@/lib/branding/branding'
-import { getEnv } from '@/lib/env'
 import { isHosted } from '@/lib/environment'
+import { getBaseUrl } from '@/lib/urls/utils'
 
 interface UnsubscribeOptions {
   unsubscribeToken?: string
@@ -13,10 +13,7 @@ interface EmailFooterProps {
   unsubscribe?: UnsubscribeOptions
 }
 
-export const EmailFooter = ({
-  baseUrl = getEnv('NEXT_PUBLIC_APP_URL') || 'https://sim.ai',
-  unsubscribe,
-}: EmailFooterProps) => {
+export const EmailFooter = ({ baseUrl = getBaseUrl(), unsubscribe }: EmailFooterProps) => {
   const brand = getBrandConfig()
 
   return (

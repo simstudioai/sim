@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { signOut, useSession } from '@/lib/auth-client'
 import { useBrandConfig } from '@/lib/branding/branding'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/account/hooks/use-profile-picture-upload'
 import { clearUserData } from '@/stores'
 
@@ -208,7 +209,7 @@ export function Account(_props: AccountProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email,
-          redirectTo: `${window.location.origin}/reset-password`,
+          redirectTo: `${getBaseUrl()}/reset-password`,
         }),
       })
 

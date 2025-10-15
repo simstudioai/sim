@@ -4,6 +4,7 @@ import { generateUnsubscribeToken, isUnsubscribed } from '@/lib/email/unsubscrib
 import { getFromEmailAddress } from '@/lib/email/utils'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 
 const logger = createLogger('Mailer')
 
@@ -167,7 +168,7 @@ async function processEmailData(options: EmailOptions): Promise<ProcessedEmailDa
     // For arrays, use the first email for unsubscribe (batch emails typically go to similar recipients)
     const primaryEmail = Array.isArray(to) ? to[0] : to
     const unsubscribeToken = generateUnsubscribeToken(primaryEmail, emailType)
-    const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
+    const baseUrl = getBaseUrl()
     const unsubscribeUrl = `${baseUrl}/unsubscribe?token=${unsubscribeToken}&email=${encodeURIComponent(primaryEmail)}`
 
     headers['List-Unsubscribe'] = `<${unsubscribeUrl}>`

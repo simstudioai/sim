@@ -12,7 +12,7 @@ import {
   Text,
 } from '@react-email/components'
 import { getBrandConfig } from '@/lib/branding/branding'
-import { env } from '@/lib/env'
+import { getBaseUrl } from '@/lib/urls/utils'
 import { baseStyles } from './base-styles'
 import EmailFooter from './footer'
 
@@ -29,8 +29,6 @@ interface BatchInvitationEmailProps {
   workspaceInvitations: WorkspaceInvitation[]
   acceptUrl: string
 }
-
-const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
 
 const getPermissionLabel = (permission: string) => {
   switch (permission) {
@@ -64,6 +62,7 @@ export const BatchInvitationEmail = ({
   acceptUrl,
 }: BatchInvitationEmailProps) => {
   const brand = getBrandConfig()
+  const baseUrl = getBaseUrl()
   const hasWorkspaces = workspaceInvitations.length > 0
 
   return (

@@ -1,5 +1,5 @@
-import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 import { executeProviderRequest } from '@/providers'
 import { getApiKey, getProviderFromModel } from '@/providers/utils'
 
@@ -41,7 +41,7 @@ async function queryKnowledgeBase(
     })
 
     // Call the knowledge base search API directly
-    const searchUrl = `${env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/knowledge/search`
+    const searchUrl = `${getBaseUrl()}/api/knowledge/search`
 
     const response = await fetch(searchUrl, {
       method: 'POST',

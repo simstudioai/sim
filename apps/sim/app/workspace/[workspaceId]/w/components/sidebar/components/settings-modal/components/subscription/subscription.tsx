@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Skeleton, Switch } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
 import { useSubscriptionUpgrade } from '@/lib/subscription/upgrade'
+import { getBaseUrl } from '@/lib/urls/utils'
 import { cn } from '@/lib/utils'
 import { UsageHeader } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/shared/usage-header'
 import {
@@ -391,7 +392,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                     context:
                       subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user',
                     organizationId: activeOrgId,
-                    returnUrl: `${window.location.origin}/workspace?billing=updated`,
+                    returnUrl: `${getBaseUrl()}/workspace?billing=updated`,
                   }),
                 })
                 const data = await res.json()

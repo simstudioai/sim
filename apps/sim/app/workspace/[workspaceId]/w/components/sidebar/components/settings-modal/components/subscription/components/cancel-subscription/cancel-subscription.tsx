@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession, useSubscription } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 import { cn } from '@/lib/utils'
 import { useOrganizationStore } from '@/stores/organization'
 import { useSubscriptionStore } from '@/stores/subscription/store'
@@ -89,7 +90,7 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
         throw new Error('Subscription management not available')
       }
 
-      const returnUrl = window.location.origin + window.location.pathname.split('/w/')[0]
+      const returnUrl = getBaseUrl() + window.location.pathname.split('/w/')[0]
 
       const cancelParams: any = {
         returnUrl,

@@ -10,6 +10,7 @@ import {
   UsageThresholdEmail,
 } from '@/components/emails'
 import { getBrandConfig } from '@/lib/branding/branding'
+import { getBaseUrl } from '@/lib/urls/utils'
 
 export async function renderOTPEmail(
   otp: string,
@@ -89,7 +90,7 @@ export async function renderEnterpriseSubscriptionEmail(
   userName: string,
   userEmail: string
 ): Promise<string> {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
+  const baseUrl = getBaseUrl()
   const loginLink = `${baseUrl}/login`
 
   return await render(

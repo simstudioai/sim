@@ -5,9 +5,9 @@ import { Check, ChevronDown, Copy, Eye, EyeOff } from 'lucide-react'
 import { Alert, AlertDescription, Button, Input, Label } from '@/components/ui'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useSession } from '@/lib/auth-client'
-import { env } from '@/lib/env'
 import { isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 import { cn } from '@/lib/utils'
 import { useOrganizationStore } from '@/stores/organization'
 
@@ -441,7 +441,7 @@ export function SSO() {
     })
   }
 
-  const callbackUrl = `${env.NEXT_PUBLIC_APP_URL}/api/auth/sso/callback/${formData.providerId}`
+  const callbackUrl = `${getBaseUrl()}/api/auth/sso/callback/${formData.providerId}`
 
   const copyCallback = async () => {
     try {
@@ -551,14 +551,14 @@ export function SSO() {
                       <div className='relative mt-2'>
                         <Input
                           readOnly
-                          value={`${env.NEXT_PUBLIC_APP_URL}/api/auth/sso/callback/${provider.providerId}`}
+                          value={`${getBaseUrl()}/api/auth/sso/callback/${provider.providerId}`}
                           className='h-9 w-full cursor-text pr-10 font-mono text-xs focus-visible:ring-2 focus-visible:ring-primary/20'
                           onClick={(e) => (e.target as HTMLInputElement).select()}
                         />
                         <button
                           type='button'
                           onClick={() => {
-                            const url = `${env.NEXT_PUBLIC_APP_URL}/api/auth/sso/callback/${provider.providerId}`
+                            const url = `${getBaseUrl()}/api/auth/sso/callback/${provider.providerId}`
                             navigator.clipboard.writeText(url)
                             setCopied(true)
                             setTimeout(() => setCopied(false), 1500)

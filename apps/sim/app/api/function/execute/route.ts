@@ -1,7 +1,6 @@
 import { createContext, Script } from 'vm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { env, isTruthy } from '@/lib/env'
-import { MAX_EXECUTION_DURATION } from '@/lib/execution/constants'
 import { executeInE2B } from '@/lib/execution/e2b'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -9,7 +8,9 @@ import { validateProxyUrl } from '@/lib/security/input-validation'
 import { generateRequestId } from '@/lib/utils'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-export const maxDuration = MAX_EXECUTION_DURATION
+// Segment config exports must be statically analyzable.
+// Mirror MAX_EXECUTION_DURATION (210s) from '@/lib/execution/constants'.
+export const maxDuration = 210
 
 const logger = createLogger('FunctionExecuteAPI')
 

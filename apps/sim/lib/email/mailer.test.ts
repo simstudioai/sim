@@ -43,6 +43,7 @@ vi.mock('@/lib/env', () => ({
 
 vi.mock('@/lib/urls/utils', () => ({
   getEmailDomain: vi.fn().mockReturnValue('sim.ai'),
+  getBaseUrl: vi.fn().mockReturnValue('https://test.sim.ai'),
 }))
 
 import { type EmailType, sendBatchEmails, sendEmail } from '@/lib/email/mailer'

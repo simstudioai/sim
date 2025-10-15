@@ -2,9 +2,9 @@ import { db, webhook, workflow } from '@sim/db'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
+import { getBaseUrl } from '@/lib/urls/utils'
 import { generateRequestId } from '@/lib/utils'
 import { signTestWebhookToken } from '@/lib/webhooks/test-tokens'
 
@@ -64,13 +64,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    if (!env.NEXT_PUBLIC_APP_URL) {
-      logger.error(`[${requestId}] NEXT_PUBLIC_APP_URL not configured`)
-      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
-    }
-
     const token = await signTestWebhookToken(id, ttlSeconds)
-    const url = `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/test/${id}?token=${encodeURIComponent(token)}`
+    const url = `${getBaseUrl()}/api/webhooks/test/${id}?token=${encodeURIComponent(token)}`
 
     logger.info(`[${requestId}] Minted test URL for webhook ${id}`)
     return NextResponse.json({

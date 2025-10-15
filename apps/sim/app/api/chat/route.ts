@@ -5,9 +5,9 @@ import type { NextRequest } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { env } from '@/lib/env'
 import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 import { encryptSecret } from '@/lib/utils'
 import { checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
 
       // Return successful response with chat URL
       // Generate chat URL using path-based routing instead of subdomains
-      const baseUrl = env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+      const baseUrl = getBaseUrl()
 
       let chatUrl: string
       try {
