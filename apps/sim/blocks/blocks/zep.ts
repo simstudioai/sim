@@ -9,7 +9,7 @@ export const ZepBlock: BlockConfig<ZepResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Zep for long-term memory management. Create threads, add messages, retrieve context with AI-powered summaries and facts extraction.',
-  bgColor: '#4F46E5',
+  bgColor: '#E8E8E8',
   icon: ZepIcon,
   category: 'tools',
   docsLink: 'https://docs.sim.ai/tools/zep',
