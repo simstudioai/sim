@@ -45,7 +45,7 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
     from_name: { type: 'string', description: 'Sender display name' },
     text: { type: 'string', description: 'Message body (HTML or text)' },
     created_at: { type: 'string', description: 'Message timestamp' },
-    attachments: { type: 'json', description: 'Uploaded attachments metadata' },
+    attachments: { type: 'file[]', description: 'Uploaded attachments as files' },
   },
 
   instructions: [

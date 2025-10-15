@@ -3,8 +3,6 @@ import { account, webhook } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getPresignedUrlWithConfig, uploadToS3 } from '@/lib/uploads/s3/s3-client'
-import { S3_EXECUTION_FILES_CONFIG } from '@/lib/uploads/setup'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('WebhookUtils')
@@ -220,7 +218,8 @@ async function formatTeamsGraphNotification(
   const includeAttachments = providerConfig.includeAttachments !== false
 
   let message: any = null
-  let uploadedFiles: any[] = []
+  const rawAttachments: Array<{ name: string; data: Buffer; contentType: string; size: number }> =
+    []
   let accessToken: string | null = null
 
   // Teams chat subscriptions require credentials
@@ -252,16 +251,6 @@ async function formatTeamsGraphNotification(
           message = await res.json()
 
           if (includeAttachments && message?.attachments?.length > 0) {
-            const { fetchHostedContentsForChatMessage } = await import(
-              '@/tools/microsoft_teams/utils'
-            )
-            const hosted = await fetchHostedContentsForChatMessage({
-              accessToken,
-              chatId: resolvedChatId,
-              messageId: resolvedMessageId,
-            })
-            uploadedFiles = Array.isArray(hosted) ? hosted.slice() : []
-
             const attachments = Array.isArray(message?.attachments) ? message.attachments : []
             for (const att of attachments) {
               try {
@@ -426,40 +415,13 @@ async function formatTeamsGraphNotification(
                 if (!buffer) continue
 
                 const size = buffer.length
-                const fileInfo = await uploadToS3(
-                  buffer,
-                  attachmentName,
-                  mimeType,
-                  {
-                    bucket: S3_EXECUTION_FILES_CONFIG.bucket,
-                    region: S3_EXECUTION_FILES_CONFIG.region,
-                  },
-                  size,
-                  true
-                )
 
-                let url: string | undefined
-                try {
-                  url = await getPresignedUrlWithConfig(
-                    fileInfo.key,
-                    {
-                      bucket: S3_EXECUTION_FILES_CONFIG.bucket,
-                      region: S3_EXECUTION_FILES_CONFIG.region,
-                    },
-                    60 * 60
-                  )
-                } catch {
-                  url = undefined
-                }
-
-                uploadedFiles.push({
+                // Store raw attachment (will be uploaded to execution storage later)
+                rawAttachments.push({
                   name: attachmentName,
-                  mimeType,
+                  data: buffer,
+                  contentType: mimeType,
                   size,
-                  key: fileInfo.key,
-                  path: fileInfo.path,
-                  url,
-                  sourceUrl: contentUrl,
                 })
               } catch {}
             }
@@ -512,7 +474,8 @@ async function formatTeamsGraphNotification(
   }
 
   // Extract data from message - we know it exists now
-  const messageText = message.body?.content || message.summary || ''
+  // body.content is the HTML/text content, summary is a plain text preview (max 280 chars)
+  const messageText = message.body?.content || ''
   const from = message.from?.user || {}
   const createdAt = message.createdDateTime || ''
 
@@ -525,7 +488,7 @@ async function formatTeamsGraphNotification(
     created_at: createdAt,
     change_type: changeType,
     subscription_id: subscriptionId,
-    attachments: uploadedFiles,
+    attachments: rawAttachments,
     microsoftteams: {
       message: {
         id: messageId,
