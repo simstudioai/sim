@@ -23,6 +23,20 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('Copilot')
 
+// Default enabled/disabled state for all models (must match API)
+const DEFAULT_ENABLED_MODELS: Record<string, boolean> = {
+  'gpt-4o': false,
+  'gpt-4.1': false,
+  'gpt-5-fast': false,
+  'gpt-5': true,
+  'gpt-5-medium': true,
+  'gpt-5-high': false,
+  o3: true,
+  'claude-4-sonnet': true,
+  'claude-4.5-sonnet': true,
+  'claude-4.1-opus': true,
+}
+
 interface CopilotProps {
   panelWidth: number
 }
@@ -40,6 +54,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
   const [todosCollapsed, setTodosCollapsed] = useState(false)
   const lastWorkflowIdRef = useRef<string | null>(null)
   const hasMountedRef = useRef(false)
+  const hasLoadedModelsRef = useRef(false)
 
   // Scroll state
   const [isNearBottom, setIsNearBottom] = useState(true)
@@ -71,7 +86,78 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     chatsLoadedForWorkflow,
     setWorkflowId: setCopilotWorkflowId,
     loadChats,
+    enabledModels,
+    setEnabledModels,
+    selectedModel,
+    setSelectedModel,
   } = useCopilotStore()
+
+  // Load user's enabled models on mount
+  useEffect(() => {
+    const loadEnabledModels = async () => {
+      if (hasLoadedModelsRef.current) return
+      hasLoadedModelsRef.current = true
+
+      try {
+        const res = await fetch('/api/copilot/user-models')
+        if (!res.ok) {
+          logger.warn('Failed to fetch user models, using defaults')
+          // Use defaults if fetch fails
+          const enabledArray = Object.keys(DEFAULT_ENABLED_MODELS).filter(
+            (key) => DEFAULT_ENABLED_MODELS[key]
+          )
+          setEnabledModels(enabledArray)
+          return
+        }
+
+        const data = await res.json()
+        const modelsMap = data.enabledModels || DEFAULT_ENABLED_MODELS
+
+        // Convert map to array of enabled model IDs
+        const enabledArray = Object.entries(modelsMap)
+          .filter(([_, enabled]) => enabled)
+          .map(([modelId]) => modelId)
+
+        setEnabledModels(enabledArray)
+        logger.info('Loaded user enabled models', { count: enabledArray.length })
+      } catch (error) {
+        logger.error('Failed to load enabled models', { error })
+        // Use defaults on error
+        const enabledArray = Object.keys(DEFAULT_ENABLED_MODELS).filter(
+          (key) => DEFAULT_ENABLED_MODELS[key]
+        )
+        setEnabledModels(enabledArray)
+      }
+    }
+
+    loadEnabledModels()
+  }, [setEnabledModels])
+
+  // Ensure selected model is in the enabled models list
+  useEffect(() => {
+    if (!enabledModels || enabledModels.length === 0) return
+
+    // Check if current selected model is in the enabled list
+    if (selectedModel && !enabledModels.includes(selectedModel)) {
+      // Switch to the first enabled model (prefer claude-4.5-sonnet if available)
+      const preferredModel = 'claude-4.5-sonnet'
+      const fallbackModel = enabledModels[0] as typeof selectedModel
+
+      if (enabledModels.includes(preferredModel)) {
+        setSelectedModel(preferredModel)
+        logger.info('Selected model not enabled, switching to preferred model', {
+          from: selectedModel,
+          to: preferredModel,
+        })
+      } else if (fallbackModel) {
+        setSelectedModel(fallbackModel)
+        logger.info('Selected model not enabled, switching to first available', {
+          from: selectedModel,
+          to: fallbackModel,
+        })
+      }
+    }
+  }, [enabledModels, selectedModel, setSelectedModel])
 
   // Force fresh initialization on mount (handles hot reload)
   useEffect(() => {

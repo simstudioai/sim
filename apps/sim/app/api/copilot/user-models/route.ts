@@ -67,15 +67,14 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // If no settings record exists, create one with empty object (client will use defaults)
-    const [created] = await db
-      .insert(settings)
-      .values({
-        id: userId,
-        userId,
-        copilotEnabledModels: {},
-      })
-      .returning()
+    // If no settings record exists, create one with defaults
+    await db.insert(settings).values({
+      id: userId,
+      userId,
+      copilotEnabledModels: DEFAULT_ENABLED_MODELS,
+    })
+
+    logger.info('Created new settings record with default models', { userId })
 
     return NextResponse.json({
       enabledModels: DEFAULT_ENABLED_MODELS,

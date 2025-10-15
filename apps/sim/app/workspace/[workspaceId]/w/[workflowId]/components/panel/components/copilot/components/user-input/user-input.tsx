@@ -243,7 +243,6 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     // Fetch enabled models when dropdown is opened for the first time
     const fetchEnabledModelsOnce = useCallback(async () => {
-      if (!isHosted) return
       if (enabledModels !== null) return // Already loaded
 
       try {
@@ -1747,9 +1746,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       { value: 'claude-4.1-opus', label: 'claude-4.1-opus' },
     ] as const
 
-    // Filter models based on user preferences (only for hosted)
+    // Filter models based on user preferences
     const modelOptions =
-      isHosted && enabledModels !== null
+      enabledModels !== null
         ? allModelOptions.filter((model) => enabledModels.includes(model.value))
         : allModelOptions
 
@@ -3445,25 +3444,23 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                         </div>
                                       </div>
 
-                                      {/* More Models Button (only for hosted) */}
-                                      {isHosted && (
-                                        <div className='mt-1 border-t pt-1'>
-                                          <button
-                                            type='button'
-                                            onClick={() => {
-                                              // Dispatch event to open settings modal on copilot tab
-                                              window.dispatchEvent(
-                                                new CustomEvent('open-settings', {
-                                                  detail: { tab: 'copilot' },
-                                                })
-                                              )
-                                            }}
-                                            className='w-full rounded-sm px-2 py-1.5 text-left text-muted-foreground text-xs transition-colors hover:bg-muted/50'
-                                          >
-                                            More Models...
-                                          </button>
-                                        </div>
-                                      )}
+                                      {/* More Models Button */}
+                                      <div className='mt-1 border-t pt-1'>
+                                        <button
+                                          type='button'
+                                          onClick={() => {
+                                            // Dispatch event to open settings modal on copilot tab
+                                            window.dispatchEvent(
+                                              new CustomEvent('open-settings', {
+                                                detail: { tab: 'copilot' },
+                                              })
+                                            )
+                                          }}
+                                          className='w-full rounded-sm px-2 py-1.5 text-left text-muted-foreground text-xs transition-colors hover:bg-muted/50'
+                                        >
+                                          More Models...
+                                        </button>
+                                      </div>
                                     </>
                                   )
                                 })()}
