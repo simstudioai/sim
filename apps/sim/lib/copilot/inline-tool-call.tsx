@@ -455,7 +455,7 @@ export function InlineToolCall({
       >
         <div className='flex items-center gap-2 text-muted-foreground'>
           <div className='flex-shrink-0'>{renderDisplayIcon()}</div>
-          <span className='text-base'>{displayName}</span>
+          <span className='text-sm'>{displayName}</span>
         </div>
         {showButtons ? (
           <RunSkipButtons toolCall={toolCall} onStateChange={handleStateChange} />

@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { createPortal } from 'react-dom'
 import {
   ArrowUp,
   AtSign,
@@ -130,8 +131,19 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const overlayRef = useRef<HTMLDivElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const containerRef = useRef<HTMLDivElement>(null)
     const [showMentionMenu, setShowMentionMenu] = useState(false)
     const mentionMenuRef = useRef<HTMLDivElement>(null)
+    const mentionPortalRef = useRef<HTMLDivElement>(null)
+    const [isNearTop, setIsNearTop] = useState(false)
+    const [mentionMenuMaxHeight, setMentionMenuMaxHeight] = useState<number | undefined>(undefined)
+    const [mentionPortalStyle, setMentionPortalStyle] = useState<{
+      top: number
+      left: number
+      width: number
+      maxHeight: number
+      showBelow: boolean
+    } | null>(null)
     const submenuRef = useRef<HTMLDivElement>(null)
     const menuListRef = useRef<HTMLDivElement>(null)
     const [mentionActiveIndex, setMentionActiveIndex] = useState(0)
@@ -287,6 +299,44 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       return () => textarea.removeEventListener('scroll', handleScroll)
     }, [])
 
+    // Detect if input is near the top of the screen (update dynamically)
+    useEffect(() => {
+      const checkPosition = () => {
+        if (containerRef.current) {
+          const rect = containerRef.current.getBoundingClientRect()
+          // Consider "near top" if less than 300px from top of viewport
+          setIsNearTop(rect.top < 300)
+        }
+      }
+
+      checkPosition()
+      
+      // Check position on scroll within the copilot panel
+      const scrollContainer = containerRef.current?.closest('[data-radix-scroll-area-viewport]')
+      if (scrollContainer) {
+        scrollContainer.addEventListener('scroll', checkPosition, { passive: true })
+      }
+      
+      window.addEventListener('scroll', checkPosition, true)
+      window.addEventListener('resize', checkPosition)
+
+      return () => {
+        if (scrollContainer) {
+          scrollContainer.removeEventListener('scroll', checkPosition)
+        }
+        window.removeEventListener('scroll', checkPosition, true)
+        window.removeEventListener('resize', checkPosition)
+      }
+    }, [])
+    
+    // Also check position when mention menu opens
+    useEffect(() => {
+      if (showMentionMenu && containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect()
+        setIsNearTop(rect.top < 300)
+      }
+    }, [showMentionMenu])
+
     // Close mention menu on outside click
     useEffect(() => {
       if (!showMentionMenu) return
@@ -295,6 +345,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         if (
           mentionMenuRef.current &&
           !mentionMenuRef.current.contains(target) &&
+          (!mentionPortalRef.current || !mentionPortalRef.current.contains(target)) &&
           (!submenuRef.current || !submenuRef.current.contains(target)) &&
           textareaRef.current &&
           !textareaRef.current.contains(target as Node)
@@ -1956,8 +2007,139 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       }
     }, [panelWidth, message, selectedContexts])
 
+    // Update mention menu max height when visibility or position changes
+    useEffect(() => {
+      if (!showMentionMenu || !containerRef.current) {
+        setMentionMenuMaxHeight(undefined)
+        return
+      }
+      const rect = containerRef.current.getBoundingClientRect()
+      const margin = 16
+      let available = isNearTop
+        ? window.innerHeight - rect.bottom - margin
+        : rect.top - margin
+      available = Math.max(available, 120)
+      setMentionMenuMaxHeight(available)
+    }, [showMentionMenu, isNearTop])
+
+    // Position the portal mention menu
+    useEffect(() => {
+      const updatePosition = () => {
+        if (!showMentionMenu || !containerRef.current || !textareaRef.current) {
+          setMentionPortalStyle(null)
+          return
+        }
+        const rect = containerRef.current.getBoundingClientRect()
+        const margin = 8
+        
+        // Calculate cursor position using a temporary span
+        const textarea = textareaRef.current
+        const caretPos = getCaretPos()
+        
+        // Create a mirror div to calculate caret position
+        const div = document.createElement('div')
+        const style = window.getComputedStyle(textarea)
+        
+        // Copy relevant styles
+        div.style.position = 'absolute'
+        div.style.visibility = 'hidden'
+        div.style.whiteSpace = 'pre-wrap'
+        div.style.wordWrap = 'break-word'
+        div.style.font = style.font
+        div.style.padding = style.padding
+        div.style.border = style.border
+        div.style.width = style.width
+        div.style.lineHeight = style.lineHeight
+        
+        // Add text up to cursor position
+        const textBeforeCaret = message.substring(0, caretPos)
+        div.textContent = textBeforeCaret
+        
+        // Add a span at the end to measure position
+        const span = document.createElement('span')
+        span.textContent = '|'
+        div.appendChild(span)
+        
+        document.body.appendChild(div)
+        const spanRect = span.getBoundingClientRect()
+        const divRect = div.getBoundingClientRect()
+        document.body.removeChild(div)
+        
+        // Calculate the left offset relative to the textarea
+        const caretLeftOffset = spanRect.left - divRect.left
+        
+        // Calculate available space above and below
+        const spaceAbove = rect.top - margin
+        const spaceBelow = window.innerHeight - rect.bottom - margin
+        
+        // Cap max height to show ~8-10 items before scrolling (each item ~40px)
+        // This prevents the menu from extending too far in either direction
+        const maxMenuHeight = 360
+        
+        // Show below if near top OR if more space below, otherwise show above
+        const showBelow = rect.top < 300 || spaceBelow > spaceAbove
+        
+        // Calculate max height based on available space, but never exceed maxMenuHeight
+        // Use the smaller of available space and our cap to ensure menu fits
+        const maxHeight = Math.min(
+          Math.max(showBelow ? spaceBelow : spaceAbove, 120),
+          maxMenuHeight
+        )
+        
+        // Determine menu width based on submenu state
+        const menuWidth = openSubmenuFor === 'Blocks'
+          ? 320
+          : openSubmenuFor === 'Templates' || openSubmenuFor === 'Logs' || aggregatedActive
+            ? 384
+            : 224
+        
+        // Calculate left position: use caret position but ensure menu doesn't go off-screen
+        const idealLeft = rect.left + caretLeftOffset
+        const maxLeft = window.innerWidth - menuWidth - margin
+        const finalLeft = Math.min(idealLeft, maxLeft)
+
+        setMentionPortalStyle({
+          top: showBelow ? rect.bottom + 4 : rect.top - 4,
+          left: Math.max(rect.left, finalLeft), // Don't go past left edge of container
+          width: menuWidth,
+          maxHeight: maxHeight,
+          showBelow,
+        })
+        
+        // Update isNearTop state for reference
+        setIsNearTop(showBelow)
+      }
+
+      let rafId: number | null = null
+      if (showMentionMenu) {
+        updatePosition()
+        window.addEventListener('resize', updatePosition)
+        
+        // Update position on scroll
+        const scrollContainer = containerRef.current?.closest('[data-radix-scroll-area-viewport]')
+        if (scrollContainer) {
+          scrollContainer.addEventListener('scroll', updatePosition, { passive: true })
+        }
+        
+        // Continuously update position (for smooth tracking)
+        const loop = () => {
+          updatePosition()
+          rafId = requestAnimationFrame(loop)
+        }
+        rafId = requestAnimationFrame(loop)
+        
+        return () => {
+          window.removeEventListener('resize', updatePosition)
+          if (scrollContainer) {
+            scrollContainer.removeEventListener('scroll', updatePosition)
+          }
+          if (rafId) cancelAnimationFrame(rafId)
+        }
+      }
+    }, [showMentionMenu, openSubmenuFor, aggregatedActive, message])
+
     return (
-      <div className={cn('relative flex-none pb-3', className)}>
+      <div ref={containerRef} className={cn('relative flex-none pb-3', className)}>
         <div
           className={cn(
             'relative rounded-[8px] border border-[#E5E5E5] bg-[#FFFFFF] px-3 py-1.5 shadow-xs transition-all duration-200 dark:border-[#414141] dark:bg-[var(--surface-elevated)]',
@@ -2093,6 +2275,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             <div
               ref={overlayRef}
               className='pointer-events-none absolute inset-0 z-[1] max-h-[120px] overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words [&::-webkit-scrollbar]:hidden'
+              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
               <pre className='m-0 whitespace-pre-wrap break-words font-sans text-sm text-foreground leading-[1.25rem]'>
                 {(() => {
@@ -2149,24 +2332,36 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               placeholder={isDragging ? 'Drop files here...' : effectivePlaceholder}
               disabled={disabled}
               rows={1}
-              className='relative z-[2] mb-2 min-h-[32px] w-full resize-none overflow-y-auto overflow-x-hidden break-words border-0 bg-transparent pl-[2px] pr-14 py-1 font-sans text-sm text-transparent leading-[1.25rem] caret-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
-              style={{ height: 'auto', wordBreak: 'break-word' }}
+              className='relative z-[2] mb-2 min-h-[32px] w-full resize-none overflow-y-auto overflow-x-hidden break-words border-0 bg-transparent pl-[2px] pr-14 py-1 font-sans text-sm text-transparent leading-[1.25rem] caret-foreground focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-scrollbar]:hidden'
+              style={{ height: 'auto', wordBreak: 'break-word', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             />
 
-            {showMentionMenu && (
-              <>
+            {showMentionMenu && mentionPortalStyle && createPortal(
+              <div
+                ref={mentionPortalRef}
+                style={{
+                  position: 'fixed',
+                  top: mentionPortalStyle.top,
+                  left: mentionPortalStyle.left,
+                  width: mentionPortalStyle.width,
+                  maxHeight: mentionPortalStyle.maxHeight,
+                  zIndex: 9999999,
+                  pointerEvents: 'auto',
+                  isolation: 'isolate',
+                  transform: mentionPortalStyle.showBelow ? 'none' : 'translateY(-100%)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
                 <div
                   ref={mentionMenuRef}
-                  className={cn(
-                    'absolute bottom-full left-0 z-50 mb-1 flex max-h-64 flex-col overflow-hidden rounded-[8px] border bg-popover p-1 text-foreground shadow-md',
-                    openSubmenuFor === 'Blocks'
-                      ? 'w-80'
-                      : openSubmenuFor === 'Templates' ||
-                          openSubmenuFor === 'Logs' ||
-                          aggregatedActive
-                        ? 'w-96'
-                        : 'w-56'
-                  )}
+                  className='flex flex-col overflow-hidden rounded-[8px] border bg-popover p-1 text-foreground shadow-md'
+                  style={{
+                    maxHeight: mentionPortalStyle.maxHeight,
+                    height: '100%',
+                    position: 'relative',
+                    zIndex: 9999999,
+                  }}
                 >
                   {openSubmenuFor ? (
                     <>
@@ -3023,7 +3218,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                     </>
                   )}
                 </div>
-              </>
+              </div>,
+              document.body
             )}
           </div>
 
@@ -3043,7 +3239,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                     <span>{getModeText()}</span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align='start' side='top' className='p-0'>
+                <DropdownMenuContent align='start' side={isNearTop ? 'bottom' : 'top'} className='p-0'>
                   <TooltipProvider>
                     <div className='w-[160px] p-1'>
                       <Tooltip>
@@ -3145,7 +3341,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                         </span>
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align='start' side='top' className='max-h-[400px] p-0'>
+                    <DropdownMenuContent align='start' side={isNearTop ? 'bottom' : 'top'} className='max-h-[400px] p-0'>
                       <TooltipProvider delayDuration={100} skipDelayDuration={0}>
                         <div className='w-[220px]'>
                           <div className='max-h-[280px] overflow-y-auto p-2'>

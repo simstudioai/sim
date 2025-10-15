@@ -293,13 +293,13 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
     const handleMessageClick = () => {
       if (isSendingMessage) return
       
-      // If message needs expansion and is not expanded, expand it first
+      // If message needs expansion and is not expanded, expand it
       if (needsExpansion && !isExpanded) {
         setIsExpanded(true)
-      } else {
-        // Otherwise enter edit mode
-        handleEditMessage()
       }
+      
+      // Always enter edit mode on click
+      handleEditMessage()
     }
 
     const handleSubmitEdit = async (
@@ -403,23 +403,41 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           if (clickedMessageId && clickedMessageId !== message.id) {
             handleCancelEdit()
           }
-          // Don't close if clicking on the same message (already in edit mode)
           return
         }
         
-        // Close edit mode if clicking anywhere else (not a message box)
+        // Check if clicking on the main user input at the bottom
+        if (target.closest('textarea') || target.closest('input[type="text"]')) {
+          handleCancelEdit()
+          return
+        }
+        
+        // Only close if NOT clicking on any component (i.e., clicking directly on panel background)
+        // If the target has children or is a component, don't close
+        if (target.children.length > 0 || target.tagName !== 'DIV') {
+          return
+        }
+        
         handleCancelEdit()
+      }
+
+      const handleKeyDown = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') {
+          handleCancelEdit()
+        }
       }
 
       // Use click event instead of mousedown to allow the target's click handler to fire first
       // Add listener with a slight delay to avoid immediate trigger when entering edit mode
       const timeoutId = setTimeout(() => {
         document.addEventListener('click', handleClickOutside, true) // Use capture phase
+        document.addEventListener('keydown', handleKeyDown)
       }, 100)
 
       return () => {
         clearTimeout(timeoutId)
         document.removeEventListener('click', handleClickOutside, true)
+        document.removeEventListener('keydown', handleKeyDown)
       }
     }, [isEditMode, message.id])
 
@@ -668,18 +686,11 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                     return nodes
                   })()}
                   
-                  {/* Gradient fade and ellipsis when truncated */}
+                  {/* Gradient fade when truncated */}
                   {!isExpanded && needsExpansion && (
                     <div className='absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-[#FFFFFF] to-transparent dark:from-[var(--surface-elevated)]' />
                   )}
                 </div>
-
-                {/* Show more indicator when truncated */}
-                {!isExpanded && needsExpansion && (
-                  <div className='mt-1 text-center text-muted-foreground text-xs'>
-                    Click to expand...
-                  </div>
-                )}
 
                 {/* Abort button when hovering and response is generating (only on last user message) */}
                 {isSendingMessage && isHoveringMessage && isLastUserMessage && (
