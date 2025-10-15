@@ -8,7 +8,6 @@ import {
   Box,
   Check,
   Clipboard,
-  Edit,
   Info,
   LibraryBig,
   Loader2,
@@ -40,10 +39,11 @@ const logger = createLogger('CopilotMessage')
 interface CopilotMessageProps {
   message: CopilotMessageType
   isStreaming?: boolean
+  panelWidth?: number
 }
 
 const CopilotMessage: FC<CopilotMessageProps> = memo(
-  ({ message, isStreaming }) => {
+  ({ message, isStreaming, panelWidth = 308 }) => {
     const isUser = message.role === 'user'
     const isAssistant = message.role === 'assistant'
     const [showCopySuccess, setShowCopySuccess] = useState(false)
@@ -543,6 +543,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 placeholder='Edit your message...'
                 mode={mode}
                 onModeChange={setMode}
+                panelWidth={panelWidth}
                 hideContextUsage={true}
               />
             </div>
@@ -705,13 +706,6 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                     >
                       <X className='h-3 w-3' />
                     </button>
-                  </div>
-                )}
-
-                {/* Edit indicator on hover (only when not generating) */}
-                {!isSendingMessage && (
-                  <div className='pointer-events-none absolute top-2 right-2 opacity-0 transition-opacity group-hover:opacity-100'>
-                    <Edit className='h-3.5 w-3.5 text-muted-foreground' />
                   </div>
                 )}
               </div>

@@ -479,6 +479,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                           isStreaming={
                             isSendingMessage && message.id === messages[messages.length - 1]?.id
                           }
+                          panelWidth={panelWidth}
                         />
                       ))
                     )}

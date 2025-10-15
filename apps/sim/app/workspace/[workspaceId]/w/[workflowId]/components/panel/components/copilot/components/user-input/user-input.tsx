@@ -1759,7 +1759,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     }
 
     const getModelIcon = () => {
-      // Only Brain and BrainCircuit models show purple when agentPrefetch is false
+      // Brain and BrainCircuit models show purple when agentPrefetch is false
       const isBrainModel = [
         'gpt-5',
         'gpt-5-medium',
@@ -1767,8 +1767,11 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         'claude-4.5-sonnet',
       ].includes(selectedModel)
       const isBrainCircuitModel = ['gpt-5-high', 'o3', 'claude-4.1-opus'].includes(selectedModel)
+      const isHaikuModel = selectedModel === 'claude-4.5-haiku'
+      
+      // Haiku shows purple when selected, other zap models don't
       const colorClass =
-        (isBrainModel || isBrainCircuitModel) && !agentPrefetch
+        (isBrainModel || isBrainCircuitModel || isHaikuModel) && !agentPrefetch
           ? 'text-[var(--brand-primary-hover-hex)]'
           : 'text-muted-foreground'
 
@@ -1779,7 +1782,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       if (isBrainModel) {
         return <Brain className={`h-3 w-3 ${colorClass}`} />
       }
-      if (['gpt-4o', 'gpt-4.1', 'gpt-5-fast'].includes(selectedModel)) {
+      if (['gpt-4o', 'gpt-4.1', 'gpt-5-fast', 'claude-4.5-haiku'].includes(selectedModel)) {
         return <Zap className={`h-3 w-3 ${colorClass}`} />
       }
       return <InfinityIcon className={`h-3 w-3 ${colorClass}`} />
@@ -3309,7 +3312,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                 const isBrainCircuitModel = ['gpt-5-high', 'o3', 'claude-4.1-opus'].includes(
                   selectedModel
                 )
-                const showPurple = (isBrainModel || isBrainCircuitModel) && !agentPrefetch
+                const isHaikuModel = selectedModel === 'claude-4.5-haiku'
+                const showPurple = (isBrainModel || isBrainCircuitModel || isHaikuModel) && !agentPrefetch
 
                 return (
                   <DropdownMenu
@@ -3370,7 +3374,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                     ) {
                                       return <Brain className='h-3 w-3 text-muted-foreground' />
                                     }
-                                    if (['gpt-4o', 'gpt-4.1', 'gpt-5-fast'].includes(modelValue)) {
+                                    if (['gpt-4o', 'gpt-4.1', 'gpt-5-fast', 'claude-4.5-haiku'].includes(modelValue)) {
                                       return <Zap className='h-3 w-3 text-muted-foreground' />
                                     }
                                     return <div className='h-3 w-3' />
@@ -3405,6 +3409,25 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
                                   return (
                                     <>
+                                      {/* Anthropic Models */}
+                                      <div>
+                                        <div className='px-2 py-1 font-medium text-[10px] text-muted-foreground uppercase'>
+                                          Anthropic
+                                        </div>
+                                        <div className='space-y-0.5'>
+                                          {modelOptions
+                                            .filter((option) =>
+                                              [
+                                                'claude-4-sonnet',
+                                                'claude-4.5-haiku',
+                                                'claude-4.5-sonnet',
+                                                'claude-4.1-opus',
+                                              ].includes(option.value)
+                                            )
+                                            .map(renderModelOption)}
+                                        </div>
+                                      </div>
+
                                       {/* OpenAI Models */}
                                       <div>
                                         <div className='px-2 py-1 font-medium text-[10px] text-muted-foreground uppercase'>
@@ -3421,25 +3444,6 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                                 'gpt-4o',
                                                 'gpt-4.1',
                                                 'o3',
-                                              ].includes(option.value)
-                                            )
-                                            .map(renderModelOption)}
-                                        </div>
-                                      </div>
-
-                                      {/* Anthropic Models */}
-                                      <div>
-                                        <div className='px-2 py-1 font-medium text-[10px] text-muted-foreground uppercase'>
-                                          Anthropic
-                                        </div>
-                                        <div className='space-y-0.5'>
-                                          {modelOptions
-                                            .filter((option) =>
-                                              [
-                                                'claude-4-sonnet',
-                                                'claude-4.5-haiku',
-                                                'claude-4.5-sonnet',
-                                                'claude-4.1-opus',
                                               ].includes(option.value)
                                             )
                                             .map(renderModelOption)}
