@@ -928,8 +928,7 @@ export class AgentBlockHandler implements BlockHandler {
       endTime: tc.endTime,
       duration: tc.duration,
       arguments: tc.arguments || tc.input || {},
-      input: tc.arguments || tc.input || {}, // Keep both for backward compatibility
-      output: tc.result || tc.output,
+      result: tc.result || tc.output,
     }
   }
 
