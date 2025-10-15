@@ -238,6 +238,23 @@ export async function updateWorkflowRunCounts(workflowId: string, runs = 1) {
 }
 
 /**
+ * Sanitize tools array by removing UI-only fields
+ * @param tools - The tools array to sanitize
+ * @returns A sanitized tools array
+ */
+function sanitizeToolsForComparison(tools: any[] | undefined): any[] {
+  if (!Array.isArray(tools)) {
+    return []
+  }
+
+  return tools.map((tool) => {
+    // Remove UI-only field: isExpanded
+    const { isExpanded, ...cleanTool } = tool
+    return cleanTool
+  })
+}
+
+/**
  * Normalize a value for consistent comparison by sorting object keys
  * @param value - The value to normalize
  * @returns A normalized version of the value
@@ -385,8 +402,14 @@ export function hasWorkflowChanged(
       }
 
       // Get values with special handling for null/undefined
-      const currentValue = currentSubBlocks[subBlockId].value ?? null
-      const deployedValue = deployedSubBlocks[subBlockId].value ?? null
+      let currentValue = currentSubBlocks[subBlockId].value ?? null
+      let deployedValue = deployedSubBlocks[subBlockId].value ?? null
+
+      // Special handling for 'tools' subBlock - sanitize UI-only fields
+      if (subBlockId === 'tools' && Array.isArray(currentValue) && Array.isArray(deployedValue)) {
+        currentValue = sanitizeToolsForComparison(currentValue)
+        deployedValue = sanitizeToolsForComparison(deployedValue)
+      }
 
       // For string values, compare directly to catch even small text changes
       if (typeof currentValue === 'string' && typeof deployedValue === 'string') {
