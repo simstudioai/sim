@@ -1,4 +1,4 @@
-import type { GmailReadParams, GmailToolResponse } from '@/tools/gmail/types'
+import type { GmailAttachment, GmailReadParams, GmailToolResponse } from '@/tools/gmail/types'
 import {
   createMessagesSummary,
   GMAIL_API_BASE,
@@ -195,15 +195,28 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
 
           const messages = await Promise.all(messagePromises)
 
-          // Process all messages and create a summary
-          const processedMessages = messages.map(processMessageForSummary)
+          // Process all messages fully to get attachments
+          const processedMessages = await Promise.all(
+            messages.map((msg) => processMessage(msg, params))
+          )
+
+          // Flatten all attachments from all messages
+          const allAttachments: GmailAttachment[] = []
+          for (const result of processedMessages) {
+            if (result.output.attachments && result.output.attachments.length > 0) {
+              allAttachments.push(...result.output.attachments)
+            }
+          }
+
+          // Create summary from processed messages
+          const summaryMessages = messages.map(processMessageForSummary)
 
           return {
             success: true,
             output: {
-              content: createMessagesSummary(processedMessages),
+              content: createMessagesSummary(summaryMessages),
               metadata: {
-                results: processedMessages.map((msg) => ({
+                results: summaryMessages.map((msg) => ({
                   id: msg.id,
                   threadId: msg.threadId,
                   subject: msg.subject,
@@ -211,6 +224,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
                   date: msg.date,
                 })),
               },
+              attachments: allAttachments,
             },
           }
         } catch (error: any) {
