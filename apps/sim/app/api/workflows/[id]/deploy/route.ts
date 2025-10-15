@@ -170,8 +170,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const deployedAt = new Date()
     logger.debug(`[${requestId}] Proceeding with deployment at ${deployedAt.toISOString()}`)
 
-    // No longer auto-generating default API key - user must provide one
-
     let keyInfo: { name: string; type: 'personal' | 'workspace' } | null = null
     let matchedKey: {
       id: string
