@@ -408,10 +408,18 @@ export async function DELETE(
       }
     }
 
-    // If it's a Telegram webhook, delete it from Telegram first
+    // Delete Microsoft Teams subscription if applicable
+    if (foundWebhook.provider === 'microsoftteams') {
+      const { deleteTeamsSubscription } = await import('@/lib/webhooks/webhook-helpers')
+      logger.info(`[${requestId}] Deleting Teams subscription for webhook ${id}`)
+      await deleteTeamsSubscription(foundWebhook, webhookData.workflow, requestId)
+      // Don't fail webhook deletion if subscription cleanup fails
+    }
+
+    // Delete Telegram webhook if applicable
     if (foundWebhook.provider === 'telegram') {
       try {
-        const { botToken } = foundWebhook.providerConfig as { botToken: string }
+        const { botToken } = (foundWebhook.providerConfig || {}) as { botToken?: string }
 
         if (!botToken) {
           logger.warn(`[${requestId}] Missing botToken for Telegram webhook deletion.`, {
@@ -426,9 +434,7 @@ export async function DELETE(
         const telegramApiUrl = `https://api.telegram.org/bot${botToken}/deleteWebhook`
         const telegramResponse = await fetch(telegramApiUrl, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
         })
 
         const responseBody = await telegramResponse.json()
@@ -436,9 +442,7 @@ export async function DELETE(
           const errorMessage =
             responseBody.description ||
             `Failed to delete Telegram webhook. Status: ${telegramResponse.status}`
-          logger.error(`[${requestId}] ${errorMessage}`, {
-            response: responseBody,
-          })
+          logger.error(`[${requestId}] ${errorMessage}`, { response: responseBody })
           return NextResponse.json(
             { error: 'Failed to delete webhook from Telegram', details: errorMessage },
             { status: 500 }
@@ -453,10 +457,7 @@ export async function DELETE(
           stack: error.stack,
         })
         return NextResponse.json(
-          {
-            error: 'Failed to delete webhook from Telegram',
-            details: error.message,
-          },
+          { error: 'Failed to delete webhook from Telegram', details: error.message },
           { status: 500 }
         )
       }

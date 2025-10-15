@@ -382,17 +382,40 @@ export async function queueWebhookExecution(
       return NextResponse.json({ message: 'Pinned API key required' }, { status: 200 })
     }
 
+    const headers = Object.fromEntries(request.headers.entries())
+
+    // For Microsoft Teams Graph notifications, extract unique identifiers for idempotency
+    if (
+      foundWebhook.provider === 'microsoftteams' &&
+      body?.value &&
+      Array.isArray(body.value) &&
+      body.value.length > 0
+    ) {
+      const notification = body.value[0]
+      const subscriptionId = notification.subscriptionId
+      const messageId = notification.resourceData?.id
+
+      if (subscriptionId && messageId) {
+        headers['x-teams-notification-id'] = `${subscriptionId}:${messageId}`
+      }
+    }
+
+    // Extract credentialId from webhook config for credential-based webhooks
+    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+    const credentialId = providerConfig.credentialId as string | undefined
+
     const payload = {
       webhookId: foundWebhook.id,
       workflowId: foundWorkflow.id,
       userId: actorUserId,
       provider: foundWebhook.provider,
       body,
-      headers: Object.fromEntries(request.headers.entries()),
+      headers,
       path: options.path || foundWebhook.path,
       blockId: foundWebhook.blockId,
       testMode: options.testMode,
       executionTarget: options.executionTarget,
+      ...(credentialId ? { credentialId } : {}),
     }
 
     const useTrigger = isTruthy(env.TRIGGER_DEV_ENABLED)
@@ -416,6 +439,15 @@ export async function queueWebhookExecution(
     }
 
     if (foundWebhook.provider === 'microsoftteams') {
+      const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+      const triggerId = providerConfig.triggerId as string | undefined
+
+      // Chat subscription (Graph API) returns 202
+      if (triggerId === 'microsoftteams_chat_subscription') {
+        return new NextResponse(null, { status: 202 })
+      }
+
+      // Channel webhook (outgoing webhook) returns message response
       return NextResponse.json({
         type: 'message',
         text: 'Sim',

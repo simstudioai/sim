@@ -92,6 +92,7 @@ export type WebhookExecutionPayload = {
   blockId?: string
   testMode?: boolean
   executionTarget?: 'deployed' | 'live'
+  credentialId?: string
 }
 
 export async function executeWebhookJob(payload: WebhookExecutionPayload) {
@@ -340,10 +341,22 @@ async function executeWebhookJobInternal(
     }
 
     // Format input for standard webhooks
-    const mockWebhook = {
-      provider: payload.provider,
-      blockId: payload.blockId,
-    }
+    // Load the actual webhook to get providerConfig (needed for Teams credentialId)
+    const webhookRows = await db
+      .select()
+      .from(webhook)
+      .where(eq(webhook.id, payload.webhookId))
+      .limit(1)
+
+    const actualWebhook =
+      webhookRows.length > 0
+        ? webhookRows[0]
+        : {
+            provider: payload.provider,
+            blockId: payload.blockId,
+            providerConfig: {},
+          }
+
     const mockWorkflow = {
       id: payload.workflowId,
       userId: payload.userId,
@@ -352,7 +365,7 @@ async function executeWebhookJobInternal(
       headers: new Map(Object.entries(payload.headers)),
     } as any
 
-    const input = formatWebhookInput(mockWebhook, mockWorkflow, payload.body, mockRequest)
+    const input = await formatWebhookInput(actualWebhook, mockWorkflow, payload.body, mockRequest)
 
     if (!input && payload.provider === 'whatsapp') {
       logger.info(`[${requestId}] No messages in WhatsApp payload, skipping execution`)
