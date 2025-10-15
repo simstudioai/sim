@@ -65,7 +65,74 @@ Checks if content matches a specified regular expression pattern.
 - Enforce specific text patterns
 
 **Configuration:**
-- **Regex Pattern**: The regular expression to match against (e.g., `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$` for emails)
+- **Regex Pattern**: The regular expression to match against (e.g., `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}---
+title: Guardrails
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+
+The Guardrails block validates and protects your AI workflows by checking content against multiple validation types. Ensure data quality, prevent hallucinations, detect PII, and enforce format requirements before content moves through your workflow.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/guardrails.png"
+    alt="Guardrails Block"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+## Overview
+
+The Guardrails block enables you to:
+
+<Steps>
+  <Step>
+    <strong>Validate JSON Structure</strong>: Ensure LLM outputs are valid JSON before parsing
+  </Step>
+  <Step>
+    <strong>Match Regex Patterns</strong>: Verify content matches specific formats (emails, phone numbers, URLs, etc.)
+  </Step>
+  <Step>
+    <strong>Detect Hallucinations</strong>: Use RAG + LLM scoring to validate AI outputs against knowledge base content
+  </Step>
+  <Step>
+    <strong>Detect PII</strong>: Identify and optionally mask personally identifiable information across 40+ entity types
+  </Step>
+</Steps>
+
+## Validation Types
+
+### JSON Validation
+
+Validates that content is properly formatted JSON. Perfect for ensuring structured LLM outputs can be safely parsed.
+
+**Use Cases:**
+- Validate JSON responses from Agent blocks before parsing
+- Ensure API payloads are properly formatted
+- Check structured data integrity
+
+**Output:**
+- `passed`: `true` if valid JSON, `false` otherwise
+- `error`: Error message if validation fails (e.g., "Invalid JSON: Unexpected token...")
+
+### Regex Validation
+
+Checks if content matches a specified regular expression pattern.
+
+**Use Cases:**
+- Validate email addresses
+- Check phone number formats
+- Verify URLs or custom identifiers
+- Enforce specific text patterns
+
+**Configuration:**
+- **Regex Pattern**: The regular expression to match against (e.g.,  for emails)
 
 **Output:**
 - `passed`: `true` if content matches pattern, `false` otherwise
@@ -248,4 +315,3 @@ Additional outputs by type:
 <Callout type="info">
   Guardrails validation happens synchronously in your workflow. For hallucination detection, choose faster models (like GPT-4o-mini) if latency is critical.
 </Callout>
-
