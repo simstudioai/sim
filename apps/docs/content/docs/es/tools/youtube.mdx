@@ -1,6 +1,6 @@
 ---
 title: YouTube
-description: Buscar videos en YouTube
+description: Interactúa con videos, canales y listas de reproducción de YouTube
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -39,7 +39,7 @@ En Sim, la integración con YouTube permite a tus agentes buscar y analizar prog
 
 ## Instrucciones de uso
 
-Integra YouTube en el flujo de trabajo. Puede buscar videos. Requiere clave API.
+Integra YouTube en el flujo de trabajo. Puede buscar videos, obtener detalles de videos, obtener información de canales, obtener elementos de listas de reproducción y obtener comentarios de videos.
 
 ## Herramientas
 
@@ -60,6 +60,99 @@ Busca videos en YouTube utilizando la API de datos de YouTube.
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
 | `items` | array | Array de videos de YouTube que coinciden con la consulta de búsqueda |
+
+### `youtube_video_details`
+
+Obtén información detallada sobre un video específico de YouTube.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `videoId` | string | Sí | ID del video de YouTube |
+| `apiKey` | string | Sí | Clave API de YouTube |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `videoId` | string | ID del video de YouTube |
+| `title` | string | Título del video |
+| `description` | string | Descripción del video |
+| `channelId` | string | ID del canal |
+| `channelTitle` | string | Nombre del canal |
+| `publishedAt` | string | Fecha y hora de publicación |
+| `duration` | string | Duración del video en formato ISO 8601 |
+| `viewCount` | number | Número de visualizaciones |
+| `likeCount` | number | Número de me gusta |
+| `commentCount` | number | Número de comentarios |
+| `thumbnail` | string | URL de la miniatura del video |
+| `tags` | array | Etiquetas del video |
+
+### `youtube_channel_info`
+
+Obtén información detallada sobre un canal de YouTube.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `channelId` | string | No | ID del canal de YouTube \(usa channelId o username\) |
+| `username` | string | No | Nombre de usuario del canal de YouTube \(usa channelId o username\) |
+| `apiKey` | string | Sí | Clave API de YouTube |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `channelId` | string | ID del canal de YouTube |
+| `title` | string | Nombre del canal |
+| `description` | string | Descripción del canal |
+| `subscriberCount` | number | Número de suscriptores |
+| `videoCount` | number | Número de videos |
+| `viewCount` | number | Vistas totales del canal |
+| `publishedAt` | string | Fecha de creación del canal |
+| `thumbnail` | string | URL de la miniatura del canal |
+| `customUrl` | string | URL personalizada del canal |
+
+### `youtube_playlist_items`
+
+Obtener videos de una lista de reproducción de YouTube.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `playlistId` | string | Sí | ID de la lista de reproducción de YouTube |
+| `maxResults` | number | No | Número máximo de videos a devolver |
+| `pageToken` | string | No | Token de página para paginación |
+| `apiKey` | string | Sí | Clave API de YouTube |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `items` | array | Array de videos en la lista de reproducción |
+
+### `youtube_comments`
+
+Obtener comentarios de un video de YouTube.
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `videoId` | string | Sí | ID del video de YouTube |
+| `maxResults` | number | No | Número máximo de comentarios a devolver |
+| `order` | string | No | Orden de los comentarios: time (tiempo) o relevance (relevancia) |
+| `pageToken` | string | No | Token de página para paginación |
+| `apiKey` | string | Sí | Clave API de YouTube |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `items` | array | Array de comentarios del video |
 
 ## Notas
 

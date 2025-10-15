@@ -21,10 +21,10 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
       description: 'The name of the Supabase table to insert data into',
     },
     data: {
-      type: 'any',
+      type: 'array',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The data to insert',
+      description: 'The data to insert (array of objects or a single object)',
     },
     apiKey: {
       type: 'string',

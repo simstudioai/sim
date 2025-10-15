@@ -173,6 +173,13 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       placeholder: 'Number of emails to retrieve (default: 1, max: 10)',
       condition: { field: 'operation', value: 'read_outlook' },
     },
+    {
+      id: 'includeAttachments',
+      title: 'Include Attachments',
+      type: 'switch',
+      layout: 'full',
+      condition: { field: 'operation', value: 'read_outlook' },
+    },
     // TRIGGER MODE: Trigger configuration (only shown when trigger mode is active)
     {
       id: 'triggerConfig',
@@ -231,6 +238,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     folder: { type: 'string', description: 'Email folder' },
     manualFolder: { type: 'string', description: 'Manual folder name' },
     maxResults: { type: 'number', description: 'Maximum emails' },
+    includeAttachments: { type: 'boolean', description: 'Include email attachments' },
   },
   outputs: {
     // Common outputs
@@ -255,6 +263,10 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     receivedDateTime: { type: 'string', description: 'Email received timestamp' },
     sentDateTime: { type: 'string', description: 'Email sent timestamp' },
     hasAttachments: { type: 'boolean', description: 'Whether email has attachments' },
+    attachments: {
+      type: 'json',
+      description: 'Email attachments (if includeAttachments is enabled)',
+    },
     isRead: { type: 'boolean', description: 'Whether email is read' },
     importance: { type: 'string', description: 'Email importance level' },
     // Trigger outputs

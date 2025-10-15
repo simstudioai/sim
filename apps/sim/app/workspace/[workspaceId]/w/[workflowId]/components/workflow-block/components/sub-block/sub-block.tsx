@@ -68,8 +68,6 @@ export const SubBlock = memo(
   }: SubBlockProps) {
     const [isValidJson, setIsValidJson] = useState(true)
 
-    // Removed debug logging for performance
-
     const handleMouseDown = (e: React.MouseEvent) => {
       e.stopPropagation()
     }

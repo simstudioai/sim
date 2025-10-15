@@ -24,7 +24,7 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
       description: 'Number of most similar results to return (1-100)',
     },
     tagFilters: {
-      type: 'any',
+      type: 'array',
       required: false,
       description: 'Array of tag filters with tagName and tagValue properties',
     },

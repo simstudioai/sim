@@ -1,12 +1,13 @@
 name: 'Auto-translate Documentation'
 
+# Temporarily disabled
 on:
-  push:
-    branches: [ staging ]
-    paths: 
-      - 'apps/docs/content/docs/en/**'
-      - 'apps/docs/i18n.json'
-  workflow_dispatch: # Allow manual triggers
+  workflow_dispatch: # Allow manual triggers only
+  # push:
+  #   branches: [ staging ]
+  #   paths:
+  #     - 'apps/docs/content/docs/en/**'
+  #     - 'apps/docs/i18n.json'
 
 permissions:
   contents: write

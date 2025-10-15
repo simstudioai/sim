@@ -12,7 +12,7 @@ import { FrozenCanvasModal } from '@/app/workspace/[workspaceId]/logs/components
 import { FileDownload } from '@/app/workspace/[workspaceId]/logs/components/sidebar/components/file-download'
 import LogMarkdownRenderer from '@/app/workspace/[workspaceId]/logs/components/sidebar/components/markdown-renderer'
 import { ToolCallsDisplay } from '@/app/workspace/[workspaceId]/logs/components/tool-calls/tool-calls-display'
-import { TraceSpansDisplay } from '@/app/workspace/[workspaceId]/logs/components/trace-spans/trace-spans-display'
+import { TraceSpans } from '@/app/workspace/[workspaceId]/logs/components/trace-spans/trace-spans'
 import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils/format-date'
 import { formatCost } from '@/providers/utils'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
@@ -32,7 +32,6 @@ interface LogSidebarProps {
  */
 const tryPrettifyJson = (content: string): { isJson: boolean; formatted: string } => {
   try {
-    // First check if the content looks like JSON (starts with { or [)
     const trimmed = content.trim()
     if (
       !(trimmed.startsWith('{') || trimmed.startsWith('[')) ||
@@ -41,12 +40,10 @@ const tryPrettifyJson = (content: string): { isJson: boolean; formatted: string 
       return { isJson: false, formatted: content }
     }
 
-    // Try to parse the JSON
     const parsed = JSON.parse(trimmed)
     const prettified = JSON.stringify(parsed, null, 2)
     return { isJson: true, formatted: prettified }
   } catch (_e) {
-    // If parsing fails, it's not valid JSON
     return { isJson: false, formatted: content }
   }
 }
@@ -55,7 +52,6 @@ const tryPrettifyJson = (content: string): { isJson: boolean; formatted: string 
  * Formats JSON content for display, handling multiple JSON objects separated by '--'
  */
 const formatJsonContent = (content: string, blockInput?: Record<string, any>): React.ReactNode => {
-  // Look for a pattern like "Block Agent 1 (agent):" to separate system comment from content
   const blockPattern = /^(Block .+?\(.+?\):)\s*/
   const match = content.match(blockPattern)
 
@@ -74,7 +70,6 @@ const formatJsonContent = (content: string, blockInput?: Record<string, any>): R
     )
   }
 
-  // If no system comment pattern found, show the whole content
   const { isJson, formatted } = tryPrettifyJson(content)
 
   return (
@@ -241,7 +236,6 @@ export function Sidebar({
     }
   }, [log?.id])
 
-  // Determine if this is a workflow execution log
   const isWorkflowExecutionLog = useMemo(() => {
     if (!log) return false
     return (
@@ -250,8 +244,6 @@ export function Sidebar({
     )
   }, [log])
 
-  // Helper to determine if we have cost information to display
-  // All workflow executions now have cost info (base charge + any model costs)
   const hasCostInfo = useMemo(() => {
     return isWorkflowExecutionLog && log?.cost
   }, [log, isWorkflowExecutionLog])
@@ -260,18 +252,14 @@ export function Sidebar({
     return isWorkflowExecutionLog && hasCostInfo
   }, [isWorkflowExecutionLog, hasCostInfo])
 
-  // Handle trace span expansion state
   const handleTraceSpanToggle = (expanded: boolean) => {
     setIsTraceExpanded(expanded)
 
-    // If a trace span is expanded, increase the sidebar width only if it's currently below the expanded width
     if (expanded) {
-      // Only expand if current width is less than expanded width
       if (width < EXPANDED_WIDTH) {
         setWidth(EXPANDED_WIDTH)
       }
     } else {
-      // If all trace spans are collapsed, revert to default width only if we're at expanded width
       if (width === EXPANDED_WIDTH) {
         setWidth(DEFAULT_WIDTH)
       }
@@ -288,7 +276,6 @@ export function Sidebar({
     const handleMouseMove = (e: MouseEvent) => {
       if (isDragging) {
         const newWidth = window.innerWidth - e.clientX
-        // Maintain minimum width and respect expansion state
         const minWidthToUse = isTraceExpanded ? Math.max(MIN_WIDTH, EXPANDED_WIDTH) : MIN_WIDTH
         setWidth(Math.max(minWidthToUse, Math.min(newWidth, window.innerWidth * 0.8)))
       }
@@ -309,22 +296,18 @@ export function Sidebar({
     }
   }, [isDragging, isTraceExpanded, MIN_WIDTH, EXPANDED_WIDTH, width])
 
-  // Handle escape key to close the sidebar
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
         onClose()
       }
 
-      // Add keyboard shortcuts for navigation
       if (isOpen) {
-        // Up arrow key for previous log
         if (e.key === 'ArrowUp' && hasPrev && onNavigatePrev) {
           e.preventDefault()
           handleNavigate(onNavigatePrev)
         }
 
-        // Down arrow key for next log
         if (e.key === 'ArrowDown' && hasNext && onNavigateNext) {
           e.preventDefault()
           handleNavigate(onNavigateNext)
@@ -336,7 +319,6 @@ export function Sidebar({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, onClose, hasPrev, hasNext, onNavigatePrev, onNavigateNext])
 
-  // Handle navigation
   const handleNavigate = (navigateFunction: () => void) => {
     navigateFunction()
   }
@@ -530,10 +512,10 @@ export function Sidebar({
                       Workflow State
                     </h3>
                     <Button
-                      variant='outline'
+                      variant='ghost'
                       size='sm'
                       onClick={() => setIsFrozenCanvasOpen(true)}
-                      className='w-full justify-start gap-2'
+                      className='w-full justify-start gap-2 rounded-md border bg-muted/30 hover:bg-muted/50'
                     >
                       <Eye className='h-4 w-4' />
                       View Snapshot
@@ -550,7 +532,7 @@ export function Sidebar({
                 {isWorkflowExecutionLog && log.executionData?.traceSpans && (
                   <div className='w-full'>
                     <div className='w-full overflow-x-hidden'>
-                      <TraceSpansDisplay
+                      <TraceSpans
                         traceSpans={log.executionData.traceSpans}
                         totalDuration={log.executionData.totalDuration}
                         onExpansionChange={handleTraceSpanToggle}

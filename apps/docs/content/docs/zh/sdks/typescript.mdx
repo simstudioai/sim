@@ -957,34 +957,6 @@ function StreamingWorkflow() {
 - Node.js 16+
 - TypeScript 5.0+ (for TypeScript projects)
 
-## TypeScript Support
-
-The SDK is written in TypeScript and provides full type safety:
-
-```typescript
-import { 
-  SimStudioClient, 
-  WorkflowExecutionResult, 
-  WorkflowStatus,
-  SimStudioError 
-} from 'simstudio-ts-sdk';
-
-// 类型安全的客户端初始化
-const client: SimStudioClient = new SimStudioClient({
-  apiKey: process.env.SIM_API_KEY!
-});
-
-// 类型安全的工作流执行
-const result: WorkflowExecutionResult = await client.executeWorkflow('workflow-id', {
-  input: {
-    message: '你好，TypeScript！'
-  }
-});
-
-// 类型安全的状态检查
-const status: WorkflowStatus = await client.getWorkflowStatus('workflow-id');
-```
-
 ## 许可证
 
 Apache-2.0

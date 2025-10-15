@@ -17,9 +17,16 @@ RUN bun install --ignore-scripts
 FROM oven/bun:1.2.22-alpine AS runner
 WORKDIR /app
 
+# Create non-root user and group
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nextjs -u 1001
+
 # Copy only the necessary files from deps
-COPY --from=deps /app/node_modules ./node_modules
-COPY packages/db/drizzle.config.ts ./packages/db/drizzle.config.ts
-COPY packages/db ./packages/db
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --chown=nextjs:nodejs packages/db/drizzle.config.ts ./packages/db/drizzle.config.ts
+COPY --chown=nextjs:nodejs packages/db ./packages/db
+
+# Switch to non-root user
+USER nextjs
 
 WORKDIR /app/packages/db

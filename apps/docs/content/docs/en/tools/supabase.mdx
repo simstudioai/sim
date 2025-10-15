@@ -114,7 +114,7 @@ Insert data into a Supabase table
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to insert data into |
-| `data` | any | Yes | The data to insert |
+| `data` | array | Yes | The data to insert \(array of objects or a single object\) |
 | `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output
@@ -195,7 +195,7 @@ Insert or update data in a Supabase table (upsert operation)
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 | `table` | string | Yes | The name of the Supabase table to upsert data into |
-| `data` | any | Yes | The data to upsert \(insert or update\) |
+| `data` | array | Yes | The data to upsert \(insert or update\) - array of objects or a single object |
 | `apiKey` | string | Yes | Your Supabase service role secret key |
 
 #### Output

@@ -111,16 +111,49 @@ export class LoggingSession {
 
     try {
       const costSummary = calculateCostSummary(traceSpans || [])
+      const endTime = endedAt || new Date().toISOString()
+      const duration = totalDurationMs || 0
 
       await executionLogger.completeWorkflowExecution({
         executionId: this.executionId,
-        endedAt: endedAt || new Date().toISOString(),
-        totalDurationMs: totalDurationMs || 0,
+        endedAt: endTime,
+        totalDurationMs: duration,
         costSummary,
         finalOutput: finalOutput || {},
         traceSpans: traceSpans || [],
         workflowInput,
       })
+
+      // Track workflow execution outcome
+      if (traceSpans && traceSpans.length > 0) {
+        try {
+          const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+
+          // Determine status from trace spans
+          const hasErrors = traceSpans.some((span: any) => {
+            const checkForErrors = (s: any): boolean => {
+              if (s.status === 'error') return true
+              if (s.children && Array.isArray(s.children)) {
+                return s.children.some(checkForErrors)
+              }
+              return false
+            }
+            return checkForErrors(span)
+          })
+
+          trackPlatformEvent('platform.workflow.executed', {
+            'workflow.id': this.workflowId,
+            'execution.duration_ms': duration,
+            'execution.status': hasErrors ? 'error' : 'success',
+            'execution.trigger': this.triggerType,
+            'execution.blocks_executed': traceSpans.length,
+            'execution.has_errors': hasErrors,
+            'execution.total_cost': costSummary.totalCost || 0,
+          })
+        } catch (_e) {
+          // Silently fail
+        }
+      }
 
       if (this.requestId) {
         logger.debug(`[${this.requestId}] Completed logging for execution ${this.executionId}`)
@@ -168,14 +201,32 @@ export class LoggingSession {
         output: { error: message },
       }
 
+      const spans = hasProvidedSpans ? traceSpans : [errorSpan]
+
       await executionLogger.completeWorkflowExecution({
         executionId: this.executionId,
         endedAt: endTime.toISOString(),
         totalDurationMs: Math.max(1, durationMs),
         costSummary,
         finalOutput: { error: message },
-        traceSpans: hasProvidedSpans ? traceSpans : [errorSpan],
+        traceSpans: spans,
       })
+
+      // Track workflow execution error outcome
+      try {
+        const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+        trackPlatformEvent('platform.workflow.executed', {
+          'workflow.id': this.workflowId,
+          'execution.duration_ms': Math.max(1, durationMs),
+          'execution.status': 'error',
+          'execution.trigger': this.triggerType,
+          'execution.blocks_executed': spans.length,
+          'execution.has_errors': true,
+          'execution.error_message': message,
+        })
+      } catch (_e) {
+        // Silently fail
+      }
 
       if (this.requestId) {
         logger.debug(`[${this.requestId}] Completed logging for execution ${this.executionId}`)
