@@ -716,9 +716,9 @@ export default function ExecutionsDashboard() {
 
           <div
             className='overflow-hidden rounded-lg border bg-card shadow-sm'
-            style={{ maxHeight: '350px' }}
+            style={{ maxHeight: '350px', display: 'flex', flexDirection: 'column' }}
           >
-            <div className='border-b bg-muted/30 px-4 py-2.5'>
+            <div className='border-b bg-muted/30 px-4 py-2.5 flex-shrink-0'>
               <div className='flex items-center justify-between'>
                 <h3 className='font-medium text-sm'>Workflows</h3>
                 <span className='text-muted-foreground text-xs'>
@@ -727,7 +727,7 @@ export default function ExecutionsDashboard() {
                 </span>
               </div>
             </div>
-            <ScrollArea className='h-full'>
+            <ScrollArea className='flex-1' style={{ height: 'calc(350px - 41px)' }}>
               <div className='space-y-1 p-3'>
                 {filteredExecutions.length === 0 ? (
                   <div className='py-8 text-center text-muted-foreground text-sm'>
