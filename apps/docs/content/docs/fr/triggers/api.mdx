@@ -128,3 +128,60 @@ Si aucun format d'entrée n'est défini, l'exécuteur expose uniquement le JSON 
 <Callout type="warning">
 Un workflow ne peut contenir qu'un seul déclencheur API. Publiez un nouveau déploiement après les modifications pour que le point de terminaison reste à jour.
 </Callout>
+
+### Format de téléchargement de fichiers
+
+L'API accepte les fichiers dans deux formats :
+
+**1. Fichiers encodés en Base64** (recommandé pour les SDK) :
+
+```json
+{
+  "documents": [{
+    "type": "file",
+    "data": "data:application/pdf;base64,JVBERi0xLjQK...",
+    "name": "document.pdf",
+    "mime": "application/pdf"
+  }]
+}
+```
+
+- Taille maximale de fichier : 20 Mo par fichier
+- Les fichiers sont téléchargés vers le stockage cloud et convertis en objets UserFile avec toutes les propriétés
+
+**2. Références URL directes** :
+
+```json
+{
+  "documents": [{
+    "type": "url",
+    "data": "https://example.com/document.pdf",
+    "name": "document.pdf",
+    "mime": "application/pdf"
+  }]
+}
+```
+
+- Le fichier n'est pas téléchargé, l'URL est transmise directement
+- Utile pour référencer des fichiers existants
+
+### Propriétés des fichiers
+
+Pour les fichiers, accédez à toutes les propriétés :
+
+| Propriété | Description | Type |
+|----------|-------------|------|
+| `<api.fieldName[0].url>` | URL de téléchargement signée | chaîne |
+| `<api.fieldName[0].name>` | Nom de fichier original | chaîne |
+| `<api.fieldName[0].size>` | Taille du fichier en octets | nombre |
+| `<api.fieldName[0].type>` | Type MIME | chaîne |
+| `<api.fieldName[0].uploadedAt>` | Horodatage du téléchargement (ISO 8601) | chaîne |
+| `<api.fieldName[0].expiresAt>` | Horodatage d'expiration de l'URL (ISO 8601) | chaîne |
+
+Pour les fichiers référencés par URL, les mêmes propriétés sont disponibles à l'exception de `uploadedAt` et `expiresAt` puisque le fichier n'est pas téléchargé vers notre stockage.
+
+Si aucun format d'entrée n'est défini, l'exécuteur expose uniquement le JSON brut à `<api.input>`.
+
+<Callout type="warning">
+Un flux de travail ne peut contenir qu'un seul déclencheur API. Publiez un nouveau déploiement après les modifications pour que le point de terminaison reste à jour.
+</Callout>

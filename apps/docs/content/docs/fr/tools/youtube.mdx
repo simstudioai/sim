@@ -1,6 +1,6 @@
 ---
 title: YouTube
-description: Rechercher des vidéos sur YouTube
+description: Interagir avec les vidéos, chaînes et playlists YouTube
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -39,7 +39,7 @@ Dans Sim, l'intégration YouTube permet à vos agents de rechercher et d'analyse
 
 ## Instructions d'utilisation
 
-Intégrer YouTube dans le flux de travail. Peut rechercher des vidéos. Nécessite une clé API.
+Intégrez YouTube dans le flux de travail. Permet de rechercher des vidéos, obtenir les détails d'une vidéo, obtenir des informations sur une chaîne, obtenir les éléments d'une playlist et obtenir les commentaires d'une vidéo.
 
 ## Outils
 
@@ -60,6 +60,99 @@ Recherchez des vidéos sur YouTube en utilisant l'API YouTube Data.
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | tableau | Tableau de vidéos YouTube correspondant à la requête de recherche |
+
+### `youtube_video_details`
+
+Obtenir des informations détaillées sur une vidéo YouTube spécifique.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `videoId` | chaîne | Oui | ID de la vidéo YouTube |
+| `apiKey` | chaîne | Oui | Clé API YouTube |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `videoId` | chaîne | ID de la vidéo YouTube |
+| `title` | chaîne | Titre de la vidéo |
+| `description` | chaîne | Description de la vidéo |
+| `channelId` | chaîne | ID de la chaîne |
+| `channelTitle` | chaîne | Nom de la chaîne |
+| `publishedAt` | chaîne | Date et heure de publication |
+| `duration` | chaîne | Durée de la vidéo au format ISO 8601 |
+| `viewCount` | nombre | Nombre de vues |
+| `likeCount` | nombre | Nombre de j'aime |
+| `commentCount` | nombre | Nombre de commentaires |
+| `thumbnail` | chaîne | URL de la miniature de la vidéo |
+| `tags` | tableau | Tags de la vidéo |
+
+### `youtube_channel_info`
+
+Obtenir des informations détaillées sur une chaîne YouTube.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `channelId` | chaîne | Non | ID de la chaîne YouTube \(utilisez soit channelId soit username\) |
+| `username` | chaîne | Non | Nom d'utilisateur de la chaîne YouTube \(utilisez soit channelId soit username\) |
+| `apiKey` | chaîne | Oui | Clé API YouTube |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `channelId` | chaîne | ID de la chaîne YouTube |
+| `title` | chaîne | Nom de la chaîne |
+| `description` | chaîne | Description de la chaîne |
+| `subscriberCount` | nombre | Nombre d'abonnés |
+| `videoCount` | nombre | Nombre de vidéos |
+| `viewCount` | nombre | Nombre total de vues de la chaîne |
+| `publishedAt` | chaîne | Date de création de la chaîne |
+| `thumbnail` | chaîne | URL de la miniature de la chaîne |
+| `customUrl` | chaîne | URL personnalisée de la chaîne |
+
+### `youtube_playlist_items`
+
+Obtenir des vidéos d'une playlist YouTube.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `playlistId` | chaîne | Oui | ID de la playlist YouTube |
+| `maxResults` | nombre | Non | Nombre maximum de vidéos à retourner |
+| `pageToken` | chaîne | Non | Jeton de page pour la pagination |
+| `apiKey` | chaîne | Oui | Clé API YouTube |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | tableau | Tableau de vidéos dans la playlist |
+
+### `youtube_comments`
+
+Obtenir les commentaires d'une vidéo YouTube.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `videoId` | chaîne | Oui | ID de la vidéo YouTube |
+| `maxResults` | nombre | Non | Nombre maximum de commentaires à retourner |
+| `order` | chaîne | Non | Ordre des commentaires : time (chronologique) ou relevance (pertinence) |
+| `pageToken` | chaîne | Non | Jeton de page pour la pagination |
+| `apiKey` | chaîne | Oui | Clé API YouTube |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | tableau | Tableau de commentaires de la vidéo |
 
 ## Notes
 

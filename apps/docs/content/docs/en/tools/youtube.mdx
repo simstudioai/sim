@@ -1,6 +1,6 @@
 ---
 title: YouTube
-description: Search for videos on YouTube
+description: Interact with YouTube videos, channels, and playlists
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -40,7 +40,7 @@ In Sim, the YouTube integration enables your agents to programmatically search a
 
 ## Usage Instructions
 
-Integrate YouTube into the workflow. Can search for videos.
+Integrate YouTube into the workflow. Can search for videos, get video details, get channel information, get playlist items, and get video comments.
 
 
 
@@ -63,6 +63,99 @@ Search for videos on YouTube using the YouTube Data API.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | array | Array of YouTube videos matching the search query |
+
+### `youtube_video_details`
+
+Get detailed information about a specific YouTube video.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `videoId` | string | Yes | YouTube video ID |
+| `apiKey` | string | Yes | YouTube API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `videoId` | string | YouTube video ID |
+| `title` | string | Video title |
+| `description` | string | Video description |
+| `channelId` | string | Channel ID |
+| `channelTitle` | string | Channel name |
+| `publishedAt` | string | Published date and time |
+| `duration` | string | Video duration in ISO 8601 format |
+| `viewCount` | number | Number of views |
+| `likeCount` | number | Number of likes |
+| `commentCount` | number | Number of comments |
+| `thumbnail` | string | Video thumbnail URL |
+| `tags` | array | Video tags |
+
+### `youtube_channel_info`
+
+Get detailed information about a YouTube channel.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `channelId` | string | No | YouTube channel ID \(use either channelId or username\) |
+| `username` | string | No | YouTube channel username \(use either channelId or username\) |
+| `apiKey` | string | Yes | YouTube API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `channelId` | string | YouTube channel ID |
+| `title` | string | Channel name |
+| `description` | string | Channel description |
+| `subscriberCount` | number | Number of subscribers |
+| `videoCount` | number | Number of videos |
+| `viewCount` | number | Total channel views |
+| `publishedAt` | string | Channel creation date |
+| `thumbnail` | string | Channel thumbnail URL |
+| `customUrl` | string | Channel custom URL |
+
+### `youtube_playlist_items`
+
+Get videos from a YouTube playlist.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | Yes | YouTube playlist ID |
+| `maxResults` | number | No | Maximum number of videos to return |
+| `pageToken` | string | No | Page token for pagination |
+| `apiKey` | string | Yes | YouTube API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Array of videos in the playlist |
+
+### `youtube_comments`
+
+Get comments from a YouTube video.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `videoId` | string | Yes | YouTube video ID |
+| `maxResults` | number | No | Maximum number of comments to return |
+| `order` | string | No | Order of comments: time or relevance |
+| `pageToken` | string | No | Page token for pagination |
+| `apiKey` | string | Yes | YouTube API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Array of comments from the video |
 
 
 

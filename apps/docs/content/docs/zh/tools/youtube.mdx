@@ -1,6 +1,6 @@
 ---
 title: YouTube
-description: 在 YouTube 上搜索视频
+description: 与 YouTube 视频、频道和播放列表互动
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -39,7 +39,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## 使用说明
 
-将 YouTube 集成到工作流程中。可以搜索视频。需要 API 密钥。
+将 YouTube 集成到工作流程中。可以搜索视频、获取视频详情、获取频道信息、获取播放列表项目以及获取视频评论。
 
 ## 工具
 
@@ -60,6 +60,99 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
 | `items` | 数组 | 匹配搜索查询的 YouTube 视频数组 |
+
+### `youtube_video_details`
+
+获取特定 YouTube 视频的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `videoId` | 字符串 | 是 | YouTube 视频 ID |
+| `apiKey` | 字符串 | 是 | YouTube API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `videoId` | 字符串 | YouTube 视频 ID |
+| `title` | 字符串 | 视频标题 |
+| `description` | 字符串 | 视频描述 |
+| `channelId` | 字符串 | 频道 ID |
+| `channelTitle` | 字符串 | 频道名称 |
+| `publishedAt` | 字符串 | 发布日期和时间 |
+| `duration` | 字符串 | 视频时长（ISO 8601 格式） |
+| `viewCount` | 数字 | 查看次数 |
+| `likeCount` | 数字 | 点赞次数 |
+| `commentCount` | 数字 | 评论数量 |
+| `thumbnail` | 字符串 | 视频缩略图 URL |
+| `tags` | 数组 | 视频标签 |
+
+### `youtube_channel_info`
+
+获取 YouTube 频道的详细信息。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `channelId` | 字符串 | 否 | YouTube 频道 ID \(使用 channelId 或 username\) |
+| `username` | 字符串 | 否 | YouTube 频道用户名 \(使用 channelId 或 username\) |
+| `apiKey` | 字符串 | 是 | YouTube API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `channelId` | 字符串 | YouTube 频道 ID |
+| `title` | 字符串 | 频道名称 |
+| `description` | 字符串 | 频道描述 |
+| `subscriberCount` | 数字 | 订阅者数量 |
+| `videoCount` | 数字 | 视频数量 |
+| `viewCount` | 数字 | 频道总观看次数 |
+| `publishedAt` | 字符串 | 频道创建日期 |
+| `thumbnail` | 字符串 | 频道缩略图 URL |
+| `customUrl` | 字符串 | 频道自定义 URL |
+
+### `youtube_playlist_items`
+
+从 YouTube 播放列表中获取视频。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | 字符串 | 是 | YouTube 播放列表 ID |
+| `maxResults` | 数字 | 否 | 返回视频的最大数量 |
+| `pageToken` | 字符串 | 否 | 分页的页面令牌 |
+| `apiKey` | 字符串 | 是 | YouTube API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `items` | 数组 | 播放列表中的视频数组 |
+
+### `youtube_comments`
+
+从 YouTube 视频中获取评论。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `videoId` | 字符串 | 是 | YouTube 视频 ID |
+| `maxResults` | 数字 | 否 | 返回评论的最大数量 |
+| `order` | 字符串 | 否 | 评论排序方式：时间或相关性 |
+| `pageToken` | 字符串 | 否 | 分页的页面令牌 |
+| `apiKey` | 字符串 | 是 | YouTube API 密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `items` | 数组 | 视频评论的数组 |
 
 ## 注意事项
 

@@ -128,3 +128,60 @@ data: {"blockId":"agent1-uuid","chunk":" complete"}
 <Callout type="warning">
 一个工作流只能包含一个 API 触发器。更改后发布新部署，以确保端点保持最新。
 </Callout>
+
+### 文件上传格式
+
+API 接受两种格式的文件：
+
+**1. Base64 编码文件**（推荐用于 SDK）：
+
+```json
+{
+  "documents": [{
+    "type": "file",
+    "data": "data:application/pdf;base64,JVBERi0xLjQK...",
+    "name": "document.pdf",
+    "mime": "application/pdf"
+  }]
+}
+```
+
+- 单个文件的最大大小：20MB
+- 文件会上传到云存储，并转换为具有所有属性的 UserFile 对象
+
+**2. 直接 URL 引用**：
+
+```json
+{
+  "documents": [{
+    "type": "url",
+    "data": "https://example.com/document.pdf",
+    "name": "document.pdf",
+    "mime": "application/pdf"
+  }]
+}
+```
+
+- 文件不会上传，URL 会直接传递
+- 适用于引用现有文件
+
+### 文件属性
+
+对于文件，可以访问所有属性：
+
+| 属性 | 描述 | 类型 |
+|----------|-------------|------|
+| `<api.fieldName[0].url>` | 签名下载 URL | string |
+| `<api.fieldName[0].name>` | 原始文件名 | string |
+| `<api.fieldName[0].size>` | 文件大小（字节） | number |
+| `<api.fieldName[0].type>` | MIME 类型 | string |
+| `<api.fieldName[0].uploadedAt>` | 上传时间戳（ISO 8601） | string |
+| `<api.fieldName[0].expiresAt>` | URL 过期时间戳（ISO 8601） | string |
+
+对于 URL 引用的文件，除了 `uploadedAt` 和 `expiresAt` 外，其他属性均可用，因为文件未上传到我们的存储中。
+
+如果未定义输入格式，执行器将仅在 `<api.input>` 处暴露原始 JSON。
+
+<Callout type="warning">
+一个工作流只能包含一个 API 触发器。更改后发布新的部署，以确保端点保持最新。
+</Callout>

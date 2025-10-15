@@ -205,7 +205,13 @@ import {
 } from '@/tools/wikipedia'
 import { workflowExecutorTool } from '@/tools/workflow'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from '@/tools/x'
-import { youtubeSearchTool } from '@/tools/youtube'
+import {
+  youtubeChannelInfoTool,
+  youtubeCommentsTool,
+  youtubePlaylistItemsTool,
+  youtubeSearchTool,
+  youtubeVideoDetailsTool,
+} from '@/tools/youtube'
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
@@ -250,6 +256,10 @@ export const tools: Record<string, ToolConfig> = {
   typeform_files: typeformFilesTool,
   typeform_insights: typeformInsightsTool,
   youtube_search: youtubeSearchTool,
+  youtube_video_details: youtubeVideoDetailsTool,
+  youtube_channel_info: youtubeChannelInfoTool,
+  youtube_playlist_items: youtubePlaylistItemsTool,
+  youtube_comments: youtubeCommentsTool,
   notion_read: notionReadTool,
   notion_read_database: notionReadDatabaseTool,
   notion_write: notionWriteTool,

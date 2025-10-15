@@ -109,9 +109,9 @@ Insertar datos en una tabla de Supabase
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Sí | ID de tu proyecto de Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
-| `table` | string | Sí | Nombre de la tabla de Supabase donde insertar los datos |
-| `data` | any | Sí | Los datos a insertar |
+| `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
+| `table` | string | Sí | Nombre de la tabla Supabase donde insertar datos |
+| `data` | array | Sí | Los datos a insertar \(array de objetos o un solo objeto\) |
 | `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
 
 #### Salida
@@ -189,10 +189,10 @@ Insertar o actualizar datos en una tabla de Supabase (operación upsert)
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
-| `projectId` | string | Sí | El ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
-| `table` | string | Sí | El nombre de la tabla de Supabase donde insertar o actualizar datos |
-| `data` | any | Sí | Los datos a insertar o actualizar \(upsert\) |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
+| `table` | string | Sí | Nombre de la tabla Supabase donde hacer upsert de datos |
+| `data` | array | Sí | Los datos para upsert \(insertar o actualizar\) - array de objetos o un solo objeto |
 | `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
 
 #### Salida

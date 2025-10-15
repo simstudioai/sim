@@ -109,10 +109,10 @@ Daten in eine Supabase-Tabelle einfügen
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | Ja | Ihre Supabase-Projekt-ID (z.B. jdrkgepadsdopsntdlom) |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
 | `table` | string | Ja | Der Name der Supabase-Tabelle, in die Daten eingefügt werden sollen |
-| `data` | any | Ja | Die einzufügenden Daten |
-| `apiKey` | string | Ja | Ihr Supabase Service-Role-Secret-Key |
+| `data` | array | Ja | Die einzufügenden Daten \(Array von Objekten oder ein einzelnes Objekt\) |
+| `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
 
 #### Ausgabe
 
@@ -191,8 +191,8 @@ Daten in eine Supabase-Tabelle einfügen oder aktualisieren (Upsert-Operation)
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
-| `table` | string | Ja | Der Name der Supabase-Tabelle, in die Daten eingefügt werden sollen |
-| `data` | any | Ja | Die Daten, die eingefügt oder aktualisiert werden sollen \(Upsert\) |
+| `table` | string | Ja | Der Name der Supabase-Tabelle, in die Daten upsertet werden sollen |
+| `data` | array | Ja | Die zu upsertenden Daten \(einfügen oder aktualisieren\) - Array von Objekten oder ein einzelnes Objekt |
 | `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
 
 #### Ausgabe

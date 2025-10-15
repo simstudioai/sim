@@ -89,12 +89,8 @@ Send messages to Telegram channels or users through the Telegram Bot API. Enable
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Telegram message send success status |
-| `messageId` | number | Unique Telegram message identifier |
-| `chatId` | string | Target chat ID where message was sent |
-| `text` | string | Text content of the sent message |
-| `timestamp` | number | Unix timestamp when message was sent |
-| `from` | object | Information about the bot that sent the message |
+| `message` | string | Success or error message |
+| `data` | object | Telegram message data |
 
 ### `telegram_delete_message`
 

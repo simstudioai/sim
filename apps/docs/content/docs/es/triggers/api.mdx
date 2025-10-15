@@ -128,3 +128,60 @@ Si no se define un formato de entrada, el ejecutor expone el JSON sin procesar s
 <Callout type="warning">
 Un flujo de trabajo puede contener solo un disparador de API. Publica una nueva implementación después de los cambios para que el endpoint se mantenga actualizado.
 </Callout>
+
+### Formato de carga de archivos
+
+La API acepta archivos en dos formatos:
+
+**1. Archivos codificados en Base64** (recomendado para SDKs):
+
+```json
+{
+  "documents": [{
+    "type": "file",
+    "data": "data:application/pdf;base64,JVBERi0xLjQK...",
+    "name": "document.pdf",
+    "mime": "application/pdf"
+  }]
+}
+```
+
+- Tamaño máximo de archivo: 20MB por archivo
+- Los archivos se suben al almacenamiento en la nube y se convierten en objetos UserFile con todas las propiedades
+
+**2. Referencias directas de URL**:
+
+```json
+{
+  "documents": [{
+    "type": "url",
+    "data": "https://example.com/document.pdf",
+    "name": "document.pdf",
+    "mime": "application/pdf"
+  }]
+}
+```
+
+- El archivo no se sube, la URL se pasa directamente
+- Útil para referenciar archivos existentes
+
+### Propiedades de archivos
+
+Para archivos, accede a todas las propiedades:
+
+| Propiedad | Descripción | Tipo |
+|----------|-------------|------|
+| `<api.fieldName[0].url>` | URL de descarga firmada | string |
+| `<api.fieldName[0].name>` | Nombre original del archivo | string |
+| `<api.fieldName[0].size>` | Tamaño del archivo en bytes | number |
+| `<api.fieldName[0].type>` | Tipo MIME | string |
+| `<api.fieldName[0].uploadedAt>` | Marca de tiempo de subida (ISO 8601) | string |
+| `<api.fieldName[0].expiresAt>` | Marca de tiempo de caducidad de URL (ISO 8601) | string |
+
+Para archivos referenciados por URL, las mismas propiedades están disponibles excepto `uploadedAt` y `expiresAt` ya que el archivo no se sube a nuestro almacenamiento.
+
+Si no se define un formato de entrada, el ejecutor expone solo el JSON sin procesar en `<api.input>`.
+
+<Callout type="warning">
+Un flujo de trabajo puede contener solo un disparador de API. Publica una nueva implementación después de los cambios para que el punto de conexión se mantenga actualizado.
+</Callout>

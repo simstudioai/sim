@@ -1,6 +1,6 @@
 ---
 title: YouTube
-description: Suche nach Videos auf YouTube
+description: Interagiere mit YouTube-Videos, Kanälen und Playlists
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -39,7 +39,7 @@ In Sim ermöglicht die YouTube-Integration Ihren Agenten, YouTube-Inhalte progra
 
 ## Gebrauchsanweisung
 
-Integriert YouTube in den Workflow. Kann nach Videos suchen. Benötigt API-Schlüssel.
+Integriere YouTube in den Workflow. Kann nach Videos suchen, Videodetails abrufen, Kanalinformationen abrufen, Playlist-Elemente abrufen und Videokommentare abrufen.
 
 ## Tools
 
@@ -60,6 +60,99 @@ Suche nach Videos auf YouTube mit der YouTube Data API.
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
 | `items` | array | Array von YouTube-Videos, die der Suchanfrage entsprechen |
+
+### `youtube_video_details`
+
+Erhalte detaillierte Informationen über ein bestimmtes YouTube-Video.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `videoId` | string | Ja | YouTube-Video-ID |
+| `apiKey` | string | Ja | YouTube API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `videoId` | string | YouTube-Video-ID |
+| `title` | string | Videotitel |
+| `description` | string | Videobeschreibung |
+| `channelId` | string | Kanal-ID |
+| `channelTitle` | string | Kanalname |
+| `publishedAt` | string | Veröffentlichungsdatum und -uhrzeit |
+| `duration` | string | Videodauer im ISO 8601-Format |
+| `viewCount` | number | Anzahl der Aufrufe |
+| `likeCount` | number | Anzahl der Likes |
+| `commentCount` | number | Anzahl der Kommentare |
+| `thumbnail` | string | Video-Thumbnail-URL |
+| `tags` | array | Video-Tags |
+
+### `youtube_channel_info`
+
+Erhalte detaillierte Informationen über einen YouTube-Kanal.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `channelId` | string | Nein | YouTube-Kanal-ID \(verwende entweder channelId oder username\) |
+| `username` | string | Nein | YouTube-Kanalbenutzername \(verwende entweder channelId oder username\) |
+| `apiKey` | string | Ja | YouTube API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `channelId` | string | YouTube-Kanal-ID |
+| `title` | string | Kanalname |
+| `description` | string | Kanalbeschreibung |
+| `subscriberCount` | number | Anzahl der Abonnenten |
+| `videoCount` | number | Anzahl der Videos |
+| `viewCount` | number | Gesamtaufrufe des Kanals |
+| `publishedAt` | string | Erstellungsdatum des Kanals |
+| `thumbnail` | string | URL des Kanal-Thumbnails |
+| `customUrl` | string | Benutzerdefinierte Kanal-URL |
+
+### `youtube_playlist_items`
+
+Videos aus einer YouTube-Playlist abrufen.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `playlistId` | string | Ja | YouTube-Playlist-ID |
+| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Videos |
+| `pageToken` | string | Nein | Page-Token für Paginierung |
+| `apiKey` | string | Ja | YouTube API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `items` | array | Array von Videos in der Playlist |
+
+### `youtube_comments`
+
+Kommentare von einem YouTube-Video abrufen.
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `videoId` | string | Ja | YouTube-Video-ID |
+| `maxResults` | number | Nein | Maximale Anzahl der zurückzugebenden Kommentare |
+| `order` | string | Nein | Reihenfolge der Kommentare: time oder relevance |
+| `pageToken` | string | Nein | Page-Token für Paginierung |
+| `apiKey` | string | Ja | YouTube API-Schlüssel |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `items` | array | Array von Kommentaren zum Video |
 
 ## Hinweise
 

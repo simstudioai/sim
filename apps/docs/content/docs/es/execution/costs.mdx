@@ -184,3 +184,38 @@ Los diferentes planes de suscripción tienen diferentes límites de uso:
 - Aprende sobre [Registro](/execution/logging) para seguir los detalles de ejecución
 - Explora la [API externa](/execution/api) para monitoreo programático de costos
 - Consulta las [técnicas de optimización de flujo de trabajo](/blocks) para reducir costos
+
+**Plan de equipo (40$/asiento/mes):**
+- Uso compartido entre todos los miembros del equipo
+- Exceso calculado del uso total del equipo
+- El propietario de la organización recibe una sola factura
+
+**Planes empresariales:**
+- Precio mensual fijo, sin excesos
+- Límites de uso personalizados según acuerdo
+
+### Facturación por umbral
+
+Cuando el exceso no facturado alcanza los 50$, Sim factura automáticamente el monto total no facturado.
+
+**Ejemplo:**
+- Día 10: 70$ de exceso → Facturar 70$ inmediatamente
+- Día 15: 35$ adicionales de uso (105$ en total) → Ya facturado, sin acción
+- Día 20: Otros 50$ de uso (155$ en total, 85$ sin facturar) → Facturar 85$ inmediatamente
+
+Esto distribuye los cargos grandes por exceso a lo largo del mes en lugar de una factura grande al final del período.
+
+## Mejores prácticas de gestión de costos
+
+1. **Monitorear regularmente**: Revisa tu panel de uso con frecuencia para evitar sorpresas
+2. **Establecer presupuestos**: Usa los límites del plan como guía para tus gastos
+3. **Optimizar flujos de trabajo**: Revisa las ejecuciones de alto costo y optimiza los prompts o la selección de modelos
+4. **Usar modelos apropiados**: Ajusta la complejidad del modelo a los requisitos de la tarea
+5. **Agrupar tareas similares**: Combina múltiples solicitudes cuando sea posible para reducir la sobrecarga
+
+## Próximos pasos
+
+- Revisa tu uso actual en [Configuración → Suscripción](https://sim.ai/settings/subscription)
+- Aprende sobre [Registro](/execution/logging) para seguir los detalles de ejecución
+- Explora la [API externa](/execution/api) para monitoreo programático de costos
+- Consulta las [técnicas de optimización de flujo de trabajo](/blocks) para reducir costos

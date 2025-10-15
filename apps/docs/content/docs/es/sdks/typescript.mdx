@@ -814,12 +814,28 @@ async function checkUsage() {
     console.log('  Resets at:', limits.rateLimit.async.resetAt);
     console.log('  Is limited:', limits.rateLimit.async.isLimited);
 
-    console.log('\n=== Usage ===');
-    console.log('Current period cost: 
+    console.log('\n=== Uso ===');
+    console.log('Costo del período actual: $' + limits.usage.currentPeriodCost.toFixed(2));
+    console.log('Límite: $' + limits.usage.limit.toFixed(2));
+    console.log('Plan:', limits.usage.plan);
 
-### Streaming Workflow Execution
+    const percentUsed = (limits.usage.currentPeriodCost / limits.usage.limit) * 100;
+    console.log('Uso: ' + percentUsed.toFixed(1) + '%');
 
-Execute workflows with real-time streaming responses:
+    if (percentUsed > 80) {
+      console.warn('⚠️  Advertencia: ¡Estás acercándote a tu límite de uso!');
+    }
+  } catch (error) {
+    console.error('Error al verificar el uso:', error);
+  }
+}
+
+checkUsage();
+```
+
+### Ejecución de flujo de trabajo con streaming
+
+Ejecuta flujos de trabajo con respuestas en streaming en tiempo real:
 
 ```typescript
 import { SimStudioClient } from 'simstudio-ts-sdk';
@@ -842,11 +858,13 @@ async function executeWithStreaming() {
     console.error('Error:', error);
   }
 }
+
 ```
 
 The streaming response follows the Server-Sent Events (SSE) format:
 
 ```
+
 data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":"One"}
 
 data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":", dos"}
@@ -854,11 +872,14 @@ data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":", dos"}
 data: {"event":"done","success":true,"output":{},"metadata":{"duration":610}}
 
 data: [DONE]
+
 ```
 
 **React Streaming Example:**
 
-```typescript
+```
+
+typescript
 import { useState, useEffect } from 'react';
 
 function StreamingWorkflow() {
@@ -926,6 +947,7 @@ function StreamingWorkflow() {
     </div>
   );
 }
+
 ```
 
 ## Getting Your API Key
@@ -957,35 +979,6 @@ function StreamingWorkflow() {
 - Node.js 16+
 - TypeScript 5.0+ (for TypeScript projects)
 
-## TypeScript Support
-
-The SDK is written in TypeScript and provides full type safety:
-
-```typescript
-import { 
-  SimStudioClient, 
-  WorkflowExecutionResult, 
-  WorkflowStatus,
-  SimStudioError 
-} from 'simstudio-ts-sdk';
-
-// Type-safe client initialization
-const client: SimStudioClient = new SimStudioClient({
-  apiKey: process.env.SIM_API_KEY!
-});
-
-// Type-safe workflow execution
-const result: WorkflowExecutionResult = await client.executeWorkflow('workflow-id', {
-  input: {
-    message: '¡Hola, TypeScript!'
-  }
-});
-
-// Type-safe status checking
-const status: WorkflowStatus = await client.getWorkflowStatus('workflow-id');
-```
-
 ## License
-
 
 Apache-2.0

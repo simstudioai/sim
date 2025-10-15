@@ -111,7 +111,7 @@ Sim 的 Supabase 集成使您能够轻松地将代理工作流连接到您的 Su
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
 | `table` | string | 是 | 要插入数据的 Supabase 表名 |
-| `data` | any | 是 | 要插入的数据 |
+| `data` | array | 是 | 要插入的数据 \(对象数组或单个对象\) |
 | `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
 
 #### 输出
@@ -191,8 +191,8 @@ Sim 的 Supabase 集成使您能够轻松地将代理工作流连接到您的 Su
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
-| `table` | string | 是 | 要进行 upsert 数据操作的 Supabase 表名 |
-| `data` | any | 是 | 要 upsert（插入或更新）的数据 |
+| `table` | string | 是 | 要插入或更新数据的 Supabase 表名 |
+| `data` | array | 是 | 要插入或更新的数据 \(插入或更新\) - 对象数组或单个对象 |
 | `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
 
 #### 输出

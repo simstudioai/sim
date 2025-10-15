@@ -60,10 +60,10 @@ Simでは、ナレッジベースブロックによってエージェントが�
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
-| `knowledgeBaseId` | string | はい | 検索対象のナレッジベースID |
-| `query` | string | いいえ | 検索クエリテキスト（タグフィルターを使用する場合はオプション） |
+| `knowledgeBaseId` | string | はい | 検索対象のナレッジベースのID |
+| `query` | string | いいえ | 検索クエリテキスト（タグフィルターを使用する場合は省略可能） |
 | `topK` | number | いいえ | 返す最も類似した結果の数（1-100） |
-| `tagFilters` | any | いいえ | tagNameとtagValueプロパティを持つタグフィルターの配列 |
+| `tagFilters` | array | いいえ | tagNameとtagValueプロパティを持つタグフィルターの配列 |
 
 #### 出力
 

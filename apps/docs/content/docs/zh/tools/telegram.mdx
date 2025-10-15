@@ -86,12 +86,108 @@ Telegram 的主要功能包括：
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | Telegram 消息发送成功状态 |
-| `messageId` | number | 唯一的 Telegram 消息标识符 |
-| `chatId` | string | 发送消息的目标聊天 ID |
-| `text` | string | 已发送消息的文本内容 |
-| `timestamp` | number | 消息发送时的 Unix 时间戳 |
-| `from` | object | 关于发送消息的机器人信息 |
+| `message` | 字符串 | 成功或错误消息 |
+| `data` | 对象 | Telegram 消息数据 |
+
+## 注意
+
+- 类别：`tools`
+- 类型：`telegram`
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | 字符串 | 是 | 您的 Telegram Bot API 令牌 |
+| `chatId` | 字符串 | 是 | 目标 Telegram 聊天 ID |
+| `messageId` | 字符串 | 是 | 要删除的消息 ID |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | 字符串 | 成功或错误信息 |
+| `data` | 对象 | 删除操作结果 |
+
+### `telegram_send_photo`
+
+通过 Telegram Bot API 向 Telegram 频道或用户发送照片。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | 字符串 | 是 | 您的 Telegram Bot API 令牌 |
+| `chatId` | 字符串 | 是 | 目标 Telegram 聊天 ID |
+| `photo` | 字符串 | 是 | 要发送的照片。传递 file_id 或 HTTP URL |
+| `caption` | 字符串 | 否 | 照片标题（可选） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | 字符串 | 成功或错误信息 |
+| `data` | 对象 | 包含可选照片的 Telegram 消息数据 |
+
+### `telegram_send_video`
+
+通过 Telegram Bot API 向 Telegram 频道或用户发送视频。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | 字符串 | 是 | 您的 Telegram Bot API 令牌 |
+| `chatId` | 字符串 | 是 | 目标 Telegram 聊天 ID |
+| `video` | 字符串 | 是 | 要发送的视频。传递 file_id 或 HTTP URL |
+| `caption` | 字符串 | 否 | 视频标题（可选） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+| `data` | object | 包含可选媒体的 Telegram 消息数据 |
+
+### `telegram_send_audio`
+
+通过 Telegram Bot API 向 Telegram 频道或用户发送音频文件。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 您的 Telegram Bot API 令牌 |
+| `chatId` | string | 是 | 目标 Telegram 聊天 ID |
+| `audio` | string | 是 | 要发送的音频文件。传递 file_id 或 HTTP URL |
+| `caption` | string | 否 | 音频标题（可选） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+| `data` | object | 包含语音/音频信息的 Telegram 消息数据 |
+
+### `telegram_send_animation`
+
+通过 Telegram Bot API 向 Telegram 频道或用户发送动画（GIF）。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 您的 Telegram Bot API 令牌 |
+| `chatId` | string | 是 | 目标 Telegram 聊天 ID |
+| `animation` | string | 是 | 要发送的动画。传递 file_id 或 HTTP URL |
+| `caption` | string | 否 | 动画标题（可选） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | 字符串 | 成功或错误消息 |
+| `data` | 对象 | 包含可选媒体的 Telegram 消息数据 |
 
 ## 注意
 

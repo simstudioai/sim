@@ -814,12 +814,28 @@ async function checkUsage() {
     console.log('  Resets at:', limits.rateLimit.async.resetAt);
     console.log('  Is limited:', limits.rateLimit.async.isLimited);
 
-    console.log('\n=== Usage ===');
-    console.log('Current period cost: 
+    console.log('\n=== Utilisation ===');
+    console.log('Coût de la période actuelle : ' + limits.usage.currentPeriodCost.toFixed(2) + ' $');
+    console.log('Limite : ' + limits.usage.limit.toFixed(2) + ' $');
+    console.log('Forfait :', limits.usage.plan);
 
-### Streaming Workflow Execution
+    const percentUsed = (limits.usage.currentPeriodCost / limits.usage.limit) * 100;
+    console.log('Utilisation : ' + percentUsed.toFixed(1) + ' %');
 
-Execute workflows with real-time streaming responses:
+    if (percentUsed > 80) {
+      console.warn('⚠️  Attention : vous approchez de votre limite d\'utilisation !');
+    }
+  } catch (error) {
+    console.error('Erreur lors de la vérification de l\'utilisation :', error);
+  }
+}
+
+checkUsage();
+```
+
+### Exécution de flux de travail avec streaming
+
+Exécutez des flux de travail avec des réponses en streaming en temps réel :
 
 ```typescript
 import { SimStudioClient } from 'simstudio-ts-sdk';
@@ -842,11 +858,13 @@ async function executeWithStreaming() {
     console.error('Erreur :', error);
   }
 }
+
 ```
 
 The streaming response follows the Server-Sent Events (SSE) format:
 
 ```
+
 data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":"One"}
 
 data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":", deux"}
@@ -854,11 +872,14 @@ data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":", deux"}
 data: {"event":"done","success":true,"output":{},"metadata":{"duration":610}}
 
 data: [DONE]
+
 ```
 
 **React Streaming Example:**
 
-```typescript
+```
+
+typescript
 import { useState, useEffect } from 'react';
 
 function StreamingWorkflow() {
@@ -926,6 +947,7 @@ function StreamingWorkflow() {
     </div>
   );
 }
+
 ```
 
 ## Getting Your API Key
@@ -957,35 +979,6 @@ function StreamingWorkflow() {
 - Node.js 16+
 - TypeScript 5.0+ (for TypeScript projects)
 
-## TypeScript Support
-
-The SDK is written in TypeScript and provides full type safety:
-
-```typescript
-import { 
-  SimStudioClient, 
-  WorkflowExecutionResult, 
-  WorkflowStatus,
-  SimStudioError 
-} from 'simstudio-ts-sdk';
-
-// Type-safe client initialization
-const client: SimStudioClient = new SimStudioClient({
-  apiKey: process.env.SIM_API_KEY!
-});
-
-// Type-safe workflow execution
-const result: WorkflowExecutionResult = await client.executeWorkflow('workflow-id', {
-  input: {
-    message: 'Bonjour, TypeScript !'
-  }
-});
-
-// Type-safe status checking
-const status: WorkflowStatus = await client.getWorkflowStatus('workflow-id');
-```
-
 ## License
-
 
 Apache-2.0

@@ -60,10 +60,10 @@ Suche nach ähnlichen Inhalten in einer Wissensdatenbank mittels Vektorähnlichk
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `knowledgeBaseId` | string | Ja | ID der zu durchsuchenden Wissensdatenbank |
+| `knowledgeBaseId` | string | Ja | ID der Wissensdatenbank, in der gesucht werden soll |
 | `query` | string | Nein | Suchanfragentext \(optional bei Verwendung von Tag-Filtern\) |
 | `topK` | number | Nein | Anzahl der ähnlichsten Ergebnisse, die zurückgegeben werden sollen \(1-100\) |
-| `tagFilters` | any | Nein | Array von Tag-Filtern mit tagName- und tagValue-Eigenschaften |
+| `tagFilters` | array | Nein | Array von Tag-Filtern mit tagName- und tagValue-Eigenschaften |
 
 #### Ausgabe
 
