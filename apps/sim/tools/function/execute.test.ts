@@ -7,6 +7,7 @@
  * which runs JavaScript code in a secure sandbox.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { ToolTester } from '@/tools/__test-utils__/test-tools'
 import { functionExecuteTool } from '@/tools/function/execute'
 
@@ -95,7 +96,7 @@ describe('Function Execute Tool', () => {
 
       expect(body).toEqual({
         code: 'return 42',
-        timeout: 180000,
+        timeout: DEFAULT_EXECUTION_TIMEOUT_MS,
         envVars: {},
         workflowVariables: {},
         blockData: {},
