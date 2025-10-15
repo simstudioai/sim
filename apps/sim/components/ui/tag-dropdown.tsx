@@ -453,6 +453,17 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
               blockTags = [normalizedBlockName]
             }
           }
+        } else if (sourceBlock.type === 'api_trigger' || sourceBlock.type === 'input_trigger') {
+          // Handle API trigger and Input Form trigger with inputFormat
+          const inputFormatValue = mergedSubBlocks?.inputFormat?.value
+
+          if (inputFormatValue && Array.isArray(inputFormatValue) && inputFormatValue.length > 0) {
+            blockTags = inputFormatValue
+              .filter((field: { name?: string }) => field.name && field.name.trim() !== '')
+              .map((field: { name: string }) => `${normalizedBlockName}.${field.name}`)
+          } else {
+            blockTags = []
+          }
         } else {
           blockTags = [normalizedBlockName]
         }
