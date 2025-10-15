@@ -1742,6 +1742,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       { value: 'gpt-4.1', label: 'gpt-4.1' },
       { value: 'o3', label: 'o3' },
       { value: 'claude-4-sonnet', label: 'claude-4-sonnet' },
+      { value: 'claude-4.5-haiku', label: 'claude-4.5-haiku' },
       { value: 'claude-4.5-sonnet', label: 'claude-4.5-sonnet' },
       { value: 'claude-4.1-opus', label: 'claude-4.1-opus' },
     ] as const
@@ -3436,6 +3437,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                             .filter((option) =>
                                               [
                                                 'claude-4-sonnet',
+                                                'claude-4.5-haiku',
                                                 'claude-4.5-sonnet',
                                                 'claude-4.1-opus',
                                               ].includes(option.value)
