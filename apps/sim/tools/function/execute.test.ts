@@ -95,7 +95,7 @@ describe('Function Execute Tool', () => {
 
       expect(body).toEqual({
         code: 'return 42',
-        timeout: 10000,
+        timeout: 180000,
         envVars: {},
         workflowVariables: {},
         blockData: {},

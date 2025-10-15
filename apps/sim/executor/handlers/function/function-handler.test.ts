@@ -138,7 +138,7 @@ describe('FunctionBlockHandler', () => {
       code: inputs.code,
       language: 'javascript',
       useLocalVM: true,
-      timeout: 5000, // Default timeout
+      timeout: 180000, // Default timeout (3 minutes)
       envVars: {},
       workflowVariables: {},
       blockData: {},
