@@ -128,3 +128,60 @@ Wenn kein Eingabeformat definiert ist, stellt der Executor das rohe JSON nur unt
 <Callout type="warning">
 Ein Workflow kann nur einen API-Trigger enthalten. Veröffentlichen Sie nach Änderungen eine neue Bereitstellung, damit der Endpunkt aktuell bleibt.
 </Callout>
+
+### Datei-Upload-Format
+
+Die API akzeptiert Dateien in zwei Formaten:
+
+**1. Base64-kodierte Dateien** (empfohlen für SDKs):
+
+```json
+{
+  "documents": [{
+    "type": "file",
+    "data": "data:application/pdf;base64,JVBERi0xLjQK...",
+    "name": "document.pdf",
+    "mime": "application/pdf"
+  }]
+}
+```
+
+- Maximale Dateigröße: 20MB pro Datei
+- Dateien werden in den Cloud-Speicher hochgeladen und in UserFile-Objekte mit allen Eigenschaften umgewandelt
+
+**2. Direkte URL-Referenzen**:
+
+```json
+{
+  "documents": [{
+    "type": "url",
+    "data": "https://example.com/document.pdf",
+    "name": "document.pdf",
+    "mime": "application/pdf"
+  }]
+}
+```
+
+- Die Datei wird nicht hochgeladen, die URL wird direkt weitergegeben
+- Nützlich für die Referenzierung bestehender Dateien
+
+### Dateieigenschaften
+
+Für Dateien können alle Eigenschaften abgerufen werden:
+
+| Eigenschaft | Beschreibung | Typ |
+|----------|-------------|------|
+| `<api.fieldName[0].url>` | Signierte Download-URL | string |
+| `<api.fieldName[0].name>` | Ursprünglicher Dateiname | string |
+| `<api.fieldName[0].size>` | Dateigröße in Bytes | number |
+| `<api.fieldName[0].type>` | MIME-Typ | string |
+| `<api.fieldName[0].uploadedAt>` | Upload-Zeitstempel (ISO 8601) | string |
+| `<api.fieldName[0].expiresAt>` | URL-Ablaufzeitstempel (ISO 8601) | string |
+
+Für URL-referenzierte Dateien sind dieselben Eigenschaften verfügbar, außer `uploadedAt` und `expiresAt`, da die Datei nicht in unseren Speicher hochgeladen wird.
+
+Wenn kein Eingabeformat definiert ist, stellt der Executor das rohe JSON nur unter `<api.input>` zur Verfügung.
+
+<Callout type="warning">
+Ein Workflow kann nur einen API-Trigger enthalten. Veröffentlichen Sie nach Änderungen eine neue Bereitstellung, damit der Endpunkt aktuell bleibt.
+</Callout>

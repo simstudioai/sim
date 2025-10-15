@@ -1,0 +1,251 @@
+---
+title: Guardrails
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+
+The Guardrails block validates and protects your AI workflows by checking content against multiple validation types. Ensure data quality, prevent hallucinations, detect PII, and enforce format requirements before content moves through your workflow.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/guardrails.png"
+    alt="Guardrails Block"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+## Overview
+
+The Guardrails block enables you to:
+
+<Steps>
+  <Step>
+    <strong>Validate JSON Structure</strong>: Ensure LLM outputs are valid JSON before parsing
+  </Step>
+  <Step>
+    <strong>Match Regex Patterns</strong>: Verify content matches specific formats (emails, phone numbers, URLs, etc.)
+  </Step>
+  <Step>
+    <strong>Detect Hallucinations</strong>: Use RAG + LLM scoring to validate AI outputs against knowledge base content
+  </Step>
+  <Step>
+    <strong>Detect PII</strong>: Identify and optionally mask personally identifiable information across 40+ entity types
+  </Step>
+</Steps>
+
+## Validation Types
+
+### JSON Validation
+
+Validates that content is properly formatted JSON. Perfect for ensuring structured LLM outputs can be safely parsed.
+
+**Use Cases:**
+- Validate JSON responses from Agent blocks before parsing
+- Ensure API payloads are properly formatted
+- Check structured data integrity
+
+**Output:**
+- `passed`: `true` if valid JSON, `false` otherwise
+- `error`: Error message if validation fails (e.g., "Invalid JSON: Unexpected token...")
+
+### Regex Validation
+
+Checks if content matches a specified regular expression pattern.
+
+**Use Cases:**
+- Validate email addresses
+- Check phone number formats
+- Verify URLs or custom identifiers
+- Enforce specific text patterns
+
+**Configuration:**
+- **Regex Pattern**: The regular expression to match against (e.g., `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$` for emails)
+
+**Output:**
+- `passed`: `true` if content matches pattern, `false` otherwise
+- `error`: Error message if validation fails
+
+### Hallucination Detection
+
+Uses Retrieval-Augmented Generation (RAG) with LLM scoring to detect when AI-generated content contradicts or isn't grounded in your knowledge base.
+
+**How It Works:**
+1. Queries your knowledge base for relevant context
+2. Sends both the AI output and retrieved context to an LLM
+3. LLM assigns a confidence score (0-10 scale)
+   - **0** = Full hallucination (completely ungrounded)
+   - **10** = Fully grounded (completely supported by knowledge base)
+4. Validation passes if score ≥ threshold (default: 3)
+
+**Configuration:**
+- **Knowledge Base**: Select from your existing knowledge bases
+- **Model**: Choose LLM for scoring (requires strong reasoning - GPT-4o, Claude 3.7 Sonnet recommended)
+- **API Key**: Authentication for selected LLM provider (auto-hidden for hosted/Ollama models)
+- **Confidence Threshold**: Minimum score to pass (0-10, default: 3)
+- **Top K** (Advanced): Number of knowledge base chunks to retrieve (default: 10)
+
+**Output:**
+- `passed`: `true` if confidence score ≥ threshold
+- `score`: Confidence score (0-10)
+- `reasoning`: LLM's explanation for the score
+- `error`: Error message if validation fails
+
+**Use Cases:**
+- Validate Agent responses against documentation
+- Ensure customer support answers are factually accurate
+- Verify generated content matches source material
+- Quality control for RAG applications
+
+### PII Detection
+
+Detects personally identifiable information using Microsoft Presidio. Supports 40+ entity types across multiple countries and languages.
+
+<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
+  <Video src="guardrails.mp4" width={500} height={350} />
+</div>
+
+**How It Works:**
+1. Scans content for PII entities using pattern matching and NLP
+2. Returns detected entities with locations and confidence scores
+3. Optionally masks detected PII in the output
+
+**Configuration:**
+- **PII Types to Detect**: Select from grouped categories via modal selector
+  - **Common**: Person name, Email, Phone, Credit card, IP address, etc.
+  - **USA**: SSN, Driver's license, Passport, etc.
+  - **UK**: NHS number, National insurance number
+  - **Spain**: NIF, NIE, CIF
+  - **Italy**: Fiscal code, Driver's license, VAT code
+  - **Poland**: PESEL, NIP, REGON
+  - **Singapore**: NRIC/FIN, UEN
+  - **Australia**: ABN, ACN, TFN, Medicare
+  - **India**: Aadhaar, PAN, Passport, Voter number
+- **Mode**: 
+  - **Detect**: Only identify PII (default)
+  - **Mask**: Replace detected PII with masked values
+- **Language**: Detection language (default: English)
+
+**Output:**
+- `passed`: `false` if any selected PII types are detected
+- `detectedEntities`: Array of detected PII with type, location, and confidence
+- `maskedText`: Content with PII masked (only if mode = "Mask")
+- `error`: Error message if validation fails
+
+**Use Cases:**
+- Block content containing sensitive personal information
+- Mask PII before logging or storing data
+- Compliance with GDPR, HIPAA, and other privacy regulations
+- Sanitize user inputs before processing
+
+## Configuration
+
+### Content to Validate
+
+The input content to validate. This typically comes from:
+- Agent block outputs: `<agent.content>`
+- Function block results: `<function.output>`
+- API responses: `<api.output>`
+- Any other block output
+
+### Validation Type
+
+Choose from four validation types:
+- **Valid JSON**: Check if content is properly formatted JSON
+- **Regex Match**: Verify content matches a regex pattern
+- **Hallucination Check**: Validate against knowledge base with LLM scoring
+- **PII Detection**: Detect and optionally mask personally identifiable information
+
+## Outputs
+
+All validation types return:
+
+- **`<guardrails.passed>`**: Boolean indicating if validation passed
+- **`<guardrails.validationType>`**: The type of validation performed
+- **`<guardrails.input>`**: The original input that was validated
+- **`<guardrails.error>`**: Error message if validation failed (optional)
+
+Additional outputs by type:
+
+**Hallucination Check:**
+- **`<guardrails.score>`**: Confidence score (0-10)
+- **`<guardrails.reasoning>`**: LLM's explanation
+
+**PII Detection:**
+- **`<guardrails.detectedEntities>`**: Array of detected PII entities
+- **`<guardrails.maskedText>`**: Content with PII masked (if mode = "Mask")
+
+## Example Use Cases
+
+### Validate JSON Before Parsing
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Ensure Agent output is valid JSON</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Agent generates structured JSON response</li>
+    <li>Guardrails validates JSON format</li>
+    <li>Condition block checks `<guardrails.passed>`</li>
+    <li>If passed → Parse and use data, If failed → Retry or handle error</li>
+  </ol>
+</div>
+
+### Prevent Hallucinations
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Validate customer support responses</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Agent generates response to customer question</li>
+    <li>Guardrails checks against support documentation knowledge base</li>
+    <li>If confidence score ≥ 3 → Send response</li>
+    <li>If confidence score \< 3 → Flag for human review</li>
+  </ol>
+</div>
+
+### Block PII in User Inputs
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Sanitize user-submitted content</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>User submits form with text content</li>
+    <li>Guardrails detects PII (emails, phone numbers, SSN, etc.)</li>
+    <li>If PII detected → Reject submission or mask sensitive data</li>
+    <li>If no PII → Process normally</li>
+  </ol>
+</div>
+
+<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
+  <Video src="guardrails-example.mp4" width={500} height={350} />
+</div>
+
+### Validate Email Format
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Check email address format</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Agent extracts email from text</li>
+    <li>Guardrails validates with regex pattern</li>
+    <li>If valid → Use email for notification</li>
+    <li>If invalid → Request correction</li>
+  </ol>
+</div>
+
+## Best Practices
+
+- **Chain with Condition blocks**: Use `<guardrails.passed>` to branch workflow logic based on validation results
+- **Use JSON validation before parsing**: Always validate JSON structure before attempting to parse LLM outputs
+- **Choose appropriate PII types**: Only select the PII entity types relevant to your use case for better performance
+- **Set reasonable confidence thresholds**: For hallucination detection, adjust threshold based on your accuracy requirements (higher = stricter)
+- **Use strong models for hallucination detection**: GPT-4o or Claude 3.7 Sonnet provide more accurate confidence scoring
+- **Mask PII for logging**: Use "Mask" mode when you need to log or store content that may contain PII
+- **Test regex patterns**: Validate your regex patterns thoroughly before deploying to production
+- **Monitor validation failures**: Track `<guardrails.error>` messages to identify common validation issues
+
+<Callout type="info">
+  Guardrails validation happens synchronously in your workflow. For hallucination detection, choose faster models (like GPT-4o-mini) if latency is critical.
+</Callout>
+
