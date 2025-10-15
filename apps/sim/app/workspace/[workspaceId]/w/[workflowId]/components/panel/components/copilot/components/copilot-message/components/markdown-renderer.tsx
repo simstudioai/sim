@@ -141,7 +141,7 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
     () => ({
       // Paragraph
       p: ({ children }: React.HTMLAttributes<HTMLParagraphElement>) => (
-        <p className='mb-1 font-sans text-sm text-gray-800 leading-[1.25rem] last:mb-0 dark:text-gray-200'>
+        <p className='mb-1 font-sans text-gray-800 text-sm leading-[1.25rem] last:mb-0 dark:text-gray-200'>
           {children}
         </p>
       ),
@@ -189,10 +189,7 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
         children,
         ordered,
       }: React.LiHTMLAttributes<HTMLLIElement> & { ordered?: boolean }) => (
-        <li
-          className='font-sans text-gray-800 dark:text-gray-200'
-          style={{ display: 'list-item' }}
-        >
+        <li className='font-sans text-gray-800 dark:text-gray-200' style={{ display: 'list-item' }}>
           {children}
         </li>
       ),

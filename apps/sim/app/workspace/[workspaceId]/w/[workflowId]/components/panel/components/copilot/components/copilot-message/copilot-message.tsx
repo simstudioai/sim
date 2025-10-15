@@ -10,8 +10,6 @@ import {
   Clipboard,
   Info,
   LibraryBig,
-  Loader2,
-  RotateCcw,
   Shapes,
   SquareChevronRight,
   ThumbsDown,
@@ -26,13 +24,12 @@ import {
   SmoothStreamingText,
   StreamingIndicator,
   ThinkingBlock,
-  WordWrap,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components'
 import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
+import { UserInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/user-input'
 import { usePreviewStore } from '@/stores/copilot/preview-store'
 import { useCopilotStore } from '@/stores/copilot/store'
 import type { CopilotMessage as CopilotMessageType } from '@/stores/copilot/types'
-import { UserInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/user-input'
 
 const logger = createLogger('CopilotMessage')
 
@@ -292,12 +289,12 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
     const handleMessageClick = () => {
       if (isSendingMessage) return
-      
+
       // If message needs expansion and is not expanded, expand it
       if (needsExpansion && !isExpanded) {
         setIsExpanded(true)
       }
-      
+
       // Always enter edit mode on click
       handleEditMessage()
     }
@@ -308,30 +305,30 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       contexts?: any[]
     ) => {
       if (!editedMessage.trim() || isSendingMessage) return
-      
+
       // Find the index of this message and truncate conversation
       const currentMessages = messages
       const editIndex = currentMessages.findIndex((m) => m.id === message.id)
-      
+
       if (editIndex !== -1) {
         // Exit edit mode immediately
         setIsEditMode(false)
-        
+
         // Truncate messages after the edited message (remove it and everything after)
         const truncatedMessages = currentMessages.slice(0, editIndex)
-        
+
         // Update store to show only messages before the edit point
         useCopilotStore.setState({ messages: truncatedMessages })
-        
+
         // If we have a current chat, update the DB to remove messages after this point
         if (currentChat?.id) {
           try {
             await fetch('/api/copilot/chat/update-messages', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                chatId: currentChat.id, 
-                messages: truncatedMessages.map(m => ({
+              body: JSON.stringify({
+                chatId: currentChat.id,
+                messages: truncatedMessages.map((m) => ({
                   id: m.id,
                   role: m.role,
                   content: m.content,
@@ -339,19 +336,19 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                   ...(m.contentBlocks && { contentBlocks: m.contentBlocks }),
                   ...(m.fileAttachments && { fileAttachments: m.fileAttachments }),
                   ...((m as any).contexts && { contexts: (m as any).contexts }),
-                }))
+                })),
               }),
             })
           } catch (error) {
             logger.error('Failed to update messages in DB after edit:', error)
           }
         }
-        
+
         // Send the edited message with the SAME message ID
-        await sendMessage(editedMessage, { 
+        await sendMessage(editedMessage, {
           fileAttachments: fileAttachments || message.fileAttachments,
           contexts: contexts || (message as any).contexts,
-          messageId: message.id  // Reuse the original message ID
+          messageId: message.id, // Reuse the original message ID
         })
       }
     }
@@ -389,12 +386,12 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
       const handleClickOutside = (event: MouseEvent) => {
         const target = event.target as HTMLElement
-        
+
         // Don't close if clicking inside the edit container
-        if (editContainerRef.current && editContainerRef.current.contains(target)) {
+        if (editContainerRef.current?.contains(target)) {
           return
         }
-        
+
         // Check if clicking on another user message box
         const clickedMessageBox = target.closest('[data-message-box]') as HTMLElement
         if (clickedMessageBox) {
@@ -405,19 +402,19 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           }
           return
         }
-        
+
         // Check if clicking on the main user input at the bottom
         if (target.closest('textarea') || target.closest('input[type="text"]')) {
           handleCancelEdit()
           return
         }
-        
+
         // Only close if NOT clicking on any component (i.e., clicking directly on panel background)
         // If the target has children or is a component, don't close
         if (target.children.length > 0 || target.tagName !== 'DIV') {
           return
         }
-        
+
         handleCancelEdit()
       }
 
@@ -641,13 +638,13 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 onMouseLeave={() => setIsHoveringMessage(false)}
                 className='group relative cursor-text rounded-[8px] border border-[#E5E5E5] bg-[#FFFFFF] px-3 py-1.5 shadow-xs transition-all duration-200 hover:border-[#D0D0D0] dark:border-[#414141] dark:bg-[var(--surface-elevated)] dark:hover:border-[#525252]'
               >
-                <div 
+                <div
                   ref={messageContentRef}
-                  className='whitespace-pre-wrap break-words pl-[2px] pr-2 py-1 font-sans text-sm text-foreground leading-[1.25rem]'
+                  className='whitespace-pre-wrap break-words py-1 pr-2 pl-[2px] font-sans text-foreground text-sm leading-[1.25rem]'
                   style={{
                     maxHeight: !isExpanded && needsExpansion ? '60px' : 'none',
                     overflow: !isExpanded && needsExpansion ? 'hidden' : 'visible',
-                    position: 'relative'
+                    position: 'relative',
                   }}
                 >
                   {(() => {
@@ -686,10 +683,10 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                     if (tail) nodes.push(tail)
                     return nodes
                   })()}
-                  
+
                   {/* Gradient fade when truncated */}
                   {!isExpanded && needsExpansion && (
-                    <div className='absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-[#FFFFFF] to-transparent dark:from-[var(--surface-elevated)]' />
+                    <div className='absolute right-0 bottom-0 left-0 h-8 bg-gradient-to-t from-[#FFFFFF] to-transparent dark:from-[var(--surface-elevated)]' />
                   )}
                 </div>
 

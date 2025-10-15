@@ -21,7 +21,7 @@ export const searchOnlineServerTool: BaseServerTool<OnlineSearchParams, any> = {
     // Check which API keys are available
     const hasExaApiKey = Boolean(env.EXA_API_KEY && String(env.EXA_API_KEY).length > 0)
     const hasSerperApiKey = Boolean(env.SERPER_API_KEY && String(env.SERPER_API_KEY).length > 0)
-    
+
     logger.info('Performing online search', {
       queryLength: query.length,
       num,

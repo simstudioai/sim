@@ -14,7 +14,7 @@ const DEFAULT_ENABLED_MODELS: Record<string, boolean> = {
   'gpt-5': true,
   'gpt-5-medium': true,
   'gpt-5-high': false,
-  'o3': true,
+  o3: true,
   'claude-4-sonnet': false,
   'claude-4.5-haiku': true,
   'claude-4.5-sonnet': true,
