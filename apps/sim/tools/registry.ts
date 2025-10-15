@@ -212,6 +212,17 @@ import {
   youtubeSearchTool,
   youtubeVideoDetailsTool,
 } from '@/tools/youtube'
+import {
+  zepAddMessagesTool,
+  zepAddUserTool,
+  zepCreateThreadTool,
+  zepDeleteThreadTool,
+  zepGetContextTool,
+  zepGetMessagesTool,
+  zepGetThreadsTool,
+  zepGetUserThreadsTool,
+  zepGetUserTool,
+} from '@/tools/zep'
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
@@ -333,6 +344,15 @@ export const tools: Record<string, ToolConfig> = {
   mem0_add_memories: mem0AddMemoriesTool,
   mem0_search_memories: mem0SearchMemoriesTool,
   mem0_get_memories: mem0GetMemoriesTool,
+  zep_create_thread: zepCreateThreadTool,
+  zep_get_threads: zepGetThreadsTool,
+  zep_delete_thread: zepDeleteThreadTool,
+  zep_get_context: zepGetContextTool,
+  zep_get_messages: zepGetMessagesTool,
+  zep_add_messages: zepAddMessagesTool,
+  zep_add_user: zepAddUserTool,
+  zep_get_user: zepGetUserTool,
+  zep_get_user_threads: zepGetUserThreadsTool,
   memory_add: memoryAddTool,
   memory_get: memoryGetTool,
   memory_get_all: memoryGetAllTool,
