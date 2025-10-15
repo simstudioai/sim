@@ -1,3 +1,4 @@
+import { memo, useCallback } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -9,31 +10,46 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('DiffControls')
 
-export function DiffControls() {
-  const {
-    isShowingDiff,
-    isDiffReady,
-    diffWorkflow,
-    toggleDiffView,
-    acceptChanges,
-    rejectChanges,
-    diffMetadata,
-  } = useWorkflowDiffStore()
+export const DiffControls = memo(function DiffControls() {
+  // Optimized: Single diff store subscription
+  const { isShowingDiff, isDiffReady, diffWorkflow, toggleDiffView, acceptChanges, rejectChanges } =
+    useWorkflowDiffStore(
+      useCallback(
+        (state) => ({
+          isShowingDiff: state.isShowingDiff,
+          isDiffReady: state.isDiffReady,
+          diffWorkflow: state.diffWorkflow,
+          toggleDiffView: state.toggleDiffView,
+          acceptChanges: state.acceptChanges,
+          rejectChanges: state.rejectChanges,
+        }),
+        []
+      )
+    )
 
-  const { updatePreviewToolCallState, clearPreviewYaml, currentChat, messages } = useCopilotStore()
-  const { activeWorkflowId } = useWorkflowRegistry()
+  // Optimized: Single copilot store subscription for needed values
+  const { updatePreviewToolCallState, clearPreviewYaml, currentChat, messages } = useCopilotStore(
+    useCallback(
+      (state) => ({
+        updatePreviewToolCallState: state.updatePreviewToolCallState,
+        clearPreviewYaml: state.clearPreviewYaml,
+        currentChat: state.currentChat,
+        messages: state.messages,
+      }),
+      []
+    )
+  )
 
-  // Don't show anything if no diff is available or diff is not ready
-  if (!diffWorkflow || !isDiffReady) {
-    return null
-  }
+  const { activeWorkflowId } = useWorkflowRegistry(
+    useCallback((state) => ({ activeWorkflowId: state.activeWorkflowId }), [])
+  )
 
-  const handleToggleDiff = () => {
+  const handleToggleDiff = useCallback(() => {
     logger.info('Toggling diff view', { currentState: isShowingDiff })
     toggleDiffView()
-  }
+  }, [isShowingDiff, toggleDiffView])
 
-  const createCheckpoint = async () => {
+  const createCheckpoint = useCallback(async () => {
     if (!activeWorkflowId || !currentChat?.id) {
       logger.warn('Cannot create checkpoint: missing workflowId or chatId', {
         workflowId: activeWorkflowId,
@@ -184,9 +200,9 @@ export function DiffControls() {
       logger.error('Failed to create checkpoint:', error)
       return false
     }
-  }
+  }, [activeWorkflowId, currentChat, messages])
 
-  const handleAccept = async () => {
+  const handleAccept = useCallback(async () => {
     logger.info('Accepting proposed changes with backup protection')
 
     try {
@@ -239,9 +255,9 @@ export function DiffControls() {
       console.error('Workflow update failed:', errorMessage)
       alert(`Failed to save workflow changes: ${errorMessage}`)
     }
-  }
+  }, [createCheckpoint, clearPreviewYaml, updatePreviewToolCallState, acceptChanges])
 
-  const handleReject = () => {
+  const handleReject = useCallback(() => {
     logger.info('Rejecting proposed changes (optimistic)')
 
     // Clear preview YAML immediately
@@ -279,6 +295,11 @@ export function DiffControls() {
     rejectChanges().catch((error) => {
       logger.error('Failed to reject changes (background):', error)
     })
+  }, [clearPreviewYaml, updatePreviewToolCallState, rejectChanges])
+
+  // Don't show anything if no diff is available or diff is not ready
+  if (!diffWorkflow || !isDiffReady) {
+    return null
   }
 
   return (
@@ -319,4 +340,4 @@ export function DiffControls() {
       </div>
     </div>
   )
-}
+})

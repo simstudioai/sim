@@ -165,7 +165,9 @@ autoscaling:
 # Pod disruption budget (ensures minimum availability during cluster maintenance)
 podDisruptionBudget:
   enabled: true
-  minAvailable: 1
+  minAvailable: null
+  maxUnavailable: 1  
+  unhealthyPodEvictionPolicy: AlwaysAllow 
 
 # Monitoring integration with Prometheus
 monitoring:

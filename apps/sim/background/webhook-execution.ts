@@ -10,6 +10,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { decryptSecret } from '@/lib/utils'
+import { WebhookAttachmentProcessor } from '@/lib/webhooks/attachment-processor'
 import { fetchAndProcessAirtablePayloads, formatWebhookInput } from '@/lib/webhooks/utils'
 import {
   loadDeployedWorkflowState,
@@ -20,8 +21,65 @@ import { Executor } from '@/executor'
 import type { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
+import { getTrigger } from '@/triggers'
 
 const logger = createLogger('TriggerWebhookExecution')
+
+/**
+ * Process trigger outputs based on their schema definitions
+ * Finds outputs marked as 'file' or 'file[]' and uploads them to execution storage
+ */
+async function processTriggerFileOutputs(
+  input: any,
+  triggerOutputs: Record<string, any>,
+  context: {
+    workspaceId: string
+    workflowId: string
+    executionId: string
+    requestId: string
+  },
+  path = ''
+): Promise<any> {
+  if (!input || typeof input !== 'object') {
+    return input
+  }
+
+  const processed: any = Array.isArray(input) ? [] : {}
+
+  for (const [key, value] of Object.entries(input)) {
+    const currentPath = path ? `${path}.${key}` : key
+    const outputDef = triggerOutputs[key]
+    const val: any = value
+
+    // If this field is marked as file or file[], process it
+    if (outputDef?.type === 'file[]' && Array.isArray(val)) {
+      try {
+        processed[key] = await WebhookAttachmentProcessor.processAttachments(val as any, context)
+      } catch (error) {
+        processed[key] = []
+      }
+    } else if (outputDef?.type === 'file' && val) {
+      try {
+        const [processedFile] = await WebhookAttachmentProcessor.processAttachments(
+          [val as any],
+          context
+        )
+        processed[key] = processedFile
+      } catch (error) {
+        logger.error(`[${context.requestId}] Error processing ${currentPath}:`, error)
+        processed[key] = val
+      }
+    } else if (outputDef && typeof outputDef === 'object' && !outputDef.type) {
+      // Nested object in schema - recurse with the nested schema
+      processed[key] = await processTriggerFileOutputs(val, outputDef, context, currentPath)
+    } else {
+      // Not a file output - keep as is
+      processed[key] = val
+    }
+  }
+
+  return processed
+}
 
 export type WebhookExecutionPayload = {
   webhookId: string
@@ -251,6 +309,7 @@ async function executeWebhookJobInternal(
           totalDurationMs: totalDuration || 0,
           finalOutput: executionResult.output || {},
           traceSpans: traceSpans as any,
+          workflowInput: airtableInput,
         })
 
         return {
@@ -314,6 +373,32 @@ async function executeWebhookJobInternal(
       }
     }
 
+    // Process trigger file outputs based on schema
+    if (input && payload.blockId && blocks[payload.blockId]) {
+      try {
+        const triggerBlock = blocks[payload.blockId]
+        const triggerId = triggerBlock?.subBlocks?.triggerId?.value
+
+        if (triggerId && typeof triggerId === 'string') {
+          const triggerConfig = getTrigger(triggerId)
+
+          if (triggerConfig?.outputs) {
+            logger.debug(`[${requestId}] Processing trigger ${triggerId} file outputs`)
+            const processedInput = await processTriggerFileOutputs(input, triggerConfig.outputs, {
+              workspaceId: workspaceId || '',
+              workflowId: payload.workflowId,
+              executionId,
+              requestId,
+            })
+            Object.assign(input, processedInput)
+          }
+        }
+      } catch (error) {
+        logger.error(`[${requestId}] Error processing trigger file outputs:`, error)
+        // Continue without processing attachments rather than failing execution
+      }
+    }
+
     // Create executor and execute
     const executor = new Executor({
       workflow: serializedWorkflow,
@@ -369,6 +454,7 @@ async function executeWebhookJobInternal(
       totalDurationMs: totalDuration || 0,
       finalOutput: executionResult.output || {},
       traceSpans: traceSpans as any,
+      workflowInput: input,
     })
 
     return {

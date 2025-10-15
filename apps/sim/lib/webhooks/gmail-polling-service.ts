@@ -6,6 +6,8 @@ import { pollingIdempotency } from '@/lib/idempotency/service'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import type { GmailAttachment } from '@/tools/gmail/types'
+import { downloadAttachments, extractAttachmentInfo } from '@/tools/gmail/utils'
 
 const logger = createLogger('GmailPollingService')
 
@@ -17,6 +19,7 @@ interface GmailWebhookConfig {
   lastCheckedTimestamp?: string
   historyId?: string
   pollingInterval?: number
+  includeAttachments?: boolean
   includeRawEmail?: boolean
 }
 
@@ -42,7 +45,7 @@ export interface SimplifiedEmail {
   bodyHtml: string
   labels: string[]
   hasAttachments: boolean
-  attachments: Array<{ filename: string; mimeType: string; size: number }>
+  attachments: GmailAttachment[]
 }
 
 export interface GmailWebhookPayload {
@@ -530,30 +533,23 @@ async function processEmails(
             date = new Date(Number.parseInt(email.internalDate)).toISOString()
           }
 
-          // Extract attachment information if present
-          const attachments: Array<{ filename: string; mimeType: string; size: number }> = []
+          // Download attachments if requested (raw Buffers - will be uploaded during execution)
+          let attachments: GmailAttachment[] = []
+          const hasAttachments = email.payload
+            ? extractAttachmentInfo(email.payload).length > 0
+            : false
 
-          const findAttachments = (part: any) => {
-            if (!part) return
-
-            if (part.filename && part.filename.length > 0) {
-              attachments.push({
-                filename: part.filename,
-                mimeType: part.mimeType || 'application/octet-stream',
-                size: part.body?.size || 0,
-              })
+          if (config.includeAttachments && hasAttachments && email.payload) {
+            try {
+              const attachmentInfo = extractAttachmentInfo(email.payload)
+              attachments = await downloadAttachments(email.id, attachmentInfo, accessToken)
+            } catch (error) {
+              logger.error(
+                `[${requestId}] Error downloading attachments for email ${email.id}:`,
+                error
+              )
+              // Continue without attachments rather than failing the entire request
             }
-
-            // Look for attachments in nested parts
-            if (part.parts && Array.isArray(part.parts)) {
-              for (const subPart of part.parts) {
-                findAttachments(subPart)
-              }
-            }
-          }
-
-          if (email.payload) {
-            findAttachments(email.payload)
           }
 
           // Create simplified email object
@@ -568,8 +564,8 @@ async function processEmails(
             bodyText: textContent,
             bodyHtml: htmlContent,
             labels: email.labelIds || [],
-            hasAttachments: attachments.length > 0,
-            attachments: attachments,
+            hasAttachments,
+            attachments,
           }
 
           // Prepare webhook payload with simplified email and optionally raw email

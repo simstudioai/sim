@@ -1,8 +1,11 @@
 import { env } from '@/lib/env'
 import { isRetryableError, retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 import { createLogger } from '@/lib/logs/console/logger'
+import { batchByTokenLimit, getTotalTokenCount } from '@/lib/tokenization'
 
 const logger = createLogger('EmbeddingUtils')
+
+const MAX_TOKENS_PER_REQUEST = 8000
 
 export class EmbeddingAPIError extends Error {
   public status: number
@@ -104,7 +107,8 @@ async function callEmbeddingAPI(inputs: string[], config: EmbeddingConfig): Prom
 }
 
 /**
- * Generate embeddings for multiple texts with simple batching
+ * Generate embeddings for multiple texts with token-aware batching
+ * Uses tiktoken for token counting
  */
 export async function generateEmbeddings(
   texts: string[],
@@ -112,26 +116,44 @@ export async function generateEmbeddings(
 ): Promise<number[][]> {
   const config = getEmbeddingConfig(embeddingModel)
 
-  logger.info(`Using ${config.useAzure ? 'Azure OpenAI' : 'OpenAI'} for embeddings generation`)
+  logger.info(
+    `Using ${config.useAzure ? 'Azure OpenAI' : 'OpenAI'} for embeddings generation (${texts.length} texts)`
+  )
 
-  // Reduced batch size to prevent API timeouts and improve reliability
-  const batchSize = 50 // Reduced from 100 to prevent issues with large documents
+  const batches = batchByTokenLimit(texts, MAX_TOKENS_PER_REQUEST, embeddingModel)
+
+  logger.info(
+    `Split ${texts.length} texts into ${batches.length} batches (max ${MAX_TOKENS_PER_REQUEST} tokens per batch)`
+  )
+
   const allEmbeddings: number[][] = []
 
-  for (let i = 0; i < texts.length; i += batchSize) {
-    const batch = texts.slice(i, i + batchSize)
-    const batchEmbeddings = await callEmbeddingAPI(batch, config)
-    allEmbeddings.push(...batchEmbeddings)
+  for (let i = 0; i < batches.length; i++) {
+    const batch = batches[i]
+    const batchTokenCount = getTotalTokenCount(batch, embeddingModel)
 
     logger.info(
-      `Generated embeddings for batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(texts.length / batchSize)}`
+      `Processing batch ${i + 1}/${batches.length}: ${batch.length} texts, ${batchTokenCount} tokens`
     )
 
-    // Add small delay between batches to avoid rate limiting
-    if (i + batchSize < texts.length) {
+    try {
+      const batchEmbeddings = await callEmbeddingAPI(batch, config)
+      allEmbeddings.push(...batchEmbeddings)
+
+      logger.info(
+        `Generated ${batchEmbeddings.length} embeddings for batch ${i + 1}/${batches.length}`
+      )
+    } catch (error) {
+      logger.error(`Failed to generate embeddings for batch ${i + 1}:`, error)
+      throw error
+    }
+
+    if (i + 1 < batches.length) {
       await new Promise((resolve) => setTimeout(resolve, 100))
     }
   }
+
+  logger.info(`Successfully generated ${allEmbeddings.length} embeddings total`)
 
   return allEmbeddings
 }

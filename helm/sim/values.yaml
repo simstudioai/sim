@@ -290,9 +290,28 @@ postgresql:
       - ReadWriteOnce
   
   # SSL/TLS configuration (enable for production deployments with certificates)
+  # Requires cert-manager to be installed in the cluster
   tls:
     enabled: false
     certificatesSecret: postgres-tls-secret
+    # Certificate configuration (only used if enabled)
+    duration: "87600h"  # 10 years (default)
+    renewBefore: "2160h"  # Renew 90 days before expiry (default)
+    rotationPolicy: ""  # Set to "Always" to rotate private key on renewal (recommended for security)
+    privateKey:
+      algorithm: RSA  # RSA or ECDSA
+      size: 4096  # Key size in bits
+    # Issuer reference (REQUIRED if tls.enabled is true)
+    issuerRef:
+      name: selfsigned-cluster-issuer  # Name of your cert-manager Issuer/ClusterIssuer
+      kind: ClusterIssuer  # ClusterIssuer or Issuer
+      group: ""  # Optional: cert-manager.io (leave empty for default)
+    # Additional DNS names (optional)
+    additionalDnsNames: []
+    # Example:
+    # additionalDnsNames:
+    #   - postgres.example.com
+    #   - db.example.com
   
   # PostgreSQL configuration
   config:
@@ -495,9 +514,20 @@ autoscaling:
   behavior: {}
 
 # Pod disruption budget
+# Note: PDBs only protect against voluntary disruptions (node drains, autoscaler)
+# They do NOT affect rolling updates - use deployment.strategy.rollingUpdate for that
 podDisruptionBudget:
   enabled: false
-  minAvailable: 1
+  # Use either minAvailable or maxUnavailable (not both)
+  # Recommendation: Use maxUnavailable as it scales better with HPA
+  # - minAvailable: minimum pods that must remain available (e.g., 1, "50%")
+  # - maxUnavailable: maximum pods that can be unavailable (e.g., 1, "25%")
+  minAvailable: null
+  maxUnavailable: 1
+  # unhealthyPodEvictionPolicy: allows eviction of unhealthy pods during node drains
+  # Options: IfHealthyBudget (default) | AlwaysAllow (recommended for production)
+  # Set to null to use K8s default (IfHealthyBudget)
+  unhealthyPodEvictionPolicy: null
 
 # Monitoring configuration
 monitoring:

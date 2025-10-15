@@ -1,8 +1,7 @@
 import { apiKey, db, workflow, workflowDeploymentVersion } from '@sim/db'
 import { and, desc, eq, sql } from 'drizzle-orm'
-import type { NextRequest } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
-import { generateApiKey } from '@/lib/api-key/service'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
@@ -64,26 +63,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         .orderBy(desc(apiKey.lastUsed), desc(apiKey.createdAt))
         .limit(1)
 
-      if (userApiKey.length === 0) {
-        try {
-          const newApiKeyVal = generateApiKey()
-          const keyName = 'Default API Key'
-          await db.insert(apiKey).values({
-            id: uuidv4(),
-            userId: workflowData.userId,
-            workspaceId: null,
-            name: keyName,
-            key: newApiKeyVal,
-            type: 'personal',
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          })
-          keyInfo = { name: keyName, type: 'personal' }
-          logger.info(`[${requestId}] Generated new API key for user: ${workflowData.userId}`)
-        } catch (keyError) {
-          logger.error(`[${requestId}] Failed to generate API key:`, keyError)
-        }
-      } else {
+      if (userApiKey.length > 0) {
         keyInfo = { name: userApiKey[0].name, type: userApiKey[0].type as 'personal' | 'workspace' }
       }
     }
@@ -190,34 +170,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const deployedAt = new Date()
     logger.debug(`[${requestId}] Proceeding with deployment at ${deployedAt.toISOString()}`)
 
-    const userApiKey = await db
-      .select({
-        key: apiKey.key,
-      })
-      .from(apiKey)
-      .where(and(eq(apiKey.userId, userId), eq(apiKey.type, 'personal')))
-      .orderBy(desc(apiKey.lastUsed), desc(apiKey.createdAt))
-      .limit(1)
-
-    if (userApiKey.length === 0) {
-      try {
-        const newApiKey = generateApiKey()
-        await db.insert(apiKey).values({
-          id: uuidv4(),
-          userId,
-          workspaceId: null,
-          name: 'Default API Key',
-          key: newApiKey,
-          type: 'personal',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        })
-        logger.info(`[${requestId}] Generated new API key for user: ${userId}`)
-      } catch (keyError) {
-        logger.error(`[${requestId}] Failed to generate API key:`, keyError)
-      }
-    }
-
     let keyInfo: { name: string; type: 'personal' | 'workspace' } | null = null
     let matchedKey: {
       id: string
@@ -226,13 +178,50 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       type: 'personal' | 'workspace'
     } | null = null
 
-    if (providedApiKey) {
-      let isValidKey = false
+    // Use provided API key, or fall back to existing pinned API key for redeployment
+    const apiKeyToUse = providedApiKey || workflowData!.pinnedApiKeyId
 
-      const currentUserId = session?.user?.id
+    if (!apiKeyToUse) {
+      return NextResponse.json(
+        { error: 'API key is required. Please create or select an API key before deploying.' },
+        { status: 400 }
+      )
+    }
 
-      if (currentUserId) {
-        const [personalKey] = await db
+    let isValidKey = false
+
+    const currentUserId = session?.user?.id
+
+    if (currentUserId) {
+      const [personalKey] = await db
+        .select({
+          id: apiKey.id,
+          key: apiKey.key,
+          name: apiKey.name,
+          expiresAt: apiKey.expiresAt,
+        })
+        .from(apiKey)
+        .where(
+          and(
+            eq(apiKey.id, apiKeyToUse),
+            eq(apiKey.userId, currentUserId),
+            eq(apiKey.type, 'personal')
+          )
+        )
+        .limit(1)
+
+      if (personalKey) {
+        if (!personalKey.expiresAt || personalKey.expiresAt >= new Date()) {
+          matchedKey = { ...personalKey, type: 'personal' }
+          isValidKey = true
+          keyInfo = { name: personalKey.name, type: 'personal' }
+        }
+      }
+    }
+
+    if (!isValidKey) {
+      if (workflowData!.workspaceId) {
+        const [workspaceKey] = await db
           .select({
             id: apiKey.id,
             key: apiKey.key,
@@ -242,55 +231,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           .from(apiKey)
           .where(
             and(
-              eq(apiKey.id, providedApiKey),
-              eq(apiKey.userId, currentUserId),
-              eq(apiKey.type, 'personal')
+              eq(apiKey.id, apiKeyToUse),
+              eq(apiKey.workspaceId, workflowData!.workspaceId),
+              eq(apiKey.type, 'workspace')
             )
           )
           .limit(1)
 
-        if (personalKey) {
-          if (!personalKey.expiresAt || personalKey.expiresAt >= new Date()) {
-            matchedKey = { ...personalKey, type: 'personal' }
+        if (workspaceKey) {
+          if (!workspaceKey.expiresAt || workspaceKey.expiresAt >= new Date()) {
+            matchedKey = { ...workspaceKey, type: 'workspace' }
             isValidKey = true
-            keyInfo = { name: personalKey.name, type: 'personal' }
+            keyInfo = { name: workspaceKey.name, type: 'workspace' }
           }
         }
       }
+    }
 
-      if (!isValidKey) {
-        if (workflowData!.workspaceId) {
-          const [workspaceKey] = await db
-            .select({
-              id: apiKey.id,
-              key: apiKey.key,
-              name: apiKey.name,
-              expiresAt: apiKey.expiresAt,
-            })
-            .from(apiKey)
-            .where(
-              and(
-                eq(apiKey.id, providedApiKey),
-                eq(apiKey.workspaceId, workflowData!.workspaceId),
-                eq(apiKey.type, 'workspace')
-              )
-            )
-            .limit(1)
-
-          if (workspaceKey) {
-            if (!workspaceKey.expiresAt || workspaceKey.expiresAt >= new Date()) {
-              matchedKey = { ...workspaceKey, type: 'workspace' }
-              isValidKey = true
-              keyInfo = { name: workspaceKey.name, type: 'workspace' }
-            }
-          }
-        }
-      }
-
-      if (!isValidKey) {
-        logger.warn(`[${requestId}] Invalid API key ID provided for workflow deployment: ${id}`)
-        return createErrorResponse('Invalid API key provided', 400)
-      }
+    if (!isValidKey) {
+      logger.warn(`[${requestId}] Invalid API key ID provided for workflow deployment: ${id}`)
+      return createErrorResponse('Invalid API key provided', 400)
     }
 
     // Attribution: this route is UI-only; require session user as actor
@@ -353,6 +313,31 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     logger.info(`[${requestId}] Workflow deployed successfully: ${id}`)
 
+    // Track workflow deployment
+    try {
+      const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+
+      // Aggregate block types to understand which blocks are being used
+      const blockTypeCounts: Record<string, number> = {}
+      for (const block of Object.values(currentState.blocks)) {
+        const blockType = (block as any).type || 'unknown'
+        blockTypeCounts[blockType] = (blockTypeCounts[blockType] || 0) + 1
+      }
+
+      trackPlatformEvent('platform.workflow.deployed', {
+        'workflow.id': id,
+        'workflow.name': workflowData!.name,
+        'workflow.blocks_count': Object.keys(currentState.blocks).length,
+        'workflow.edges_count': currentState.edges.length,
+        'workflow.has_loops': Object.keys(currentState.loops).length > 0,
+        'workflow.has_parallels': Object.keys(currentState.parallels).length > 0,
+        'workflow.api_key_type': keyInfo?.type || 'default',
+        'workflow.block_types': JSON.stringify(blockTypeCounts),
+      })
+    } catch (_e) {
+      // Silently fail
+    }
+
     const responseApiKeyInfo = keyInfo ? `${keyInfo.name} (${keyInfo.type})` : 'Default key'
 
     return createSuccessResponse({
@@ -400,6 +385,17 @@ export async function DELETE(
     })
 
     logger.info(`[${requestId}] Workflow undeployed successfully: ${id}`)
+
+    // Track workflow undeployment
+    try {
+      const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+      trackPlatformEvent('platform.workflow.undeployed', {
+        'workflow.id': id,
+      })
+    } catch (_e) {
+      // Silently fail
+    }
+
     return createSuccessResponse({
       isDeployed: false,
       deployedAt: null,

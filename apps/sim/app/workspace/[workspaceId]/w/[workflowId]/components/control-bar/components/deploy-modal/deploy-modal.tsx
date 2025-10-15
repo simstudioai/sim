@@ -361,6 +361,8 @@ export function DeployModal({
       await fetchVersions()
     } catch (error: unknown) {
       logger.error('Error deploying workflow:', { error })
+      const errorMessage = error instanceof Error ? error.message : 'Failed to deploy workflow'
+      setApiDeployError(errorMessage)
     } finally {
       setIsSubmitting(false)
     }

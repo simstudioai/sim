@@ -44,20 +44,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         variables: {},
       })
 
-      const { traceSpans } = buildTraceSpans(result)
+      const { traceSpans, totalDuration } = buildTraceSpans(result)
 
       if (result.success === false) {
         const message = result.error || 'Workflow execution failed'
         await loggingSession.safeCompleteWithError({
           endedAt: new Date().toISOString(),
-          totalDurationMs: result.metadata?.duration || 0,
+          totalDurationMs: totalDuration || result.metadata?.duration || 0,
           error: { message },
           traceSpans,
         })
       } else {
         await loggingSession.safeComplete({
           endedAt: new Date().toISOString(),
-          totalDurationMs: result.metadata?.duration || 0,
+          totalDurationMs: totalDuration || result.metadata?.duration || 0,
           finalOutput: result.output || {},
           traceSpans,
         })

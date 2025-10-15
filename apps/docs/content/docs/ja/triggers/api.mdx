@@ -128,3 +128,60 @@ data: {"blockId":"agent1-uuid","chunk":" complete"}
 <Callout type="warning">
 ワークフローには1つのAPIトリガーのみ含めることができます。変更後は新しいデプロイメントを公開して、エンドポイントを最新の状態に保ってください。
 </Callout>
+
+### ファイルアップロードフォーマット
+
+APIは2つのフォーマットでファイルを受け付けます：
+
+**1. Base64エンコードされたファイル**（SDKでの使用推奨）：
+
+```json
+{
+  "documents": [{
+    "type": "file",
+    "data": "data:application/pdf;base64,JVBERi0xLjQK...",
+    "name": "document.pdf",
+    "mime": "application/pdf"
+  }]
+}
+```
+
+- 最大ファイルサイズ：ファイルあたり20MB
+- ファイルはクラウドストレージにアップロードされ、すべてのプロパティを持つUserFileオブジェクトに変換されます
+
+**2. 直接URLリファレンス**：
+
+```json
+{
+  "documents": [{
+    "type": "url",
+    "data": "https://example.com/document.pdf",
+    "name": "document.pdf",
+    "mime": "application/pdf"
+  }]
+}
+```
+
+- ファイルはアップロードされず、URLが直接渡されます
+- 既存のファイルを参照する場合に便利です
+
+### ファイルプロパティ
+
+ファイルについては、すべてのプロパティにアクセスできます：
+
+| プロパティ | 説明 | 型 |
+|----------|-------------|------|
+| `<api.fieldName[0].url>` | 署名付きダウンロードURL | string |
+| `<api.fieldName[0].name>` | 元のファイル名 | string |
+| `<api.fieldName[0].size>` | ファイルサイズ（バイト） | number |
+| `<api.fieldName[0].type>` | MIMEタイプ | string |
+| `<api.fieldName[0].uploadedAt>` | アップロードタイムスタンプ（ISO 8601） | string |
+| `<api.fieldName[0].expiresAt>` | URL有効期限タイムスタンプ（ISO 8601） | string |
+
+URL参照ファイルの場合、ファイルは当社のストレージにアップロードされないため、`uploadedAt`と`expiresAt`を除く同じプロパティが利用可能です。
+
+入力フォーマットが定義されていない場合、エグゼキューターは`<api.input>`でのみ生のJSONを公開します。
+
+<Callout type="warning">
+ワークフローには1つのAPIトリガーしか含めることができません。変更後は新しいデプロイメントを公開して、エンドポイントを最新の状態に保ってください。
+</Callout>

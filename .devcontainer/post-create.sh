@@ -8,11 +8,43 @@ echo "🔧 Setting up Sim development environment..."
 # Change to the workspace root directory
 cd /workspace
 
-# Setup .bashrc
-echo "📄 Setting up .bashrc with aliases..."
-cp /workspace/.devcontainer/.bashrc ~/.bashrc
-# Add to .profile to ensure .bashrc is sourced in non-interactive shells
-echo 'if [ -f ~/.bashrc ]; then . ~/.bashrc; fi' >> ~/.profile
+# Install global packages for development (done at runtime, not build time)
+echo "📦 Installing global development tools..."
+bun install -g turbo drizzle-kit typescript @types/node 2>/dev/null || {
+  echo "⚠️ Some global packages may already be installed, continuing..."
+}
+
+# Set up bun completions (with proper shell detection)
+echo "🔧 Setting up shell completions..."
+if [ -n "$SHELL" ] && [ -f "$SHELL" ]; then
+  SHELL=/bin/bash bun completions 2>/dev/null | sudo tee /etc/bash_completion.d/bun > /dev/null || {
+    echo "⚠️ Could not install bun completions, but continuing..."
+  }
+fi
+
+# Add project commands to shell profile
+echo "📄 Setting up project commands..."
+# Add sourcing of sim-commands.sh to user's shell config files if they exist
+for rcfile in ~/.bashrc ~/.zshrc; do
+  if [ -f "$rcfile" ]; then
+    # Check if already added
+    if ! grep -q "sim-commands.sh" "$rcfile"; then
+      echo "" >> "$rcfile"
+      echo "# Sim project commands" >> "$rcfile"
+      echo "if [ -f /workspace/.devcontainer/sim-commands.sh ]; then" >> "$rcfile"
+      echo "  source /workspace/.devcontainer/sim-commands.sh" >> "$rcfile"
+      echo "fi" >> "$rcfile"
+    fi
+  fi
+done
+
+# If no rc files exist yet, create a minimal one
+if [ ! -f ~/.bashrc ] && [ ! -f ~/.zshrc ]; then
+  echo "# Source Sim project commands" > ~/.bashrc
+  echo "if [ -f /workspace/.devcontainer/sim-commands.sh ]; then" >> ~/.bashrc
+  echo "  source /workspace/.devcontainer/sim-commands.sh" >> ~/.bashrc
+  echo "fi" >> ~/.bashrc
+fi
 
 # Clean and reinstall dependencies to ensure platform compatibility
 echo "📦 Cleaning and reinstalling dependencies..."
@@ -29,18 +61,12 @@ chmod 700 ~/.bun ~/.bun/cache
 
 # Install dependencies with platform-specific binaries
 echo "Installing dependencies with Bun..."
-bun install || {
-  echo "⚠️ bun install had issues but continuing setup..."
-}
+bun install
 
 # Check for native dependencies
 echo "Checking for native dependencies compatibility..."
-NATIVE_DEPS=$(grep '"trustedDependencies"' apps/sim/package.json || echo "")
-if [ ! -z "$NATIVE_DEPS" ]; then
-  echo "⚠️ Native dependencies detected. Ensuring compatibility with Bun..."
-  for pkg in $(echo $NATIVE_DEPS | grep -oP '"[^"]*"' | tr -d '"' | grep -v "trustedDependencies"); do
-    echo "Checking compatibility for $pkg..."
-  done
+if grep -q '"trustedDependencies"' apps/sim/package.json 2>/dev/null; then
+  echo "⚠️ Native dependencies detected. Bun will handle compatibility during install."
 fi
 
 # Set up environment variables if .env doesn't exist for the sim app
@@ -81,23 +107,6 @@ echo "Waiting for database to be ready..."
     echo "⚠️ Database connection timed out, skipping migrations"
   fi
 ) || echo "⚠️ Database setup had issues but continuing..."
-
-# Add additional helpful aliases to .bashrc
-cat << EOF >> ~/.bashrc
-
-# Additional Sim Development Aliases
-alias migrate="cd /workspace/apps/sim && DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio bunx drizzle-kit push"
-alias generate="cd /workspace/apps/sim && bunx drizzle-kit generate"
-alias dev="cd /workspace && bun run dev"
-alias build="cd /workspace && bun run build"
-alias start="cd /workspace && bun run dev"
-alias lint="cd /workspace/apps/sim && bun run lint"
-alias test="cd /workspace && bun run test"
-alias bun-update="cd /workspace && bun update"
-EOF
-
-# Source the .bashrc to make aliases available immediately
-. ~/.bashrc
 
 # Clear the welcome message flag to ensure it shows after setup
 unset SIM_WELCOME_SHOWN

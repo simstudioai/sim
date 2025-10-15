@@ -1,4 +1,4 @@
-import type { GmailReadParams, GmailToolResponse } from '@/tools/gmail/types'
+import type { GmailAttachment, GmailReadParams, GmailToolResponse } from '@/tools/gmail/types'
 import {
   createMessagesSummary,
   GMAIL_API_BASE,
@@ -195,15 +195,32 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
 
           const messages = await Promise.all(messagePromises)
 
-          // Process all messages and create a summary
-          const processedMessages = messages.map(processMessageForSummary)
+          // Create summary from processed messages first
+          const summaryMessages = messages.map(processMessageForSummary)
+
+          const allAttachments: GmailAttachment[] = []
+          if (params?.includeAttachments) {
+            for (const msg of messages) {
+              try {
+                const processedResult = await processMessage(msg, params)
+                if (
+                  processedResult.output.attachments &&
+                  processedResult.output.attachments.length > 0
+                ) {
+                  allAttachments.push(...processedResult.output.attachments)
+                }
+              } catch (error: any) {
+                console.error(`Error processing message ${msg.id} for attachments:`, error)
+              }
+            }
+          }
 
           return {
             success: true,
             output: {
-              content: createMessagesSummary(processedMessages),
+              content: createMessagesSummary(summaryMessages),
               metadata: {
-                results: processedMessages.map((msg) => ({
+                results: summaryMessages.map((msg) => ({
                   id: msg.id,
                   threadId: msg.threadId,
                   subject: msg.subject,
@@ -211,6 +228,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
                   date: msg.date,
                 })),
               },
+              attachments: allAttachments,
             },
           }
         } catch (error: any) {
@@ -224,6 +242,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
                   threadId: msg.threadId,
                 })),
               },
+              attachments: [],
             },
           }
         }

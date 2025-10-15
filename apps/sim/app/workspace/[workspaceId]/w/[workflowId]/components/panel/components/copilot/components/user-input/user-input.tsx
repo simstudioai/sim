@@ -55,6 +55,7 @@ import { cn } from '@/lib/utils'
 import { useCopilotStore } from '@/stores/copilot/store'
 import type { ChatContext } from '@/stores/copilot/types'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { ContextUsagePill } from '../context-usage-pill/context-usage-pill'
 
 const logger = createLogger('CopilotUserInput')
 
@@ -182,18 +183,16 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const [isLoadingLogs, setIsLoadingLogs] = useState(false)
 
     const { data: session } = useSession()
-    const { currentChat, workflowId, enabledModels, setEnabledModels } = useCopilotStore()
+    const {
+      currentChat,
+      workflowId,
+      enabledModels,
+      setEnabledModels,
+      contextUsage,
+      createNewChat,
+    } = useCopilotStore()
     const params = useParams()
     const workspaceId = params.workspaceId as string
-    // Track per-chat preference for auto-adding workflow context
-    const [workflowAutoAddDisabledMap, setWorkflowAutoAddDisabledMap] = useState<
-      Record<string, boolean>
-    >({})
-    // Also track for new chats (no ID yet)
-    const [newChatWorkflowDisabled, setNewChatWorkflowDisabled] = useState(false)
-    const workflowAutoAddDisabled = currentChat?.id
-      ? workflowAutoAddDisabledMap[currentChat.id] || false
-      : newChatWorkflowDisabled
 
     // Determine placeholder based on mode
     const effectivePlaceholder =
@@ -250,98 +249,6 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         logger.error('Error fetching enabled models', { error })
       }
     }, [enabledModels, setEnabledModels])
-
-    // Track the last chat ID we've seen to detect chat changes
-    const [lastChatId, setLastChatId] = useState<string | undefined>(undefined)
-    // Track if we just sent a message to avoid re-adding context after submit
-    const [justSentMessage, setJustSentMessage] = useState(false)
-
-    // Reset states when switching to a truly new chat
-    useEffect(() => {
-      const currentChatId = currentChat?.id
-
-      // Detect when we're switching to a different chat
-      if (lastChatId !== currentChatId) {
-        // If switching to a new chat (undefined ID) from a different state
-        // reset the disabled flag so each new chat starts fresh
-        if (!currentChatId && lastChatId !== undefined) {
-          setNewChatWorkflowDisabled(false)
-        }
-
-        // If a new chat just got an ID assigned, transfer the disabled state
-        if (currentChatId && !lastChatId && newChatWorkflowDisabled) {
-          setWorkflowAutoAddDisabledMap((prev) => ({
-            ...prev,
-            [currentChatId]: true,
-          }))
-          // Keep newChatWorkflowDisabled as false for the next new chat
-          setNewChatWorkflowDisabled(false)
-        }
-
-        // Reset the "just sent" flag when switching chats
-        setJustSentMessage(false)
-
-        setLastChatId(currentChatId)
-      }
-    }, [currentChat?.id, lastChatId, newChatWorkflowDisabled])
-
-    // Auto-add workflow context when message is empty and not disabled
-    useEffect(() => {
-      // Don't auto-add if disabled or no workflow
-      if (!workflowId || workflowAutoAddDisabled) return
-
-      // Don't auto-add right after sending a message
-      if (justSentMessage) return
-
-      // Only add when message is empty (new message being composed)
-      if (message && message.trim().length > 0) return
-
-      // Check if current_workflow context already exists
-      const hasCurrentWorkflowContext = selectedContexts.some(
-        (ctx) => ctx.kind === 'current_workflow' && (ctx as any).workflowId === workflowId
-      )
-      if (hasCurrentWorkflowContext) {
-        return
-      }
-
-      const addWorkflowContext = async () => {
-        // Double-check disabled state right before adding
-        if (workflowAutoAddDisabled) return
-
-        // Get workflow name
-        let workflowName = 'Current Workflow'
-
-        // Try loaded workflows first
-        const existingWorkflow = workflows.find((w) => w.id === workflowId)
-        if (existingWorkflow) {
-          workflowName = existingWorkflow.name
-        } else if (workflows.length === 0) {
-          // If workflows not loaded yet, try to fetch this specific one
-          try {
-            const resp = await fetch(`/api/workflows/${workflowId}`)
-            if (resp.ok) {
-              const data = await resp.json()
-              workflowName = data?.data?.name || 'Current Workflow'
-            }
-          } catch {}
-        }
-
-        // Add current_workflow context using functional update to prevent duplicates
-        setSelectedContexts((prev) => {
-          const alreadyHasCurrentWorkflow = prev.some(
-            (ctx) => ctx.kind === 'current_workflow' && (ctx as any).workflowId === workflowId
-          )
-          if (alreadyHasCurrentWorkflow) return prev
-
-          return [
-            ...prev,
-            { kind: 'current_workflow', workflowId, label: workflowName } as ChatContext,
-          ]
-        })
-      }
-
-      addWorkflowContext()
-    }, [workflowId, workflowAutoAddDisabled, workflows.length, message, justSentMessage]) // Re-run when message changes
 
     // Auto-resize textarea and toggle vertical scroll when exceeding max height
     useEffect(() => {
@@ -710,16 +617,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           size: f.size,
         }))
 
-      // Build contexts to send: hide current_workflow in UI but always include it in payload
-      const uiContexts = selectedContexts.filter((c) => (c as any).kind !== 'current_workflow')
-      const finalContexts: any[] = [...uiContexts]
-
-      if (workflowId) {
-        // Include current_workflow for the agent; label not shown in UI
-        finalContexts.push({ kind: 'current_workflow', workflowId, label: 'Current Workflow' })
-      }
-
-      onSubmit(trimmedMessage, fileAttachments, finalContexts as any)
+      // Send only the explicitly selected contexts
+      onSubmit(trimmedMessage, fileAttachments, selectedContexts as any)
 
       // Clean up preview URLs before clearing
       attachedFiles.forEach((f) => {
@@ -736,17 +635,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       }
       setAttachedFiles([])
 
-      // Clear @mention contexts after submission, but preserve current_workflow if not disabled
-      setSelectedContexts((prev) => {
-        // Keep current_workflow context if it's not disabled
-        const currentWorkflowCtx = prev.find(
-          (ctx) => ctx.kind === 'current_workflow' && !workflowAutoAddDisabled
-        )
-        return currentWorkflowCtx ? [currentWorkflowCtx] : []
-      })
-
-      // Mark that we just sent a message to prevent auto-add
-      setJustSentMessage(true)
+      // Clear @mention contexts after submission
+      setSelectedContexts([])
 
       setOpenSubmenuFor(null)
       setShowMentionMenu(false)
@@ -1440,11 +1330,6 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         setInternalMessage(newValue)
       }
 
-      // Reset the "just sent" flag when user starts typing
-      if (justSentMessage && newValue.length > 0) {
-        setJustSentMessage(false)
-      }
-
       const caret = e.target.selectionStart ?? newValue.length
       const active = getActiveMentionQueryAtPosition(caret, newValue)
       if (active) {
@@ -1714,34 +1599,22 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     // Keep selected contexts in sync with inline @label tokens so deleting inline tokens updates pills
     useEffect(() => {
       if (!message) {
-        // When message is empty, preserve current_workflow if not disabled
-        // Clear other contexts
-        setSelectedContexts((prev) => {
-          const currentWorkflowCtx = prev.find(
-            (ctx) => ctx.kind === 'current_workflow' && !workflowAutoAddDisabled
-          )
-          return currentWorkflowCtx ? [currentWorkflowCtx] : []
-        })
+        // When message is empty, clear all contexts
+        setSelectedContexts([])
         return
       }
       const presentLabels = new Set<string>()
       const ranges = computeMentionRanges()
       for (const r of ranges) presentLabels.add(r.label)
       setSelectedContexts((prev) => {
-        // Keep contexts that are mentioned in text OR are current_workflow (unless disabled)
+        // Keep only contexts that are mentioned in text
         const filteredContexts = prev.filter((c) => {
-          // Always preserve current_workflow context if it's not disabled
-          // It should only be removable via the X button
-          if (c.kind === 'current_workflow' && !workflowAutoAddDisabled) {
-            return true
-          }
-          // For other contexts, check if they're mentioned in text
           return !!c.label && presentLabels.has(c.label!)
         })
 
         return filteredContexts
       })
-    }, [message, workflowAutoAddDisabled])
+    }, [message])
 
     // Manage aggregate mode and preloading when needed
     useEffect(() => {
@@ -2050,7 +1923,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       <div className={cn('relative flex-none pb-4', className)}>
         <div
           className={cn(
-            'rounded-[8px] border border-[#E5E5E5] bg-[#FFFFFF] p-2 shadow-xs transition-all duration-200 dark:border-[#414141] dark:bg-[var(--surface-elevated)]',
+            'relative rounded-[8px] border border-[#E5E5E5] bg-[#FFFFFF] p-2 shadow-xs transition-all duration-200 dark:border-[#414141] dark:bg-[var(--surface-elevated)]',
             isDragging &&
               'border-[var(--brand-primary-hover-hex)] bg-purple-50/50 dark:border-[var(--brand-primary-hover-hex)] dark:bg-purple-950/20'
           )}
@@ -2059,6 +1932,15 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           onDragOver={handleDragOver}
           onDrop={handleDrop}
         >
+          {/* Context Usage Pill - Top Right */}
+          {contextUsage && contextUsage.percentage > 0 && (
+            <div className='absolute top-2 right-2 z-10'>
+              <ContextUsagePill
+                percentage={contextUsage.percentage}
+                onCreateNewChat={createNewChat}
+              />
+            </div>
+          )}
           {/* Attached Files Display with Thumbnails */}
           {attachedFiles.length > 0 && (
             <div className='mb-2 flex flex-wrap gap-1.5'>
@@ -2172,7 +2054,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             {/* Highlight overlay */}
             <div
               ref={overlayRef}
-              className='pointer-events-none absolute inset-0 z-[1] max-h-[120px] overflow-y-auto overflow-x-hidden px-[2px] py-1 [&::-webkit-scrollbar]:hidden'
+              className='pointer-events-none absolute inset-0 z-[1] max-h-[120px] overflow-y-auto overflow-x-hidden py-1 pr-14 pl-[2px] [&::-webkit-scrollbar]:hidden'
             >
               <pre className='whitespace-pre-wrap break-words font-sans text-foreground text-sm leading-[1.25rem]'>
                 {(() => {
@@ -2220,7 +2102,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               placeholder={isDragging ? 'Drop files here...' : effectivePlaceholder}
               disabled={disabled}
               rows={1}
-              className='relative z-[2] mb-2 min-h-[32px] w-full resize-none overflow-y-auto overflow-x-hidden break-words border-0 bg-transparent px-[2px] py-1 font-sans text-sm text-transparent leading-[1.25rem] caret-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
+              className='relative z-[2] mb-2 min-h-[32px] w-full resize-none overflow-y-auto overflow-x-hidden break-words border-0 bg-transparent py-1 pr-14 pl-[2px] font-sans text-sm text-transparent leading-[1.25rem] caret-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
               style={{ height: 'auto', wordBreak: 'break-word' }}
             />
 
@@ -3364,7 +3246,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             </div>
 
             {/* Right side: Attach Button + Send Button */}
-            <div className='flex items-center gap-1'>
+            <div className='flex items-center gap-1.5'>
               {/* Attach Button */}
               <Button
                 variant='ghost'
