@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react'
-import { AlertCircle, PlusIcon, Server, WrenchIcon, XIcon } from 'lucide-react'
+import type React from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { PlusIcon, Server, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -374,42 +375,40 @@ function FileUploadSyncWrapper({
   )
 }
 
-// Error boundary component for tool input
-class ToolInputErrorBoundary extends React.Component<
-  { children: React.ReactNode; blockName?: string },
-  { hasError: boolean; error?: Error }
-> {
-  constructor(props: any) {
-    super(props)
-    this.state = { hasError: false }
-  }
-
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error }
-  }
-
-  componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error('ToolInput error:', error, info)
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className='rounded-md bg-red-50 p-4 text-red-800 text-sm dark:bg-red-900/20 dark:text-red-200'>
-          <div className='flex items-center gap-2'>
-            <AlertCircle className='h-4 w-4' />
-            <span className='font-medium'>Tool Configuration Error</span>
-          </div>
-          <p className='mt-1 text-xs opacity-80'>
-            {this.props.blockName ? `Block "${this.props.blockName}": ` : ''}
-            Invalid tool reference. Please check the workflow configuration.
-          </p>
-        </div>
-      )
-    }
-
-    return this.props.children
-  }
+function ChannelSelectorSyncWrapper({
+  blockId,
+  paramId,
+  value,
+  onChange,
+  uiComponent,
+  disabled,
+  previewContextValues,
+}: {
+  blockId: string
+  paramId: string
+  value: string
+  onChange: (value: string) => void
+  uiComponent: any
+  disabled: boolean
+  previewContextValues?: Record<string, any>
+}) {
+  return (
+    <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
+      <ChannelSelectorInput
+        blockId={blockId}
+        subBlock={{
+          id: paramId,
+          type: 'channel-selector' as const,
+          title: paramId,
+          provider: uiComponent.provider || 'slack',
+          placeholder: uiComponent.placeholder,
+        }}
+        onChannelSelect={onChange}
+        disabled={disabled}
+        previewContextValues={previewContextValues}
+      />
+    </GenericSyncWrapper>
+  )
 }
 
 export function ToolInput({
@@ -1060,19 +1059,14 @@ export function ToolInput({
 
       case 'channel-selector':
         return (
-          <ChannelSelectorInput
+          <ChannelSelectorSyncWrapper
             blockId={blockId}
-            subBlock={{
-              id: `tool-${toolIndex || 0}-${param.id}`,
-              type: 'channel-selector' as const,
-              title: param.id,
-              provider: uiComponent.provider || 'slack',
-              placeholder: uiComponent.placeholder,
-            }}
-            onChannelSelect={onChange}
+            paramId={param.id}
+            value={value}
+            onChange={onChange}
+            uiComponent={uiComponent}
             disabled={disabled}
-            isPreview={true}
-            previewValue={value}
+            previewContextValues={currentToolParams as any}
           />
         )
 

@@ -19,6 +19,7 @@ interface ChannelSelectorInputProps {
   onChannelSelect?: (channelId: string) => void
   isPreview?: boolean
   previewValue?: any | null
+  previewContextValues?: Record<string, any>
 }
 
 export function ChannelSelectorInput({
@@ -28,15 +29,18 @@ export function ChannelSelectorInput({
   onChannelSelect,
   isPreview = false,
   previewValue,
+  previewContextValues,
 }: ChannelSelectorInputProps) {
   const params = useParams()
   const workflowIdFromUrl = (params?.workflowId as string) || ''
-  // Use the proper hook to get the current value and setter (same as file-selector)
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
-  // Reactive upstream fields
   const [authMethod] = useSubBlockValue(blockId, 'authMethod')
   const [botToken] = useSubBlockValue(blockId, 'botToken')
   const [connectedCredential] = useSubBlockValue(blockId, 'credential')
+
+  const effectiveAuthMethod = previewContextValues?.authMethod ?? authMethod
+  const effectiveBotToken = previewContextValues?.botToken ?? botToken
+  const effectiveCredential = previewContextValues?.credential ?? connectedCredential
   const [selectedChannelId, setSelectedChannelId] = useState<string>('')
   const [_channelInfo, setChannelInfo] = useState<SlackChannelInfo | null>(null)
 
@@ -49,16 +53,16 @@ export function ChannelSelectorInput({
     isPreview,
   })
 
-  // Choose credential strictly based on auth method
+  // Choose credential strictly based on auth method - use effective values
   const credential: string =
-    (authMethod as string) === 'bot_token'
-      ? (botToken as string) || ''
-      : (connectedCredential as string) || ''
+    (effectiveAuthMethod as string) === 'bot_token'
+      ? (effectiveBotToken as string) || ''
+      : (effectiveCredential as string) || ''
 
   // Determine if connected OAuth credential is foreign (not applicable for bot tokens)
   const { isForeignCredential } = useForeignCredential(
     'slack',
-    (authMethod as string) === 'bot_token' ? '' : (connectedCredential as string) || ''
+    (effectiveAuthMethod as string) === 'bot_token' ? '' : (effectiveCredential as string) || ''
   )
 
   // Get the current value from the store or prop value if in preview mode (same pattern as file-selector)
