@@ -1,8 +1,7 @@
 import { apiKey, db, workflow, workflowDeploymentVersion } from '@sim/db'
 import { and, desc, eq, sql } from 'drizzle-orm'
-import type { NextRequest } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
-import { generateApiKey } from '@/lib/api-key/service'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
@@ -64,26 +63,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         .orderBy(desc(apiKey.lastUsed), desc(apiKey.createdAt))
         .limit(1)
 
-      if (userApiKey.length === 0) {
-        try {
-          const newApiKeyVal = generateApiKey()
-          const keyName = 'Default API Key'
-          await db.insert(apiKey).values({
-            id: uuidv4(),
-            userId: workflowData.userId,
-            workspaceId: null,
-            name: keyName,
-            key: newApiKeyVal,
-            type: 'personal',
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          })
-          keyInfo = { name: keyName, type: 'personal' }
-          logger.info(`[${requestId}] Generated new API key for user: ${workflowData.userId}`)
-        } catch (keyError) {
-          logger.error(`[${requestId}] Failed to generate API key:`, keyError)
-        }
-      } else {
+      if (userApiKey.length > 0) {
         keyInfo = { name: userApiKey[0].name, type: userApiKey[0].type as 'personal' | 'workspace' }
       }
     }
@@ -190,33 +170,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const deployedAt = new Date()
     logger.debug(`[${requestId}] Proceeding with deployment at ${deployedAt.toISOString()}`)
 
-    const userApiKey = await db
-      .select({
-        key: apiKey.key,
-      })
-      .from(apiKey)
-      .where(and(eq(apiKey.userId, userId), eq(apiKey.type, 'personal')))
-      .orderBy(desc(apiKey.lastUsed), desc(apiKey.createdAt))
-      .limit(1)
-
-    if (userApiKey.length === 0) {
-      try {
-        const newApiKey = generateApiKey()
-        await db.insert(apiKey).values({
-          id: uuidv4(),
-          userId,
-          workspaceId: null,
-          name: 'Default API Key',
-          key: newApiKey,
-          type: 'personal',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        })
-        logger.info(`[${requestId}] Generated new API key for user: ${userId}`)
-      } catch (keyError) {
-        logger.error(`[${requestId}] Failed to generate API key:`, keyError)
-      }
-    }
+    // No longer auto-generating default API key - user must provide one
 
     let keyInfo: { name: string; type: 'personal' | 'workspace' } | null = null
     let matchedKey: {
@@ -225,6 +179,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       name: string
       type: 'personal' | 'workspace'
     } | null = null
+
+    if (!providedApiKey) {
+      return NextResponse.json(
+        { error: 'API key is required. Please create or select an API key before deploying.' },
+        { status: 400 }
+      )
+    }
 
     if (providedApiKey) {
       let isValidKey = false
