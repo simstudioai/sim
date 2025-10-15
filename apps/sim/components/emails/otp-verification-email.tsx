@@ -22,8 +22,6 @@ interface OTPVerificationEmailProps {
   chatTitle?: string
 }
 
-const baseUrl = getBaseUrl()
-
 const getSubjectByType = (type: string, brandName: string, chatTitle?: string) => {
   switch (type) {
     case 'sign-in':
@@ -46,6 +44,7 @@ export const OTPVerificationEmail = ({
   chatTitle,
 }: OTPVerificationEmailProps) => {
   const brand = getBrandConfig()
+  const baseUrl = getBaseUrl()
 
   // Get a message based on the type
   const getMessage = () => {

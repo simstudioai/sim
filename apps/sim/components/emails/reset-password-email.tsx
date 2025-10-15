@@ -23,14 +23,13 @@ interface ResetPasswordEmailProps {
   updatedDate?: Date
 }
 
-const baseUrl = getBaseUrl()
-
 export const ResetPasswordEmail = ({
   username = '',
   resetLink = '',
   updatedDate = new Date(),
 }: ResetPasswordEmailProps) => {
   const brand = getBrandConfig()
+  const baseUrl = getBaseUrl()
 
   return (
     <Html>

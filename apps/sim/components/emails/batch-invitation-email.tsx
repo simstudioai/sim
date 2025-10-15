@@ -30,8 +30,6 @@ interface BatchInvitationEmailProps {
   acceptUrl: string
 }
 
-const baseUrl = getBaseUrl()
-
 const getPermissionLabel = (permission: string) => {
   switch (permission) {
     case 'admin':
@@ -64,6 +62,7 @@ export const BatchInvitationEmail = ({
   acceptUrl,
 }: BatchInvitationEmailProps) => {
   const brand = getBrandConfig()
+  const baseUrl = getBaseUrl()
   const hasWorkspaces = workspaceInvitations.length > 0
 
   return (

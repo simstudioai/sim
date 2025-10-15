@@ -23,8 +23,6 @@ interface HelpConfirmationEmailProps {
   submittedDate?: Date
 }
 
-const baseUrl = getBaseUrl()
-
 const getTypeLabel = (type: string) => {
   switch (type) {
     case 'bug':
@@ -47,6 +45,7 @@ export const HelpConfirmationEmail = ({
   submittedDate = new Date(),
 }: HelpConfirmationEmailProps) => {
   const brand = getBrandConfig()
+  const baseUrl = getBaseUrl()
   const typeLabel = getTypeLabel(type)
 
   return (

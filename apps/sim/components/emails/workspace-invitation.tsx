@@ -25,14 +25,13 @@ interface WorkspaceInvitationEmailProps {
   invitationLink?: string
 }
 
-const baseUrl = getBaseUrl()
-
 export const WorkspaceInvitationEmail = ({
   workspaceName = 'Workspace',
   inviterName = 'Someone',
   invitationLink = '',
 }: WorkspaceInvitationEmailProps) => {
   const brand = getBrandConfig()
+  const baseUrl = getBaseUrl()
 
   // Extract token from the link to ensure we're using the correct format
   let enhancedLink = invitationLink

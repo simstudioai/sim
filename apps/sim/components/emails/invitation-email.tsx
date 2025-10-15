@@ -26,8 +26,6 @@ interface InvitationEmailProps {
   updatedDate?: Date
 }
 
-const baseUrl = getBaseUrl()
-
 const logger = createLogger('InvitationEmail')
 
 export const InvitationEmail = ({
@@ -38,6 +36,7 @@ export const InvitationEmail = ({
   updatedDate = new Date(),
 }: InvitationEmailProps) => {
   const brand = getBrandConfig()
+  const baseUrl = getBaseUrl()
 
   // Extract invitation ID or token from inviteLink if present
   let enhancedLink = inviteLink
