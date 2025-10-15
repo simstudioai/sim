@@ -211,6 +211,12 @@ export function TriggerConfig({
       }
 
       // Save as webhook using existing webhook API (for webhook-based triggers)
+      const webhookConfig = {
+        ...config,
+        ...(selectedCredentialId ? { credentialId: selectedCredentialId } : {}),
+        triggerId: effectiveTriggerId,
+      }
+
       const response = await fetch('/api/webhooks', {
         method: 'POST',
         headers: {
@@ -221,11 +227,7 @@ export function TriggerConfig({
           blockId,
           path,
           provider: webhookProvider,
-          providerConfig: {
-            ...config,
-            triggerId: effectiveTriggerId, // Include the trigger ID to identify the trigger type
-            ...(selectedCredentialId ? { credentialId: selectedCredentialId } : {}),
-          },
+          providerConfig: webhookConfig,
         }),
       })
 
