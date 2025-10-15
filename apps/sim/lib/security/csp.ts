@@ -1,5 +1,4 @@
-import { env, getEnv } from '@/lib/env'
-import { getBaseUrl } from '@/lib/urls/utils'
+import { env, getEnv } from '../env'
 
 /**
  * Content Security Policy (CSP) configuration builder
@@ -77,7 +76,7 @@ export const buildTimeCSPDirectives: CSPDirectives = {
 
   'connect-src': [
     "'self'",
-    getBaseUrl(),
+    env.NEXT_PUBLIC_APP_URL || '',
     env.OLLAMA_URL || 'http://localhost:11434',
     env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002',
     env.NEXT_PUBLIC_SOCKET_URL?.replace('http://', 'ws://').replace('https://', 'wss://') ||
