@@ -92,7 +92,8 @@ const WorkflowContent = React.memo(() => {
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null)
   const [potentialParentId, setPotentialParentId] = useState<string | null>(null)
   // State for tracking validation errors
-  const [nestedSubflowErrors, setNestedSubflowErrors] = useState<Set<string>>(new Set())
+  // Use a function initializer to ensure the Set is only created once
+  const [nestedSubflowErrors, setNestedSubflowErrors] = useState<Set<string>>(() => new Set())
   // Enhanced edge selection with parent context and unique identifier
   const [selectedEdgeInfo, setSelectedEdgeInfo] = useState<SelectedEdgeInfo | null>(null)
 
@@ -1292,8 +1293,6 @@ const WorkflowContent = React.memo(() => {
         // Include dynamic dimensions for container resizing calculations
         width: block.isWide ? 450 : 350, // Standard width based on isWide state
         height: Math.max(block.height || 100, 100), // Use actual height with minimum
-        // Explicitly set measured to prevent ReactFlow from recalculating
-        measured: { width: block.isWide ? 450 : 350, height: Math.max(block.height || 100, 100) },
       })
     })
 
@@ -1967,7 +1966,13 @@ const WorkflowContent = React.memo(() => {
           edgeTypes={edgeTypes}
           onDrop={effectivePermissions.canEdit ? onDrop : undefined}
           onDragOver={effectivePermissions.canEdit ? onDragOver : undefined}
-          fitView
+          onInit={(instance) => {
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                instance.fitView({ padding: 0.3 })
+              })
+            })
+          }}
           minZoom={0.1}
           maxZoom={1.3}
           panOnScroll

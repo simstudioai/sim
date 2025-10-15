@@ -5,11 +5,6 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { getBlockOutputs } from '@/lib/workflows/block-outputs'
 import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
-import {
-  pushHistory,
-  type WorkflowStoreWithHistory,
-  withHistory,
-} from '@/stores/workflows/middleware'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import {
@@ -20,8 +15,8 @@ import {
 import type {
   Position,
   SubBlockState,
-  SyncControl,
   WorkflowState,
+  WorkflowStore,
 } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 
@@ -39,54 +34,12 @@ const initialState = {
   // New field for per-workflow deployment tracking
   deploymentStatuses: {},
   needsRedeployment: false,
-  history: {
-    past: [],
-    present: {
-      state: {
-        blocks: {},
-        edges: [],
-        loops: {},
-        parallels: {},
-        isDeployed: false,
-        isPublished: false,
-      },
-      timestamp: 0,
-      action: 'Initial state',
-      subblockValues: {},
-    },
-    future: [],
-  },
 }
 
-// Create a consolidated sync control implementation
-/**
- * Socket-based SyncControl implementation (replaces HTTP sync)
- */
-const createSyncControl = (): SyncControl => ({
-  markDirty: () => {
-    // No-op: Socket-based sync handles this automatically
-  },
-  isDirty: () => {
-    // Always return false since socket sync is real-time
-    return false
-  },
-  forceSync: () => {
-    // No-op: Socket-based sync is always in sync
-  },
-})
-
-export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
+export const useWorkflowStore = create<WorkflowStore>()(
   devtools(
-    withHistory((set, get) => ({
+    (set, get) => ({
       ...initialState,
-      undo: () => {},
-      redo: () => {},
-      canUndo: () => false,
-      canRedo: () => false,
-      revertToHistoryState: () => {},
-
-      // Implement sync control interface
-      sync: createSyncControl(),
 
       setNeedsRedeploymentFlag: (needsRedeployment: boolean) => {
         set({ needsRedeployment })
@@ -143,9 +96,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           }
 
           set(newState)
-          pushHistory(set, get, newState, `Add ${type} node`)
           get().updateLastSaved()
-          // get().sync.markDirty() // Disabled: Using socket-based sync
           return
         }
 
@@ -199,9 +150,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         set(newState)
-        pushHistory(set, get, newState, `Add ${type} block`)
         get().updateLastSaved()
-        // get().sync.markDirty() // Disabled: Using socket-based sync
       },
 
       updateBlockPosition: (id: string, position: Position) => {
@@ -310,12 +259,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         })
 
         set(newState)
-        pushHistory(
-          set,
-          get,
-          newState,
-          parentId ? `Set parent for ${block.name}` : `Remove parent for ${block.name}`
-        )
         get().updateLastSaved()
         // Note: Socket.IO handles real-time sync automatically
       },
@@ -386,7 +329,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         })
 
         set(newState)
-        pushHistory(set, get, newState, 'Remove block and children')
         get().updateLastSaved()
         // Note: Socket.IO handles real-time sync automatically
       },
@@ -426,9 +368,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         set(newState)
-        pushHistory(set, get, newState, 'Add connection')
         get().updateLastSaved()
-        // get().sync.markDirty() // Disabled: Using socket-based sync
       },
 
       removeEdge: (edgeId: string) => {
@@ -449,7 +389,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         set(newState)
-        pushHistory(set, get, newState, 'Remove connection')
         get().updateLastSaved()
       },
 
@@ -459,26 +398,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           edges: [],
           loops: {},
           parallels: {},
-          history: {
-            past: [],
-            present: {
-              state: {
-                blocks: {},
-                edges: [],
-                loops: {},
-                parallels: {},
-                isDeployed: false,
-                isPublished: false,
-              },
-              timestamp: Date.now(),
-              action: 'Initial state',
-              subblockValues: {},
-            },
-            future: [],
-          },
           lastSaved: Date.now(),
-          isDeployed: false,
-          isPublished: false,
         }
         set(newState)
         // Note: Socket.IO handles real-time sync automatically
@@ -585,7 +505,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         set(newState)
-        pushHistory(set, get, newState, `Duplicate ${block.type} block`)
         get().updateLastSaved()
         // Note: Socket.IO handles real-time sync automatically
       },
@@ -723,7 +642,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         set(newState)
-        pushHistory(set, get, newState, `${name} block name updated`)
         get().updateLastSaved()
         // Note: Socket.IO handles real-time sync automatically
 
@@ -958,7 +876,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           },
         })
 
-        pushHistory(set, get, newState, 'Reverted to deployed state')
         get().updateLastSaved()
 
         // Call API to persist the revert to normalized tables
@@ -1042,7 +959,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         set(newState)
-        pushHistory(set, get, newState, `Toggle trigger mode for ${block.type} block`)
         get().updateLastSaved()
 
         // Handle webhook enable/disable when toggling trigger mode
@@ -1111,7 +1027,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         set(newState)
-        pushHistory(set, get, newState, `Update parallel count`)
         get().updateLastSaved()
         // Note: Socket.IO handles real-time sync automatically
       },
@@ -1139,7 +1054,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         set(newState)
-        pushHistory(set, get, newState, `Update parallel collection`)
         get().updateLastSaved()
         // Note: Socket.IO handles real-time sync automatically
       },
@@ -1167,7 +1081,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         set(newState)
-        pushHistory(set, get, newState, `Update parallel type`)
         get().updateLastSaved()
         // Note: Socket.IO handles real-time sync automatically
       },
@@ -1184,7 +1097,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       getDragStartPosition: () => {
         return get().dragStartPosition || null
       },
-    })),
+    }),
     { name: 'workflow-store' }
   )
 )
