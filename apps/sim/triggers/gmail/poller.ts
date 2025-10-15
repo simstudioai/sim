@@ -38,6 +38,13 @@ export const gmailPollingTrigger: TriggerConfig = {
       description: 'Automatically mark emails as read after processing',
       required: false,
     },
+    includeAttachments: {
+      type: 'boolean',
+      label: 'Include Attachments',
+      defaultValue: false,
+      description: 'Download and include email attachments in the trigger payload',
+      required: false,
+    },
     includeRawEmail: {
       type: 'boolean',
       label: 'Include Raw Email Data',
@@ -94,8 +101,8 @@ export const gmailPollingTrigger: TriggerConfig = {
         description: 'Whether email has attachments',
       },
       attachments: {
-        type: 'json',
-        description: 'Array of attachment information',
+        type: 'file[]',
+        description: 'Array of email attachments as files (if includeAttachments is enabled)',
       },
     },
     timestamp: {
@@ -129,13 +136,7 @@ export const gmailPollingTrigger: TriggerConfig = {
         '<div><p>Hello,</p><p>Please find attached the monthly report for April 2025.</p><p>Best regards,<br>Sender</p></div>',
       labels: ['INBOX', 'IMPORTANT'],
       hasAttachments: true,
-      attachments: [
-        {
-          filename: 'report-april-2025.pdf',
-          mimeType: 'application/pdf',
-          size: 2048576,
-        },
-      ],
+      attachments: [],
     },
     timestamp: '2025-05-10T10:15:30.123Z',
   },

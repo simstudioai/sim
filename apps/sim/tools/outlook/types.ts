@@ -24,6 +24,7 @@ export interface OutlookReadParams {
   folder: string
   maxResults: number
   messageId?: string
+  includeAttachments?: boolean
 }
 
 export interface OutlookReadResponse extends ToolResponse {
@@ -103,6 +104,14 @@ export interface OutlookMessagesResponse {
   value: OutlookMessage[]
 }
 
+// Outlook attachment interface (for tool responses)
+export interface OutlookAttachment {
+  name: string
+  data: Buffer
+  contentType: string
+  size: number
+}
+
 // Cleaned message interface for our response
 export interface CleanedOutlookMessage {
   id: string
@@ -131,6 +140,7 @@ export interface CleanedOutlookMessage {
   receivedDateTime?: string
   sentDateTime?: string
   hasAttachments?: boolean
+  attachments?: OutlookAttachment[] | any[]
   isRead?: boolean
   importance?: string
 }

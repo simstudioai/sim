@@ -432,6 +432,17 @@ export const WorkflowBlock = memo(
       }
     }, [id, blockHeight, blockWidth, updateBlockLayoutMetrics, updateNodeInternals, debounce])
 
+    // Subscribe to this block's subblock values to track changes for conditional rendering
+    const blockSubBlockValues = useSubBlockStore(
+      useCallback(
+        (state) => {
+          if (!activeWorkflowId) return {}
+          return state.workflowValues[activeWorkflowId]?.[id] || {}
+        },
+        [activeWorkflowId, id]
+      )
+    )
+
     // Memoized SubBlock layout management - only recalculate when dependencies change
     const subBlockRows = useMemo(() => {
       const rows: SubBlockConfig[][] = []
@@ -450,8 +461,7 @@ export const WorkflowBlock = memo(
       } else {
         // In normal mode, use merged state
         const blocks = useWorkflowStore.getState().blocks
-        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId || undefined
-        const mergedState = mergeSubblockState(blocks, activeWorkflowId, id)[id]
+        const mergedState = mergeSubblockState(blocks, activeWorkflowId || undefined, id)[id]
         stateToUse = mergedState?.subBlocks || {}
       }
 
@@ -552,6 +562,8 @@ export const WorkflowBlock = memo(
       data.subBlockValues,
       currentWorkflow.isDiffMode,
       currentBlock,
+      blockSubBlockValues,
+      activeWorkflowId,
     ])
 
     // Name editing handlers
