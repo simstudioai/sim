@@ -217,6 +217,14 @@ export function TriggerConfig({
         triggerId: effectiveTriggerId,
       }
 
+      logger.info('Saving webhook-based trigger', {
+        triggerId: effectiveTriggerId,
+        provider: webhookProvider,
+        hasCredential: !!selectedCredentialId,
+        credentialId: selectedCredentialId,
+        webhookConfig,
+      })
+
       const response = await fetch('/api/webhooks', {
         method: 'POST',
         headers: {

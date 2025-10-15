@@ -227,6 +227,9 @@ async function formatTeamsGraphNotification(
     logger.error('Missing credentialId for Teams chat subscription', {
       chatId: resolvedChatId,
       messageId: resolvedMessageId,
+      webhookId: foundWebhook?.id,
+      blockId: foundWebhook?.blockId,
+      providerConfig,
     })
   } else {
     try {
