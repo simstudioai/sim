@@ -74,13 +74,24 @@ export class WebhookAttachmentProcessor {
       requestId: string
     }
   ): Promise<UserFile> {
+    // Convert data to Buffer (handle both raw and serialized formats)
+    let buffer: Buffer
     const data = attachment.data as any
 
-    if (!data || typeof data !== 'object' || data.type !== 'Buffer' || !Array.isArray(data.data)) {
-      throw new Error(`Attachment '${attachment.name}' data must be a serialized Buffer`)
+    if (Buffer.isBuffer(data)) {
+      // Raw Buffer (e.g., Teams in-memory processing)
+      buffer = data
+    } else if (
+      data &&
+      typeof data === 'object' &&
+      data.type === 'Buffer' &&
+      Array.isArray(data.data)
+    ) {
+      // Serialized Buffer (e.g., Gmail/Outlook after JSON roundtrip)
+      buffer = Buffer.from(data.data)
+    } else {
+      throw new Error(`Attachment '${attachment.name}' data must be a Buffer or serialized Buffer`)
     }
-
-    const buffer = Buffer.from(data.data)
 
     if (buffer.length === 0) {
       throw new Error(`Attachment '${attachment.name}' has zero bytes`)
