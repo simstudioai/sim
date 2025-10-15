@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight, Info, List, Loader2, RotateCcw, Search } from 'lucide-react'
-import { useParams } from 'next/navigation'
+import { ChevronLeft, ChevronRight, ExternalLink, Info, List, Loader2, RotateCcw, Search } from 'lucide-react'
+import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -292,6 +292,7 @@ function LineChart({
 
 export default function ExecutionsDashboard() {
   const params = useParams()
+  const router = useRouter()
   const workspaceId = params.workspaceId as string
 
   // Map sidebar timeRange to our timeFilter
@@ -780,12 +781,22 @@ export default function ExecutionsDashboard() {
           {expandedWorkflowId && (
             <div className='mt-6 rounded-lg border bg-card shadow-sm'>
               <div className='border-b bg-muted/30 px-6 py-4'>
-                <h3 className='font-semibold text-lg tracking-tight'>
-                  {executions.find((w) => w.workflowId === expandedWorkflowId)?.workflowName}
-                </h3>
-                <p className='mt-1 text-muted-foreground text-sm'>
-                  Detailed execution metrics and logs
-                </p>
+                <div className='flex items-center gap-2'>
+                  <h3 className='font-semibold text-lg tracking-tight'>
+                    {executions.find((w) => w.workflowId === expandedWorkflowId)?.workflowName}
+                  </h3>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={() => router.push(`/workspace/${workspaceId}/w/${expandedWorkflowId}`)}
+                        className='rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground'
+                      >
+                        <ExternalLink className='h-4 w-4' />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Open workflow</TooltipContent>
+                  </Tooltip>
+                </div>
               </div>
               <div className='p-6'>
                  {workflowDetails[expandedWorkflowId] ? (
