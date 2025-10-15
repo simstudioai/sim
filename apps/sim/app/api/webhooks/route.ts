@@ -257,7 +257,12 @@ export async function POST(request: NextRequest) {
     const finalProviderConfig = providerConfig
 
     if (targetWebhookId) {
-      logger.info(`[${requestId}] Updating existing webhook for path: ${finalPath}`)
+      logger.info(`[${requestId}] Updating existing webhook for path: ${finalPath}`, {
+        webhookId: targetWebhookId,
+        provider,
+        hasCredentialId: !!(finalProviderConfig as any)?.credentialId,
+        credentialId: (finalProviderConfig as any)?.credentialId,
+      })
       const updatedResult = await db
         .update(webhook)
         .set({
@@ -270,6 +275,10 @@ export async function POST(request: NextRequest) {
         .where(eq(webhook.id, targetWebhookId))
         .returning()
       savedWebhook = updatedResult[0]
+      logger.info(`[${requestId}] Webhook updated successfully`, {
+        webhookId: savedWebhook.id,
+        savedProviderConfig: savedWebhook.providerConfig,
+      })
     } else {
       // Create a new webhook
       const webhookId = nanoid()
