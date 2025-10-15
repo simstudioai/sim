@@ -195,21 +195,25 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
 
           const messages = await Promise.all(messagePromises)
 
-          // Process all messages fully to get attachments
-          const processedMessages = await Promise.all(
-            messages.map((msg) => processMessage(msg, params))
-          )
+          // Create summary from processed messages first
+          const summaryMessages = messages.map(processMessageForSummary)
 
-          // Flatten all attachments from all messages
           const allAttachments: GmailAttachment[] = []
-          for (const result of processedMessages) {
-            if (result.output.attachments && result.output.attachments.length > 0) {
-              allAttachments.push(...result.output.attachments)
+          if (params?.includeAttachments) {
+            for (const msg of messages) {
+              try {
+                const processedResult = await processMessage(msg, params)
+                if (
+                  processedResult.output.attachments &&
+                  processedResult.output.attachments.length > 0
+                ) {
+                  allAttachments.push(...processedResult.output.attachments)
+                }
+              } catch (error: any) {
+                console.error(`Error processing message ${msg.id} for attachments:`, error)
+              }
             }
           }
-
-          // Create summary from processed messages
-          const summaryMessages = messages.map(processMessageForSummary)
 
           return {
             success: true,
@@ -238,6 +242,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
                   threadId: msg.threadId,
                 })),
               },
+              attachments: [],
             },
           }
         }
