@@ -386,11 +386,19 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         // Clear editing state in parent immediately to prevent dimming of new messages
         onEditModeChange?.(false)
 
-        // Truncate messages after the edited message (remove it and everything after)
+        // Truncate messages after the edited message (but keep the edited message with updated content)
         const truncatedMessages = currentMessages.slice(0, editIndex)
-
-        // Update store to show only messages before the edit point
-        useCopilotStore.setState({ messages: truncatedMessages })
+        
+        // Update the edited message with new content but keep it in the array
+        const updatedMessage = {
+          ...message,
+          content: editedMessage,
+          fileAttachments: fileAttachments || message.fileAttachments,
+          contexts: contexts || (message as any).contexts,
+        }
+        
+        // Show the updated message immediately to prevent disappearing
+        useCopilotStore.setState({ messages: [...truncatedMessages, updatedMessage] })
 
         // If we have a current chat, update the DB to remove messages after this point
         if (currentChat?.id) {

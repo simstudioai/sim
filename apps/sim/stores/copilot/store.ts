@@ -1571,7 +1571,20 @@ export const useCopilotStore = create<CopilotStore>()(
         newMessages = [...currentMessages, userMessage, streamingMessage]
         set({ revertState: null, inputValue: '' })
       } else {
-        newMessages = [...get().messages, userMessage, streamingMessage]
+        const currentMessages = get().messages
+        // If messageId is provided, check if it already exists (e.g., from edit flow)
+        const existingIndex = messageId ? currentMessages.findIndex(m => m.id === messageId) : -1
+        if (existingIndex !== -1) {
+          // Replace existing message instead of adding new one
+          newMessages = [
+            ...currentMessages.slice(0, existingIndex),
+            userMessage,
+            streamingMessage
+          ]
+        } else {
+          // Add new messages normally
+          newMessages = [...currentMessages, userMessage, streamingMessage]
+        }
       }
 
       const isFirstMessage = get().messages.length === 0 && !currentChat?.title
