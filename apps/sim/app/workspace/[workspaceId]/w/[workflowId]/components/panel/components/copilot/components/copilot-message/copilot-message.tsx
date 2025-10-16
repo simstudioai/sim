@@ -340,8 +340,8 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
     }
 
     const handleMessageClick = () => {
-      if (isSendingMessage) return
-
+      // Allow entering edit mode even while streaming
+      
       // If message needs expansion and is not expanded, expand it
       if (needsExpansion && !isExpanded) {
         setIsExpanded(true)
@@ -356,7 +356,14 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       fileAttachments?: any[],
       contexts?: any[]
     ) => {
-      if (!editedMessage.trim() || isSendingMessage) return
+      if (!editedMessage.trim()) return
+
+      // If a stream is in progress, abort it first
+      if (isSendingMessage) {
+        abortMessage()
+        // Wait a brief moment for abort to complete
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
 
       // Check if this message has checkpoints
       if (hasCheckpoints) {
@@ -617,7 +624,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 ref={userInputRef}
                 onSubmit={handleSubmitEdit}
                 onAbort={handleCancelEdit}
-                isLoading={isSendingMessage}
+                isLoading={isSendingMessage && isLastUserMessage}
                 value={editedContent}
                 onChange={setEditedContent}
                 placeholder='Edit your message...'
@@ -716,7 +723,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
               <div
                 data-message-box
                 data-message-id={message.id}
-                onClick={!isSendingMessage ? handleMessageClick : undefined}
+                onClick={handleMessageClick}
                 onMouseEnter={() => setIsHoveringMessage(true)}
                 onMouseLeave={() => setIsHoveringMessage(false)}
                 className='group relative cursor-text rounded-[8px] border border-[#E5E5E5] bg-[#FFFFFF] px-3 py-1.5 shadow-xs transition-all duration-200 hover:border-[#D0D0D0] dark:border-[#414141] dark:bg-[var(--surface-elevated)] dark:hover:border-[#525252]'
@@ -951,7 +958,6 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                   className='inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-[8px] bg-[var(--brand-primary-hover-hex)] px-4 py-2 font-medium text-sm text-white transition-colors hover:bg-[var(--brand-primary-hex)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
                 >
                   Continue and revert
-                  <CornerDownLeft className='h-3.5 w-3.5 flex-shrink-0' />
                 </button>
               </AlertDialogFooter>
             </AlertDialogContent>
