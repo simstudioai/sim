@@ -11,7 +11,11 @@ import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { decryptSecret } from '@/lib/utils'
 import { WebhookAttachmentProcessor } from '@/lib/webhooks/attachment-processor'
-import { fetchAndProcessAirtablePayloads, formatWebhookInput } from '@/lib/webhooks/utils'
+import {
+  fetchAndProcessAirtablePayloads,
+  formatWebhookInput,
+  processGenericWebhookFiles,
+} from '@/lib/webhooks/utils'
 import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
@@ -407,6 +411,52 @@ async function executeWebhookJobInternal(
       } catch (error) {
         logger.error(`[${requestId}] Error processing trigger file outputs:`, error)
         // Continue without processing attachments rather than failing execution
+      }
+    }
+
+    // Process generic webhook files based on inputFormat
+    if (input && payload.provider === 'generic' && payload.blockId && blocks[payload.blockId]) {
+      try {
+        const triggerBlock = blocks[payload.blockId]
+
+        if (triggerBlock?.subBlocks?.inputFormat?.value) {
+          const inputFormat = triggerBlock.subBlocks.inputFormat.value as unknown as Array<{
+            name: string
+            type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'files'
+          }>
+          logger.debug(`[${requestId}] Processing generic webhook files from inputFormat`)
+
+          const fileFields = inputFormat.filter((field) => field.type === 'files')
+
+          if (fileFields.length > 0 && typeof input === 'object' && input !== null) {
+            const executionContext = {
+              workspaceId: workspaceId || '',
+              workflowId: payload.workflowId,
+            }
+
+            for (const fileField of fileFields) {
+              const fieldValue = input[fileField.name]
+
+              if (fieldValue && typeof fieldValue === 'object') {
+                const uploadedFiles = await processGenericWebhookFiles(
+                  fieldValue,
+                  executionContext,
+                  requestId
+                )
+
+                if (uploadedFiles.length > 0) {
+                  input[fileField.name] = uploadedFiles
+                  logger.info(
+                    `[${requestId}] Successfully processed ${uploadedFiles.length} file(s) for field: ${fileField.name}`
+                  )
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        logger.error(`[${requestId}] Error processing generic webhook files:`, error)
+        // Continue without processing files rather than failing execution
       }
     }
 
