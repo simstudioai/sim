@@ -1,17 +1,32 @@
+import { useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  commandListClass,
+  dropdownContentClass,
+  filterButtonClass,
+  triggerDropdownListStyle,
+} from '@/app/workspace/[workspaceId]/logs/components/filters/components/shared'
 import { useFilterStore } from '@/stores/logs/filters/store'
 import type { TriggerType } from '@/stores/logs/filters/types'
 
 export default function Trigger() {
   const { triggers, toggleTrigger, setTriggers } = useFilterStore()
+  const [search, setSearch] = useState('')
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
   const triggerOptions: { value: TriggerType; label: string; color?: string }[] = [
     { value: 'manual', label: 'Manual', color: 'bg-gray-500' },
     { value: 'api', label: 'API', color: 'bg-blue-500' },
@@ -43,53 +58,60 @@ export default function Trigger() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant='outline'
-          size='sm'
-          className='w-full justify-between rounded-[10px] border-[#E5E5E5] bg-[#FFFFFF] font-normal text-sm dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
-        >
+        <Button ref={triggerRef} variant='outline' size='sm' className={filterButtonClass}>
           {getSelectedTriggersText()}
           <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align='start'
-        className='w-[180px] rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
+        side='bottom'
+        avoidCollisions={false}
+        sideOffset={4}
+        className={dropdownContentClass}
       >
-        <DropdownMenuItem
-          key='all'
-          onSelect={(e) => {
-            e.preventDefault()
-            clearSelections()
-          }}
-          className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
-        >
-          <span>All triggers</span>
-          {triggers.length === 0 && <Check className='h-4 w-4 text-muted-foreground' />}
-        </DropdownMenuItem>
-
-        <DropdownMenuSeparator />
-
-        {triggerOptions.map((triggerItem) => (
-          <DropdownMenuItem
-            key={triggerItem.value}
-            onSelect={(e) => {
-              e.preventDefault()
-              toggleTrigger(triggerItem.value)
-            }}
-            className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
-          >
-            <div className='flex items-center'>
-              {triggerItem.color && (
-                <div className={`mr-2 h-2 w-2 rounded-full ${triggerItem.color}`} />
-              )}
-              {triggerItem.label}
-            </div>
-            {isTriggerSelected(triggerItem.value) && (
-              <Check className='h-4 w-4 text-muted-foreground' />
-            )}
-          </DropdownMenuItem>
-        ))}
+        <Command>
+          <CommandInput placeholder='Search triggers...' onValueChange={(v) => setSearch(v)} />
+          <CommandList className={commandListClass} style={triggerDropdownListStyle}>
+            <CommandEmpty>No triggers found.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value='all-triggers'
+                onSelect={() => clearSelections()}
+                className='cursor-pointer'
+              >
+                <span>All triggers</span>
+                {triggers.length === 0 && (
+                  <Check className='ml-auto h-4 w-4 text-muted-foreground' />
+                )}
+              </CommandItem>
+              {useMemo(() => {
+                const q = search.trim().toLowerCase()
+                const filtered = q
+                  ? triggerOptions.filter((t) => t.label.toLowerCase().includes(q))
+                  : triggerOptions
+                return filtered.map((triggerItem) => (
+                  <CommandItem
+                    key={triggerItem.value}
+                    value={triggerItem.label}
+                    onSelect={() => toggleTrigger(triggerItem.value)}
+                    className='cursor-pointer'
+                  >
+                    <div className='flex items-center'>
+                      {triggerItem.color && (
+                        <div className={`mr-2 h-2 w-2 rounded-full ${triggerItem.color}`} />
+                      )}
+                      {triggerItem.label}
+                    </div>
+                    {isTriggerSelected(triggerItem.value) && (
+                      <Check className='ml-auto h-4 w-4 text-muted-foreground' />
+                    )}
+                  </CommandItem>
+                ))
+              }, [search, triggers])}
+            </CommandGroup>
+          </CommandList>
+        </Command>
       </DropdownMenuContent>
     </DropdownMenu>
   )

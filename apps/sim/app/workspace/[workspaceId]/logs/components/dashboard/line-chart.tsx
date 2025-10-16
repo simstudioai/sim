@@ -17,14 +17,11 @@ export function LineChart({
   color: string
   unit?: string
 }) {
-  // Responsive sizing: chart fills its container width
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [containerWidth, setContainerWidth] = useState<number>(420)
   const width = containerWidth
-  const height = 176
-  // Add a touch more space below the axis so curves never visually clip it
-  const padding = { top: 18, right: 18, bottom: 32, left: 42 }
-  // Observe container width for responsiveness
+  const height = 166
+  const padding = { top: 16, right: 28, bottom: 26, left: 26 }
   useEffect(() => {
     if (!containerRef.current) return
     const element = containerRef.current
@@ -36,7 +33,6 @@ export function LineChart({
       }
     })
     ro.observe(element)
-    // Initialize once immediately
     const rect = element.getBoundingClientRect()
     if (rect?.width) setContainerWidth(Math.max(280, Math.floor(rect.width)))
     return () => ro.disconnect()
@@ -67,22 +63,26 @@ export function LineChart({
     )
   }
 
-  // Ensure nice padding on the y-domain so the line never hugs the axes
   const rawMax = Math.max(...data.map((d) => d.value), 1)
   const rawMin = Math.min(...data.map((d) => d.value), 0)
   const paddedMax = rawMax === 0 ? 1 : rawMax * 1.1
-  const paddedMin = Math.min(0, rawMin) // never below zero for our metrics
-  const maxValue = Math.ceil(paddedMax)
-  const minValue = Math.floor(paddedMin)
+  const paddedMin = Math.min(0, rawMin)
+  const unitSuffixPre = (unit || '').trim().toLowerCase()
+  let maxValue = Math.ceil(paddedMax)
+  let minValue = Math.floor(paddedMin)
+  if (unitSuffixPre === 'ms') {
+    maxValue = Math.max(1000, Math.ceil(paddedMax / 1000) * 1000)
+    minValue = 0
+  }
   const valueRange = maxValue - minValue || 1
 
   const yMin = padding.top + 3
   const yMax = padding.top + chartHeight - 3
 
   const scaledPoints = data.map((d, i) => {
-    const x = padding.left + (i / (data.length - 1 || 1)) * chartWidth
+    const usableW = Math.max(1, chartWidth - 8)
+    const x = padding.left + (i / (data.length - 1 || 1)) * usableW
     const rawY = padding.top + chartHeight - ((d.value - minValue) / valueRange) * chartHeight
-    // keep the line safely within the plotting area to avoid clipping behind the x-axis
     const y = Math.max(yMin, Math.min(yMax, rawY))
     return { x, y }
   })
@@ -101,7 +101,6 @@ export function LineChart({
       let cp1y = p1.y + ((p2.y - p0.y) / 6) * tension
       const cp2x = p2.x - ((p3.x - p1.x) / 6) * tension
       let cp2y = p2.y - ((p3.y - p1.y) / 6) * tension
-      // Clamp control points vertically to avoid bezier overshoot below the axis
       cp1y = Math.max(yMin, Math.min(yMax, cp1y))
       cp2y = Math.max(yMin, Math.min(yMax, cp2y))
       d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
@@ -110,14 +109,17 @@ export function LineChart({
   })()
 
   return (
-    <div ref={containerRef} className='w-full rounded-[11px] border bg-card p-4 shadow-sm'>
+    <div
+      ref={containerRef}
+      className='w-full overflow-hidden rounded-[11px] border bg-card p-4 shadow-sm'
+    >
       <h4 className='mb-3 font-medium text-foreground text-sm'>{label}</h4>
       <TooltipProvider delayDuration={0}>
         <div className='relative' style={{ width, height }}>
           <svg
             width={width}
             height={height}
-            className='overflow-visible'
+            className='overflow-hidden'
             onMouseMove={(e) => {
               if (scaledPoints.length === 0) return
               const rect = (e.currentTarget as SVGSVGElement).getBoundingClientRect()
@@ -138,7 +140,7 @@ export function LineChart({
                 <rect
                   x={padding.left}
                   y={yMin}
-                  width={chartWidth}
+                  width={Math.max(1, chartWidth - 8)}
                   height={chartHeight - (yMin - padding.top) * 2}
                   rx='2'
                 />
@@ -156,7 +158,7 @@ export function LineChart({
 
             {[0.25, 0.5, 0.75].map((p) => (
               <line
-                key={p}
+                key={`${label}-grid-${p}`}
                 x1={padding.left}
                 y1={padding.top + chartHeight * p}
                 x2={width - padding.right}
@@ -189,7 +191,6 @@ export function LineChart({
                 style={{ mixBlendMode: isDark ? 'screen' : 'normal' }}
               />
             ) : (
-              // Single-point series: show a dot so the value doesn't "disappear"
               <circle cx={scaledPoints[0].x} cy={scaledPoints[0].y} r='3' fill={color} />
             )}
 
@@ -215,9 +216,10 @@ export function LineChart({
 
             {(() => {
               if (data.length < 2) return null
+              const usableW = Math.max(1, chartWidth - 8)
               const idx = [0, Math.floor(data.length / 2), data.length - 1]
               return idx.map((i) => {
-                const x = padding.left + (i / (data.length - 1 || 1)) * chartWidth
+                const x = padding.left + (i / (data.length - 1 || 1)) * usableW
                 const tsSource = data[i]?.timestamp
                 if (!tsSource) return null
                 const ts = new Date(tsSource)
@@ -226,10 +228,10 @@ export function LineChart({
                   : ts.toLocaleString('en-US', { month: 'short', day: 'numeric' })
                 return (
                   <text
-                    key={i}
+                    key={`${label}-x-axis-${i}`}
                     x={x}
                     y={height - padding.bottom + 14}
-                    fontSize='10'
+                    fontSize='9'
                     textAnchor='middle'
                     fill='hsl(var(--muted-foreground))'
                   >
@@ -239,26 +241,41 @@ export function LineChart({
               })
             })()}
 
-            <text
-              x={padding.left - 10}
-              y={padding.top}
-              textAnchor='end'
-              fontSize='10'
-              fill='hsl(var(--muted-foreground))'
-            >
-              {maxValue}
-              {unit}
-            </text>
-            <text
-              x={padding.left - 10}
-              y={height - padding.bottom}
-              textAnchor='end'
-              fontSize='10'
-              fill='hsl(var(--muted-foreground))'
-            >
-              {minValue}
-              {unit}
-            </text>
+            {(() => {
+              const unitSuffix = (unit || '').trim()
+              const showInTicks = unitSuffix === '%'
+              const fmtCompact = (v: number) =>
+                new Intl.NumberFormat('en-US', {
+                  notation: 'compact',
+                  maximumFractionDigits: 1,
+                })
+                  .format(v)
+                  .toLowerCase()
+              return (
+                <>
+                  <text
+                    x={padding.left - 8}
+                    y={padding.top}
+                    textAnchor='end'
+                    fontSize='9'
+                    fill='hsl(var(--muted-foreground))'
+                  >
+                    {fmtCompact(maxValue)}
+                    {showInTicks ? unit : ''}
+                  </text>
+                  <text
+                    x={padding.left - 8}
+                    y={height - padding.bottom}
+                    textAnchor='end'
+                    fontSize='9'
+                    fill='hsl(var(--muted-foreground))'
+                  >
+                    {fmtCompact(minValue)}
+                    {showInTicks ? unit : ''}
+                  </text>
+                </>
+              )
+            })()}
 
             <line
               x1={padding.left}
@@ -283,7 +300,7 @@ export function LineChart({
                 } else if (u.toLowerCase().includes('ms')) {
                   formatted = `${Math.round(val)}ms`
                 } else if (u.toLowerCase().includes('exec')) {
-                  formatted = `${Math.round(val)}${u}` // keep label like " execs"
+                  formatted = `${Math.round(val)}${u}`
                 } else {
                   formatted = `${Math.round(val)}${u}`
                 }
