@@ -1468,8 +1468,32 @@ export const useCopilotStore = create<CopilotStore>()(
       })
     },
 
-    deleteChat: async (_chatId: string) => {
-      // no-op for now
+    deleteChat: async (chatId: string) => {
+      try {
+        // Call delete API
+        const response = await fetch('/api/copilot/chat/delete', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chatId }),
+        })
+
+        if (!response.ok) {
+          throw new Error(`Failed to delete chat: ${response.status}`)
+        }
+
+        // Remove from local state
+        set((state) => ({
+          chats: state.chats.filter((c) => c.id !== chatId),
+          // If deleted chat was current, clear it
+          currentChat: state.currentChat?.id === chatId ? null : state.currentChat,
+          messages: state.currentChat?.id === chatId ? [] : state.messages,
+        }))
+
+        logger.info('Chat deleted', { chatId })
+      } catch (error) {
+        logger.error('Failed to delete chat:', error)
+        throw error
+      }
     },
 
     areChatsFresh: (_workflowId: string) => false,

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDownToLine, CircleSlash, History, Plus, X } from 'lucide-react'
+import { ArrowDownToLine, CircleSlash, History, Pencil, Plus, Trash2, X } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +26,8 @@ const logger = createLogger('Panel')
 export function Panel() {
   const [chatMessage, setChatMessage] = useState<string>('')
   const [isHistoryDropdownOpen, setIsHistoryDropdownOpen] = useState(false)
+  const [editingChatId, setEditingChatId] = useState<string | null>(null)
+  const [editingChatTitle, setEditingChatTitle] = useState<string>('')
 
   const [isResizing, setIsResizing] = useState(false)
   const [resizeStartX, setResizeStartX] = useState(0)
@@ -432,55 +434,127 @@ export function Panel() {
                     </Tooltip>
                     <DropdownMenuContent
                       align='end'
-                      className='z-[200] w-48 rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
+                      className='z-[200] w-96 rounded-lg border bg-background p-2 shadow-lg dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
                       sideOffset={8}
                       side='bottom'
                       avoidCollisions={true}
                       collisionPadding={8}
                     >
                       {isLoadingChats ? (
-                        <ScrollArea className='h-[200px]' hideScrollbar={true}>
+                        <ScrollArea className='max-h-[320px]' hideScrollbar={true}>
                           <ChatHistorySkeleton />
                         </ScrollArea>
                       ) : groupedChats.length === 0 ? (
-                        <div className='px-3 py-2 text-muted-foreground text-sm'>No chats yet</div>
+                        <div className='px-2 py-6 text-center text-muted-foreground text-sm'>No chats yet</div>
                       ) : (
-                        <ScrollArea className='h-[200px]' hideScrollbar={true}>
+                        <ScrollArea className='max-h-[320px]' hideScrollbar={true}>
                           {groupedChats.map(([groupName, chats], groupIndex) => (
                             <div key={groupName}>
                               <div
-                                className={`border-[#E5E5E5] border-t px-1 pt-1 pb-0.5 font-normal text-muted-foreground text-xs dark:border-[#414141] ${groupIndex === 0 ? 'border-t-0' : ''}`}
+                                className={`px-2 pt-2 pb-1 font-medium text-muted-foreground text-xs uppercase tracking-wide ${groupIndex === 0 ? 'pt-0' : ''}`}
                               >
                                 {groupName}
                               </div>
-                              <div className='flex flex-col gap-1'>
+                              <div className='flex flex-col gap-0.5'>
                                 {chats.map((chat) => (
                                   <div
                                     key={chat.id}
-                                    onClick={() => {
-                                      // Only call selectChat if it's a different chat
-                                      // This prevents aborting streams when clicking the currently active chat
-                                      if (currentChat?.id !== chat.id) {
-                                        selectChat(chat)
-                                      }
-                                      setIsHistoryDropdownOpen(false)
-                                    }}
-                                    className={`group mx-1 flex h-8 cursor-pointer items-center rounded-lg px-2 py-1.5 text-left transition-colors ${
+                                    className={`group relative flex items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors ${
                                       currentChat?.id === chat.id
-                                        ? 'bg-accent'
-                                        : 'hover:bg-accent/50'
+                                        ? 'bg-accent text-accent-foreground'
+                                        : 'hover:bg-accent/50 text-foreground'
                                     }`}
-                                    style={{ width: '176px', maxWidth: '176px' }}
                                   >
-                                    <span
-                                      className={`min-w-0 flex-1 truncate font-medium text-sm ${
-                                        currentChat?.id === chat.id
-                                          ? 'text-foreground'
-                                          : 'text-muted-foreground'
-                                      }`}
-                                    >
-                                      {chat.title || 'Untitled Chat'}
-                                    </span>
+                                    {editingChatId === chat.id ? (
+                                      <input
+                                        type='text'
+                                        value={editingChatTitle}
+                                        onChange={(e) => setEditingChatTitle(e.target.value)}
+                                        onKeyDown={async (e) => {
+                                          if (e.key === 'Enter') {
+                                            e.preventDefault()
+                                            const newTitle = editingChatTitle.trim() || 'Untitled Chat'
+                                            
+                                            // Update optimistically in store first
+                                            const updatedChats = chats.map((c) =>
+                                              c.id === chat.id ? { ...c, title: newTitle } : c
+                                            )
+                                            useCopilotStore.setState({ chats: updatedChats })
+                                            
+                                            // Exit edit mode immediately
+                                            setEditingChatId(null)
+                                            
+                                            // Save to database in background
+                                            try {
+                                              await fetch('/api/copilot/chat/update-title', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({
+                                                  chatId: chat.id,
+                                                  title: newTitle,
+                                                }),
+                                              })
+                                            } catch (error) {
+                                              logger.error('Failed to update chat title:', error)
+                                              // Revert on error
+                                              await loadChats(true)
+                                            }
+                                          } else if (e.key === 'Escape') {
+                                            setEditingChatId(null)
+                                          }
+                                        }}
+                                        onBlur={() => setEditingChatId(null)}
+                                        autoFocus
+                                        className='min-w-0 flex-1 rounded border-none bg-transparent px-0 text-sm outline-none focus:outline-none'
+                                      />
+                                    ) : (
+                                      <>
+                                        <span
+                                          onClick={() => {
+                                            // Only call selectChat if it's a different chat
+                                            if (currentChat?.id !== chat.id) {
+                                              selectChat(chat)
+                                            }
+                                            setIsHistoryDropdownOpen(false)
+                                          }}
+                                          className='min-w-0 cursor-pointer truncate text-sm'
+                                          style={{ maxWidth: 'calc(100% - 60px)' }}
+                                        >
+                                          {chat.title || 'Untitled Chat'}
+                                        </span>
+                                        <div className='ml-auto flex flex-shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              setEditingChatId(chat.id)
+                                              setEditingChatTitle(chat.title || 'Untitled Chat')
+                                            }}
+                                            className='flex h-5 w-5 items-center justify-center rounded hover:bg-muted'
+                                          >
+                                            <Pencil className='h-3 w-3 text-muted-foreground' />
+                                          </button>
+                                          <button
+                                            onClick={async (e) => {
+                                              e.stopPropagation()
+                                              
+                                              // Check if deleting current chat
+                                              const isDeletingCurrent = currentChat?.id === chat.id
+                                              
+                                              // Delete the chat (optimistic update happens in store)
+                                              await handleDeleteChat(chat.id)
+                                              
+                                              // If deleted current chat, create new one
+                                              if (isDeletingCurrent) {
+                                                copilotRef.current?.createNewChat()
+                                              }
+                                            }}
+                                            className='flex h-5 w-5 items-center justify-center rounded hover:bg-muted'
+                                          >
+                                            <Trash2 className='h-3 w-3 text-muted-foreground' />
+                                          </button>
+                                        </div>
+                                      </>
+                                    )}
                                   </div>
                                 ))}
                               </div>
