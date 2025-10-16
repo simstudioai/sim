@@ -58,6 +58,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
   const hasLoadedModelsRef = useRef(false)
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
   const [isEditingMessage, setIsEditingMessage] = useState(false)
+  const [revertingMessageId, setRevertingMessageId] = useState<string | null>(null)
 
   // Scroll state
   const [isNearBottom, setIsNearBottom] = useState(true)
@@ -453,6 +454,10 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     logger.info('Edit mode changed', { messageId, isEditing, willDimMessages: isEditing })
   }, [])
 
+  const handleRevertModeChange = useCallback((messageId: string, isReverting: boolean) => {
+    setRevertingMessageId(isReverting ? messageId : null)
+  }, [])
+
   return (
     <>
       <div className='flex h-full flex-col overflow-hidden'>
@@ -482,11 +487,19 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                       </div>
                     ) : (
                       messages.map((message, index) => {
-                        // Determine if this message should be dimmed (comes after the message being edited)
+                        // Determine if this message should be dimmed
                         let isDimmed = false
+                        
+                        // Dim messages after the one being edited
                         if (editingMessageId) {
                           const editingIndex = messages.findIndex((m) => m.id === editingMessageId)
                           isDimmed = editingIndex !== -1 && index > editingIndex
+                        }
+                        
+                        // Also dim messages after the one showing restore confirmation
+                        if (!isDimmed && revertingMessageId) {
+                          const revertingIndex = messages.findIndex((m) => m.id === revertingMessageId)
+                          isDimmed = revertingIndex !== -1 && index > revertingIndex
                         }
 
                         // Get checkpoint count for this message to force re-render when it changes
@@ -504,6 +517,9 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                             checkpointCount={checkpointCount}
                             onEditModeChange={(isEditing) =>
                               handleEditModeChange(message.id, isEditing)
+                            }
+                            onRevertModeChange={(isReverting) =>
+                              handleRevertModeChange(message.id, isReverting)
                             }
                           />
                         )

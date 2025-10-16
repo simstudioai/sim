@@ -96,6 +96,7 @@ interface UserInputProps {
   onChange?: (value: string) => void // Callback when value changes
   panelWidth?: number // Panel width to adjust truncation
   hideContextUsage?: boolean // Hide the context usage pill
+  clearOnSubmit?: boolean // Whether to clear input after submit (default true for bottom input, false for edit mode)
 }
 
 interface UserInputRef {
@@ -118,6 +119,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       onChange: onControlledChange,
       panelWidth = 308,
       hideContextUsage = false,
+      clearOnSubmit = true,
     },
     ref
   ) => {
@@ -678,25 +680,28 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       // Send only the explicitly selected contexts
       onSubmit(trimmedMessage, fileAttachments, selectedContexts as any)
 
-      // Clean up preview URLs before clearing
-      attachedFiles.forEach((f) => {
-        if (f.previewUrl) {
-          URL.revokeObjectURL(f.previewUrl)
+      // Only clear after submit if clearOnSubmit is true (default behavior for bottom input)
+      if (clearOnSubmit) {
+        // Clean up preview URLs before clearing
+        attachedFiles.forEach((f) => {
+          if (f.previewUrl) {
+            URL.revokeObjectURL(f.previewUrl)
+          }
+        })
+
+        // Clear the message and files after submit
+        if (controlledValue !== undefined) {
+          onControlledChange?.('')
+        } else {
+          setInternalMessage('')
         }
-      })
+        setAttachedFiles([])
 
-      // Clear the message and files after submit
-      if (controlledValue !== undefined) {
-        onControlledChange?.('')
-      } else {
-        setInternalMessage('')
+        // Clear @mention contexts after submission
+        setSelectedContexts([])
+
+        setOpenSubmenuFor(null)
       }
-      setAttachedFiles([])
-
-      // Clear @mention contexts after submission
-      setSelectedContexts([])
-
-      setOpenSubmenuFor(null)
       setShowMentionMenu(false)
     }
 

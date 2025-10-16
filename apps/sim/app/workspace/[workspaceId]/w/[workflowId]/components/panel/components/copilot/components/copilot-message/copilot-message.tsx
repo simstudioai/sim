@@ -8,7 +8,6 @@ import {
   Box,
   Check,
   Clipboard,
-  CornerDownLeft,
   Info,
   LibraryBig,
   RotateCcw,
@@ -19,16 +18,6 @@ import {
   Workflow,
   X,
 } from 'lucide-react'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui'
 import { InlineToolCall } from '@/lib/copilot/inline-tool-call'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
@@ -55,6 +44,7 @@ interface CopilotMessageProps {
   isDimmed?: boolean
   checkpointCount?: number
   onEditModeChange?: (isEditing: boolean) => void
+  onRevertModeChange?: (isReverting: boolean) => void
 }
 
 const CopilotMessage: FC<CopilotMessageProps> = memo(
@@ -65,6 +55,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
     isDimmed = false,
     checkpointCount = 0,
     onEditModeChange,
+    onRevertModeChange,
   }) => {
     const isUser = message.role === 'user'
     const isAssistant = message.role === 'assistant'
@@ -289,6 +280,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
     const handleRevertToCheckpoint = () => {
       setShowRestoreConfirmation(true)
+      onRevertModeChange?.(true)
     }
 
     const handleConfirmRevert = async () => {
@@ -306,7 +298,50 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           }
           useCopilotStore.setState({ messageCheckpoints: updatedCheckpoints })
 
+          // Truncate all messages after this point
+          const currentMessages = messages
+          const revertIndex = currentMessages.findIndex((m) => m.id === message.id)
+          if (revertIndex !== -1) {
+            const truncatedMessages = currentMessages.slice(0, revertIndex + 1)
+            useCopilotStore.setState({ messages: truncatedMessages })
+            
+            // Update DB to remove messages after this point
+            if (currentChat?.id) {
+              try {
+                await fetch('/api/copilot/chat/update-messages', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    chatId: currentChat.id,
+                    messages: truncatedMessages.map((m) => ({
+                      id: m.id,
+                      role: m.role,
+                      content: m.content,
+                      timestamp: m.timestamp,
+                      ...(m.contentBlocks && { contentBlocks: m.contentBlocks }),
+                      ...(m.fileAttachments && { fileAttachments: m.fileAttachments }),
+                      ...((m as any).contexts && { contexts: (m as any).contexts }),
+                    })),
+                  }),
+                })
+              } catch (error) {
+                logger.error('Failed to update messages in DB after revert:', error)
+              }
+            }
+          }
+
           setShowRestoreConfirmation(false)
+          onRevertModeChange?.(false)
+          
+          // Enter edit mode after reverting
+          setIsEditMode(true)
+          onEditModeChange?.(true)
+          
+          // Focus the input after render
+          setTimeout(() => {
+            userInputRef.current?.focus()
+          }, 100)
+          
           logger.info('Checkpoint reverted and removed from message', {
             messageId: message.id,
             checkpointId: latestCheckpoint.id,
@@ -314,18 +349,22 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         } catch (error) {
           logger.error('Failed to revert to checkpoint:', error)
           setShowRestoreConfirmation(false)
+          onRevertModeChange?.(false)
         }
       }
     }
 
     const handleCancelRevert = () => {
       setShowRestoreConfirmation(false)
+      onRevertModeChange?.(false)
     }
 
     const handleEditMessage = () => {
       setIsEditMode(true)
       setIsExpanded(false)
       setEditedContent(message.content)
+      setShowRestoreConfirmation(false) // Dismiss any open confirmation popup
+      onRevertModeChange?.(false) // Notify parent
       onEditModeChange?.(true)
       // Focus the input and position cursor at the end after render
       setTimeout(() => {
@@ -466,6 +505,68 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         return () => clearTimeout(timer)
       }
     }, [showDownvoteSuccess])
+
+    // Handle Escape key to close restore confirmation
+    useEffect(() => {
+      if (!showRestoreConfirmation) return
+
+      const handleKeyDown = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') {
+          setShowRestoreConfirmation(false)
+          onRevertModeChange?.(false)
+        }
+      }
+
+      document.addEventListener('keydown', handleKeyDown)
+      return () => document.removeEventListener('keydown', handleKeyDown)
+    }, [showRestoreConfirmation, onRevertModeChange])
+
+    // Handle Escape and Enter keys for checkpoint discard confirmation
+    useEffect(() => {
+      if (!showCheckpointDiscardModal) return
+
+      const handleKeyDown = async (event: KeyboardEvent) => {
+        if (event.key === 'Escape') {
+          setShowCheckpointDiscardModal(false)
+          pendingEditRef.current = null
+        } else if (event.key === 'Enter') {
+          event.preventDefault()
+          // Trigger "Continue and revert" action on Enter
+          if (messageCheckpoints.length > 0) {
+            const latestCheckpoint = messageCheckpoints[0]
+            try {
+              await revertToCheckpoint(latestCheckpoint.id)
+
+              // Remove the used checkpoint from the store
+              const { messageCheckpoints: currentCheckpoints } = useCopilotStore.getState()
+              const updatedCheckpoints = {
+                ...currentCheckpoints,
+                [message.id]: messageCheckpoints.slice(1),
+              }
+              useCopilotStore.setState({ messageCheckpoints: updatedCheckpoints })
+
+              logger.info('Reverted to checkpoint before editing message', {
+                messageId: message.id,
+                checkpointId: latestCheckpoint.id,
+              })
+            } catch (error) {
+              logger.error('Failed to revert to checkpoint:', error)
+            }
+          }
+
+          setShowCheckpointDiscardModal(false)
+
+          if (pendingEditRef.current) {
+            const { message: msg, fileAttachments, contexts } = pendingEditRef.current
+            await performEdit(msg, fileAttachments, contexts)
+            pendingEditRef.current = null
+          }
+        }
+      }
+
+      document.addEventListener('keydown', handleKeyDown)
+      return () => document.removeEventListener('keydown', handleKeyDown)
+    }, [showCheckpointDiscardModal, messageCheckpoints, message.id])
 
     // Handle click outside to exit edit mode
     useEffect(() => {
@@ -625,6 +726,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 onSubmit={handleSubmitEdit}
                 onAbort={handleCancelEdit}
                 isLoading={isSendingMessage && isLastUserMessage}
+                disabled={showCheckpointDiscardModal}
                 value={editedContent}
                 onChange={setEditedContent}
                 placeholder='Edit your message...'
@@ -632,7 +734,84 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 onModeChange={setMode}
                 panelWidth={panelWidth}
                 hideContextUsage={true}
+                clearOnSubmit={false}
               />
+              
+              {/* Inline Checkpoint Discard Confirmation - shown below input in edit mode */}
+              {showCheckpointDiscardModal && (
+                <div className='mt-2 rounded-lg border border-gray-200 bg-gray-50 p-2.5 dark:border-gray-700 dark:bg-gray-900'>
+                  <p className='mb-2 text-sm text-foreground'>Continue from a previous message?</p>
+                  <div className='flex gap-1.5'>
+                    <button
+                      onClick={() => {
+                        setShowCheckpointDiscardModal(false)
+                        pendingEditRef.current = null
+                      }}
+                      className='flex-1 rounded-md border border-gray-300 bg-muted px-2 py-1 text-xs text-foreground transition-colors hover:bg-muted/80 dark:border-gray-600 dark:bg-background dark:hover:bg-muted'
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={async (e) => {
+                        e.preventDefault()
+                        setShowCheckpointDiscardModal(false)
+
+                        // Proceed with edit WITHOUT reverting checkpoint
+                        if (pendingEditRef.current) {
+                          const { message, fileAttachments, contexts } = pendingEditRef.current
+                          await performEdit(message, fileAttachments, contexts)
+                          pendingEditRef.current = null
+                        }
+                      }}
+                      className='flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs transition-colors hover:bg-muted dark:bg-muted dark:hover:bg-muted/80'
+                    >
+                      Continue
+                    </button>
+                    <button
+                      onClick={async (e) => {
+                        e.preventDefault()
+
+                        // Restore the checkpoint first
+                        if (messageCheckpoints.length > 0) {
+                          const latestCheckpoint = messageCheckpoints[0]
+                          try {
+                            await revertToCheckpoint(latestCheckpoint.id)
+
+                            // Remove the used checkpoint from the store
+                            const { messageCheckpoints: currentCheckpoints } =
+                              useCopilotStore.getState()
+                            const updatedCheckpoints = {
+                              ...currentCheckpoints,
+                              [message.id]: messageCheckpoints.slice(1), // Remove the first (used) checkpoint
+                            }
+                            useCopilotStore.setState({ messageCheckpoints: updatedCheckpoints })
+
+                            logger.info('Reverted to checkpoint before editing message', {
+                              messageId: message.id,
+                              checkpointId: latestCheckpoint.id,
+                            })
+                          } catch (error) {
+                            logger.error('Failed to revert to checkpoint:', error)
+                          }
+                        }
+
+                        // Close the confirmation
+                        setShowCheckpointDiscardModal(false)
+
+                        // Then proceed with the edit
+                        if (pendingEditRef.current) {
+                          const { message, fileAttachments, contexts } = pendingEditRef.current
+                          await performEdit(message, fileAttachments, contexts)
+                          pendingEditRef.current = null
+                        }
+                      }}
+                      className='flex-1 rounded-md bg-[var(--brand-primary-hover-hex)] px-2 py-1 text-xs text-white transition-colors hover:bg-[var(--brand-primary-hex)]'
+                    >
+                      Continue and revert
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className='w-full'>
@@ -802,7 +981,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        setShowRestoreConfirmation(true)
+                        handleRevertToCheckpoint()
                       }}
                       className='flex h-6 w-6 items-center justify-center rounded-full bg-muted text-muted-foreground transition-all duration-200 hover:bg-muted-foreground/20'
                       title='Revert to checkpoint'
@@ -815,153 +994,31 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
             </div>
           )}
 
-          {/* Restore Checkpoint Confirmation Modal */}
-          <AlertDialog open={showRestoreConfirmation} onOpenChange={setShowRestoreConfirmation}>
-            <AlertDialogContent className='rounded-[10px]'>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Revert to checkpoint?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will revert your workflow to the state saved at this checkpoint.{' '}
-                  <span className='text-red-500 dark:text-red-500'>
-                    This action cannot be undone.
-                  </span>
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter className='flex'>
-                <AlertDialogCancel className='h-9 w-full rounded-[8px]'>Cancel</AlertDialogCancel>
-                <AlertDialogAction
+          {/* Inline Restore Checkpoint Confirmation */}
+          {showRestoreConfirmation && (
+            <div className='mt-2 rounded-lg border border-gray-200 bg-gray-50 p-2.5 dark:border-gray-700 dark:bg-gray-900'>
+              <p className='mb-2 text-sm text-foreground'>
+                Revert to checkpoint? This will restore your workflow to the state saved at this checkpoint.{' '}
+                <span className='font-medium text-red-600 dark:text-red-400'>
+                  This action cannot be undone.
+                </span>
+              </p>
+              <div className='flex gap-1.5'>
+                <button
+                  onClick={handleCancelRevert}
+                  className='flex-1 rounded-md border border-gray-300 bg-muted px-2 py-1 text-xs text-foreground transition-colors hover:bg-muted/80 dark:border-gray-600'
+                >
+                  Cancel
+                </button>
+                <button
                   onClick={handleConfirmRevert}
-                  className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
+                  className='flex-1 rounded-md bg-red-500 px-2 py-1 text-xs text-white transition-colors hover:bg-red-600'
                 >
                   Revert
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-
-          {/* Restore Checkpoint Confirmation Modal */}
-          <AlertDialog open={showRestoreConfirmation} onOpenChange={setShowRestoreConfirmation}>
-            <AlertDialogContent className='rounded-[10px]'>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Revert to checkpoint?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will revert your workflow to the state saved at this checkpoint.
-                  <span className='mt-2 block text-red-500 dark:text-red-500'>
-                    This action cannot be undone.
-                  </span>
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter className='flex'>
-                <AlertDialogCancel className='h-9 w-full rounded-[8px]'>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleConfirmRevert}
-                  className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
-                >
-                  Revert
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-
-          {/* Checkpoint Discard Confirmation Modal */}
-          <AlertDialog
-            open={showCheckpointDiscardModal}
-            onOpenChange={(open) => {
-              setShowCheckpointDiscardModal(open)
-              if (!open) {
-                pendingEditRef.current = null
-              }
-            }}
-          >
-            <AlertDialogContent
-              className='rounded-[10px] sm:max-w-2xl'
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  // Trigger continue and revert
-                  const revertButton = e.currentTarget.querySelector(
-                    '[data-action="revert"]'
-                  ) as HTMLButtonElement
-                  revertButton?.click()
-                }
-              }}
-            >
-              <AlertDialogHeader>
-                <AlertDialogTitle>Continue from a previous message?</AlertDialogTitle>
-              </AlertDialogHeader>
-
-              <AlertDialogFooter className='flex gap-2'>
-                <button
-                  onClick={() => {
-                    setShowCheckpointDiscardModal(false)
-                    pendingEditRef.current = null
-                  }}
-                  className='inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-[8px] border border-border bg-transparent px-4 py-2 font-medium text-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
-                >
-                  Cancel (esc)
                 </button>
-                <button
-                  onClick={async (e) => {
-                    e.preventDefault()
-                    setShowCheckpointDiscardModal(false)
-
-                    // Proceed with edit WITHOUT reverting checkpoint
-                    if (pendingEditRef.current) {
-                      const { message, fileAttachments, contexts } = pendingEditRef.current
-                      await performEdit(message, fileAttachments, contexts)
-                      pendingEditRef.current = null
-                    }
-                  }}
-                  className='inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-[8px] bg-muted px-4 py-2 font-medium text-foreground text-sm transition-colors hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
-                >
-                  Continue
-                </button>
-                <button
-                  data-action='revert'
-                  onClick={async (e) => {
-                    e.preventDefault()
-
-                    // Restore the checkpoint first
-                    if (messageCheckpoints.length > 0) {
-                      const latestCheckpoint = messageCheckpoints[0]
-                      try {
-                        await revertToCheckpoint(latestCheckpoint.id)
-
-                        // Remove the used checkpoint from the store
-                        const { messageCheckpoints: currentCheckpoints } =
-                          useCopilotStore.getState()
-                        const updatedCheckpoints = {
-                          ...currentCheckpoints,
-                          [message.id]: messageCheckpoints.slice(1), // Remove the first (used) checkpoint
-                        }
-                        useCopilotStore.setState({ messageCheckpoints: updatedCheckpoints })
-
-                        logger.info('Reverted to checkpoint before editing message', {
-                          messageId: message.id,
-                          checkpointId: latestCheckpoint.id,
-                        })
-                      } catch (error) {
-                        logger.error('Failed to revert to checkpoint:', error)
-                      }
-                    }
-
-                    // Close the modal
-                    setShowCheckpointDiscardModal(false)
-
-                    // Then proceed with the edit
-                    if (pendingEditRef.current) {
-                      const { message, fileAttachments, contexts } = pendingEditRef.current
-                      await performEdit(message, fileAttachments, contexts)
-                      pendingEditRef.current = null
-                    }
-                  }}
-                  className='inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-[8px] bg-[var(--brand-primary-hover-hex)] px-4 py-2 font-medium text-sm text-white transition-colors hover:bg-[var(--brand-primary-hex)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
-                >
-                  Continue and revert
-                </button>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+              </div>
+            </div>
+          )}
         </div>
       )
     }
