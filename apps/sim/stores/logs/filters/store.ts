@@ -15,10 +15,12 @@ const updateURL = (params: URLSearchParams) => {
   window.history.replaceState({}, '', url)
 }
 
-const DEFAULT_TIME_RANGE: TimeRange = 'Past 12 hours'
+const DEFAULT_TIME_RANGE: TimeRange = 'All time'
 
 const parseTimeRangeFromURL = (value: string | null): TimeRange => {
   switch (value) {
+    case 'all-time':
+      return 'All time'
     case 'past-30-minutes':
       return 'Past 30 minutes'
     case 'past-hour':

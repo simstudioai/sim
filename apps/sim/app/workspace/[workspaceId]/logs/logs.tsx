@@ -363,6 +363,12 @@ export default function Logs() {
 
   const fetchLogs = useCallback(async (pageNum: number, append = false) => {
     try {
+      // Don't fetch if workspaceId is not set
+      const { workspaceId: storeWorkspaceId } = useFilterStore.getState()
+      if (!storeWorkspaceId) {
+        return
+      }
+
       if (pageNum === 1) {
         setLoading(true)
       } else {
@@ -494,6 +500,11 @@ export default function Logs() {
 
   useEffect(() => {
     if (!isInitialized.current) {
+      return
+    }
+
+    // Don't fetch if workspaceId is not set yet
+    if (!workspaceId) {
       return
     }
 

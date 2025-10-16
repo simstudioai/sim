@@ -207,6 +207,22 @@ function sanitizeToolsForComparison(tools: any[] | undefined): any[] {
 }
 
 /**
+ * Sanitize inputFormat fields by removing UI-only properties
+ * @param fields - The inputFormat fields array
+ * @returns A sanitized fields array
+ */
+function sanitizeInputFormatForComparison(fields: any[] | undefined): any[] {
+  if (!Array.isArray(fields)) {
+    return []
+  }
+
+  return fields.map((field) => {
+    const { collapsed, ...cleanField } = field
+    return cleanField
+  })
+}
+
+/**
  * Normalize a value for consistent comparison by sorting object keys
  * @param value - The value to normalize
  * @returns A normalized version of the value
@@ -361,6 +377,16 @@ export function hasWorkflowChanged(
       if (subBlockId === 'tools' && Array.isArray(currentValue) && Array.isArray(deployedValue)) {
         currentValue = sanitizeToolsForComparison(currentValue)
         deployedValue = sanitizeToolsForComparison(deployedValue)
+      }
+
+      // Special handling for 'inputFormat' subBlock - sanitize UI-only fields (collapsed state)
+      if (
+        subBlockId === 'inputFormat' &&
+        Array.isArray(currentValue) &&
+        Array.isArray(deployedValue)
+      ) {
+        currentValue = sanitizeInputFormatForComparison(currentValue)
+        deployedValue = sanitizeInputFormatForComparison(deployedValue)
       }
 
       // For string values, compare directly to catch even small text changes
