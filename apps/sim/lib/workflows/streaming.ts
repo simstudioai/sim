@@ -16,7 +16,7 @@ export interface StreamingConfig {
 
 export interface StreamingResponseOptions {
   requestId: string
-  workflow: { id: string; userId: string; isDeployed?: boolean }
+  workflow: { id: string; userId: string; workspaceId?: string | null; isDeployed?: boolean }
   input: any
   executingUserId: string
   streamConfig: StreamingConfig
