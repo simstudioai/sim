@@ -1,46 +1,18 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  ChevronLeft,
-  ChevronRight,
-  ExternalLink,
-  Info,
-  Loader2,
-  RotateCcw,
-  Search,
-} from 'lucide-react'
-import { useParams, useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Switch } from '@/components/ui/switch'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { cn } from '@/lib/utils'
-import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils/format-date'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Loader2 } from 'lucide-react'
+import { useParams } from 'next/navigation'
+import { soehne } from '@/app/fonts/soehne/soehne'
+import Controls from '@/app/workspace/[workspaceId]/logs/components/dashboard/controls'
+import KPIs from '@/app/workspace/[workspaceId]/logs/components/dashboard/kpis'
+import WorkflowDetails from '@/app/workspace/[workspaceId]/logs/components/dashboard/workflow-details'
+import WorkflowsList from '@/app/workspace/[workspaceId]/logs/components/dashboard/workflows-list'
+import Timeline from '@/app/workspace/[workspaceId]/logs/components/filters/components/timeline'
 import { formatCost } from '@/providers/utils'
 import { useFilterStore } from '@/stores/logs/filters/store'
 
-type TimeFilter = '1w' | '24h' | '12h' | '1h'
-
-const getTriggerColor = (trigger: string | null | undefined): string => {
-  if (!trigger) return '#9ca3af'
-
-  switch (trigger.toLowerCase()) {
-    case 'manual':
-      return '#9ca3af' // gray-400 (matches secondary styling better)
-    case 'schedule':
-      return '#10b981' // green (emerald-500)
-    case 'webhook':
-      return '#f97316' // orange (orange-500)
-    case 'chat':
-      return '#8b5cf6' // purple (violet-500)
-    case 'api':
-      return '#3b82f6' // blue (blue-500)
-    default:
-      return '#9ca3af' // gray-400
-  }
-}
+type TimeFilter = '30m' | '1h' | '6h' | '12h' | '24h' | '3d' | '7d' | '14d' | '30d'
 
 interface WorkflowExecution {
   workflowId: string
@@ -56,83 +28,6 @@ interface WorkflowExecution {
 }
 
 const BAR_COUNT = 120
-
-function StatusBar({
-  segments,
-  selectedSegmentIndex,
-  onSegmentClick,
-  workflowId,
-}: {
-  segments: {
-    successRate: number
-    hasExecutions: boolean
-    totalExecutions: number
-    successfulExecutions: number
-    timestamp: string
-  }[]
-  selectedSegmentIndex: number | null
-  onSegmentClick: (workflowId: string, index: number, timestamp: string) => void
-  workflowId: string
-}) {
-  return (
-    <TooltipProvider delayDuration={0}>
-      <div className='flex items-center gap-[1px]'>
-        {segments.map((segment, i) => {
-          let color: string
-          let tooltipContent: React.ReactNode
-          const isSelected = selectedSegmentIndex === i
-
-          if (!segment.hasExecutions) {
-            color = 'bg-gray-300 dark:bg-gray-600'
-            tooltipContent = (
-              <div className='text-center'>
-                <div className='font-medium'>No executions</div>
-              </div>
-            )
-          } else {
-            if (segment.successRate === 100) {
-              color = 'bg-emerald-500'
-            } else if (segment.successRate >= 95) {
-              color = 'bg-amber-500'
-            } else {
-              color = 'bg-red-500'
-            }
-
-            tooltipContent = (
-              <div className='text-center'>
-                <div className='font-semibold'>{segment.successRate.toFixed(1)}%</div>
-                <div className='mt-1 text-xs'>
-                  {segment.successfulExecutions ?? 0}/{segment.totalExecutions ?? 0} executions
-                  succeeded
-                </div>
-                <div className='mt-1 text-muted-foreground text-xs'>Click to filter</div>
-              </div>
-            )
-          }
-
-          return (
-            <Tooltip key={i}>
-              <TooltipTrigger asChild>
-                <div
-                  className={`h-6 w-2 rounded-[1px] ${color} cursor-pointer transition-all hover:opacity-80 ${
-                    isSelected ? 'relative z-10 ring-2 ring-primary ring-offset-1' : 'relative z-0'
-                  }`}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onSegmentClick(workflowId, i, segment.timestamp)
-                  }}
-                />
-              </TooltipTrigger>
-              <TooltipContent side='top' className='px-3 py-2'>
-                {tooltipContent}
-              </TooltipContent>
-            </Tooltip>
-          )
-        })}
-      </div>
-    </TooltipProvider>
-  )
-}
 
 interface ExecutionLog {
   id: string
@@ -150,9 +45,11 @@ interface ExecutionLog {
     output: number
     total: number
   } | null
+  workflowName?: string
+  workflowColor?: string
 }
 
-interface WorkflowDetails {
+interface WorkflowDetailsDataLocal {
   errorRates: { timestamp: string; value: number }[]
   durations: { timestamp: string; value: number }[]
   executionCounts: { timestamp: string; value: number }[]
@@ -160,161 +57,32 @@ interface WorkflowDetails {
   allLogs: ExecutionLog[] // Unfiltered logs for time filtering
 }
 
-function LineChart({
-  data,
-  label,
-  color,
-  unit,
-}: {
-  data: { timestamp: string; value: number }[]
-  label: string
-  color: string
-  unit?: string
-}) {
-  const width = 400
-  const height = 180
-  const padding = { top: 20, right: 20, bottom: 25, left: 50 }
-  const chartWidth = width - padding.left - padding.right
-  const chartHeight = height - padding.top - padding.bottom
-
-  if (data.length === 0) {
-    return (
-      <div
-        className='flex items-center justify-center rounded-lg border bg-card p-4'
-        style={{ width, height }}
-      >
-        <p className='text-muted-foreground text-sm'>No data</p>
-      </div>
-    )
-  }
-
-  const maxValue = Math.max(...data.map((d) => d.value), 1)
-  const minValue = Math.min(...data.map((d) => d.value), 0)
-  const valueRange = maxValue - minValue || 1
-
-  const points = data
-    .map((d, i) => {
-      const x = padding.left + (i / (data.length - 1 || 1)) * chartWidth
-      const y = padding.top + chartHeight - ((d.value - minValue) / valueRange) * chartHeight
-      return `${x},${y}`
-    })
-    .join(' ')
-
-  return (
-    <div className='rounded-lg border bg-card p-4 shadow-sm'>
-      <h4 className='mb-3 font-semibold text-foreground text-sm'>{label}</h4>
-      <TooltipProvider delayDuration={0}>
-        <svg width={width} height={height} className='overflow-visible'>
-          {/* Y-axis */}
-          <line
-            x1={padding.left}
-            y1={padding.top}
-            x2={padding.left}
-            y2={height - padding.bottom}
-            stroke='hsl(var(--border))'
-            strokeWidth='1'
-          />
-          {/* X-axis */}
-          <line
-            x1={padding.left}
-            y1={height - padding.bottom}
-            x2={width - padding.right}
-            y2={height - padding.bottom}
-            stroke='hsl(var(--border))'
-            strokeWidth='1'
-          />
-
-          {/* Line */}
-          <polyline
-            points={points}
-            fill='none'
-            stroke={color}
-            strokeWidth='2'
-            strokeLinecap='round'
-            strokeLinejoin='round'
-          />
-
-          {/* Points */}
-          {data.map((d, i) => {
-            const x = padding.left + (i / (data.length - 1 || 1)) * chartWidth
-            const y = padding.top + chartHeight - ((d.value - minValue) / valueRange) * chartHeight
-            const timestamp = new Date(d.timestamp)
-            const timeStr = timestamp.toLocaleString('en-US', {
-              month: 'short',
-              day: 'numeric',
-              hour: 'numeric',
-              minute: '2-digit',
-              hour12: true,
-            })
-            return (
-              <Tooltip key={i}>
-                <TooltipTrigger asChild>
-                  <circle
-                    cx={x}
-                    cy={y}
-                    r='4'
-                    fill={color}
-                    className='hover:r-6 cursor-pointer transition-all'
-                    style={{ pointerEvents: 'all' }}
-                  />
-                </TooltipTrigger>
-                <TooltipContent side='top' className='px-3 py-2'>
-                  <div className='text-center'>
-                    <div className='font-semibold text-xs'>{timeStr}</div>
-                    <div className='mt-1 text-sm'>
-                      {d.value.toFixed(2)}
-                      {unit || ''}
-                    </div>
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            )
-          })}
-
-          {/* Y-axis labels */}
-          <text
-            x={padding.left - 10}
-            y={padding.top}
-            textAnchor='end'
-            fontSize='10'
-            fill='hsl(var(--muted-foreground))'
-          >
-            {maxValue.toFixed(1)}
-            {unit}
-          </text>
-          <text
-            x={padding.left - 10}
-            y={height - padding.bottom}
-            textAnchor='end'
-            fontSize='10'
-            fill='hsl(var(--muted-foreground))'
-          >
-            {minValue.toFixed(1)}
-            {unit}
-          </text>
-        </svg>
-      </TooltipProvider>
-    </div>
-  )
-}
-
 export default function ExecutionsDashboard() {
   const params = useParams()
-  const router = useRouter()
   const workspaceId = params.workspaceId as string
 
-  // Map sidebar timeRange to our timeFilter
   const getTimeFilterFromRange = (range: string): TimeFilter => {
     switch (range) {
       case 'Past 30 minutes':
+        return '30m'
       case 'Past hour':
         return '1h'
+      case 'Past 6 hours':
+        return '6h'
       case 'Past 12 hours':
         return '12h'
       case 'Past 24 hours':
         return '24h'
+      case 'Past 3 days':
+        return '3d'
+      case 'Past 7 days':
+        return '7d'
+      case 'Past 14 days':
+        return '14d'
+      case 'Past 30 days':
+        return '30d'
       default:
-        return '24h'
+        return '30d' // Treat "All time" as last 30 days to keep UI performant
     }
   }
   const [endTime, setEndTime] = useState<Date>(new Date())
@@ -323,9 +91,15 @@ export default function ExecutionsDashboard() {
   const [isRefetching, setIsRefetching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expandedWorkflowId, setExpandedWorkflowId] = useState<string | null>(null)
-  const [workflowDetails, setWorkflowDetails] = useState<Record<string, WorkflowDetails>>({})
-  const [selectedSegmentIndex, setSelectedSegmentIndex] = useState<number | null>(null)
-  const [selectedSegmentTimestamp, setSelectedSegmentTimestamp] = useState<string | null>(null)
+  const [workflowDetails, setWorkflowDetails] = useState<Record<string, WorkflowDetailsDataLocal>>(
+    {}
+  )
+  const [globalDetails, setGlobalDetails] = useState<WorkflowDetailsDataLocal | null>(null)
+  const [aggregateSegments, setAggregateSegments] = useState<
+    { timestamp: string; totalExecutions: number; successfulExecutions: number }[]
+  >([])
+  const [selectedSegmentIndices, setSelectedSegmentIndices] = useState<number[]>([])
+  const [lastAnchorIndex, setLastAnchorIndex] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
 
   const {
@@ -339,6 +113,50 @@ export default function ExecutionsDashboard() {
 
   const timeFilter = getTimeFilterFromRange(sidebarTimeRange)
 
+  // Build lightweight chart series from a set of logs for a given window
+  const buildSeriesFromLogs = (
+    logs: ExecutionLog[],
+    start: Date,
+    end: Date,
+    bins = 10
+  ): {
+    errorRates: { timestamp: string; value: number }[]
+    executionCounts: { timestamp: string; value: number }[]
+    durations: { timestamp: string; value: number }[]
+  } => {
+    const startMs = start.getTime()
+    const totalMs = Math.max(1, end.getTime() - startMs)
+    const binMs = Math.max(1, Math.floor(totalMs / Math.max(1, bins)))
+
+    const errorRates: { timestamp: string; value: number }[] = []
+    const executionCounts: { timestamp: string; value: number }[] = []
+    const durations: { timestamp: string; value: number }[] = []
+
+    for (let i = 0; i < bins; i++) {
+      const bStart = startMs + i * binMs
+      const bEnd = bStart + binMs
+      const binLogs = logs.filter((l) => {
+        const t = new Date(l.startedAt).getTime()
+        return t >= bStart && t < bEnd
+      })
+      const total = binLogs.length
+      const errors = binLogs.filter((l) => (l.level || '').toLowerCase() === 'error').length
+      const avgDuration =
+        total > 0
+          ? Math.round(
+              binLogs.reduce((s, l) => s + (typeof l.duration === 'number' ? l.duration : 0), 0) /
+                total
+            )
+          : 0
+      const ts = new Date(bStart).toISOString()
+      errorRates.push({ timestamp: ts, value: total > 0 ? (1 - errors / total) * 100 : 100 })
+      executionCounts.push({ timestamp: ts, value: total })
+      durations.push({ timestamp: ts, value: avgDuration })
+    }
+
+    return { errorRates, executionCounts, durations }
+  }
+
   // Filter executions based on search query
   const filteredExecutions = searchQuery.trim()
     ? executions.filter((workflow) =>
@@ -346,24 +164,67 @@ export default function ExecutionsDashboard() {
       )
     : executions
 
+  // Aggregate metrics across workflows for header KPIs
+  const aggregate = useMemo(() => {
+    let totalExecutions = 0
+    let successfulExecutions = 0
+    let activeWorkflows = 0
+
+    for (const wf of executions) {
+      let workflowHasExecutions = false
+      for (const seg of wf.segments) {
+        totalExecutions += seg.totalExecutions || 0
+        successfulExecutions += seg.successfulExecutions || 0
+        if (seg.hasExecutions) workflowHasExecutions = true
+      }
+      if (workflowHasExecutions) activeWorkflows += 1
+    }
+
+    const failedExecutions = Math.max(totalExecutions - successfulExecutions, 0)
+    const successRate = totalExecutions > 0 ? (successfulExecutions / totalExecutions) * 100 : 100
+
+    return {
+      totalExecutions,
+      successfulExecutions,
+      failedExecutions,
+      activeWorkflows,
+      successRate,
+    }
+  }, [executions])
+
   const getStartTime = useCallback(() => {
     const start = new Date(endTime)
 
     switch (timeFilter) {
-      case '1w':
-        start.setDate(endTime.getDate() - 7)
-        break
-      case '24h':
-        start.setHours(endTime.getHours() - 24)
-        break
-      case '12h':
-        start.setHours(endTime.getHours() - 12)
+      case '30m':
+        start.setMinutes(endTime.getMinutes() - 30)
         break
       case '1h':
         start.setHours(endTime.getHours() - 1)
         break
+      case '6h':
+        start.setHours(endTime.getHours() - 6)
+        break
+      case '12h':
+        start.setHours(endTime.getHours() - 12)
+        break
+      case '24h':
+        start.setHours(endTime.getHours() - 24)
+        break
+      case '3d':
+        start.setDate(endTime.getDate() - 3)
+        break
+      case '7d':
+        start.setDate(endTime.getDate() - 7)
+        break
+      case '14d':
+        start.setDate(endTime.getDate() - 14)
+        break
+      case '30d':
+        start.setDate(endTime.getDate() - 30)
+        break
       default:
-        start.setHours(endTime.getHours() - 24) // Default to 24h
+        start.setHours(endTime.getHours() - 24)
     }
 
     return start
@@ -417,6 +278,139 @@ export default function ExecutionsDashboard() {
           return errorRateB - errorRateA
         })
         setExecutions(sortedWorkflows)
+
+        // Compute aggregate segments across all workflows
+        const segmentsCount: number = Number(params.get('segments') || BAR_COUNT)
+        const agg: { timestamp: string; totalExecutions: number; successfulExecutions: number }[] =
+          Array.from({ length: segmentsCount }, (_, i) => {
+            const base = startTime.getTime()
+            const span = endTime.getTime() - base
+            const tsNum = base + Math.floor((i * span) / segmentsCount)
+            const ts = new Date(tsNum)
+            return {
+              timestamp: Number.isNaN(ts.getTime()) ? new Date().toISOString() : ts.toISOString(),
+              totalExecutions: 0,
+              successfulExecutions: 0,
+            }
+          })
+        for (const wf of data.workflows as any[]) {
+          wf.segments.forEach((s: any, i: number) => {
+            const index = Math.min(i, segmentsCount - 1)
+            agg[index].totalExecutions += s.totalExecutions || 0
+            agg[index].successfulExecutions += s.successfulExecutions || 0
+          })
+        }
+        setAggregateSegments(agg)
+
+        // Build charts from aggregate
+        const errorRates = agg.map((s) => ({
+          timestamp: s.timestamp,
+          value: s.totalExecutions > 0 ? (1 - s.successfulExecutions / s.totalExecutions) * 100 : 0,
+        }))
+        const executionCounts = agg.map((s) => ({
+          timestamp: s.timestamp,
+          value: s.totalExecutions,
+        }))
+
+        // Fetch recent logs for the time window with current filters
+        const logsParams = new URLSearchParams({
+          limit: '50',
+          offset: '0',
+          workspaceId,
+          startDate: startTime.toISOString(),
+          endDate: endTime.toISOString(),
+          order: 'desc',
+          details: 'full',
+        })
+        if (workflowIds.length > 0) logsParams.set('workflowIds', workflowIds.join(','))
+        if (folderIds.length > 0) logsParams.set('folderIds', folderIds.join(','))
+        if (triggers.length > 0) logsParams.set('triggers', triggers.join(','))
+
+        const logsResponse = await fetch(`/api/logs?${logsParams.toString()}`)
+        let mappedLogs: ExecutionLog[] = []
+        if (logsResponse.ok) {
+          const logsData = await logsResponse.json()
+          mappedLogs = (logsData.data || []).map((l: any) => {
+            const started = l.startedAt
+              ? new Date(l.startedAt)
+              : l.endedAt
+                ? new Date(l.endedAt)
+                : null
+            const startedAt =
+              started && !Number.isNaN(started.getTime())
+                ? started.toISOString()
+                : new Date().toISOString()
+            const durationCandidate =
+              typeof l.totalDurationMs === 'number'
+                ? l.totalDurationMs
+                : typeof l.duration === 'number'
+                  ? l.duration
+                  : typeof l.totalDurationMs === 'string'
+                    ? Number.parseInt(l.totalDurationMs.replace(/[^0-9]/g, ''), 10)
+                    : typeof l.duration === 'string'
+                      ? Number.parseInt(l.duration.replace(/[^0-9]/g, ''), 10)
+                      : null
+            // Extract a compact output for the table from executionData trace spans when available
+            let output: any = null
+            if (typeof l.output === 'string') {
+              output = l.output
+            } else if (l.executionData?.traceSpans && Array.isArray(l.executionData.traceSpans)) {
+              const spans: any[] = l.executionData.traceSpans
+              // Pick the last span that has an output or error-like payload
+              for (let i = spans.length - 1; i >= 0; i--) {
+                const s = spans[i]
+                if (s?.output && Object.keys(s.output).length > 0) {
+                  output = s.output
+                  break
+                }
+                if (s?.status === 'error' && (s?.output?.error || s?.error)) {
+                  output = s.output?.error || s.error
+                  break
+                }
+              }
+              if (!output && l.executionData?.output) {
+                output = l.executionData.output
+              }
+            }
+            if (!output) {
+              // Some executions store output under executionData.blockExecutions
+              const be = l.executionData?.blockExecutions
+              if (Array.isArray(be) && be.length > 0) {
+                const last = be[be.length - 1]
+                output = last?.outputData || last?.errorMessage || null
+              }
+            }
+            if (!output) output = l.message || null
+
+            return {
+              id: l.id,
+              executionId: l.executionId,
+              startedAt,
+              level: l.level || 'info',
+              trigger: l.trigger || 'manual',
+              triggerUserId: l.triggerUserId || null,
+              triggerInputs: undefined,
+              outputs: output || undefined,
+              errorMessage: l.error || null,
+              duration: Number.isFinite(durationCandidate as number)
+                ? (durationCandidate as number)
+                : null,
+              cost: l.cost
+                ? { input: l.cost.input || 0, output: l.cost.output || 0, total: l.cost.total || 0 }
+                : null,
+              workflowName: l.workflowName || l.workflow?.name,
+              workflowColor: l.workflowColor || l.workflow?.color,
+            } as ExecutionLog
+          })
+        }
+
+        setGlobalDetails({
+          errorRates,
+          durations: [],
+          executionCounts,
+          logs: mappedLogs,
+          allLogs: mappedLogs,
+        })
       } catch (err) {
         console.error('Error fetching executions:', err)
         setError(err instanceof Error ? err.message : 'An error occurred')
@@ -470,12 +464,12 @@ export default function ExecutionsDashboard() {
     (workflowId: string) => {
       if (expandedWorkflowId === workflowId) {
         setExpandedWorkflowId(null)
-        setSelectedSegmentIndex(null)
-        setSelectedSegmentTimestamp(null)
+        setSelectedSegmentIndices([])
+        setLastAnchorIndex(null)
       } else {
         setExpandedWorkflowId(workflowId)
-        setSelectedSegmentIndex(null)
-        setSelectedSegmentTimestamp(null)
+        setSelectedSegmentIndices([])
+        setLastAnchorIndex(null)
         if (!workflowDetails[workflowId]) {
           fetchWorkflowDetails(workflowId)
         }
@@ -485,7 +479,12 @@ export default function ExecutionsDashboard() {
   )
 
   const handleSegmentClick = useCallback(
-    (workflowId: string, segmentIndex: number, timestamp: string) => {
+    (
+      workflowId: string,
+      segmentIndex: number,
+      _timestamp: string,
+      mode: 'single' | 'toggle' | 'range'
+    ) => {
       // Open the workflow details if not already open
       if (expandedWorkflowId !== workflowId) {
         setExpandedWorkflowId(workflowId)
@@ -493,21 +492,35 @@ export default function ExecutionsDashboard() {
           fetchWorkflowDetails(workflowId)
         }
         // Select the segment when opening a new workflow
-        setSelectedSegmentIndex(segmentIndex)
-        setSelectedSegmentTimestamp(timestamp)
+        setSelectedSegmentIndices([segmentIndex])
+        setLastAnchorIndex(segmentIndex)
       } else {
-        // If clicking the same segment again, deselect it
-        if (selectedSegmentIndex === segmentIndex) {
-          setSelectedSegmentIndex(null)
-          setSelectedSegmentTimestamp(null)
-        } else {
-          // Select the new segment
-          setSelectedSegmentIndex(segmentIndex)
-          setSelectedSegmentTimestamp(timestamp)
-        }
+        setSelectedSegmentIndices((prev) => {
+          if (mode === 'single') {
+            setLastAnchorIndex(segmentIndex)
+            // If already selected, deselect it; otherwise select only this one
+            if (prev.includes(segmentIndex)) {
+              return prev.filter((i) => i !== segmentIndex)
+            }
+            return [segmentIndex]
+          }
+          if (mode === 'toggle') {
+            const exists = prev.includes(segmentIndex)
+            const next = exists ? prev.filter((i) => i !== segmentIndex) : [...prev, segmentIndex]
+            setLastAnchorIndex(segmentIndex)
+            return next.sort((a, b) => a - b)
+          }
+          // range mode
+          const anchor = lastAnchorIndex ?? segmentIndex
+          const [start, end] =
+            anchor < segmentIndex ? [anchor, segmentIndex] : [segmentIndex, anchor]
+          const range = Array.from({ length: end - start + 1 }, (_, i) => start + i)
+          const union = new Set([...(prev || []), ...range])
+          return Array.from(union).sort((a, b) => a - b)
+        })
       }
     },
-    [expandedWorkflowId, workflowDetails, fetchWorkflowDetails, selectedSegmentIndex]
+    [expandedWorkflowId, workflowDetails, fetchWorkflowDetails, lastAnchorIndex]
   )
 
   // Initial load and refetch on dependencies change
@@ -530,8 +543,8 @@ export default function ExecutionsDashboard() {
 
   // Clear segment selection when time or filters change
   useEffect(() => {
-    setSelectedSegmentIndex(null)
-    setSelectedSegmentTimestamp(null)
+    setSelectedSegmentIndices([])
+    setLastAnchorIndex(null)
   }, [timeFilter, endTime, workflowIds, folderIds, triggers])
 
   const getShiftLabel = () => {
@@ -557,8 +570,14 @@ export default function ExecutionsDashboard() {
   const shiftTimeWindow = (direction: 'back' | 'forward') => {
     let shift: number
     switch (timeFilter) {
+      case '30m':
+        shift = 30 * 60 * 1000
+        break
       case '1h':
         shift = 60 * 60 * 1000
+        break
+      case '6h':
+        shift = 6 * 60 * 60 * 1000
         break
       case '12h':
         shift = 12 * 60 * 60 * 1000
@@ -566,8 +585,17 @@ export default function ExecutionsDashboard() {
       case '24h':
         shift = 24 * 60 * 60 * 1000
         break
-      case '1w':
+      case '3d':
+        shift = 3 * 24 * 60 * 60 * 1000
+        break
+      case '7d':
         shift = 7 * 24 * 60 * 60 * 1000
+        break
+      case '14d':
+        shift = 14 * 24 * 60 * 60 * 1000
+        break
+      case '30d':
+        shift = 30 * 24 * 60 * 60 * 1000
         break
       default:
         shift = 24 * 60 * 60 * 1000
@@ -581,65 +609,38 @@ export default function ExecutionsDashboard() {
   }
 
   const isLive = endTime.getTime() > Date.now() - 60000 // Within last minute
+  const [live, setLive] = useState(false)
 
-  const { timeRange } = useFilterStore()
+  useEffect(() => {
+    let interval: any
+    if (live) {
+      interval = setInterval(() => {
+        resetToNow()
+      }, 5000)
+    }
+    return () => {
+      if (interval) clearInterval(interval)
+    }
+  }, [live])
 
   return (
-    <div className='flex h-full min-w-0 flex-col pl-64'>
+    <div className={`flex h-full min-w-0 flex-col pl-64 ${soehne.className}`}>
       <div className='flex min-w-0 flex-1 overflow-hidden'>
-        <div className='flex flex-1 flex-col overflow-auto p-6'>
+        <div
+          className='flex flex-1 flex-col overflow-y-scroll p-6'
+          style={{ scrollbarGutter: 'stable' }}
+        >
           {/* Controls */}
-          <div className='mb-8 flex flex-col items-stretch justify-between gap-4 sm:flex-row sm:items-start'>
-            {/* Search Bar */}
-            <div className='relative w-full max-w-md'>
-              <Search className='-translate-y-1/2 absolute top-1/2 left-3 h-[18px] w-[18px] text-muted-foreground' />
-              <Input
-                type='text'
-                placeholder='Search workflows...'
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className='h-9 w-full rounded-[11px] border-[#E5E5E5] bg-[#FFFFFF] pr-10 pl-9 dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className='-translate-y-1/2 absolute top-1/2 right-3 text-muted-foreground hover:text-foreground'
-                >
-                  <svg
-                    width='14'
-                    height='14'
-                    viewBox='0 0 16 16'
-                    fill='none'
-                    stroke='currentColor'
-                    strokeWidth='2'
-                    strokeLinecap='round'
-                  >
-                    <path d='M12 4L4 12M4 4l8 8' />
-                  </svg>
-                </button>
-              )}
-            </div>
-
-            <div className='ml-auto flex flex-shrink-0 items-center gap-3'>
-              {/* View Mode Toggle */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className='flex items-center rounded-[11px] border bg-card p-2'>
-                    <Switch
-                      checked={(viewMode as string) === 'dashboard'}
-                      onCheckedChange={(checked) => setViewMode(checked ? 'dashboard' : 'logs')}
-                      className='data-[state=checked]:bg-primary'
-                    />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {(viewMode as string) === 'dashboard'
-                    ? 'Switch to logs view'
-                    : 'Switch to executions dashboard'}
-                </TooltipContent>
-              </Tooltip>
-            </div>
-          </div>
+          <Controls
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            isRefetching={isRefetching}
+            resetToNow={resetToNow}
+            live={live}
+            setLive={setLive}
+            viewMode={viewMode as string}
+            setViewMode={setViewMode as (mode: 'logs' | 'dashboard') => void}
+          />
 
           {/* Content */}
           {loading ? (
@@ -671,11 +672,7 @@ export default function ExecutionsDashboard() {
                   <span className='font-medium text-muted-foreground text-sm'>
                     {getDateRange()}
                   </span>
-                  {!isLive && (
-                    <span className='inline-flex items-center rounded-md bg-amber-500/10 px-2 py-0.5 text-amber-600 text-xs dark:text-amber-400'>
-                      Historical
-                    </span>
-                  )}
+                  {/* Removed the "Historical" badge per design feedback */}
                   {(workflowIds.length > 0 || folderIds.length > 0 || triggers.length > 0) && (
                     <div className='flex items-center gap-2 text-muted-foreground text-xs'>
                       <span>Filters:</span>
@@ -698,454 +695,198 @@ export default function ExecutionsDashboard() {
                   )}
                 </div>
 
-                {/* Time Navigation Controls - Far Right */}
-                <div className='flex items-center gap-1'>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant='outline'
-                        size='icon'
-                        onClick={() => shiftTimeWindow('back')}
-                        className='h-7 w-7'
-                      >
-                        <ChevronLeft className='h-3.5 w-3.5' />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Previous {getShiftLabel()}</TooltipContent>
-                  </Tooltip>
-
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant='outline'
-                        size='icon'
-                        onClick={resetToNow}
-                        disabled={isLive}
-                        className='h-7 w-7'
-                      >
-                        <RotateCcw className='h-3.5 w-3.5' />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Jump to now</TooltipContent>
-                  </Tooltip>
-
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant='outline'
-                        size='icon'
-                        onClick={() => shiftTimeWindow('forward')}
-                        disabled={isLive}
-                        className='h-7 w-7'
-                      >
-                        <ChevronRight className='h-3.5 w-3.5' />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Next {getShiftLabel()}</TooltipContent>
-                  </Tooltip>
+                {/* Time Controls */}
+                <div className='flex items-center gap-2'>
+                  <div className='mr-2 hidden sm:block'>
+                    <Timeline />
+                  </div>
                 </div>
               </div>
 
-              <div
-                className='overflow-hidden rounded-lg border bg-card shadow-sm'
-                style={{ maxHeight: '350px', display: 'flex', flexDirection: 'column' }}
-              >
-                <div className='flex-shrink-0 border-b bg-muted/30 px-4 py-2.5'>
-                  <div className='flex items-center justify-between'>
-                    <h3 className='font-medium text-sm'>Workflows</h3>
-                    <span className='text-muted-foreground text-xs'>
-                      {filteredExecutions.length} workflow
-                      {filteredExecutions.length !== 1 ? 's' : ''}
-                      {searchQuery && ` (filtered from ${executions.length})`}
-                    </span>
-                  </div>
-                </div>
-                <ScrollArea className='flex-1' style={{ height: 'calc(350px - 41px)' }}>
-                  <div className='space-y-1 p-3'>
-                    {filteredExecutions.length === 0 ? (
-                      <div className='py-8 text-center text-muted-foreground text-sm'>
-                        No workflows found matching "{searchQuery}"
-                      </div>
-                    ) : (
-                      filteredExecutions.map((workflow) => {
-                        const isSelected = expandedWorkflowId === workflow.workflowId
+              {/* KPIs */}
+              <KPIs aggregate={aggregate} />
 
-                        return (
-                          <div
-                            key={workflow.workflowId}
-                            className={`flex cursor-pointer items-center gap-4 rounded-lg px-2 py-1.5 transition-colors ${
-                              isSelected ? 'bg-accent/40' : 'hover:bg-accent/20'
-                            }`}
-                            onClick={() => toggleWorkflow(workflow.workflowId)}
-                          >
-                            <div className='w-52 min-w-0 flex-shrink-0'>
-                              <h3
-                                className='truncate font-medium text-sm transition-colors hover:text-primary'
-                                title={workflow.workflowName}
-                              >
-                                {workflow.workflowName}
-                              </h3>
-                            </div>
+              <WorkflowsList
+                executions={executions as any}
+                filteredExecutions={filteredExecutions as any}
+                expandedWorkflowId={expandedWorkflowId}
+                onToggleWorkflow={toggleWorkflow}
+                selectedSegmentIndex={selectedSegmentIndices as any}
+                onSegmentClick={handleSegmentClick}
+                searchQuery={searchQuery}
+                segmentDurationMs={(endTime.getTime() - getStartTime().getTime()) / BAR_COUNT}
+              />
 
-                            <div className='flex-1'>
-                              <StatusBar
-                                segments={workflow.segments}
-                                selectedSegmentIndex={isSelected ? selectedSegmentIndex : null}
-                                onSegmentClick={handleSegmentClick}
-                                workflowId={workflow.workflowId}
-                              />
-                            </div>
+              {/* Details section below the entire bars component - always visible */}
+              {(() => {
+                if (expandedWorkflowId) {
+                  const wf = executions.find((w) => w.workflowId === expandedWorkflowId)
+                  if (!wf) return null
+                  const total = wf.segments.reduce((s, x) => s + (x.totalExecutions || 0), 0)
+                  const success = wf.segments.reduce((s, x) => s + (x.successfulExecutions || 0), 0)
+                  const failures = Math.max(total - success, 0)
+                  const rate = total > 0 ? (success / total) * 100 : 100
 
-                            <div className='w-16 flex-shrink-0 text-right'>
-                              <span className='font-medium text-muted-foreground text-sm'>
-                                {workflow.overallSuccessRate.toFixed(1)}%
-                              </span>
-                            </div>
-                          </div>
-                        )
+                  // Prepare filtered logs for details
+                  const details = workflowDetails[expandedWorkflowId]
+                  let logsToDisplay = details?.logs || []
+                  if (details && selectedSegmentIndices.length > 0) {
+                    const totalMs = endTime.getTime() - getStartTime().getTime()
+                    const segMs = totalMs / BAR_COUNT
+
+                    const windows = selectedSegmentIndices
+                      .map((idx) => wf.segments[idx])
+                      .filter(Boolean)
+                      .map((s) => {
+                        const start = new Date(s.timestamp).getTime()
+                        const end = start + segMs
+                        return { start, end }
                       })
-                    )}
-                  </div>
-                </ScrollArea>
-              </div>
 
-              {/* Details section below the entire bars component */}
-              {expandedWorkflowId && (
-                <div className='mt-6 rounded-lg border bg-card shadow-sm'>
-                  <div className='border-b bg-muted/30 px-6 py-4'>
-                    <div className='flex items-center gap-2'>
-                      <h3 className='font-semibold text-lg tracking-tight'>
-                        {executions.find((w) => w.workflowId === expandedWorkflowId)?.workflowName}
-                      </h3>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            onClick={() =>
-                              router.push(`/workspace/${workspaceId}/w/${expandedWorkflowId}`)
+                    const inAnyWindow = (t: number) =>
+                      windows.some((w) => t >= w.start && t < w.end)
+
+                    logsToDisplay = details.allLogs
+                      .filter((log) => inAnyWindow(new Date(log.startedAt).getTime()))
+                      .map((log) => ({
+                        // Ensure workflow name is visible in the table for multi-select
+                        ...log,
+                        workflowName: (log as any).workflowName || wf.workflowName,
+                      }))
+
+                    const minStart = new Date(Math.min(...windows.map((w) => w.start)))
+                    const maxEnd = new Date(Math.max(...windows.map((w) => w.end)))
+
+                    let filteredErrorRates = (details.errorRates || []).filter((p: any) =>
+                      inAnyWindow(new Date(p.timestamp).getTime())
+                    )
+                    let filteredDurations = (
+                      Array.isArray((details as any).durations) ? (details as any).durations : []
+                    ).filter((p: any) => inAnyWindow(new Date(p.timestamp).getTime()))
+                    let filteredExecutionCounts = (details.executionCounts || []).filter((p: any) =>
+                      inAnyWindow(new Date(p.timestamp).getTime())
+                    )
+
+                    if (filteredErrorRates.length === 0 || filteredExecutionCounts.length === 0) {
+                      const series = buildSeriesFromLogs(logsToDisplay, minStart, maxEnd, 8)
+                      filteredErrorRates = series.errorRates
+                      filteredExecutionCounts = series.executionCounts
+                      filteredDurations = series.durations
+                    }
+
+                    ;(details as any).__filtered = {
+                      errorRates: filteredErrorRates,
+                      durations: filteredDurations,
+                      executionCounts: filteredExecutionCounts,
+                    }
+                  }
+
+                  const detailsWithFilteredLogs = details
+                    ? {
+                        ...details,
+                        logs: logsToDisplay,
+                        errorRates:
+                          (details as any).__filtered?.errorRates ||
+                          details.errorRates ||
+                          buildSeriesFromLogs(
+                            logsToDisplay,
+                            new Date(
+                              wf.segments[0]?.timestamp ||
+                                logsToDisplay[0]?.startedAt ||
+                                new Date().toISOString()
+                            ),
+                            endTime,
+                            8
+                          ).errorRates,
+                        durations:
+                          (details as any).__filtered?.durations ||
+                          (details as any).durations ||
+                          buildSeriesFromLogs(
+                            logsToDisplay,
+                            new Date(
+                              wf.segments[0]?.timestamp ||
+                                logsToDisplay[0]?.startedAt ||
+                                new Date().toISOString()
+                            ),
+                            endTime,
+                            8
+                          ).durations,
+                        executionCounts:
+                          (details as any).__filtered?.executionCounts ||
+                          details.executionCounts ||
+                          buildSeriesFromLogs(
+                            logsToDisplay,
+                            new Date(
+                              wf.segments[0]?.timestamp ||
+                                logsToDisplay[0]?.startedAt ||
+                                new Date().toISOString()
+                            ),
+                            endTime,
+                            8
+                          ).executionCounts,
+                      }
+                    : undefined
+
+                  const selectedSegment =
+                    selectedSegmentIndices.length === 1
+                      ? wf.segments[selectedSegmentIndices[0]]
+                      : null
+
+                  return (
+                    <WorkflowDetails
+                      workspaceId={workspaceId}
+                      expandedWorkflowId={expandedWorkflowId}
+                      workflowName={wf.workflowName}
+                      overview={{ total, success, failures, rate }}
+                      details={detailsWithFilteredLogs as any}
+                      selectedSegmentIndex={selectedSegmentIndices}
+                      selectedSegment={
+                        selectedSegment
+                          ? {
+                              timestamp: selectedSegment.timestamp,
+                              totalExecutions: selectedSegment.totalExecutions,
                             }
-                            className='rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground'
-                          >
-                            <ExternalLink className='h-4 w-4' />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent>Open workflow</TooltipContent>
-                      </Tooltip>
-                    </div>
-                  </div>
-                  <div className='p-6'>
-                    {workflowDetails[expandedWorkflowId] ? (
-                      <>
-                        {/* Filter info banner */}
-                        {selectedSegmentIndex !== null &&
-                          (() => {
-                            const workflow = executions.find(
-                              (w) => w.workflowId === expandedWorkflowId
-                            )
-                            const segment = workflow?.segments[selectedSegmentIndex]
-                            if (!segment) return null
+                          : null
+                      }
+                      clearSegmentSelection={() => {
+                        setSelectedSegmentIndices([])
+                        setLastAnchorIndex(null)
+                      }}
+                      formatCost={formatCost}
+                    />
+                  )
+                }
 
-                            const segmentStart = new Date(segment.timestamp)
-                            const timeRangeMs =
-                              timeFilter === '1h'
-                                ? 60 * 60 * 1000
-                                : timeFilter === '12h'
-                                  ? 12 * 60 * 60 * 1000
-                                  : timeFilter === '24h'
-                                    ? 24 * 60 * 60 * 1000
-                                    : 7 * 24 * 60 * 60 * 1000
-                            const segmentDurationMs = timeRangeMs / BAR_COUNT
-                            const segmentEnd = new Date(segmentStart.getTime() + segmentDurationMs)
+                // Aggregate view for all workflows
+                if (!globalDetails) return null
+                const totals = aggregateSegments.reduce(
+                  (acc, s) => {
+                    acc.total += s.totalExecutions
+                    acc.success += s.successfulExecutions
+                    return acc
+                  },
+                  { total: 0, success: 0 }
+                )
+                const failures = Math.max(totals.total - totals.success, 0)
+                const rate = totals.total > 0 ? (totals.success / totals.total) * 100 : 100
 
-                            const formatOptions: Intl.DateTimeFormatOptions = {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: 'numeric',
-                              minute: '2-digit',
-                              hour12: true,
-                            }
-
-                            const startStr = segmentStart.toLocaleString('en-US', formatOptions)
-                            const endStr = segmentEnd.toLocaleString('en-US', formatOptions)
-
-                            return (
-                              <div className='mb-4 flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-4 py-2.5 text-sm'>
-                                <div className='flex items-center gap-2'>
-                                  <div className='h-2 w-2 animate-pulse rounded-full bg-primary' />
-                                  <span className='font-medium text-primary'>
-                                    Filtered to {startStr} — {endStr} ({segment.totalExecutions}{' '}
-                                    execution{segment.totalExecutions !== 1 ? 's' : ''})
-                                  </span>
-                                </div>
-                                <button
-                                  onClick={() => {
-                                    setSelectedSegmentIndex(null)
-                                    setSelectedSegmentTimestamp(null)
-                                  }}
-                                  className='text-primary text-xs hover:underline'
-                                >
-                                  Clear filter
-                                </button>
-                              </div>
-                            )
-                          })()}
-
-                        <div className='mb-6 grid grid-cols-3 gap-6'>
-                          <LineChart
-                            data={workflowDetails[expandedWorkflowId].errorRates}
-                            label='Error Rate'
-                            color='#ef4444'
-                            unit='%'
-                          />
-                          <LineChart
-                            data={workflowDetails[expandedWorkflowId].durations}
-                            label='Workflow Duration'
-                            color='#3b82f6'
-                            unit='ms'
-                          />
-                          <LineChart
-                            data={workflowDetails[expandedWorkflowId].executionCounts}
-                            label='Usage'
-                            color='#10b981'
-                            unit=' execs'
-                          />
-                        </div>
-
-                        {/* Logs Table */}
-                        <TooltipProvider delayDuration={0}>
-                          <div className='flex flex-1 flex-col overflow-hidden'>
-                            {/* Table header */}
-                            <div className='w-full overflow-x-auto'>
-                              <div>
-                                <div className='border-border border-b'>
-                                  <div className='grid min-w-[700px] grid-cols-[140px_90px_100px_90px_100px_1fr_90px] gap-2 px-2 pb-3 md:gap-3 lg:min-w-0 lg:gap-4'>
-                                    <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
-                                      Time
-                                    </div>
-                                    <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
-                                      Status
-                                    </div>
-                                    <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
-                                      Trigger
-                                    </div>
-                                    <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
-                                      Cost
-                                    </div>
-                                    <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
-                                      User
-                                    </div>
-                                    <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
-                                      Output
-                                    </div>
-                                    <div className='font-[480] font-sans text-[13px] text-muted-foreground leading-normal'>
-                                      Duration
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Table body - scrollable */}
-                            <div className='flex-1 overflow-auto' style={{ maxHeight: '400px' }}>
-                              <div className='pb-4'>
-                                {(() => {
-                                  const details = workflowDetails[expandedWorkflowId]
-                                  let logsToDisplay = details.logs
-
-                                  // Filter logs if a segment is selected
-                                  if (selectedSegmentIndex !== null && selectedSegmentTimestamp) {
-                                    const workflow = executions.find(
-                                      (w) => w.workflowId === expandedWorkflowId
-                                    )
-                                    if (workflow?.segments[selectedSegmentIndex]) {
-                                      const segment = workflow.segments[selectedSegmentIndex]
-                                      const segmentStart = new Date(segment.timestamp)
-
-                                      // Calculate segment duration based on time filter
-                                      const timeRangeMs =
-                                        timeFilter === '1h'
-                                          ? 60 * 60 * 1000
-                                          : timeFilter === '12h'
-                                            ? 12 * 60 * 60 * 1000
-                                            : timeFilter === '24h'
-                                              ? 24 * 60 * 60 * 1000
-                                              : 7 * 24 * 60 * 60 * 1000 // 1w
-                                      const segmentDurationMs = timeRangeMs / BAR_COUNT
-                                      const segmentEnd = new Date(
-                                        segmentStart.getTime() + segmentDurationMs
-                                      )
-
-                                      // Filter logs to only those within this segment
-                                      logsToDisplay = details.allLogs.filter((log) => {
-                                        const logTime = new Date(log.startedAt).getTime()
-                                        return (
-                                          logTime >= segmentStart.getTime() &&
-                                          logTime < segmentEnd.getTime()
-                                        )
-                                      })
-                                    }
-                                  }
-
-                                  if (logsToDisplay.length === 0) {
-                                    return (
-                                      <div className='flex h-full items-center justify-center py-8'>
-                                        <div className='flex items-center gap-2 text-muted-foreground'>
-                                          <Info className='h-5 w-5' />
-                                          <span className='text-sm'>
-                                            No executions found in this time segment
-                                          </span>
-                                        </div>
-                                      </div>
-                                    )
-                                  }
-
-                                  return logsToDisplay.map((log) => {
-                                    const logDate = new Date(log.startedAt)
-                                    const formattedDate = formatDate(logDate.toISOString())
-                                    const outputsStr = log.outputs
-                                      ? JSON.stringify(log.outputs)
-                                      : '—'
-                                    const errorStr = log.errorMessage || ''
-
-                                    return (
-                                      <div
-                                        key={log.id}
-                                        className='cursor-pointer border-border border-b transition-all duration-200 hover:bg-accent/20'
-                                      >
-                                        <div className='grid min-w-[700px] grid-cols-[140px_90px_100px_90px_100px_1fr_90px] items-center gap-2 px-2 py-4 md:gap-3 lg:min-w-0 lg:gap-4'>
-                                          {/* Time */}
-                                          <div>
-                                            <div className='text-[13px]'>
-                                              <span className='font-sm text-muted-foreground'>
-                                                {formattedDate.compactDate}
-                                              </span>
-                                              <span
-                                                style={{ marginLeft: '8px' }}
-                                                className='hidden font-medium sm:inline'
-                                              >
-                                                {formattedDate.compactTime}
-                                              </span>
-                                            </div>
-                                          </div>
-
-                                          {/* Status */}
-                                          <div>
-                                            <div
-                                              className={cn(
-                                                'inline-flex items-center rounded-[8px] px-[6px] py-[2px] font-medium text-xs transition-all duration-200 lg:px-[8px]',
-                                                log.level === 'error'
-                                                  ? 'bg-red-500 text-white'
-                                                  : 'bg-secondary text-card-foreground'
-                                              )}
-                                            >
-                                              {log.level}
-                                            </div>
-                                          </div>
-
-                                          {/* Trigger */}
-                                          <div>
-                                            {log.trigger ? (
-                                              <div
-                                                className={cn(
-                                                  'inline-flex items-center rounded-[8px] px-[6px] py-[2px] font-medium text-xs transition-all duration-200 lg:px-[8px]',
-                                                  log.trigger.toLowerCase() === 'manual'
-                                                    ? 'bg-secondary text-card-foreground'
-                                                    : 'text-white'
-                                                )}
-                                                style={
-                                                  log.trigger.toLowerCase() === 'manual'
-                                                    ? undefined
-                                                    : {
-                                                        backgroundColor: getTriggerColor(
-                                                          log.trigger
-                                                        ),
-                                                      }
-                                                }
-                                              >
-                                                {log.trigger}
-                                              </div>
-                                            ) : (
-                                              <div className='text-muted-foreground text-xs'>—</div>
-                                            )}
-                                          </div>
-
-                                          {/* Cost */}
-                                          <div>
-                                            <div className='font-medium text-muted-foreground text-xs'>
-                                              {log.cost && log.cost.total > 0
-                                                ? formatCost(log.cost.total)
-                                                : '—'}
-                                            </div>
-                                          </div>
-
-                                          {/* User */}
-                                          <div>
-                                            <div className='text-muted-foreground text-xs'>
-                                              {log.triggerUserId || '—'}
-                                            </div>
-                                          </div>
-
-                                          {/* Output */}
-                                          <div className='min-w-0'>
-                                            <Tooltip delayDuration={0}>
-                                              <TooltipTrigger asChild>
-                                                <div
-                                                  className={cn(
-                                                    'cursor-default truncate text-[13px]',
-                                                    log.level === 'error' && errorStr
-                                                      ? 'font-medium text-red-600 dark:text-red-400'
-                                                      : 'text-muted-foreground'
-                                                  )}
-                                                >
-                                                  {log.level === 'error' && errorStr
-                                                    ? errorStr
-                                                    : outputsStr}
-                                                </div>
-                                              </TooltipTrigger>
-                                              <TooltipContent
-                                                side='bottom'
-                                                align='start'
-                                                className='max-w-lg px-3 py-2'
-                                              >
-                                                <pre
-                                                  className={cn(
-                                                    'whitespace-pre-wrap break-words text-xs',
-                                                    log.level === 'error' &&
-                                                      errorStr &&
-                                                      'text-red-600 dark:text-red-400'
-                                                  )}
-                                                >
-                                                  {log.level === 'error' && errorStr
-                                                    ? errorStr
-                                                    : outputsStr}
-                                                </pre>
-                                              </TooltipContent>
-                                            </Tooltip>
-                                          </div>
-
-                                          {/* Duration */}
-                                          <div>
-                                            <div className='text-muted-foreground text-xs'>
-                                              {log.duration ? `${log.duration}ms` : '—'}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    )
-                                  })
-                                })()}
-                              </div>
-                            </div>
-                          </div>
-                        </TooltipProvider>
-                      </>
-                    ) : (
-                      <div className='flex items-center justify-center py-12'>
-                        <Loader2 className='h-6 w-6 animate-spin text-muted-foreground' />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+                return (
+                  <WorkflowDetails
+                    workspaceId={workspaceId}
+                    expandedWorkflowId={'all'}
+                    workflowName={'All workflows'}
+                    overview={{ total: totals.total, success: totals.success, failures, rate }}
+                    details={globalDetails as any}
+                    selectedSegmentIndex={[]}
+                    selectedSegment={null}
+                    clearSegmentSelection={() => {
+                      setSelectedSegmentIndices([])
+                      setLastAnchorIndex(null)
+                    }}
+                    formatCost={formatCost}
+                  />
+                )
+              })()}
             </>
           )}
         </div>

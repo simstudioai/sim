@@ -15,8 +15,13 @@ export default function Timeline() {
   const specificTimeRanges: TimeRange[] = [
     'Past 30 minutes',
     'Past hour',
+    'Past 6 hours',
     'Past 12 hours',
     'Past 24 hours',
+    'Past 3 days',
+    'Past 7 days',
+    'Past 14 days',
+    'Past 30 days',
   ]
 
   return (
@@ -32,13 +37,15 @@ export default function Timeline() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        align='start'
-        className='w-[180px] rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
+        side='bottom'
+        align='end'
+        sideOffset={6}
+        collisionPadding={8}
+        className='w-[220px] rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
       >
         <DropdownMenuItem
           key='all'
-          onSelect={(e) => {
-            e.preventDefault()
+          onSelect={() => {
             setTimeRange('All time')
           }}
           className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
@@ -52,8 +59,7 @@ export default function Timeline() {
         {specificTimeRanges.map((range) => (
           <DropdownMenuItem
             key={range}
-            onSelect={(e) => {
-              e.preventDefault()
+            onSelect={() => {
               setTimeRange(range)
             }}
             className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'

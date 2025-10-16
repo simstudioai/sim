@@ -1,14 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertCircle, Info, Loader2, Play, RefreshCw, Square } from 'lucide-react'
+import { AlertCircle, Info, Loader2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
 import { cn } from '@/lib/utils'
+import Controls from '@/app/workspace/[workspaceId]/logs/components/dashboard/controls'
 import { AutocompleteSearch } from '@/app/workspace/[workspaceId]/logs/components/search/search'
 import { Sidebar } from '@/app/workspace/[workspaceId]/logs/components/sidebar/sidebar'
 import ExecutionsDashboard from '@/app/workspace/[workspaceId]/logs/executions-dashboard'
@@ -679,102 +677,28 @@ export default function Logs() {
 
       <div className='flex min-w-0 flex-1 overflow-hidden'>
         <div className='flex flex-1 flex-col overflow-auto p-6'>
-          {/* Search and Controls */}
-          <div className='mb-8 flex flex-col items-stretch justify-between gap-4 sm:flex-row sm:items-start'>
-            <AutocompleteSearch
-              value={searchQuery}
-              onChange={setSearchQuery}
-              placeholder='Search logs...'
-              availableWorkflows={availableWorkflows}
-              availableFolders={availableFolders}
-              onOpenChange={(open) => {
-                isSearchOpenRef.current = open
-              }}
-            />
-
-            <div className='ml-auto flex flex-shrink-0 items-center gap-3'>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant='ghost'
-                    size='icon'
-                    onClick={handleRefresh}
-                    className='h-9 rounded-[11px] hover:bg-secondary'
-                    disabled={isRefreshing}
-                  >
-                    {isRefreshing ? (
-                      <Loader2 className='h-5 w-5 animate-spin' />
-                    ) : (
-                      <RefreshCw className='h-5 w-5' />
-                    )}
-                    <span className='sr-only'>Refresh</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{isRefreshing ? 'Refreshing...' : 'Refresh'}</TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant='ghost'
-                    size='icon'
-                    onClick={handleExport}
-                    className='h-9 rounded-[11px] hover:bg-secondary'
-                    aria-label='Export CSV'
-                  >
-                    {/* Download icon */}
-                    <svg
-                      xmlns='http://www.w3.org/2000/svg'
-                      viewBox='0 0 24 24'
-                      fill='none'
-                      stroke='currentColor'
-                      strokeWidth='2'
-                      className='h-5 w-5'
-                    >
-                      <path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' />
-                      <polyline points='7 10 12 15 17 10' />
-                      <line x1='12' y1='15' x2='12' y2='3' />
-                    </svg>
-                    <span className='sr-only'>Export CSV</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Export CSV</TooltipContent>
-              </Tooltip>
-
-              <Button
-                className={`group h-9 gap-2 rounded-[11px] border bg-card text-card-foreground shadow-xs transition-all duration-200 hover:border-[var(--brand-primary-hex)] hover:bg-[var(--brand-primary-hex)] hover:text-white ${
-                  isLive
-                    ? 'border-[var(--brand-primary-hex)] bg-[var(--brand-primary-hex)] text-white'
-                    : 'border-border'
-                }`}
-                onClick={toggleLive}
-              >
-                {isLive ? (
-                  <Square className='!h-3.5 !w-3.5 fill-current' />
-                ) : (
-                  <Play className='!h-3.5 !w-3.5 group-hover:fill-current' />
-                )}
-                <span>Live</span>
-              </Button>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className='flex items-center rounded-[11px] border bg-card p-2'>
-                    <Switch
-                      checked={(viewMode as string) === 'dashboard'}
-                      onCheckedChange={(checked) => setViewMode(checked ? 'dashboard' : 'logs')}
-                      className='data-[state=checked]:bg-primary'
-                    />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {(viewMode as string) === 'dashboard'
-                    ? 'Switch to logs view'
-                    : 'Switch to executions dashboard'}
-                </TooltipContent>
-              </Tooltip>
-            </div>
-          </div>
+          <Controls
+            isRefetching={isRefreshing}
+            resetToNow={handleRefresh}
+            live={isLive}
+            setLive={(fn) => setIsLive(fn)}
+            viewMode={viewMode as string}
+            setViewMode={setViewMode as (mode: 'logs' | 'dashboard') => void}
+            searchComponent={
+              <AutocompleteSearch
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder='Search logs...'
+                availableWorkflows={availableWorkflows}
+                availableFolders={availableFolders}
+                onOpenChange={(open) => {
+                  isSearchOpenRef.current = open
+                }}
+              />
+            }
+            showExport={true}
+            onExport={handleExport}
+          />
 
           {/* Table container */}
           <div className='flex flex-1 flex-col overflow-hidden'>

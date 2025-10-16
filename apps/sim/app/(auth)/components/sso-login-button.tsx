@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { env, isTruthy } from '@/lib/env'
+import { getEnv, isTruthy } from '@/lib/env'
 import { cn } from '@/lib/utils'
 
 interface SSOLoginButtonProps {
@@ -24,7 +24,7 @@ export function SSOLoginButton({
 }: SSOLoginButtonProps) {
   const router = useRouter()
 
-  if (!isTruthy(env.NEXT_PUBLIC_SSO_ENABLED)) {
+  if (!isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))) {
     return null
   }
 
