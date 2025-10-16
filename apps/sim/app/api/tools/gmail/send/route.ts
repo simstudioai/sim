@@ -2,8 +2,12 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
-import { downloadFileFromStorage, processFilesToUserFiles } from '@/lib/uploads/file-processing'
+import { extractStorageKey } from '@/lib/uploads/file-utils'
+import { downloadFile } from '@/lib/uploads/storage-client'
 import { generateRequestId } from '@/lib/utils'
+import { downloadExecutionFile } from '@/lib/workflows/execution-file-storage'
+import { isExecutionFile } from '@/lib/workflows/execution-files'
+import type { UserFile } from '@/executor/types'
 import { base64UrlEncode, buildMimeMessage } from '@/tools/gmail/utils'
 
 export const dynamic = 'force-dynamic'
@@ -55,15 +59,49 @@ export async function POST(request: NextRequest) {
 
     let rawMessage: string | undefined
 
+    // Check if we have attachments
     if (validatedData.attachments && validatedData.attachments.length > 0) {
       const rawAttachments = validatedData.attachments
       logger.info(`[${requestId}] Processing ${rawAttachments.length} attachment(s)`)
 
-      const attachments = processFilesToUserFiles(rawAttachments, requestId, logger)
+      // Process attachments - convert to UserFile format if needed
+      const attachments: UserFile[] = []
+      for (const att of rawAttachments) {
+        // Already a UserFile (from variable reference like {{gmail_read_1.files}})
+        if (att.id && att.key && att.uploadedAt) {
+          attachments.push(att as UserFile)
+          continue
+        }
+
+        // From file-upload sub-block - extract storage key from path
+        const storageKey = att.key || (att.path ? extractStorageKey(att.path) : null)
+
+        if (!storageKey) {
+          logger.warn(`[${requestId}] Skipping attachment with no key: ${att.name}`)
+          continue
+        }
+
+        const userFile: UserFile = {
+          id: att.id || `file-${Date.now()}`,
+          name: att.name,
+          url: att.url || att.path,
+          size: att.size,
+          type: att.type || 'application/octet-stream',
+          key: storageKey,
+          uploadedAt: att.uploadedAt || new Date().toISOString(),
+          expiresAt: att.expiresAt || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        }
+        logger.info(
+          `[${requestId}] Converted to UserFile - name: ${userFile.name}, key: ${userFile.key}`
+        )
+        attachments.push(userFile)
+      }
 
       if (attachments.length === 0) {
         logger.warn(`[${requestId}] No valid attachments found after processing`)
+        // Continue without attachments
       } else {
+        // Validate total attachment size (Gmail limit is 25MB)
         const totalSize = attachments.reduce((sum, file) => sum + file.size, 0)
         const maxSize = 25 * 1024 * 1024 // 25MB
 
@@ -78,6 +116,7 @@ export async function POST(request: NextRequest) {
           )
         }
 
+        // Download each attachment from execution storage
         const attachmentBuffers = await Promise.all(
           attachments.map(async (file) => {
             try {
@@ -85,7 +124,18 @@ export async function POST(request: NextRequest) {
                 `[${requestId}] Downloading attachment: ${file.name} (${file.size} bytes)`
               )
 
-              const buffer = await downloadFileFromStorage(file, requestId, logger)
+              let buffer: Buffer
+
+              // Use helper to determine storage type
+              if (isExecutionFile(file)) {
+                logger.info(`[${requestId}] Downloading from execution storage: ${file.key}`)
+                buffer = await downloadExecutionFile(file)
+              } else if (file.key) {
+                logger.info(`[${requestId}] Downloading from regular storage: ${file.key}`)
+                buffer = await downloadFile(file.key)
+              } else {
+                throw new Error('File has no key - cannot download')
+              }
 
               return {
                 filename: file.name,
@@ -101,6 +151,7 @@ export async function POST(request: NextRequest) {
           })
         )
 
+        // Build MIME message with attachments
         const mimeMessage = buildMimeMessage({
           to: validatedData.to,
           cc: validatedData.cc ?? undefined,
@@ -115,7 +166,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // If no rawMessage was set (no valid attachments), use simple format
     if (!rawMessage) {
+      // No attachments - use simple format
       const emailHeaders = [
         'Content-Type: text/plain; charset="UTF-8"',
         'MIME-Version: 1.0',
@@ -134,6 +187,7 @@ export async function POST(request: NextRequest) {
       rawMessage = Buffer.from(email).toString('base64url')
     }
 
+    // Send email via Gmail API
     const gmailResponse = await fetch(`${GMAIL_API_BASE}/messages/send`, {
       method: 'POST',
       headers: {
