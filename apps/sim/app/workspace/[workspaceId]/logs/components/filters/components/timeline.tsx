@@ -7,10 +7,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  commandListClass,
+  dropdownContentClass,
+  filterButtonClass,
+  timelineDropdownListStyle,
+} from '@/app/workspace/[workspaceId]/logs/components/filters/components/shared'
 import { useFilterStore } from '@/stores/logs/filters/store'
 import type { TimeRange } from '@/stores/logs/filters/types'
 
-export default function Timeline() {
+type TimelineProps = {
+  variant?: 'default' | 'header'
+}
+
+export default function Timeline({ variant = 'default' }: TimelineProps = {}) {
   const { timeRange, setTimeRange } = useFilterStore()
   const specificTimeRanges: TimeRange[] = [
     'Past 30 minutes',
@@ -27,47 +37,48 @@ export default function Timeline() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant='outline'
-          size='sm'
-          className='w-full justify-between rounded-[10px] border-[#E5E5E5] bg-[#FFFFFF] font-normal text-sm dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
-        >
+        <Button variant='outline' size='sm' className={filterButtonClass}>
           {timeRange}
           <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
+        align={variant === 'header' ? 'end' : 'start'}
         side='bottom'
-        align='end'
-        sideOffset={6}
-        collisionPadding={8}
-        className='w-[220px] rounded-lg border-[#E5E5E5] bg-[#FFFFFF] shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
+        avoidCollisions={false}
+        sideOffset={4}
+        className={dropdownContentClass}
       >
-        <DropdownMenuItem
-          key='all'
-          onSelect={() => {
-            setTimeRange('All time')
-          }}
-          className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
+        <div
+          className={`${commandListClass} py-1`}
+          style={variant === 'header' ? undefined : timelineDropdownListStyle}
         >
-          <span>All time</span>
-          {timeRange === 'All time' && <Check className='h-4 w-4 text-muted-foreground' />}
-        </DropdownMenuItem>
-
-        <DropdownMenuSeparator />
-
-        {specificTimeRanges.map((range) => (
           <DropdownMenuItem
-            key={range}
+            key='all'
             onSelect={() => {
-              setTimeRange(range)
+              setTimeRange('All time')
             }}
             className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
           >
-            <span>{range}</span>
-            {timeRange === range && <Check className='h-4 w-4 text-muted-foreground' />}
+            <span>All time</span>
+            {timeRange === 'All time' && <Check className='h-4 w-4 text-muted-foreground' />}
           </DropdownMenuItem>
-        ))}
+
+          <DropdownMenuSeparator />
+
+          {specificTimeRanges.map((range) => (
+            <DropdownMenuItem
+              key={range}
+              onSelect={() => {
+                setTimeRange(range)
+              }}
+              className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
+            >
+              <span>{range}</span>
+              {timeRange === range && <Check className='h-4 w-4 text-muted-foreground' />}
+            </DropdownMenuItem>
+          ))}
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   )

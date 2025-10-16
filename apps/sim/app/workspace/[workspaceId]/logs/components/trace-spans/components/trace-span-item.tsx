@@ -52,6 +52,7 @@ export function TraceSpanItem({
   workflowStartTime,
   onToggle,
   expandedSpans,
+  hoveredPercent,
   forwardHover,
   gapBeforeMs = 0,
   gapBeforePercent = 0,
@@ -609,6 +610,12 @@ export function TraceSpanItem({
                     )
                   })
               })()}
+              {hoveredPercent != null && (
+                <div
+                  className='pointer-events-none absolute top-[-10px] bottom-[-10px] w-px bg-black/30 dark:bg-white/45'
+                  style={{ left: `${Math.max(0, Math.min(100, hoveredPercent))}%`, zIndex: 12 }}
+                />
+              )}
               <div className='absolute inset-x-0 inset-y-[-12px] cursor-crosshair' />
             </div>
           </div>

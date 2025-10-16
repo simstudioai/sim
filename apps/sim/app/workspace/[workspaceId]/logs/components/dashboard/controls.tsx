@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react'
-import { Loader2, Play, RefreshCw, Search, Square } from 'lucide-react'
+import { Loader2, RefreshCw, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { soehne } from '@/app/fonts/soehne/soehne'
 import Timeline from '@/app/workspace/[workspaceId]/logs/components/filters/components/timeline'
 
 export function Controls({
@@ -32,7 +33,12 @@ export function Controls({
   onExport?: () => void
 }) {
   return (
-    <div className='mb-8 flex flex-col items-stretch justify-between gap-4 sm:flex-row sm:items-start'>
+    <div
+      className={cn(
+        'mb-8 flex flex-col items-stretch justify-between gap-4 sm:flex-row sm:items-start',
+        soehne.className
+      )}
+    >
       {searchComponent ? (
         searchComponent
       ) : (
@@ -87,34 +93,32 @@ export function Controls({
           <TooltipContent>{isRefetching ? 'Refreshing...' : 'Refresh'}</TooltipContent>
         </Tooltip>
 
-        {showExport && viewMode !== 'dashboard' && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant='ghost'
-                size='icon'
-                onClick={onExport}
-                className='h-9 rounded-[11px] hover:bg-secondary'
-                aria-label='Export CSV'
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant='ghost'
+              size='icon'
+              onClick={onExport}
+              className='h-9 rounded-[11px] hover:bg-secondary'
+              aria-label='Export CSV'
+            >
+              <svg
+                xmlns='http://www.w3.org/2000/svg'
+                viewBox='0 0 24 24'
+                fill='none'
+                stroke='currentColor'
+                strokeWidth='2'
+                className='h-5 w-5'
               >
-                <svg
-                  xmlns='http://www.w3.org/2000/svg'
-                  viewBox='0 0 24 24'
-                  fill='none'
-                  stroke='currentColor'
-                  strokeWidth='2'
-                  className='h-5 w-5'
-                >
-                  <path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' />
-                  <polyline points='7 10 12 15 17 10' />
-                  <line x1='12' y1='15' x2='12' y2='3' />
-                </svg>
-                <span className='sr-only'>Export CSV</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Export CSV</TooltipContent>
-          </Tooltip>
-        )}
+                <path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' />
+                <polyline points='7 10 12 15 17 10' />
+                <line x1='12' y1='15' x2='12' y2='3' />
+              </svg>
+              <span className='sr-only'>Export CSV</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Export CSV</TooltipContent>
+        </Tooltip>
 
         <div className='inline-flex h-9 items-center rounded-[11px] border bg-card p-1 shadow-sm'>
           <Button
@@ -123,21 +127,13 @@ export function Controls({
             onClick={() => setLive((v) => !v)}
             className={cn(
               'h-7 rounded-[8px] px-3 font-normal text-xs',
-              live ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'
+              live
+                ? 'bg-[var(--brand-primary-hex)] text-white shadow-[0_0_0_0_var(--brand-primary-hex)] hover:bg-[var(--brand-primary-hover-hex)] hover:text-white hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
+                : 'text-muted-foreground hover:text-foreground'
             )}
             aria-pressed={live}
           >
-            {live ? (
-              <>
-                <Square className='mr-1.5 h-3 w-3 fill-current' />
-                Live
-              </>
-            ) : (
-              <>
-                <Play className='mr-1.5 h-3 w-3' />
-                Live
-              </>
-            )}
+            Live
           </Button>
         </div>
 
