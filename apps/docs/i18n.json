@@ -11,8 +11,7 @@
         "content/docs/[locale]/*.mdx",
         "content/docs/[locale]/*/*.mdx",
         "content/docs/[locale]/*/*/*.mdx"
-      ],
-      "exclude": ["content/docs/[locale]/sdks/*.mdx"]
+      ]
     }
   }
 }
