@@ -541,19 +541,21 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
 
             {/* Input area with integrated mode selector */}
             {!showCheckpoints && (
-              <UserInput
-                ref={userInputRef}
-                onSubmit={handleSubmit}
-                onAbort={handleAbort}
-                disabled={!activeWorkflowId}
-                isLoading={isSendingMessage}
-                isAborting={isAborting}
-                mode={mode}
-                onModeChange={setMode}
-                value={inputValue}
-                onChange={setInputValue}
-                panelWidth={panelWidth}
-              />
+              <div className='pt-2'>
+                <UserInput
+                  ref={userInputRef}
+                  onSubmit={handleSubmit}
+                  onAbort={handleAbort}
+                  disabled={!activeWorkflowId}
+                  isLoading={isSendingMessage}
+                  isAborting={isAborting}
+                  mode={mode}
+                  onModeChange={setMode}
+                  value={inputValue}
+                  onChange={setInputValue}
+                  panelWidth={panelWidth}
+                />
+              </div>
             )}
           </>
         )}

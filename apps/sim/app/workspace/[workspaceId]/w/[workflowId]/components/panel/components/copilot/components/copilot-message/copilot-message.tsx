@@ -374,7 +374,8 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       if (editIndex !== -1) {
         // Exit edit mode visually
         setIsEditMode(false)
-        // Keep editing flag true to prevent welcome screen flash
+        // Clear editing state in parent immediately to prevent dimming of new messages
+        onEditModeChange?.(false)
 
         // Truncate messages after the edited message (remove it and everything after)
         const truncatedMessages = currentMessages.slice(0, editIndex)
@@ -412,9 +413,6 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           contexts: contexts || (message as any).contexts,
           messageId: message.id, // Reuse the original message ID
         })
-
-        // Clear editing state after message is sent
-        onEditModeChange?.(false)
       }
     }
 
