@@ -184,8 +184,8 @@ export function Sidebar({
   hasPrev = false,
 }: LogSidebarProps) {
   const MIN_WIDTH = 400
-  const DEFAULT_WIDTH = 600
-  const EXPANDED_WIDTH = 800
+  const DEFAULT_WIDTH = 720
+  const EXPANDED_WIDTH = 900
 
   const [width, setWidth] = useState(DEFAULT_WIDTH) // Start with default width
   const [isDragging, setIsDragging] = useState(false)
@@ -325,7 +325,7 @@ export function Sidebar({
 
   return (
     <div
-      className={`fixed top-[148px] right-4 bottom-4 transform rounded-[14px] border bg-card shadow-xs ${
+      className={`fixed top-24 right-4 bottom-4 transform rounded-[14px] border bg-card shadow-xs ${
         isOpen ? 'translate-x-0' : 'translate-x-[calc(100%+1rem)]'
       } ${isDragging ? '' : 'transition-all duration-300 ease-in-out'} z-50 flex flex-col`}
       style={{ width: `${width}px`, minWidth: `${MIN_WIDTH}px` }}
@@ -354,7 +354,7 @@ export function Sidebar({
                       <ChevronUp className='h-4 w-4' />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent side='bottom'>Previous log (↑)</TooltipContent>
+                  <TooltipContent side='bottom'>Previous log</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
 
@@ -372,7 +372,7 @@ export function Sidebar({
                       <ChevronDown className='h-4 w-4' />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent side='bottom'>Next log (↓)</TooltipContent>
+                  <TooltipContent side='bottom'>Next log</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
 

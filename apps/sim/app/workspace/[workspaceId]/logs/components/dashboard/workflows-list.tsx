@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import StatusBar, {
   type StatusBarSegment,
@@ -48,39 +48,7 @@ export function WorkflowsList({
     return `${mins} minute${mins !== 1 ? 's' : ''}`
   }, [segmentDurationMs])
 
-  const Axis = () => {
-    if (!filteredExecutions.length || !segmentsCount || !segmentDurationMs) return null
-    const firstTs = filteredExecutions[0]?.segments?.[0]?.timestamp
-    if (!firstTs) return null
-    const start = new Date(firstTs)
-    if (Number.isNaN(start.getTime())) return null
-    const totalMs = segmentsCount * segmentDurationMs
-    const end = new Date(start.getTime() + totalMs)
-    const midMs = start.getTime() + totalMs / 2
-    // Avoid duplicate labels by shifting mid tick slightly if it rounds identical to start/end
-    const mid = new Date(midMs + 60 * 1000)
-
-    const useDates = totalMs >= 24 * 60 * 60 * 1000
-    const fmt = (d: Date) => {
-      if (useDates) return d.toLocaleString('en-US', { month: 'short', day: 'numeric' })
-      return d.toLocaleString('en-US', { hour: 'numeric' })
-    }
-
-    return (
-      <div className='relative px-3 pt-2 pb-1'>
-        <div className='mr-[80px] ml-[224px]'>
-          <div className='relative h-4'>
-            <div className='-z-10 -translate-y-1/2 absolute inset-x-0 top-1/2 h-px bg-border' />
-            <div className='flex justify-between text-[10px] text-muted-foreground'>
-              <span>{fmt(start)}</span>
-              <span>{fmt(mid)}</span>
-              <span className='text-right'>{fmt(end)}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  // Date axis above the status bars intentionally removed for a cleaner, denser layout
 
   function DynamicLegend() {
     return (
@@ -92,12 +60,12 @@ export function WorkflowsList({
   return (
     <div
       className='overflow-hidden rounded-lg border bg-card shadow-sm'
-      style={{ maxHeight: '380px', display: 'flex', flexDirection: 'column' }}
+      style={{ height: '380px', display: 'flex', flexDirection: 'column' }}
     >
-      <div className='flex-shrink-0 border-b bg-muted/30 px-4 py-2.5'>
+      <div className='flex-shrink-0 border-b bg-muted/30 px-4 py-2'>
         <div className='flex items-center justify-between'>
           <div>
-            <h3 className='font-medium text-sm'>Workflows</h3>
+            <h3 className='font-[480] text-sm'>Workflows</h3>
             <DynamicLegend />
           </div>
           <span className='text-muted-foreground text-xs'>
@@ -107,15 +75,15 @@ export function WorkflowsList({
           </span>
         </div>
       </div>
-      <Axis />
-      <ScrollArea className='flex-1' style={{ height: 'calc(350px - 41px)' }}>
+      {/* Axis removed */}
+      <ScrollArea className='min-h-0 flex-1 overflow-auto'>
         <div className='space-y-1 p-3'>
           {filteredExecutions.length === 0 ? (
             <div className='py-8 text-center text-muted-foreground text-sm'>
               No workflows found matching "{searchQuery}"
             </div>
           ) : (
-            filteredExecutions.map((workflow) => {
+            filteredExecutions.map((workflow, idx) => {
               const isSelected = expandedWorkflowId === workflow.workflowId
 
               return (
@@ -134,7 +102,9 @@ export function WorkflowsList({
                           backgroundColor: workflows[workflow.workflowId]?.color || '#64748b',
                         }}
                       />
-                      <h3 className='truncate font-medium text-sm'>{workflow.workflowName}</h3>
+                      <h3 className='truncate font-[460] text-sm dark:font-medium'>
+                        {workflow.workflowName}
+                      </h3>
                     </div>
                   </div>
 
@@ -145,11 +115,12 @@ export function WorkflowsList({
                       onSegmentClick={onSegmentClick as any}
                       workflowId={workflow.workflowId}
                       segmentDurationMs={segmentDurationMs}
+                      preferBelow={idx < 2}
                     />
                   </div>
 
                   <div className='w-16 flex-shrink-0 text-right'>
-                    <span className='font-medium text-muted-foreground text-sm'>
+                    <span className='font-[460] text-muted-foreground text-sm'>
                       {workflow.overallSuccessRate.toFixed(1)}%
                     </span>
                   </div>
@@ -163,4 +134,4 @@ export function WorkflowsList({
   )
 }
 
-export default WorkflowsList
+export default memo(WorkflowsList)

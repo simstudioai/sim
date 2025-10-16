@@ -275,20 +275,14 @@ export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }:
           )
         })}
 
-        {/* Global crosshair spanning all rows with visible time label */}
+        {/* Time label for hover (keep top label, row lines render per-row) */}
         {hoveredPercent !== null && hoveredX !== null && (
-          <>
-            <div
-              className='pointer-events-none absolute inset-y-0 w-px bg-black/30 dark:bg-white/45'
-              style={{ left: hoveredX, zIndex: 20 }}
-            />
-            <div
-              className='-translate-x-1/2 pointer-events-none absolute top-1 rounded bg-popover px-1.5 py-0.5 text-[10px] text-foreground shadow'
-              style={{ left: hoveredX, zIndex: 20 }}
-            >
-              {formatDurationDisplay(Math.max(0, (hoveredWorkflowMs || 0) - workflowStartTime))}
-            </div>
-          </>
+          <div
+            className='-translate-x-1/2 pointer-events-none absolute top-1 rounded bg-popover px-1.5 py-0.5 text-[10px] text-foreground shadow'
+            style={{ left: hoveredX, zIndex: 20 }}
+          >
+            {formatDurationDisplay(Math.max(0, (hoveredWorkflowMs || 0) - workflowStartTime))}
+          </div>
         )}
 
         {/* Hover capture area - aligned to timeline bars, not extending to edge */}
