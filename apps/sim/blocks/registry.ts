@@ -5,6 +5,7 @@
 
 import { AgentBlock } from '@/blocks/blocks/agent'
 import { AirtableBlock } from '@/blocks/blocks/airtable'
+import { AirweaveBlock } from '@/blocks/blocks/airweave'
 import { ApiBlock } from '@/blocks/blocks/api'
 import { ApiTriggerBlock } from '@/blocks/blocks/api_trigger'
 import { ArxivBlock } from '@/blocks/blocks/arxiv'
@@ -94,6 +95,7 @@ import type { BlockConfig } from '@/blocks/types'
 export const registry: Record<string, BlockConfig> = {
   agent: AgentBlock,
   airtable: AirtableBlock,
+  airweave: AirweaveBlock,
   api: ApiBlock,
   arxiv: ArxivBlock,
   browser_use: BrowserUseBlock,
