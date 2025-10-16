@@ -36,7 +36,8 @@ export async function uploadExecutionFile(
   context: ExecutionContext,
   fileBuffer: Buffer,
   fileName: string,
-  contentType: string
+  contentType: string,
+  isAsync?: boolean
 ): Promise<UserFile> {
   logger.info(`Uploading execution file: ${fileName} for execution ${context.executionId}`)
   logger.debug(`File upload context:`, {
@@ -52,6 +53,9 @@ export async function uploadExecutionFile(
   const fileId = generateFileId()
 
   logger.info(`Generated storage key: "${storageKey}" for file: ${fileName}`)
+
+  // Use 10-minute expiration for async executions, 5 minutes for sync
+  const urlExpirationSeconds = isAsync ? 10 * 60 : 5 * 60
 
   try {
     let fileInfo: any
@@ -78,16 +82,18 @@ export async function uploadExecutionFile(
       logger.info(`Original storage key was: "${storageKey}"`)
       logger.info(`Keys match: ${fileInfo.key === storageKey}`)
 
-      // Generate presigned URL for execution (5 minutes)
+      // Generate presigned URL for execution (5 or 10 minutes)
       try {
-        logger.info(`Generating presigned URL with key: "${fileInfo.key}"`)
+        logger.info(
+          `Generating presigned URL with key: "${fileInfo.key}" (expiration: ${urlExpirationSeconds / 60} minutes)`
+        )
         directUrl = await getPresignedUrlWithConfig(
           fileInfo.key, // Use the actual uploaded key
           {
             bucket: S3_EXECUTION_FILES_CONFIG.bucket,
             region: S3_EXECUTION_FILES_CONFIG.region,
           },
-          5 * 60 // 5 minutes
+          urlExpirationSeconds
         )
         logger.info(`Generated presigned URL: ${directUrl}`)
       } catch (error) {
@@ -102,7 +108,7 @@ export async function uploadExecutionFile(
         containerName: BLOB_EXECUTION_FILES_CONFIG.containerName,
       })
 
-      // Generate presigned URL for execution (5 minutes)
+      // Generate presigned URL for execution (5 or 10 minutes)
       try {
         directUrl = await getBlobPresignedUrlWithConfig(
           fileInfo.key, // Use the actual uploaded key
@@ -112,7 +118,7 @@ export async function uploadExecutionFile(
             connectionString: BLOB_EXECUTION_FILES_CONFIG.connectionString,
             containerName: BLOB_EXECUTION_FILES_CONFIG.containerName,
           },
-          5 * 60 // 5 minutes
+          urlExpirationSeconds
         )
       } catch (error) {
         logger.warn(`Failed to generate Blob presigned URL for ${fileName}:`, error)
@@ -126,7 +132,7 @@ export async function uploadExecutionFile(
       name: fileName,
       size: fileBuffer.length,
       type: contentType,
-      url: directUrl || `/api/files/serve/${fileInfo.key}`, // Use 5-minute presigned URL, fallback to serve path
+      url: directUrl || `/api/files/serve/${fileInfo.key}`, // Use presigned URL (5 or 10 min), fallback to serve path
       key: fileInfo.key, // Use the actual uploaded key from S3/Blob
       uploadedAt: new Date().toISOString(),
       expiresAt: getFileExpirationDate(),

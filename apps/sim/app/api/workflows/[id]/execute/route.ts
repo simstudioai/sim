@@ -11,6 +11,7 @@ import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { env } from '@/lib/env'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
+import { processExecutionFiles } from '@/lib/execution/files'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -23,11 +24,7 @@ import {
   workflowHasResponseBlock,
 } from '@/lib/workflows/utils'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
-import {
-  createErrorResponse,
-  createSuccessResponse,
-  processApiWorkflowField,
-} from '@/app/api/workflows/utils'
+import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { Executor } from '@/executor'
 import type { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
@@ -124,10 +121,11 @@ export async function executeWorkflow(
     onStream?: (streamingExec: any) => Promise<void> // Callback for streaming agent responses
     onBlockComplete?: (blockId: string, output: any) => Promise<void> // Callback when any block completes
     skipLoggingComplete?: boolean // When true, skip calling loggingSession.safeComplete (for streaming)
-  }
+  },
+  providedExecutionId?: string
 ): Promise<ExecutionResult> {
   const workflowId = workflow.id
-  const executionId = uuidv4()
+  const executionId = providedExecutionId || uuidv4()
 
   const executionKey = `${workflowId}:${requestId}`
 
@@ -577,6 +575,9 @@ export async function POST(
       input: rawInput,
     } = extractExecutionParams(request as NextRequest, parsedBody)
 
+    // Generate executionId early so it can be used for file uploads
+    const executionId = uuidv4()
+
     let processedInput = rawInput
     logger.info(`[${requestId}] Raw input received:`, JSON.stringify(rawInput, null, 2))
 
@@ -607,16 +608,18 @@ export async function POST(
           const executionContext = {
             workspaceId: validation.workflow.workspaceId,
             workflowId,
+            executionId,
           }
 
           for (const fileField of fileFields) {
             const fieldValue = rawInput[fileField.name]
 
             if (fieldValue && typeof fieldValue === 'object') {
-              const uploadedFiles = await processApiWorkflowField(
+              const uploadedFiles = await processExecutionFiles(
                 fieldValue,
                 executionContext,
-                requestId
+                requestId,
+                isAsync
               )
 
               if (uploadedFiles.length > 0) {
@@ -769,6 +772,7 @@ export async function POST(
             workflowTriggerType,
           },
           createFilteredResult,
+          executionId,
         })
 
         return new NextResponse(stream, {
@@ -782,7 +786,8 @@ export async function POST(
         requestId,
         input,
         authenticatedUserId,
-        undefined
+        undefined,
+        executionId
       )
 
       const hasResponseBlock = workflowHasResponseBlock(result)

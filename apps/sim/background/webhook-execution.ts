@@ -5,17 +5,14 @@ import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
+import { processExecutionFiles } from '@/lib/execution/files'
 import { IdempotencyService, webhookIdempotency } from '@/lib/idempotency'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { decryptSecret } from '@/lib/utils'
 import { WebhookAttachmentProcessor } from '@/lib/webhooks/attachment-processor'
-import {
-  fetchAndProcessAirtablePayloads,
-  formatWebhookInput,
-  processGenericWebhookFiles,
-} from '@/lib/webhooks/utils'
+import { fetchAndProcessAirtablePayloads, formatWebhookInput } from '@/lib/webhooks/utils'
 import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
@@ -432,13 +429,14 @@ async function executeWebhookJobInternal(
             const executionContext = {
               workspaceId: workspaceId || '',
               workflowId: payload.workflowId,
+              executionId,
             }
 
             for (const fileField of fileFields) {
               const fieldValue = input[fileField.name]
 
               if (fieldValue && typeof fieldValue === 'object') {
-                const uploadedFiles = await processGenericWebhookFiles(
+                const uploadedFiles = await processExecutionFiles(
                   fieldValue,
                   executionContext,
                   requestId
