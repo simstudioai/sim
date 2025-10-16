@@ -116,7 +116,6 @@ export default function ExecutionsDashboard() {
   const [searchQuery, setSearchQuery] = useState('')
   const [segmentCount, setSegmentCount] = useState<number>(DEFAULT_SEGMENTS)
   const barsAreaRef = useRef<HTMLDivElement | null>(null)
-  // Removed external sentinels; WorkflowDetails now owns its infinite scroll
 
   const {
     workflowIds,
@@ -129,9 +128,6 @@ export default function ExecutionsDashboard() {
 
   const timeFilter = getTimeFilterFromRange(sidebarTimeRange)
 
-  // buildSeriesFromLogs removed — now using aggregated server metrics
-
-  // Persist view mode to the URL and restore it on refresh
   useEffect(() => {
     const urlView = searchParams.get('view')
     if (urlView === 'dashboard' || urlView === 'logs') {
@@ -143,13 +139,11 @@ export default function ExecutionsDashboard() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     const sp = new URLSearchParams(Array.from(searchParams.entries()))
-    // If no view is present on first mount, set it once to persist on refresh
     if (!sp.get('view')) {
       sp.set('view', viewMode as string)
       router.replace(`${window.location.pathname}?${sp.toString()}`, { scroll: false })
       return
     }
-    // Keep view param in sync when it changes
     if (sp.get('view') !== (viewMode as string)) {
       sp.set('view', viewMode as string)
       router.replace(`${window.location.pathname}?${sp.toString()}`, { scroll: false })
@@ -306,7 +300,6 @@ export default function ExecutionsDashboard() {
         })
         setExecutions(sortedWorkflows)
 
-        // Build aggregate segments across workflows from server segments
         const segmentsCount: number = Number(params.get('segments') || DEFAULT_SEGMENTS)
         const agg: { timestamp: string; totalExecutions: number; successfulExecutions: number }[] =
           Array.from({ length: segmentsCount }, (_, i) => {
@@ -374,7 +367,6 @@ export default function ExecutionsDashboard() {
                       ? Number.parseInt(l.duration.replace(/[^0-9]/g, ''), 10)
                       : null
             let output: any = null
-            // Prefer finalOutput if present
             if (l.executionData?.finalOutput !== undefined) {
               output = l.executionData.finalOutput
             }
@@ -491,7 +483,6 @@ export default function ExecutionsDashboard() {
           else if (typeof l.duration === 'string')
             durationCandidate = Number.parseInt(String(l.duration).replace(/[^0-9]/g, ''), 10)
 
-          // Robust output extraction: prefer finalOutput, then string output, then traceSpans, then executionData.output, then blockExecutions
           let output: any = null
           if (l.executionData?.finalOutput !== undefined) {
             output = l.executionData.finalOutput
@@ -601,7 +592,6 @@ export default function ExecutionsDashboard() {
             )
           else if (typeof l.duration === 'string')
             durationCandidate = Number.parseInt(String(l.duration).replace(/[^0-9]/g, ''), 10)
-          // Prefer finalOutput, then spans, then executionData.output, then blockExecutions
           let output: any = null
           if (l.executionData?.finalOutput !== undefined) {
             output = l.executionData.finalOutput
@@ -652,7 +642,6 @@ export default function ExecutionsDashboard() {
 
         setWorkflowDetails((prev) => {
           const cur = prev[workflowId]
-          // Deduplicate by id to avoid React key duplicates when multiple triggers fire
           const seen = new Set<string>()
           const dedup = [...(cur?.allLogs || []), ...more].filter((x) => {
             const id = x.id
@@ -675,7 +664,6 @@ export default function ExecutionsDashboard() {
           }
         })
       } catch {
-        // ignore errors for background loads
         setWorkflowDetails((prev) => ({
           ...prev,
           [workflowId]: { ...(prev as any)[workflowId], __loading: false },
@@ -685,7 +673,6 @@ export default function ExecutionsDashboard() {
     [workspaceId, endTime, getStartTime, triggers, workflowDetails]
   )
 
-  // Infinite scroll for All workflows (no expanded workflow)
   const loadMoreGlobalLogs = useCallback(async () => {
     if (!globalDetails || !globalLogsMeta.hasMore) return
     if (globalLoadingMore) return
@@ -1209,7 +1196,6 @@ export default function ExecutionsDashboard() {
                     )
                   }
 
-                  // Aggregate view for all workflows
                   if (!globalDetails) return null
                   const totals = aggregateSegments.reduce(
                     (acc, s) => {

@@ -77,9 +77,6 @@ export function WorkflowDetails({
   const listRef = useRef<HTMLDivElement | null>(null)
   const loaderRef = useRef<HTMLDivElement | null>(null)
 
-  // Attach an IntersectionObserver to the sentinel at the bottom of the list.
-  // The root must be the scrollable container itself, otherwise intersections
-  // are computed against the viewport and never fire for inner scrolling.
   useEffect(() => {
     const rootEl = listRef.current
     const sentinel = loaderRef.current
@@ -91,7 +88,6 @@ export function WorkflowDetails({
         const entry = entries[0]
         if (entry?.isIntersecting && hasMore && !ticking && !isLoadingMore) {
           ticking = true
-          // Small delay to batch rapid intersections while scrolling
           setTimeout(() => {
             onLoadMore()
             ticking = false

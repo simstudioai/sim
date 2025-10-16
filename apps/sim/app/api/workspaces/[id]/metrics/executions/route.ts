@@ -28,7 +28,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
     const userId = session.user.id
 
-    // Resolve time range
     const end = qp.endTime ? new Date(qp.endTime) : new Date()
     const start = qp.startTime
       ? new Date(qp.startTime)
@@ -41,7 +40,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const totalMs = Math.max(1, end.getTime() - start.getTime())
     const segmentMs = Math.max(1, Math.floor(totalMs / Math.max(1, segments)))
 
-    // Resolve workflows in scope (respecting permissions)
     const [permission] = await db
       .select()
       .from(permissions)
@@ -92,7 +90,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       logWhere.push(inArray(workflowExecutionLogs.trigger, t))
     }
 
-    // Select only the columns we need
     const logs = await db
       .select({
         workflowId: workflowExecutionLogs.workflowId,
@@ -103,7 +100,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .from(workflowExecutionLogs)
       .where(and(...logWhere))
 
-    // Group and bin logs by workflow and segment
     type Bucket = {
       timestamp: string
       totalExecutions: number

@@ -125,7 +125,6 @@ export function LineChart({
     : scaledSeries
   const orderedSeries = (() => {
     if (!activeSeriesId) return visibleSeries
-    // Only the active series is visible; keep as-is and render last by definition
     return visibleSeries
   })()
 
@@ -241,7 +240,6 @@ export function LineChart({
               const i = Math.round(ratio * (scaledPoints.length - 1))
               setHoverIndex(i)
               setHoverPos({ x: clamped, y: e.clientY - rect.top })
-              // determine nearest series by Y distance
               const cursorY = e.clientY - rect.top
               if (activeSeriesId) {
                 setHoverSeriesId(activeSeriesId)
@@ -514,7 +512,6 @@ export function LineChart({
           {hoverIndex !== null &&
             scaledPoints[hoverIndex] &&
             (() => {
-              // Tooltip shows selected series value; if none selected, shows multiple series values
               const active =
                 getSeriesById(activeSeriesId) || getSeriesById(hoverSeriesId) || scaledSeries[0]
               const pt = active.pts[hoverIndex] || scaledPoints[hoverIndex]
@@ -533,7 +530,6 @@ export function LineChart({
                 return `${Math.round(v)}${u}`
               }
 
-              // Estimate tooltip width from content length so we flip only when necessary
               const longest = toDisplay.reduce((m, s) => {
                 const seriesIndex = allSeries.findIndex((x) => x.id === s.id)
                 const v = allSeries[seriesIndex]?.data?.[hoverIndex]?.value
