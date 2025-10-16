@@ -207,17 +207,18 @@ function sanitizeToolsForComparison(tools: any[] | undefined): any[] {
 }
 
 /**
- * Sanitize inputFormat fields by removing UI-only properties
- * @param fields - The inputFormat fields array
- * @returns A sanitized fields array
+ * Sanitize inputFormat array by removing test-only value fields
+ * @param inputFormat - The inputFormat array to sanitize
+ * @returns A sanitized inputFormat array without test values
  */
-function sanitizeInputFormatForComparison(fields: any[] | undefined): any[] {
-  if (!Array.isArray(fields)) {
+function sanitizeInputFormatForComparison(inputFormat: any[] | undefined): any[] {
+  if (!Array.isArray(inputFormat)) {
     return []
   }
 
-  return fields.map((field) => {
-    const { collapsed, ...cleanField } = field
+  return inputFormat.map((field) => {
+    // Remove test-only field: value (used only for manual testing)
+    const { value, collapsed, ...cleanField } = field
     return cleanField
   })
 }
