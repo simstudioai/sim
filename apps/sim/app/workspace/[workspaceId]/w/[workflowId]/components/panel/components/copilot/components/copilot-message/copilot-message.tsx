@@ -909,7 +909,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
               >
                 <div
                   ref={messageContentRef}
-                  className='whitespace-pre-wrap break-words py-1 pr-2 pl-[2px] font-sans text-foreground text-sm leading-[1.25rem]'
+                  className={`whitespace-pre-wrap break-words py-1 pl-[2px] font-sans text-foreground text-sm leading-[1.25rem] ${isSendingMessage && isLastUserMessage ? 'pr-10' : 'pr-2'}`}
                   style={{
                     maxHeight: !isExpanded && needsExpansion ? '60px' : 'none',
                     overflow: !isExpanded && needsExpansion ? 'hidden' : 'visible',
@@ -961,7 +961,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
                 {/* Abort button when hovering and response is generating (only on last user message) */}
                 {isSendingMessage && isHoveringMessage && isLastUserMessage && (
-                  <div className='absolute top-2 right-2'>
+                  <div className='absolute bottom-2 right-2'>
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
