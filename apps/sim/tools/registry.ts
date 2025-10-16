@@ -194,13 +194,7 @@ import {
 } from '@/tools/telegram'
 import { thinkingTool } from '@/tools/thinking'
 import { sendSMSTool } from '@/tools/twilio'
-import {
-  getRecordingTool,
-  hangupCallTool,
-  makeCallTool,
-  recordCallTool,
-  sendTwimlTool,
-} from '@/tools/twilio_voice'
+import { getRecordingTool, makeCallTool } from '@/tools/twilio_voice'
 import { typeformFilesTool, typeformInsightsTool, typeformResponsesTool } from '@/tools/typeform'
 import type { ToolConfig } from '@/tools/types'
 import { visionTool } from '@/tools/vision'
@@ -358,9 +352,6 @@ export const tools: Record<string, ToolConfig> = {
   confluence_update: confluenceUpdateTool,
   twilio_send_sms: sendSMSTool,
   twilio_voice_make_call: makeCallTool,
-  twilio_voice_send_twiml: sendTwimlTool,
-  twilio_voice_hangup_call: hangupCallTool,
-  twilio_voice_record_call: recordCallTool,
   twilio_voice_get_recording: getRecordingTool,
   airtable_create_records: airtableCreateRecordsTool,
   airtable_get_record: airtableGetRecordTool,

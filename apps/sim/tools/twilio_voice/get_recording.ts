@@ -7,7 +7,7 @@ const logger = createLogger('Twilio Voice Get Recording Tool')
 export const getRecordingTool: ToolConfig<TwilioGetRecordingParams, TwilioGetRecordingOutput> = {
   id: 'twilio_voice_get_recording',
   name: 'Twilio Voice Get Recording',
-  description: 'Retrieve information about a call recording.',
+  description: 'Retrieve call recording information and transcription (if enabled via TwiML).',
   version: '1.0.0',
 
   params: {
@@ -36,6 +36,12 @@ export const getRecordingTool: ToolConfig<TwilioGetRecordingParams, TwilioGetRec
       if (!params.accountSid || !params.recordingSid) {
         throw new Error('Twilio Account SID and Recording SID are required')
       }
+      // Validate Account SID format
+      if (!params.accountSid.startsWith('AC')) {
+        throw new Error(
+          `Invalid Account SID format. Account SID must start with "AC" (you provided: ${params.accountSid.substring(0, 2)}...)`
+        )
+      }
       return `https://api.twilio.com/2010-04-01/Accounts/${params.accountSid}/Recordings/${params.recordingSid}.json`
     },
     method: 'GET',
@@ -50,7 +56,7 @@ export const getRecordingTool: ToolConfig<TwilioGetRecordingParams, TwilioGetRec
     },
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async (response, params) => {
     const data = await response.json()
 
     logger.info('Twilio Get Recording Response:', data)
@@ -70,6 +76,50 @@ export const getRecordingTool: ToolConfig<TwilioGetRecordingParams, TwilioGetRec
     const baseUrl = 'https://api.twilio.com'
     const mediaUrl = data.uri ? `${baseUrl}${data.uri.replace('.json', '')}` : undefined
 
+    // Fetch transcriptions if they exist (created via TwiML <Record transcribe="true">)
+    let transcriptionText: string | undefined
+    let transcriptionStatus: string | undefined
+    let transcriptionPrice: string | undefined
+    let transcriptionPriceUnit: string | undefined
+
+    try {
+      const authToken = Buffer.from(`${params?.accountSid}:${params?.authToken}`).toString('base64')
+
+      // Check if transcription exists (must have been created via TwiML during the call)
+      const transcriptionUrl = `https://api.twilio.com/2010-04-01/Accounts/${params?.accountSid}/Transcriptions.json?RecordingSid=${data.sid}`
+      logger.info('Checking for transcriptions:', transcriptionUrl)
+
+      const transcriptionResponse = await fetch(transcriptionUrl, {
+        method: 'GET',
+        headers: { Authorization: `Basic ${authToken}` },
+      })
+
+      if (transcriptionResponse.ok) {
+        const transcriptionData = await transcriptionResponse.json()
+        logger.info('Transcription response:', JSON.stringify(transcriptionData))
+
+        // Extract transcription data if available
+        if (transcriptionData.transcriptions && transcriptionData.transcriptions.length > 0) {
+          const transcription = transcriptionData.transcriptions[0]
+          transcriptionText = transcription.transcription_text
+          transcriptionStatus = transcription.status
+          transcriptionPrice = transcription.price
+          transcriptionPriceUnit = transcription.price_unit
+          logger.info('Transcription found:', {
+            status: transcriptionStatus,
+            textLength: transcriptionText?.length,
+          })
+        } else {
+          logger.info(
+            'No transcriptions found. To enable transcription, use <Record transcribe="true"> in your TwiML.'
+          )
+        }
+      }
+    } catch (error) {
+      logger.warn('Failed to fetch transcription:', error)
+      // Don't fail the whole request if transcription fetch fails
+    }
+
     return {
       success: true,
       output: {
@@ -84,6 +134,10 @@ export const getRecordingTool: ToolConfig<TwilioGetRecordingParams, TwilioGetRec
         price: data.price,
         priceUnit: data.price_unit,
         uri: data.uri,
+        transcriptionText,
+        transcriptionStatus,
+        transcriptionPrice,
+        transcriptionPriceUnit,
       },
       error: undefined,
     }
@@ -101,7 +155,16 @@ export const getRecordingTool: ToolConfig<TwilioGetRecordingParams, TwilioGetRec
     price: { type: 'string', description: 'Cost of the recording' },
     priceUnit: { type: 'string', description: 'Currency of the price' },
     uri: { type: 'string', description: 'Relative URI of the recording resource' },
+    transcriptionText: {
+      type: 'string',
+      description: 'Transcribed text from the recording (if available)',
+    },
+    transcriptionStatus: {
+      type: 'string',
+      description: 'Transcription status (completed, in-progress, failed)',
+    },
+    transcriptionPrice: { type: 'string', description: 'Cost of the transcription' },
+    transcriptionPriceUnit: { type: 'string', description: 'Currency of the transcription price' },
     error: { type: 'string', description: 'Error message if retrieval failed' },
   },
 }
-

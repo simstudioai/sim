@@ -179,4 +179,3 @@ export const twilioVoiceWebhookTrigger: TriggerConfig = {
     },
   },
 }
-

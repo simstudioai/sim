@@ -10,7 +10,7 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
   description: 'Make and manage phone calls',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Twilio Voice into the workflow. Can make outbound calls, send TwiML instructions, record calls, and manage active calls.',
+    'Integrate Twilio Voice into the workflow. Make outbound calls and retrieve call recordings.',
   category: 'tools',
   bgColor: '#F22F46', // Twilio brand color
   icon: TwilioIcon,
@@ -24,9 +24,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       layout: 'full',
       options: [
         { label: 'Make Call', id: 'make_call' },
-        { label: 'Send TwiML', id: 'send_twiml' },
-        { label: 'Hangup Call', id: 'hangup_call' },
-        { label: 'Record Call', id: 'record_call' },
         { label: 'Get Recording', id: 'get_recording' },
       ],
       value: () => 'make_call',
@@ -82,7 +79,7 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       placeholder: 'https://example.com/twiml',
       condition: {
         field: 'operation',
-        value: ['make_call', 'send_twiml'],
+        value: 'make_call',
       },
     },
     {
@@ -93,7 +90,7 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       placeholder: '<Response><Say>Hello from Twilio!</Say></Response>',
       condition: {
         field: 'operation',
-        value: ['make_call', 'send_twiml'],
+        value: 'make_call',
       },
     },
     {
@@ -143,73 +140,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
         value: 'make_call',
       },
     },
-    // Send TwiML / Hangup / Record Call / Get Recording fields
-    {
-      id: 'callSid',
-      title: 'Call SID',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'CAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
-      condition: {
-        field: 'operation',
-        value: ['send_twiml', 'hangup_call', 'record_call'],
-      },
-      required: true,
-    },
-    {
-      id: 'method',
-      title: 'HTTP Method',
-      type: 'dropdown',
-      layout: 'half',
-      options: [
-        { label: 'POST', id: 'POST' },
-        { label: 'GET', id: 'GET' },
-      ],
-      condition: {
-        field: 'operation',
-        value: 'send_twiml',
-      },
-    },
-    // Record Call specific fields
-    {
-      id: 'recordingStatusCallback',
-      title: 'Recording Status Callback',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'https://example.com/recording-status',
-      condition: {
-        field: 'operation',
-        value: 'record_call',
-      },
-    },
-    {
-      id: 'recordingChannels',
-      title: 'Recording Channels',
-      type: 'dropdown',
-      layout: 'half',
-      options: [
-        { label: 'Mono', id: 'mono' },
-        { label: 'Dual', id: 'dual' },
-      ],
-      condition: {
-        field: 'operation',
-        value: 'record_call',
-      },
-    },
-    {
-      id: 'trim',
-      title: 'Trim Silence',
-      type: 'dropdown',
-      layout: 'half',
-      options: [
-        { label: 'Trim Silence', id: 'trim-silence' },
-        { label: 'Do Not Trim', id: 'do-not-trim' },
-      ],
-      condition: {
-        field: 'operation',
-        value: 'record_call',
-      },
-    },
     // Get Recording fields
     {
       id: 'recordingSid',
@@ -225,24 +155,12 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
     },
   ],
   tools: {
-    access: [
-      'twilio_voice_make_call',
-      'twilio_voice_send_twiml',
-      'twilio_voice_hangup_call',
-      'twilio_voice_record_call',
-      'twilio_voice_get_recording',
-    ],
+    access: ['twilio_voice_make_call', 'twilio_voice_get_recording'],
     config: {
       tool: (params) => {
         switch (params.operation) {
           case 'make_call':
             return 'twilio_voice_make_call'
-          case 'send_twiml':
-            return 'twilio_voice_send_twiml'
-          case 'hangup_call':
-            return 'twilio_voice_hangup_call'
-          case 'record_call':
-            return 'twilio_voice_record_call'
           case 'get_recording':
             return 'twilio_voice_get_recording'
           default:
@@ -250,17 +168,28 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
         }
       },
       params: (params) => {
-        const { operation, timeout, ...rest } = params
+        const { operation, timeout, record, ...rest } = params
+
+        const baseParams = { ...rest }
 
         // Convert timeout string to number for make_call
         if (operation === 'make_call' && timeout) {
-          return {
-            ...rest,
-            timeout: Number.parseInt(timeout, 10),
+          baseParams.timeout = Number.parseInt(timeout, 10)
+        }
+
+        // Convert record to proper boolean for make_call
+        if (operation === 'make_call' && record !== undefined && record !== null) {
+          // Handle various input types: boolean, string, number
+          if (typeof record === 'string') {
+            baseParams.record = record.toLowerCase() === 'true' || record === '1'
+          } else if (typeof record === 'number') {
+            baseParams.record = record !== 0
+          } else {
+            baseParams.record = Boolean(record)
           }
         }
 
-        return rest
+        return baseParams
       },
     },
   },
@@ -276,11 +205,6 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
     timeout: { type: 'string', description: 'Call timeout in seconds' },
     statusCallback: { type: 'string', description: 'Status callback URL' },
     machineDetection: { type: 'string', description: 'Answering machine detection' },
-    callSid: { type: 'string', description: 'Call SID to modify' },
-    method: { type: 'string', description: 'HTTP method' },
-    recordingStatusCallback: { type: 'string', description: 'Recording status callback URL' },
-    recordingChannels: { type: 'string', description: 'Recording channels (mono/dual)' },
-    trim: { type: 'string', description: 'Trim silence setting' },
     recordingSid: { type: 'string', description: 'Recording SID to retrieve' },
   },
   outputs: {
@@ -297,6 +221,14 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
     source: { type: 'string', description: 'Recording source' },
     mediaUrl: { type: 'string', description: 'URL to download recording' },
     uri: { type: 'string', description: 'Resource URI' },
+    transcriptionText: {
+      type: 'string',
+      description: 'Transcribed text (only if TwiML includes <Record transcribe="true">)',
+    },
+    transcriptionStatus: {
+      type: 'string',
+      description: 'Transcription status (completed, in-progress, failed)',
+    },
     error: { type: 'string', description: 'Error message if operation failed' },
     // Trigger outputs (when used as webhook trigger for incoming calls)
     accountSid: { type: 'string', description: 'Twilio Account SID from webhook' },
@@ -319,4 +251,3 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
     available: ['twilio_voice_webhook'],
   },
 }
-

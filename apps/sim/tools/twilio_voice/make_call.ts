@@ -90,6 +90,12 @@ export const makeCallTool: ToolConfig<TwilioMakeCallParams, TwilioCallOutput> = 
       if (!params.accountSid) {
         throw new Error('Twilio Account SID is required')
       }
+      // Validate Account SID format
+      if (!params.accountSid.startsWith('AC')) {
+        throw new Error(
+          `Invalid Account SID format. Account SID must start with "AC" (you provided: ${params.accountSid.substring(0, 2)}...)`
+        )
+      }
       return `https://api.twilio.com/2010-04-01/Accounts/${params.accountSid}/Calls.json`
     },
     method: 'POST',
@@ -114,6 +120,13 @@ export const makeCallTool: ToolConfig<TwilioMakeCallParams, TwilioCallOutput> = 
         throw new Error('Either URL or TwiML is required to execute the call')
       }
 
+      logger.info('Make call params:', {
+        to: params.to,
+        from: params.from,
+        record: params.record,
+        recordType: typeof params.record,
+      })
+
       const formData = new URLSearchParams()
       formData.append('To', params.to)
       formData.append('From', params.from)
@@ -132,9 +145,12 @@ export const makeCallTool: ToolConfig<TwilioMakeCallParams, TwilioCallOutput> = 
       if (params.statusCallbackMethod) {
         formData.append('StatusCallbackMethod', params.statusCallbackMethod)
       }
-      if (params.record !== undefined) {
-        formData.append('Record', params.record ? 'true' : 'false')
+
+      if (params.record === true) {
+        logger.info('Enabling call recording')
+        formData.append('Record', 'true')
       }
+
       if (params.recordingStatusCallback) {
         formData.append('RecordingStatusCallback', params.recordingStatusCallback)
       }
@@ -145,7 +161,10 @@ export const makeCallTool: ToolConfig<TwilioMakeCallParams, TwilioCallOutput> = 
         formData.append('MachineDetection', params.machineDetection)
       }
 
-      return { body: formData.toString() }
+      const bodyString = formData.toString()
+      logger.info('Final Twilio request body:', bodyString)
+
+      return bodyString
     },
   },
 
@@ -198,4 +217,3 @@ export const makeCallTool: ToolConfig<TwilioMakeCallParams, TwilioCallOutput> = 
     error: { type: 'string', description: 'Error message if call failed' },
   },
 }
-

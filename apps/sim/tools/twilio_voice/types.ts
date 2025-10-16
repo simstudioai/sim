@@ -35,59 +35,6 @@ export interface TwilioCallOutput extends ToolResponse {
   }
 }
 
-export interface TwilioSendTwimlParams {
-  callSid: string
-  url?: string
-  twiml?: string
-  method?: 'GET' | 'POST'
-  accountSid: string
-  authToken: string
-}
-
-export interface TwilioTwimlOutput extends ToolResponse {
-  output: {
-    success: boolean
-    callSid?: string
-    status?: string
-    error?: string
-  }
-}
-
-export interface TwilioHangupCallParams {
-  callSid: string
-  accountSid: string
-  authToken: string
-}
-
-export interface TwilioHangupOutput extends ToolResponse {
-  output: {
-    success: boolean
-    callSid?: string
-    status?: string
-    error?: string
-  }
-}
-
-export interface TwilioRecordCallParams {
-  callSid: string
-  accountSid: string
-  authToken: string
-  recordingStatusCallback?: string
-  recordingStatusCallbackMethod?: 'GET' | 'POST'
-  recordingChannels?: 'mono' | 'dual'
-  trim?: 'trim-silence' | 'do-not-trim'
-}
-
-export interface TwilioRecordingOutput extends ToolResponse {
-  output: {
-    success: boolean
-    callSid?: string
-    recordingSid?: string
-    status?: string
-    error?: string
-  }
-}
-
 export interface TwilioGetRecordingParams {
   recordingSid: string
   accountSid: string
@@ -107,7 +54,10 @@ export interface TwilioGetRecordingOutput extends ToolResponse {
     price?: string
     priceUnit?: string
     uri?: string
+    transcriptionText?: string
+    transcriptionStatus?: string
+    transcriptionPrice?: string
+    transcriptionPriceUnit?: string
     error?: string
   }
 }
-

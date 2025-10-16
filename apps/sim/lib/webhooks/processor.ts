@@ -259,7 +259,10 @@ export async function verifyProviderAuth(
           params = Object.fromEntries(urlParams.entries())
         }
       } catch (error) {
-        logger.error(`[${requestId}] Error parsing Twilio webhook body for signature validation:`, error)
+        logger.error(
+          `[${requestId}] Error parsing Twilio webhook body for signature validation:`,
+          error
+        )
         return new NextResponse('Bad Request - Invalid body format', { status: 400 })
       }
 
@@ -269,13 +272,8 @@ export async function verifyProviderAuth(
 
       // Dynamically import the validation function to avoid issues
       const { validateTwilioSignature } = await import('@/lib/webhooks/utils')
-      
-      const isValidSignature = await validateTwilioSignature(
-        authToken,
-        signature,
-        fullUrl,
-        params
-      )
+
+      const isValidSignature = await validateTwilioSignature(authToken, signature, fullUrl, params)
 
       if (!isValidSignature) {
         logger.warn(`[${requestId}] Twilio Voice signature verification failed`)
