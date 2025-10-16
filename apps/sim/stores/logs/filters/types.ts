@@ -154,8 +154,13 @@ export interface LogsResponse {
 export type TimeRange =
   | 'Past 30 minutes'
   | 'Past hour'
+  | 'Past 6 hours'
   | 'Past 12 hours'
   | 'Past 24 hours'
+  | 'Past 3 days'
+  | 'Past 7 days'
+  | 'Past 14 days'
+  | 'Past 30 days'
   | 'All time'
 export type LogLevel = 'error' | 'info' | 'all'
 export type TriggerType = 'chat' | 'api' | 'webhook' | 'manual' | 'schedule' | 'all'
