@@ -56,6 +56,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
   const lastWorkflowIdRef = useRef<string | null>(null)
   const hasMountedRef = useRef(false)
   const hasLoadedModelsRef = useRef(false)
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
 
   // Scroll state
   const [isNearBottom, setIsNearBottom] = useState(true)
@@ -91,6 +92,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     setEnabledModels,
     selectedModel,
     setSelectedModel,
+    messageCheckpoints,
   } = useCopilotStore()
 
   // Load user's enabled models on mount
@@ -444,6 +446,11 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     [isSendingMessage, activeWorkflowId, sendMessage, showPlanTodos]
   )
 
+  const handleEditModeChange = useCallback((messageId: string, isEditing: boolean) => {
+    setEditingMessageId(isEditing ? messageId : null)
+    logger.info('Edit mode changed', { messageId, isEditing, willDimMessages: isEditing })
+  }, [])
+
   return (
     <>
       <div className='flex h-full flex-col overflow-hidden'>
@@ -472,16 +479,31 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                         />
                       </div>
                     ) : (
-                      messages.map((message) => (
-                        <CopilotMessage
-                          key={message.id}
-                          message={message}
-                          isStreaming={
-                            isSendingMessage && message.id === messages[messages.length - 1]?.id
-                          }
-                          panelWidth={panelWidth}
-                        />
-                      ))
+                      messages.map((message, index) => {
+                        // Determine if this message should be dimmed (comes after the message being edited)
+                        let isDimmed = false
+                        if (editingMessageId) {
+                          const editingIndex = messages.findIndex((m) => m.id === editingMessageId)
+                          isDimmed = editingIndex !== -1 && index > editingIndex
+                        }
+
+                        // Get checkpoint count for this message to force re-render when it changes
+                        const checkpointCount = messageCheckpoints[message.id]?.length || 0
+
+                        return (
+                          <CopilotMessage
+                            key={message.id}
+                            message={message}
+                            isStreaming={
+                              isSendingMessage && message.id === messages[messages.length - 1]?.id
+                            }
+                            panelWidth={panelWidth}
+                            isDimmed={isDimmed}
+                            checkpointCount={checkpointCount}
+                            onEditModeChange={(isEditing) => handleEditModeChange(message.id, isEditing)}
+                          />
+                        )
+                      })
                     )}
                   </div>
                 </ScrollArea>
