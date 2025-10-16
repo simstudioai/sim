@@ -78,7 +78,7 @@ export class SetEnvironmentVariablesClientTool extends BaseClientTool {
       this.setState(ClientToolCallState.success)
       await this.markToolComplete(200, 'Environment variables updated', parsed.result)
       this.setState(ClientToolCallState.success)
-      
+
       // Refresh the environment store so the UI reflects the new variables
       try {
         await useEnvironmentStore.getState().loadEnvironmentVariables()

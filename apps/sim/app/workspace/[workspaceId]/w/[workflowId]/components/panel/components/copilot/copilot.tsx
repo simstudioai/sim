@@ -489,16 +489,18 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                       messages.map((message, index) => {
                         // Determine if this message should be dimmed
                         let isDimmed = false
-                        
+
                         // Dim messages after the one being edited
                         if (editingMessageId) {
                           const editingIndex = messages.findIndex((m) => m.id === editingMessageId)
                           isDimmed = editingIndex !== -1 && index > editingIndex
                         }
-                        
+
                         // Also dim messages after the one showing restore confirmation
                         if (!isDimmed && revertingMessageId) {
-                          const revertingIndex = messages.findIndex((m) => m.id === revertingMessageId)
+                          const revertingIndex = messages.findIndex(
+                            (m) => m.id === revertingMessageId
+                          )
                           isDimmed = revertingIndex !== -1 && index > revertingIndex
                         }
 

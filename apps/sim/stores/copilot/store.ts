@@ -1573,14 +1573,10 @@ export const useCopilotStore = create<CopilotStore>()(
       } else {
         const currentMessages = get().messages
         // If messageId is provided, check if it already exists (e.g., from edit flow)
-        const existingIndex = messageId ? currentMessages.findIndex(m => m.id === messageId) : -1
+        const existingIndex = messageId ? currentMessages.findIndex((m) => m.id === messageId) : -1
         if (existingIndex !== -1) {
           // Replace existing message instead of adding new one
-          newMessages = [
-            ...currentMessages.slice(0, existingIndex),
-            userMessage,
-            streamingMessage
-          ]
+          newMessages = [...currentMessages.slice(0, existingIndex), userMessage, streamingMessage]
         } else {
           // Add new messages normally
           newMessages = [...currentMessages, userMessage, streamingMessage]

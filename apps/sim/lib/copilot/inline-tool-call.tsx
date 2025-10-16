@@ -326,7 +326,7 @@ export function InlineToolCall({
     if (toolCall.name === 'set_environment_variables') {
       const variables =
         params.variables && typeof params.variables === 'object' ? params.variables : {}
-      
+
       // Normalize variables - handle both direct key-value and nested {name, value} format
       const normalizedEntries: Array<[string, string]> = []
       Object.entries(variables).forEach(([key, value]) => {
@@ -338,7 +338,7 @@ export function InlineToolCall({
           normalizedEntries.push([key, String(value)])
         }
       })
-      
+
       return (
         <div className='mt-0.5 w-full overflow-hidden rounded border border-muted bg-card'>
           <div className='grid grid-cols-2 gap-0 border-muted/60 border-b bg-muted/40 px-2 py-1.5'>
@@ -354,7 +354,10 @@ export function InlineToolCall({
           ) : (
             <div className='divide-y divide-muted/60'>
               {normalizedEntries.map(([name, value]) => (
-                <div key={name} className='grid grid-cols-[auto_1fr] items-center gap-2 px-2 py-1.5'>
+                <div
+                  key={name}
+                  className='grid grid-cols-[auto_1fr] items-center gap-2 px-2 py-1.5'
+                >
                   <div className='truncate font-medium text-amber-800 text-xs dark:text-amber-200'>
                     {name}
                   </div>

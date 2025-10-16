@@ -304,7 +304,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           if (revertIndex !== -1) {
             const truncatedMessages = currentMessages.slice(0, revertIndex + 1)
             useCopilotStore.setState({ messages: truncatedMessages })
-            
+
             // Update DB to remove messages after this point
             if (currentChat?.id) {
               try {
@@ -332,16 +332,16 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
           setShowRestoreConfirmation(false)
           onRevertModeChange?.(false)
-          
+
           // Enter edit mode after reverting
           setIsEditMode(true)
           onEditModeChange?.(true)
-          
+
           // Focus the input after render
           setTimeout(() => {
             userInputRef.current?.focus()
           }, 100)
-          
+
           logger.info('Checkpoint reverted and removed from message', {
             messageId: message.id,
             checkpointId: latestCheckpoint.id,
@@ -380,7 +380,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
     const handleMessageClick = () => {
       // Allow entering edit mode even while streaming
-      
+
       // If message needs expansion and is not expanded, expand it
       if (needsExpansion && !isExpanded) {
         setIsExpanded(true)
@@ -401,7 +401,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       if (isSendingMessage) {
         abortMessage()
         // Wait a brief moment for abort to complete
-        await new Promise(resolve => setTimeout(resolve, 100))
+        await new Promise((resolve) => setTimeout(resolve, 100))
       }
 
       // Check if this message has checkpoints
@@ -434,7 +434,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
         // Truncate messages after the edited message (but keep the edited message with updated content)
         const truncatedMessages = currentMessages.slice(0, editIndex)
-        
+
         // Update the edited message with new content but keep it in the array
         const updatedMessage = {
           ...message,
@@ -442,7 +442,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           fileAttachments: fileAttachments || message.fileAttachments,
           contexts: contexts || (message as any).contexts,
         }
-        
+
         // Show the updated message immediately to prevent disappearing
         useCopilotStore.setState({ messages: [...truncatedMessages, updatedMessage] })
 
@@ -736,18 +736,18 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 hideContextUsage={true}
                 clearOnSubmit={false}
               />
-              
+
               {/* Inline Checkpoint Discard Confirmation - shown below input in edit mode */}
               {showCheckpointDiscardModal && (
                 <div className='mt-2 rounded-lg border border-gray-200 bg-gray-50 p-2.5 dark:border-gray-700 dark:bg-gray-900'>
-                  <p className='mb-2 text-sm text-foreground'>Continue from a previous message?</p>
+                  <p className='mb-2 text-foreground text-sm'>Continue from a previous message?</p>
                   <div className='flex gap-1.5'>
                     <button
                       onClick={() => {
                         setShowCheckpointDiscardModal(false)
                         pendingEditRef.current = null
                       }}
-                      className='flex-1 rounded-md border border-gray-300 bg-muted px-2 py-1 text-xs text-foreground transition-colors hover:bg-muted/80 dark:border-gray-600 dark:bg-background dark:hover:bg-muted'
+                      className='flex-1 rounded-md border border-gray-300 bg-muted px-2 py-1 text-foreground text-xs transition-colors hover:bg-muted/80 dark:border-gray-600 dark:bg-background dark:hover:bg-muted'
                     >
                       Cancel
                     </button>
@@ -805,7 +805,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                           pendingEditRef.current = null
                         }
                       }}
-                      className='flex-1 rounded-md bg-[var(--brand-primary-hover-hex)] px-2 py-1 text-xs text-white transition-colors hover:bg-[var(--brand-primary-hex)]'
+                      className='flex-1 rounded-md bg-[var(--brand-primary-hover-hex)] px-2 py-1 text-white text-xs transition-colors hover:bg-[var(--brand-primary-hex)]'
                     >
                       Continue and revert
                     </button>
@@ -997,8 +997,9 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           {/* Inline Restore Checkpoint Confirmation */}
           {showRestoreConfirmation && (
             <div className='mt-2 rounded-lg border border-gray-200 bg-gray-50 p-2.5 dark:border-gray-700 dark:bg-gray-900'>
-              <p className='mb-2 text-sm text-foreground'>
-                Revert to checkpoint? This will restore your workflow to the state saved at this checkpoint.{' '}
+              <p className='mb-2 text-foreground text-sm'>
+                Revert to checkpoint? This will restore your workflow to the state saved at this
+                checkpoint.{' '}
                 <span className='font-medium text-red-600 dark:text-red-400'>
                   This action cannot be undone.
                 </span>
@@ -1006,13 +1007,13 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
               <div className='flex gap-1.5'>
                 <button
                   onClick={handleCancelRevert}
-                  className='flex-1 rounded-md border border-gray-300 bg-muted px-2 py-1 text-xs text-foreground transition-colors hover:bg-muted/80 dark:border-gray-600'
+                  className='flex-1 rounded-md border border-gray-300 bg-muted px-2 py-1 text-foreground text-xs transition-colors hover:bg-muted/80 dark:border-gray-600'
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleConfirmRevert}
-                  className='flex-1 rounded-md bg-red-500 px-2 py-1 text-xs text-white transition-colors hover:bg-red-600'
+                  className='flex-1 rounded-md bg-red-500 px-2 py-1 text-white text-xs transition-colors hover:bg-red-600'
                 >
                   Revert
                 </button>
