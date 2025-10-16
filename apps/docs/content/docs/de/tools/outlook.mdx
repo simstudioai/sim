@@ -203,6 +203,7 @@ E-Mails aus Outlook lesen
 | --------- | ---- | -------- | ----------- |
 | `folder` | string | Nein | Ordner-ID, aus der E-Mails gelesen werden sollen \(Standard: Posteingang\) |
 | `maxResults` | number | Nein | Maximale Anzahl der abzurufenden E-Mails \(Standard: 1, max: 10\) |
+| `includeAttachments` | boolean | Nein | E-Mail-Anhänge herunterladen und einschließen |
 
 #### Ausgabe
 
@@ -210,6 +211,7 @@ E-Mails aus Outlook lesen
 | --------- | ---- | ----------- |
 | `message` | string | Erfolgs- oder Statusmeldung |
 | `results` | array | Array von E-Mail-Nachrichtenobjekten |
+| `attachments` | file[] | Alle E-Mail-Anhänge, zusammengefasst aus allen E-Mails |
 
 ### `outlook_forward`
 

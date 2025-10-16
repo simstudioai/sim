@@ -110,6 +110,7 @@ Microsoft Teamsチャットからコンテンツを読み取る
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `chatId` | string | はい | 読み取り元のチャットID |
+| `includeAttachments` | boolean | いいえ | メッセージの添付ファイル（ホストされたコンテンツ）をダウンロードしてストレージに含める |
 
 #### 出力
 
@@ -122,6 +123,7 @@ Microsoft Teamsチャットからコンテンツを読み取る
 | `attachmentCount` | number | 見つかった添付ファイルの総数 |
 | `attachmentTypes` | array | 見つかった添付ファイルの種類 |
 | `content` | string | チャットメッセージのフォーマット済みコンテンツ |
+| `attachments` | file[] | 利便性のためにアップロードされた添付ファイル（フラット化済み） |
 
 ### `microsoft_teams_write_chat`
 
@@ -155,19 +157,21 @@ Microsoft Teams チャネルからコンテンツを読み取る
 | --------- | ---- | -------- | ----------- |
 | `teamId` | string | はい | 読み取り元のチームID |
 | `channelId` | string | はい | 読み取り元のチャネルID |
+| `includeAttachments` | boolean | いいえ | メッセージの添付ファイル（ホストされたコンテンツ）をダウンロードしてストレージに含める |
 
 #### 出力
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | Teams チャネル読み取り操作の成功ステータス |
-| `messageCount` | number | チャネルから取得したメッセージの数 |
+| `success` | boolean | Teamsチャネル読み取り操作の成功ステータス |
+| `messageCount` | number | チャネルから取得したメッセージ数 |
 | `teamId` | string | 読み取り元のチームID |
 | `channelId` | string | 読み取り元のチャネルID |
 | `messages` | array | チャネルメッセージオブジェクトの配列 |
 | `attachmentCount` | number | 見つかった添付ファイルの総数 |
 | `attachmentTypes` | array | 見つかった添付ファイルの種類 |
 | `content` | string | チャネルメッセージのフォーマット済みコンテンツ |
+| `attachments` | file[] | 利便性のためにアップロードされた添付ファイル（フラット化済み） |
 
 ### `microsoft_teams_write_channel`
 

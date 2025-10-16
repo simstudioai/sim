@@ -201,8 +201,9 @@ Leer correos electrónicos desde Outlook
 
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | -------- | ----------- |
-| `folder` | string | No | ID de la carpeta desde donde leer los correos electrónicos \(predeterminado: Bandeja de entrada\) |
+| `folder` | string | No | ID de la carpeta para leer correos electrónicos \(predeterminado: Bandeja de entrada\) |
 | `maxResults` | number | No | Número máximo de correos electrónicos a recuperar \(predeterminado: 1, máximo: 10\) |
+| `includeAttachments` | boolean | No | Descargar e incluir archivos adjuntos de correo electrónico |
 
 #### Salida
 
@@ -210,6 +211,7 @@ Leer correos electrónicos desde Outlook
 | --------- | ---- | ----------- |
 | `message` | string | Mensaje de éxito o estado |
 | `results` | array | Array de objetos de mensajes de correo electrónico |
+| `attachments` | file[] | Todos los archivos adjuntos de correo electrónico aplanados de todos los correos |
 
 ### `outlook_forward`
 

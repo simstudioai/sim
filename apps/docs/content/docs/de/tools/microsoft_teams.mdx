@@ -110,6 +110,7 @@ Inhalte aus einem Microsoft Teams-Chat lesen
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `chatId` | string | Ja | Die ID des Chats, aus dem gelesen werden soll |
+| `includeAttachments` | boolean | Nein | Nachrichtenanhänge \(gehostete Inhalte\) herunterladen und in den Speicher aufnehmen |
 
 #### Ausgabe
 
@@ -119,9 +120,10 @@ Inhalte aus einem Microsoft Teams-Chat lesen
 | `messageCount` | number | Anzahl der aus dem Chat abgerufenen Nachrichten |
 | `chatId` | string | ID des Chats, aus dem gelesen wurde |
 | `messages` | array | Array von Chat-Nachrichtenobjekten |
-| `attachmentCount` | number | Gesamtzahl der gefundenen Anhänge |
+| `attachmentCount` | number | Gesamtanzahl der gefundenen Anhänge |
 | `attachmentTypes` | array | Arten der gefundenen Anhänge |
 | `content` | string | Formatierter Inhalt der Chat-Nachrichten |
+| `attachments` | file[] | Hochgeladene Anhänge zur Vereinfachung \(abgeflacht\) |
 
 ### `microsoft_teams_write_chat`
 
@@ -155,19 +157,21 @@ Inhalte aus einem Microsoft Teams-Kanal lesen
 | --------- | ---- | -------- | ----------- |
 | `teamId` | string | Ja | Die ID des Teams, aus dem gelesen werden soll |
 | `channelId` | string | Ja | Die ID des Kanals, aus dem gelesen werden soll |
+| `includeAttachments` | boolean | Nein | Nachrichtenanhänge \(gehostete Inhalte\) herunterladen und in den Speicher aufnehmen |
 
 #### Ausgabe
 
 | Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Erfolgsstatus des Lesevorgangs im Teams-Kanal |
+| `success` | boolean | Erfolgsstatus des Teams-Kanal-Lesevorgangs |
 | `messageCount` | number | Anzahl der aus dem Kanal abgerufenen Nachrichten |
 | `teamId` | string | ID des Teams, aus dem gelesen wurde |
 | `channelId` | string | ID des Kanals, aus dem gelesen wurde |
-| `messages` | array | Array von Kanalnachrichtenobjekten |
+| `messages` | array | Array von Kanal-Nachrichtenobjekten |
 | `attachmentCount` | number | Gesamtanzahl der gefundenen Anhänge |
 | `attachmentTypes` | array | Arten der gefundenen Anhänge |
-| `content` | string | Formatierter Inhalt der Kanalnachrichten |
+| `content` | string | Formatierter Inhalt der Kanal-Nachrichten |
+| `attachments` | file[] | Hochgeladene Anhänge zur Vereinfachung \(abgeflacht\) |
 
 ### `microsoft_teams_write_channel`
 
