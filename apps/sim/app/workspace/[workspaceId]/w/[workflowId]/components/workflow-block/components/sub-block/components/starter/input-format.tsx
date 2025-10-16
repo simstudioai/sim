@@ -135,8 +135,6 @@ export function FieldFormat({
     if (!inputEl) return
 
     const current = localValues[field.id] ?? inputEl.value ?? ''
-    const trimmed = current.trim()
-    if (!trimmed) return
     updateField(field.id, 'value', current)
   }
 
