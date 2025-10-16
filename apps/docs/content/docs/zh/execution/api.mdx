@@ -535,7 +535,7 @@ app.post('/sim-webhook', (req, res) => {
         // Handle error...
       } else {
         console.log(`Workflow ${workflowId} completed: ${executionId}`);
-        console.log(`Cost: ${cost.total}`);
+        console.log(`Cost: $${cost.total}`);
         // Process successful execution...
       }
       break;

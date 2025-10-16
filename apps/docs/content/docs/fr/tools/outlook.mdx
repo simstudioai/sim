@@ -200,16 +200,18 @@ Lire des e-mails depuis Outlook
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
+| --------- | ---- | ---------- | ----------- |
 | `folder` | string | Non | ID du dossier pour lire les e-mails \(par défaut : Boîte de réception\) |
 | `maxResults` | number | Non | Nombre maximum d'e-mails à récupérer \(par défaut : 1, max : 10\) |
+| `includeAttachments` | boolean | Non | Télécharger et inclure les pièces jointes des e-mails |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `message` | string | Message de succès ou d'état |
-| `results` | array | Tableau d'objets de messages électroniques |
+| `message` | string | Message de succès ou de statut |
+| `results` | array | Tableau d'objets de messages e-mail |
+| `attachments` | file[] | Toutes les pièces jointes des e-mails regroupées de tous les e-mails |
 
 ### `outlook_forward`
 

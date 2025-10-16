@@ -110,6 +110,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `chatId` | string | 是 | 要读取的聊天 ID |
+| `includeAttachments` | boolean | 否 | 下载并将消息附件（托管内容）包含到存储中 |
 
 #### 输出
 
@@ -117,11 +118,12 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | ----------- |
 | `success` | boolean | Teams 聊天读取操作成功状态 |
 | `messageCount` | number | 从聊天中检索到的消息数量 |
-| `chatId` | string | 已读取的聊天 ID |
+| `chatId` | string | 读取的聊天 ID |
 | `messages` | array | 聊天消息对象的数组 |
 | `attachmentCount` | number | 找到的附件总数 |
 | `attachmentTypes` | array | 找到的附件类型 |
 | `content` | string | 聊天消息的格式化内容 |
+| `attachments` | file[] | 为方便起见上传的附件（扁平化） |
 
 ### `microsoft_teams_write_chat`
 
@@ -155,19 +157,21 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | -------- | ----------- |
 | `teamId` | string | 是 | 要读取的团队 ID |
 | `channelId` | string | 是 | 要读取的频道 ID |
+| `includeAttachments` | boolean | 否 | 下载并将消息附件（托管内容）包含到存储中 |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
 | `success` | boolean | Teams 频道读取操作成功状态 |
-| `messageCount` | number | 从频道检索到的消息数量 |
+| `messageCount` | number | 从频道中检索到的消息数量 |
 | `teamId` | string | 读取的团队 ID |
 | `channelId` | string | 读取的频道 ID |
 | `messages` | array | 频道消息对象的数组 |
 | `attachmentCount` | number | 找到的附件总数 |
 | `attachmentTypes` | array | 找到的附件类型 |
 | `content` | string | 频道消息的格式化内容 |
+| `attachments` | file[] | 为方便起见上传的附件（扁平化） |
 
 ### `microsoft_teams_write_channel`
 
