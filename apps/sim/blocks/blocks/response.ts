@@ -11,7 +11,7 @@ export const ResponseBlock: BlockConfig<ResponseBlockOutput> = {
   docsLink: 'https://docs.sim.ai/blocks/response',
   bestPractices: `
   - Only use this if the trigger block is the API Trigger.
-  - Prefer the editor mode over the builder mode.
+  - Prefer the builder mode over the editor mode.
   - This is usually used as the last block in the workflow.
   `,
   category: 'blocks',
