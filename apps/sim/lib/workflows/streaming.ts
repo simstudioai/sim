@@ -21,13 +21,21 @@ export interface StreamingResponseOptions {
   executingUserId: string
   streamConfig: StreamingConfig
   createFilteredResult: (result: ExecutionResult) => any
+  executionId?: string
 }
 
 export async function createStreamingResponse(
   options: StreamingResponseOptions
 ): Promise<ReadableStream> {
-  const { requestId, workflow, input, executingUserId, streamConfig, createFilteredResult } =
-    options
+  const {
+    requestId,
+    workflow,
+    input,
+    executingUserId,
+    streamConfig,
+    createFilteredResult,
+    executionId,
+  } = options
 
   const { executeWorkflow, createFilteredResult: defaultFilteredResult } = await import(
     '@/app/api/workflows/[id]/execute/route'
@@ -115,15 +123,22 @@ export async function createStreamingResponse(
           }
         }
 
-        const result = await executeWorkflow(workflow, requestId, input, executingUserId, {
-          enabled: true,
-          selectedOutputs: streamConfig.selectedOutputs,
-          isSecureMode: streamConfig.isSecureMode,
-          workflowTriggerType: streamConfig.workflowTriggerType,
-          onStream: onStreamCallback,
-          onBlockComplete: onBlockCompleteCallback,
-          skipLoggingComplete: true, // We'll complete logging after tokenization
-        })
+        const result = await executeWorkflow(
+          workflow,
+          requestId,
+          input,
+          executingUserId,
+          {
+            enabled: true,
+            selectedOutputs: streamConfig.selectedOutputs,
+            isSecureMode: streamConfig.isSecureMode,
+            workflowTriggerType: streamConfig.workflowTriggerType,
+            onStream: onStreamCallback,
+            onBlockComplete: onBlockCompleteCallback,
+            skipLoggingComplete: true, // We'll complete logging after tokenization
+          },
+          executionId
+        )
 
         if (result.logs && streamedContent.size > 0) {
           result.logs = result.logs.map((log: any) => {

@@ -5,6 +5,7 @@ import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
+import { processExecutionFiles } from '@/lib/execution/files'
 import { IdempotencyService, webhookIdempotency } from '@/lib/idempotency'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -407,6 +408,53 @@ async function executeWebhookJobInternal(
       } catch (error) {
         logger.error(`[${requestId}] Error processing trigger file outputs:`, error)
         // Continue without processing attachments rather than failing execution
+      }
+    }
+
+    // Process generic webhook files based on inputFormat
+    if (input && payload.provider === 'generic' && payload.blockId && blocks[payload.blockId]) {
+      try {
+        const triggerBlock = blocks[payload.blockId]
+
+        if (triggerBlock?.subBlocks?.inputFormat?.value) {
+          const inputFormat = triggerBlock.subBlocks.inputFormat.value as unknown as Array<{
+            name: string
+            type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'files'
+          }>
+          logger.debug(`[${requestId}] Processing generic webhook files from inputFormat`)
+
+          const fileFields = inputFormat.filter((field) => field.type === 'files')
+
+          if (fileFields.length > 0 && typeof input === 'object' && input !== null) {
+            const executionContext = {
+              workspaceId: workspaceId || '',
+              workflowId: payload.workflowId,
+              executionId,
+            }
+
+            for (const fileField of fileFields) {
+              const fieldValue = input[fileField.name]
+
+              if (fieldValue && typeof fieldValue === 'object') {
+                const uploadedFiles = await processExecutionFiles(
+                  fieldValue,
+                  executionContext,
+                  requestId
+                )
+
+                if (uploadedFiles.length > 0) {
+                  input[fileField.name] = uploadedFiles
+                  logger.info(
+                    `[${requestId}] Successfully processed ${uploadedFiles.length} file(s) for field: ${fileField.name}`
+                  )
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        logger.error(`[${requestId}] Error processing generic webhook files:`, error)
+        // Continue without processing files rather than failing execution
       }
     }
 

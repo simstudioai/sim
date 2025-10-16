@@ -28,6 +28,15 @@ export const GenericWebhookBlock: BlockConfig = {
       triggerProvider: 'generic',
       availableTriggers: ['generic_webhook'],
     },
+    // Optional input format for structured data including files
+    {
+      id: 'inputFormat',
+      title: 'Input Format',
+      type: 'input-format',
+      layout: 'full',
+      description:
+        'Define the expected JSON input schema for this webhook (optional). Use type "files" for file uploads.',
+    },
   ],
 
   tools: {

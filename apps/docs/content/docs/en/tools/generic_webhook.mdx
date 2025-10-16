@@ -26,7 +26,208 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 
 
+## Overview
+
+The Generic Webhook block allows you to receive webhooks from any external service. This is a flexible trigger that can handle any JSON payload, making it ideal for integrating with services that don't have a dedicated Sim block.
+
+## Basic Usage
+
+### Simple Passthrough Mode
+
+Without defining an input format, the webhook passes through the entire request body as-is:
+
+```bash
+curl -X POST https://sim.ai/api/webhooks/trigger/{webhook-path} \
+  -H "Content-Type: application/json" \
+  -H "X-Sim-Secret: your-secret" \
+  -d '{
+    "message": "Test webhook trigger",
+    "data": {
+      "key": "value"
+    }
+  }'
+```
+
+Access the data in downstream blocks using:
+- `<webhook1.message>` → "Test webhook trigger"
+- `<webhook1.data.key>` → "value"
+
+### Structured Input Format (Optional)
+
+Define an input schema to get typed fields and enable advanced features like file uploads:
+
+**Input Format Configuration:**
+```json
+[
+  { "name": "message", "type": "string" },
+  { "name": "priority", "type": "number" },
+  { "name": "documents", "type": "files" }
+]
+```
+
+**Webhook Request:**
+```bash
+curl -X POST https://sim.ai/api/webhooks/trigger/{webhook-path} \
+  -H "Content-Type: application/json" \
+  -H "X-Sim-Secret: your-secret" \
+  -d '{
+    "message": "Invoice submission",
+    "priority": 1,
+    "documents": [
+      {
+        "type": "file",
+        "data": "data:application/pdf;base64,JVBERi0xLjQK...",
+        "name": "invoice.pdf",
+        "mime": "application/pdf"
+      }
+    ]
+  }'
+```
+
+## File Uploads
+
+### Supported File Formats
+
+The webhook supports two file input formats:
+
+#### 1. Base64 Encoded Files
+For uploading file content directly:
+
+```json
+{
+  "documents": [
+    {
+      "type": "file",
+      "data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgA...",
+      "name": "screenshot.png",
+      "mime": "image/png"
+    }
+  ]
+}
+```
+
+- **Max size**: 20MB per file
+- **Format**: Standard data URL with base64 encoding
+- **Storage**: Files are uploaded to secure execution storage
+
+#### 2. URL References
+For passing existing file URLs:
+
+```json
+{
+  "documents": [
+    {
+      "type": "url",
+      "data": "https://example.com/files/document.pdf",
+      "name": "document.pdf",
+      "mime": "application/pdf"
+    }
+  ]
+}
+```
+
+### Accessing Files in Downstream Blocks
+
+Files are processed into `UserFile` objects with the following properties:
+
+```typescript
+{
+  id: string,          // Unique file identifier
+  name: string,        // Original filename
+  url: string,         // Presigned URL (valid for 5 minutes)
+  size: number,        // File size in bytes
+  type: string,        // MIME type
+  key: string,         // Storage key
+  uploadedAt: string,  // ISO timestamp
+  expiresAt: string    // ISO timestamp (5 minutes)
+}
+```
+
+**Access in blocks:**
+- `<webhook1.documents[0].url>` → Download URL
+- `<webhook1.documents[0].name>` → "invoice.pdf"
+- `<webhook1.documents[0].size>` → 524288
+- `<webhook1.documents[0].type>` → "application/pdf"
+
+### Complete File Upload Example
+
+```bash
+# Create a base64-encoded file
+echo "Hello World" | base64
+# SGVsbG8gV29ybGQK
+
+# Send webhook with file
+curl -X POST https://sim.ai/api/webhooks/trigger/{webhook-path} \
+  -H "Content-Type: application/json" \
+  -H "X-Sim-Secret: your-secret" \
+  -d '{
+    "subject": "Document for review",
+    "attachments": [
+      {
+        "type": "file",
+        "data": "data:text/plain;base64,SGVsbG8gV29ybGQK",
+        "name": "sample.txt",
+        "mime": "text/plain"
+      }
+    ]
+  }'
+```
+
+## Authentication
+
+### Configure Authentication (Optional)
+
+In the webhook configuration:
+1. Enable "Require Authentication"
+2. Set a secret token
+3. Choose header type:
+   - **Custom Header**: `X-Sim-Secret: your-token`
+   - **Authorization Bearer**: `Authorization: Bearer your-token`
+
+### Using Authentication
+
+```bash
+# With custom header
+curl -X POST https://sim.ai/api/webhooks/trigger/{webhook-path} \
+  -H "Content-Type: application/json" \
+  -H "X-Sim-Secret: your-secret-token" \
+  -d '{"message": "Authenticated request"}'
+
+# With bearer token
+curl -X POST https://sim.ai/api/webhooks/trigger/{webhook-path} \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-secret-token" \
+  -d '{"message": "Authenticated request"}'
+```
+
+## Best Practices
+
+1. **Use Input Format for Structure**: Define an input format when you know the expected schema. This provides:
+   - Type validation
+   - Better autocomplete in the editor
+   - File upload capabilities
+
+2. **Authentication**: Always enable authentication for production webhooks to prevent unauthorized access.
+
+3. **File Size Limits**: Keep files under 20MB. For larger files, use URL references instead.
+
+4. **File Expiration**: Downloaded files have 5-minute expiration URLs. Process them promptly or store them elsewhere if needed longer.
+
+5. **Error Handling**: Webhook processing is asynchronous. Check execution logs for errors.
+
+6. **Testing**: Use the "Test Webhook" button in the editor to validate your configuration before deployment.
+
+## Use Cases
+
+- **Form Submissions**: Receive data from custom forms with file uploads
+- **Third-Party Integrations**: Connect with services that send webhooks (Stripe, GitHub, etc.)
+- **Document Processing**: Accept documents from external systems for processing
+- **Event Notifications**: Receive event data from various sources
+- **Custom APIs**: Build custom API endpoints for your applications
+
 ## Notes
 
 - Category: `triggers`
 - Type: `generic_webhook`
+- **File Support**: Available via input format configuration
+- **Max File Size**: 20MB per file

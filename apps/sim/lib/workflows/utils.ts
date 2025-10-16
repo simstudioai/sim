@@ -380,7 +380,7 @@ export function hasWorkflowChanged(
         deployedValue = sanitizeToolsForComparison(deployedValue)
       }
 
-      // Special handling for 'inputFormat' subBlock - sanitize test-only value fields
+      // Special handling for 'inputFormat' subBlock - sanitize UI-only fields (collapsed state)
       if (
         subBlockId === 'inputFormat' &&
         Array.isArray(currentValue) &&
