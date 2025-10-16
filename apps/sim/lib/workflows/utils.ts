@@ -218,7 +218,7 @@ function sanitizeInputFormatForComparison(inputFormat: any[] | undefined): any[]
 
   return inputFormat.map((field) => {
     // Remove test-only field: value (used only for manual testing)
-    const { value, ...cleanField } = field
+    const { value, collapsed, ...cleanField } = field
     return cleanField
   })
 }
