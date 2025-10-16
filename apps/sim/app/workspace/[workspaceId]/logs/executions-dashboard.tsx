@@ -530,10 +530,14 @@ export default function ExecutionsDashboard() {
   useEffect(() => {
     if (!barsAreaRef.current) return
     const el = barsAreaRef.current
+    let debounceId: any = null
     const ro = new ResizeObserver(([entry]) => {
       const w = entry?.contentRect?.width || 720
       const n = Math.max(36, Math.min(96, Math.floor(w / MIN_SEGMENT_PX)))
-      setSegmentCount(n)
+      if (debounceId) clearTimeout(debounceId)
+      debounceId = setTimeout(() => {
+        setSegmentCount(n)
+      }, 150)
     })
     ro.observe(el)
     const rect = el.getBoundingClientRect()
@@ -541,7 +545,10 @@ export default function ExecutionsDashboard() {
       const n = Math.max(36, Math.min(96, Math.floor(rect.width / MIN_SEGMENT_PX)))
       setSegmentCount(n)
     }
-    return () => ro.disconnect()
+    return () => {
+      if (debounceId) clearTimeout(debounceId)
+      ro.disconnect()
+    }
   }, [])
 
   const getShiftLabel = () => {
