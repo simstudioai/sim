@@ -57,6 +57,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
   const hasMountedRef = useRef(false)
   const hasLoadedModelsRef = useRef(false)
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
+  const [isEditingMessage, setIsEditingMessage] = useState(false)
 
   // Scroll state
   const [isNearBottom, setIsNearBottom] = useState(true)
@@ -448,6 +449,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
 
   const handleEditModeChange = useCallback((messageId: string, isEditing: boolean) => {
     setEditingMessageId(isEditing ? messageId : null)
+    setIsEditingMessage(isEditing)
     logger.info('Edit mode changed', { messageId, isEditing, willDimMessages: isEditing })
   }, [])
 
@@ -471,7 +473,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
               <div className='relative flex-1 overflow-hidden'>
                 <ScrollArea ref={scrollAreaRef} className='h-full' hideScrollbar={true}>
                   <div className='w-full max-w-full space-y-2 overflow-hidden'>
-                    {messages.length === 0 && !isSendingMessage ? (
+                    {messages.length === 0 && !isSendingMessage && !isEditingMessage ? (
                       <div className='flex h-full items-center justify-center p-4'>
                         <CopilotWelcome
                           onQuestionClick={handleSubmit}

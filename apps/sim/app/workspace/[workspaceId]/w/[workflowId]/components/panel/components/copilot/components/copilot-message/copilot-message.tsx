@@ -367,9 +367,9 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       const editIndex = currentMessages.findIndex((m) => m.id === message.id)
 
       if (editIndex !== -1) {
-        // Exit edit mode immediately
+        // Exit edit mode visually
         setIsEditMode(false)
-        onEditModeChange?.(false)
+        // Keep editing flag true to prevent welcome screen flash
 
         // Truncate messages after the edited message (remove it and everything after)
         const truncatedMessages = currentMessages.slice(0, editIndex)
@@ -407,6 +407,9 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           contexts: contexts || (message as any).contexts,
           messageId: message.id, // Reuse the original message ID
         })
+
+        // Clear editing state after message is sent
+        onEditModeChange?.(false)
       }
     }
 
