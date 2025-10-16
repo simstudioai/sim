@@ -39,7 +39,7 @@ import {
   ThinkingBlock,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components'
 import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
-import { UserInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/user-input'
+import { UserInput, type UserInputRef } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/user-input'
 import { usePreviewStore } from '@/stores/copilot/preview-store'
 import { useCopilotStore } from '@/stores/copilot/store'
 import type { CopilotMessage as CopilotMessageType } from '@/stores/copilot/types'
@@ -70,6 +70,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
   const [isHoveringMessage, setIsHoveringMessage] = useState(false)
   const editContainerRef = useRef<HTMLDivElement>(null)
   const messageContentRef = useRef<HTMLDivElement>(null)
+  const userInputRef = useRef<UserInputRef>(null)
   const [needsExpansion, setNeedsExpansion] = useState(false)
   const [showCheckpointDiscardModal, setShowCheckpointDiscardModal] = useState(false)
   const pendingEditRef = useRef<{
@@ -317,6 +318,10 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       setIsExpanded(false)
       setEditedContent(message.content)
       onEditModeChange?.(true)
+      // Focus the input and position cursor at the end after render
+      setTimeout(() => {
+        userInputRef.current?.focus()
+      }, 0)
     }
 
     const handleCancelEdit = () => {
@@ -592,6 +597,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           {isEditMode ? (
             <div ref={editContainerRef} className='relative w-full'>
               <UserInput
+                ref={userInputRef}
                 onSubmit={handleSubmitEdit}
                 onAbort={handleCancelEdit}
                 isLoading={isSendingMessage}

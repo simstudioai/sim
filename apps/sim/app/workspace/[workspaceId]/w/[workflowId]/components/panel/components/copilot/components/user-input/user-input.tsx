@@ -221,7 +221,15 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       ref,
       () => ({
         focus: () => {
-          textareaRef.current?.focus()
+          const textarea = textareaRef.current
+          if (textarea) {
+            textarea.focus()
+            // Position cursor at the end of the text
+            const length = textarea.value.length
+            textarea.setSelectionRange(length, length)
+            // Scroll to the end
+            textarea.scrollTop = textarea.scrollHeight
+          }
         },
       }),
       []
@@ -237,6 +245,12 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       if (workflowId && workflows.length === 0) {
         ensureWorkflowsLoaded()
       }
+    }, [workflowId])
+
+    // Reset past chats when workflow changes to ensure we only load chats from the current workflow
+    useEffect(() => {
+      setPastChats([])
+      setIsLoadingPastChats(false)
     }, [workflowId])
 
     // Fetch enabled models when dropdown is opened for the first time
@@ -364,18 +378,13 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         const data = await resp.json()
         const items = Array.isArray(data?.chats) ? data.chats : []
 
-        if (workflows.length === 0) {
-          await ensureWorkflowsLoaded()
-        }
-
-        const workspaceWorkflowIds = new Set(workflows.map((w) => w.id))
-
-        const workspaceChats = items.filter(
-          (c: any) => !c.workflowId || workspaceWorkflowIds.has(c.workflowId)
+        // Filter chats to only include those from the current workflow
+        const currentWorkflowChats = items.filter(
+          (c: any) => c.workflowId === workflowId
         )
 
         setPastChats(
-          workspaceChats.map((c: any) => ({
+          currentWorkflowChats.map((c: any) => ({
             id: c.id,
             title: c.title ?? null,
             workflowId: c.workflowId ?? null,
