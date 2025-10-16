@@ -98,6 +98,7 @@ export async function POST(
     const workflowResult = await db
       .select({
         isDeployed: workflow.isDeployed,
+        workspaceId: workflow.workspaceId,
       })
       .from(workflow)
       .where(eq(workflow.id, deployment.workflowId))
@@ -146,7 +147,12 @@ export async function POST(
 
       const stream = await createStreamingResponse({
         requestId,
-        workflow: { id: deployment.workflowId, userId: deployment.userId, isDeployed: true },
+        workflow: {
+          id: deployment.workflowId,
+          userId: deployment.userId,
+          workspaceId: workflowResult[0].workspaceId,
+          isDeployed: true,
+        },
         input: workflowInput,
         executingUserId: deployment.userId,
         streamConfig: {
