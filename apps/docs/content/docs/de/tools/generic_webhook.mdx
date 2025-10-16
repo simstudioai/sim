@@ -23,7 +23,210 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
     </svg>`}
 />
 
+## Übersicht
+
+Der Generic Webhook-Block ermöglicht es Ihnen, Webhooks von jedem externen Dienst zu empfangen. Dies ist ein flexibler Auslöser, der jede JSON-Nutzlast verarbeiten kann und sich daher ideal für die Integration mit Diensten eignet, die keinen dedizierten Sim-Block haben.
+
+## Grundlegende Verwendung
+
+### Einfacher Durchleitungsmodus
+
+Ohne ein Eingabeformat zu definieren, leitet der Webhook den gesamten Anforderungstext unverändert weiter:
+
+```bash
+curl -X POST https://sim.ai/api/webhooks/trigger/{webhook-path} \
+  -H "Content-Type: application/json" \
+  -H "X-Sim-Secret: your-secret" \
+  -d '{
+    "message": "Test webhook trigger",
+    "data": {
+      "key": "value"
+    }
+  }'
+```
+
+Greifen Sie in nachgelagerten Blöcken auf die Daten zu mit:
+- `<webhook1.message>` → "Test webhook trigger"
+- `<webhook1.data.key>` → "value"
+
+### Strukturiertes Eingabeformat (Optional)
+
+Definieren Sie ein Eingabeschema, um typisierte Felder zu erhalten und erweiterte Funktionen wie Datei-Uploads zu aktivieren:
+
+**Konfiguration des Eingabeformats:**
+
+```json
+[
+  { "name": "message", "type": "string" },
+  { "name": "priority", "type": "number" },
+  { "name": "documents", "type": "files" }
+]
+```
+
+**Webhook-Anfrage:**
+
+```bash
+curl -X POST https://sim.ai/api/webhooks/trigger/{webhook-path} \
+  -H "Content-Type: application/json" \
+  -H "X-Sim-Secret: your-secret" \
+  -d '{
+    "message": "Invoice submission",
+    "priority": 1,
+    "documents": [
+      {
+        "type": "file",
+        "data": "data:application/pdf;base64,JVBERi0xLjQK...",
+        "name": "invoice.pdf",
+        "mime": "application/pdf"
+      }
+    ]
+  }'
+```
+
+## Datei-Uploads
+
+### Unterstützte Dateiformate
+
+Der Webhook unterstützt zwei Dateieingabeformate:
+
+#### 1. Base64-kodierte Dateien
+Zum direkten Hochladen von Dateiinhalten:
+
+```json
+{
+  "documents": [
+    {
+      "type": "file",
+      "data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgA...",
+      "name": "screenshot.png",
+      "mime": "image/png"
+    }
+  ]
+}
+```
+
+- **Maximale Größe**: 20MB pro Datei
+- **Format**: Standard-Daten-URL mit Base64-Kodierung
+- **Speicherung**: Dateien werden in sicheren Ausführungsspeicher hochgeladen
+
+#### 2. URL-Referenzen
+Zum Übergeben vorhandener Datei-URLs:
+
+```json
+{
+  "documents": [
+    {
+      "type": "url",
+      "data": "https://example.com/files/document.pdf",
+      "name": "document.pdf",
+      "mime": "application/pdf"
+    }
+  ]
+}
+```
+
+### Zugriff auf Dateien in nachgelagerten Blöcken
+
+Dateien werden in `UserFile`Objekte mit folgenden Eigenschaften verarbeitet:
+
+```typescript
+{
+  id: string,          // Unique file identifier
+  name: string,        // Original filename
+  url: string,         // Presigned URL (valid for 5 minutes)
+  size: number,        // File size in bytes
+  type: string,        // MIME type
+  key: string,         // Storage key
+  uploadedAt: string,  // ISO timestamp
+  expiresAt: string    // ISO timestamp (5 minutes)
+}
+```
+
+**Zugriff in Blöcken:**
+- `<webhook1.documents[0].url>` → Download-URL
+- `<webhook1.documents[0].name>` → "invoice.pdf"
+- `<webhook1.documents[0].size>` → 524288
+- `<webhook1.documents[0].type>` → "application/pdf"
+
+### Vollständiges Beispiel für Datei-Upload
+
+```bash
+# Create a base64-encoded file
+echo "Hello World" | base64
+# SGVsbG8gV29ybGQK
+
+# Send webhook with file
+curl -X POST https://sim.ai/api/webhooks/trigger/{webhook-path} \
+  -H "Content-Type: application/json" \
+  -H "X-Sim-Secret: your-secret" \
+  -d '{
+    "subject": "Document for review",
+    "attachments": [
+      {
+        "type": "file",
+        "data": "data:text/plain;base64,SGVsbG8gV29ybGQK",
+        "name": "sample.txt",
+        "mime": "text/plain"
+      }
+    ]
+  }'
+```
+
+## Authentifizierung
+
+### Authentifizierung konfigurieren (optional)
+
+In der Webhook-Konfiguration:
+1. Aktiviere "Authentifizierung erforderlich"
+2. Setze einen geheimen Token
+3. Wähle den Header-Typ:
+   - **Benutzerdefinierter Header**: `X-Sim-Secret: your-token`
+   - **Authorization Bearer**: `Authorization: Bearer your-token`
+
+### Verwendung der Authentifizierung
+
+```bash
+# With custom header
+curl -X POST https://sim.ai/api/webhooks/trigger/{webhook-path} \
+  -H "Content-Type: application/json" \
+  -H "X-Sim-Secret: your-secret-token" \
+  -d '{"message": "Authenticated request"}'
+
+# With bearer token
+curl -X POST https://sim.ai/api/webhooks/trigger/{webhook-path} \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-secret-token" \
+  -d '{"message": "Authenticated request"}'
+```
+
+## Best Practices
+
+1. **Eingabeformat für Struktur verwenden**: Definiere ein Eingabeformat, wenn du das erwartete Schema kennst. Dies bietet:
+   - Typvalidierung
+   - Bessere Autovervollständigung im Editor
+   - Datei-Upload-Funktionen
+
+2. **Authentifizierung**: Aktiviere immer die Authentifizierung für Produktions-Webhooks, um unbefugten Zugriff zu verhindern.
+
+3. **Dateigrößenbeschränkungen**: Halte Dateien unter 20 MB. Verwende für größere Dateien stattdessen URL-Referenzen.
+
+4. **Dateiablauf**: Heruntergeladene Dateien haben URLs mit einer Gültigkeit von 5 Minuten. Verarbeite sie umgehend oder speichere sie an anderer Stelle, wenn sie länger benötigt werden.
+
+5. **Fehlerbehandlung**: Die Webhook-Verarbeitung erfolgt asynchron. Überprüfe die Ausführungsprotokolle auf Fehler.
+
+6. **Testen**: Verwende die Schaltfläche "Webhook testen" im Editor, um deine Konfiguration vor der Bereitstellung zu validieren.
+
+## Anwendungsfälle
+
+- **Formularübermittlungen**: Empfange Daten von benutzerdefinierten Formularen mit Datei-Uploads
+- **Drittanbieter-Integrationen**: Verbinde mit Diensten, die Webhooks senden (Stripe, GitHub usw.)
+- **Dokumentenverarbeitung**: Akzeptiere Dokumente von externen Systemen zur Verarbeitung
+- **Ereignisbenachrichtigungen**: Empfange Ereignisdaten aus verschiedenen Quellen
+- **Benutzerdefinierte APIs**: Erstelle benutzerdefinierte API-Endpunkte für deine Anwendungen
+
 ## Hinweise
 
 - Kategorie: `triggers`
 - Typ: `generic_webhook`
+- **Dateiunterstützung**: Verfügbar über Eingabeformat-Konfiguration
+- **Maximale Dateigröße**: 20 MB pro Datei
