@@ -24,6 +24,7 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       layout: 'full',
       options: [
         { label: 'Make Call', id: 'make_call' },
+        { label: 'List Calls', id: 'list_calls' },
         { label: 'Get Recording', id: 'get_recording' },
       ],
       value: () => 'make_call',
@@ -140,6 +141,83 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
         value: 'make_call',
       },
     },
+    // List Calls fields
+    {
+      id: 'listTo',
+      title: 'Filter by To Number',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: '+14155551234',
+      condition: {
+        field: 'operation',
+        value: 'list_calls',
+      },
+    },
+    {
+      id: 'listFrom',
+      title: 'Filter by From Number',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: '+14155556789',
+      condition: {
+        field: 'operation',
+        value: 'list_calls',
+      },
+    },
+    {
+      id: 'listStatus',
+      title: 'Filter by Status',
+      type: 'dropdown',
+      layout: 'half',
+      options: [
+        { label: 'All', id: '' },
+        { label: 'Queued', id: 'queued' },
+        { label: 'Ringing', id: 'ringing' },
+        { label: 'In Progress', id: 'in-progress' },
+        { label: 'Completed', id: 'completed' },
+        { label: 'Failed', id: 'failed' },
+        { label: 'Busy', id: 'busy' },
+        { label: 'No Answer', id: 'no-answer' },
+        { label: 'Canceled', id: 'canceled' },
+      ],
+      condition: {
+        field: 'operation',
+        value: 'list_calls',
+      },
+    },
+    {
+      id: 'listPageSize',
+      title: 'Page Size',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: '50',
+      condition: {
+        field: 'operation',
+        value: 'list_calls',
+      },
+    },
+    {
+      id: 'startTimeAfter',
+      title: 'Start Time After (YYYY-MM-DD)',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: '2025-01-01',
+      condition: {
+        field: 'operation',
+        value: 'list_calls',
+      },
+    },
+    {
+      id: 'startTimeBefore',
+      title: 'Start Time Before (YYYY-MM-DD)',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: '2025-12-31',
+      condition: {
+        field: 'operation',
+        value: 'list_calls',
+      },
+    },
     // Get Recording fields
     {
       id: 'recordingSid',
@@ -155,12 +233,14 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
     },
   ],
   tools: {
-    access: ['twilio_voice_make_call', 'twilio_voice_get_recording'],
+    access: ['twilio_voice_make_call', 'twilio_voice_list_calls', 'twilio_voice_get_recording'],
     config: {
       tool: (params) => {
         switch (params.operation) {
           case 'make_call':
             return 'twilio_voice_make_call'
+          case 'list_calls':
+            return 'twilio_voice_list_calls'
           case 'get_recording':
             return 'twilio_voice_get_recording'
           default:
@@ -168,7 +248,8 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
         }
       },
       params: (params) => {
-        const { operation, timeout, record, ...rest } = params
+        const { operation, timeout, record, listTo, listFrom, listStatus, listPageSize, ...rest } =
+          params
 
         const baseParams = { ...rest }
 
@@ -189,6 +270,14 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
           }
         }
 
+        // Map list_calls specific fields
+        if (operation === 'list_calls') {
+          if (listTo) baseParams.to = listTo
+          if (listFrom) baseParams.from = listFrom
+          if (listStatus) baseParams.status = listStatus
+          if (listPageSize) baseParams.pageSize = Number.parseInt(listPageSize, 10)
+        }
+
         return baseParams
       },
     },
@@ -205,6 +294,12 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
     timeout: { type: 'string', description: 'Call timeout in seconds' },
     statusCallback: { type: 'string', description: 'Status callback URL' },
     machineDetection: { type: 'string', description: 'Answering machine detection' },
+    listTo: { type: 'string', description: 'Filter calls by To number' },
+    listFrom: { type: 'string', description: 'Filter calls by From number' },
+    listStatus: { type: 'string', description: 'Filter calls by status' },
+    listPageSize: { type: 'string', description: 'Number of calls to return per page' },
+    startTimeAfter: { type: 'string', description: 'Filter calls that started after this date' },
+    startTimeBefore: { type: 'string', description: 'Filter calls that started before this date' },
     recordingSid: { type: 'string', description: 'Recording SID to retrieve' },
   },
   outputs: {
@@ -229,6 +324,10 @@ export const TwilioVoiceBlock: BlockConfig<ToolResponse> = {
       type: 'string',
       description: 'Transcription status (completed, in-progress, failed)',
     },
+    calls: { type: 'array', description: 'Array of call objects (for list_calls operation)' },
+    total: { type: 'number', description: 'Total number of calls returned' },
+    page: { type: 'number', description: 'Current page number' },
+    pageSize: { type: 'number', description: 'Number of calls per page' },
     error: { type: 'string', description: 'Error message if operation failed' },
     // Trigger outputs (when used as webhook trigger for incoming calls)
     accountSid: { type: 'string', description: 'Twilio Account SID from webhook' },

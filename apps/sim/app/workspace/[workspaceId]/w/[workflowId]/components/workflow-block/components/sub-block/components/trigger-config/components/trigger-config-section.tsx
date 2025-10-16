@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
@@ -242,27 +243,44 @@ export function TriggerConfigSection({
           </div>
         )
 
-      case 'credential':
+      case 'textarea':
         return (
-          <div className='space-y-2'>
-            <Label htmlFor={fieldId}>
-              {fieldDef.label}
-              {fieldDef.required && <span className='ml-1 text-red-500'>*</span>}
-            </Label>
-            <CredentialSelector
-              blockId={blockId}
-              subBlock={{
-                id: fieldId,
-                type: 'oauth-input' as const,
-                placeholder: fieldDef.placeholder || `Select ${fieldDef.provider} credential`,
-                provider: fieldDef.provider as any,
-                requiredScopes: fieldDef.requiredScopes || [],
-              }}
-              previewValue={value}
+          <div className='mb-4 space-y-1'>
+            <div className='flex items-center gap-2'>
+              <Label htmlFor={fieldId} className='font-medium text-sm'>
+                {fieldDef.label}
+                {fieldDef.required && <span className='ml-1 text-red-500'>*</span>}
+              </Label>
+              {fieldDef.description && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      className='h-6 w-6 p-1 text-gray-500'
+                      aria-label={`Learn more about ${fieldDef.label}`}
+                    >
+                      <Info className='h-4 w-4' />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side='right'
+                    align='center'
+                    className='z-[100] max-w-[300px] p-3'
+                    role='tooltip'
+                  >
+                    <p className='text-sm'>{fieldDef.description}</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+            <Textarea
+              id={fieldId}
+              placeholder={fieldDef.placeholder}
+              value={value}
+              onChange={(e) => onChange(fieldId, e.target.value)}
+              className='min-h-[120px] rounded-[8px] font-mono text-sm'
             />
-            {fieldDef.description && (
-              <p className='text-muted-foreground text-sm'>{fieldDef.description}</p>
-            )}
           </div>
         )
 

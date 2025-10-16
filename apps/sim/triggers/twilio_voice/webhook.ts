@@ -45,7 +45,7 @@ export const twilioVoiceWebhookTrigger: TriggerConfig = {
       type: 'long-input',
       placeholder: '<Response><Say>Please hold.</Say></Response>',
       description:
-        'TwiML XML to return immediately to Twilio. This controls what happens when the call comes in. Your workflow will execute in the background and can send new TwiML using the "Send TwiML" action.',
+        'TwiML XML to return immediately to Twilio. This controls what happens when the call comes in (e.g., play a message, record, gather input). Your workflow will execute in the background.',
       required: false,
       mode: 'trigger',
     },
@@ -172,6 +172,41 @@ export const twilioVoiceWebhookTrigger: TriggerConfig = {
     },
   },
 
+<<<<<<< HEAD
+=======
+  instructions: [
+    'Enter a <strong>TwiML Response</strong> above - this tells Twilio what to do when a call comes in (e.g., play a message, record, gather input).',
+    'Example TwiML for recording with transcription: <code>&lt;Response&gt;&lt;Say&gt;Please leave a message.&lt;/Say&gt;&lt;Record transcribe="true" maxLength="120"/&gt;&lt;/Response&gt;</code>',
+    'Go to your <a href="https://console.twilio.com/us1/develop/phone-numbers/manage/incoming" target="_blank" rel="noopener noreferrer" class="text-muted-foreground underline transition-colors hover:text-muted-foreground/80">Twilio Console Phone Numbers</a> page.',
+    'Select the phone number you want to use for incoming calls.',
+    'Scroll down to the "Voice Configuration" section.',
+    'In the "A CALL COMES IN" field, select "Webhook" and paste the <strong>Webhook URL</strong> (from above).',
+    'Ensure the HTTP method is set to <strong>POST</strong>.',
+    'Click "Save configuration".',
+    '<strong>How it works:</strong> When a call comes in, Twilio receives your TwiML response immediately and executes those instructions. Your workflow runs in the background with access to caller information, call status, and any recorded/transcribed data.',
+  ],
+
+  samplePayload: {
+    CallSid: 'CA_NOT_A_REAL_SID',
+    AccountSid: 'AC_NOT_A_REAL_SID',
+    From: '+14155551234',
+    To: '+14155556789',
+    CallStatus: 'ringing',
+    ApiVersion: '2010-04-01',
+    Direction: 'inbound',
+    ForwardedFrom: '',
+    CallerName: 'John Doe',
+    FromCity: 'SAN FRANCISCO',
+    FromState: 'CA',
+    FromZip: '94105',
+    FromCountry: 'US',
+    ToCity: 'SAN FRANCISCO',
+    ToState: 'CA',
+    ToZip: '94105',
+    ToCountry: 'US',
+  },
+
+>>>>>>> 2153001b3 (cleaned up operations)
   webhook: {
     method: 'POST',
     headers: {

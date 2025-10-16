@@ -61,3 +61,38 @@ export interface TwilioGetRecordingOutput extends ToolResponse {
     error?: string
   }
 }
+
+export interface TwilioListCallsParams {
+  accountSid: string
+  authToken: string
+  to?: string
+  from?: string
+  status?: string
+  startTimeAfter?: string
+  startTimeBefore?: string
+  pageSize?: number
+}
+
+export interface TwilioListCallsOutput extends ToolResponse {
+  output: {
+    success: boolean
+    calls?: Array<{
+      callSid: string
+      from: string
+      to: string
+      status: string
+      direction: string
+      duration: number | null
+      price: string | null
+      priceUnit: string
+      startTime: string
+      endTime: string | null
+      dateCreated: string
+      recordingSids: string[]
+    }>
+    total?: number
+    page?: number
+    pageSize?: number
+    error?: string
+  }
+}
