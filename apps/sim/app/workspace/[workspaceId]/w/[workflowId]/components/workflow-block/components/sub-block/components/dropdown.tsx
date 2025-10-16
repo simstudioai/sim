@@ -44,10 +44,20 @@ export function Dropdown({
 
   const inputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const previousModeRef = useRef<string | null>(null)
 
   // For response dataMode conversion - get builderData and data sub-blocks
-  const [builderData] = useSubBlockValue<any[]>(blockId, 'builderData')
-  const [, setData] = useSubBlockValue<string>(blockId, 'data')
+  const [builderData, setBuilderData] = useSubBlockValue<any[]>(blockId, 'builderData')
+  const [data, setData] = useSubBlockValue<string>(blockId, 'data')
+
+  // Keep refs with latest values to avoid stale closures
+  const builderDataRef = useRef(builderData)
+  const dataRef = useRef(data)
+
+  useEffect(() => {
+    builderDataRef.current = builderData
+    dataRef.current = data
+  }, [builderData, data])
 
   // Use preview value when in preview mode, otherwise use store value or prop value
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
@@ -103,23 +113,89 @@ export function Dropdown({
     }
   }, [storeInitialized, value, defaultOptionValue, setStoreValue])
 
+  // Helper function to normalize variable references in JSON strings
+  const normalizeVariableReferences = (jsonString: string): string => {
+    // Replace unquoted variable references with quoted ones
+    // Pattern: <variable.name> -> "<variable.name>"
+    return jsonString.replace(/([^"]<[^>]+>)/g, '"$1"')
+  }
+
+  // Helper function to convert JSON string to builder data format
+  const convertJsonToBuilderData = (jsonString: string): any[] => {
+    try {
+      // Always normalize variable references first
+      const normalizedJson = normalizeVariableReferences(jsonString)
+      const parsed = JSON.parse(normalizedJson)
+
+      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+        return Object.entries(parsed).map(([key, value]) => {
+          const fieldType = inferType(value)
+          const fieldValue =
+            fieldType === 'object' || fieldType === 'array' ? JSON.stringify(value, null, 2) : value
+
+          return {
+            id: crypto.randomUUID(),
+            name: key,
+            type: fieldType,
+            value: fieldValue,
+            collapsed: false,
+          }
+        })
+      }
+
+      return []
+    } catch (error) {
+      return []
+    }
+  }
+
+  // Helper function to infer field type from value
+  const inferType = (value: any): 'string' | 'number' | 'boolean' | 'object' | 'array' => {
+    if (typeof value === 'boolean') return 'boolean'
+    if (typeof value === 'number') return 'number'
+    if (Array.isArray(value)) return 'array'
+    if (typeof value === 'object' && value !== null) return 'object'
+    return 'string'
+  }
+
+  // Handle data conversion when dataMode changes
+  useEffect(() => {
+    if (subBlockId !== 'dataMode' || isPreview || disabled) return
+
+    const currentMode = storeValue
+    const previousMode = previousModeRef.current
+
+    // Only convert if the mode actually changed
+    if (previousMode !== null && previousMode !== currentMode) {
+      // Builder to Editor mode (structured → json)
+      if (currentMode === 'json' && previousMode === 'structured') {
+        const currentBuilderData = builderDataRef.current
+        if (
+          currentBuilderData &&
+          Array.isArray(currentBuilderData) &&
+          currentBuilderData.length > 0
+        ) {
+          const jsonString = ResponseBlockHandler.convertBuilderDataToJsonString(currentBuilderData)
+          setData(jsonString)
+        }
+      }
+      // Editor to Builder mode (json → structured)
+      else if (currentMode === 'structured' && previousMode === 'json') {
+        const currentData = dataRef.current
+        if (currentData && typeof currentData === 'string' && currentData.trim().length > 0) {
+          const builderArray = convertJsonToBuilderData(currentData)
+          setBuilderData(builderArray)
+        }
+      }
+    }
+
+    // Update the previous mode ref
+    previousModeRef.current = currentMode
+  }, [storeValue, subBlockId, isPreview, disabled, setData, setBuilderData])
+
   // Event handlers
   const handleSelect = (selectedValue: string) => {
     if (!isPreview && !disabled) {
-      // Handle conversion when switching from Builder to Editor mode in response blocks
-      if (
-        subBlockId === 'dataMode' &&
-        storeValue === 'structured' &&
-        selectedValue === 'json' &&
-        builderData &&
-        Array.isArray(builderData) &&
-        builderData.length > 0
-      ) {
-        // Convert builderData to JSON string for editor mode
-        const jsonString = ResponseBlockHandler.convertBuilderDataToJsonString(builderData)
-        setData(jsonString)
-      }
-
       setStoreValue(selectedValue)
     }
     setOpen(false)
