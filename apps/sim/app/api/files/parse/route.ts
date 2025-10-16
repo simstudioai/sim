@@ -8,6 +8,7 @@ import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
 import { createLogger } from '@/lib/logs/console/logger'
 import { validateExternalUrl } from '@/lib/security/input-validation'
 import { downloadFile, isUsingCloudStorage } from '@/lib/uploads'
+import { extractStorageKey } from '@/lib/uploads/file-utils'
 import { UPLOAD_DIR_SERVER } from '@/lib/uploads/setup.server'
 import '@/lib/uploads/setup.server'
 
@@ -281,16 +282,7 @@ async function handleExternalUrl(url: string, fileType?: string): Promise<ParseR
  */
 async function handleCloudFile(filePath: string, fileType?: string): Promise<ParseResult> {
   try {
-    let cloudKey: string
-    if (filePath.includes('/api/files/serve/s3/')) {
-      cloudKey = decodeURIComponent(filePath.split('/api/files/serve/s3/')[1])
-    } else if (filePath.includes('/api/files/serve/blob/')) {
-      cloudKey = decodeURIComponent(filePath.split('/api/files/serve/blob/')[1])
-    } else if (filePath.startsWith('/api/files/serve/')) {
-      cloudKey = decodeURIComponent(filePath.substring('/api/files/serve/'.length))
-    } else {
-      cloudKey = filePath
-    }
+    const cloudKey = extractStorageKey(filePath)
 
     logger.info('Extracted cloud key:', cloudKey)
 

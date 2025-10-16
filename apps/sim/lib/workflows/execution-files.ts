@@ -58,3 +58,19 @@ export function isFileExpired(userFile: UserFile): boolean {
 export function getFileExpirationDate(): string {
   return new Date(Date.now() + 5 * 60 * 1000).toISOString()
 }
+
+/**
+ * Check if a file is from execution storage based on its key pattern
+ * Execution files have keys in format: workspaceId/workflowId/executionId/filename
+ * Regular files have keys in format: timestamp-random-filename or just filename
+ */
+export function isExecutionFile(file: UserFile): boolean {
+  if (!file.key) {
+    return false
+  }
+
+  // Execution files have at least 3 slashes in their key (4 parts)
+  // e.g., "workspace123/workflow456/execution789/document.pdf"
+  const parts = file.key.split('/')
+  return parts.length >= 4 && !file.key.startsWith('/api/') && !file.key.startsWith('http')
+}

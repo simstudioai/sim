@@ -238,3 +238,91 @@ export function createMessagesSummary(messages: any[]): string {
 
   return summary
 }
+
+/**
+ * Generate a unique MIME boundary string
+ */
+function generateBoundary(): string {
+  return `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`
+}
+
+/**
+ * Encode string or buffer to base64url format (URL-safe base64)
+ * Gmail API requires base64url encoding for the raw message field
+ */
+export function base64UrlEncode(data: string | Buffer): string {
+  const base64 = Buffer.from(data).toString('base64')
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+/**
+ * Build a MIME multipart message with optional attachments
+ * @param params Message parameters including recipients, subject, body, and attachments
+ * @returns Complete MIME message string ready to be base64url encoded
+ */
+export interface BuildMimeMessageParams {
+  to: string
+  cc?: string
+  bcc?: string
+  subject: string
+  body: string
+  attachments?: Array<{
+    filename: string
+    mimeType: string
+    content: Buffer
+  }>
+}
+
+export function buildMimeMessage(params: BuildMimeMessageParams): string {
+  const { to, cc, bcc, subject, body, attachments } = params
+  const boundary = generateBoundary()
+  const messageParts: string[] = []
+
+  // Add headers
+  messageParts.push(`To: ${to}`)
+  if (cc) {
+    messageParts.push(`Cc: ${cc}`)
+  }
+  if (bcc) {
+    messageParts.push(`Bcc: ${bcc}`)
+  }
+  messageParts.push(`Subject: ${subject}`)
+  messageParts.push('MIME-Version: 1.0')
+
+  if (attachments && attachments.length > 0) {
+    // Multipart message with attachments
+    messageParts.push(`Content-Type: multipart/mixed; boundary="${boundary}"`)
+    messageParts.push('')
+    messageParts.push(`--${boundary}`)
+    messageParts.push('Content-Type: text/plain; charset="UTF-8"')
+    messageParts.push('Content-Transfer-Encoding: 7bit')
+    messageParts.push('')
+    messageParts.push(body)
+    messageParts.push('')
+
+    // Add each attachment
+    for (const attachment of attachments) {
+      messageParts.push(`--${boundary}`)
+      messageParts.push(`Content-Type: ${attachment.mimeType}`)
+      messageParts.push(`Content-Disposition: attachment; filename="${attachment.filename}"`)
+      messageParts.push('Content-Transfer-Encoding: base64')
+      messageParts.push('')
+
+      // Split base64 content into 76-character lines (MIME standard)
+      const base64Content = attachment.content.toString('base64')
+      const lines = base64Content.match(/.{1,76}/g) || []
+      messageParts.push(...lines)
+      messageParts.push('')
+    }
+
+    messageParts.push(`--${boundary}--`)
+  } else {
+    // Simple text message without attachments
+    messageParts.push('Content-Type: text/plain; charset="UTF-8"')
+    messageParts.push('MIME-Version: 1.0')
+    messageParts.push('')
+    messageParts.push(body)
+  }
+
+  return messageParts.join('\n')
+}
