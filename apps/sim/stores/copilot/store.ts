@@ -1972,6 +1972,11 @@ export const useCopilotStore = create<CopilotStore>()(
         const result = await response.json()
         const reverted = result?.checkpoint?.workflowState || null
         if (reverted) {
+          // Clear any active diff preview
+          try {
+            useWorkflowDiffStore.getState().clearDiff()
+          } catch {}
+
           // Apply to main workflow store
           useWorkflowStore.setState({
             blocks: reverted.blocks || {},
