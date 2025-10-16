@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Info, Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
@@ -32,6 +32,9 @@ export interface ExecutionLogItem {
 export interface WorkflowDetailsData {
   errorRates: LineChartPoint[]
   durations?: LineChartPoint[]
+  durationP50?: LineChartPoint[]
+  durationP90?: LineChartPoint[]
+  durationP99?: LineChartPoint[]
   executionCounts: LineChartPoint[]
   logs: ExecutionLogItem[]
   allLogs: ExecutionLogItem[]
@@ -47,6 +50,9 @@ export function WorkflowDetails({
   selectedSegment,
   clearSegmentSelection,
   formatCost,
+  onLoadMore,
+  hasMore,
+  isLoadingMore,
 }: {
   workspaceId: string
   expandedWorkflowId: string
@@ -57,6 +63,9 @@ export function WorkflowDetails({
   selectedSegment: { timestamp: string; totalExecutions: number } | null
   clearSegmentSelection: () => void
   formatCost: (n: number) => string
+  onLoadMore?: () => void
+  hasMore?: boolean
+  isLoadingMore?: boolean
 }) {
   const router = useRouter()
   const { workflows } = useWorkflowRegistry()
@@ -65,6 +74,50 @@ export function WorkflowDetails({
     [workflows, expandedWorkflowId]
   )
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null)
+  const listRef = useRef<HTMLDivElement | null>(null)
+  const loaderRef = useRef<HTMLDivElement | null>(null)
+
+  // Attach an IntersectionObserver to the sentinel at the bottom of the list.
+  // The root must be the scrollable container itself, otherwise intersections
+  // are computed against the viewport and never fire for inner scrolling.
+  useEffect(() => {
+    const rootEl = listRef.current
+    const sentinel = loaderRef.current
+    if (!rootEl || !sentinel || !onLoadMore || !hasMore) return
+
+    let ticking = false
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (entry?.isIntersecting && hasMore && !ticking && !isLoadingMore) {
+          ticking = true
+          // Small delay to batch rapid intersections while scrolling
+          setTimeout(() => {
+            onLoadMore()
+            ticking = false
+          }, 50)
+        }
+      },
+      { root: rootEl, threshold: 0.1, rootMargin: '200px 0px 0px 0px' }
+    )
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [onLoadMore, hasMore, isLoadingMore])
+
+  // Fallback: if IntersectionObserver fails (older browsers), use scroll position
+  useEffect(() => {
+    const el = listRef.current
+    if (!el || !onLoadMore || !hasMore) return
+
+    const onScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = el
+      const pct = (scrollTop / Math.max(1, scrollHeight - clientHeight)) * 100
+      if (pct > 80 && !isLoadingMore) onLoadMore()
+    }
+    el.addEventListener('scroll', onScroll)
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [onLoadMore, hasMore, isLoadingMore])
 
   return (
     <div className='mt-1 overflow-hidden rounded-[11px] border bg-card shadow-sm'>
@@ -162,6 +215,35 @@ export function WorkflowDetails({
                       label='Workflow Duration'
                       color='#3b82f6'
                       unit='ms'
+                      series={
+                        [
+                          details.durationP50
+                            ? {
+                                id: 'p50',
+                                label: 'p50',
+                                color: '#60A5FA',
+                                data: details.durationP50,
+                                dashed: true,
+                              }
+                            : undefined,
+                          details.durationP90
+                            ? {
+                                id: 'p90',
+                                label: 'p90',
+                                color: '#3B82F6',
+                                data: details.durationP90,
+                              }
+                            : undefined,
+                          details.durationP99
+                            ? {
+                                id: 'p99',
+                                label: 'p99',
+                                color: '#1D4ED8',
+                                data: details.durationP99,
+                              }
+                            : undefined,
+                        ].filter(Boolean) as any
+                      }
                     />
                   )}
                   <LineChart
@@ -212,7 +294,7 @@ export function WorkflowDetails({
                 </div>
               </div>
 
-              <div className='flex-1 overflow-auto' style={{ maxHeight: '400px' }}>
+              <div ref={listRef} className='flex-1 overflow-auto' style={{ maxHeight: '400px' }}>
                 <div className='pb-4'>
                   {(() => {
                     const logsToDisplay = details.logs
@@ -359,6 +441,21 @@ export function WorkflowDetails({
                       )
                     })
                   })()}
+                  {/* Bottom loading / sentinel */}
+                  {hasMore && (
+                    <div className='flex items-center justify-center py-3 text-muted-foreground'>
+                      <div ref={loaderRef} className='flex items-center gap-2'>
+                        {isLoadingMore ? (
+                          <>
+                            <Loader2 className='h-4 w-4 animate-spin' />
+                            <span className='text-sm'>Loading more…</span>
+                          </>
+                        ) : (
+                          <span className='text-sm'>Scroll to load more</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

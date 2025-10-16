@@ -90,7 +90,7 @@ export function StatusBar({
 
       {hoverIndex !== null && segments[hoverIndex] && (
         <div
-          className={`-translate-x-1/2 pointer-events-none absolute z-20 rounded-md bg-background/90 px-2 py-1 text-center text-[11px] shadow-sm ring-1 ring-border backdrop-blur ${
+          className={`-translate-x-1/2 pointer-events-none absolute z-20 w-max whitespace-nowrap rounded-md bg-background/90 px-2 py-1 text-center text-[11px] shadow-sm ring-1 ring-border backdrop-blur ${
             preferBelow ? '' : '-translate-y-full'
           }`}
           style={{

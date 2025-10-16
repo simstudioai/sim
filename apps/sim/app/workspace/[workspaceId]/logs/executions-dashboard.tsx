@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { soehne } from '@/app/fonts/soehne/soehne'
 import Controls from '@/app/workspace/[workspaceId]/logs/components/dashboard/controls'
 import KPIs from '@/app/workspace/[workspaceId]/logs/components/dashboard/kpis'
@@ -23,6 +23,10 @@ interface WorkflowExecution {
     hasExecutions: boolean
     totalExecutions: number
     successfulExecutions: number
+    avgDurationMs?: number
+    p50Ms?: number
+    p90Ms?: number
+    p99Ms?: number
   }[]
   overallSuccessRate: number
 }
@@ -56,11 +60,14 @@ interface WorkflowDetailsDataLocal {
   executionCounts: { timestamp: string; value: number }[]
   logs: ExecutionLog[]
   allLogs: ExecutionLog[]
+  __meta?: { offset: number; hasMore: boolean }
 }
 
 export default function ExecutionsDashboard() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
+  const router = useRouter()
+  const searchParams = useSearchParams()
 
   const getTimeFilterFromRange = (range: string): TimeFilter => {
     switch (range) {
@@ -96,6 +103,11 @@ export default function ExecutionsDashboard() {
     {}
   )
   const [globalDetails, setGlobalDetails] = useState<WorkflowDetailsDataLocal | null>(null)
+  const [globalLogsMeta, setGlobalLogsMeta] = useState<{ offset: number; hasMore: boolean }>({
+    offset: 0,
+    hasMore: true,
+  })
+  const [globalLoadingMore, setGlobalLoadingMore] = useState(false)
   const [aggregateSegments, setAggregateSegments] = useState<
     { timestamp: string; totalExecutions: number; successfulExecutions: number }[]
   >([])
@@ -104,6 +116,7 @@ export default function ExecutionsDashboard() {
   const [searchQuery, setSearchQuery] = useState('')
   const [segmentCount, setSegmentCount] = useState<number>(DEFAULT_SEGMENTS)
   const barsAreaRef = useRef<HTMLDivElement | null>(null)
+  // Removed external sentinels; WorkflowDetails now owns its infinite scroll
 
   const {
     workflowIds,
@@ -116,48 +129,32 @@ export default function ExecutionsDashboard() {
 
   const timeFilter = getTimeFilterFromRange(sidebarTimeRange)
 
-  const buildSeriesFromLogs = (
-    logs: ExecutionLog[],
-    start: Date,
-    end: Date,
-    bins = 10
-  ): {
-    errorRates: { timestamp: string; value: number }[]
-    executionCounts: { timestamp: string; value: number }[]
-    durations: { timestamp: string; value: number }[]
-  } => {
-    const startMs = start.getTime()
-    const totalMs = Math.max(1, end.getTime() - startMs)
-    const binMs = Math.max(1, Math.floor(totalMs / Math.max(1, bins)))
+  // buildSeriesFromLogs removed — now using aggregated server metrics
 
-    const errorRates: { timestamp: string; value: number }[] = []
-    const executionCounts: { timestamp: string; value: number }[] = []
-    const durations: { timestamp: string; value: number }[] = []
-
-    for (let i = 0; i < bins; i++) {
-      const bStart = startMs + i * binMs
-      const bEnd = bStart + binMs
-      const binLogs = logs.filter((l) => {
-        const t = new Date(l.startedAt).getTime()
-        return t >= bStart && t < bEnd
-      })
-      const total = binLogs.length
-      const errors = binLogs.filter((l) => (l.level || '').toLowerCase() === 'error').length
-      const avgDuration =
-        total > 0
-          ? Math.round(
-              binLogs.reduce((s, l) => s + (typeof l.duration === 'number' ? l.duration : 0), 0) /
-                total
-            )
-          : 0
-      const ts = new Date(bStart).toISOString()
-      errorRates.push({ timestamp: ts, value: total > 0 ? (1 - errors / total) * 100 : 100 })
-      executionCounts.push({ timestamp: ts, value: total })
-      durations.push({ timestamp: ts, value: avgDuration })
+  // Persist view mode to the URL and restore it on refresh
+  useEffect(() => {
+    const urlView = searchParams.get('view')
+    if (urlView === 'dashboard' || urlView === 'logs') {
+      if ((viewMode as string) !== urlView) setViewMode(urlView as any)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-    return { errorRates, executionCounts, durations }
-  }
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const sp = new URLSearchParams(Array.from(searchParams.entries()))
+    // If no view is present on first mount, set it once to persist on refresh
+    if (!sp.get('view')) {
+      sp.set('view', viewMode as string)
+      router.replace(`${window.location.pathname}?${sp.toString()}`, { scroll: false })
+      return
+    }
+    // Keep view param in sync when it changes
+    if (sp.get('view') !== (viewMode as string)) {
+      sp.set('view', viewMode as string)
+      router.replace(`${window.location.pathname}?${sp.toString()}`, { scroll: false })
+    }
+  }, [viewMode, router, searchParams])
 
   const filteredExecutions = searchQuery.trim()
     ? executions.filter((workflow) =>
@@ -260,7 +257,7 @@ export default function ExecutionsDashboard() {
         }
 
         const response = await fetch(
-          `/api/workspaces/${workspaceId}/execution-history?${params.toString()}`
+          `/api/workspaces/${workspaceId}/metrics/executions?${params.toString()}`
         )
 
         if (!response.ok) {
@@ -268,22 +265,55 @@ export default function ExecutionsDashboard() {
         }
 
         const data = await response.json()
-        const sortedWorkflows = [...data.workflows].sort((a, b) => {
-          const errorRateA = 100 - a.overallSuccessRate
-          const errorRateB = 100 - b.overallSuccessRate
-          return errorRateB - errorRateA
+        const mapped: WorkflowExecution[] = (data.workflows || []).map((wf: any) => {
+          const segments = (wf.segments || []).map((s: any) => {
+            const total = s.totalExecutions || 0
+            const success = s.successfulExecutions || 0
+            const hasExecutions = total > 0
+            const successRate = hasExecutions ? (success / total) * 100 : 100
+            return {
+              timestamp: s.timestamp,
+              hasExecutions,
+              totalExecutions: total,
+              successfulExecutions: success,
+              successRate,
+              avgDurationMs: typeof s.avgDurationMs === 'number' ? s.avgDurationMs : 0,
+              p50Ms: typeof s.p50Ms === 'number' ? s.p50Ms : 0,
+              p90Ms: typeof s.p90Ms === 'number' ? s.p90Ms : 0,
+              p99Ms: typeof s.p99Ms === 'number' ? s.p99Ms : 0,
+            }
+          })
+          const totals = segments.reduce(
+            (acc: { total: number; success: number }, seg: (typeof segments)[number]) => {
+              acc.total += seg.totalExecutions
+              acc.success += seg.successfulExecutions
+              return acc
+            },
+            { total: 0, success: 0 }
+          )
+          const overallSuccessRate = totals.total > 0 ? (totals.success / totals.total) * 100 : 100
+          return {
+            workflowId: wf.workflowId,
+            workflowName: wf.workflowName,
+            segments,
+            overallSuccessRate,
+          } as WorkflowExecution
+        })
+        const sortedWorkflows = mapped.sort((a, b) => {
+          const errA = a.overallSuccessRate < 100 ? 1 - a.overallSuccessRate / 100 : 0
+          const errB = b.overallSuccessRate < 100 ? 1 - b.overallSuccessRate / 100 : 0
+          return errB - errA
         })
         setExecutions(sortedWorkflows)
 
+        // Build aggregate segments across workflows from server segments
         const segmentsCount: number = Number(params.get('segments') || DEFAULT_SEGMENTS)
         const agg: { timestamp: string; totalExecutions: number; successfulExecutions: number }[] =
           Array.from({ length: segmentsCount }, (_, i) => {
             const base = startTime.getTime()
-            const span = endTime.getTime() - base
-            const tsNum = base + Math.floor((i * span) / segmentsCount)
-            const ts = new Date(tsNum)
+            const ts = new Date(base + Math.floor((i * (endTime.getTime() - base)) / segmentsCount))
             return {
-              timestamp: Number.isNaN(ts.getTime()) ? new Date().toISOString() : ts.toISOString(),
+              timestamp: ts.toISOString(),
               totalExecutions: 0,
               successfulExecutions: 0,
             }
@@ -344,6 +374,10 @@ export default function ExecutionsDashboard() {
                       ? Number.parseInt(l.duration.replace(/[^0-9]/g, ''), 10)
                       : null
             let output: any = null
+            // Prefer finalOutput if present
+            if (l.executionData?.finalOutput !== undefined) {
+              output = l.executionData.finalOutput
+            }
             if (typeof l.output === 'string') {
               output = l.output
             } else if (l.executionData?.traceSpans && Array.isArray(l.executionData.traceSpans)) {
@@ -401,6 +435,7 @@ export default function ExecutionsDashboard() {
           logs: mappedLogs,
           allLogs: mappedLogs,
         })
+        setGlobalLogsMeta({ offset: mappedLogs.length, hasMore: mappedLogs.length === 50 })
       } catch (err) {
         console.error('Error fetching executions:', err)
         setError(err instanceof Error ? err.message : 'An error occurred')
@@ -426,7 +461,17 @@ export default function ExecutionsDashboard() {
         }
 
         const response = await fetch(
-          `/api/workspaces/${workspaceId}/execution-history/${workflowId}?${params.toString()}`
+          `/api/logs?${new URLSearchParams({
+            limit: '50',
+            offset: '0',
+            workspaceId,
+            startDate: startTime.toISOString(),
+            endDate: endTime.toISOString(),
+            order: 'desc',
+            details: 'full',
+            workflowIds: workflowId,
+            ...(triggers.length > 0 ? { triggers: triggers.join(',') } : {}),
+          }).toString()}`
         )
 
         if (!response.ok) {
@@ -434,11 +479,79 @@ export default function ExecutionsDashboard() {
         }
 
         const data = await response.json()
+        const mappedLogs: ExecutionLog[] = (data.data || []).map((l: any) => {
+          let durationCandidate: number | null = null
+          if (typeof l.totalDurationMs === 'number') durationCandidate = l.totalDurationMs
+          else if (typeof l.duration === 'number') durationCandidate = l.duration
+          else if (typeof l.totalDurationMs === 'string')
+            durationCandidate = Number.parseInt(
+              String(l.totalDurationMs).replace(/[^0-9]/g, ''),
+              10
+            )
+          else if (typeof l.duration === 'string')
+            durationCandidate = Number.parseInt(String(l.duration).replace(/[^0-9]/g, ''), 10)
+
+          // Robust output extraction: prefer finalOutput, then string output, then traceSpans, then executionData.output, then blockExecutions
+          let output: any = null
+          if (l.executionData?.finalOutput !== undefined) {
+            output = l.executionData.finalOutput
+          } else if (typeof l.output === 'string') {
+            output = l.output
+          } else if (l.executionData?.traceSpans && Array.isArray(l.executionData.traceSpans)) {
+            const spans: any[] = l.executionData.traceSpans
+            for (let i = spans.length - 1; i >= 0; i--) {
+              const s = spans[i]
+              if (s?.output && Object.keys(s.output).length > 0) {
+                output = s.output
+                break
+              }
+              if (s?.status === 'error' && (s?.output?.error || s?.error)) {
+                output = s.output?.error || s.error
+                break
+              }
+            }
+            if (!output && l.executionData?.output) {
+              output = l.executionData.output
+            }
+          }
+          if (!output) {
+            const be = l.executionData?.blockExecutions
+            if (Array.isArray(be) && be.length > 0) {
+              const last = be[be.length - 1]
+              output = last?.outputData || last?.errorMessage || null
+            }
+          }
+
+          return {
+            id: l.id,
+            executionId: l.executionId,
+            startedAt: l.createdAt || l.startedAt,
+            level: l.level || 'info',
+            trigger: l.trigger || 'manual',
+            triggerUserId: l.triggerUserId || null,
+            triggerInputs: undefined,
+            outputs: output || undefined,
+            errorMessage: l.error || null,
+            duration: Number.isFinite(durationCandidate as number)
+              ? (durationCandidate as number)
+              : null,
+            cost: l.cost
+              ? { input: l.cost.input || 0, output: l.cost.output || 0, total: l.cost.total || 0 }
+              : null,
+            workflowName: l.workflow?.name,
+            workflowColor: l.workflow?.color,
+          } as ExecutionLog
+        })
+
         setWorkflowDetails((prev) => ({
           ...prev,
           [workflowId]: {
-            ...data,
-            allLogs: data.logs,
+            errorRates: [],
+            durations: [],
+            executionCounts: [],
+            logs: mappedLogs,
+            allLogs: mappedLogs,
+            __meta: { offset: mappedLogs.length, hasMore: (data.data || []).length === 50 },
           },
         }))
       } catch (err) {
@@ -447,6 +560,214 @@ export default function ExecutionsDashboard() {
     },
     [workspaceId, endTime, getStartTime, triggers]
   )
+
+  // Infinite scroll for details logs
+  const loadMoreLogs = useCallback(
+    async (workflowId: string) => {
+      const details = (workflowDetails as any)[workflowId]
+      if (!details) return
+      if (details.__loading) return
+      if (!details.__meta?.hasMore) return
+      try {
+        // mark loading to prevent duplicate fetches
+        setWorkflowDetails((prev) => ({
+          ...prev,
+          [workflowId]: { ...(prev as any)[workflowId], __loading: true },
+        }))
+        const startTime = getStartTime()
+        const offset = details.__meta.offset || 0
+        const qp = new URLSearchParams({
+          limit: '50',
+          offset: String(offset),
+          workspaceId,
+          startDate: startTime.toISOString(),
+          endDate: endTime.toISOString(),
+          order: 'desc',
+          details: 'full',
+          workflowIds: workflowId,
+        })
+        if (triggers.length > 0) qp.set('triggers', triggers.join(','))
+        const res = await fetch(`/api/logs?${qp.toString()}`)
+        if (!res.ok) return
+        const data = await res.json()
+        const more: ExecutionLog[] = (data.data || []).map((l: any) => {
+          let durationCandidate: number | null = null
+          if (typeof l.totalDurationMs === 'number') durationCandidate = l.totalDurationMs
+          else if (typeof l.duration === 'number') durationCandidate = l.duration
+          else if (typeof l.totalDurationMs === 'string')
+            durationCandidate = Number.parseInt(
+              String(l.totalDurationMs).replace(/[^0-9]/g, ''),
+              10
+            )
+          else if (typeof l.duration === 'string')
+            durationCandidate = Number.parseInt(String(l.duration).replace(/[^0-9]/g, ''), 10)
+          // Prefer finalOutput, then spans, then executionData.output, then blockExecutions
+          let output: any = null
+          if (l.executionData?.finalOutput !== undefined) {
+            output = l.executionData.finalOutput
+          } else if (l.executionData?.traceSpans && Array.isArray(l.executionData.traceSpans)) {
+            const spans: any[] = l.executionData.traceSpans
+            for (let i = spans.length - 1; i >= 0; i--) {
+              const s = spans[i]
+              if (s?.output && Object.keys(s.output).length > 0) {
+                output = s.output
+                break
+              }
+              if (s?.status === 'error' && (s?.output?.error || s?.error)) {
+                output = s.output?.error || s.error
+                break
+              }
+            }
+            if (!output && l.executionData?.output) {
+              output = l.executionData.output
+            }
+          }
+          if (!output) {
+            const be = l.executionData?.blockExecutions
+            if (Array.isArray(be) && be.length > 0) {
+              const last = be[be.length - 1]
+              output = last?.outputData || last?.errorMessage || null
+            }
+          }
+          return {
+            id: l.id,
+            executionId: l.executionId,
+            startedAt: l.createdAt || l.startedAt,
+            level: l.level || 'info',
+            trigger: l.trigger || 'manual',
+            triggerUserId: l.triggerUserId || null,
+            triggerInputs: undefined,
+            outputs: output || undefined,
+            errorMessage: l.error || null,
+            duration: Number.isFinite(durationCandidate as number)
+              ? (durationCandidate as number)
+              : null,
+            cost: l.cost
+              ? { input: l.cost.input || 0, output: l.cost.output || 0, total: l.cost.total || 0 }
+              : null,
+            workflowName: l.workflow?.name,
+            workflowColor: l.workflow?.color,
+          } as ExecutionLog
+        })
+
+        setWorkflowDetails((prev) => {
+          const cur = prev[workflowId]
+          // Deduplicate by id to avoid React key duplicates when multiple triggers fire
+          const seen = new Set<string>()
+          const dedup = [...(cur?.allLogs || []), ...more].filter((x) => {
+            const id = x.id
+            if (seen.has(id)) return false
+            seen.add(id)
+            return true
+          })
+          return {
+            ...prev,
+            [workflowId]: {
+              ...cur,
+              logs: dedup,
+              allLogs: dedup,
+              __meta: {
+                offset: (cur?.__meta?.offset || 0) + more.length,
+                hasMore: more.length === 50,
+              },
+              __loading: false,
+            },
+          }
+        })
+      } catch {
+        // ignore errors for background loads
+        setWorkflowDetails((prev) => ({
+          ...prev,
+          [workflowId]: { ...(prev as any)[workflowId], __loading: false },
+        }))
+      }
+    },
+    [workspaceId, endTime, getStartTime, triggers, workflowDetails]
+  )
+
+  // Infinite scroll for All workflows (no expanded workflow)
+  const loadMoreGlobalLogs = useCallback(async () => {
+    if (!globalDetails || !globalLogsMeta.hasMore) return
+    if (globalLoadingMore) return
+    try {
+      setGlobalLoadingMore(true)
+      const startTime = getStartTime()
+      const qp = new URLSearchParams({
+        limit: '50',
+        offset: String(globalLogsMeta.offset || 0),
+        workspaceId,
+        startDate: startTime.toISOString(),
+        endDate: endTime.toISOString(),
+        order: 'desc',
+        details: 'full',
+      })
+      if (workflowIds.length > 0) qp.set('workflowIds', workflowIds.join(','))
+      if (folderIds.length > 0) qp.set('folderIds', folderIds.join(','))
+      if (triggers.length > 0) qp.set('triggers', triggers.join(','))
+
+      const res = await fetch(`/api/logs?${qp.toString()}`)
+      if (!res.ok) return
+      const data = await res.json()
+      const more: ExecutionLog[] = (data.data || []).map((l: any) => {
+        let durationCandidate: number | null = null
+        if (typeof l.totalDurationMs === 'number') durationCandidate = l.totalDurationMs
+        else if (typeof l.duration === 'number') durationCandidate = l.duration
+        else if (typeof l.totalDurationMs === 'string')
+          durationCandidate = Number.parseInt(String(l.totalDurationMs).replace(/[^0-9]/g, ''), 10)
+        else if (typeof l.duration === 'string')
+          durationCandidate = Number.parseInt(String(l.duration).replace(/[^0-9]/g, ''), 10)
+        return {
+          id: l.id,
+          executionId: l.executionId,
+          startedAt: l.startedAt || l.createdAt,
+          level: l.level || 'info',
+          trigger: l.trigger || 'manual',
+          triggerUserId: l.triggerUserId || null,
+          triggerInputs: undefined,
+          outputs: l.executionData?.output || undefined,
+          errorMessage: l.error || null,
+          duration: Number.isFinite(durationCandidate as number)
+            ? (durationCandidate as number)
+            : null,
+          cost: l.cost
+            ? { input: l.cost.input || 0, output: l.cost.output || 0, total: l.cost.total || 0 }
+            : null,
+          workflowName: l.workflow?.name || l.workflowName,
+          workflowColor: l.workflow?.color || l.workflowColor,
+        } as ExecutionLog
+      })
+
+      setGlobalDetails((prev) => {
+        if (!prev) return prev
+        const seen = new Set<string>()
+        const dedup = [...prev.allLogs, ...more].filter((x) => {
+          const id = x.id
+          if (seen.has(id)) return false
+          seen.add(id)
+          return true
+        })
+        return { ...prev, logs: dedup, allLogs: dedup }
+      })
+      setGlobalLogsMeta((m) => ({
+        offset: (m.offset || 0) + more.length,
+        hasMore: more.length === 50,
+      }))
+    } catch {
+      // ignore
+    } finally {
+      setGlobalLoadingMore(false)
+    }
+  }, [
+    globalDetails,
+    globalLogsMeta,
+    globalLoadingMore,
+    workspaceId,
+    endTime,
+    getStartTime,
+    workflowIds,
+    folderIds,
+    triggers,
+  ])
 
   const toggleWorkflow = useCallback(
     (workflowId: string) => {
@@ -627,6 +948,8 @@ export default function ExecutionsDashboard() {
     }
   }, [live])
 
+  // Infinite scroll is now handled inside WorkflowDetails
+
   return (
     <div className={`flex h-full min-w-0 flex-col pl-64 ${soehne.className}`}>
       <div className='flex min-w-0 flex-1 overflow-hidden'>
@@ -746,6 +1069,61 @@ export default function ExecutionsDashboard() {
                       ...log,
                       workflowName: (log as any).workflowName || wf.workflowName,
                     }))
+                    // Helper to construct series from workflow segments
+                    const buildSeriesFromSegments = (
+                      segs: WorkflowExecution['segments']
+                    ): {
+                      errorRates: { timestamp: string; value: number }[]
+                      executionCounts: { timestamp: string; value: number }[]
+                      durations: { timestamp: string; value: number }[]
+                      durationP50?: { timestamp: string; value: number }[]
+                      durationP90?: { timestamp: string; value: number }[]
+                      durationP99?: { timestamp: string; value: number }[]
+                    } => {
+                      const errorRates = segs.map((s) => ({
+                        timestamp: s.timestamp,
+                        value:
+                          s.totalExecutions > 0
+                            ? 100 -
+                              Math.min(
+                                100,
+                                Math.max(
+                                  0,
+                                  (s.successfulExecutions / Math.max(1, s.totalExecutions)) * 100
+                                )
+                              )
+                            : 0,
+                      }))
+                      const executionCounts = segs.map((s) => ({
+                        timestamp: s.timestamp,
+                        value: s.totalExecutions || 0,
+                      }))
+                      const durations = segs.map((s) => ({
+                        timestamp: s.timestamp,
+                        value: typeof s.avgDurationMs === 'number' ? s.avgDurationMs : 0,
+                      }))
+                      const durationP50 = segs.map((s) => ({
+                        timestamp: s.timestamp,
+                        value: typeof s.p50Ms === 'number' ? s.p50Ms : 0,
+                      }))
+                      const durationP90 = segs.map((s) => ({
+                        timestamp: s.timestamp,
+                        value: typeof s.p90Ms === 'number' ? s.p90Ms : 0,
+                      }))
+                      const durationP99 = segs.map((s) => ({
+                        timestamp: s.timestamp,
+                        value: typeof s.p99Ms === 'number' ? s.p99Ms : 0,
+                      }))
+                      return {
+                        errorRates,
+                        executionCounts,
+                        durations,
+                        durationP50,
+                        durationP90,
+                        durationP99,
+                      }
+                    }
+
                     if (details && selectedSegmentIndices.length > 0) {
                       const totalMs = endTime.getTime() - getStartTime().getTime()
                       const segMs = totalMs / Math.max(1, segmentCount)
@@ -772,73 +1150,29 @@ export default function ExecutionsDashboard() {
                       const minStart = new Date(Math.min(...windows.map((w) => w.start)))
                       const maxEnd = new Date(Math.max(...windows.map((w) => w.end)))
 
-                      let filteredErrorRates = (details.errorRates || []).filter((p: any) =>
-                        inAnyWindow(new Date(p.timestamp).getTime())
-                      )
-                      let filteredDurations = (
-                        Array.isArray((details as any).durations) ? (details as any).durations : []
-                      ).filter((p: any) => inAnyWindow(new Date(p.timestamp).getTime()))
-                      let filteredExecutionCounts = (details.executionCounts || []).filter(
-                        (p: any) => inAnyWindow(new Date(p.timestamp).getTime())
-                      )
-
-                      if (filteredErrorRates.length === 0 || filteredExecutionCounts.length === 0) {
-                        const series = buildSeriesFromLogs(logsToDisplay, minStart, maxEnd, 8)
-                        filteredErrorRates = series.errorRates
-                        filteredExecutionCounts = series.executionCounts
-                        filteredDurations = series.durations
-                      }
-
-                      ;(details as any).__filtered = {
-                        errorRates: filteredErrorRates,
-                        durations: filteredDurations,
-                        executionCounts: filteredExecutionCounts,
-                      }
+                      // Build series from selected segments indices
+                      const idxSet = new Set(selectedSegmentIndices)
+                      const selectedSegs = wf.segments.filter((_, i) => idxSet.has(i))
+                      ;(details as any).__filtered = buildSeriesFromSegments(selectedSegs as any)
                     }
 
                     const detailsWithFilteredLogs = details
                       ? {
                           ...details,
                           logs: logsToDisplay,
-                          errorRates:
-                            (details as any).__filtered?.errorRates ||
-                            details.errorRates ||
-                            buildSeriesFromLogs(
-                              logsToDisplay,
-                              new Date(
-                                wf.segments[0]?.timestamp ||
-                                  logsToDisplay[0]?.startedAt ||
-                                  new Date().toISOString()
-                              ),
-                              endTime,
-                              8
-                            ).errorRates,
-                          durations:
-                            (details as any).__filtered?.durations ||
-                            (details as any).durations ||
-                            buildSeriesFromLogs(
-                              logsToDisplay,
-                              new Date(
-                                wf.segments[0]?.timestamp ||
-                                  logsToDisplay[0]?.startedAt ||
-                                  new Date().toISOString()
-                              ),
-                              endTime,
-                              8
-                            ).durations,
-                          executionCounts:
-                            (details as any).__filtered?.executionCounts ||
-                            details.executionCounts ||
-                            buildSeriesFromLogs(
-                              logsToDisplay,
-                              new Date(
-                                wf.segments[0]?.timestamp ||
-                                  logsToDisplay[0]?.startedAt ||
-                                  new Date().toISOString()
-                              ),
-                              endTime,
-                              8
-                            ).executionCounts,
+                          ...(() => {
+                            const series =
+                              (details as any).__filtered ||
+                              buildSeriesFromSegments(wf.segments as any)
+                            return {
+                              errorRates: series.errorRates,
+                              durations: series.durations,
+                              executionCounts: series.executionCounts,
+                              durationP50: series.durationP50,
+                              durationP90: series.durationP90,
+                              durationP99: series.durationP99,
+                            }
+                          })(),
                         }
                       : undefined
 
@@ -868,6 +1202,9 @@ export default function ExecutionsDashboard() {
                           setLastAnchorIndex(null)
                         }}
                         formatCost={formatCost}
+                        onLoadMore={() => loadMoreLogs(expandedWorkflowId)}
+                        hasMore={(workflowDetails as any)[expandedWorkflowId]?.__meta?.hasMore}
+                        isLoadingMore={(workflowDetails as any)[expandedWorkflowId]?.__loading}
                       />
                     )
                   }
@@ -899,6 +1236,9 @@ export default function ExecutionsDashboard() {
                         setLastAnchorIndex(null)
                       }}
                       formatCost={formatCost}
+                      onLoadMore={loadMoreGlobalLogs}
+                      hasMore={globalLogsMeta.hasMore}
+                      isLoadingMore={globalLoadingMore}
                     />
                   )
                 })()}

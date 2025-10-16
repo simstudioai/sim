@@ -624,7 +624,11 @@ export default function Logs() {
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && !isFetchingMore) {
+        const e = entries[0]
+        if (!e?.isIntersecting) return
+        const { scrollTop, scrollHeight, clientHeight } = scrollContainer
+        const pct = (scrollTop / (scrollHeight - clientHeight)) * 100
+        if (pct > 70 && !isFetchingMore) {
           loadMoreLogs()
         }
       },
