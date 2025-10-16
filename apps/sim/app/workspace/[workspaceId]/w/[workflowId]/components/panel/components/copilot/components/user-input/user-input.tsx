@@ -379,9 +379,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         const items = Array.isArray(data?.chats) ? data.chats : []
 
         // Filter chats to only include those from the current workflow
-        const currentWorkflowChats = items.filter(
-          (c: any) => c.workflowId === workflowId
-        )
+        const currentWorkflowChats = items.filter((c: any) => c.workflowId === workflowId)
 
         setPastChats(
           currentWorkflowChats.map((c: any) => ({

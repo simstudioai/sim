@@ -28,7 +28,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  Checkbox,
 } from '@/components/ui'
 import { InlineToolCall } from '@/lib/copilot/inline-tool-call'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -39,7 +38,10 @@ import {
   ThinkingBlock,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components'
 import CopilotMarkdownRenderer from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/copilot-message/components/markdown-renderer'
-import { UserInput, type UserInputRef } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/user-input'
+import {
+  UserInput,
+  type UserInputRef,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/user-input'
 import { usePreviewStore } from '@/stores/copilot/preview-store'
 import { useCopilotStore } from '@/stores/copilot/store'
 import type { CopilotMessage as CopilotMessageType } from '@/stores/copilot/types'
@@ -56,28 +58,35 @@ interface CopilotMessageProps {
 }
 
 const CopilotMessage: FC<CopilotMessageProps> = memo(
-  ({ message, isStreaming, panelWidth = 308, isDimmed = false, checkpointCount = 0, onEditModeChange }) => {
+  ({
+    message,
+    isStreaming,
+    panelWidth = 308,
+    isDimmed = false,
+    checkpointCount = 0,
+    onEditModeChange,
+  }) => {
     const isUser = message.role === 'user'
     const isAssistant = message.role === 'assistant'
     const [showCopySuccess, setShowCopySuccess] = useState(false)
     const [showUpvoteSuccess, setShowUpvoteSuccess] = useState(false)
     const [showDownvoteSuccess, setShowDownvoteSuccess] = useState(false)
-  const [showRestoreConfirmation, setShowRestoreConfirmation] = useState(false)
-  const [showAllContexts, setShowAllContexts] = useState(false)
-  const [isEditMode, setIsEditMode] = useState(false)
-  const [isExpanded, setIsExpanded] = useState(false)
-  const [editedContent, setEditedContent] = useState(message.content)
-  const [isHoveringMessage, setIsHoveringMessage] = useState(false)
-  const editContainerRef = useRef<HTMLDivElement>(null)
-  const messageContentRef = useRef<HTMLDivElement>(null)
-  const userInputRef = useRef<UserInputRef>(null)
-  const [needsExpansion, setNeedsExpansion] = useState(false)
-  const [showCheckpointDiscardModal, setShowCheckpointDiscardModal] = useState(false)
-  const pendingEditRef = useRef<{
-    message: string
-    fileAttachments?: any[]
-    contexts?: any[]
-  } | null>(null)
+    const [showRestoreConfirmation, setShowRestoreConfirmation] = useState(false)
+    const [showAllContexts, setShowAllContexts] = useState(false)
+    const [isEditMode, setIsEditMode] = useState(false)
+    const [isExpanded, setIsExpanded] = useState(false)
+    const [editedContent, setEditedContent] = useState(message.content)
+    const [isHoveringMessage, setIsHoveringMessage] = useState(false)
+    const editContainerRef = useRef<HTMLDivElement>(null)
+    const messageContentRef = useRef<HTMLDivElement>(null)
+    const userInputRef = useRef<UserInputRef>(null)
+    const [needsExpansion, setNeedsExpansion] = useState(false)
+    const [showCheckpointDiscardModal, setShowCheckpointDiscardModal] = useState(false)
+    const pendingEditRef = useRef<{
+      message: string
+      fileAttachments?: any[]
+      contexts?: any[]
+    } | null>(null)
 
     // Get checkpoint functionality from copilot store
     const {
@@ -103,7 +112,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
     // Get checkpoints for this message if it's a user message
     const messageCheckpoints = isUser ? allMessageCheckpoints[message.id] || [] : []
     // Only consider it as having checkpoints if there's at least one valid checkpoint with an id
-    const hasCheckpoints = messageCheckpoints.length > 0 && messageCheckpoints.some(cp => cp?.id)
+    const hasCheckpoints = messageCheckpoints.length > 0 && messageCheckpoints.some((cp) => cp?.id)
 
     // Check if this is the last user message (for showing abort button)
     const isLastUserMessage = useMemo(() => {
@@ -288,7 +297,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         const latestCheckpoint = messageCheckpoints[0]
         try {
           await revertToCheckpoint(latestCheckpoint.id)
-          
+
           // Remove the used checkpoint from the store
           const { messageCheckpoints: currentCheckpoints } = useCopilotStore.getState()
           const updatedCheckpoints = {
@@ -296,11 +305,11 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
             [message.id]: messageCheckpoints.slice(1), // Remove the first (used) checkpoint
           }
           useCopilotStore.setState({ messageCheckpoints: updatedCheckpoints })
-          
+
           setShowRestoreConfirmation(false)
-          logger.info('Checkpoint reverted and removed from message', { 
-            messageId: message.id, 
-            checkpointId: latestCheckpoint.id 
+          logger.info('Checkpoint reverted and removed from message', {
+            messageId: message.id,
+            checkpointId: latestCheckpoint.id,
           })
         } catch (error) {
           logger.error('Failed to revert to checkpoint:', error)
@@ -591,7 +600,9 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
     if (isUser) {
       return (
-        <div className={`w-full max-w-full overflow-hidden py-0.5 transition-opacity duration-200 ${isDimmed ? 'opacity-40' : 'opacity-100'}`}>
+        <div
+          className={`w-full max-w-full overflow-hidden py-0.5 transition-opacity duration-200 ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
+        >
           {isEditMode ? (
             <div ref={editContainerRef} className='relative w-full'>
               <UserInput
@@ -796,13 +807,13 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 <AlertDialogTitle>Revert to checkpoint?</AlertDialogTitle>
                 <AlertDialogDescription>
                   This will revert your workflow to the state saved at this checkpoint.{' '}
-                  <span className='text-red-500 dark:text-red-500'>This action cannot be undone.</span>
+                  <span className='text-red-500 dark:text-red-500'>
+                    This action cannot be undone.
+                  </span>
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter className='flex'>
-                <AlertDialogCancel className='h-9 w-full rounded-[8px]'>
-                  Cancel
-                </AlertDialogCancel>
+                <AlertDialogCancel className='h-9 w-full rounded-[8px]'>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={handleConfirmRevert}
                   className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
@@ -826,9 +837,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter className='flex'>
-                <AlertDialogCancel className='h-9 w-full rounded-[8px]'>
-                  Cancel
-                </AlertDialogCancel>
+                <AlertDialogCancel className='h-9 w-full rounded-[8px]'>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={handleConfirmRevert}
                   className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
@@ -849,13 +858,15 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
               }
             }}
           >
-            <AlertDialogContent 
+            <AlertDialogContent
               className='rounded-[10px] sm:max-w-2xl'
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault()
                   // Trigger continue and revert
-                  const revertButton = e.currentTarget.querySelector('[data-action="revert"]') as HTMLButtonElement
+                  const revertButton = e.currentTarget.querySelector(
+                    '[data-action="revert"]'
+                  ) as HTMLButtonElement
                   revertButton?.click()
                 }
               }}
@@ -886,12 +897,12 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                       pendingEditRef.current = null
                     }
                   }}
-                  className='inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-[8px] bg-muted px-4 py-2 font-medium text-sm text-foreground transition-colors hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
+                  className='inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-[8px] bg-muted px-4 py-2 font-medium text-foreground text-sm transition-colors hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
                 >
                   Continue
                 </button>
                 <button
-                  data-action="revert"
+                  data-action='revert'
                   onClick={async (e) => {
                     e.preventDefault()
 
@@ -900,18 +911,19 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                       const latestCheckpoint = messageCheckpoints[0]
                       try {
                         await revertToCheckpoint(latestCheckpoint.id)
-                        
+
                         // Remove the used checkpoint from the store
-                        const { messageCheckpoints: currentCheckpoints } = useCopilotStore.getState()
+                        const { messageCheckpoints: currentCheckpoints } =
+                          useCopilotStore.getState()
                         const updatedCheckpoints = {
                           ...currentCheckpoints,
                           [message.id]: messageCheckpoints.slice(1), // Remove the first (used) checkpoint
                         }
                         useCopilotStore.setState({ messageCheckpoints: updatedCheckpoints })
-                        
-                        logger.info('Reverted to checkpoint before editing message', { 
-                          messageId: message.id, 
-                          checkpointId: latestCheckpoint.id 
+
+                        logger.info('Reverted to checkpoint before editing message', {
+                          messageId: message.id,
+                          checkpointId: latestCheckpoint.id,
                         })
                       } catch (error) {
                         logger.error('Failed to revert to checkpoint:', error)
@@ -942,7 +954,9 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
     if (isAssistant) {
       return (
-        <div className={`w-full max-w-full overflow-hidden py-0.5 pl-[2px] transition-opacity duration-200 ${isDimmed ? 'opacity-40' : 'opacity-100'}`}>
+        <div
+          className={`w-full max-w-full overflow-hidden py-0.5 pl-[2px] transition-opacity duration-200 ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
+        >
           <div className='max-w-full space-y-1.5 transition-all duration-200 ease-in-out'>
             {/* Content blocks in chronological order */}
             {memoizedContentBlocks}

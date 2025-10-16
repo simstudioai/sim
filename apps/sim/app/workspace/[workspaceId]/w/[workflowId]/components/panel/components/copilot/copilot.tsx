@@ -502,7 +502,9 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                             panelWidth={panelWidth}
                             isDimmed={isDimmed}
                             checkpointCount={checkpointCount}
-                            onEditModeChange={(isEditing) => handleEditModeChange(message.id, isEditing)}
+                            onEditModeChange={(isEditing) =>
+                              handleEditModeChange(message.id, isEditing)
+                            }
                           />
                         )
                       })
