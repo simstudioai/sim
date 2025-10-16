@@ -1,5 +1,5 @@
 ---
-title: Guardrails
+title: ガードレール
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
@@ -8,213 +8,213 @@ import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
 
-The Guardrails block validates and protects your AI workflows by checking content against multiple validation types. Ensure data quality, prevent hallucinations, detect PII, and enforce format requirements before content moves through your workflow.
+ガードレールブロックは、複数の検証タイプに対してコンテンツをチェックすることで、AIワークフローを検証し保護します。データ品質の確保、ハルシネーション（幻覚）の防止、個人情報の検出、フォーマット要件の強制などをワークフローに組み込む前に行います。
 
 <div className="flex justify-center">
   <Image
     src="/static/blocks/guardrails.png"
-    alt="Guardrails Block"
+    alt="ガードレールブロック"
     width={500}
     height={350}
     className="my-6"
   />
 </div>
 
-## Overview
+## 概要
 
-The Guardrails block enables you to:
+ガードレールブロックでは以下のことが可能です：
 
 <Steps>
   <Step>
-    <strong>Validate JSON Structure</strong>: Ensure LLM outputs are valid JSON before parsing
+    <strong>JSON構造の検証</strong>：パース前にLLM出力が有効なJSONであることを確認
   </Step>
   <Step>
-    <strong>Match Regex Patterns</strong>: Verify content matches specific formats (emails, phone numbers, URLs, etc.)
+    <strong>正規表現パターンの一致</strong>：コンテンツが特定のフォーマット（メール、電話番号、URLなど）に一致するか確認
   </Step>
   <Step>
-    <strong>Detect Hallucinations</strong>: Use RAG + LLM scoring to validate AI outputs against knowledge base content
+    <strong>ハルシネーション（幻覚）の検出</strong>：RAG + LLMスコアリングを使用してAI出力をナレッジベースコンテンツと照合して検証
   </Step>
   <Step>
-    <strong>Detect PII</strong>: Identify and optionally mask personally identifiable information across 40+ entity types
+    <strong>個人情報の検出</strong>：40種類以上のエンティティタイプにわたる個人を特定できる情報を識別し、オプションでマスク処理
   </Step>
 </Steps>
 
-## Validation Types
+## 検証タイプ
 
-### JSON Validation
+### JSON検証
 
-Validates that content is properly formatted JSON. Perfect for ensuring structured LLM outputs can be safely parsed.
+コンテンツが適切にフォーマットされたJSONであることを検証します。構造化されたLLM出力を安全にパースできることを確認するのに最適です。
 
-**Use Cases:**
-- Validate JSON responses from Agent blocks before parsing
-- Ensure API payloads are properly formatted
-- Check structured data integrity
+**ユースケース：**
+- パース前にエージェントブロックからのJSON応答を検証
+- APIペイロードが適切にフォーマットされていることを確認
+- 構造化データの整合性をチェック
 
-**Output:**
-- `passed`: `true` if valid JSON, `false` otherwise
-- `error`: Error message if validation fails (e.g., "Invalid JSON: Unexpected token...")
+**出力：**
+- `passed`: 有効なJSONの場合は`true`、それ以外は`false`
+- `error`: 検証が失敗した場合のエラーメッセージ（例：「無効なJSON：予期しないトークン...」）
 
-### Regex Validation
+### 正規表現検証
 
-Checks if content matches a specified regular expression pattern.
+コンテンツが指定された正規表現パターンに一致するかどうかをチェックします。
 
-**Use Cases:**
-- Validate email addresses
-- Check phone number formats
-- Verify URLs or custom identifiers
-- Enforce specific text patterns
+**ユースケース：**
+- メールアドレスの検証
+- 電話番号フォーマットのチェック
+- URLやカスタム識別子の確認
+- 特定のテキストパターンの強制
 
-**Configuration:**
-- **Regex Pattern**: The regular expression to match against (e.g., `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$` for emails)
+**設定：**
+- **正規表現パターン**：一致させる正規表現（例：メールの場合は`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`）
 
-**Output:**
-- `passed`: `true` if content matches pattern, `false` otherwise
-- `error`: Error message if validation fails
+**出力:**
+- `passed`: コンテンツがパターンに一致する場合は `true`、それ以外の場合は `false`
+- `error`: 検証が失敗した場合のエラーメッセージ
 
-### Hallucination Detection
+### 幻覚検出
 
-Uses Retrieval-Augmented Generation (RAG) with LLM scoring to detect when AI-generated content contradicts or isn't grounded in your knowledge base.
+検索拡張生成（RAG）とLLMスコアリングを使用して、AI生成コンテンツがナレッジベースと矛盾している場合や、ナレッジベースに根拠がない場合を検出します。
 
-**How It Works:**
-1. Queries your knowledge base for relevant context
-2. Sends both the AI output and retrieved context to an LLM
-3. LLM assigns a confidence score (0-10 scale)
-   - **0** = Full hallucination (completely ungrounded)
-   - **10** = Fully grounded (completely supported by knowledge base)
-4. Validation passes if score ≥ threshold (default: 3)
+**仕組み:**
+1. 関連するコンテキストについてナレッジベースに問い合わせます
+2. AI出力と取得したコンテキストの両方をLLMに送信します
+3. LLMが信頼度スコア（0〜10のスケール）を割り当てます
+   - **0** = 完全な幻覚（まったく根拠なし）
+   - **10** = 完全に根拠あり（ナレッジベースで完全にサポートされている）
+4. スコアが閾値以上（デフォルト：3）であれば検証に合格します
 
-**Configuration:**
-- **Knowledge Base**: Select from your existing knowledge bases
-- **Model**: Choose LLM for scoring (requires strong reasoning - GPT-4o, Claude 3.7 Sonnet recommended)
-- **API Key**: Authentication for selected LLM provider (auto-hidden for hosted/Ollama models)
-- **Confidence Threshold**: Minimum score to pass (0-10, default: 3)
-- **Top K** (Advanced): Number of knowledge base chunks to retrieve (default: 10)
+**設定:**
+- **ナレッジベース**: 既存のナレッジベースから選択
+- **モデル**: スコアリング用のLLMを選択（強力な推論能力が必要 - GPT-4o、Claude 3.7 Sonnetを推奨）
+- **APIキー**: 選択したLLMプロバイダーの認証（ホスト型/Ollamaモデルでは自動的に非表示）
+- **信頼度閾値**: 合格するための最小スコア（0〜10、デフォルト：3）
+- **Top K**（詳細設定）: 取得するナレッジベースのチャンク数（デフォルト：10）
 
-**Output:**
-- `passed`: `true` if confidence score ≥ threshold
-- `score`: Confidence score (0-10)
-- `reasoning`: LLM's explanation for the score
-- `error`: Error message if validation fails
+**出力:**
+- `passed`: 信頼度スコアが閾値以上の場合は `true`
+- `score`: 信頼度スコア（0〜10）
+- `reasoning`: スコアに対するLLMの説明
+- `error`: 検証が失敗した場合のエラーメッセージ
 
-**Use Cases:**
-- Validate Agent responses against documentation
-- Ensure customer support answers are factually accurate
-- Verify generated content matches source material
-- Quality control for RAG applications
+**ユースケース:**
+- エージェントの応答をドキュメントに対して検証
+- カスタマーサポートの回答が事実に基づいていることを確認
+- 生成されたコンテンツがソース資料と一致することを確認
+- RAGアプリケーションの品質管理
 
-### PII Detection
+### PII検出
 
-Detects personally identifiable information using Microsoft Presidio. Supports 40+ entity types across multiple countries and languages.
+Microsoft Presidioを使用して個人を特定できる情報を検出します。複数の国や言語にわたる40以上のエンティティタイプをサポートしています。
 
 <div className="mx-auto w-3/5 overflow-hidden rounded-lg">
   <Video src="guardrails.mp4" width={500} height={350} />
 </div>
 
-**How It Works:**
-1. Scans content for PII entities using pattern matching and NLP
-2. Returns detected entities with locations and confidence scores
-3. Optionally masks detected PII in the output
+**仕組み:**
+1. パターンマッチングとNLPを使用してコンテンツ内のPIIエンティティをスキャンします
+2. 検出されたエンティティの位置と信頼度スコアを返します
+3. オプションで出力内の検出されたPIIをマスクします
 
-**Configuration:**
-- **PII Types to Detect**: Select from grouped categories via modal selector
-  - **Common**: Person name, Email, Phone, Credit card, IP address, etc.
-  - **USA**: SSN, Driver's license, Passport, etc.
-  - **UK**: NHS number, National insurance number
-  - **Spain**: NIF, NIE, CIF
-  - **Italy**: Fiscal code, Driver's license, VAT code
-  - **Poland**: PESEL, NIP, REGON
-  - **Singapore**: NRIC/FIN, UEN
-  - **Australia**: ABN, ACN, TFN, Medicare
-  - **India**: Aadhaar, PAN, Passport, Voter number
-- **Mode**: 
-  - **Detect**: Only identify PII (default)
-  - **Mask**: Replace detected PII with masked values
-- **Language**: Detection language (default: English)
+**設定:**
+- **検出するPIIタイプ**: モーダルセレクターからグループ化されたカテゴリーを選択
+  - **一般**: 個人名、メールアドレス、電話番号、クレジットカード、IPアドレスなど
+  - **アメリカ**: 社会保障番号、運転免許証、パスポートなど
+  - **イギリス**: NHS番号、国民保険番号
+  - **スペイン**: NIF、NIE、CIF
+  - **イタリア**: 納税者番号、運転免許証、VAT番号
+  - **ポーランド**: PESEL、NIP、REGON
+  - **シンガポール**: NRIC/FIN、UEN
+  - **オーストラリア**: ABN、ACN、TFN、メディケア
+  - **インド**: Aadhaar、PAN、パスポート、有権者番号
+- **モード**: 
+  - **検出**: PIIの識別のみ（デフォルト）
+  - **マスク**: 検出されたPIIをマスク値に置き換え
+- **言語**: 検出言語（デフォルト：英語）
 
-**Output:**
-- `passed`: `false` if any selected PII types are detected
-- `detectedEntities`: Array of detected PII with type, location, and confidence
-- `maskedText`: Content with PII masked (only if mode = "Mask")
-- `error`: Error message if validation fails
+**出力:**
+- `passed`: 選択したPIIタイプが検出された場合は `false`
+- `detectedEntities`: タイプ、位置、信頼度を含む検出されたPIIの配列
+- `maskedText`: PIIがマスクされたコンテンツ（モード = "Mask"の場合のみ）
+- `error`: 検証が失敗した場合のエラーメッセージ
 
-**Use Cases:**
-- Block content containing sensitive personal information
-- Mask PII before logging or storing data
-- Compliance with GDPR, HIPAA, and other privacy regulations
-- Sanitize user inputs before processing
+**ユースケース:**
+- 機密性の高い個人情報を含むコンテンツのブロック
+- データのログ記録や保存前のPIIマスキング
+- GDPR、HIPAAなどのプライバシー規制への準拠
+- 処理前のユーザー入力のサニタイズ
 
-## Configuration
+## 設定
 
-### Content to Validate
+### 検証するコンテンツ
 
-The input content to validate. This typically comes from:
-- Agent block outputs: `<agent.content>`
-- Function block results: `<function.output>`
-- API responses: `<api.output>`
-- Any other block output
+検証する入力コンテンツ。通常、以下から取得されます：
+- エージェントブロックの出力: `<agent.content>`
+- ファンクションブロックの結果: `<function.output>`
+- APIレスポンス: `<api.output>`
+- その他のブロック出力
 
-### Validation Type
+### 検証タイプ
 
-Choose from four validation types:
-- **Valid JSON**: Check if content is properly formatted JSON
-- **Regex Match**: Verify content matches a regex pattern
-- **Hallucination Check**: Validate against knowledge base with LLM scoring
-- **PII Detection**: Detect and optionally mask personally identifiable information
+4つの検証タイプから選択：
+- **有効なJSON**: コンテンツが適切にフォーマットされたJSONかどうかを確認
+- **正規表現マッチ**: コンテンツが正規表現パターンに一致するか検証
+- **幻覚チェック**: LLMスコアリングによる知識ベースとの検証
+- **PII検出**: 個人を特定できる情報の検出と任意のマスキング
 
-## Outputs
+## 出力
 
-All validation types return:
+すべての検証タイプは以下を返します：
 
-- **`<guardrails.passed>`**: Boolean indicating if validation passed
-- **`<guardrails.validationType>`**: The type of validation performed
-- **`<guardrails.input>`**: The original input that was validated
-- **`<guardrails.error>`**: Error message if validation failed (optional)
+- **`<guardrails.passed>`**: 検証が成功したかどうかを示すブール値
+- **`<guardrails.validationType>`**: 実行された検証のタイプ
+- **`<guardrails.input>`**: 検証された元の入力
+- **`<guardrails.error>`**: 検証が失敗した場合のエラーメッセージ（オプション）
 
-Additional outputs by type:
+タイプ別の追加出力：
 
-**Hallucination Check:**
-- **`<guardrails.score>`**: Confidence score (0-10)
-- **`<guardrails.reasoning>`**: LLM's explanation
+**幻覚チェック：**
+- **`<guardrails.score>`**: 信頼度スコア（0〜10）
+- **`<guardrails.reasoning>`**: LLMの説明
 
-**PII Detection:**
-- **`<guardrails.detectedEntities>`**: Array of detected PII entities
-- **`<guardrails.maskedText>`**: Content with PII masked (if mode = "Mask")
+**PII検出：**
+- **`<guardrails.detectedEntities>`**: 検出されたPIIエンティティの配列
+- **`<guardrails.maskedText>`**: PIIがマスクされたコンテンツ（モード = "Mask"の場合）
 
-## Example Use Cases
+## 使用例
 
-### Validate JSON Before Parsing
+### パース前にJSONを検証する
 
 <div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Ensure Agent output is valid JSON</h4>
+  <h4 className="font-medium">シナリオ：エージェントの出力が有効なJSONであることを確認する</h4>
   <ol className="list-decimal pl-5 text-sm">
-    <li>Agent generates structured JSON response</li>
-    <li>Guardrails validates JSON format</li>
-    <li>Condition block checks `<guardrails.passed>`</li>
-    <li>If passed → Parse and use data, If failed → Retry or handle error</li>
+    <li>エージェントが構造化されたJSON応答を生成</li>
+    <li>ガードレールがJSON形式を検証</li>
+    <li>条件ブロックが`<guardrails.passed>`をチェック</li>
+    <li>成功した場合→データを解析して使用、失敗した場合→再試行またはエラー処理</li>
   </ol>
 </div>
 
-### Prevent Hallucinations
+### 幻覚を防止する
 
 <div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Validate customer support responses</h4>
+  <h4 className="font-medium">シナリオ：カスタマーサポートの回答を検証する</h4>
   <ol className="list-decimal pl-5 text-sm">
-    <li>Agent generates response to customer question</li>
-    <li>Guardrails checks against support documentation knowledge base</li>
-    <li>If confidence score ≥ 3 → Send response</li>
-    <li>If confidence score \< 3 → Flag for human review</li>
+    <li>エージェントが顧客の質問に対する回答を生成</li>
+    <li>ガードレールがサポートドキュメントのナレッジベースと照合</li>
+    <li>信頼度スコアが3以上→回答を送信</li>
+    <li>信頼度スコアが3未満→人間によるレビューにフラグを立てる</li>
   </ol>
 </div>
 
-### Block PII in User Inputs
+### ユーザー入力のPIIをブロックする
 
 <div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Sanitize user-submitted content</h4>
+  <h4 className="font-medium">シナリオ：ユーザー提出コンテンツを無害化する</h4>
   <ol className="list-decimal pl-5 text-sm">
-    <li>User submits form with text content</li>
-    <li>Guardrails detects PII (emails, phone numbers, SSN, etc.)</li>
-    <li>If PII detected → Reject submission or mask sensitive data</li>
-    <li>If no PII → Process normally</li>
+    <li>ユーザーがテキストコンテンツを含むフォームを提出</li>
+    <li>ガードレールがPII（メール、電話番号、社会保障番号など）を検出</li>
+    <li>PIIが検出された場合→提出を拒否または機密データをマスク</li>
+    <li>PIIがない場合→通常通り処理</li>
   </ol>
 </div>
 
@@ -222,30 +222,29 @@ Additional outputs by type:
   <Video src="guardrails-example.mp4" width={500} height={350} />
 </div>
 
-### Validate Email Format
+### メール形式を検証する
 
 <div className="mb-4 rounded-md border p-4">
-  <h4 className="font-medium">Scenario: Check email address format</h4>
+  <h4 className="font-medium">シナリオ：メールアドレス形式をチェックする</h4>
   <ol className="list-decimal pl-5 text-sm">
-    <li>Agent extracts email from text</li>
-    <li>Guardrails validates with regex pattern</li>
-    <li>If valid → Use email for notification</li>
-    <li>If invalid → Request correction</li>
+    <li>エージェントがテキストからメールを抽出</li>
+    <li>ガードレールが正規表現パターンで検証</li>
+    <li>有効な場合→メールを通知に使用</li>
+    <li>無効な場合→修正を要求</li>
   </ol>
 </div>
 
-## Best Practices
+## ベストプラクティス
 
-- **Chain with Condition blocks**: Use `<guardrails.passed>` to branch workflow logic based on validation results
-- **Use JSON validation before parsing**: Always validate JSON structure before attempting to parse LLM outputs
-- **Choose appropriate PII types**: Only select the PII entity types relevant to your use case for better performance
-- **Set reasonable confidence thresholds**: For hallucination detection, adjust threshold based on your accuracy requirements (higher = stricter)
-- **Use strong models for hallucination detection**: GPT-4o or Claude 3.7 Sonnet provide more accurate confidence scoring
-- **Mask PII for logging**: Use "Mask" mode when you need to log or store content that may contain PII
-- **Test regex patterns**: Validate your regex patterns thoroughly before deploying to production
-- **Monitor validation failures**: Track `<guardrails.error>` messages to identify common validation issues
+- **条件ブロックと連携する**: `<guardrails.passed>` を使用して検証結果に基づいてワークフローのロジックを分岐させる
+- **JSONの解析前に検証する**: LLM出力を解析する前に、必ずJSON構造を検証する
+- **適切なPIIタイプを選択する**: パフォーマンス向上のため、ユースケースに関連するPIIエンティティタイプのみを選択する
+- **適切な信頼度しきい値を設定する**: 幻覚検出では、精度要件に基づいてしきい値を調整する（高いほど厳格）
+- **幻覚検出には高性能モデルを使用する**: GPT-4oまたはClaude 3.7 Sonnetは、より正確な信頼度スコアリングを提供する
+- **ログ記録のためにPIIをマスクする**: PIIを含む可能性のあるコンテンツをログに記録または保存する必要がある場合は、「マスク」モードを使用する
+- **正規表現パターンをテストする**: 本番環境にデプロイする前に、正規表現パターンを徹底的に検証する
+- **検証失敗を監視する**: `<guardrails.error>` メッセージを追跡して、一般的な検証の問題を特定する
 
 <Callout type="info">
-  Guardrails validation happens synchronously in your workflow. For hallucination detection, choose faster models (like GPT-4o-mini) if latency is critical.
+  ガードレールの検証はワークフロー内で同期的に行われます。レイテンシーが重要な場合は、幻覚検出にはより高速なモデル（GPT-4o-miniなど）を選択してください。
 </Callout>
-

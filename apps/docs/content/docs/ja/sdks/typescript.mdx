@@ -7,10 +7,10 @@ import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 
-Sim用の公式TypeScript/JavaScript SDKは、完全な型安全性を提供し、Node.jsとブラウザ環境の両方をサポートしています。これにより、Node.jsアプリケーション、Webアプリケーション、その他のJavaScript環境からプログラムによってワークフローを実行することができます。
+Simの公式TypeScript/JavaScript SDKは完全な型安全性を提供し、Node.jsとブラウザ環境の両方をサポートしています。これにより、Node.jsアプリケーション、Webアプリケーション、その他のJavaScript環境からプログラムでワークフローを実行することができます。
 
 <Callout type="info">
-  TypeScript SDKは、完全な型安全性、非同期実行サポート、指数バックオフによる自動レート制限、使用状況追跡を提供します。
+  TypeScript SDKは完全な型安全性、非同期実行サポート、指数バックオフによる自動レート制限、使用状況追跡を提供します。
 </Callout>
 
 ## インストール
@@ -43,7 +43,7 @@ Sim用の公式TypeScript/JavaScript SDKは、完全な型安全性を提供し�
 
 ## クイックスタート
 
-以下は、始めるための簡単な例です：
+以下は簡単な使用例です：
 
 ```typescript
 import { SimStudioClient } from 'simstudio-ts-sdk';
@@ -96,12 +96,12 @@ const result = await client.executeWorkflow('workflow-id', {
   - `input` (any): ワークフローに渡す入力データ
   - `timeout` (number): タイムアウト（ミリ秒）（デフォルト: 30000）
   - `stream` (boolean): ストリーミングレスポンスを有効にする（デフォルト: false）
-  - `selectedOutputs` (string[]): `blockName.attribute`形式でストリーミングするブロック出力（例: `["agent1.content"]`）
+  - `selectedOutputs` (string[]): `blockName.attribute` 形式でストリーミングするブロック出力（例: `["agent1.content"]`）
   - `async` (boolean): 非同期実行（デフォルト: false）
 
 **戻り値:** `Promise<WorkflowExecutionResult | AsyncExecutionResult>`
 
-`async: true`の場合、ポーリング用のタスクIDをすぐに返します。それ以外の場合は、完了を待ちます。
+`async: true` の場合、ポーリング用のタスクIDをすぐに返します。それ以外の場合は、完了を待ちます。
 
 ##### getWorkflowStatus()
 
@@ -161,7 +161,7 @@ if (status.status === 'completed') {
 
 ##### executeWithRetry()
 
-レート制限エラー時に指数バックオフを使用して自動的に再試行するワークフロー実行。
+指数バックオフを使用してレート制限エラー時に自動的に再試行するワークフロー実行。
 
 ```typescript
 const result = await client.executeWithRetry('workflow-id', {
@@ -177,7 +177,7 @@ const result = await client.executeWithRetry('workflow-id', {
 
 **パラメータ:**
 - `workflowId` (string): 実行するワークフローのID
-- `options` (ExecutionOptions, オプション): `executeWorkflow()`と同じ
+- `options` (ExecutionOptions, オプション): `executeWorkflow()` と同じ
 - `retryOptions` (RetryOptions, オプション):
   - `maxRetries` (number): 最大再試行回数（デフォルト: 3）
   - `initialDelay` (number): 初期遅延（ミリ秒）（デフォルト: 1000）
@@ -186,7 +186,7 @@ const result = await client.executeWithRetry('workflow-id', {
 
 **戻り値:** `Promise<WorkflowExecutionResult | AsyncExecutionResult>`
 
-再試行ロジックは、サンダリングハード問題を防ぐために±25%のジッターを含む指数バックオフ（1秒→2秒→4秒→8秒...）を使用します。APIが`retry-after`ヘッダーを提供する場合、代わりにそれが使用されます。
+リトライロジックは指数バックオフ（1秒 → 2秒 → 4秒 → 8秒...）を使用し、サンダリングハード問題を防ぐために±25%のジッターを適用します。APIが `retry-after` ヘッダーを提供する場合、代わりにそれが使用されます。
 
 ##### getRateLimitInfo()
 
@@ -306,7 +306,7 @@ interface WorkflowStatus {
 }
 ```
 
-### RateLimitInfo
+### レート制限情報
 
 ```typescript
 interface RateLimitInfo {
@@ -317,7 +317,7 @@ interface RateLimitInfo {
 }
 ```
 
-### UsageLimits
+### 使用制限
 
 ```typescript
 interface UsageLimits {
@@ -345,7 +345,7 @@ interface UsageLimits {
 }
 ```
 
-### SimStudioError
+### SimStudioエラー
 
 ```typescript
 class SimStudioError extends Error {
@@ -356,10 +356,10 @@ class SimStudioError extends Error {
 
 **一般的なエラーコード:**
 - `UNAUTHORIZED`: 無効なAPIキー
-- `TIMEOUT`: リクエストがタイムアウトしました
-- `RATE_LIMIT_EXCEEDED`: レート制限を超えました
-- `USAGE_LIMIT_EXCEEDED`: 使用制限を超えました
-- `EXECUTION_ERROR`: ワークフローの実行に失敗しました
+- `TIMEOUT`: リクエストタイムアウト
+- `RATE_LIMIT_EXCEEDED`: レート制限超過
+- `USAGE_LIMIT_EXCEEDED`: 使用制限超過
+- `EXECUTION_ERROR`: ワークフロー実行失敗
 
 ## 例
 
@@ -376,7 +376,7 @@ class SimStudioError extends Error {
     入力データでワークフローを実行します。
   </Step>
   <Step title="結果の処理">
-    実行結果を処理し、エラーがあれば対処します。
+    実行結果を処理し、エラーを適切に扱います。
   </Step>
 </Steps>
 
@@ -462,8 +462,8 @@ async function executeWithErrorHandling() {
 
 環境変数を使用してクライアントを設定します：
 
-<Tabs items={['Development', 'Production']}>
-  <Tab value="Development">
+<Tabs items={['開発環境', '本番環境']}>
+  <Tab value="開発環境">
 
     ```typescript
     import { SimStudioClient } from 'simstudio-ts-sdk';
@@ -481,7 +481,7 @@ async function executeWithErrorHandling() {
     ```
 
   </Tab>
-  <Tab value="Production">
+  <Tab value="本番環境">
 
     ```typescript
     import { SimStudioClient } from 'simstudio-ts-sdk';
@@ -501,7 +501,7 @@ async function executeWithErrorHandling() {
   </Tab>
 </Tabs>
 
-### Node.js Express統合
+### Node.js Expressとの統合
 
 Express.jsサーバーとの統合：
 
@@ -545,7 +545,7 @@ app.listen(3000, () => {
 
 ### Next.js APIルート
 
-Next.js APIルートでの使用：
+Next.js APIルートでの使用方法：
 
 ```typescript
 // pages/api/workflow.ts or app/api/workflow/route.ts
@@ -584,7 +584,7 @@ export default async function handler(
 
 ### ブラウザでの使用
 
-ブラウザでの使用（適切なCORS設定が必要）：
+ブラウザでの使用方法（適切なCORS設定が必要）：
 
 ```typescript
 import { SimStudioClient } from 'simstudio-ts-sdk';
@@ -604,18 +604,97 @@ async function executeClientSideWorkflow() {
     });
 
     console.log('Workflow result:', result);
-    
+
     // Update UI with result
-    document.getElementById('result')!.textContent = 
+    document.getElementById('result')!.textContent =
       JSON.stringify(result.output, null, 2);
   } catch (error) {
     console.error('Error:', error);
   }
 }
-
-// Attach to button click
-document.getElementById('executeBtn')?.addEventListener('click', executeClientSideWorkflow);
 ```
+
+### ファイルアップロード
+
+Fileオブジェクトは自動的に検出され、base64形式に変換されます。ワークフローのAPIトリガー入力形式に一致するフィールド名で入力に含めてください。
+
+SDKはFileオブジェクトを以下の形式に変換します：
+
+```typescript
+{
+  type: 'file',
+  data: 'data:mime/type;base64,base64data',
+  name: 'filename',
+  mime: 'mime/type'
+}
+```
+
+または、URL形式を使用して手動でファイルを提供することもできます：
+
+```typescript
+{
+  type: 'url',
+  data: 'https://example.com/file.pdf',
+  name: 'file.pdf',
+  mime: 'application/pdf'
+}
+```
+
+<Tabs items={['Browser', 'Node.js']}>
+  <Tab value="Browser">
+
+    ```typescript
+    import { SimStudioClient } from 'simstudio-ts-sdk';
+
+    const client = new SimStudioClient({
+      apiKey: process.env.NEXT_PUBLIC_SIM_API_KEY!
+    });
+
+    // From file input
+    async function handleFileUpload(event: Event) {
+      const input = event.target as HTMLInputElement;
+      const files = Array.from(input.files || []);
+
+      // Include files under the field name from your API trigger's input format
+      const result = await client.executeWorkflow('workflow-id', {
+        input: {
+          documents: files,  // Must match your workflow's "files" field name
+          instructions: 'Analyze these documents'
+        }
+      });
+
+      console.log('Result:', result);
+    }
+    ```
+
+  </Tab>
+  <Tab value="Node.js">
+
+    ```typescript
+    import { SimStudioClient } from 'simstudio-ts-sdk';
+    import fs from 'fs';
+
+    const client = new SimStudioClient({
+      apiKey: process.env.SIM_API_KEY!
+    });
+
+    // Read file and create File object
+    const fileBuffer = fs.readFileSync('./document.pdf');
+    const file = new File([fileBuffer], 'document.pdf', {
+      type: 'application/pdf'
+    });
+
+    // Include files under the field name from your API trigger's input format
+    const result = await client.executeWorkflow('workflow-id', {
+      input: {
+        documents: [file],  // Must match your workflow's "files" field name
+        query: 'Summarize this document'
+      }
+    });
+    ```
+
+  </Tab>
+</Tabs>
 
 <Callout type="warning">
   ブラウザでSDKを使用する場合、機密性の高いAPIキーを公開しないよう注意してください。バックエンドプロキシや権限が制限された公開APIキーの使用を検討してください。
@@ -623,7 +702,7 @@ document.getElementById('executeBtn')?.addEventListener('click', executeClientSi
 
 ### Reactフックの例
 
-ワークフロー実行用のカスタムReactフックを作成：
+ワークフロー実行用のカスタムReactフックを作成する：
 
 ```typescript
 import { useState, useCallback } from 'react';
@@ -701,7 +780,7 @@ function WorkflowComponent() {
 
 ### 非同期ワークフロー実行
 
-長時間実行タスク向けに非同期でワークフローを実行：
+長時間実行されるタスクのためにワークフローを非同期で実行する：
 
 ```typescript
 import { SimStudioClient, AsyncExecutionResult } from 'simstudio-ts-sdk';
@@ -750,7 +829,7 @@ executeAsync();
 
 ### レート制限とリトライ
 
-指数バックオフによるレート制限の自動処理：
+指数バックオフを使用して自動的にレート制限を処理する：
 
 ```typescript
 import { SimStudioClient, SimStudioError } from 'simstudio-ts-sdk';
@@ -786,9 +865,9 @@ async function executeWithRetryHandling() {
 }
 ```
 
-### 使用状況モニタリング
+### 使用状況のモニタリング
 
-アカウントの使用状況と制限のモニタリング：
+アカウントの使用状況と制限をモニタリングします：
 
 ```typescript
 import { SimStudioClient } from 'simstudio-ts-sdk';
@@ -815,11 +894,27 @@ async function checkUsage() {
     console.log('  Is limited:', limits.rateLimit.async.isLimited);
 
     console.log('\n=== Usage ===');
-    console.log('Current period cost: 
+    console.log('Current period cost: $' + limits.usage.currentPeriodCost.toFixed(2));
+    console.log('Limit: $' + limits.usage.limit.toFixed(2));
+    console.log('Plan:', limits.usage.plan);
 
-### Streaming Workflow Execution
+    const percentUsed = (limits.usage.currentPeriodCost / limits.usage.limit) * 100;
+    console.log('Usage: ' + percentUsed.toFixed(1) + '%');
 
-Execute workflows with real-time streaming responses:
+    if (percentUsed > 80) {
+      console.warn('⚠️  Warning: You are approaching your usage limit!');
+    }
+  } catch (error) {
+    console.error('Error checking usage:', error);
+  }
+}
+
+checkUsage();
+```
+
+### ワークフローのストリーミング実行
+
+リアルタイムのストリーミングレスポンスでワークフローを実行します：
 
 ```typescript
 import { SimStudioClient } from 'simstudio-ts-sdk';
@@ -830,21 +925,21 @@ const client = new SimStudioClient({
 
 async function executeWithStreaming() {
   try {
-    // 特定のブロック出力のストリーミングを有効化
+    // Enable streaming for specific block outputs
     const result = await client.executeWorkflow('workflow-id', {
       input: { message: 'Count to five' },
       stream: true,
-      selectedOutputs: ['agent1.content'] // blockName.attribute形式を使用
+      selectedOutputs: ['agent1.content'] // Use blockName.attribute format
     });
 
-    console.log('ワークフロー結果:', result);
+    console.log('Workflow result:', result);
   } catch (error) {
-    console.error('エラー:', error);
+    console.error('Error:', error);
   }
 }
 ```
 
-The streaming response follows the Server-Sent Events (SSE) format:
+ストリーミングレスポンスはServer-Sent Events（SSE）形式に従います：
 
 ```
 data: {"blockId":"7b7735b9-19e5-4bd6-818b-46aae2596e9f","chunk":"One"}
@@ -856,7 +951,7 @@ data: {"event":"done","success":true,"output":{},"metadata":{"duration":610}}
 data: [DONE]
 ```
 
-**React Streaming Example:**
+**Reactストリーミングの例：**
 
 ```typescript
 import { useState, useEffect } from 'react';
@@ -928,36 +1023,35 @@ function StreamingWorkflow() {
 }
 ```
 
-## Getting Your API Key
+## APIキーの取得
 
 <Steps>
-  <Step title="Log in to Sim">
-    Navigate to [Sim](https://sim.ai) and log in to your account.
+  <Step title="Simにログイン">
+    [Sim](https://sim.ai)に移動してアカウントにログインします。
   </Step>
-  <Step title="Open your workflow">
-    Navigate to the workflow you want to execute programmatically.
+  <Step title="ワークフローを開く">
+    プログラムで実行したいワークフローに移動します。
   </Step>
-  <Step title="Deploy your workflow">
-    Click on "Deploy" to deploy your workflow if it hasn't been deployed yet.
+  <Step title="ワークフローをデプロイする">
+    まだデプロイされていない場合は、「デプロイ」をクリックしてワークフローをデプロイします。
   </Step>
-  <Step title="Create or select an API key">
-    During the deployment process, select or create an API key.
+  <Step title="APIキーを作成または選択する">
+    デプロイプロセス中に、APIキーを選択または作成します。
   </Step>
-  <Step title="Copy the API key">
-    Copy the API key to use in your TypeScript/JavaScript application.
+  <Step title="APIキーをコピーする">
+    TypeScript/JavaScriptアプリケーションで使用するAPIキーをコピーします。
   </Step>
 </Steps>
 
 <Callout type="warning">
-  Keep your API key secure and never commit it to version control. Use environment variables or secure configuration management.
+  APIキーは安全に保管し、バージョン管理システムにコミットしないでください。環境変数や安全な設定管理を使用してください。
 </Callout>
 
-## Requirements
+## 要件
 
-- Node.js 16+
-- TypeScript 5.0+ (for TypeScript projects)
+- Node.js 16以上
+- TypeScript 5.0以上（TypeScriptプロジェクトの場合）
 
-## License
-
+## ライセンス
 
 Apache-2.0
