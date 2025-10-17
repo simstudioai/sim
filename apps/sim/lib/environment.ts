@@ -21,14 +21,14 @@ export const isTest = env.NODE_ENV === 'test'
 /**
  * Is this the hosted version of the application
  */
-export const isHosted = true
-  // getEnv('NEXT_PUBLIC_APP_URL') === 'https://www.sim.ai' ||
-  // getEnv('NEXT_PUBLIC_APP_URL') === 'https://www.staging.sim.ai'
+export const isHosted =
+  getEnv('NEXT_PUBLIC_APP_URL') === 'https://www.sim.ai' ||
+  getEnv('NEXT_PUBLIC_APP_URL') === 'https://www.staging.sim.ai'
 
 /**
  * Is billing enforcement enabled
  */
-export const isBillingEnabled = true // isTruthy(env.BILLING_ENABLED)
+export const isBillingEnabled = isTruthy(env.BILLING_ENABLED)
 
 /**
  * Is email verification enabled
