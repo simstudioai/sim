@@ -1,6 +1,6 @@
 ---
 title: S3
-description: Ver archivos S3
+description: Subir, descargar, listar y gestionar archivos S3
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -61,20 +61,45 @@ En Sim, la integración con S3 permite a tus agentes recuperar y acceder a archi
 
 ## Instrucciones de uso
 
-Integrar S3 en el flujo de trabajo. Puede obtener URLs prefirmadas para objetos S3. Requiere clave de acceso y clave de acceso secreta.
+Integra S3 en el flujo de trabajo. Sube archivos, descarga objetos, lista contenidos de buckets, elimina objetos y copia objetos entre buckets. Requiere clave de acceso AWS y clave de acceso secreta.
 
 ## Herramientas
 
-### `s3_get_object`
+### `s3_put_object`
 
-Recuperar un objeto de un bucket de AWS S3
+Subir un archivo a un bucket de AWS S3
 
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ---------- | ----------- |
-| `accessKeyId` | string | Sí | Tu ID de clave de acceso de AWS |
-| `secretAccessKey` | string | Sí | Tu clave de acceso secreta de AWS |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Sí | Tu ID de clave de acceso AWS |
+| `secretAccessKey` | string | Sí | Tu clave de acceso secreta AWS |
+| `region` | string | Sí | Región AWS (ej., us-east-1) |
+| `bucketName` | string | Sí | Nombre del bucket S3 |
+| `objectKey` | string | Sí | Clave/ruta del objeto en S3 (ej., carpeta/archivo.ext) |
+| `file` | file | No | Archivo para subir |
+| `content` | string | No | Contenido de texto para subir (alternativa al archivo) |
+| `contentType` | string | No | Cabecera Content-Type (autodetectada del archivo si no se proporciona) |
+| `acl` | string | No | Lista de control de acceso (ej., private, public-read) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `url` | string | URL del objeto S3 subido |
+| `metadata` | object | Metadatos de subida incluyendo ETag y ubicación |
+
+### `s3_get_object`
+
+Recuperar un objeto de un bucket AWS S3
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Sí | Tu ID de clave de acceso AWS |
+| `secretAccessKey` | string | Sí | Tu clave de acceso secreta AWS |
 | `s3Uri` | string | Sí | URL del objeto S3 |
 
 #### Salida
@@ -83,6 +108,73 @@ Recuperar un objeto de un bucket de AWS S3
 | --------- | ---- | ----------- |
 | `url` | string | URL prefirmada para descargar el objeto S3 |
 | `metadata` | object | Metadatos del archivo incluyendo tipo, tamaño, nombre y fecha de última modificación |
+
+### `s3_list_objects`
+
+Listar objetos en un bucket de AWS S3
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ---------- | ----------- |
+| `accessKeyId` | string | Sí | Tu ID de clave de acceso de AWS |
+| `secretAccessKey` | string | Sí | Tu clave de acceso secreta de AWS |
+| `region` | string | Sí | Región de AWS (p. ej., us-east-1) |
+| `bucketName` | string | Sí | Nombre del bucket S3 |
+| `prefix` | string | No | Prefijo para filtrar objetos (p. ej., carpeta/) |
+| `maxKeys` | number | No | Número máximo de objetos a devolver (predeterminado: 1000) |
+| `continuationToken` | string | No | Token para paginación |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `objects` | array | Lista de objetos S3 |
+
+### `s3_delete_object`
+
+Eliminar un objeto de un bucket de AWS S3
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ---------- | ----------- |
+| `accessKeyId` | string | Sí | Tu ID de clave de acceso de AWS |
+| `secretAccessKey` | string | Sí | Tu clave de acceso secreta de AWS |
+| `region` | string | Sí | Región de AWS (p. ej., us-east-1) |
+| `bucketName` | string | Sí | Nombre del bucket S3 |
+| `objectKey` | string | Sí | Clave/ruta del objeto a eliminar |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Indica si el objeto fue eliminado correctamente |
+| `metadata` | object | Metadatos de la eliminación |
+
+### `s3_copy_object`
+
+Copiar un objeto dentro de o entre buckets de AWS S3
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ---------- | ----------- |
+| `accessKeyId` | string | Sí | Tu ID de clave de acceso de AWS |
+| `secretAccessKey` | string | Sí | Tu clave de acceso secreta de AWS |
+| `region` | string | Sí | Región de AWS (p. ej., us-east-1) |
+| `sourceBucket` | string | Sí | Nombre del bucket de origen |
+| `sourceKey` | string | Sí | Clave/ruta del objeto de origen |
+| `destinationBucket` | string | Sí | Nombre del bucket de destino |
+| `destinationKey` | string | Sí | Clave/ruta del objeto de destino |
+| `acl` | string | No | Lista de control de acceso para el objeto copiado (p. ej., private, public-read) |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `url` | string | URL del objeto S3 copiado |
+| `metadata` | object | Metadatos de la operación de copia |
 
 ## Notas
 
