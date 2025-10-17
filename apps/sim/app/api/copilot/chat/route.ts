@@ -357,18 +357,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Determine provider and conversationId to use for this request
+    // Determine conversationId to use for this request
     const effectiveConversationId =
       (currentChat?.conversationId as string | undefined) || conversationId
 
-    // If we have a conversationId, only send the most recent user message; else send full history
-    const latestUserMessage =
-      [...messages].reverse().find((m) => m?.role === 'user') || messages[messages.length - 1]
-    const messagesForAgent = effectiveConversationId ? [latestUserMessage] : messages
-
     const requestPayload = {
-      messages: messagesForAgent,
-      chatMessages: messages, // Full unfiltered messages array
+      message: message, // Just send the current user message text
       workflowId,
       userId: authenticatedUserId,
       stream: stream,
@@ -383,14 +377,16 @@ export async function POST(req: NextRequest) {
       ...(session?.user?.name && { userName: session.user.name }),
       ...(agentContexts.length > 0 && { context: agentContexts }),
       ...(actualChatId ? { chatId: actualChatId } : {}),
+      ...(processedFileContents.length > 0 && { fileAttachments: processedFileContents }),
     }
 
     try {
-      logger.info(`[${tracker.requestId}] About to call Sim Agent with context`, {
-        context: (requestPayload as any).context,
-        messagesCount: messagesForAgent.length,
-        chatMessagesCount: messages.length,
+      logger.info(`[${tracker.requestId}] About to call Sim Agent`, {
+        hasContext: agentContexts.length > 0,
+        contextCount: agentContexts.length,
         hasConversationId: !!effectiveConversationId,
+        hasFileAttachments: processedFileContents.length > 0,
+        messageLength: message.length,
       })
     } catch {}
 
