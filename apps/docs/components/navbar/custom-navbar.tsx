@@ -9,11 +9,10 @@ import { SearchTrigger } from '@/components/ui/search-trigger'
 export function CustomNavbar() {
   return (
     <nav
-      className='sticky top-0 z-50 flex h-16 items-center border-border/50 border-b'
+      className='sticky top-0 z-50 flex h-16 items-center border-border/50 border-b bg-background/90 backdrop-blur-xl'
       style={{
-        backgroundColor: 'hsla(0, 0%, 7.04%, 0.92)',
-        backdropFilter: 'blur(24px) saturate(180%) brightness(0.6)',
-        WebkitBackdropFilter: 'blur(24px) saturate(180%) brightness(0.6)',
+        backdropFilter: 'blur(24px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(24px) saturate(180%)',
       }}
     >
       {/* Left: Logo - positioned to align with sidebar */}
@@ -35,7 +34,7 @@ export function CustomNavbar() {
           href='https://sim.ai'
           target='_blank'
           rel='noopener noreferrer'
-          className='rounded-xl px-3 py-2 font-normal text-[0.9375rem] text-white/60 leading-[1.4] transition-colors hover:bg-white/8 hover:text-white'
+          className='rounded-xl px-3 py-2 font-normal text-[0.9375rem] text-foreground/60 leading-[1.4] transition-colors hover:bg-foreground/8 hover:text-foreground'
           style={{
             fontFamily:
               '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',

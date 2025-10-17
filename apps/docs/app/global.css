@@ -70,11 +70,22 @@ aside#nd-sidebar {
   font-size: 0.9375rem !important; /* 15px to match Raindrop */
   line-height: 1.4 !important;
   padding: 0.5rem 0.75rem !important; /* More compact like Raindrop */
-  color: rgba(255, 255, 255, 0.6) !important; /* Muted gray text */
   font-weight: 400 !important;
   border-radius: 0.75rem !important; /* More rounded like Raindrop */
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
     sans-serif !important;
+}
+
+/* Dark mode sidebar text */
+.dark #nd-sidebar a,
+.dark #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+/* Light mode sidebar text */
+:root:not(.dark) #nd-sidebar a,
+:root:not(.dark) #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) {
+  color: rgba(0, 0, 0, 0.6) !important;
 }
 
 /* Make sure chevron icons are visible and properly styled */
@@ -116,7 +127,7 @@ aside#nd-sidebar {
   letter-spacing: 0.05em !important;
 }
 
-/* Override active state - dark gray background with white text (NO PURPLE) */
+/* Override active state (NO PURPLE) */
 #nd-sidebar a[data-active="true"],
 #nd-sidebar button[data-active="true"],
 #nd-sidebar a.bg-fd-primary\/10,
@@ -129,24 +140,67 @@ aside#nd-sidebar {
 #nd-sidebar a.text-purple-600,
 #nd-sidebar a[class*="bg-purple"],
 #nd-sidebar a[class*="text-purple"] {
-  background-color: rgba(255, 255, 255, 0.15) !important;
-  color: rgba(255, 255, 255, 1) !important; /* Full white for active */
   background-image: none !important;
 }
 
-/* Override hover state - lighter gray background only, no text color change */
-#nd-sidebar a:hover:not([data-active="true"]),
-#nd-sidebar button:hover:not([data-active="true"]) {
+/* Dark mode active state */
+.dark #nd-sidebar a[data-active="true"],
+.dark #nd-sidebar button[data-active="true"],
+.dark #nd-sidebar a.bg-fd-primary\/10,
+.dark #nd-sidebar a.text-fd-primary,
+.dark #nd-sidebar a[class*="bg-fd-primary"],
+.dark #nd-sidebar a[class*="text-fd-primary"],
+.dark #nd-sidebar a.bg-purple-50\/80,
+.dark #nd-sidebar a.text-purple-600,
+.dark #nd-sidebar a[class*="bg-purple"],
+.dark #nd-sidebar a[class*="text-purple"] {
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  color: rgba(255, 255, 255, 1) !important;
+}
+
+/* Light mode active state */
+:root:not(.dark) #nd-sidebar a[data-active="true"],
+:root:not(.dark) #nd-sidebar button[data-active="true"],
+:root:not(.dark) #nd-sidebar a.bg-fd-primary\/10,
+:root:not(.dark) #nd-sidebar a.text-fd-primary,
+:root:not(.dark) #nd-sidebar a[class*="bg-fd-primary"],
+:root:not(.dark) #nd-sidebar a[class*="text-fd-primary"],
+:root:not(.dark) #nd-sidebar a.bg-purple-50\/80,
+:root:not(.dark) #nd-sidebar a.text-purple-600,
+:root:not(.dark) #nd-sidebar a[class*="bg-purple"],
+:root:not(.dark) #nd-sidebar a[class*="text-purple"] {
+  background-color: rgba(0, 0, 0, 0.1) !important;
+  color: rgba(0, 0, 0, 1) !important;
+}
+
+/* Dark mode hover state */
+.dark #nd-sidebar a:hover:not([data-active="true"]),
+.dark #nd-sidebar button:hover:not([data-active="true"]) {
   background-color: rgba(255, 255, 255, 0.08) !important;
 }
 
-/* Ensure active/selected items don't change on hover */
-#nd-sidebar a.bg-purple-50\/80:hover,
-#nd-sidebar a[class*="bg-purple"]:hover,
-#nd-sidebar a[data-active="true"]:hover,
-#nd-sidebar button[data-active="true"]:hover {
+/* Light mode hover state */
+:root:not(.dark) #nd-sidebar a:hover:not([data-active="true"]),
+:root:not(.dark) #nd-sidebar button:hover:not([data-active="true"]) {
+  background-color: rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Dark mode - ensure active/selected items don't change on hover */
+.dark #nd-sidebar a.bg-purple-50\/80:hover,
+.dark #nd-sidebar a[class*="bg-purple"]:hover,
+.dark #nd-sidebar a[data-active="true"]:hover,
+.dark #nd-sidebar button[data-active="true"]:hover {
   background-color: rgba(255, 255, 255, 0.15) !important;
   color: rgba(255, 255, 255, 1) !important;
+}
+
+/* Light mode - ensure active/selected items don't change on hover */
+:root:not(.dark) #nd-sidebar a.bg-purple-50\/80:hover,
+:root:not(.dark) #nd-sidebar a[class*="bg-purple"]:hover,
+:root:not(.dark) #nd-sidebar a[data-active="true"]:hover,
+:root:not(.dark) #nd-sidebar button[data-active="true"]:hover {
+  background-color: rgba(0, 0, 0, 0.1) !important;
+  color: rgba(0, 0, 0, 1) !important;
 }
 
 /* Hide search, platform, and collapse button from sidebar completely */
@@ -282,17 +336,20 @@ pre code {
   border-radius: 0.25rem;
   font-size: 0.875em;
   font-weight: 500;
+}
+
+/* Light mode inline code */
+:root:not(.dark) :not(pre) > code {
   background-color: rgb(243 244 246);
   color: rgb(220 38 38);
   border: 1px solid rgb(229 231 235);
 }
 
-@media (prefers-color-scheme: dark) {
-  :not(pre) > code {
-    background-color: rgb(31 41 55);
-    color: rgb(248 113 113);
-    border-color: rgb(55 65 81);
-  }
+/* Dark mode inline code */
+.dark :not(pre) > code {
+  background-color: rgb(31 41 55);
+  color: rgb(248 113 113);
+  border: 1px solid rgb(55 65 81);
 }
 
 /* Code block container improvements */
