@@ -139,9 +139,10 @@ export interface CopilotState {
 
 export interface CopilotActions {
   setMode: (mode: CopilotMode) => void
-  setSelectedModel: (model: CopilotStore['selectedModel']) => void
+  setSelectedModel: (model: CopilotStore['selectedModel']) => Promise<void>
   setAgentPrefetch: (prefetch: boolean) => void
   setEnabledModels: (models: string[] | null) => void
+  fetchContextUsage: () => Promise<void>
 
   setWorkflowId: (workflowId: string | null) => Promise<void>
   validateCurrentChat: () => boolean

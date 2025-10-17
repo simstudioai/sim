@@ -95,6 +95,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     selectedModel,
     setSelectedModel,
     messageCheckpoints,
+    currentChat,
+    fetchContextUsage,
   } = useCopilotStore()
 
   // Load user's enabled models on mount
@@ -200,6 +202,16 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
       setIsInitialized(true)
     }
   }, [activeWorkflowId, isLoadingChats, chatsLoadedForWorkflow, isInitialized])
+
+  // Fetch context usage when component is initialized and has a current chat
+  useEffect(() => {
+    if (isInitialized && currentChat?.id && activeWorkflowId) {
+      logger.info('[Copilot] Component initialized, fetching context usage')
+      fetchContextUsage().catch((err) => {
+        logger.warn('[Copilot] Failed to fetch context usage on mount', err)
+      })
+    }
+  }, [isInitialized, currentChat?.id, activeWorkflowId, fetchContextUsage])
 
   // Clear any existing preview when component mounts or workflow changes
   useEffect(() => {

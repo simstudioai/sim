@@ -1167,25 +1167,6 @@ const sseHandlers: Record<string, SSEHandler> = {
     context.currentTextBlock = null
     updateStreamingMessage(set, context)
   },
-  context_usage: (data, _context, _get, set) => {
-    try {
-      const usageData = data?.data
-      if (usageData) {
-        set({
-          contextUsage: {
-            usage: usageData.usage || 0,
-            percentage: usageData.percentage || 0,
-            model: usageData.model || '',
-            contextWindow: usageData.context_window || usageData.contextWindow || 0,
-            when: usageData.when || 'start',
-            estimatedTokens: usageData.estimated_tokens || usageData.estimatedTokens,
-          },
-        })
-      }
-    } catch (err) {
-      logger.warn('Failed to handle context_usage event:', err)
-    }
-  },
   default: () => {},
 }
 
@@ -1424,10 +1405,14 @@ export const useCopilotStore = create<CopilotStore>()(
               chats: (get().chats || []).map((c: CopilotChat) =>
                 c.id === chat.id ? latestChat : c
               ),
+              contextUsage: null,
             })
             try {
               await get().loadMessageCheckpoints(latestChat.id)
             } catch {}
+            // Fetch context usage for the selected chat
+            logger.info('[Context Usage] Chat selected, fetching usage')
+            await get().fetchContextUsage()
           }
         }
       } catch {}
@@ -1457,6 +1442,7 @@ export const useCopilotStore = create<CopilotStore>()(
         }
       } catch {}
 
+      logger.info('[Context Usage] New chat created, clearing context usage')
       set({
         currentChat: null,
         messages: [],
@@ -2164,6 +2150,10 @@ export const useCopilotStore = create<CopilotStore>()(
         try {
           // Removed: stats sending now occurs only on accept/reject with minimal payload
         } catch {}
+
+        // Fetch context usage after response completes
+        logger.info('[Context Usage] Stream completed, fetching usage')
+        await get().fetchContextUsage()
       } finally {
         clearTimeout(timeoutId)
       }
@@ -2247,9 +2237,82 @@ export const useCopilotStore = create<CopilotStore>()(
     updateDiffStore: async (_yamlContent: string) => {},
     updateDiffStoreWithWorkflowState: async (_workflowState: any) => {},
 
-    setSelectedModel: (model) => set({ selectedModel: model }),
+    setSelectedModel: async (model) => {
+      logger.info('[Context Usage] Model changed', { from: get().selectedModel, to: model })
+      set({ selectedModel: model })
+      // Fetch context usage after model switch
+      await get().fetchContextUsage()
+    },
     setAgentPrefetch: (prefetch) => set({ agentPrefetch: prefetch }),
     setEnabledModels: (models) => set({ enabledModels: models }),
+
+    // Fetch context usage from sim-agent API
+    fetchContextUsage: async () => {
+      try {
+        const { currentChat, selectedModel, workflowId } = get()
+        logger.info('[Context Usage] Starting fetch', {
+          hasChatId: !!currentChat?.id,
+          hasWorkflowId: !!workflowId,
+          chatId: currentChat?.id,
+          workflowId,
+          model: selectedModel,
+        })
+
+        if (!currentChat?.id || !workflowId) {
+          logger.info('[Context Usage] Skipping: missing chat or workflow', {
+            hasChatId: !!currentChat?.id,
+            hasWorkflowId: !!workflowId,
+          })
+          return
+        }
+
+        const requestPayload = {
+          chatId: currentChat.id,
+          model: selectedModel,
+          workflowId,
+        }
+
+        logger.info('[Context Usage] Calling API', requestPayload)
+
+        // Call the backend API route which proxies to sim-agent
+        const response = await fetch('/api/copilot/context-usage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestPayload),
+        })
+
+        logger.info('[Context Usage] API response', { status: response.status, ok: response.ok })
+
+        if (response.ok) {
+          const data = await response.json()
+          logger.info('[Context Usage] Received data', data)
+
+          // Check for either tokensUsed or usage field
+          if (data.tokensUsed !== undefined || data.usage !== undefined || data.percentage !== undefined) {
+            const contextUsage = {
+              usage: data.tokensUsed || data.usage || 0,
+              percentage: data.percentage || 0,
+              model: data.model || selectedModel,
+              contextWindow: data.contextWindow || data.context_window || 0,
+              when: data.when || 'end',
+              estimatedTokens: data.tokensUsed || data.estimated_tokens || data.estimatedTokens,
+            }
+            set({ contextUsage })
+            logger.info('[Context Usage] Updated store', contextUsage)
+          } else {
+            logger.warn('[Context Usage] No usage data in response', data)
+          }
+        } else {
+          const errorText = await response.text().catch(() => 'Unable to read error')
+          logger.warn('[Context Usage] API call failed', {
+            status: response.status,
+            error: errorText,
+          })
+        }
+      } catch (err) {
+        logger.error('[Context Usage] Error fetching:', err)
+      }
+    },
   }))
 )
 

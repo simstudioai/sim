@@ -460,8 +460,6 @@ export async function POST(req: NextRequest) {
             logger.debug(`[${tracker.requestId}] Sent initial chatId event to client`)
           }
 
-          // Note: context_usage events are forwarded from sim-agent (which has accurate token counts)
-
           // Start title generation in parallel if needed
           if (actualChatId && !currentChat?.title && conversationHistory.length === 0) {
             generateChatTitle(message)
@@ -593,7 +591,6 @@ export async function POST(req: NextRequest) {
                             lastSafeDoneResponseId = responseIdFromDone
                           }
                         }
-                        // Note: context_usage events are forwarded from sim-agent
                         break
 
                       case 'error':
