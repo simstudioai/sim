@@ -447,4 +447,5 @@ export const tools: Record<string, ToolConfig> = {
   sharepoint_create_list: sharepointCreateListTool,
   sharepoint_update_list: sharepointUpdateListItemTool,
   sharepoint_add_list_items: sharepointAddListItemTool,
+  sharepoint_upload_file: sharepointUploadFileTool,
 }
