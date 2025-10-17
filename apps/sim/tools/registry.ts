@@ -5,6 +5,7 @@ import {
   airtableListRecordsTool,
   airtableUpdateRecordTool,
 } from '@/tools/airtable'
+import { airweaveSearchTool } from '@/tools/airweave'
 import { arxivGetAuthorPapersTool, arxivGetPaperTool, arxivSearchTool } from '@/tools/arxiv'
 import { browserUseRunTaskTool } from '@/tools/browser_use'
 import { clayPopulateTool } from '@/tools/clay'
@@ -226,6 +227,7 @@ import {
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
+  airweave_search: airweaveSearchTool,
   arxiv_search: arxivSearchTool,
   arxiv_get_paper: arxivGetPaperTool,
   arxiv_get_author_papers: arxivGetAuthorPapersTool,
