@@ -59,6 +59,8 @@ export const searchTool: ToolConfig<AirweaveSearchParams, AirweaveSearchResponse
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
+      'X-Framework-Name': 'simstudio',
+      'X-Framework-Version': '0.1.0',
     }),
     body: (params) => {
       const body: Record<string, any> = {
