@@ -291,67 +291,76 @@ function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
 
       // Use existing contentBlocks ordering if present; otherwise only render text content
       const blocks: any[] = Array.isArray(message.contentBlocks)
-        ? (message.contentBlocks as any[]).map((b: any) =>
-            b?.type === 'tool_call' && b.toolCall
-              ? {
-                  ...b,
-                  toolCall: {
-                    ...b.toolCall,
-                    state:
-                      isRejectedState(b.toolCall?.state) ||
-                      isReviewState(b.toolCall?.state) ||
-                      isBackgroundState(b.toolCall?.state) ||
-                      b.toolCall?.state === ClientToolCallState.success ||
-                      b.toolCall?.state === ClientToolCallState.error ||
-                      b.toolCall?.state === ClientToolCallState.aborted
-                        ? b.toolCall.state
-                        : ClientToolCallState.rejected,
-                    display: resolveToolDisplay(
-                      b.toolCall?.name,
-                      (isRejectedState(b.toolCall?.state) ||
-                      isReviewState(b.toolCall?.state) ||
-                      isBackgroundState(b.toolCall?.state) ||
-                      b.toolCall?.state === ClientToolCallState.success ||
-                      b.toolCall?.state === ClientToolCallState.error ||
-                      b.toolCall?.state === ClientToolCallState.aborted
-                        ? (b.toolCall?.state as any)
-                        : ClientToolCallState.rejected) as any,
-                      b.toolCall?.id,
-                      b.toolCall?.params
-                    ),
-                  },
-                }
-              : b
-          )
+        ? (message.contentBlocks as any[]).map((b: any) => {
+            if (b?.type === 'tool_call' && b.toolCall) {
+              // Ensure client tool instance is registered for this tool call
+              ensureClientToolInstance(b.toolCall?.name, b.toolCall?.id)
+
+              return {
+                ...b,
+                toolCall: {
+                  ...b.toolCall,
+                  state:
+                    isRejectedState(b.toolCall?.state) ||
+                    isReviewState(b.toolCall?.state) ||
+                    isBackgroundState(b.toolCall?.state) ||
+                    b.toolCall?.state === ClientToolCallState.success ||
+                    b.toolCall?.state === ClientToolCallState.error ||
+                    b.toolCall?.state === ClientToolCallState.aborted
+                      ? b.toolCall.state
+                      : ClientToolCallState.rejected,
+                  display: resolveToolDisplay(
+                    b.toolCall?.name,
+                    (isRejectedState(b.toolCall?.state) ||
+                    isReviewState(b.toolCall?.state) ||
+                    isBackgroundState(b.toolCall?.state) ||
+                    b.toolCall?.state === ClientToolCallState.success ||
+                    b.toolCall?.state === ClientToolCallState.error ||
+                    b.toolCall?.state === ClientToolCallState.aborted
+                      ? (b.toolCall?.state as any)
+                      : ClientToolCallState.rejected) as any,
+                    b.toolCall?.id,
+                    b.toolCall?.params
+                  ),
+                },
+              }
+            }
+            return b
+          })
         : []
 
       // Prepare toolCalls with display for non-block UI components, but do not fabricate blocks
       const updatedToolCalls = Array.isArray((message as any).toolCalls)
-        ? (message as any).toolCalls.map((tc: any) => ({
-            ...tc,
-            state:
-              isRejectedState(tc?.state) ||
-              isReviewState(tc?.state) ||
-              isBackgroundState(tc?.state) ||
-              tc?.state === ClientToolCallState.success ||
-              tc?.state === ClientToolCallState.error ||
-              tc?.state === ClientToolCallState.aborted
-                ? tc.state
-                : ClientToolCallState.rejected,
-            display: resolveToolDisplay(
-              tc?.name,
-              (isRejectedState(tc?.state) ||
-              isReviewState(tc?.state) ||
-              isBackgroundState(tc?.state) ||
-              tc?.state === ClientToolCallState.success ||
-              tc?.state === ClientToolCallState.error ||
-              tc?.state === ClientToolCallState.aborted
-                ? (tc?.state as any)
-                : ClientToolCallState.rejected) as any,
-              tc?.id,
-              tc?.params
-            ),
-          }))
+        ? (message as any).toolCalls.map((tc: any) => {
+            // Ensure client tool instance is registered for this tool call
+            ensureClientToolInstance(tc?.name, tc?.id)
+
+            return {
+              ...tc,
+              state:
+                isRejectedState(tc?.state) ||
+                isReviewState(tc?.state) ||
+                isBackgroundState(tc?.state) ||
+                tc?.state === ClientToolCallState.success ||
+                tc?.state === ClientToolCallState.error ||
+                tc?.state === ClientToolCallState.aborted
+                  ? tc.state
+                  : ClientToolCallState.rejected,
+              display: resolveToolDisplay(
+                tc?.name,
+                (isRejectedState(tc?.state) ||
+                isReviewState(tc?.state) ||
+                isBackgroundState(tc?.state) ||
+                tc?.state === ClientToolCallState.success ||
+                tc?.state === ClientToolCallState.error ||
+                tc?.state === ClientToolCallState.aborted
+                  ? (tc?.state as any)
+                  : ClientToolCallState.rejected) as any,
+                tc?.id,
+                tc?.params
+              ),
+            }
+          })
         : (message as any).toolCalls
 
       return {
@@ -1399,13 +1408,28 @@ export const useCopilotStore = create<CopilotStore>()(
         if (data.success && Array.isArray(data.chats)) {
           const latestChat = data.chats.find((c: CopilotChat) => c.id === chat.id)
           if (latestChat) {
+            const normalizedMessages = normalizeMessagesForUI(latestChat.messages || [])
+
+            // Build toolCallsById map from all tool calls in normalized messages
+            const toolCallsById: Record<string, CopilotToolCall> = {}
+            for (const msg of normalizedMessages) {
+              if (msg.contentBlocks) {
+                for (const block of msg.contentBlocks as any[]) {
+                  if (block?.type === 'tool_call' && block.toolCall?.id) {
+                    toolCallsById[block.toolCall.id] = block.toolCall
+                  }
+                }
+              }
+            }
+
             set({
               currentChat: latestChat,
-              messages: normalizeMessagesForUI(latestChat.messages || []),
+              messages: normalizedMessages,
               chats: (get().chats || []).map((c: CopilotChat) =>
                 c.id === chat.id ? latestChat : c
               ),
               contextUsage: null,
+              toolCallsById,
             })
             try {
               await get().loadMessageCheckpoints(latestChat.id)
