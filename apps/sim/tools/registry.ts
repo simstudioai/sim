@@ -152,7 +152,13 @@ import {
 import { qdrantFetchTool, qdrantSearchTool, qdrantUpsertTool } from '@/tools/qdrant'
 import { redditGetCommentsTool, redditGetPostsTool, redditHotPostsTool } from '@/tools/reddit'
 import { mailSendTool } from '@/tools/resend'
-import { s3GetObjectTool } from '@/tools/s3'
+import {
+  s3CopyObjectTool,
+  s3DeleteObjectTool,
+  s3GetObjectTool,
+  s3ListObjectsTool,
+  s3PutObjectTool,
+} from '@/tools/s3'
 import { searchTool as serperSearch } from '@/tools/serper'
 import {
   sharepointAddListItemTool,
@@ -362,6 +368,10 @@ export const tools: Record<string, ToolConfig> = {
   knowledge_create_document: knowledgeCreateDocumentTool,
   elevenlabs_tts: elevenLabsTtsTool,
   s3_get_object: s3GetObjectTool,
+  s3_put_object: s3PutObjectTool,
+  s3_list_objects: s3ListObjectsTool,
+  s3_delete_object: s3DeleteObjectTool,
+  s3_copy_object: s3CopyObjectTool,
   telegram_message: telegramMessageTool,
   telegram_delete_message: telegramDeleteMessageTool,
   telegram_send_audio: telegramSendAudioTool,
