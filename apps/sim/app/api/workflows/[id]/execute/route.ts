@@ -1,7 +1,4 @@
-import { db } from '@sim/db'
-import { userStats } from '@sim/db/schema'
 import { tasks } from '@trigger.dev/sdk'
-import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
@@ -367,14 +364,6 @@ export async function executeWorkflow(
 
     if (result.success) {
       await updateWorkflowRunCounts(workflowId)
-
-      await db
-        .update(userStats)
-        .set({
-          totalApiCalls: sql`total_api_calls + 1`,
-          lastActive: sql`now()`,
-        })
-        .where(eq(userStats.userId, actorUserId))
     }
 
     if (!streamConfig?.skipLoggingComplete) {

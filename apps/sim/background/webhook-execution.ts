@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { userStats, webhook, workflow as workflowTable } from '@sim/db/schema'
+import { webhook, workflow as workflowTable } from '@sim/db/schema'
 import { task } from '@trigger.dev/sdk'
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
@@ -291,15 +291,6 @@ async function executeWebhookJobInternal(
         // Update workflow run counts on success
         if (executionResult.success) {
           await updateWorkflowRunCounts(payload.workflowId)
-
-          // Track execution in user stats
-          await db
-            .update(userStats)
-            .set({
-              totalWebhookTriggers: sql`total_webhook_triggers + 1`,
-              lastActive: sql`now()`,
-            })
-            .where(eq(userStats.userId, payload.userId))
         }
 
         // Build trace spans and complete logging session
@@ -492,17 +483,6 @@ async function executeWebhookJobInternal(
     // Update workflow run counts on success
     if (executionResult.success) {
       await updateWorkflowRunCounts(payload.workflowId)
-
-      // Track execution in user stats (skip in test mode)
-      if (!payload.testMode) {
-        await db
-          .update(userStats)
-          .set({
-            totalWebhookTriggers: sql`total_webhook_triggers + 1`,
-            lastActive: sql`now()`,
-          })
-          .where(eq(userStats.userId, payload.userId))
-      }
     }
 
     // Build trace spans and complete logging session
