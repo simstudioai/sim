@@ -152,7 +152,13 @@ import {
 import { qdrantFetchTool, qdrantSearchTool, qdrantUpsertTool } from '@/tools/qdrant'
 import { redditGetCommentsTool, redditGetPostsTool, redditHotPostsTool } from '@/tools/reddit'
 import { mailSendTool } from '@/tools/resend'
-import { s3GetObjectTool } from '@/tools/s3'
+import {
+  s3CopyObjectTool,
+  s3DeleteObjectTool,
+  s3GetObjectTool,
+  s3ListObjectsTool,
+  s3PutObjectTool,
+} from '@/tools/s3'
 import { searchTool as serperSearch } from '@/tools/serper'
 import {
   sharepointAddListItemTool,
@@ -162,6 +168,7 @@ import {
   sharepointListSitesTool,
   sharepointReadPageTool,
   sharepointUpdateListItemTool,
+  sharepointUploadFileTool,
 } from '@/tools/sharepoint'
 import { slackCanvasTool, slackMessageReaderTool, slackMessageTool } from '@/tools/slack'
 import { smsSendTool } from '@/tools/sms'
@@ -180,6 +187,7 @@ import {
   telegramMessageTool,
   telegramSendAnimationTool,
   telegramSendAudioTool,
+  telegramSendDocumentTool,
   telegramSendPhotoTool,
   telegramSendVideoTool,
 } from '@/tools/telegram'
@@ -362,12 +370,17 @@ export const tools: Record<string, ToolConfig> = {
   knowledge_create_document: knowledgeCreateDocumentTool,
   elevenlabs_tts: elevenLabsTtsTool,
   s3_get_object: s3GetObjectTool,
+  s3_put_object: s3PutObjectTool,
+  s3_list_objects: s3ListObjectsTool,
+  s3_delete_object: s3DeleteObjectTool,
+  s3_copy_object: s3CopyObjectTool,
   telegram_message: telegramMessageTool,
   telegram_delete_message: telegramDeleteMessageTool,
   telegram_send_audio: telegramSendAudioTool,
   telegram_send_animation: telegramSendAnimationTool,
   telegram_send_photo: telegramSendPhotoTool,
   telegram_send_video: telegramSendVideoTool,
+  telegram_send_document: telegramSendDocumentTool,
   clay_populate: clayPopulateTool,
   discord_send_message: discordSendMessageTool,
   discord_get_messages: discordGetMessagesTool,
@@ -432,6 +445,5 @@ export const tools: Record<string, ToolConfig> = {
   sharepoint_create_list: sharepointCreateListTool,
   sharepoint_update_list: sharepointUpdateListItemTool,
   sharepoint_add_list_items: sharepointAddListItemTool,
-  // Provider chat tools
-  // Provider chat tools - handled separately in agent blocks
+  sharepoint_upload_file: sharepointUploadFileTool,
 }

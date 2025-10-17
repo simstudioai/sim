@@ -15,6 +15,7 @@ interface GmailWebhookConfig {
   labelIds: string[]
   labelFilterBehavior: 'INCLUDE' | 'EXCLUDE'
   markAsRead: boolean
+  searchQuery?: string
   maxEmailsPerPoll?: number
   lastCheckedTimestamp?: string
   historyId?: string
@@ -308,13 +309,53 @@ async function fetchNewEmails(accessToken: string, config: GmailWebhookConfig, r
   }
 }
 
+/**
+ * Builds a Gmail search query from label and search configuration
+ */
+function buildGmailSearchQuery(config: {
+  labelIds?: string[]
+  labelFilterBehavior?: 'INCLUDE' | 'EXCLUDE'
+  searchQuery?: string
+}): string {
+  let labelQuery = ''
+  if (config.labelIds && config.labelIds.length > 0) {
+    const labelParts = config.labelIds.map((label) => `label:${label}`).join(' OR ')
+    labelQuery =
+      config.labelFilterBehavior === 'INCLUDE'
+        ? config.labelIds.length > 1
+          ? `(${labelParts})`
+          : labelParts
+        : config.labelIds.length > 1
+          ? `-(${labelParts})`
+          : `-${labelParts}`
+  }
+
+  let searchQueryPart = ''
+  if (config.searchQuery?.trim()) {
+    searchQueryPart = config.searchQuery.trim()
+    if (searchQueryPart.includes(' OR ') || searchQueryPart.includes(' AND ')) {
+      searchQueryPart = `(${searchQueryPart})`
+    }
+  }
+
+  let baseQuery = ''
+  if (labelQuery && searchQueryPart) {
+    baseQuery = `${labelQuery} ${searchQueryPart}`
+  } else if (searchQueryPart) {
+    baseQuery = searchQueryPart
+  } else if (labelQuery) {
+    baseQuery = labelQuery
+  } else {
+    baseQuery = 'in:inbox'
+  }
+
+  return baseQuery
+}
+
 async function searchEmails(accessToken: string, config: GmailWebhookConfig, requestId: string) {
   try {
-    // Build query parameters for label filtering
-    const labelQuery =
-      config.labelIds && config.labelIds.length > 0
-        ? config.labelIds.map((label) => `label:${label}`).join(' ')
-        : 'in:inbox'
+    const baseQuery = buildGmailSearchQuery(config)
+    logger.debug(`[${requestId}] Gmail search query: ${baseQuery}`)
 
     // Improved time-based filtering with dynamic buffer
     let timeConstraint = ''
@@ -363,11 +404,8 @@ async function searchEmails(accessToken: string, config: GmailWebhookConfig, req
       logger.debug(`[${requestId}] No last check time, using default: newer_than:1d`)
     }
 
-    // Combine label and time constraints
-    const query =
-      config.labelFilterBehavior === 'INCLUDE'
-        ? `${labelQuery}${timeConstraint}`
-        : `-${labelQuery}${timeConstraint}`
+    // Combine base query and time constraints
+    const query = `${baseQuery}${timeConstraint}`
 
     logger.info(`[${requestId}] Searching for emails with query: ${query}`)
 

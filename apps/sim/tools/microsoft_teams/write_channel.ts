@@ -38,6 +38,12 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
       visibility: 'user-or-llm',
       description: 'The content to write to the channel',
     },
+    files: {
+      type: 'file[]',
+      required: false,
+      visibility: 'user-only',
+      description: 'Files to attach to the message',
+    },
   },
 
   outputs: {
@@ -60,6 +66,11 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
       const channelId = params.channelId?.trim()
       if (!channelId) {
         throw new Error('Channel ID is required')
+      }
+
+      // If files are provided, use custom API route for attachment handling
+      if (params.files && params.files.length > 0) {
+        return '/api/tools/microsoft_teams/write_channel'
       }
 
       const encodedTeamId = encodeURIComponent(teamId)
@@ -87,6 +98,17 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
         throw new Error('Content is required')
       }
 
+      // If using custom API route (with files), pass all params
+      if (params.files && params.files.length > 0) {
+        return {
+          accessToken: params.accessToken,
+          teamId: params.teamId,
+          channelId: params.channelId,
+          content: params.content,
+          files: params.files,
+        }
+      }
+
       // Microsoft Teams API expects this specific format for channel messages
       const requestBody = {
         body: {
@@ -101,7 +123,12 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
   transformResponse: async (response: Response, params?: MicrosoftTeamsToolParams) => {
     const data = await response.json()
 
-    // Create document metadata from the response
+    // Handle custom API route response format
+    if (data.success !== undefined && data.output) {
+      return data
+    }
+
+    // Handle direct Graph API response format
     const metadata = {
       messageId: data.id || '',
       teamId: data.channelIdentity?.teamId || '',

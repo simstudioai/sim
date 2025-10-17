@@ -3,6 +3,7 @@ import {
   Bot,
   CreditCard,
   FileCode,
+  Files,
   Home,
   Key,
   LogIn,
@@ -32,6 +33,7 @@ interface SettingsNavigationProps {
       | 'account'
       | 'credentials'
       | 'apikeys'
+      | 'files'
       | 'subscription'
       | 'team'
       | 'sso'
@@ -49,6 +51,7 @@ type NavigationItem = {
     | 'account'
     | 'credentials'
     | 'apikeys'
+    | 'files'
     | 'subscription'
     | 'team'
     | 'sso'
@@ -93,6 +96,11 @@ const allNavigationItems: NavigationItem[] = [
     id: 'apikeys',
     label: 'API Keys',
     icon: Key,
+  },
+  {
+    id: 'files',
+    label: 'File Uploads',
+    icon: Files,
   },
   {
     id: 'copilot',

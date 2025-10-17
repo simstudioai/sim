@@ -25,7 +25,7 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
       layout: 'full' as SubBlockLayout,
       options: [
         { id: 'url', label: 'File URL' },
-        { id: 'upload', label: 'Upload Files' },
+        { id: 'upload', label: 'Uploaded Files' },
       ],
     },
     {
@@ -42,7 +42,7 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
 
     {
       id: 'file',
-      title: 'Upload Files',
+      title: 'Process Files',
       type: 'file-upload' as SubBlockType,
       layout: 'full' as SubBlockLayout,
       acceptedTypes: '.pdf,.csv,.doc,.docx,.txt,.md,.xlsx,.xls,.html,.htm,.pptx,.ppt',
@@ -73,6 +73,7 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
           return {
             filePath: fileUrl,
             fileType: params.fileType || 'auto',
+            workspaceId: params._context?.workspaceId,
           }
         }
 

@@ -10,6 +10,7 @@ export interface SlackMessageParams extends SlackBaseParams {
   channel: string
   text: string
   thread_ts?: string
+  files?: any[]
 }
 
 export interface SlackCanvasParams extends SlackBaseParams {

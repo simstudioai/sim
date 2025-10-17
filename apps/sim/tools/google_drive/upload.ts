@@ -34,17 +34,23 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
       visibility: 'user-or-llm',
       description: 'The name of the file to upload',
     },
+    file: {
+      type: 'file',
+      required: false,
+      visibility: 'user-only',
+      description: 'Binary file to upload (UserFile object)',
+    },
     content: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'The content of the file to upload',
+      description: 'Text content to upload (use this OR file, not both)',
     },
     mimeType: {
       type: 'string',
       required: false,
       visibility: 'hidden',
-      description: 'The MIME type of the file to upload',
+      description: 'The MIME type of the file to upload (auto-detected from file if not provided)',
     },
     folderSelector: {
       type: 'string',
@@ -61,13 +67,37 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
   },
 
   request: {
-    url: 'https://www.googleapis.com/drive/v3/files?supportsAllDrives=true',
+    url: (params) => {
+      // Use custom API route if file is provided, otherwise use Google Drive API directly
+      if (params.file) {
+        return '/api/tools/google_drive/upload'
+      }
+      return 'https://www.googleapis.com/drive/v3/files?supportsAllDrives=true'
+    },
     method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.accessToken}`,
-      'Content-Type': 'application/json',
-    }),
+    headers: (params) => {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      // Google Drive API for text-only uploads needs Authorization
+      if (!params.file) {
+        headers.Authorization = `Bearer ${params.accessToken}`
+      }
+      return headers
+    },
     body: (params) => {
+      // Custom route handles file uploads
+      if (params.file) {
+        return {
+          accessToken: params.accessToken,
+          fileName: params.fileName,
+          file: params.file,
+          mimeType: params.mimeType,
+          folderId: params.folderSelector || params.folderId,
+        }
+      }
+
+      // Original text-only upload logic
       const metadata: {
         name: string | undefined
         mimeType: string
@@ -91,6 +121,23 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
     try {
       const data = await response.json()
 
+      // Handle custom API route response (for file uploads)
+      if (params?.file && data.success !== undefined) {
+        if (!data.success) {
+          logger.error('Failed to upload file via custom API route', {
+            error: data.error,
+          })
+          throw new Error(data.error || 'Failed to upload file to Google Drive')
+        }
+        return {
+          success: true,
+          output: {
+            file: data.output.file,
+          },
+        }
+      }
+
+      // Handle Google Drive API response (for text-only uploads)
       if (!response.ok) {
         logger.error('Failed to create file in Google Drive', {
           status: response.status,

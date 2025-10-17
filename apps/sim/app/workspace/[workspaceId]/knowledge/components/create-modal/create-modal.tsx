@@ -79,12 +79,19 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const dropZoneRef = useRef<HTMLDivElement>(null)
 
-  const { uploadFiles, isUploading, uploadProgress } = useKnowledgeUpload({
+  const { uploadFiles, isUploading, uploadProgress, uploadError, clearError } = useKnowledgeUpload({
     onUploadComplete: (uploadedFiles) => {
       logger.info(`Successfully uploaded ${uploadedFiles.length} files`)
       // Files uploaded and document records created - processing will continue in background
     },
   })
+
+  const handleClose = (open: boolean) => {
+    if (!open) {
+      clearError()
+    }
+    onOpenChange(open)
+  }
 
   // Cleanup file preview URLs when component unmounts to prevent memory leaks
   useEffect(() => {
@@ -319,7 +326,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
       files.forEach((file) => URL.revokeObjectURL(file.preview))
       setFiles([])
 
-      onOpenChange(false)
+      handleClose(false)
     } catch (error) {
       logger.error('Error creating knowledge base:', error)
       setSubmitStatus({
@@ -332,7 +339,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
         className='flex h-[74vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]'
         hideCloseButton
@@ -344,7 +351,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
               variant='ghost'
               size='icon'
               className='h-8 w-8 p-0'
-              onClick={() => onOpenChange(false)}
+              onClick={() => handleClose(false)}
             >
               <X className='h-4 w-4' />
               <span className='sr-only'>Close</span>
@@ -365,6 +372,14 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                     <AlertCircle className='h-4 w-4' />
                     <AlertTitle>Error</AlertTitle>
                     <AlertDescription>{submitStatus.message}</AlertDescription>
+                  </Alert>
+                )}
+
+                {uploadError && (
+                  <Alert variant='destructive' className='mb-6'>
+                    <AlertCircle className='h-4 w-4' />
+                    <AlertTitle>Upload Error</AlertTitle>
+                    <AlertDescription>{uploadError.message}</AlertDescription>
                   </Alert>
                 )}
 
@@ -621,7 +636,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
             {/* Footer */}
             <div className='mt-auto border-t px-6 pt-4 pb-6'>
               <div className='flex justify-between'>
-                <Button variant='outline' onClick={() => onOpenChange(false)} type='button'>
+                <Button variant='outline' onClick={() => handleClose(false)} type='button'>
                   Cancel
                 </Button>
                 <Button

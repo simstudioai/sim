@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 // Base parameters shared by all operations
@@ -12,6 +13,7 @@ export interface GmailSendParams extends BaseGmailParams {
   bcc?: string
   subject: string
   body: string
+  attachments?: UserFile[]
 }
 
 // Read operation parameters

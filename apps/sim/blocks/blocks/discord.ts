@@ -86,6 +86,31 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       placeholder: 'Enter message content...',
       condition: { field: 'operation', value: 'discord_send_message' },
     },
+    // File upload (basic mode)
+    {
+      id: 'attachmentFiles',
+      title: 'Attachments',
+      type: 'file-upload',
+      layout: 'full',
+      canonicalParamId: 'files',
+      placeholder: 'Upload files to attach',
+      condition: { field: 'operation', value: 'discord_send_message' },
+      mode: 'basic',
+      multiple: true,
+      required: false,
+    },
+    // Variable reference (advanced mode)
+    {
+      id: 'files',
+      title: 'File Attachments',
+      type: 'short-input',
+      layout: 'full',
+      canonicalParamId: 'files',
+      placeholder: 'Reference files from previous blocks',
+      condition: { field: 'operation', value: 'discord_send_message' },
+      mode: 'advanced',
+      required: false,
+    },
   ],
   tools: {
     access: [
@@ -120,19 +145,22 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
         const channelId = (params.channelId || '').trim()
 
         switch (params.operation) {
-          case 'discord_send_message':
+          case 'discord_send_message': {
             if (!serverId) {
               throw new Error('Server ID is required.')
             }
             if (!channelId) {
               throw new Error('Channel ID is required.')
             }
+            const fileParam = params.attachmentFiles || params.files
             return {
               ...commonParams,
               serverId,
               channelId,
               content: params.content,
+              ...(fileParam && { files: fileParam }),
             }
+          }
           case 'discord_get_messages':
             if (!serverId) {
               throw new Error('Server ID is required.')
@@ -171,6 +199,8 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
     serverId: { type: 'string', description: 'Discord server identifier' },
     channelId: { type: 'string', description: 'Discord channel identifier' },
     content: { type: 'string', description: 'Message content' },
+    attachmentFiles: { type: 'json', description: 'Files to attach (UI upload)' },
+    files: { type: 'json', description: 'Files to attach (UserFile array)' },
     limit: { type: 'number', description: 'Message limit' },
     userId: { type: 'string', description: 'Discord user identifier' },
   },

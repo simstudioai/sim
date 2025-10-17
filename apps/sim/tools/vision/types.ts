@@ -2,7 +2,8 @@ import type { ToolResponse } from '@/tools/types'
 
 export interface VisionParams {
   apiKey: string
-  imageUrl: string
+  imageUrl?: string
+  imageFile?: any
   model?: string
   prompt?: string
 }

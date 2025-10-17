@@ -85,6 +85,7 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
       return {
         filePath: determinedFilePath,
         fileType: determinedFileType,
+        workspaceId: params.workspaceId || params._context?.workspaceId,
       }
     },
   },
@@ -119,11 +120,6 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
         combinedContent,
       }
 
-      // Add named properties for each file for dropdown access
-      fileResults.forEach((file: FileParseResult, index: number) => {
-        output[`file${index + 1}`] = file
-      })
-
       return {
         success: true,
         output,
@@ -133,11 +129,10 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
     // Handle single file response
     logger.info('Successfully parsed file:', result.output?.name || 'unknown')
 
-    // For a single file, create the output with both array and named property
+    // For a single file, create the output with just array format
     const output: FileParserOutputData = {
       files: [result.output || result],
       combinedContent: result.output?.content || result.content || '',
-      file1: result.output || result,
     }
 
     return {
