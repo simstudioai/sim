@@ -3,10 +3,9 @@ name: 'Auto-translate Documentation'
 on:
   push:
     branches: [ staging ]
-    paths: 
+    paths:
       - 'apps/docs/content/docs/en/**'
       - 'apps/docs/i18n.json'
-  workflow_dispatch: # Allow manual triggers
 
 permissions:
   contents: write

@@ -8,6 +8,7 @@ import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
 import { createLogger } from '@/lib/logs/console/logger'
 import { validateExternalUrl } from '@/lib/security/input-validation'
 import { downloadFile, isUsingCloudStorage } from '@/lib/uploads'
+import { extractStorageKey } from '@/lib/uploads/file-utils'
 import { UPLOAD_DIR_SERVER } from '@/lib/uploads/setup.server'
 import '@/lib/uploads/setup.server'
 
@@ -69,13 +70,13 @@ export async function POST(request: NextRequest) {
 
   try {
     const requestData = await request.json()
-    const { filePath, fileType } = requestData
+    const { filePath, fileType, workspaceId } = requestData
 
     if (!filePath || (typeof filePath === 'string' && filePath.trim() === '')) {
       return NextResponse.json({ success: false, error: 'No file path provided' }, { status: 400 })
     }
 
-    logger.info('File parse request received:', { filePath, fileType })
+    logger.info('File parse request received:', { filePath, fileType, workspaceId })
 
     if (Array.isArray(filePath)) {
       const results = []
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest) {
           continue
         }
 
-        const result = await parseFileSingle(path, fileType)
+        const result = await parseFileSingle(path, fileType, workspaceId)
         if (result.metadata) {
           result.metadata.processingTime = Date.now() - startTime
         }
@@ -117,7 +118,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const result = await parseFileSingle(filePath, fileType)
+    const result = await parseFileSingle(filePath, fileType, workspaceId)
 
     if (result.metadata) {
       result.metadata.processingTime = Date.now() - startTime
@@ -153,7 +154,11 @@ export async function POST(request: NextRequest) {
 /**
  * Parse a single file and return its content
  */
-async function parseFileSingle(filePath: string, fileType?: string): Promise<ParseResult> {
+async function parseFileSingle(
+  filePath: string,
+  fileType?: string,
+  workspaceId?: string
+): Promise<ParseResult> {
   logger.info('Parsing file:', filePath)
 
   if (!filePath || filePath.trim() === '') {
@@ -174,7 +179,7 @@ async function parseFileSingle(filePath: string, fileType?: string): Promise<Par
   }
 
   if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
-    return handleExternalUrl(filePath, fileType)
+    return handleExternalUrl(filePath, fileType, workspaceId)
   }
 
   const isS3Path = filePath.includes('/api/files/serve/s3/')
@@ -216,10 +221,16 @@ function validateFilePath(filePath: string): { isValid: boolean; error?: string 
 
 /**
  * Handle external URL
+ * If workspaceId is provided, checks if file already exists and saves to workspace if not
  */
-async function handleExternalUrl(url: string, fileType?: string): Promise<ParseResult> {
+async function handleExternalUrl(
+  url: string,
+  fileType?: string,
+  workspaceId?: string
+): Promise<ParseResult> {
   try {
     logger.info('Fetching external URL:', url)
+    logger.info('WorkspaceId for URL save:', workspaceId)
 
     const urlValidation = validateExternalUrl(url, 'fileUrl')
     if (!urlValidation.isValid) {
@@ -228,6 +239,34 @@ async function handleExternalUrl(url: string, fileType?: string): Promise<ParseR
         success: false,
         error: urlValidation.error || 'Invalid external URL',
         filePath: url,
+      }
+    }
+
+    // Extract filename from URL
+    const urlPath = new URL(url).pathname
+    const filename = urlPath.split('/').pop() || 'download'
+    const extension = path.extname(filename).toLowerCase().substring(1)
+
+    logger.info(`Extracted filename: ${filename}, workspaceId: ${workspaceId}`)
+
+    // If workspaceId provided, check if file already exists in workspace
+    if (workspaceId) {
+      const { fileExistsInWorkspace, listWorkspaceFiles } = await import(
+        '@/lib/uploads/workspace-files'
+      )
+      const exists = await fileExistsInWorkspace(workspaceId, filename)
+
+      if (exists) {
+        logger.info(`File ${filename} already exists in workspace, using existing file`)
+        // Get existing file and parse from storage
+        const workspaceFiles = await listWorkspaceFiles(workspaceId)
+        const existingFile = workspaceFiles.find((f) => f.name === filename)
+
+        if (existingFile) {
+          // Parse from workspace storage instead of re-downloading
+          const storageFilePath = `/api/files/serve/${existingFile.key}`
+          return handleCloudFile(storageFilePath, fileType)
+        }
       }
     }
 
@@ -251,9 +290,23 @@ async function handleExternalUrl(url: string, fileType?: string): Promise<ParseR
 
     logger.info(`Downloaded file from URL: ${url}, size: ${buffer.length} bytes`)
 
-    const urlPath = new URL(url).pathname
-    const filename = urlPath.split('/').pop() || 'download'
-    const extension = path.extname(filename).toLowerCase().substring(1)
+    // If workspaceId provided, save to workspace storage
+    if (workspaceId) {
+      try {
+        const { getSession } = await import('@/lib/auth')
+        const { uploadWorkspaceFile } = await import('@/lib/uploads/workspace-files')
+
+        const session = await getSession()
+        if (session?.user?.id) {
+          const mimeType = response.headers.get('content-type') || getMimeType(extension)
+          await uploadWorkspaceFile(workspaceId, session.user.id, buffer, filename, mimeType)
+          logger.info(`Saved URL file to workspace storage: ${filename}`)
+        }
+      } catch (saveError) {
+        // Log but don't fail - continue with parsing even if save fails
+        logger.warn(`Failed to save URL file to workspace:`, saveError)
+      }
+    }
 
     if (extension === 'pdf') {
       return await handlePdfBuffer(buffer, filename, fileType, url)
@@ -281,16 +334,7 @@ async function handleExternalUrl(url: string, fileType?: string): Promise<ParseR
  */
 async function handleCloudFile(filePath: string, fileType?: string): Promise<ParseResult> {
   try {
-    let cloudKey: string
-    if (filePath.includes('/api/files/serve/s3/')) {
-      cloudKey = decodeURIComponent(filePath.split('/api/files/serve/s3/')[1])
-    } else if (filePath.includes('/api/files/serve/blob/')) {
-      cloudKey = decodeURIComponent(filePath.split('/api/files/serve/blob/')[1])
-    } else if (filePath.startsWith('/api/files/serve/')) {
-      cloudKey = decodeURIComponent(filePath.substring('/api/files/serve/'.length))
-    } else {
-      cloudKey = filePath
-    }
+    const cloudKey = extractStorageKey(filePath)
 
     logger.info('Extracted cloud key:', cloudKey)
 

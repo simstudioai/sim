@@ -3,7 +3,7 @@ import { account, webhook } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('WebhookUtils')
 
@@ -140,14 +140,400 @@ export async function validateSlackSignature(
 }
 
 /**
+ * Format Microsoft Teams Graph change notification
+ */
+async function formatTeamsGraphNotification(
+  body: any,
+  foundWebhook: any,
+  foundWorkflow: any,
+  request: NextRequest
+): Promise<any> {
+  const notification = body.value[0]
+  const changeType = notification.changeType || 'created'
+  const resource = notification.resource || ''
+  const subscriptionId = notification.subscriptionId || ''
+
+  // Extract chatId and messageId from resource path
+  let chatId: string | null = null
+  let messageId: string | null = null
+
+  const fullMatch = resource.match(/chats\/([^/]+)\/messages\/([^/]+)/)
+  if (fullMatch) {
+    chatId = fullMatch[1]
+    messageId = fullMatch[2]
+  }
+
+  if (!chatId || !messageId) {
+    const quotedMatch = resource.match(/chats\('([^']+)'\)\/messages\('([^']+)'\)/)
+    if (quotedMatch) {
+      chatId = quotedMatch[1]
+      messageId = quotedMatch[2]
+    }
+  }
+
+  if (!chatId || !messageId) {
+    const collectionMatch = resource.match(/chats\/([^/]+)\/messages$/)
+    const rdId = body?.value?.[0]?.resourceData?.id
+    if (collectionMatch && rdId) {
+      chatId = collectionMatch[1]
+      messageId = rdId
+    }
+  }
+
+  if ((!chatId || !messageId) && body?.value?.[0]?.resourceData?.['@odata.id']) {
+    const odataId = String(body.value[0].resourceData['@odata.id'])
+    const odataMatch = odataId.match(/chats\('([^']+)'\)\/messages\('([^']+)'\)/)
+    if (odataMatch) {
+      chatId = odataMatch[1]
+      messageId = odataMatch[2]
+    }
+  }
+
+  if (!chatId || !messageId) {
+    logger.warn('Could not resolve chatId/messageId from Teams notification', {
+      resource,
+      hasResourceDataId: Boolean(body?.value?.[0]?.resourceData?.id),
+      valueLength: Array.isArray(body?.value) ? body.value.length : 0,
+      keys: Object.keys(body || {}),
+    })
+    return {
+      input: 'Teams notification received',
+      webhook: {
+        data: {
+          provider: 'microsoftteams',
+          path: foundWebhook?.path || '',
+          providerConfig: foundWebhook?.providerConfig || {},
+          payload: body,
+          headers: Object.fromEntries(request.headers.entries()),
+          method: request.method,
+        },
+      },
+      workflowId: foundWorkflow.id,
+    }
+  }
+  const resolvedChatId = chatId as string
+  const resolvedMessageId = messageId as string
+  const providerConfig = (foundWebhook?.providerConfig as Record<string, any>) || {}
+  const credentialId = providerConfig.credentialId
+  const includeAttachments = providerConfig.includeAttachments !== false
+
+  let message: any = null
+  const rawAttachments: Array<{ name: string; data: Buffer; contentType: string; size: number }> =
+    []
+  let accessToken: string | null = null
+
+  // Teams chat subscriptions require credentials
+  if (!credentialId) {
+    logger.error('Missing credentialId for Teams chat subscription', {
+      chatId: resolvedChatId,
+      messageId: resolvedMessageId,
+      webhookId: foundWebhook?.id,
+      blockId: foundWebhook?.blockId,
+      providerConfig,
+    })
+  } else {
+    try {
+      // Get userId from credential
+      const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+      if (rows.length === 0) {
+        logger.error('Teams credential not found', { credentialId, chatId: resolvedChatId })
+        // Continue without message data
+      } else {
+        const effectiveUserId = rows[0].userId
+        accessToken = await refreshAccessTokenIfNeeded(
+          credentialId,
+          effectiveUserId,
+          'teams-graph-notification'
+        )
+      }
+
+      if (accessToken) {
+        const msgUrl = `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(resolvedChatId)}/messages/${encodeURIComponent(resolvedMessageId)}`
+        const res = await fetch(msgUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
+        if (res.ok) {
+          message = await res.json()
+
+          if (includeAttachments && message?.attachments?.length > 0) {
+            const attachments = Array.isArray(message?.attachments) ? message.attachments : []
+            for (const att of attachments) {
+              try {
+                const contentUrl =
+                  typeof att?.contentUrl === 'string' ? (att.contentUrl as string) : undefined
+                const contentTypeHint =
+                  typeof att?.contentType === 'string' ? (att.contentType as string) : undefined
+                let attachmentName = (att?.name as string) || 'teams-attachment'
+
+                if (!contentUrl) continue
+
+                let buffer: Buffer | null = null
+                let mimeType = 'application/octet-stream'
+
+                if (contentUrl.includes('sharepoint.com') || contentUrl.includes('onedrive')) {
+                  try {
+                    const directRes = await fetch(contentUrl, {
+                      headers: { Authorization: `Bearer ${accessToken}` },
+                      redirect: 'follow',
+                    })
+
+                    if (directRes.ok) {
+                      const arrayBuffer = await directRes.arrayBuffer()
+                      buffer = Buffer.from(arrayBuffer)
+                      mimeType =
+                        directRes.headers.get('content-type') ||
+                        contentTypeHint ||
+                        'application/octet-stream'
+                    } else {
+                      const encodedUrl = Buffer.from(contentUrl)
+                        .toString('base64')
+                        .replace(/\+/g, '-')
+                        .replace(/\//g, '_')
+                        .replace(/=+$/, '')
+
+                      const graphUrl = `https://graph.microsoft.com/v1.0/shares/u!${encodedUrl}/driveItem/content`
+                      const graphRes = await fetch(graphUrl, {
+                        headers: { Authorization: `Bearer ${accessToken}` },
+                        redirect: 'follow',
+                      })
+
+                      if (graphRes.ok) {
+                        const arrayBuffer = await graphRes.arrayBuffer()
+                        buffer = Buffer.from(arrayBuffer)
+                        mimeType =
+                          graphRes.headers.get('content-type') ||
+                          contentTypeHint ||
+                          'application/octet-stream'
+                      } else {
+                        continue
+                      }
+                    }
+                  } catch {
+                    continue
+                  }
+                } else if (
+                  contentUrl.includes('1drv.ms') ||
+                  contentUrl.includes('onedrive.live.com') ||
+                  contentUrl.includes('onedrive.com') ||
+                  contentUrl.includes('my.microsoftpersonalcontent.com')
+                ) {
+                  try {
+                    let shareToken: string | null = null
+
+                    if (contentUrl.includes('1drv.ms')) {
+                      const urlParts = contentUrl.split('/').pop()
+                      if (urlParts) shareToken = urlParts
+                    } else if (contentUrl.includes('resid=')) {
+                      const urlParams = new URL(contentUrl).searchParams
+                      const resId = urlParams.get('resid')
+                      if (resId) shareToken = resId
+                    }
+
+                    if (!shareToken) {
+                      const base64Url = Buffer.from(contentUrl, 'utf-8')
+                        .toString('base64')
+                        .replace(/\+/g, '-')
+                        .replace(/\//g, '_')
+                        .replace(/=+$/, '')
+                      shareToken = `u!${base64Url}`
+                    } else if (!shareToken.startsWith('u!')) {
+                      const base64Url = Buffer.from(shareToken, 'utf-8')
+                        .toString('base64')
+                        .replace(/\+/g, '-')
+                        .replace(/\//g, '_')
+                        .replace(/=+$/, '')
+                      shareToken = `u!${base64Url}`
+                    }
+
+                    const metadataUrl = `https://graph.microsoft.com/v1.0/shares/${shareToken}/driveItem`
+                    const metadataRes = await fetch(metadataUrl, {
+                      headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        Accept: 'application/json',
+                      },
+                    })
+
+                    if (!metadataRes.ok) {
+                      const directUrl = `https://graph.microsoft.com/v1.0/shares/${shareToken}/driveItem/content`
+                      const directRes = await fetch(directUrl, {
+                        headers: { Authorization: `Bearer ${accessToken}` },
+                        redirect: 'follow',
+                      })
+
+                      if (directRes.ok) {
+                        const arrayBuffer = await directRes.arrayBuffer()
+                        buffer = Buffer.from(arrayBuffer)
+                        mimeType =
+                          directRes.headers.get('content-type') ||
+                          contentTypeHint ||
+                          'application/octet-stream'
+                      } else {
+                        continue
+                      }
+                    } else {
+                      const metadata = await metadataRes.json()
+                      const downloadUrl = metadata['@microsoft.graph.downloadUrl']
+
+                      if (downloadUrl) {
+                        const downloadRes = await fetch(downloadUrl)
+
+                        if (downloadRes.ok) {
+                          const arrayBuffer = await downloadRes.arrayBuffer()
+                          buffer = Buffer.from(arrayBuffer)
+                          mimeType =
+                            downloadRes.headers.get('content-type') ||
+                            metadata.file?.mimeType ||
+                            contentTypeHint ||
+                            'application/octet-stream'
+
+                          if (metadata.name && metadata.name !== attachmentName) {
+                            attachmentName = metadata.name
+                          }
+                        } else {
+                          continue
+                        }
+                      } else {
+                        continue
+                      }
+                    }
+                  } catch {
+                    continue
+                  }
+                } else {
+                  try {
+                    const ares = await fetch(contentUrl, {
+                      headers: { Authorization: `Bearer ${accessToken}` },
+                    })
+                    if (ares.ok) {
+                      const arrayBuffer = await ares.arrayBuffer()
+                      buffer = Buffer.from(arrayBuffer)
+                      mimeType =
+                        ares.headers.get('content-type') ||
+                        contentTypeHint ||
+                        'application/octet-stream'
+                    }
+                  } catch {
+                    continue
+                  }
+                }
+
+                if (!buffer) continue
+
+                const size = buffer.length
+
+                // Store raw attachment (will be uploaded to execution storage later)
+                rawAttachments.push({
+                  name: attachmentName,
+                  data: buffer,
+                  contentType: mimeType,
+                  size,
+                })
+              } catch {}
+            }
+          }
+        }
+      }
+    } catch (error) {
+      logger.error('Failed to fetch Teams message', {
+        error,
+        chatId: resolvedChatId,
+        messageId: resolvedMessageId,
+      })
+    }
+  }
+
+  // If no message was fetched, return minimal data
+  if (!message) {
+    logger.warn('No message data available for Teams notification', {
+      chatId: resolvedChatId,
+      messageId: resolvedMessageId,
+      hasCredential: !!credentialId,
+    })
+    return {
+      input: '',
+      message_id: messageId,
+      chat_id: chatId,
+      from_name: 'Unknown',
+      text: '',
+      created_at: notification.resourceData?.createdDateTime || '',
+      change_type: changeType,
+      subscription_id: subscriptionId,
+      attachments: [],
+      microsoftteams: {
+        message: { id: messageId, text: '', timestamp: '', chatId, raw: null },
+        from: { id: '', name: 'Unknown', aadObjectId: '' },
+        notification: { changeType, subscriptionId, resource },
+      },
+      webhook: {
+        data: {
+          provider: 'microsoftteams',
+          path: foundWebhook?.path || '',
+          providerConfig: foundWebhook?.providerConfig || {},
+          payload: body,
+          headers: Object.fromEntries(request.headers.entries()),
+          method: request.method,
+        },
+      },
+      workflowId: foundWorkflow.id,
+    }
+  }
+
+  // Extract data from message - we know it exists now
+  // body.content is the HTML/text content, summary is a plain text preview (max 280 chars)
+  const messageText = message.body?.content || ''
+  const from = message.from?.user || {}
+  const createdAt = message.createdDateTime || ''
+
+  return {
+    input: messageText,
+    message_id: messageId,
+    chat_id: chatId,
+    from_name: from.displayName || 'Unknown',
+    text: messageText,
+    created_at: createdAt,
+    change_type: changeType,
+    subscription_id: subscriptionId,
+    attachments: rawAttachments,
+    microsoftteams: {
+      message: {
+        id: messageId,
+        text: messageText,
+        timestamp: createdAt,
+        chatId,
+        raw: message,
+      },
+      from: {
+        id: from.id,
+        name: from.displayName,
+        aadObjectId: from.aadObjectId,
+      },
+      notification: {
+        changeType,
+        subscriptionId,
+        resource,
+      },
+    },
+    webhook: {
+      data: {
+        provider: 'microsoftteams',
+        path: foundWebhook?.path || '',
+        providerConfig: foundWebhook?.providerConfig || {},
+        payload: body,
+        headers: Object.fromEntries(request.headers.entries()),
+        method: request.method,
+      },
+    },
+    workflowId: foundWorkflow.id,
+  }
+}
+
+/**
  * Format webhook input based on provider
  */
-export function formatWebhookInput(
+export async function formatWebhookInput(
   foundWebhook: any,
   foundWorkflow: any,
   body: any,
   request: NextRequest
-): any {
+): Promise<any> {
   if (foundWebhook.provider === 'whatsapp') {
     const data = body?.entry?.[0]?.changes?.[0]?.value
     const messages = data?.messages || []
@@ -359,7 +745,13 @@ export function formatWebhookInput(
   }
 
   if (foundWebhook.provider === 'microsoftteams') {
+    // Check if this is a Microsoft Graph change notification
+    if (body?.value && Array.isArray(body.value) && body.value.length > 0) {
+      return await formatTeamsGraphNotification(body, foundWebhook, foundWorkflow, request)
+    }
+
     // Microsoft Teams outgoing webhook - Teams sending data to us
+    //
     const messageText = body?.text || ''
     const messageId = body?.id || ''
     const timestamp = body?.timestamp || body?.localTimestamp || ''
@@ -1308,54 +1700,35 @@ export interface AirtableChange {
 /**
  * Configure Gmail polling for a webhook
  */
-export async function configureGmailPolling(
-  userId: string,
-  webhookData: any,
-  requestId: string
-): Promise<boolean> {
+export async function configureGmailPolling(webhookData: any, requestId: string): Promise<boolean> {
   const logger = createLogger('GmailWebhookSetup')
   logger.info(`[${requestId}] Setting up Gmail polling for webhook ${webhookData.id}`)
 
   try {
     const providerConfig = (webhookData.providerConfig as Record<string, any>) || {}
-
     const credentialId: string | undefined = providerConfig.credentialId
 
-    let effectiveUserId: string | null = null
-    let accessToken: string | null = null
+    if (!credentialId) {
+      logger.error(`[${requestId}] Missing credentialId for Gmail webhook ${webhookData.id}`)
+      return false
+    }
 
-    if (credentialId) {
-      const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
-      if (rows.length === 0) {
-        logger.error(
-          `[${requestId}] Credential ${credentialId} not found for Gmail webhook ${webhookData.id}`
-        )
-        return false
-      }
-      effectiveUserId = rows[0].userId
-      accessToken = await refreshAccessTokenIfNeeded(credentialId, effectiveUserId, requestId)
-      if (!accessToken) {
-        logger.error(
-          `[${requestId}] Failed to refresh/access Gmail token for credential ${credentialId}`
-        )
-        return false
-      }
-    } else {
-      // Backward-compat: fall back to workflow owner
-      if (!userId) {
-        logger.error(
-          `[${requestId}] Missing credentialId and userId for Gmail webhook ${webhookData.id}`
-        )
-        return false
-      }
-      effectiveUserId = userId
-      accessToken = await getOAuthToken(effectiveUserId, 'google-email')
-      if (!accessToken) {
-        logger.error(
-          `[${requestId}] Failed to obtain Gmail token for user ${effectiveUserId} (fallback)`
-        )
-        return false
-      }
+    // Get userId from credential
+    const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+    if (rows.length === 0) {
+      logger.error(
+        `[${requestId}] Credential ${credentialId} not found for Gmail webhook ${webhookData.id}`
+      )
+      return false
+    }
+
+    const effectiveUserId = rows[0].userId
+    const accessToken = await refreshAccessTokenIfNeeded(credentialId, effectiveUserId, requestId)
+    if (!accessToken) {
+      logger.error(
+        `[${requestId}] Failed to refresh/access Gmail token for credential ${credentialId}`
+      )
+      return false
     }
 
     const maxEmailsPerPoll =
@@ -1408,54 +1781,37 @@ export async function configureGmailPolling(
  * Configure Outlook polling for a webhook
  */
 export async function configureOutlookPolling(
-  userId: string,
   webhookData: any,
   requestId: string
 ): Promise<boolean> {
   const logger = createLogger('OutlookWebhookSetup')
   logger.info(`[${requestId}] Setting up Outlook polling for webhook ${webhookData.id}`)
-  logger.info(`[${requestId}] Setting up Outlook polling for webhook ${webhookData.id}`)
 
   try {
     const providerConfig = (webhookData.providerConfig as Record<string, any>) || {}
-
     const credentialId: string | undefined = providerConfig.credentialId
 
-    let effectiveUserId: string | null = null
-    let accessToken: string | null = null
+    if (!credentialId) {
+      logger.error(`[${requestId}] Missing credentialId for Outlook webhook ${webhookData.id}`)
+      return false
+    }
 
-    if (credentialId) {
-      const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
-      if (rows.length === 0) {
-        logger.error(
-          `[${requestId}] Credential ${credentialId} not found for Outlook webhook ${webhookData.id}`
-        )
-        return false
-      }
-      effectiveUserId = rows[0].userId
-      accessToken = await refreshAccessTokenIfNeeded(credentialId, effectiveUserId, requestId)
-      if (!accessToken) {
-        logger.error(
-          `[${requestId}] Failed to refresh/access Outlook token for credential ${credentialId}`
-        )
-        return false
-      }
-    } else {
-      // Backward-compat: fall back to workflow owner
-      if (!userId) {
-        logger.error(
-          `[${requestId}] Missing credentialId and userId for Outlook webhook ${webhookData.id}`
-        )
-        return false
-      }
-      effectiveUserId = userId
-      accessToken = await getOAuthToken(effectiveUserId, 'outlook')
-      if (!accessToken) {
-        logger.error(
-          `[${requestId}] Failed to obtain Outlook token for user ${effectiveUserId} (fallback)`
-        )
-        return false
-      }
+    // Get userId from credential
+    const rows = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
+    if (rows.length === 0) {
+      logger.error(
+        `[${requestId}] Credential ${credentialId} not found for Outlook webhook ${webhookData.id}`
+      )
+      return false
+    }
+
+    const effectiveUserId = rows[0].userId
+    const accessToken = await refreshAccessTokenIfNeeded(credentialId, effectiveUserId, requestId)
+    if (!accessToken) {
+      logger.error(
+        `[${requestId}] Failed to refresh/access Outlook token for credential ${credentialId}`
+      )
+      return false
     }
 
     const providerCfg = (webhookData.providerConfig as Record<string, any>) || {}

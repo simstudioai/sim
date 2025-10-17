@@ -15,8 +15,8 @@ import { WorkspaceInvitationEmail } from '@/components/emails/workspace-invitati
 import { getSession } from '@/lib/auth'
 import { sendEmail } from '@/lib/email/mailer'
 import { getFromEmailAddress } from '@/lib/email/utils'
-import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -232,7 +232,7 @@ async function sendInvitationEmail({
   token: string
 }) {
   try {
-    const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
+    const baseUrl = getBaseUrl()
     // Use invitation ID in path, token in query parameter for security
     const invitationLink = `${baseUrl}/invite/${invitationId}?token=${token}`
 

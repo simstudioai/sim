@@ -2,25 +2,26 @@ import { getEnv } from '@/lib/env'
 import { isProd } from '@/lib/environment'
 
 /**
- * Returns the base URL of the application, respecting environment variables for deployment environments
+ * Returns the base URL of the application from NEXT_PUBLIC_APP_URL
+ * This ensures webhooks, callbacks, and other integrations always use the correct public URL
  * @returns The base URL string (e.g., 'http://localhost:3000' or 'https://example.com')
+ * @throws Error if NEXT_PUBLIC_APP_URL is not configured
  */
 export function getBaseUrl(): string {
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    return window.location.origin
-  }
-
   const baseUrl = getEnv('NEXT_PUBLIC_APP_URL')
-  if (baseUrl) {
-    if (baseUrl.startsWith('http://') || baseUrl.startsWith('https://')) {
-      return baseUrl
-    }
 
-    const protocol = isProd ? 'https://' : 'http://'
-    return `${protocol}${baseUrl}`
+  if (!baseUrl) {
+    throw new Error(
+      'NEXT_PUBLIC_APP_URL must be configured for webhooks and callbacks to work correctly'
+    )
   }
 
-  return 'http://localhost:3000'
+  if (baseUrl.startsWith('http://') || baseUrl.startsWith('https://')) {
+    return baseUrl
+  }
+
+  const protocol = isProd ? 'https://' : 'http://'
+  return `${protocol}${baseUrl}`
 }
 
 /**

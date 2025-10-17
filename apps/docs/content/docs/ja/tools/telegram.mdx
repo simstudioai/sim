@@ -86,12 +86,108 @@ Telegram Bot APIを通じてTelegramチャンネルまたはユーザーにメ�
 
 | パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | Telegramメッセージ送信成功ステータス |
-| `messageId` | number | 一意のTelegramメッセージ識別子 |
-| `chatId` | string | メッセージが送信された対象チャットID |
-| `text` | string | 送信されたメッセージのテキスト内容 |
-| `timestamp` | number | メッセージが送信されたUnixタイムスタンプ |
-| `from` | object | メッセージを送信したボットに関する情報 |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | Telegramメッセージデータ |
+
+## 注意事項
+
+- カテゴリー: `tools`
+- タイプ: `telegram`
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | あなたのTelegram Bot APIトークン |
+| `chatId` | string | はい | 対象のTelegramチャットID |
+| `messageId` | string | はい | 削除するメッセージID |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | 削除操作の結果 |
+
+### `telegram_send_photo`
+
+Telegram Bot APIを通じてTelegramチャンネルまたはユーザーに写真を送信します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | あなたのTelegram Bot APIトークン |
+| `chatId` | string | はい | 対象のTelegramチャットID |
+| `photo` | string | はい | 送信する写真。file_idまたはHTTP URLを指定 |
+| `caption` | string | いいえ | 写真のキャプション（任意） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | 写真（任意）を含むTelegramメッセージデータ |
+
+### `telegram_send_video`
+
+Telegram Bot APIを通じてTelegramチャンネルまたはユーザーに動画を送信します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | あなたのTelegram Bot APIトークン |
+| `chatId` | string | はい | 対象のTelegramチャットID |
+| `video` | string | はい | 送信する動画。file_idまたはHTTP URLを指定 |
+| `caption` | string | いいえ | 動画のキャプション（任意） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | オプションのメディアを含むTelegramメッセージデータ |
+
+### `telegram_send_audio`
+
+Telegram Bot APIを通じてTelegramチャンネルまたはユーザーに音声ファイルを送信します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | あなたのTelegram Bot APIトークン |
+| `chatId` | string | はい | 対象のTelegramチャットID |
+| `audio` | string | はい | 送信する音声ファイル。file_idまたはHTTP URLを渡してください |
+| `caption` | string | いいえ | 音声のキャプション（オプション） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | 音声/オーディオ情報を含むTelegramメッセージデータ |
+
+### `telegram_send_animation`
+
+Telegram Bot APIを通じてTelegramチャンネルまたはユーザーにアニメーション（GIF）を送信します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | あなたのTelegram Bot APIトークン |
+| `chatId` | string | はい | 対象のTelegramチャットID |
+| `animation` | string | はい | 送信するアニメーション。file_idまたはHTTP URLを渡してください |
+| `caption` | string | いいえ | アニメーションのキャプション（オプション） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | オプションのメディアを含むTelegramメッセージデータ |
 
 ## 注意事項
 

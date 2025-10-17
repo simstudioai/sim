@@ -679,10 +679,6 @@ Alternatively, you can manually provide files using the URL format:
   </Tab>
 </Tabs>
 
-// Attach to button click
-document.getElementById('executeBtn')?.addEventListener('click', executeClientSideWorkflow);
-```
-
 <Callout type="warning">
   When using the SDK in the browser, be careful not to expose sensitive API keys. Consider using a backend proxy or public API keys with limited permissions.
 </Callout>
@@ -1038,34 +1034,6 @@ function StreamingWorkflow() {
 
 - Node.js 16+
 - TypeScript 5.0+ (for TypeScript projects)
-
-## TypeScript Support
-
-The SDK is written in TypeScript and provides full type safety:
-
-```typescript
-import { 
-  SimStudioClient, 
-  WorkflowExecutionResult, 
-  WorkflowStatus,
-  SimStudioError 
-} from 'simstudio-ts-sdk';
-
-// Type-safe client initialization
-const client: SimStudioClient = new SimStudioClient({
-  apiKey: process.env.SIM_API_KEY!
-});
-
-// Type-safe workflow execution
-const result: WorkflowExecutionResult = await client.executeWorkflow('workflow-id', {
-  input: {
-    message: 'Hello, TypeScript!'
-  }
-});
-
-// Type-safe status checking
-const status: WorkflowStatus = await client.getWorkflowStatus('workflow-id');
-```
 
 ## License
 

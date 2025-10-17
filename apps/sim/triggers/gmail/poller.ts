@@ -31,11 +31,26 @@ export const gmailPollingTrigger: TriggerConfig = {
         'Include only emails with selected labels, or exclude emails with selected labels',
       required: true,
     },
+    searchQuery: {
+      type: 'string',
+      label: 'Gmail Search Query',
+      placeholder: 'subject:report OR from:important@example.com',
+      description:
+        'Optional Gmail search query to filter emails. Use the same format as Gmail search box (e.g., "subject:invoice", "from:boss@company.com", "has:attachment"). Leave empty to search all emails.',
+      required: false,
+    },
     markAsRead: {
       type: 'boolean',
       label: 'Mark as Read',
       defaultValue: false,
       description: 'Automatically mark emails as read after processing',
+      required: false,
+    },
+    includeAttachments: {
+      type: 'boolean',
+      label: 'Include Attachments',
+      defaultValue: false,
+      description: 'Download and include email attachments in the trigger payload',
       required: false,
     },
     includeRawEmail: {
@@ -94,8 +109,8 @@ export const gmailPollingTrigger: TriggerConfig = {
         description: 'Whether email has attachments',
       },
       attachments: {
-        type: 'json',
-        description: 'Array of attachment information',
+        type: 'file[]',
+        description: 'Array of email attachments as files (if includeAttachments is enabled)',
       },
     },
     timestamp: {
@@ -129,13 +144,7 @@ export const gmailPollingTrigger: TriggerConfig = {
         '<div><p>Hello,</p><p>Please find attached the monthly report for April 2025.</p><p>Best regards,<br>Sender</p></div>',
       labels: ['INBOX', 'IMPORTANT'],
       hasAttachments: true,
-      attachments: [
-        {
-          filename: 'report-april-2025.pdf',
-          mimeType: 'application/pdf',
-          size: 2048576,
-        },
-      ],
+      attachments: [],
     },
     timestamp: '2025-05-10T10:15:30.123Z',
   },

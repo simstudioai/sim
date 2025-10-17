@@ -26,7 +26,6 @@ export interface ParallelConfig {
   parallelType?: 'count' | 'collection'
 }
 
-// Generic subflow interface
 export interface Subflow {
   id: string
   workflowId: string
@@ -158,16 +157,6 @@ export interface WorkflowState {
   dragStartPosition?: DragStartPosition | null
 }
 
-// New interface for sync control
-export interface SyncControl {
-  // Mark the workflow as changed, requiring sync
-  markDirty: () => void
-  // Check if the workflow has unsaved changes
-  isDirty: () => boolean
-  // Immediately trigger a sync
-  forceSync: () => void
-}
-
 export interface WorkflowActions {
   addBlock: (
     id: string,
@@ -218,11 +207,6 @@ export interface WorkflowActions {
   toggleBlockTriggerMode: (id: string) => void
   setDragStartPosition: (position: DragStartPosition | null) => void
   getDragStartPosition: () => DragStartPosition | null
-
-  // Add the sync control methods to the WorkflowActions interface
-  sync: SyncControl
-
-  // Add method to get current workflow state (eliminates duplication in diff store)
   getWorkflowState: () => WorkflowState
 }
 

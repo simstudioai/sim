@@ -86,8 +86,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   const workspaceId = params.workspaceId as string
 
   // Store hooks
-  const { history, revertToHistoryState, lastSaved, setNeedsRedeploymentFlag, blocks } =
-    useWorkflowStore()
+  const { lastSaved, setNeedsRedeploymentFlag, blocks } = useWorkflowStore()
   const {
     workflows,
     updateWorkflow,

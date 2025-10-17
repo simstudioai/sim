@@ -1,7 +1,7 @@
-import { db, userStats, workflow, workflowSchedule } from '@sim/db'
+import { db, workflow, workflowSchedule } from '@sim/db'
 import { task } from '@trigger.dev/sdk'
 import { Cron } from 'croner'
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { getApiKeyOwnerUserId } from '@/lib/api-key/service'
 import { checkServerSideUsageLimits } from '@/lib/billing'
@@ -49,8 +49,14 @@ function calculateNextRunTime(
   const scheduleType = getSubBlockValue(scheduleBlock, 'scheduleType')
   const scheduleValues = getScheduleTimeValues(scheduleBlock)
 
+  // Get timezone from schedule configuration (default to UTC)
+  const timezone = scheduleValues.timezone || 'UTC'
+
   if (schedule.cronExpression) {
-    const cron = new Cron(schedule.cronExpression)
+    // Use Croner with timezone support for accurate scheduling
+    const cron = new Cron(schedule.cronExpression, {
+      timezone,
+    })
     const nextDate = cron.nextRun()
     if (!nextDate) throw new Error('Invalid cron expression or no future occurrences')
     return nextDate
@@ -360,20 +366,6 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
 
           if (executionResult.success) {
             await updateWorkflowRunCounts(payload.workflowId)
-
-            try {
-              await db
-                .update(userStats)
-                .set({
-                  totalScheduledExecutions: sql`total_scheduled_executions + 1`,
-                  lastActive: now,
-                })
-                .where(eq(userStats.userId, actorUserId))
-
-              logger.debug(`[${requestId}] Updated user stats for scheduled execution`)
-            } catch (statsError) {
-              logger.error(`[${requestId}] Error updating user stats:`, statsError)
-            }
           }
 
           const { traceSpans, totalDuration } = buildTraceSpans(executionResult)

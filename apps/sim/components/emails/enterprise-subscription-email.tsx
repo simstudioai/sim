@@ -13,7 +13,7 @@ import {
 } from '@react-email/components'
 import { format } from 'date-fns'
 import { getBrandConfig } from '@/lib/branding/branding'
-import { getEnv } from '@/lib/env'
+import { getBaseUrl } from '@/lib/urls/utils'
 import { baseStyles } from './base-styles'
 import EmailFooter from './footer'
 
@@ -24,15 +24,15 @@ interface EnterpriseSubscriptionEmailProps {
   createdDate?: Date
 }
 
-const baseUrl = getEnv('NEXT_PUBLIC_APP_URL') || 'https://sim.ai'
-
 export const EnterpriseSubscriptionEmail = ({
   userName = 'Valued User',
   userEmail = '',
-  loginLink = `${baseUrl}/login`,
+  loginLink,
   createdDate = new Date(),
 }: EnterpriseSubscriptionEmailProps) => {
   const brand = getBrandConfig()
+  const baseUrl = getBaseUrl()
+  const effectiveLoginLink = loginLink || `${baseUrl}/login`
 
   return (
     <Html>
@@ -75,7 +75,7 @@ export const EnterpriseSubscriptionEmail = ({
               in and start exploring your new Enterprise features:
             </Text>
 
-            <Link href={loginLink} style={{ textDecoration: 'none' }}>
+            <Link href={effectiveLoginLink} style={{ textDecoration: 'none' }}>
               <Text style={baseStyles.button}>Access Your Enterprise Account</Text>
             </Link>
 

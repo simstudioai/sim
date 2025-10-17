@@ -98,6 +98,7 @@ export async function POST(
     const workflowResult = await db
       .select({
         isDeployed: workflow.isDeployed,
+        workspaceId: workflow.workspaceId,
       })
       .from(workflow)
       .where(eq(workflow.id, deployment.workflowId))
@@ -123,11 +124,13 @@ export async function POST(
       const { SSE_HEADERS } = await import('@/lib/utils')
       const { createFilteredResult } = await import('@/app/api/workflows/[id]/execute/route')
 
+      // Generate executionId early so it can be used for file uploads and workflow execution
+      const executionId = crypto.randomUUID()
+
       const workflowInput: any = { input, conversationId }
       if (files && Array.isArray(files) && files.length > 0) {
         logger.debug(`[${requestId}] Processing ${files.length} attached files`)
 
-        const executionId = crypto.randomUUID()
         const executionContext = {
           workspaceId: deployment.userId,
           workflowId: deployment.workflowId,
@@ -144,7 +147,12 @@ export async function POST(
 
       const stream = await createStreamingResponse({
         requestId,
-        workflow: { id: deployment.workflowId, userId: deployment.userId, isDeployed: true },
+        workflow: {
+          id: deployment.workflowId,
+          userId: deployment.userId,
+          workspaceId: workflowResult[0].workspaceId,
+          isDeployed: true,
+        },
         input: workflowInput,
         executingUserId: deployment.userId,
         streamConfig: {
@@ -153,6 +161,7 @@ export async function POST(
           workflowTriggerType: 'chat',
         },
         createFilteredResult,
+        executionId,
       })
 
       const streamResponse = new NextResponse(stream, {

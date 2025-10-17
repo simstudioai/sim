@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { BlockType } from '@/executor/consts'
 import { FunctionBlockHandler } from '@/executor/handlers/function/function-handler'
 import type { ExecutionContext } from '@/executor/types'
@@ -82,7 +83,7 @@ describe('FunctionBlockHandler', () => {
       workflowVariables: {},
       blockData: {},
       blockNameMapping: {},
-      _context: { workflowId: mockContext.workflowId },
+      _context: { workflowId: mockContext.workflowId, workspaceId: mockContext.workspaceId },
     }
     const expectedOutput: any = { result: 'Success' }
 
@@ -116,7 +117,7 @@ describe('FunctionBlockHandler', () => {
       workflowVariables: {},
       blockData: {},
       blockNameMapping: {},
-      _context: { workflowId: mockContext.workflowId },
+      _context: { workflowId: mockContext.workflowId, workspaceId: mockContext.workspaceId },
     }
     const expectedOutput: any = { result: 'Success' }
 
@@ -138,12 +139,12 @@ describe('FunctionBlockHandler', () => {
       code: inputs.code,
       language: 'javascript',
       useLocalVM: true,
-      timeout: 5000, // Default timeout
+      timeout: DEFAULT_EXECUTION_TIMEOUT_MS,
       envVars: {},
       workflowVariables: {},
       blockData: {},
       blockNameMapping: {},
-      _context: { workflowId: mockContext.workflowId },
+      _context: { workflowId: mockContext.workflowId, workspaceId: mockContext.workspaceId },
     }
 
     await handler.execute(mockBlock, inputs, mockContext)

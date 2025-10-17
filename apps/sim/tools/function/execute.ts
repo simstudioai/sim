@@ -1,8 +1,7 @@
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
 import type { CodeExecutionInput, CodeExecutionOutput } from '@/tools/function/types'
 import type { ToolConfig } from '@/tools/types'
-
-const DEFAULT_TIMEOUT = 10000 // 10 seconds
 
 export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOutput> = {
   id: 'function_execute',
@@ -38,7 +37,7 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
       required: false,
       visibility: 'user-only',
       description: 'Execution timeout in milliseconds',
-      default: DEFAULT_TIMEOUT,
+      default: DEFAULT_EXECUTION_TIMEOUT_MS,
     },
     envVars: {
       type: 'object',
@@ -85,7 +84,7 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
         code: codeContent,
         language: params.language || DEFAULT_CODE_LANGUAGE,
         useLocalVM: params.useLocalVM || false,
-        timeout: params.timeout || DEFAULT_TIMEOUT,
+        timeout: params.timeout || DEFAULT_EXECUTION_TIMEOUT_MS,
         envVars: params.envVars || {},
         workflowVariables: params.workflowVariables || {},
         blockData: params.blockData || {},

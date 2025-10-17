@@ -6,6 +6,8 @@ import { pollingIdempotency } from '@/lib/idempotency/service'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import type { GmailAttachment } from '@/tools/gmail/types'
+import { downloadAttachments, extractAttachmentInfo } from '@/tools/gmail/utils'
 
 const logger = createLogger('GmailPollingService')
 
@@ -13,10 +15,12 @@ interface GmailWebhookConfig {
   labelIds: string[]
   labelFilterBehavior: 'INCLUDE' | 'EXCLUDE'
   markAsRead: boolean
+  searchQuery?: string
   maxEmailsPerPoll?: number
   lastCheckedTimestamp?: string
   historyId?: string
   pollingInterval?: number
+  includeAttachments?: boolean
   includeRawEmail?: boolean
 }
 
@@ -42,7 +46,7 @@ export interface SimplifiedEmail {
   bodyHtml: string
   labels: string[]
   hasAttachments: boolean
-  attachments: Array<{ filename: string; mimeType: string; size: number }>
+  attachments: GmailAttachment[]
 }
 
 export interface GmailWebhookPayload {
@@ -305,13 +309,53 @@ async function fetchNewEmails(accessToken: string, config: GmailWebhookConfig, r
   }
 }
 
+/**
+ * Builds a Gmail search query from label and search configuration
+ */
+function buildGmailSearchQuery(config: {
+  labelIds?: string[]
+  labelFilterBehavior?: 'INCLUDE' | 'EXCLUDE'
+  searchQuery?: string
+}): string {
+  let labelQuery = ''
+  if (config.labelIds && config.labelIds.length > 0) {
+    const labelParts = config.labelIds.map((label) => `label:${label}`).join(' OR ')
+    labelQuery =
+      config.labelFilterBehavior === 'INCLUDE'
+        ? config.labelIds.length > 1
+          ? `(${labelParts})`
+          : labelParts
+        : config.labelIds.length > 1
+          ? `-(${labelParts})`
+          : `-${labelParts}`
+  }
+
+  let searchQueryPart = ''
+  if (config.searchQuery?.trim()) {
+    searchQueryPart = config.searchQuery.trim()
+    if (searchQueryPart.includes(' OR ') || searchQueryPart.includes(' AND ')) {
+      searchQueryPart = `(${searchQueryPart})`
+    }
+  }
+
+  let baseQuery = ''
+  if (labelQuery && searchQueryPart) {
+    baseQuery = `${labelQuery} ${searchQueryPart}`
+  } else if (searchQueryPart) {
+    baseQuery = searchQueryPart
+  } else if (labelQuery) {
+    baseQuery = labelQuery
+  } else {
+    baseQuery = 'in:inbox'
+  }
+
+  return baseQuery
+}
+
 async function searchEmails(accessToken: string, config: GmailWebhookConfig, requestId: string) {
   try {
-    // Build query parameters for label filtering
-    const labelQuery =
-      config.labelIds && config.labelIds.length > 0
-        ? config.labelIds.map((label) => `label:${label}`).join(' ')
-        : 'in:inbox'
+    const baseQuery = buildGmailSearchQuery(config)
+    logger.debug(`[${requestId}] Gmail search query: ${baseQuery}`)
 
     // Improved time-based filtering with dynamic buffer
     let timeConstraint = ''
@@ -360,11 +404,8 @@ async function searchEmails(accessToken: string, config: GmailWebhookConfig, req
       logger.debug(`[${requestId}] No last check time, using default: newer_than:1d`)
     }
 
-    // Combine label and time constraints
-    const query =
-      config.labelFilterBehavior === 'INCLUDE'
-        ? `${labelQuery}${timeConstraint}`
-        : `-${labelQuery}${timeConstraint}`
+    // Combine base query and time constraints
+    const query = `${baseQuery}${timeConstraint}`
 
     logger.info(`[${requestId}] Searching for emails with query: ${query}`)
 
@@ -530,30 +571,23 @@ async function processEmails(
             date = new Date(Number.parseInt(email.internalDate)).toISOString()
           }
 
-          // Extract attachment information if present
-          const attachments: Array<{ filename: string; mimeType: string; size: number }> = []
+          // Download attachments if requested (raw Buffers - will be uploaded during execution)
+          let attachments: GmailAttachment[] = []
+          const hasAttachments = email.payload
+            ? extractAttachmentInfo(email.payload).length > 0
+            : false
 
-          const findAttachments = (part: any) => {
-            if (!part) return
-
-            if (part.filename && part.filename.length > 0) {
-              attachments.push({
-                filename: part.filename,
-                mimeType: part.mimeType || 'application/octet-stream',
-                size: part.body?.size || 0,
-              })
+          if (config.includeAttachments && hasAttachments && email.payload) {
+            try {
+              const attachmentInfo = extractAttachmentInfo(email.payload)
+              attachments = await downloadAttachments(email.id, attachmentInfo, accessToken)
+            } catch (error) {
+              logger.error(
+                `[${requestId}] Error downloading attachments for email ${email.id}:`,
+                error
+              )
+              // Continue without attachments rather than failing the entire request
             }
-
-            // Look for attachments in nested parts
-            if (part.parts && Array.isArray(part.parts)) {
-              for (const subPart of part.parts) {
-                findAttachments(subPart)
-              }
-            }
-          }
-
-          if (email.payload) {
-            findAttachments(email.payload)
           }
 
           // Create simplified email object
@@ -568,8 +602,8 @@ async function processEmails(
             bodyText: textContent,
             bodyHtml: htmlContent,
             labels: email.labelIds || [],
-            hasAttachments: attachments.length > 0,
-            attachments: attachments,
+            hasAttachments,
+            attachments,
           }
 
           // Prepare webhook payload with simplified email and optionally raw email

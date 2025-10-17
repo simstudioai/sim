@@ -83,9 +83,8 @@ export function FieldFormat({
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
-  // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
-  const fields: Field[] = value || []
+  const fields: Field[] = Array.isArray(value) ? value : []
 
   useEffect(() => {
     const initial: Record<string, string> = {}
@@ -136,8 +135,6 @@ export function FieldFormat({
     if (!inputEl) return
 
     const current = localValues[field.id] ?? inputEl.value ?? ''
-    const trimmed = current.trim()
-    if (!trimmed) return
     updateField(field.id, 'value', current)
   }
 
@@ -547,7 +544,7 @@ export function ResponseFormat(
       emptyMessage='No response fields defined'
       showType={false}
       showValue={true}
-      valuePlaceholder='Enter test value'
+      valuePlaceholder='Enter return value'
     />
   )
 }

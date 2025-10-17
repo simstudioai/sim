@@ -97,6 +97,31 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
       required: true,
     },
+    // File upload (basic mode)
+    {
+      id: 'attachmentFiles',
+      title: 'Attachments',
+      type: 'file-upload',
+      layout: 'full',
+      canonicalParamId: 'attachments',
+      placeholder: 'Upload files to attach',
+      condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
+      mode: 'basic',
+      multiple: true,
+      required: false,
+    },
+    // Variable reference (advanced mode)
+    {
+      id: 'attachments',
+      title: 'Attachments',
+      type: 'short-input',
+      layout: 'full',
+      canonicalParamId: 'attachments',
+      placeholder: 'Reference files from previous blocks',
+      condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
+      mode: 'advanced',
+      required: false,
+    },
     // Advanced Settings - Threading
     {
       id: 'replyToMessageId',
@@ -173,6 +198,13 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       placeholder: 'Number of emails to retrieve (default: 1, max: 10)',
       condition: { field: 'operation', value: 'read_outlook' },
     },
+    {
+      id: 'includeAttachments',
+      title: 'Include Attachments',
+      type: 'switch',
+      layout: 'full',
+      condition: { field: 'operation', value: 'read_outlook' },
+    },
     // TRIGGER MODE: Trigger configuration (only shown when trigger mode is active)
     {
       id: 'triggerConfig',
@@ -224,6 +256,8 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     to: { type: 'string', description: 'Recipient email address' },
     subject: { type: 'string', description: 'Email subject' },
     body: { type: 'string', description: 'Email content' },
+    attachmentFiles: { type: 'json', description: 'Files to attach (UI upload)' },
+    attachments: { type: 'json', description: 'Files to attach (UserFile array)' },
     // Forward operation inputs
     messageId: { type: 'string', description: 'Message ID to forward' },
     comment: { type: 'string', description: 'Optional comment for forwarding' },
@@ -231,6 +265,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     folder: { type: 'string', description: 'Email folder' },
     manualFolder: { type: 'string', description: 'Manual folder name' },
     maxResults: { type: 'number', description: 'Maximum emails' },
+    includeAttachments: { type: 'boolean', description: 'Include email attachments' },
   },
   outputs: {
     // Common outputs
@@ -255,6 +290,10 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     receivedDateTime: { type: 'string', description: 'Email received timestamp' },
     sentDateTime: { type: 'string', description: 'Email sent timestamp' },
     hasAttachments: { type: 'boolean', description: 'Whether email has attachments' },
+    attachments: {
+      type: 'json',
+      description: 'Email attachments (if includeAttachments is enabled)',
+    },
     isRead: { type: 'boolean', description: 'Whether email is read' },
     importance: { type: 'string', description: 'Email importance level' },
     // Trigger outputs

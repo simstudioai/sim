@@ -202,7 +202,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
 | `folder` | string | 否 | 要读取邮件的文件夹 ID（默认：收件箱） |
-| `maxResults` | number | 否 | 要检索的最大邮件数量（默认：1，最大：10） |
+| `maxResults` | number | 否 | 要检索的最大邮件数量（默认：1，最大值：10） |
+| `includeAttachments` | boolean | 否 | 下载并包含邮件附件 |
 
 #### 输出
 
@@ -210,6 +211,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | ----------- |
 | `message` | string | 成功或状态消息 |
 | `results` | array | 邮件消息对象的数组 |
+| `attachments` | file[] | 从所有邮件中提取的所有邮件附件 |
 
 ### `outlook_forward`
 

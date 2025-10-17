@@ -113,6 +113,7 @@ Read content from a Microsoft Teams chat
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `chatId` | string | Yes | The ID of the chat to read from |
+| `includeAttachments` | boolean | No | Download and include message attachments \(hosted contents\) into storage |
 
 #### Output
 
@@ -125,6 +126,7 @@ Read content from a Microsoft Teams chat
 | `attachmentCount` | number | Total number of attachments found |
 | `attachmentTypes` | array | Types of attachments found |
 | `content` | string | Formatted content of chat messages |
+| `attachments` | file[] | Uploaded attachments for convenience \(flattened\) |
 
 ### `microsoft_teams_write_chat`
 
@@ -158,6 +160,7 @@ Read content from a Microsoft Teams channel
 | --------- | ---- | -------- | ----------- |
 | `teamId` | string | Yes | The ID of the team to read from |
 | `channelId` | string | Yes | The ID of the channel to read from |
+| `includeAttachments` | boolean | No | Download and include message attachments \(hosted contents\) into storage |
 
 #### Output
 
@@ -171,6 +174,7 @@ Read content from a Microsoft Teams channel
 | `attachmentCount` | number | Total number of attachments found |
 | `attachmentTypes` | array | Types of attachments found |
 | `content` | string | Formatted content of channel messages |
+| `attachments` | file[] | Uploaded attachments for convenience \(flattened\) |
 
 ### `microsoft_teams_write_channel`
 

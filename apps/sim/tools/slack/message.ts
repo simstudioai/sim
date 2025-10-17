@@ -51,33 +51,38 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
       visibility: 'user-or-llm',
       description: 'Message text to send (supports Slack mrkdwn formatting)',
     },
+    files: {
+      type: 'file[]',
+      required: false,
+      visibility: 'user-only',
+      description: 'Files to attach to the message',
+    },
   },
 
   request: {
-    url: 'https://slack.com/api/chat.postMessage',
+    url: '/api/tools/slack/send-message',
     method: 'POST',
-    headers: (params: SlackMessageParams) => ({
+    headers: () => ({
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.accessToken || params.botToken}`,
     }),
     body: (params: SlackMessageParams) => {
-      const body: any = {
+      return {
+        accessToken: params.accessToken || params.botToken,
         channel: params.channel,
-        markdown_text: params.text,
+        text: params.text,
+        files: params.files || null,
       }
-
-      return body
     },
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to send Slack message')
+    }
     return {
       success: true,
-      output: {
-        ts: data.ts,
-        channel: data.channel,
-      },
+      output: data.output,
     }
   },
 

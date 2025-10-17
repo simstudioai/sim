@@ -83,7 +83,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     name: 'OpenAI',
     description: "OpenAI's models",
     defaultModel: 'gpt-4o',
-    modelPatterns: [/^gpt/, /^o1/],
+    modelPatterns: [/^gpt/, /^o1/, /^text-embedding/],
     icon: OpenAIIcon,
     capabilities: {
       toolUsageControl: true,

@@ -18,6 +18,7 @@ interface OutlookWebhookConfig {
   maxEmailsPerPoll?: number
   lastCheckedTimestamp?: string
   pollingInterval?: number
+  includeAttachments?: boolean
   includeRawEmail?: boolean
 }
 
@@ -55,6 +56,13 @@ interface OutlookEmail {
   parentFolderId: string
 }
 
+export interface OutlookAttachment {
+  name: string
+  data: Buffer
+  contentType: string
+  size: number
+}
+
 export interface SimplifiedOutlookEmail {
   id: string
   conversationId: string
@@ -66,6 +74,7 @@ export interface SimplifiedOutlookEmail {
   bodyText: string
   bodyHtml: string
   hasAttachments: boolean
+  attachments: OutlookAttachment[]
   isRead: boolean
   folderId: string
   // Thread support fields
@@ -343,6 +352,18 @@ async function processOutlookEmails(
         'outlook',
         `${webhookData.id}:${email.id}`,
         async () => {
+          let attachments: OutlookAttachment[] = []
+          if (config.includeAttachments && email.hasAttachments) {
+            try {
+              attachments = await downloadOutlookAttachments(accessToken, email.id, requestId)
+            } catch (error) {
+              logger.error(
+                `[${requestId}] Error downloading attachments for email ${email.id}:`,
+                error
+              )
+            }
+          }
+
           // Convert to simplified format
           const simplifiedEmail: SimplifiedOutlookEmail = {
             id: email.id,
@@ -365,6 +386,7 @@ async function processOutlookEmails(
             })(),
             bodyHtml: email.body?.content || '',
             hasAttachments: email.hasAttachments,
+            attachments,
             isRead: email.isRead,
             folderId: email.parentFolderId,
             // Thread support fields
@@ -433,6 +455,68 @@ async function processOutlookEmails(
   }
 
   return processedCount
+}
+
+async function downloadOutlookAttachments(
+  accessToken: string,
+  messageId: string,
+  requestId: string
+): Promise<OutlookAttachment[]> {
+  const attachments: OutlookAttachment[] = []
+
+  try {
+    // Fetch attachments list from Microsoft Graph API
+    const response = await fetch(
+      `https://graph.microsoft.com/v1.0/me/messages/${messageId}/attachments`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    )
+
+    if (!response.ok) {
+      logger.error(`[${requestId}] Failed to fetch attachments for message ${messageId}`)
+      return attachments
+    }
+
+    const data = await response.json()
+    const attachmentsList = data.value || []
+
+    for (const attachment of attachmentsList) {
+      try {
+        // Microsoft Graph returns attachment data directly in the list response for file attachments
+        if (attachment['@odata.type'] === '#microsoft.graph.fileAttachment') {
+          const contentBytes = attachment.contentBytes
+          if (contentBytes) {
+            // contentBytes is base64 encoded
+            const buffer = Buffer.from(contentBytes, 'base64')
+            attachments.push({
+              name: attachment.name,
+              data: buffer,
+              contentType: attachment.contentType,
+              size: attachment.size,
+            })
+          }
+        }
+      } catch (error) {
+        logger.error(
+          `[${requestId}] Error processing attachment ${attachment.id} for message ${messageId}:`,
+          error
+        )
+        // Continue with other attachments
+      }
+    }
+
+    logger.info(
+      `[${requestId}] Downloaded ${attachments.length} attachments for message ${messageId}`
+    )
+  } catch (error) {
+    logger.error(`[${requestId}] Error downloading attachments for message ${messageId}:`, error)
+  }
+
+  return attachments
 }
 
 async function markOutlookEmailAsRead(accessToken: string, messageId: string) {

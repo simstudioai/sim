@@ -206,6 +206,7 @@ Read emails from Outlook
 | --------- | ---- | -------- | ----------- |
 | `folder` | string | No | Folder ID to read emails from \(default: Inbox\) |
 | `maxResults` | number | No | Maximum number of emails to retrieve \(default: 1, max: 10\) |
+| `includeAttachments` | boolean | No | Download and include email attachments |
 
 #### Output
 
@@ -213,6 +214,7 @@ Read emails from Outlook
 | --------- | ---- | ----------- |
 | `message` | string | Success or status message |
 | `results` | array | Array of email message objects |
+| `attachments` | file[] | All email attachments flattened from all emails |
 
 ### `outlook_forward`
 

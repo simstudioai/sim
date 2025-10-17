@@ -29,6 +29,13 @@ export interface MicrosoftTeamsMetadata {
     timestamp: string
     messageType: string
     attachments?: MicrosoftTeamsAttachment[]
+    uploadedFiles?: {
+      path: string
+      key: string
+      name: string
+      size: number
+      type: string
+    }[]
   }>
   // Global attachments summary
   totalAttachments?: number
@@ -39,6 +46,13 @@ export interface MicrosoftTeamsReadResponse extends ToolResponse {
   output: {
     content: string
     metadata: MicrosoftTeamsMetadata
+    attachments?: Array<{
+      path: string
+      key: string
+      name: string
+      size: number
+      type: string
+    }>
   }
 }
 
@@ -56,6 +70,8 @@ export interface MicrosoftTeamsToolParams {
   channelId?: string
   teamId?: string
   content?: string
+  includeAttachments?: boolean
+  files?: any[] // UserFile array for attachments
 }
 
 export type MicrosoftTeamsResponse = MicrosoftTeamsReadResponse | MicrosoftTeamsWriteResponse

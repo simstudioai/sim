@@ -1,5 +1,6 @@
 import { type SQL, sql } from 'drizzle-orm'
 import {
+  bigint,
   boolean,
   check,
   customType,
@@ -572,6 +573,8 @@ export const userStats = pgTable('user_stats', {
   totalCopilotCost: decimal('total_copilot_cost').notNull().default('0'),
   totalCopilotTokens: integer('total_copilot_tokens').notNull().default(0),
   totalCopilotCalls: integer('total_copilot_calls').notNull().default(0),
+  // Storage tracking (for free/pro users)
+  storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
   lastActive: timestamp('last_active').notNull().defaultNow(),
   billingBlocked: boolean('billing_blocked').notNull().default(false),
 })
@@ -670,6 +673,7 @@ export const organization = pgTable('organization', {
   logo: text('logo'),
   metadata: json('metadata'),
   orgUsageLimit: decimal('org_usage_limit'),
+  storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0), // Storage tracking for team/enterprise
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
@@ -724,6 +728,28 @@ export const workspace = pgTable('workspace', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+
+export const workspaceFile = pgTable(
+  'workspace_file',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    key: text('key').notNull().unique(),
+    size: integer('size').notNull(),
+    type: text('type').notNull(),
+    uploadedBy: text('uploaded_by')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceIdIdx: index('workspace_file_workspace_id_idx').on(table.workspaceId),
+    keyIdx: index('workspace_file_key_idx').on(table.key),
+  })
+)
 
 export const permissionTypeEnum = pgEnum('permission_type', ['admin', 'write', 'read'])
 

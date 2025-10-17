@@ -301,6 +301,7 @@ export async function GET(request: NextRequest) {
 
         // Only process trace spans and detailed cost in full mode
         let traceSpans = []
+        let finalOutput: any
         let costSummary = (log.cost as any) || { total: 0 }
 
         if (params.details === 'full' && log.executionData) {
@@ -316,6 +317,12 @@ export async function GET(request: NextRequest) {
             log.cost && Object.keys(log.cost as any).length > 0
               ? (log.cost as any)
               : extractCostSummary(blockExecutions)
+
+          // Include finalOutput if present on executionData
+          try {
+            const fo = (log.executionData as any)?.finalOutput
+            if (fo !== undefined) finalOutput = fo
+          } catch {}
         }
 
         const workflowSummary = {
@@ -346,6 +353,7 @@ export async function GET(request: NextRequest) {
                   totalDuration: log.totalDurationMs,
                   traceSpans,
                   blockExecutions,
+                  finalOutput,
                   enhanced: true,
                 }
               : undefined,

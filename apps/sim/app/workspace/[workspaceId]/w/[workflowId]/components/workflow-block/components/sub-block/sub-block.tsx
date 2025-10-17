@@ -68,8 +68,6 @@ export const SubBlock = memo(
   }: SubBlockProps) {
     const [isValidJson, setIsValidJson] = useState(true)
 
-    // Removed debug logging for performance
-
     const handleMouseDown = (e: React.MouseEvent) => {
       e.stopPropagation()
     }
@@ -308,6 +306,7 @@ export const SubBlock = memo(
               isPreview={isPreview}
               previewValue={previewValue}
               disabled={isDisabled}
+              isWide={isWide}
             />
           )
         case 'webhook-config': {

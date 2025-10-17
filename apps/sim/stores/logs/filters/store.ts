@@ -15,16 +15,32 @@ const updateURL = (params: URLSearchParams) => {
   window.history.replaceState({}, '', url)
 }
 
+const DEFAULT_TIME_RANGE: TimeRange = 'All time'
+
 const parseTimeRangeFromURL = (value: string | null): TimeRange => {
   switch (value) {
+    case 'all-time':
+      return 'All time'
     case 'past-30-minutes':
       return 'Past 30 minutes'
     case 'past-hour':
       return 'Past hour'
+    case 'past-6-hours':
+      return 'Past 6 hours'
+    case 'past-12-hours':
+      return 'Past 12 hours'
     case 'past-24-hours':
       return 'Past 24 hours'
+    case 'past-3-days':
+      return 'Past 3 days'
+    case 'past-7-days':
+      return 'Past 7 days'
+    case 'past-14-days':
+      return 'Past 14 days'
+    case 'past-30-days':
+      return 'Past 30 days'
     default:
-      return 'All time'
+      return DEFAULT_TIME_RANGE
   }
 }
 
@@ -51,8 +67,20 @@ const timeRangeToURL = (timeRange: TimeRange): string => {
       return 'past-30-minutes'
     case 'Past hour':
       return 'past-hour'
+    case 'Past 6 hours':
+      return 'past-6-hours'
+    case 'Past 12 hours':
+      return 'past-12-hours'
     case 'Past 24 hours':
       return 'past-24-hours'
+    case 'Past 3 days':
+      return 'past-3-days'
+    case 'Past 7 days':
+      return 'past-7-days'
+    case 'Past 14 days':
+      return 'past-14-days'
+    case 'Past 30 days':
+      return 'past-30-days'
     default:
       return 'all-time'
   }
@@ -61,7 +89,8 @@ const timeRangeToURL = (timeRange: TimeRange): string => {
 export const useFilterStore = create<FilterState>((set, get) => ({
   logs: [],
   workspaceId: '',
-  timeRange: 'All time',
+  viewMode: 'logs',
+  timeRange: DEFAULT_TIME_RANGE,
   level: 'all',
   workflowIds: [],
   folderIds: [],
@@ -85,6 +114,8 @@ export const useFilterStore = create<FilterState>((set, get) => ({
   },
 
   setWorkspaceId: (workspaceId) => set({ workspaceId }),
+
+  setViewMode: (viewMode) => set({ viewMode }),
 
   setTimeRange: (timeRange) => {
     set({ timeRange })
@@ -230,7 +261,7 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     const params = new URLSearchParams()
 
     // Only add non-default values to keep URL clean
-    if (timeRange !== 'All time') {
+    if (timeRange !== DEFAULT_TIME_RANGE) {
       params.set('timeRange', timeRangeToURL(timeRange))
     }
 
@@ -298,8 +329,26 @@ export const useFilterStore = create<FilterState>((set, get) => ({
         case 'Past hour':
           startDate = new Date(now.getTime() - 60 * 60 * 1000)
           break
+        case 'Past 6 hours':
+          startDate = new Date(now.getTime() - 6 * 60 * 60 * 1000)
+          break
+        case 'Past 12 hours':
+          startDate = new Date(now.getTime() - 12 * 60 * 60 * 1000)
+          break
         case 'Past 24 hours':
           startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+          break
+        case 'Past 3 days':
+          startDate = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000)
+          break
+        case 'Past 7 days':
+          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+          break
+        case 'Past 14 days':
+          startDate = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
+          break
+        case 'Past 30 days':
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
           break
         default:
           startDate = new Date(0)

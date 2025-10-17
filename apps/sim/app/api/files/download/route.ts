@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getPresignedUrl, getPresignedUrlWithConfig, isUsingCloudStorage } from '@/lib/uploads'
 import { BLOB_EXECUTION_FILES_CONFIG, S3_EXECUTION_FILES_CONFIG } from '@/lib/uploads/setup'
+import { getBaseUrl } from '@/lib/urls/utils'
 import { createErrorResponse } from '@/app/api/files/utils'
 
 const logger = createLogger('FileDownload')
@@ -81,7 +82,7 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // For local storage, return the direct path
-      const downloadUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/files/serve/${key}`
+      const downloadUrl = `${getBaseUrl()}/api/files/serve/${key}`
 
       return NextResponse.json({
         downloadUrl,

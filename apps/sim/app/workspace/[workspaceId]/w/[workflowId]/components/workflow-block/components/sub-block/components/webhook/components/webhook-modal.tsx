@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 import {
   AirtableConfig,
   DeleteConfirmDialog,
@@ -404,12 +405,7 @@ export function WebhookModal({
   }, [webhookPath])
 
   // Construct the full webhook URL
-  const baseUrl =
-    typeof window !== 'undefined'
-      ? `${window.location.protocol}//${window.location.host}`
-      : 'https://your-domain.com'
-
-  const webhookUrl = `${baseUrl}/api/webhooks/trigger/${formattedPath}`
+  const webhookUrl = `${getBaseUrl()}/api/webhooks/trigger/${formattedPath}`
 
   const generateTestUrl = async () => {
     if (!webhookId) return

@@ -1,6 +1,6 @@
 ---
 title: S3
-description: View S3 files
+description: Upload, download, list, and manage S3 files
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -62,11 +62,36 @@ In Sim, the S3 integration enables your agents to retrieve and access files stor
 
 ## Usage Instructions
 
-Integrate S3 into the workflow. Can get presigned URLs for S3 objects. Requires access key and secret access key.
+Integrate S3 into the workflow. Upload files, download objects, list bucket contents, delete objects, and copy objects between buckets. Requires AWS access key and secret access key.
 
 
 
 ## Tools
+
+### `s3_put_object`
+
+Upload a file to an AWS S3 bucket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Yes | Your AWS Access Key ID |
+| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `bucketName` | string | Yes | S3 bucket name |
+| `objectKey` | string | Yes | Object key/path in S3 \(e.g., folder/filename.ext\) |
+| `file` | file | No | File to upload |
+| `content` | string | No | Text content to upload \(alternative to file\) |
+| `contentType` | string | No | Content-Type header \(auto-detected from file if not provided\) |
+| `acl` | string | No | Access control list \(e.g., private, public-read\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `url` | string | URL of the uploaded S3 object |
+| `metadata` | object | Upload metadata including ETag and location |
 
 ### `s3_get_object`
 
@@ -86,6 +111,73 @@ Retrieve an object from an AWS S3 bucket
 | --------- | ---- | ----------- |
 | `url` | string | Pre-signed URL for downloading the S3 object |
 | `metadata` | object | File metadata including type, size, name, and last modified date |
+
+### `s3_list_objects`
+
+List objects in an AWS S3 bucket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Yes | Your AWS Access Key ID |
+| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `bucketName` | string | Yes | S3 bucket name |
+| `prefix` | string | No | Prefix to filter objects \(e.g., folder/\) |
+| `maxKeys` | number | No | Maximum number of objects to return \(default: 1000\) |
+| `continuationToken` | string | No | Token for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `objects` | array | List of S3 objects |
+
+### `s3_delete_object`
+
+Delete an object from an AWS S3 bucket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Yes | Your AWS Access Key ID |
+| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `bucketName` | string | Yes | S3 bucket name |
+| `objectKey` | string | Yes | Object key/path to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the object was successfully deleted |
+| `metadata` | object | Deletion metadata |
+
+### `s3_copy_object`
+
+Copy an object within or between AWS S3 buckets
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Yes | Your AWS Access Key ID |
+| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `sourceBucket` | string | Yes | Source bucket name |
+| `sourceKey` | string | Yes | Source object key/path |
+| `destinationBucket` | string | Yes | Destination bucket name |
+| `destinationKey` | string | Yes | Destination object key/path |
+| `acl` | string | No | Access control list for the copied object \(e.g., private, public-read\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `url` | string | URL of the copied S3 object |
+| `metadata` | object | Copy operation metadata |
 
 
 

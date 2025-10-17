@@ -1,15 +1,17 @@
 import { db } from '@sim/db'
-import { userStats, webhook, workflow as workflowTable } from '@sim/db/schema'
+import { webhook, workflow as workflowTable } from '@sim/db/schema'
 import { task } from '@trigger.dev/sdk'
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
+import { processExecutionFiles } from '@/lib/execution/files'
 import { IdempotencyService, webhookIdempotency } from '@/lib/idempotency'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { decryptSecret } from '@/lib/utils'
+import { WebhookAttachmentProcessor } from '@/lib/webhooks/attachment-processor'
 import { fetchAndProcessAirtablePayloads, formatWebhookInput } from '@/lib/webhooks/utils'
 import {
   loadDeployedWorkflowState,
@@ -20,8 +22,65 @@ import { Executor } from '@/executor'
 import type { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
+import { getTrigger } from '@/triggers'
 
 const logger = createLogger('TriggerWebhookExecution')
+
+/**
+ * Process trigger outputs based on their schema definitions
+ * Finds outputs marked as 'file' or 'file[]' and uploads them to execution storage
+ */
+async function processTriggerFileOutputs(
+  input: any,
+  triggerOutputs: Record<string, any>,
+  context: {
+    workspaceId: string
+    workflowId: string
+    executionId: string
+    requestId: string
+  },
+  path = ''
+): Promise<any> {
+  if (!input || typeof input !== 'object') {
+    return input
+  }
+
+  const processed: any = Array.isArray(input) ? [] : {}
+
+  for (const [key, value] of Object.entries(input)) {
+    const currentPath = path ? `${path}.${key}` : key
+    const outputDef = triggerOutputs[key]
+    const val: any = value
+
+    // If this field is marked as file or file[], process it
+    if (outputDef?.type === 'file[]' && Array.isArray(val)) {
+      try {
+        processed[key] = await WebhookAttachmentProcessor.processAttachments(val as any, context)
+      } catch (error) {
+        processed[key] = []
+      }
+    } else if (outputDef?.type === 'file' && val) {
+      try {
+        const [processedFile] = await WebhookAttachmentProcessor.processAttachments(
+          [val as any],
+          context
+        )
+        processed[key] = processedFile
+      } catch (error) {
+        logger.error(`[${context.requestId}] Error processing ${currentPath}:`, error)
+        processed[key] = val
+      }
+    } else if (outputDef && typeof outputDef === 'object' && !outputDef.type) {
+      // Nested object in schema - recurse with the nested schema
+      processed[key] = await processTriggerFileOutputs(val, outputDef, context, currentPath)
+    } else {
+      // Not a file output - keep as is
+      processed[key] = val
+    }
+  }
+
+  return processed
+}
 
 export type WebhookExecutionPayload = {
   webhookId: string
@@ -34,6 +93,7 @@ export type WebhookExecutionPayload = {
   blockId?: string
   testMode?: boolean
   executionTarget?: 'deployed' | 'live'
+  credentialId?: string
 }
 
 export async function executeWebhookJob(payload: WebhookExecutionPayload) {
@@ -231,15 +291,6 @@ async function executeWebhookJobInternal(
         // Update workflow run counts on success
         if (executionResult.success) {
           await updateWorkflowRunCounts(payload.workflowId)
-
-          // Track execution in user stats
-          await db
-            .update(userStats)
-            .set({
-              totalWebhookTriggers: sql`total_webhook_triggers + 1`,
-              lastActive: sql`now()`,
-            })
-            .where(eq(userStats.userId, payload.userId))
         }
 
         // Build trace spans and complete logging session
@@ -250,6 +301,7 @@ async function executeWebhookJobInternal(
           totalDurationMs: totalDuration || 0,
           finalOutput: executionResult.output || {},
           traceSpans: traceSpans as any,
+          workflowInput: airtableInput,
         })
 
         return {
@@ -281,10 +333,22 @@ async function executeWebhookJobInternal(
     }
 
     // Format input for standard webhooks
-    const mockWebhook = {
-      provider: payload.provider,
-      blockId: payload.blockId,
-    }
+    // Load the actual webhook to get providerConfig (needed for Teams credentialId)
+    const webhookRows = await db
+      .select()
+      .from(webhook)
+      .where(eq(webhook.id, payload.webhookId))
+      .limit(1)
+
+    const actualWebhook =
+      webhookRows.length > 0
+        ? webhookRows[0]
+        : {
+            provider: payload.provider,
+            blockId: payload.blockId,
+            providerConfig: {},
+          }
+
     const mockWorkflow = {
       id: payload.workflowId,
       userId: payload.userId,
@@ -293,7 +357,7 @@ async function executeWebhookJobInternal(
       headers: new Map(Object.entries(payload.headers)),
     } as any
 
-    const input = formatWebhookInput(mockWebhook, mockWorkflow, payload.body, mockRequest)
+    const input = await formatWebhookInput(actualWebhook, mockWorkflow, payload.body, mockRequest)
 
     if (!input && payload.provider === 'whatsapp') {
       logger.info(`[${requestId}] No messages in WhatsApp payload, skipping execution`)
@@ -309,6 +373,79 @@ async function executeWebhookJobInternal(
         executionId,
         output: { message: 'No messages in WhatsApp payload' },
         executedAt: new Date().toISOString(),
+      }
+    }
+
+    // Process trigger file outputs based on schema
+    if (input && payload.blockId && blocks[payload.blockId]) {
+      try {
+        const triggerBlock = blocks[payload.blockId]
+        const triggerId = triggerBlock?.subBlocks?.triggerId?.value
+
+        if (triggerId && typeof triggerId === 'string') {
+          const triggerConfig = getTrigger(triggerId)
+
+          if (triggerConfig?.outputs) {
+            logger.debug(`[${requestId}] Processing trigger ${triggerId} file outputs`)
+            const processedInput = await processTriggerFileOutputs(input, triggerConfig.outputs, {
+              workspaceId: workspaceId || '',
+              workflowId: payload.workflowId,
+              executionId,
+              requestId,
+            })
+            Object.assign(input, processedInput)
+          }
+        }
+      } catch (error) {
+        logger.error(`[${requestId}] Error processing trigger file outputs:`, error)
+        // Continue without processing attachments rather than failing execution
+      }
+    }
+
+    // Process generic webhook files based on inputFormat
+    if (input && payload.provider === 'generic' && payload.blockId && blocks[payload.blockId]) {
+      try {
+        const triggerBlock = blocks[payload.blockId]
+
+        if (triggerBlock?.subBlocks?.inputFormat?.value) {
+          const inputFormat = triggerBlock.subBlocks.inputFormat.value as unknown as Array<{
+            name: string
+            type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'files'
+          }>
+          logger.debug(`[${requestId}] Processing generic webhook files from inputFormat`)
+
+          const fileFields = inputFormat.filter((field) => field.type === 'files')
+
+          if (fileFields.length > 0 && typeof input === 'object' && input !== null) {
+            const executionContext = {
+              workspaceId: workspaceId || '',
+              workflowId: payload.workflowId,
+              executionId,
+            }
+
+            for (const fileField of fileFields) {
+              const fieldValue = input[fileField.name]
+
+              if (fieldValue && typeof fieldValue === 'object') {
+                const uploadedFiles = await processExecutionFiles(
+                  fieldValue,
+                  executionContext,
+                  requestId
+                )
+
+                if (uploadedFiles.length > 0) {
+                  input[fileField.name] = uploadedFiles
+                  logger.info(
+                    `[${requestId}] Successfully processed ${uploadedFiles.length} file(s) for field: ${fileField.name}`
+                  )
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        logger.error(`[${requestId}] Error processing generic webhook files:`, error)
+        // Continue without processing files rather than failing execution
       }
     }
 
@@ -346,17 +483,6 @@ async function executeWebhookJobInternal(
     // Update workflow run counts on success
     if (executionResult.success) {
       await updateWorkflowRunCounts(payload.workflowId)
-
-      // Track execution in user stats (skip in test mode)
-      if (!payload.testMode) {
-        await db
-          .update(userStats)
-          .set({
-            totalWebhookTriggers: sql`total_webhook_triggers + 1`,
-            lastActive: sql`now()`,
-          })
-          .where(eq(userStats.userId, payload.userId))
-      }
     }
 
     // Build trace spans and complete logging session
@@ -367,6 +493,7 @@ async function executeWebhookJobInternal(
       totalDurationMs: totalDuration || 0,
       finalOutput: executionResult.output || {},
       traceSpans: traceSpans as any,
+      workflowInput: input,
     })
 
     return {

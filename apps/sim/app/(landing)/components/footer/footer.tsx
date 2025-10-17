@@ -90,6 +90,7 @@ const tools = [
   'Wikipedia',
   'X',
   'YouTube',
+  'Zep',
 ]
 
 interface FooterProps {

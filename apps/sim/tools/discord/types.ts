@@ -58,6 +58,7 @@ export interface DiscordSendMessageParams extends DiscordAuthParams {
     description?: string
     color?: string | number
   }
+  files?: any[]
 }
 
 export interface DiscordGetMessagesParams extends DiscordAuthParams {

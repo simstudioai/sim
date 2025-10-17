@@ -109,10 +109,10 @@ Supabaseテーブルにデータを挿入する
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | はい | SupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
 | `table` | string | はい | データを挿入するSupabaseテーブルの名前 |
-| `data` | any | はい | 挿入するデータ |
-| `apiKey` | string | はい | Supabaseサービスロールのシークレットキー |
+| `data` | array | はい | 挿入するデータ（オブジェクトの配列または単一のオブジェクト） |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
 
 #### 出力
 
@@ -190,10 +190,10 @@ Supabaseテーブルにデータを挿入または更新する（アップサー
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
-| `projectId` | string | はい | SupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
 | `table` | string | はい | データをアップサートするSupabaseテーブルの名前 |
-| `data` | any | はい | アップサート（挿入または更新）するデータ |
-| `apiKey` | string | はい | Supabaseサービスロールのシークレットキー |
+| `data` | array | はい | アップサート（挿入または更新）するデータ - オブジェクトの配列または単一のオブジェクト |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
 
 #### 出力
 

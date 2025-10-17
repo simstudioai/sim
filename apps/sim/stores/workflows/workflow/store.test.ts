@@ -253,44 +253,6 @@ describe('workflow store', () => {
       expect(state.parallels.parallel1).toBeDefined()
       expect(state.parallels.parallel1.parallelType).toBe('count')
     })
-
-    it('should save to history when updating parallel properties', () => {
-      const { addBlock, updateParallelCollection, updateParallelCount, updateParallelType } =
-        useWorkflowStore.getState()
-
-      // Add a parallel block
-      addBlock(
-        'parallel1',
-        'parallel',
-        'Test Parallel',
-        { x: 0, y: 0 },
-        {
-          count: 3,
-          collection: '',
-        }
-      )
-
-      // Get initial history length
-      const initialHistoryLength = useWorkflowStore.getState().history.past.length
-
-      // Update collection
-      updateParallelCollection('parallel1', '["a", "b", "c"]')
-
-      let state = useWorkflowStore.getState()
-      expect(state.history.past.length).toBe(initialHistoryLength + 1)
-
-      // Update count
-      updateParallelCount('parallel1', 5)
-
-      state = useWorkflowStore.getState()
-      expect(state.history.past.length).toBe(initialHistoryLength + 2)
-
-      // Update parallel type
-      updateParallelType('parallel1', 'count')
-
-      state = useWorkflowStore.getState()
-      expect(state.history.past.length).toBe(initialHistoryLength + 3)
-    })
   })
 
   describe('mode switching', () => {

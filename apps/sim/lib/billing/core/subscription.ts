@@ -9,9 +9,9 @@ import {
   getPerUserMinimumLimit,
 } from '@/lib/billing/subscriptions/utils'
 import type { UserSubscriptionState } from '@/lib/billing/types'
-import { env } from '@/lib/env'
 import { isProd } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 
 const logger = createLogger('SubscriptionCore')
 
@@ -303,7 +303,7 @@ export async function sendPlanWelcomeEmail(subscription: any): Promise<void> {
         )
         const { sendEmail } = await import('@/lib/email/mailer')
 
-        const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://sim.ai'
+        const baseUrl = getBaseUrl()
         const html = await renderPlanWelcomeEmail({
           planName: subPlan === 'pro' ? 'Pro' : 'Team',
           userName: users[0].name || undefined,

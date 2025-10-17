@@ -10,6 +10,7 @@ export interface OutlookSendParams {
   conversationId?: string
   cc?: string
   bcc?: string
+  attachments?: any[]
 }
 
 export interface OutlookSendResponse extends ToolResponse {
@@ -24,6 +25,7 @@ export interface OutlookReadParams {
   folder: string
   maxResults: number
   messageId?: string
+  includeAttachments?: boolean
 }
 
 export interface OutlookReadResponse extends ToolResponse {
@@ -40,6 +42,7 @@ export interface OutlookDraftParams {
   bcc?: string
   subject: string
   body: string
+  attachments?: any[]
 }
 
 export interface OutlookDraftResponse extends ToolResponse {
@@ -103,6 +106,14 @@ export interface OutlookMessagesResponse {
   value: OutlookMessage[]
 }
 
+// Outlook attachment interface (for tool responses)
+export interface OutlookAttachment {
+  name: string
+  data: Buffer
+  contentType: string
+  size: number
+}
+
 // Cleaned message interface for our response
 export interface CleanedOutlookMessage {
   id: string
@@ -131,6 +142,7 @@ export interface CleanedOutlookMessage {
   receivedDateTime?: string
   sentDateTime?: string
   hasAttachments?: boolean
+  attachments?: OutlookAttachment[] | any[]
   isRead?: boolean
   importance?: string
 }

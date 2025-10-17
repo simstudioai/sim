@@ -179,12 +179,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         const createdDocuments = await createDocumentRecords(
           validatedData.documents,
           knowledgeBaseId,
-          requestId
+          requestId,
+          userId
         )
 
         logger.info(
           `[${requestId}] Starting controlled async processing of ${createdDocuments.length} documents`
         )
+
+        // Track bulk document upload
+        try {
+          const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+          trackPlatformEvent('platform.knowledge_base.documents_uploaded', {
+            'knowledge_base.id': knowledgeBaseId,
+            'documents.count': createdDocuments.length,
+            'documents.upload_type': 'bulk',
+            'processing.chunk_size': validatedData.processingOptions.chunkSize,
+            'processing.recipe': validatedData.processingOptions.recipe,
+          })
+        } catch (_e) {
+          // Silently fail
+        }
 
         processDocumentsWithQueue(
           createdDocuments,
@@ -229,7 +244,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       try {
         const validatedData = CreateDocumentSchema.parse(body)
 
-        const newDocument = await createSingleDocument(validatedData, knowledgeBaseId, requestId)
+        const newDocument = await createSingleDocument(
+          validatedData,
+          knowledgeBaseId,
+          requestId,
+          userId
+        )
+
+        // Track single document upload
+        try {
+          const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+          trackPlatformEvent('platform.knowledge_base.documents_uploaded', {
+            'knowledge_base.id': knowledgeBaseId,
+            'documents.count': 1,
+            'documents.upload_type': 'single',
+            'document.mime_type': validatedData.mimeType,
+            'document.file_size': validatedData.fileSize,
+          })
+        } catch (_e) {
+          // Silently fail
+        }
 
         return NextResponse.json({
           success: true,
@@ -250,7 +284,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   } catch (error) {
     logger.error(`[${requestId}] Error creating document`, error)
-    return NextResponse.json({ error: 'Failed to create document' }, { status: 500 })
+
+    // Check if it's a storage limit error
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create document'
+    const isStorageLimitError =
+      errorMessage.includes('Storage limit exceeded') || errorMessage.includes('storage limit')
+
+    return NextResponse.json({ error: errorMessage }, { status: isStorageLimitError ? 413 : 500 })
   }
 }
 
@@ -289,7 +329,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           knowledgeBaseId,
           operation,
           documentIds,
-          requestId
+          requestId,
+          session.user.id
         )
 
         return NextResponse.json({

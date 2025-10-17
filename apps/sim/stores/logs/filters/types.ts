@@ -12,8 +12,8 @@ export interface ToolCall {
   startTime: string // ISO timestamp
   endTime: string // ISO timestamp
   status: 'success' | 'error' // Status of the tool call
-  input?: Record<string, any> // Input parameters (optional)
-  output?: Record<string, any> // Output data (optional)
+  input?: Record<string, unknown> // Input parameters (optional)
+  output?: Record<string, unknown> // Output data (optional)
   error?: string // Error message if status is 'error'
 }
 
@@ -51,6 +51,27 @@ export interface CostMetadata {
   }
 }
 
+export interface TokenInfo {
+  input?: number
+  output?: number
+  total?: number
+  prompt?: number
+  completion?: number
+}
+
+export interface ProviderTiming {
+  duration: number
+  startTime: string
+  endTime: string
+  segments: Array<{
+    type: string
+    name?: string
+    startTime: string | number
+    endTime: string | number
+    duration: number
+  }>
+}
+
 export interface TraceSpan {
   id: string
   name: string
@@ -61,11 +82,18 @@ export interface TraceSpan {
   children?: TraceSpan[]
   toolCalls?: ToolCall[]
   status?: 'success' | 'error'
-  tokens?: number
+  tokens?: number | TokenInfo
   relativeStartMs?: number // Time in ms from the start of the parent span
   blockId?: string // Added to track the original block ID for relationship mapping
-  input?: Record<string, any> // Added to store input data for this span
-  output?: Record<string, any> // Added to store output data for this span
+  input?: Record<string, unknown> // Added to store input data for this span
+  output?: Record<string, unknown> // Added to store output data for this span
+  model?: string
+  cost?: {
+    input?: number
+    output?: number
+    total?: number
+  }
+  providerTiming?: ProviderTiming
 }
 
 export interface WorkflowLog {
@@ -93,7 +121,7 @@ export interface WorkflowLog {
   executionData?: ToolCallMetadata & {
     traceSpans?: TraceSpan[]
     totalDuration?: number
-    blockInput?: Record<string, any>
+    blockInput?: Record<string, unknown>
     enhanced?: boolean
 
     blockExecutions?: Array<{
@@ -107,10 +135,10 @@ export interface WorkflowLog {
       status: 'success' | 'error' | 'skipped'
       errorMessage?: string
       errorStackTrace?: string
-      inputData: any
-      outputData: any
+      inputData: unknown
+      outputData: unknown
       cost?: CostMetadata
-      metadata: any
+      metadata: Record<string, unknown>
     }>
   }
 }
@@ -123,7 +151,17 @@ export interface LogsResponse {
   totalPages: number
 }
 
-export type TimeRange = 'Past 30 minutes' | 'Past hour' | 'Past 24 hours' | 'All time'
+export type TimeRange =
+  | 'Past 30 minutes'
+  | 'Past hour'
+  | 'Past 6 hours'
+  | 'Past 12 hours'
+  | 'Past 24 hours'
+  | 'Past 3 days'
+  | 'Past 7 days'
+  | 'Past 14 days'
+  | 'Past 30 days'
+  | 'All time'
 export type LogLevel = 'error' | 'info' | 'all'
 export type TriggerType = 'chat' | 'api' | 'webhook' | 'manual' | 'schedule' | 'all'
 
@@ -133,6 +171,9 @@ export interface FilterState {
 
   // Workspace context
   workspaceId: string
+
+  // View mode
+  viewMode: 'logs' | 'dashboard'
 
   // Filter states
   timeRange: TimeRange
@@ -157,6 +198,7 @@ export interface FilterState {
   // Actions
   setLogs: (logs: WorkflowLog[], append?: boolean) => void
   setWorkspaceId: (workspaceId: string) => void
+  setViewMode: (viewMode: 'logs' | 'dashboard') => void
   setTimeRange: (timeRange: TimeRange) => void
   setLevel: (level: LogLevel) => void
   setWorkflowIds: (workflowIds: string[]) => void

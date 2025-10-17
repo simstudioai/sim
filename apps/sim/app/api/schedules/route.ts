@@ -309,7 +309,8 @@ export async function POST(req: NextRequest) {
 
       // Additional validation for custom cron expressions
       if (defaultScheduleType === 'custom' && cronExpression) {
-        const validation = validateCronExpression(cronExpression)
+        // Validate with timezone for accurate validation
+        const validation = validateCronExpression(cronExpression, timezone)
         if (!validation.isValid) {
           logger.error(`[${requestId}] Invalid cron expression: ${validation.error}`)
           return NextResponse.json(
@@ -365,6 +366,19 @@ export async function POST(req: NextRequest) {
       nextRunAt: nextRunAt?.toISOString(),
       cronExpression,
     })
+
+    // Track schedule creation/update
+    try {
+      const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+      trackPlatformEvent('platform.schedule.created', {
+        'workflow.id': workflowId,
+        'schedule.type': scheduleType || 'daily',
+        'schedule.timezone': timezone,
+        'schedule.is_custom': scheduleType === 'custom',
+      })
+    } catch (_e) {
+      // Silently fail
+    }
 
     return NextResponse.json({
       message: 'Schedule updated',

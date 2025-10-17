@@ -26,6 +26,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { cn } from '@/lib/utils'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { TriggerConfig } from '@/triggers/types'
+import { CredentialSelector } from '../../credential-selector/credential-selector'
 
 interface TriggerConfigSectionProps {
   blockId: string
@@ -79,7 +80,7 @@ export function TriggerConfigSection({
           </div>
         )
 
-      case 'select':
+      case 'select': {
         return (
           <div className='space-y-2'>
             <Label htmlFor={fieldId}>
@@ -103,6 +104,7 @@ export function TriggerConfigSection({
             )}
           </div>
         )
+      }
 
       case 'multiselect': {
         const selectedValues = Array.isArray(value) ? value : []
@@ -215,6 +217,30 @@ export function TriggerConfigSection({
               value={value}
               onChange={(e) => onChange(fieldId, Number(e.target.value))}
               className='h-9 rounded-[8px]'
+            />
+            {fieldDef.description && (
+              <p className='text-muted-foreground text-sm'>{fieldDef.description}</p>
+            )}
+          </div>
+        )
+
+      case 'credential':
+        return (
+          <div className='space-y-2'>
+            <Label htmlFor={fieldId}>
+              {fieldDef.label}
+              {fieldDef.required && <span className='ml-1 text-red-500'>*</span>}
+            </Label>
+            <CredentialSelector
+              blockId={blockId}
+              subBlock={{
+                id: fieldId,
+                type: 'oauth-input' as const,
+                placeholder: fieldDef.placeholder || `Select ${fieldDef.provider} credential`,
+                provider: fieldDef.provider as any,
+                requiredScopes: fieldDef.requiredScopes || [],
+              }}
+              previewValue={value}
             />
             {fieldDef.description && (
               <p className='text-muted-foreground text-sm'>{fieldDef.description}</p>

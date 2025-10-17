@@ -1,22 +1,9 @@
-import { getEnv } from '@/lib/env'
 import { isTest } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import type { TableRow } from '@/tools/types'
 
 const logger = createLogger('HTTPRequestUtils')
-
-export const getReferer = (): string => {
-  if (typeof window !== 'undefined') {
-    return window.location.origin
-  }
-
-  try {
-    return getBaseUrl()
-  } catch (_error) {
-    return getEnv('NEXT_PUBLIC_APP_URL') || 'http://localhost:3000'
-  }
-}
 
 /**
  * Creates a set of default headers used in HTTP requests
@@ -35,7 +22,7 @@ export const getDefaultHeaders = (
     'Accept-Encoding': 'gzip, deflate, br',
     'Cache-Control': 'no-cache',
     Connection: 'keep-alive',
-    Referer: getReferer(),
+    Referer: getBaseUrl(),
     'Sec-Ch-Ua': 'Chromium;v=91, Not-A.Brand;v=99',
     'Sec-Ch-Ua-Mobile': '?0',
     'Sec-Ch-Ua-Platform': '"macOS"',

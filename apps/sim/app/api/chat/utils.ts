@@ -3,10 +3,10 @@ import { chat, workflow } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { isDev } from '@/lib/environment'
+import { processExecutionFiles } from '@/lib/execution/files'
 import { createLogger } from '@/lib/logs/console/logger'
 import { hasAdminPermission } from '@/lib/permissions/utils'
 import { decryptSecret } from '@/lib/utils'
-import { uploadExecutionFile } from '@/lib/workflows/execution-file-storage'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('ChatAuthUtils')
@@ -269,57 +269,20 @@ export async function validateChatAuth(
 /**
  * Process and upload chat files to execution storage
  * Handles both base64 dataUrl format and direct URL pass-through
+ * Delegates to shared execution file processing logic
  */
 export async function processChatFiles(
   files: Array<{ dataUrl?: string; url?: string; name: string; type: string }>,
   executionContext: { workspaceId: string; workflowId: string; executionId: string },
   requestId: string
 ): Promise<UserFile[]> {
-  const uploadedFiles: UserFile[] = []
+  // Transform chat file format to shared execution file format
+  const transformedFiles = files.map((file) => ({
+    type: file.dataUrl ? 'file' : 'url',
+    data: file.dataUrl || file.url || '',
+    name: file.name,
+    mime: file.type,
+  }))
 
-  for (const file of files) {
-    try {
-      if (file.dataUrl) {
-        const dataUrlPrefix = 'data:'
-        const base64Prefix = ';base64,'
-
-        if (!file.dataUrl.startsWith(dataUrlPrefix)) {
-          logger.warn(`[${requestId}] Invalid dataUrl format for file: ${file.name}`)
-          continue
-        }
-
-        const base64Index = file.dataUrl.indexOf(base64Prefix)
-        if (base64Index === -1) {
-          logger.warn(
-            `[${requestId}] Invalid dataUrl format (no base64 marker) for file: ${file.name}`
-          )
-          continue
-        }
-
-        const mimeType = file.dataUrl.substring(dataUrlPrefix.length, base64Index)
-        const base64Data = file.dataUrl.substring(base64Index + base64Prefix.length)
-        const buffer = Buffer.from(base64Data, 'base64')
-
-        logger.debug(`[${requestId}] Uploading file to S3: ${file.name} (${buffer.length} bytes)`)
-
-        const userFile = await uploadExecutionFile(
-          executionContext,
-          buffer,
-          file.name,
-          mimeType || file.type
-        )
-
-        uploadedFiles.push(userFile)
-        logger.debug(`[${requestId}] Successfully uploaded ${file.name} with URL: ${userFile.url}`)
-      } else if (file.url) {
-        uploadedFiles.push(file as UserFile)
-        logger.debug(`[${requestId}] Using existing URL for file: ${file.name}`)
-      }
-    } catch (error) {
-      logger.error(`[${requestId}] Failed to process file ${file.name}:`, error)
-      throw new Error(`Failed to upload file: ${file.name}`)
-    }
-  }
-
-  return uploadedFiles
+  return processExecutionFiles(transformedFiles, executionContext, requestId)
 }

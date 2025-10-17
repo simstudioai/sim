@@ -1,18 +1,12 @@
 import { db } from '@sim/db'
-import {
-  apiKey,
-  permissions,
-  userStats,
-  workflow as workflowTable,
-  workspace,
-} from '@sim/db/schema'
+import { apiKey, permissions, workflow as workflowTable, workspace } from '@sim/db/schema'
 import type { InferSelectModel } from 'drizzle-orm'
 import { and, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { getEnv } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { PermissionType } from '@/lib/permissions/utils'
+import { getBaseUrl } from '@/lib/urls/utils'
 import type { ExecutionResult } from '@/executor/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -178,63 +172,55 @@ export async function updateWorkflowRunCounts(workflowId: string, runs = 1) {
       throw new Error(`Workflow ${workflowId} not found`)
     }
 
-    // Get the origin from the environment or use direct DB update as fallback
-    const origin =
-      getEnv('NEXT_PUBLIC_APP_URL') || (typeof window !== 'undefined' ? window.location.origin : '')
+    // Use the API to update stats
+    const response = await fetch(`${getBaseUrl()}/api/workflows/${workflowId}/stats?runs=${runs}`, {
+      method: 'POST',
+    })
 
-    if (origin) {
-      // Use absolute URL with origin
-      const response = await fetch(`${origin}/api/workflows/${workflowId}/stats?runs=${runs}`, {
-        method: 'POST',
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to update workflow stats')
-      }
-
-      return response.json()
-    }
-    logger.warn('No origin available, updating workflow stats directly via DB')
-
-    // Update workflow directly through database
-    await db
-      .update(workflowTable)
-      .set({
-        runCount: (workflow.runCount as number) + runs,
-        lastRunAt: new Date(),
-      })
-      .where(eq(workflowTable.id, workflowId))
-
-    // Update user stats if needed
-    if (workflow.userId) {
-      const userStatsRecord = await db
-        .select()
-        .from(userStats)
-        .where(eq(userStats.userId, workflow.userId))
-        .limit(1)
-
-      if (userStatsRecord.length === 0) {
-        console.warn('User stats record not found - should be created during onboarding', {
-          userId: workflow.userId,
-        })
-        return // Skip stats update if record doesn't exist
-      }
-      // Update existing record
-      await db
-        .update(userStats)
-        .set({
-          totalManualExecutions: userStatsRecord[0].totalManualExecutions + runs,
-          lastActive: new Date(),
-        })
-        .where(eq(userStats.userId, workflow.userId))
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to update workflow stats')
     }
 
-    return { success: true, runsAdded: runs }
+    return response.json()
   } catch (error) {
-    logger.error('Error updating workflow run counts:', error)
+    logger.error(`Error updating workflow stats for ${workflowId}`, error)
     throw error
   }
+}
+
+/**
+ * Sanitize tools array by removing UI-only fields
+ * @param tools - The tools array to sanitize
+ * @returns A sanitized tools array
+ */
+function sanitizeToolsForComparison(tools: any[] | undefined): any[] {
+  if (!Array.isArray(tools)) {
+    return []
+  }
+
+  return tools.map((tool) => {
+    // Remove UI-only field: isExpanded
+    const { isExpanded, ...cleanTool } = tool
+    return cleanTool
+  })
+}
+
+/**
+ * Sanitize inputFormat array by removing test-only value fields
+ * @param inputFormat - The inputFormat array to sanitize
+ * @returns A sanitized inputFormat array without test values
+ */
+function sanitizeInputFormatForComparison(inputFormat: any[] | undefined): any[] {
+  if (!Array.isArray(inputFormat)) {
+    return []
+  }
+
+  return inputFormat.map((field) => {
+    // Remove test-only field: value (used only for manual testing)
+    const { value, collapsed, ...cleanField } = field
+    return cleanField
+  })
 }
 
 /**
@@ -385,8 +371,24 @@ export function hasWorkflowChanged(
       }
 
       // Get values with special handling for null/undefined
-      const currentValue = currentSubBlocks[subBlockId].value ?? null
-      const deployedValue = deployedSubBlocks[subBlockId].value ?? null
+      let currentValue = currentSubBlocks[subBlockId].value ?? null
+      let deployedValue = deployedSubBlocks[subBlockId].value ?? null
+
+      // Special handling for 'tools' subBlock - sanitize UI-only fields
+      if (subBlockId === 'tools' && Array.isArray(currentValue) && Array.isArray(deployedValue)) {
+        currentValue = sanitizeToolsForComparison(currentValue)
+        deployedValue = sanitizeToolsForComparison(deployedValue)
+      }
+
+      // Special handling for 'inputFormat' subBlock - sanitize UI-only fields (collapsed state)
+      if (
+        subBlockId === 'inputFormat' &&
+        Array.isArray(currentValue) &&
+        Array.isArray(deployedValue)
+      ) {
+        currentValue = sanitizeInputFormatForComparison(currentValue)
+        deployedValue = sanitizeInputFormatForComparison(deployedValue)
+      }
 
       // For string values, compare directly to catch even small text changes
       if (typeof currentValue === 'string' && typeof deployedValue === 'string') {

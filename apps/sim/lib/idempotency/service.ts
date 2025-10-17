@@ -463,7 +463,8 @@ export class IdempotencyService {
       normalizedHeaders?.['x-webhook-id'] ||
       normalizedHeaders?.['x-shopify-webhook-id'] ||
       normalizedHeaders?.['x-github-delivery'] ||
-      normalizedHeaders?.['x-event-id']
+      normalizedHeaders?.['x-event-id'] ||
+      normalizedHeaders?.['x-teams-notification-id']
 
     if (webhookIdHeader) {
       return `${webhookId}:${webhookIdHeader}`

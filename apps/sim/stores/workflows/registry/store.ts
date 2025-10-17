@@ -90,7 +90,6 @@ async function fetchWorkflowsFromDB(workspaceId?: string): Promise<void> {
         name,
         description,
         color,
-        state,
         variables,
         createdAt,
         marketplaceData,
@@ -186,26 +185,10 @@ function resetWorkflowStores() {
     blocks: {},
     edges: [],
     loops: {},
+    parallels: {},
     isDeployed: false,
     deployedAt: undefined,
     deploymentStatuses: {}, // Reset deployment statuses map
-    history: {
-      past: [],
-      present: {
-        state: {
-          blocks: {},
-          edges: [],
-          loops: {},
-          parallels: {},
-          isDeployed: false,
-          deployedAt: undefined,
-        },
-        timestamp: Date.now(),
-        action: 'Initial state',
-        subblockValues: {},
-      },
-      future: [],
-    },
     lastSaved: Date.now(),
   })
 
@@ -438,13 +421,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
         logger.info(`Switching to workflow ${id}`)
 
-        // First, sync the current workflow before switching (if there is one)
-        if (activeWorkflowId && activeWorkflowId !== id) {
-          // Mark current workflow as dirty and sync (fire and forget)
-          useWorkflowStore.getState().sync.markDirty()
-          useWorkflowStore.getState().sync.forceSync()
-        }
-
         // Fetch workflow state from database
         const response = await fetch(`/api/workflows/${id}`, { method: 'GET' })
         const workflowData = response.ok ? (await response.json()).data : null
@@ -464,25 +440,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             lastSaved: Date.now(),
             marketplaceData: workflowData.marketplaceData || null,
             deploymentStatuses: {},
-            history: {
-              past: [],
-              present: {
-                state: {
-                  blocks: workflowData.state.blocks || {},
-                  edges: workflowData.state.edges || [],
-                  loops: workflowData.state.loops || {},
-                  parallels: workflowData.state.parallels || {},
-                  isDeployed: workflowData.isDeployed || false,
-                  deployedAt: workflowData.deployedAt
-                    ? new Date(workflowData.deployedAt)
-                    : undefined,
-                },
-                timestamp: Date.now(),
-                action: 'Loaded from database (normalized tables)',
-                subblockValues: {},
-              },
-              future: [],
-            },
           }
         } else {
           // If no state in DB, use empty state - server should have created start block
@@ -494,23 +451,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             isDeployed: false,
             deployedAt: undefined,
             deploymentStatuses: {},
-            history: {
-              past: [],
-              present: {
-                state: {
-                  blocks: {},
-                  edges: [],
-                  loops: {},
-                  parallels: {},
-                  isDeployed: false,
-                  deployedAt: undefined,
-                },
-                timestamp: Date.now(),
-                action: 'Empty initial state - server should provide start block',
-                subblockValues: {},
-              },
-              future: [],
-            },
             lastSaved: Date.now(),
           }
 
@@ -604,72 +544,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             folderId: createdWorkflow.folderId,
           }
 
-          let initialState: any
-
-          // If this is a marketplace import with existing state
           if (options.marketplaceId && options.marketplaceState) {
-            initialState = {
-              blocks: options.marketplaceState.blocks || {},
-              edges: options.marketplaceState.edges || [],
-              loops: options.marketplaceState.loops || {},
-              parallels: options.marketplaceState.parallels || {},
-              isDeployed: false,
-              deployedAt: undefined,
-              deploymentStatuses: {}, // Initialize empty deployment statuses map
-              workspaceId, // Include workspace ID in the state object
-              history: {
-                past: [],
-                present: {
-                  state: {
-                    blocks: options.marketplaceState.blocks || {},
-                    edges: options.marketplaceState.edges || [],
-                    loops: options.marketplaceState.loops || {},
-                    parallels: options.marketplaceState.parallels || {},
-                    isDeployed: false,
-                    deployedAt: undefined,
-                    workspaceId, // Include workspace ID in history
-                  },
-                  timestamp: Date.now(),
-                  action: 'Imported from marketplace',
-                  subblockValues: {},
-                },
-                future: [],
-              },
-              lastSaved: Date.now(),
-            }
-
             logger.info(`Created workflow from marketplace: ${options.marketplaceId}`)
-          } else {
-            // Create empty workflow (no default blocks)
-            initialState = {
-              blocks: {},
-              edges: [],
-              loops: {},
-              parallels: {},
-              isDeployed: false,
-              deployedAt: undefined,
-              deploymentStatuses: {}, // Initialize empty deployment statuses map
-              workspaceId, // Include workspace ID in the state object
-              history: {
-                past: [],
-                present: {
-                  state: {
-                    blocks: {},
-                    edges: [],
-                    loops: {},
-                    parallels: {},
-                    isDeployed: false,
-                    deployedAt: undefined,
-                    workspaceId, // Include workspace ID in history
-                  },
-                  timestamp: Date.now(),
-                  action: 'Initial state',
-                  subblockValues: {},
-                },
-                future: [],
-              },
-              lastSaved: Date.now(),
-            }
           }
 
           // Add workflow to registry with server-generated ID
@@ -747,23 +623,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           parallels: state.parallels || {},
           isDeployed: false,
           deployedAt: undefined,
-          history: {
-            past: [],
-            present: {
-              state: {
-                blocks: state.blocks || {},
-                edges: state.edges || [],
-                loops: state.loops || {},
-                parallels: state.parallels || {},
-                isDeployed: false,
-                deployedAt: undefined,
-              },
-              timestamp: Date.now(),
-              action: 'Imported from marketplace',
-              subblockValues: {},
-            },
-            future: [],
-          },
           lastSaved: Date.now(),
         }
 
@@ -1027,24 +886,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           deployedAt: undefined,
           workspaceId,
           deploymentStatuses: {},
-          history: {
-            past: [],
-            present: {
-              state: {
-                blocks: sourceState.blocks,
-                edges: sourceState.edges,
-                loops: sourceState.loops,
-                parallels: sourceState.parallels,
-                isDeployed: false,
-                deployedAt: undefined,
-                workspaceId,
-              },
-              timestamp: Date.now(),
-              action: 'Duplicated workflow',
-              subblockValues: {},
-            },
-            future: [],
-          },
           lastSaved: Date.now(),
         }
 
@@ -1156,23 +997,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               parallels: {},
               isDeployed: false,
               deployedAt: undefined,
-              history: {
-                past: [],
-                present: {
-                  state: {
-                    blocks: {},
-                    edges: [],
-                    loops: {},
-                    parallels: {},
-                    isDeployed: false,
-                    deployedAt: undefined,
-                  },
-                  timestamp: Date.now(),
-                  action: 'Workflow deleted',
-                  subblockValues: {},
-                },
-                future: [],
-              },
               lastSaved: Date.now(),
             })
 

@@ -153,7 +153,11 @@ export function TriggerConfig({
       setStoredTriggerId(effectiveTriggerId)
 
       // Map trigger ID to webhook provider name
-      const webhookProvider = effectiveTriggerId.replace(/_webhook|_poller$/, '') // e.g., 'slack_webhook' -> 'slack', 'gmail_poller' -> 'gmail'
+      const webhookProvider = effectiveTriggerId
+        .replace(/_chat_subscription$/, '')
+        .replace(/_webhook$/, '')
+        .replace(/_poller$/, '')
+        .replace(/_subscription$/, '') // e.g., 'slack_webhook' -> 'slack', 'gmail_poller' -> 'gmail', 'microsoftteams_chat_subscription' -> 'microsoftteams'
 
       // Include selected credential from the modal (if any)
       const selectedCredentialId =
@@ -176,6 +180,7 @@ export function TriggerConfig({
             providerConfig: {
               ...config,
               ...(selectedCredentialId ? { credentialId: selectedCredentialId } : {}),
+              triggerId: effectiveTriggerId, // Include trigger ID to determine subscription vs polling
             },
           }),
         })
@@ -206,6 +211,20 @@ export function TriggerConfig({
       }
 
       // Save as webhook using existing webhook API (for webhook-based triggers)
+      const webhookConfig = {
+        ...config,
+        ...(selectedCredentialId ? { credentialId: selectedCredentialId } : {}),
+        triggerId: effectiveTriggerId,
+      }
+
+      logger.info('Saving webhook-based trigger', {
+        triggerId: effectiveTriggerId,
+        provider: webhookProvider,
+        hasCredential: !!selectedCredentialId,
+        credentialId: selectedCredentialId,
+        webhookConfig,
+      })
+
       const response = await fetch('/api/webhooks', {
         method: 'POST',
         headers: {
@@ -216,10 +235,7 @@ export function TriggerConfig({
           blockId,
           path,
           provider: webhookProvider,
-          providerConfig: {
-            ...config,
-            ...(selectedCredentialId ? { credentialId: selectedCredentialId } : {}),
-          },
+          providerConfig: webhookConfig,
         }),
       })
 
@@ -235,14 +251,6 @@ export function TriggerConfig({
       const data = await response.json()
       const savedWebhookId = data.webhook.id
       setTriggerId(savedWebhookId)
-
-      logger.info('Trigger saved successfully as webhook', {
-        webhookId: savedWebhookId,
-        triggerDefId: effectiveTriggerId,
-        provider: webhookProvider,
-        path,
-        blockId,
-      })
 
       // Update the actual trigger after saving
       setActualTriggerId(webhookProvider)
@@ -409,6 +417,13 @@ export function TriggerConfig({
           onDelete={handleDeleteTrigger}
           triggerId={triggerId || undefined}
           blockId={blockId}
+          availableTriggers={availableTriggers}
+          selectedTriggerId={selectedTriggerId}
+          onTriggerChange={(newTriggerId) => {
+            setStoredTriggerId(newTriggerId)
+            // Clear config when changing trigger type
+            setTriggerConfig({})
+          }}
         />
       )}
     </div>

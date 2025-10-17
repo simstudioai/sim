@@ -5,6 +5,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { generateRequestId } from '@/lib/utils'
 import { verifyWorkspaceMembership } from './utils'
 
@@ -94,10 +95,41 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { name, description, color, workspaceId, folderId } = CreateWorkflowSchema.parse(body)
 
+    if (workspaceId) {
+      const workspacePermission = await getUserEntityPermissions(
+        session.user.id,
+        'workspace',
+        workspaceId
+      )
+
+      if (!workspacePermission || workspacePermission === 'read') {
+        logger.warn(
+          `[${requestId}] User ${session.user.id} attempted to create workflow in workspace ${workspaceId} without write permissions`
+        )
+        return NextResponse.json(
+          { error: 'Write or Admin access required to create workflows in this workspace' },
+          { status: 403 }
+        )
+      }
+    }
+
     const workflowId = crypto.randomUUID()
     const now = new Date()
 
     logger.info(`[${requestId}] Creating workflow ${workflowId} for user ${session.user.id}`)
+
+    // Track workflow creation
+    try {
+      const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+      trackPlatformEvent('platform.workflow.created', {
+        'workflow.id': workflowId,
+        'workflow.name': name,
+        'workflow.has_workspace': !!workspaceId,
+        'workflow.has_folder': !!folderId,
+      })
+    } catch (_e) {
+      // Silently fail
+    }
 
     await db.insert(workflow).values({
       id: workflowId,

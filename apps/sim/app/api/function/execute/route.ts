@@ -8,7 +8,9 @@ import { validateProxyUrl } from '@/lib/security/input-validation'
 import { generateRequestId } from '@/lib/utils'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-export const maxDuration = 60
+// Segment config exports must be statically analyzable.
+// Mirror MAX_EXECUTION_DURATION (210s) from '@/lib/execution/constants'.
+export const maxDuration = 210
 
 const logger = createLogger('FunctionExecuteAPI')
 
@@ -649,10 +651,12 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
 
+    const { DEFAULT_EXECUTION_TIMEOUT_MS } = await import('@/lib/execution/constants')
+
     const {
       code,
       params = {},
-      timeout = 5000,
+      timeout = DEFAULT_EXECUTION_TIMEOUT_MS,
       language = DEFAULT_CODE_LANGUAGE,
       useLocalVM = false,
       envVars = {},

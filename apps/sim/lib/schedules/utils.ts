@@ -1,4 +1,5 @@
 import { Cron } from 'croner'
+import cronstrue from 'cronstrue'
 import { createLogger } from '@/lib/logs/console/logger'
 import { formatDateTime } from '@/lib/utils'
 
@@ -7,9 +8,13 @@ const logger = createLogger('ScheduleUtils')
 /**
  * Validates a cron expression and returns validation results
  * @param cronExpression - The cron expression to validate
+ * @param timezone - Optional IANA timezone string (e.g., 'America/Los_Angeles'). Defaults to 'UTC'
  * @returns Validation result with isValid flag, error message, and next run date
  */
-export function validateCronExpression(cronExpression: string): {
+export function validateCronExpression(
+  cronExpression: string,
+  timezone?: string
+): {
   isValid: boolean
   error?: string
   nextRun?: Date
@@ -22,7 +27,8 @@ export function validateCronExpression(cronExpression: string): {
   }
 
   try {
-    const cron = new Cron(cronExpression)
+    // Validate with timezone if provided for accurate next run calculation
+    const cron = new Cron(cronExpression, timezone ? { timezone } : undefined)
     const nextRun = cron.nextRun()
 
     if (!nextRun) {
@@ -267,6 +273,21 @@ export function createDateWithTimezone(
 
 /**
  * Generate cron expression based on schedule type and values
+ *
+ * IMPORTANT: The generated cron expressions use local time values (hours/minutes)
+ * from the user's configured timezone. When used with Croner, pass the timezone
+ * option to ensure proper scheduling:
+ *
+ * Example:
+ *   const cronExpr = generateCronExpression('daily', { dailyTime: [14, 30], timezone: 'America/Los_Angeles' })
+ *   const cron = new Cron(cronExpr, { timezone: 'America/Los_Angeles' })
+ *
+ * This will schedule the job at 2:30 PM Pacific Time, which Croner will correctly
+ * convert to the appropriate UTC time, handling DST transitions automatically.
+ *
+ * @param scheduleType - Type of schedule (minutes, hourly, daily, weekly, monthly, custom)
+ * @param scheduleValues - Object containing schedule configuration including timezone
+ * @returns Cron expression string representing the schedule in local time
  */
 export function generateCronExpression(
   scheduleType: string,
@@ -308,6 +329,7 @@ export function generateCronExpression(
 
 /**
  * Calculate the next run time based on schedule configuration
+ * Uses Croner library with timezone support for accurate scheduling across timezones and DST transitions
  * @param scheduleType - Type of schedule (minutes, hourly, daily, etc)
  * @param scheduleValues - Object with schedule configuration values
  * @param lastRanAt - Optional last execution time
@@ -398,270 +420,83 @@ export function calculateNextRunTime(
     }
   }
 
-  // If we have a scheduleTime (but no future scheduleStartAt), use it for today
-  const scheduleTimeOverride = scheduleValues.scheduleTime
-    ? parseTimeString(scheduleValues.scheduleTime)
-    : null
+  // For recurring schedules, use Croner with timezone support
+  // This ensures proper timezone handling and DST transitions
+  try {
+    const cronExpression = generateCronExpression(scheduleType, scheduleValues)
+    logger.debug(`Using cron expression: ${cronExpression} with timezone: ${timezone}`)
 
-  // Create next run date based on the current date
-  const nextRun = new Date(baseDate)
+    // Create Croner instance with timezone support
+    const cron = new Cron(cronExpression, {
+      timezone,
+    })
 
-  switch (scheduleType) {
-    case 'minutes': {
-      const { minutesInterval } = scheduleValues
+    const nextDate = cron.nextRun()
 
-      // If we have a time override, use it
-      if (scheduleTimeOverride) {
-        const [hours, minutes] = scheduleTimeOverride
-        nextRun.setHours(hours, minutes, 0, 0)
-
-        // Add intervals until we're in the future
-        while (nextRun <= new Date()) {
-          nextRun.setMinutes(nextRun.getMinutes() + minutesInterval)
-        }
-        return nextRun
-      }
-
-      // For subsequent runs after lastRanAt
-      if (lastRanAt) {
-        const baseTime = new Date(lastRanAt)
-        nextRun.setTime(baseTime.getTime())
-        nextRun.setMinutes(nextRun.getMinutes() + minutesInterval, 0, 0)
-
-        // Make sure we're in the future
-        while (nextRun <= new Date()) {
-          nextRun.setMinutes(nextRun.getMinutes() + minutesInterval)
-        }
-        return nextRun
-      }
-
-      // Calculate next boundary for minutes
-      const now = new Date()
-      const currentMinutes = now.getMinutes()
-      const nextIntervalBoundary = Math.ceil(currentMinutes / minutesInterval) * minutesInterval
-      nextRun.setMinutes(nextIntervalBoundary, 0, 0)
-
-      // If we're past this time but haven't reached baseDate, adjust
-      if (nextRun <= now) {
-        nextRun.setMinutes(nextRun.getMinutes() + minutesInterval)
-      }
-
-      return nextRun
+    if (!nextDate) {
+      throw new Error(`No next run date calculated for cron: ${cronExpression}`)
     }
 
-    case 'hourly': {
-      // Use the override time if available, otherwise use hourly config
-      const [targetHours, _] = scheduleTimeOverride || [nextRun.getHours(), 0]
-      const targetMinutes = scheduleValues.hourlyMinute
-
-      nextRun.setHours(targetHours, targetMinutes, 0, 0)
-
-      // If we're in the past relative to now (not baseDate), move to next hour
-      if (nextRun <= new Date()) {
-        nextRun.setHours(nextRun.getHours() + 1)
-      }
-
-      return nextRun
-    }
-
-    case 'daily': {
-      // Use either schedule override or daily time values
-      const [hours, minutes] = scheduleTimeOverride || scheduleValues.dailyTime
-
-      nextRun.setHours(hours, minutes, 0, 0)
-
-      // If we're in the past relative to now (not baseDate), move to tomorrow
-      if (nextRun <= new Date()) {
-        nextRun.setDate(nextRun.getDate() + 1)
-      }
-
-      return nextRun
-    }
-
-    case 'weekly': {
-      // Use either schedule override or weekly time values
-      const [hours, minutes] = scheduleTimeOverride || scheduleValues.weeklyTime
-
-      nextRun.setHours(hours, minutes, 0, 0)
-
-      // Add days until we reach the target day in the future
-      while (nextRun.getDay() !== scheduleValues.weeklyDay || nextRun <= new Date()) {
-        nextRun.setDate(nextRun.getDate() + 1)
-      }
-
-      return nextRun
-    }
-
-    case 'monthly': {
-      // Use either schedule override or monthly time values
-      const [hours, minutes] = scheduleTimeOverride || scheduleValues.monthlyTime
-      const { monthlyDay } = scheduleValues
-
-      nextRun.setDate(monthlyDay)
-      nextRun.setHours(hours, minutes, 0, 0)
-
-      // If we're in the past relative to now (not baseDate), move to next month
-      if (nextRun <= new Date()) {
-        nextRun.setMonth(nextRun.getMonth() + 1)
-      }
-
-      return nextRun
-    }
-
-    default:
-      throw new Error(`Unsupported schedule type: ${scheduleType}`)
+    logger.debug(`Next run calculated: ${nextDate.toISOString()}`)
+    return nextDate
+  } catch (error) {
+    logger.error('Error calculating next run with Croner:', error)
+    throw new Error(
+      `Failed to calculate next run time for schedule type ${scheduleType}: ${error instanceof Error ? error.message : String(error)}`
+    )
   }
 }
 
 /**
- * Converts a cron expression to a human-readable string format
+ * Helper function to get a friendly timezone abbreviation
  */
-export const parseCronToHumanReadable = (cronExpression: string): string => {
-  // Parse the cron parts
-  const parts = cronExpression.split(' ')
-
-  // Handle standard patterns
-  if (cronExpression === '* * * * *') {
-    return 'Every minute'
+function getTimezoneAbbreviation(timezone: string): string {
+  const timezoneMap: Record<string, string> = {
+    'America/Los_Angeles': 'PT',
+    'America/Denver': 'MT',
+    'America/Chicago': 'CT',
+    'America/New_York': 'ET',
+    'Europe/London': 'GMT/BST',
+    'Europe/Paris': 'CET/CEST',
+    'Asia/Tokyo': 'JST',
+    'Asia/Singapore': 'SGT',
+    'Australia/Sydney': 'AEDT/AEST',
+    UTC: 'UTC',
   }
 
-  // Every X minutes
-  if (cronExpression.match(/^\*\/\d+ \* \* \* \*$/)) {
-    const minutes = cronExpression.split(' ')[0].split('/')[1]
-    return `Every ${minutes} minutes`
-  }
+  return timezoneMap[timezone] || timezone
+}
 
-  // Daily at specific time
-  if (cronExpression.match(/^\d+ \d+ \* \* \*$/)) {
-    const minute = Number.parseInt(parts[0], 10)
-    const hour = Number.parseInt(parts[1], 10)
-    const period = hour >= 12 ? 'PM' : 'AM'
-    const hour12 = hour % 12 || 12
-    return `Daily at ${hour12}:${minute.toString().padStart(2, '0')} ${period}`
-  }
-
-  // Every hour at specific minute
-  if (cronExpression.match(/^\d+ \* \* \* \*$/)) {
-    const minute = parts[0]
-    return `Hourly at ${minute} minutes past the hour`
-  }
-
-  // Specific day of week at specific time
-  if (cronExpression.match(/^\d+ \d+ \* \* \d+$/)) {
-    const minute = Number.parseInt(parts[0], 10)
-    const hour = Number.parseInt(parts[1], 10)
-    const dayOfWeek = Number.parseInt(parts[4], 10)
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-    const day = days[dayOfWeek % 7]
-    const period = hour >= 12 ? 'PM' : 'AM'
-    const hour12 = hour % 12 || 12
-    return `Every ${day} at ${hour12}:${minute.toString().padStart(2, '0')} ${period}`
-  }
-
-  // Specific day of month at specific time
-  if (cronExpression.match(/^\d+ \d+ \d+ \* \*$/)) {
-    const minute = Number.parseInt(parts[0], 10)
-    const hour = Number.parseInt(parts[1], 10)
-    const dayOfMonth = parts[2]
-    const period = hour >= 12 ? 'PM' : 'AM'
-    const hour12 = hour % 12 || 12
-    const day =
-      dayOfMonth === '1'
-        ? '1st'
-        : dayOfMonth === '2'
-          ? '2nd'
-          : dayOfMonth === '3'
-            ? '3rd'
-            : `${dayOfMonth}th`
-    return `Monthly on the ${day} at ${hour12}:${minute.toString().padStart(2, '0')} ${period}`
-  }
-
-  // Weekly at specific time
-  if (cronExpression.match(/^\d+ \d+ \* \* [0-6]$/)) {
-    const minute = Number.parseInt(parts[0], 10)
-    const hour = Number.parseInt(parts[1], 10)
-    const dayOfWeek = Number.parseInt(parts[4], 10)
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-    const day = days[dayOfWeek % 7]
-    const period = hour >= 12 ? 'PM' : 'AM'
-    const hour12 = hour % 12 || 12
-    return `Weekly on ${day} at ${hour12}:${minute.toString().padStart(2, '0')} ${period}`
-  }
-
-  // Return a more detailed breakdown if none of the patterns match
+/**
+ * Converts a cron expression to a human-readable string format
+ * Uses the cronstrue library for accurate parsing of complex cron expressions
+ *
+ * @param cronExpression - The cron expression to parse
+ * @param timezone - Optional IANA timezone string to include in the description
+ * @returns Human-readable description of the schedule
+ */
+export const parseCronToHumanReadable = (cronExpression: string, timezone?: string): string => {
   try {
-    const [minute, hour, dayOfMonth, month, dayOfWeek] = parts
-    let description = 'Runs '
+    // Use cronstrue for reliable cron expression parsing
+    const baseDescription = cronstrue.toString(cronExpression, {
+      use24HourTimeFormat: false, // Use 12-hour format with AM/PM
+      verbose: false, // Keep it concise
+    })
 
-    // Time component
-    if (minute === '*' && hour === '*') {
-      description += 'every minute '
-    } else if (minute.includes('/') && hour === '*') {
-      const interval = minute.split('/')[1]
-      description += `every ${interval} minutes `
-    } else if (minute !== '*' && hour !== '*') {
-      const hourVal = Number.parseInt(hour, 10)
-      const period = hourVal >= 12 ? 'PM' : 'AM'
-      const hour12 = hourVal % 12 || 12
-      description += `at ${hour12}:${minute.padStart(2, '0')} ${period} `
+    // Add timezone information if provided and not UTC
+    if (timezone && timezone !== 'UTC') {
+      const tzAbbr = getTimezoneAbbreviation(timezone)
+      return `${baseDescription} (${tzAbbr})`
     }
 
-    // Day component
-    if (dayOfMonth !== '*' && month !== '*') {
-      const months = [
-        'January',
-        'February',
-        'March',
-        'April',
-        'May',
-        'June',
-        'July',
-        'August',
-        'September',
-        'October',
-        'November',
-        'December',
-      ]
-
-      if (month.includes(',')) {
-        const monthNames = month.split(',').map((m) => months[Number.parseInt(m, 10) - 1])
-        description += `on day ${dayOfMonth} of ${monthNames.join(', ')}`
-      } else if (month.includes('/')) {
-        // Handle interval patterns like */3, 1/3, etc.
-        const interval = month.split('/')[1]
-        description += `on day ${dayOfMonth} every ${interval} months`
-      } else if (month.includes('-')) {
-        // Handle range patterns like 1-6
-        const [start, end] = month.split('-').map((m) => Number.parseInt(m, 10))
-        const startMonth = months[start - 1]
-        const endMonth = months[end - 1]
-        description += `on day ${dayOfMonth} from ${startMonth} to ${endMonth}`
-      } else {
-        // Handle specific month numbers
-        const monthIndex = Number.parseInt(month, 10) - 1
-        const monthName = months[monthIndex]
-        if (monthName) {
-          description += `on day ${dayOfMonth} of ${monthName}`
-        } else {
-          description += `on day ${dayOfMonth} of month ${month}`
-        }
-      }
-    } else if (dayOfWeek !== '*') {
-      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-      if (dayOfWeek.includes(',')) {
-        const dayNames = dayOfWeek.split(',').map((d) => days[Number.parseInt(d, 10) % 7])
-        description += `on ${dayNames.join(', ')}`
-      } else if (dayOfWeek.includes('-')) {
-        const [start, end] = dayOfWeek.split('-').map((d) => Number.parseInt(d, 10) % 7)
-        description += `from ${days[start]} to ${days[end]}`
-      } else {
-        description += `on ${days[Number.parseInt(dayOfWeek, 10) % 7]}`
-      }
-    }
-
-    return description.trim()
-  } catch (_e) {
-    return `Schedule: ${cronExpression}`
+    return baseDescription
+  } catch (error) {
+    logger.warn('Failed to parse cron expression with cronstrue:', {
+      cronExpression,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    // Fallback to displaying the raw cron expression
+    return `Schedule: ${cronExpression}${timezone && timezone !== 'UTC' ? ` (${getTimezoneAbbreviation(timezone)})` : ''}`
   }
 }
 
@@ -672,7 +507,8 @@ export const getScheduleInfo = (
   cronExpression: string | null,
   nextRunAt: string | null,
   lastRanAt: string | null,
-  scheduleType?: string | null
+  scheduleType?: string | null,
+  timezone?: string | null
 ): {
   scheduleTiming: string
   nextRunFormatted: string | null
@@ -689,7 +525,8 @@ export const getScheduleInfo = (
   let scheduleTiming = 'Unknown schedule'
 
   if (cronExpression) {
-    scheduleTiming = parseCronToHumanReadable(cronExpression)
+    // Pass timezone to parseCronToHumanReadable for accurate display
+    scheduleTiming = parseCronToHumanReadable(cronExpression, timezone || undefined)
   } else if (scheduleType) {
     scheduleTiming = `${scheduleType.charAt(0).toUpperCase() + scheduleType.slice(1)}`
   }

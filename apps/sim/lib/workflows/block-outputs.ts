@@ -87,9 +87,17 @@ export function getBlockOutputs(
     }
 
     if (Array.isArray(inputFormatValue)) {
-      // For API and Input triggers, only use inputFormat fields
-      if (blockType === 'api_trigger' || blockType === 'input_trigger') {
-        outputs = {} // Clear all default outputs
+      // For API, Input triggers, and Generic Webhook, use inputFormat fields
+      if (
+        blockType === 'api_trigger' ||
+        blockType === 'input_trigger' ||
+        blockType === 'generic_webhook'
+      ) {
+        // For generic_webhook, only clear outputs if inputFormat has fields
+        // Otherwise keep the default outputs (pass-through body)
+        if (inputFormatValue.length > 0 || blockType !== 'generic_webhook') {
+          outputs = {} // Clear all default outputs
+        }
 
         // Add each field from inputFormat as an output at root level
         inputFormatValue.forEach((field: { name?: string; type?: string }) => {
