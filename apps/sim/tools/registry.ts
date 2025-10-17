@@ -168,6 +168,7 @@ import {
   sharepointListSitesTool,
   sharepointReadPageTool,
   sharepointUpdateListItemTool,
+  sharepointUploadFileTool,
 } from '@/tools/sharepoint'
 import { slackCanvasTool, slackMessageReaderTool, slackMessageTool } from '@/tools/slack'
 import { smsSendTool } from '@/tools/sms'
@@ -444,4 +445,5 @@ export const tools: Record<string, ToolConfig> = {
   sharepoint_create_list: sharepointCreateListTool,
   sharepoint_update_list: sharepointUpdateListItemTool,
   sharepoint_add_list_items: sharepointAddListItemTool,
+  sharepoint_upload_file: sharepointUploadFileTool,
 }
