@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
     let fileUrl = validatedData.filePath
 
     // Check if it's an internal workspace file path
-    if (validatedData.filePath?.includes('/api/files/serve/')) {
+    if (validatedData.filePath && validatedData.filePath.includes('/api/files/serve/')) {
       try {
         const storageKey = extractStorageKey(validatedData.filePath)
         // Generate 5-minute presigned URL for external API access
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
           { status: 500 }
         )
       }
-    } else if (validatedData.filePath?.startsWith('/')) {
+    } else if (validatedData.filePath && validatedData.filePath.startsWith('/')) {
       // Convert relative path to absolute URL
       const baseUrl = getBaseUrl()
       fileUrl = `${baseUrl}${validatedData.filePath}`

@@ -1,22 +1,19 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { ChevronDown, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { createLogger } from '@/lib/logs/console/logger'
+import type { WorkspaceFileRecord } from '@/lib/uploads/workspace-files'
 import type { WorkspaceFileRecord } from '@/lib/uploads/workspace-files'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -68,8 +65,6 @@ export function FileUpload({
   const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceFileRecord[]>([])
   const [loadingWorkspaceFiles, setLoadingWorkspaceFiles] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
-  const [addMoreOpen, setAddMoreOpen] = useState(false)
-  const [pickerOpen, setPickerOpen] = useState(false)
 
   // For file deletion status
   const [deletingFiles, setDeletingFiles] = useState<Record<string, boolean>>({})
@@ -81,9 +76,42 @@ export function FileUpload({
   const { activeWorkflowId } = useWorkflowRegistry()
   const params = useParams()
   const workspaceId = params?.workspaceId as string
+  const params = useParams()
+  const workspaceId = params?.workspaceId as string
 
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
+
+  // Load workspace files function
+  const loadWorkspaceFiles = async () => {
+    if (!workspaceId || isPreview) return
+
+    try {
+      setLoadingWorkspaceFiles(true)
+      const response = await fetch(`/api/workspaces/${workspaceId}/files`)
+      const data = await response.json()
+
+      if (data.success) {
+        setWorkspaceFiles(data.files || [])
+      }
+    } catch (error) {
+      logger.error('Error loading workspace files:', error)
+    } finally {
+      setLoadingWorkspaceFiles(false)
+    }
+  }
+
+  // Filter out already selected files
+  const availableWorkspaceFiles = workspaceFiles.filter((workspaceFile) => {
+    const existingFiles = Array.isArray(value) ? value : value ? [value] : []
+    // Check if this workspace file is already added (match by name or key)
+    return !existingFiles.some(
+      (existing) =>
+        existing.name === workspaceFile.name ||
+        existing.path?.includes(workspaceFile.key) ||
+        existing.key === workspaceFile.key
+    )
+  })
 
   // Load workspace files function
   const loadWorkspaceFiles = async () => {
@@ -202,6 +230,8 @@ export function FileUpload({
     try {
       setUploadError(null) // Clear previous errors
 
+      setUploadError(null) // Clear previous errors
+
       // Simulate upload progress
       progressInterval = setInterval(() => {
         setUploadProgress((prev) => {
@@ -214,8 +244,17 @@ export function FileUpload({
       const uploadErrors: string[] = []
 
       // Upload each file via server (workspace files need DB records)
+      // Upload each file via server (workspace files need DB records)
       for (const file of validFiles) {
         try {
+          // Create FormData for upload
+          const formData = new FormData()
+          formData.append('file', file)
+
+          // Add workspace ID for workspace-scoped storage
+          if (workspaceId) {
+            formData.append('workspaceId', workspaceId)
+          }
           // Create FormData for upload
           const formData = new FormData()
           formData.append('file', file)
@@ -232,7 +271,28 @@ export function FileUpload({
           })
 
           const data = await response.json()
+          // Upload the file via server
+          const response = await fetch('/api/files/upload', {
+            method: 'POST',
+            body: formData,
+          })
 
+          const data = await response.json()
+
+          // Handle error response
+          if (!response.ok) {
+            const errorMessage = data.error || `Failed to upload file: ${response.status}`
+            uploadErrors.push(`${file.name}: ${errorMessage}`)
+
+            // Set error message with conditional auto-dismiss
+            setUploadError(errorMessage)
+
+            // Only auto-dismiss duplicate errors, keep other errors (like storage limits) visible
+            if (data.isDuplicate || response.status === 409) {
+              setTimeout(() => setUploadError(null), 5000)
+            }
+            continue
+          }
           // Handle error response
           if (!response.ok) {
             const errorMessage = data.error || `Failed to upload file: ${response.status}`
@@ -266,8 +326,7 @@ export function FileUpload({
           // Process successful upload - handle both workspace and regular uploads
           uploadedFiles.push({
             name: file.name,
-            path: data.file?.url || data.url, // Workspace: data.file.url, Non-workspace: data.url
-            key: data.file?.key || data.key, // Storage key for proper file access
+            path: data.file?.url || data.file?.path || data.url || data.path,
             size: file.size,
             type: file.type,
           })
@@ -295,10 +354,19 @@ export function FileUpload({
           void loadWorkspaceFiles()
         }
 
+        setUploadError(null) // Clear error on successful upload
+
+        // Refresh workspace files list to keep dropdown up to date
+        if (workspaceId) {
+          void loadWorkspaceFiles()
+        }
+
         if (uploadedFiles.length === 1) {
+          logger.info(`${uploadedFiles[0].name} was uploaded successfully`, activeWorkflowId)
           logger.info(`${uploadedFiles[0].name} was uploaded successfully`, activeWorkflowId)
         } else {
           logger.info(
+            `Uploaded ${uploadedFiles.length} files successfully: ${uploadedFiles.map((f) => f.name).join(', ')}`,
             `Uploaded ${uploadedFiles.length} files successfully: ${uploadedFiles.map((f) => f.name).join(', ')}`,
             activeWorkflowId
           )
@@ -401,6 +469,44 @@ export function FileUpload({
   }
 
   /**
+   * Handle selecting an existing workspace file
+   */
+  const handleSelectWorkspaceFile = (fileId: string) => {
+    const selectedFile = workspaceFiles.find((f) => f.id === fileId)
+    if (!selectedFile) return
+
+    // Convert workspace file record to uploaded file format
+    // Path will be converted to presigned URL during execution if needed
+    const uploadedFile: UploadedFile = {
+      name: selectedFile.name,
+      path: selectedFile.path,
+      size: selectedFile.size,
+      type: selectedFile.type,
+    }
+
+    if (multiple) {
+      // For multiple files: Append to existing
+      const existingFiles = Array.isArray(value) ? value : value ? [value] : []
+      const uniqueFiles = new Map()
+
+      existingFiles.forEach((file) => {
+        uniqueFiles.set(file.url || file.path, file)
+      })
+
+      uniqueFiles.set(uploadedFile.path, uploadedFile)
+      const newFiles = Array.from(uniqueFiles.values())
+
+      setStoreValue(newFiles)
+    } else {
+      // For single file: Replace
+      setStoreValue(uploadedFile)
+    }
+
+    useWorkflowStore.getState().triggerUpdate()
+    logger.info(`Selected workspace file: ${selectedFile.name}`, activeWorkflowId)
+  }
+
+  /**
    * Handles deletion of a single file
    */
   const handleRemoveFile = async (file: UploadedFile, e?: React.MouseEvent) => {
@@ -429,7 +535,28 @@ export function FileUpload({
           },
           body: JSON.stringify({ filePath: file.path }),
         })
+      // Check if this is a workspace file (decoded path contains workspaceId pattern)
+      const decodedPath = file.path ? decodeURIComponent(file.path) : ''
+      const isWorkspaceFile =
+        workspaceId &&
+        (decodedPath.includes(`/${workspaceId}/`) || decodedPath.includes(`${workspaceId}/`))
 
+      if (!isWorkspaceFile) {
+        // Only delete from storage if it's NOT a workspace file
+        // Workspace files are permanent and managed through Settings
+        const response = await fetch('/api/files/delete', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ filePath: file.path }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: response.statusText }))
+          const errorMessage = errorData.error || `Failed to delete file: ${response.status}`
+          throw new Error(errorMessage)
+        }
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: response.statusText }))
           const errorMessage = errorData.error || `Failed to delete file: ${response.status}`
@@ -437,6 +564,7 @@ export function FileUpload({
         }
       }
 
+      // Update the UI state (remove from selection)
       // Update the UI state (remove from selection)
       if (multiple) {
         // For multiple files: Remove the specific file
@@ -451,6 +579,7 @@ export function FileUpload({
       useWorkflowStore.getState().triggerUpdate()
     } catch (error) {
       logger.error(
+        error instanceof Error ? error.message : 'Failed to remove file',
         error instanceof Error ? error.message : 'Failed to remove file',
         activeWorkflowId
       )
@@ -607,9 +736,13 @@ export function FileUpload({
       />
 
       {/* Error message */}
-      {uploadError && <div className='mb-2 text-red-600 text-sm'>{uploadError}</div>}
+      {uploadError && (
+        <div className='mb-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive'>
+          {uploadError}
+        </div>
+      )}
 
-      <div>
+      <div className='bg-card'>
         {/* File list with consistent spacing */}
         {(hasFiles || isUploading) && (
           <div className='mb-2 space-y-2'>
@@ -641,150 +774,99 @@ export function FileUpload({
 
         {/* Add More dropdown for multiple files */}
         {hasFiles && multiple && !isUploading && (
-          <div>
-            <Popover
-              open={addMoreOpen}
+          <div className='bg-card'>
+            <Select
+              value=''
+              disabled={disabled || loadingWorkspaceFiles}
               onOpenChange={(open) => {
-                setAddMoreOpen(open)
-                if (open) void loadWorkspaceFiles()
+                if (open) {
+                  void loadWorkspaceFiles()
+                }
+              }}
+              onValueChange={(value) => {
+                if (value === 'upload_new') {
+                  handleOpenFileDialog({
+                    preventDefault: () => {},
+                    stopPropagation: () => {},
+                  } as React.MouseEvent)
+                } else {
+                  handleSelectWorkspaceFile(value)
+                }
+                // Value stays empty so placeholder always shows
               }}
             >
-              <PopoverTrigger asChild>
-                <Button
-                  variant='outline'
-                  role='combobox'
-                  aria-expanded={addMoreOpen}
-                  className='relative w-full justify-between'
-                  disabled={disabled || loadingWorkspaceFiles}
-                >
-                  <span className='truncate font-normal'>+ Add More</span>
-                  <ChevronDown className='absolute right-3 h-4 w-4 shrink-0 opacity-50' />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className={isWide ? 'w-[420px] p-0' : 'w-[320px] p-0'} align='start'>
-                <Command>
-                  <CommandInput
-                    placeholder='Search files...'
-                    className='text-foreground placeholder:text-muted-foreground'
-                  />
-                  <CommandList onWheel={(e) => e.stopPropagation()}>
-                    <CommandGroup>
-                      <CommandItem
-                        value='upload_new'
-                        onSelect={() => {
-                          setAddMoreOpen(false)
-                          handleOpenFileDialog({
-                            preventDefault: () => {},
-                            stopPropagation: () => {},
-                          } as React.MouseEvent)
-                        }}
-                      >
-                        Upload New File
-                      </CommandItem>
-                    </CommandGroup>
-                    <CommandEmpty>
-                      {availableWorkspaceFiles.length === 0
-                        ? 'No files available.'
-                        : 'No files found.'}
-                    </CommandEmpty>
-                    {availableWorkspaceFiles.length > 0 && (
-                      <CommandGroup heading='Workspace Files'>
-                        {availableWorkspaceFiles.map((file) => (
-                          <CommandItem
-                            key={file.id}
-                            value={file.name}
-                            onSelect={() => {
-                              handleSelectWorkspaceFile(file.id)
-                              setAddMoreOpen(false)
-                            }}
-                          >
-                            <span className='truncate' title={file.name}>
-                              {truncateMiddle(file.name)}
-                            </span>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    )}
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+              <SelectTrigger className='h-10 w-full bg-card'>
+                <SelectValue placeholder='+ Add More' />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='upload_new' className='pl-3'>
+                  Upload New File
+                </SelectItem>
+                {availableWorkspaceFiles.length > 0 && (
+                  <>
+                    <div className='px-3 py-1.5 text-xs font-semibold text-muted-foreground'>
+                      Workspace Files
+                    </div>
+                    {availableWorkspaceFiles.map((file) => (
+                      <SelectItem key={file.id} value={file.id} className='pl-3'>
+                        {file.name}
+                      </SelectItem>
+                    ))}
+                  </>
+                )}
+              </SelectContent>
+            </Select>
           </div>
         )}
       </div>
 
       {/* Show dropdown selector if no files and not uploading */}
+      {/* Show dropdown selector if no files and not uploading */}
       {!hasFiles && !isUploading && (
         <div className='flex items-center'>
-          <Popover
-            open={pickerOpen}
+          <Select
+            value=''
+            disabled={disabled || loadingWorkspaceFiles}
             onOpenChange={(open) => {
-              setPickerOpen(open)
-              if (open) void loadWorkspaceFiles()
+              if (open) {
+                void loadWorkspaceFiles()
+              }
+            }}
+            onValueChange={(value) => {
+              if (value === 'upload_new') {
+                handleOpenFileDialog({
+                  preventDefault: () => {},
+                  stopPropagation: () => {},
+                } as React.MouseEvent)
+              } else {
+                handleSelectWorkspaceFile(value)
+              }
+              // Value stays empty so placeholder always shows
             }}
           >
-            <PopoverTrigger asChild>
-              <Button
-                variant='outline'
-                role='combobox'
-                aria-expanded={pickerOpen}
-                className='relative w-full justify-between'
-                disabled={disabled || loadingWorkspaceFiles}
-              >
-                <span className='truncate font-normal'>
-                  {loadingWorkspaceFiles ? 'Loading files...' : 'Select or upload file'}
-                </span>
-                <ChevronDown className='absolute right-3 h-4 w-4 shrink-0 opacity-50' />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className={isWide ? 'w-[420px] p-0' : 'w-[320px] p-0'} align='start'>
-              <Command>
-                <CommandInput
-                  placeholder='Search files...'
-                  className='text-foreground placeholder:text-muted-foreground'
-                />
-                <CommandList onWheel={(e) => e.stopPropagation()}>
-                  <CommandGroup>
-                    <CommandItem
-                      value='upload_new'
-                      onSelect={() => {
-                        setPickerOpen(false)
-                        handleOpenFileDialog({
-                          preventDefault: () => {},
-                          stopPropagation: () => {},
-                        } as React.MouseEvent)
-                      }}
-                    >
-                      Upload New File
-                    </CommandItem>
-                  </CommandGroup>
-                  <CommandEmpty>
-                    {availableWorkspaceFiles.length === 0
-                      ? 'No files available.'
-                      : 'No files found.'}
-                  </CommandEmpty>
-                  {availableWorkspaceFiles.length > 0 && (
-                    <CommandGroup heading='Workspace Files'>
-                      {availableWorkspaceFiles.map((file) => (
-                        <CommandItem
-                          key={file.id}
-                          value={file.name}
-                          onSelect={() => {
-                            handleSelectWorkspaceFile(file.id)
-                            setPickerOpen(false)
-                          }}
-                        >
-                          <span className='truncate' title={file.name}>
-                            {truncateMiddle(file.name)}
-                          </span>
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  )}
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
+            <SelectTrigger className='h-10 w-full bg-card'>
+              <SelectValue
+                placeholder={loadingWorkspaceFiles ? 'Loading files...' : 'Select or upload file'}
+              />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='upload_new' className='pl-3'>
+                Upload New File
+              </SelectItem>
+              {availableWorkspaceFiles.length > 0 && (
+                <>
+                  <div className='px-3 py-1.5 text-xs font-semibold text-muted-foreground'>
+                    Workspace Files
+                  </div>
+                  {availableWorkspaceFiles.map((file) => (
+                    <SelectItem key={file.id} value={file.id} className='pl-3'>
+                      {file.name}
+                    </SelectItem>
+                  ))}
+                </>
+              )}
+            </SelectContent>
+          </Select>
         </div>
       )}
     </div>
