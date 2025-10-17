@@ -6,6 +6,7 @@ import {
   airtableUpdateRecordTool,
 } from '@/tools/airtable'
 import { arxivGetAuthorPapersTool, arxivGetPaperTool, arxivSearchTool } from '@/tools/arxiv'
+import barrierExtractorTool from '@/tools/barrier_extractor'
 import { browserUseRunTaskTool } from '@/tools/browser_use'
 import { clayPopulateTool } from '@/tools/clay'
 import { confluenceRetrieveTool, confluenceUpdateTool } from '@/tools/confluence'
@@ -26,6 +27,16 @@ import {
 import { fileParseTool } from '@/tools/file'
 import { crawlTool, scrapeTool, searchTool } from '@/tools/firecrawl'
 import { functionExecuteTool } from '@/tools/function'
+import { focusGroupTool } from '@/tools/focus_group'
+import { audiencePersonaGeneratorTool } from '@/tools/audience_persona_generator'
+import surveySimTool from '@/tools/survey_sim'
+import surveyGeneratorTool from '@/tools/survey_generator'
+import messageTesterTool from '@/tools/message_tester'
+import narrativeFlowOptimizerTool from '@/tools/narrative_flow_optimizer'
+import persuasionSupportEngineTool from '@/tools/persuasion_support_engine'
+import symbolFinderTool from '@/tools/symbol_finder'
+import symbolEvaluatorTool from '@/tools/symbol_evaluator'
+import taFinderTool from '@/tools/target_audience_finder'
 import {
   githubCommentTool,
   githubLatestCommitTool,
@@ -205,11 +216,22 @@ export const tools: Record<string, ToolConfig> = {
   arxiv_search: arxivSearchTool,
   arxiv_get_paper: arxivGetPaperTool,
   arxiv_get_author_papers: arxivGetAuthorPapersTool,
+  barrier_extractor_execute: barrierExtractorTool,
   browser_use_run_task: browserUseRunTaskTool,
   openai_embeddings: openAIEmbeddings,
   http_request: httpRequest,
   huggingface_chat: huggingfaceChatTool,
   function_execute: functionExecuteTool,
+  focus_group_execute: focusGroupTool,
+  audience_persona_generator_execute: audiencePersonaGeneratorTool,
+  survey_sim_execute: surveySimTool,
+  survey_generator_execute: surveyGeneratorTool,
+  message_tester_execute: messageTesterTool,
+  narrative_flow_optimizer_execute: narrativeFlowOptimizerTool,
+  persuasion_support_engine_execute: persuasionSupportEngineTool,
+  symbol_finder_execute: symbolFinderTool,
+  symbol_evaluator_execute: symbolEvaluatorTool,
+  ta_finder_execute: taFinderTool,
   vision_tool: visionTool,
   file_parser: fileParseTool,
   firecrawl_scrape: scrapeTool,

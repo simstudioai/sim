@@ -8,6 +8,7 @@ import { AirtableBlock } from '@/blocks/blocks/airtable'
 import { ApiBlock } from '@/blocks/blocks/api'
 import { ApiTriggerBlock } from '@/blocks/blocks/api_trigger'
 import { ArxivBlock } from '@/blocks/blocks/arxiv'
+import { BarrierExtractorBlock } from '@/blocks/blocks/barrier_extractor'
 import { BrowserUseBlock } from '@/blocks/blocks/browser_use'
 import { ChatTriggerBlock } from '@/blocks/blocks/chat_trigger'
 import { ClayBlock } from '@/blocks/blocks/clay'
@@ -19,6 +20,8 @@ import { EvaluatorBlock } from '@/blocks/blocks/evaluator'
 import { ExaBlock } from '@/blocks/blocks/exa'
 import { FileBlock } from '@/blocks/blocks/file'
 import { FirecrawlBlock } from '@/blocks/blocks/firecrawl'
+import { FocusGroupBlock } from '@/blocks/blocks/focus_group'
+import { AudiencePersonaGeneratorBlock } from '@/blocks/blocks/audience_persona_generator'
 import { FunctionBlock } from '@/blocks/blocks/function'
 import { GenericWebhookBlock } from '@/blocks/blocks/generic_webhook'
 import { GitHubBlock } from '@/blocks/blocks/github'
@@ -50,12 +53,14 @@ import { MicrosoftTeamsBlock } from '@/blocks/blocks/microsoft_teams'
 import { MistralParseBlock } from '@/blocks/blocks/mistral_parse'
 import { MongoDBBlock } from '@/blocks/blocks/mongodb'
 import { MySQLBlock } from '@/blocks/blocks/mysql'
+import { NarrativeFlowOptimizerBlock } from '@/blocks/blocks/narrative_flow_optimizer'
 import { NotionBlock } from '@/blocks/blocks/notion'
 import { OneDriveBlock } from '@/blocks/blocks/onedrive'
 import { OpenAIBlock } from '@/blocks/blocks/openai'
 import { OutlookBlock } from '@/blocks/blocks/outlook'
 import { ParallelBlock } from '@/blocks/blocks/parallel'
 import { PerplexityBlock } from '@/blocks/blocks/perplexity'
+import { PersuasionSupportEngineBlock } from '@/blocks/blocks/persuasion_support_engine'
 import { PineconeBlock } from '@/blocks/blocks/pinecone'
 import { PostgreSQLBlock } from '@/blocks/blocks/postgresql'
 import { QdrantBlock } from '@/blocks/blocks/qdrant'
@@ -72,6 +77,12 @@ import { StagehandBlock } from '@/blocks/blocks/stagehand'
 import { StagehandAgentBlock } from '@/blocks/blocks/stagehand_agent'
 import { StarterBlock } from '@/blocks/blocks/starter'
 import { SupabaseBlock } from '@/blocks/blocks/supabase'
+import { SurveySimBlock } from '@/blocks/blocks/survey_sim'
+import { SurveyGeneratorBlock } from '@/blocks/blocks/survey_generator'
+import { SymbolFinderBlock } from '@/blocks/blocks/symbol_finder'
+import { SymbolEvaluatorBlock } from '@/blocks/blocks/symbol_evaluator'
+import { MessageTesterBlock } from '@/blocks/blocks/message_tester'
+import { TAFinderBlock } from '@/blocks/blocks/target_audience_finder'
 import { TavilyBlock } from '@/blocks/blocks/tavily'
 import { TelegramBlock } from '@/blocks/blocks/telegram'
 import { ThinkingBlock } from '@/blocks/blocks/thinking'
@@ -91,91 +102,102 @@ import type { BlockConfig } from '@/blocks/types'
 
 // Registry of all available blocks, alphabetically sorted
 export const registry: Record<string, BlockConfig> = {
-  agent: AgentBlock,
-  airtable: AirtableBlock,
+  //agent: AgentBlock,
+  //airtable: AirtableBlock,
   api: ApiBlock,
-  arxiv: ArxivBlock,
-  browser_use: BrowserUseBlock,
-  clay: ClayBlock,
-  condition: ConditionBlock,
-  confluence: ConfluenceBlock,
-  discord: DiscordBlock,
-  elevenlabs: ElevenLabsBlock,
-  evaluator: EvaluatorBlock,
-  exa: ExaBlock,
-  firecrawl: FirecrawlBlock,
-  file: FileBlock,
-  function: FunctionBlock,
-  generic_webhook: GenericWebhookBlock,
-  github: GitHubBlock,
-  gmail: GmailBlock,
-  guardrails: GuardrailsBlock,
-  google_calendar: GoogleCalendarBlock,
-  google_docs: GoogleDocsBlock,
-  google_drive: GoogleDriveBlock,
-  google_forms: GoogleFormsBlock,
-  google_search: GoogleSearchBlock,
-  google_sheets: GoogleSheetsBlock,
-  google_vault: GoogleVaultBlock,
-  huggingface: HuggingFaceBlock,
-  hunter: HunterBlock,
+  //arxiv: ArxivBlock,
+  barrierExtractor: BarrierExtractorBlock,
+  //browser_use: BrowserUseBlock,
+  //clay: ClayBlock,
+  //condition: ConditionBlock,
+  //confluence: ConfluenceBlock,
+  //discord: DiscordBlock,
+  //elevenlabs: ElevenLabsBlock,
+  //evaluator: EvaluatorBlock,
+  //exa: ExaBlock,
+  //firecrawl: FirecrawlBlock,
+  //file: FileBlock,
+  focusGroup: FocusGroupBlock,
+  audiencePersonaGenerator: AudiencePersonaGeneratorBlock,
+  //function: FunctionBlock,
+  //generic_webhook: GenericWebhookBlock,
+  //github: GitHubBlock,
+  //gmail: GmailBlock,
+  //guardrails: GuardrailsBlock,
+  //google_calendar: GoogleCalendarBlock,
+  //google_docs: GoogleDocsBlock,
+  //google_drive: GoogleDriveBlock,
+  //google_forms: GoogleFormsBlock,
+  //google_search: GoogleSearchBlock,
+  //google_sheets: GoogleSheetsBlock,
+  //google_vault: GoogleVaultBlock,
+  //huggingface: HuggingFaceBlock,
+  //hunter: HunterBlock,
   image_generator: ImageGeneratorBlock,
-  jina: JinaBlock,
-  jira: JiraBlock,
-  knowledge: KnowledgeBlock,
-  linear: LinearBlock,
-  linkup: LinkupBlock,
-  mcp: McpBlock,
-  mem0: Mem0Block,
-  microsoft_excel: MicrosoftExcelBlock,
-  microsoft_planner: MicrosoftPlannerBlock,
-  microsoft_teams: MicrosoftTeamsBlock,
-  mistral_parse: MistralParseBlock,
-  mongodb: MongoDBBlock,
-  mysql: MySQLBlock,
-  notion: NotionBlock,
-  openai: OpenAIBlock,
-  outlook: OutlookBlock,
-  onedrive: OneDriveBlock,
-  parallel_ai: ParallelBlock,
-  perplexity: PerplexityBlock,
-  pinecone: PineconeBlock,
-  postgresql: PostgreSQLBlock,
-  qdrant: QdrantBlock,
-  resend: ResendBlock,
-  memory: MemoryBlock,
-  reddit: RedditBlock,
-  response: ResponseBlock,
+  //jina: JinaBlock,
+  //jira: JiraBlock,
+  //knowledge: KnowledgeBlock,
+  //linear: LinearBlock,
+  //linkup: LinkupBlock,
+  //mcp: McpBlock,
+  //mem0: Mem0Block,
+  //microsoft_excel: MicrosoftExcelBlock,
+  //microsoft_planner: MicrosoftPlannerBlock,
+  //microsoft_teams: MicrosoftTeamsBlock,
+  //mistral_parse: MistralParseBlock,
+  //mongodb: MongoDBBlock,
+  //mysql: MySQLBlock,
+  //notion: NotionBlock,
+  //openai: OpenAIBlock,
+  //outlook: OutlookBlock,
+  //onedrive: OneDriveBlock,
+  //parallel_ai: ParallelBlock,
+  //perplexity: PerplexityBlock,
+  //pinecone: PineconeBlock,
+  //postgresql: PostgreSQLBlock,
+  //qdrant: QdrantBlock,
+  //resend: ResendBlock,
+  //memory: MemoryBlock,
+  messageTester: MessageTesterBlock,
+  narrativeFlowOptimizer: NarrativeFlowOptimizerBlock,
+  persuasionSupportEngine: PersuasionSupportEngineBlock,
+  //reddit: RedditBlock,
+  //response: ResponseBlock,
   router: RouterBlock,
-  schedule: ScheduleBlock,
-  s3: S3Block,
-  serper: SerperBlock,
-  sharepoint: SharepointBlock,
-  // sms: SMSBlock,
-  stagehand: StagehandBlock,
-  stagehand_agent: StagehandAgentBlock,
-  slack: SlackBlock,
+  //schedule: ScheduleBlock,
+  //s3: S3Block,
+  //serper: SerperBlock,
+  //sharepoint: SharepointBlock,
+  //sms: SMSBlock,
+  //stagehand: StagehandBlock,
+  //stagehand_agent: StagehandAgentBlock,
+  //slack: SlackBlock,
   starter: StarterBlock,
+  surveySim: SurveySimBlock,
+  surveyGenerator: SurveyGeneratorBlock,
+  symbolFinder: SymbolFinderBlock,
+  symbolEvaluator: SymbolEvaluatorBlock,
+  taFinder: TAFinderBlock,
   input_trigger: InputTriggerBlock,
   chat_trigger: ChatTriggerBlock,
   manual_trigger: ManualTriggerBlock,
   api_trigger: ApiTriggerBlock,
-  supabase: SupabaseBlock,
-  tavily: TavilyBlock,
-  telegram: TelegramBlock,
-  thinking: ThinkingBlock,
-  translate: TranslateBlock,
-  twilio_sms: TwilioSMSBlock,
-  typeform: TypeformBlock,
-  vision: VisionBlock,
-  wealthbox: WealthboxBlock,
-  webhook: WebhookBlock,
-  whatsapp: WhatsAppBlock,
-  wikipedia: WikipediaBlock,
+  //supabase: SupabaseBlock,
+  //tavily: TavilyBlock,
+  //telegram: TelegramBlock,
+  //thinking: ThinkingBlock,
+  //translate: TranslateBlock,
+  //twilio_sms: TwilioSMSBlock,
+  //typeform: TypeformBlock,
+  //vision: VisionBlock,
+  //wealthbox: WealthboxBlock,
+  //webhook: WebhookBlock,
+  //whatsapp: WhatsAppBlock,
+  //wikipedia: WikipediaBlock,
   workflow: WorkflowBlock,
   workflow_input: WorkflowInputBlock,
-  x: XBlock,
-  youtube: YouTubeBlock,
+  //x: XBlock,
+  //youtube: YouTubeBlock,
 }
 
 export const getBlock = (type: string): BlockConfig | undefined => registry[type]

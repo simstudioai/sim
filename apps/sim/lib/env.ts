@@ -95,6 +95,7 @@ export const env = createEnv({
     BROWSERBASE_API_KEY:                   z.string().min(1).optional(),           // Browserbase API key for browser automation
     BROWSERBASE_PROJECT_ID:                z.string().min(1).optional(),           // Browserbase project ID
     GITHUB_TOKEN:                          z.string().optional(),                  // GitHub personal access token for API access
+    FOCUS_GROUP_API_KEY:                   z.string().min(1).optional(),           // Focus Group service API key
 
     // Infrastructure & Deployment
     NEXT_RUNTIME:                          z.string().optional(),                  // Next.js runtime environment
