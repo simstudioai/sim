@@ -138,6 +138,31 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       condition: { field: 'operation', value: ['write_chat', 'write_channel'] },
       required: true,
     },
+    // File upload (basic mode)
+    {
+      id: 'attachmentFiles',
+      title: 'Attachments',
+      type: 'file-upload',
+      layout: 'full',
+      canonicalParamId: 'files',
+      placeholder: 'Upload files to attach',
+      condition: { field: 'operation', value: ['write_chat', 'write_channel'] },
+      mode: 'basic',
+      multiple: true,
+      required: false,
+    },
+    // Variable reference (advanced mode)
+    {
+      id: 'files',
+      title: 'File Attachments',
+      type: 'short-input',
+      layout: 'full',
+      canonicalParamId: 'files',
+      placeholder: 'Reference files from previous blocks',
+      condition: { field: 'operation', value: ['write_chat', 'write_channel'] },
+      mode: 'advanced',
+      required: false,
+    },
     {
       id: 'triggerConfig',
       title: 'Trigger Configuration',
@@ -179,6 +204,8 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
           manualChatId,
           channelId,
           manualChannelId,
+          attachmentFiles,
+          files,
           ...rest
         } = params
 
@@ -186,9 +213,15 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
         const effectiveChatId = (chatId || manualChatId || '').trim()
         const effectiveChannelId = (channelId || manualChannelId || '').trim()
 
-        const baseParams = {
+        const baseParams: Record<string, any> = {
           ...rest,
           credential,
+        }
+
+        // Add files if provided
+        const fileParam = attachmentFiles || files
+        if (fileParam && (operation === 'write_chat' || operation === 'write_channel')) {
+          baseParams.files = fileParam
         }
 
         if (operation === 'read_chat' || operation === 'write_chat') {
@@ -223,6 +256,8 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
     teamId: { type: 'string', description: 'Team identifier' },
     manualTeamId: { type: 'string', description: 'Manual team identifier' },
     content: { type: 'string', description: 'Message content' },
+    attachmentFiles: { type: 'json', description: 'Files to attach (UI upload)' },
+    files: { type: 'json', description: 'Files to attach (UserFile array)' },
   },
   outputs: {
     content: { type: 'string', description: 'Formatted message content from chat/channel' },

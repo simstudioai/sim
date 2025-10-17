@@ -38,6 +38,7 @@ export interface GoogleDriveToolParams {
   folderSelector?: string
   fileId?: string
   fileName?: string
+  file?: any // UserFile object
   content?: string
   mimeType?: string
   query?: string

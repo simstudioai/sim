@@ -31,6 +31,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
         { label: 'Read List', id: 'read_list' },
         { label: 'Update List', id: 'update_list' },
         { label: 'Add List Items', id: 'add_list_items' },
+        { label: 'Upload File', id: 'upload_file' },
       ],
     },
     {
@@ -83,6 +84,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
           'read_list',
           'update_list',
           'add_list_items',
+          'upload_file',
         ],
       },
     },
@@ -182,6 +184,62 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       canonicalParamId: 'listItemFields',
       condition: { field: 'operation', value: ['update_list', 'add_list_items'] },
     },
+
+    // Upload File operation fields
+    {
+      id: 'driveId',
+      title: 'Document Library ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter document library (drive) ID',
+      canonicalParamId: 'driveId',
+      condition: { field: 'operation', value: 'upload_file' },
+      mode: 'advanced',
+    },
+    {
+      id: 'folderPath',
+      title: 'Folder Path',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Optional folder path (e.g., /Documents/Subfolder)',
+      condition: { field: 'operation', value: 'upload_file' },
+      required: false,
+    },
+    {
+      id: 'fileName',
+      title: 'File Name',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Optional: override uploaded file name',
+      condition: { field: 'operation', value: 'upload_file' },
+      mode: 'advanced',
+      required: false,
+    },
+    // File upload (basic mode)
+    {
+      id: 'uploadFiles',
+      title: 'Files',
+      type: 'file-upload',
+      layout: 'full',
+      canonicalParamId: 'files',
+      placeholder: 'Upload files to SharePoint',
+      condition: { field: 'operation', value: 'upload_file' },
+      mode: 'basic',
+      multiple: true,
+      required: false,
+    },
+    // Variable reference (advanced mode)
+    {
+      id: 'files',
+      title: 'Files',
+      type: 'short-input',
+      layout: 'full',
+      canonicalParamId: 'files',
+      placeholder: 'Reference files from previous blocks',
+      condition: { field: 'operation', value: 'upload_file' },
+      mode: 'advanced',
+      required: false,
+    },
   ],
   tools: {
     access: [
@@ -192,6 +250,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       'sharepoint_get_list',
       'sharepoint_update_list',
       'sharepoint_add_list_items',
+      'sharepoint_upload_file',
     ],
     config: {
       tool: (params) => {
@@ -210,6 +269,8 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
             return 'sharepoint_update_list'
           case 'add_list_items':
             return 'sharepoint_add_list_items'
+          case 'upload_file':
+            return 'sharepoint_upload_file'
           default:
             throw new Error(`Invalid Sharepoint operation: ${params.operation}`)
         }
@@ -225,6 +286,8 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
           listItemFields,
           includeColumns,
           includeItems,
+          uploadFiles,
+          files,
           ...others
         } = rest as any
 
@@ -270,7 +333,9 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
           } catch {}
         }
 
-        return {
+        // Handle file upload files parameter
+        const fileParam = uploadFiles || files
+        const baseParams = {
           credential,
           siteId: effectiveSiteId || undefined,
           pageSize: others.pageSize ? Number.parseInt(others.pageSize as string, 10) : undefined,
@@ -281,6 +346,13 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
           includeColumns: coerceBoolean(includeColumns),
           includeItems: coerceBoolean(includeItems),
         }
+
+        // Add files if provided
+        if (fileParam) {
+          baseParams.files = fileParam
+        }
+
+        return baseParams
       },
     },
   },
@@ -303,6 +375,11 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
     includeItems: { type: 'boolean', description: 'Include items in response' },
     listItemId: { type: 'string', description: 'List item ID' },
     listItemFields: { type: 'string', description: 'List item fields' },
+    driveId: { type: 'string', description: 'Document library (drive) ID' },
+    folderPath: { type: 'string', description: 'Folder path for file upload' },
+    fileName: { type: 'string', description: 'File name override' },
+    uploadFiles: { type: 'json', description: 'Files to upload (UI upload)' },
+    files: { type: 'json', description: 'Files to upload (UserFile array)' },
   },
   outputs: {
     sites: {
@@ -321,6 +398,14 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
     items: {
       type: 'json',
       description: 'Array of SharePoint list items with fields',
+    },
+    uploadedFiles: {
+      type: 'json',
+      description: 'Array of uploaded file objects with id, name, webUrl, size',
+    },
+    fileCount: {
+      type: 'number',
+      description: 'Number of files uploaded',
     },
     success: {
       type: 'boolean',

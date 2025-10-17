@@ -27,6 +27,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
         { label: 'Send Video', id: 'telegram_send_video' },
         { label: 'Send Audio', id: 'telegram_send_audio' },
         { label: 'Send Animation', id: 'telegram_send_animation' },
+        { label: 'Send Document', id: 'telegram_send_document' },
         { label: 'Delete Message', id: 'telegram_delete_message' },
       ],
       value: () => 'telegram_message',
@@ -107,6 +108,33 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       required: true,
       condition: { field: 'operation', value: 'telegram_send_animation' },
     },
+    // File upload (basic mode) for Send Document
+    {
+      id: 'attachmentFiles',
+      title: 'Document',
+      type: 'file-upload',
+      layout: 'full',
+      canonicalParamId: 'files',
+      placeholder: 'Upload document file',
+      condition: { field: 'operation', value: 'telegram_send_document' },
+      mode: 'basic',
+      multiple: false,
+      required: false,
+      description: 'Document file to send (PDF, ZIP, DOC, etc.). Max size: 50MB',
+    },
+    // Variable reference (advanced mode) for Send Document
+    {
+      id: 'files',
+      title: 'Document',
+      type: 'short-input',
+      layout: 'full',
+      canonicalParamId: 'files',
+      placeholder: 'Reference document from previous blocks',
+      condition: { field: 'operation', value: 'telegram_send_document' },
+      mode: 'advanced',
+      required: false,
+      description: 'Reference a document file from a previous block',
+    },
     {
       id: 'caption',
       title: 'Caption',
@@ -121,6 +149,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
           'telegram_send_video',
           'telegram_send_audio',
           'telegram_send_animation',
+          'telegram_send_document',
         ],
       },
     },
@@ -152,6 +181,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       'telegram_send_video',
       'telegram_send_audio',
       'telegram_send_animation',
+      'telegram_send_document',
     ],
     config: {
       tool: (params) => {
@@ -168,6 +198,8 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
             return 'telegram_send_audio'
           case 'telegram_send_animation':
             return 'telegram_send_animation'
+          case 'telegram_send_document':
+            return 'telegram_send_document'
           default:
             return 'telegram_message'
         }
@@ -238,6 +270,15 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
               animation: params.animation,
               caption: params.caption,
             }
+          case 'telegram_send_document': {
+            // Handle file upload
+            const fileParam = params.attachmentFiles || params.files
+            return {
+              ...commonParams,
+              files: fileParam,
+              caption: params.caption,
+            }
+          }
           default:
             return {
               ...commonParams,
@@ -256,6 +297,11 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
     video: { type: 'string', description: 'Video URL or file_id' },
     audio: { type: 'string', description: 'Audio URL or file_id' },
     animation: { type: 'string', description: 'Animation URL or file_id' },
+    attachmentFiles: {
+      type: 'json',
+      description: 'Files to attach (UI upload)',
+    },
+    files: { type: 'json', description: 'Files to attach (UserFile array)' },
     caption: { type: 'string', description: 'Caption for media' },
     messageId: { type: 'string', description: 'Message ID to delete' },
   },

@@ -10,6 +10,7 @@ export interface OutlookSendParams {
   conversationId?: string
   cc?: string
   bcc?: string
+  attachments?: any[]
 }
 
 export interface OutlookSendResponse extends ToolResponse {
@@ -41,6 +42,7 @@ export interface OutlookDraftParams {
   bcc?: string
   subject: string
   body: string
+  attachments?: any[]
 }
 
 export interface OutlookDraftResponse extends ToolResponse {

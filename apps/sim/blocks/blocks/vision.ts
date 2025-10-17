@@ -14,13 +14,37 @@ export const VisionBlock: BlockConfig<VisionResponse> = {
   bgColor: '#4D5FFF',
   icon: EyeIcon,
   subBlocks: [
+    // Image file upload (basic mode)
     {
-      id: 'imageUrl',
-      title: 'Image URL',
+      id: 'imageFile',
+      title: 'Image File',
+      type: 'file-upload',
+      layout: 'full',
+      canonicalParamId: 'imageFile',
+      placeholder: 'Upload an image file',
+      mode: 'basic',
+      multiple: false,
+      required: false,
+      acceptedTypes: '.jpg,.jpeg,.png,.gif,.webp',
+    },
+    // Image file reference (advanced mode)
+    {
+      id: 'imageFileReference',
+      title: 'Image File Reference',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Enter publicly accessible image URL',
-      required: true,
+      canonicalParamId: 'imageFile',
+      placeholder: 'Reference an image from previous blocks',
+      mode: 'advanced',
+      required: false,
+    },
+    {
+      id: 'imageUrl',
+      title: 'Image URL (alternative)',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Or enter publicly accessible image URL',
+      required: false,
     },
     {
       id: 'model',
@@ -58,6 +82,8 @@ export const VisionBlock: BlockConfig<VisionResponse> = {
   inputs: {
     apiKey: { type: 'string', description: 'Provider API key' },
     imageUrl: { type: 'string', description: 'Image URL' },
+    imageFile: { type: 'json', description: 'Image file (UserFile)' },
+    imageFileReference: { type: 'json', description: 'Image file reference' },
     model: { type: 'string', description: 'Vision model' },
     prompt: { type: 'string', description: 'Analysis prompt' },
   },

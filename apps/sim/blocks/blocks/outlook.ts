@@ -97,6 +97,31 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
       condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
       required: true,
     },
+    // File upload (basic mode)
+    {
+      id: 'attachmentFiles',
+      title: 'Attachments',
+      type: 'file-upload',
+      layout: 'full',
+      canonicalParamId: 'attachments',
+      placeholder: 'Upload files to attach',
+      condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
+      mode: 'basic',
+      multiple: true,
+      required: false,
+    },
+    // Variable reference (advanced mode)
+    {
+      id: 'attachments',
+      title: 'Attachments',
+      type: 'short-input',
+      layout: 'full',
+      canonicalParamId: 'attachments',
+      placeholder: 'Reference files from previous blocks',
+      condition: { field: 'operation', value: ['send_outlook', 'draft_outlook'] },
+      mode: 'advanced',
+      required: false,
+    },
     // Advanced Settings - Threading
     {
       id: 'replyToMessageId',
@@ -231,6 +256,8 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     to: { type: 'string', description: 'Recipient email address' },
     subject: { type: 'string', description: 'Email subject' },
     body: { type: 'string', description: 'Email content' },
+    attachmentFiles: { type: 'json', description: 'Files to attach (UI upload)' },
+    attachments: { type: 'json', description: 'Files to attach (UserFile array)' },
     // Forward operation inputs
     messageId: { type: 'string', description: 'Message ID to forward' },
     comment: { type: 'string', description: 'Optional comment for forwarding' },
