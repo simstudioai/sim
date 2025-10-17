@@ -39,6 +39,7 @@ interface FileUploadProps {
 interface UploadedFile {
   name: string
   path: string
+  key?: string
   size: number
   type: string
 }
@@ -265,7 +266,8 @@ export function FileUpload({
           // Process successful upload - handle both workspace and regular uploads
           uploadedFiles.push({
             name: file.name,
-            path: data.file?.url || data.file?.path || data.url || data.path,
+            path: data.file?.url || data.url, // Workspace: data.file.url, Non-workspace: data.url
+            key: data.file?.key || data.key, // Storage key for proper file access
             size: file.size,
             type: file.type,
           })
