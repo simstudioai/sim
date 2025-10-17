@@ -373,11 +373,15 @@ export function ScheduleModal({
                   placeholder='15'
                   type='number'
                   min='1'
+                  max='59'
                   className='h-10'
                   autoComplete='off'
                   data-form-type='other'
                   name='minutes-interval'
                 />
+                <p className='text-muted-foreground text-xs'>
+                  Specify the interval in minutes (1-59)
+                </p>
               </div>
             )}
 
