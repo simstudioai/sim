@@ -4,11 +4,11 @@ import { DocsLayout } from 'fumadocs-ui/layouts/docs'
 import { RootProvider } from 'fumadocs-ui/provider/next'
 import { Geist_Mono, Inter } from 'next/font/google'
 import {
-  CustomSidebarFolder,
-  CustomSidebarItem,
-  CustomSidebarSeparator,
-} from '@/components/docs-layout/simple-sidebar-components'
-import { CustomNavbar } from '@/components/navbar/custom-navbar'
+  SidebarFolder,
+  SidebarItem,
+  SidebarSeparator,
+} from '@/components/docs-layout/sidebar-components'
+import { Navbar } from '@/components/navbar/navbar'
 import { i18n } from '@/lib/i18n'
 import { source } from '@/lib/source'
 import '../global.css'
@@ -35,6 +35,12 @@ const { provider } = defineI18nUI(i18n, {
     fr: {
       displayName: 'Français',
     },
+    de: {
+      displayName: 'Deutsch',
+    },
+    ja: {
+      displayName: '日本語',
+    },
     zh: {
       displayName: '简体中文',
     },
@@ -49,15 +55,48 @@ type LayoutProps = {
 export default async function Layout({ children, params }: LayoutProps) {
   const { lang } = await params
 
+  const structuredData = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'Sim Documentation',
+    description:
+      'Comprehensive documentation for Sim - the visual workflow builder for AI Agent Workflows.',
+    url: 'https://docs.sim.ai',
+    publisher: {
+      '@type': 'Organization',
+      name: 'Sim',
+      url: 'https://sim.ai',
+      logo: {
+        '@type': 'ImageObject',
+        url: 'https://docs.sim.ai/static/logo.png',
+      },
+    },
+    inLanguage: lang,
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: {
+        '@type': 'EntryPoint',
+        urlTemplate: 'https://docs.sim.ai/api/search?q={search_term_string}',
+      },
+      'query-input': 'required name=search_term_string',
+    },
+  }
+
   return (
     <html
       lang={lang}
       className={`${inter.variable} ${geistMono.variable}`}
       suppressHydrationWarning
     >
+      <head>
+        <script
+          type='application/ld+json'
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        />
+      </head>
       <body className='flex min-h-screen flex-col font-sans'>
         <RootProvider i18n={provider(lang)}>
-          <CustomNavbar />
+          <Navbar />
           <DocsLayout
             tree={source.pageTree[lang]}
             themeSwitch={{
@@ -69,9 +108,9 @@ export default async function Layout({ children, params }: LayoutProps) {
               footer: null,
               banner: null,
               components: {
-                Item: CustomSidebarItem,
-                Folder: CustomSidebarFolder,
-                Separator: CustomSidebarSeparator,
+                Item: SidebarItem,
+                Folder: SidebarFolder,
+                Separator: SidebarSeparator,
               },
             }}
             containerProps={{

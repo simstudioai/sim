@@ -11,8 +11,7 @@ function isActive(url: string, pathname: string, nested = true): boolean {
   return url === pathname || (nested && pathname.startsWith(`${url}/`))
 }
 
-// Simple Item Component - just HTML
-export function CustomSidebarItem({ item }: { item: PageTree.Item }) {
+export function SidebarItem({ item }: { item: PageTree.Item }) {
   const pathname = usePathname()
   const active = isActive(item.url, pathname, false)
 
@@ -34,8 +33,7 @@ export function CustomSidebarItem({ item }: { item: PageTree.Item }) {
   )
 }
 
-// Simple Folder Component - just HTML with state
-export function CustomSidebarFolder({
+export function SidebarFolder({
   item,
   level,
   children,
@@ -110,8 +108,7 @@ export function CustomSidebarFolder({
   )
 }
 
-// Simple Separator Component - just HTML
-export function CustomSidebarSeparator({ item }: { item: PageTree.Separator }) {
+export function SidebarSeparator({ item }: { item: PageTree.Separator }) {
   return (
     <p className='mt-4 mb-1.5 px-2.5 font-semibold text-[10px] text-gray-500/80 uppercase tracking-wide dark:text-gray-500'>
       {item.name}

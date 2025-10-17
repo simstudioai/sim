@@ -23,6 +23,48 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
     pageTreeRecord[params.lang] ?? pageTreeRecord.en ?? Object.values(pageTreeRecord)[0]
   const neighbours = pageTree ? findNeighbour(pageTree, page.url) : null
 
+  const generateBreadcrumbs = () => {
+    const breadcrumbs: Array<{ name: string; url: string }> = [
+      {
+        name: 'Home',
+        url: baseUrl,
+      },
+    ]
+
+    const urlParts = page.url.split('/').filter(Boolean)
+    let currentPath = ''
+
+    urlParts.forEach((part, index) => {
+      if (index === 0 && ['en', 'es', 'fr', 'de', 'ja', 'zh'].includes(part)) {
+        currentPath = `/${part}`
+        return
+      }
+
+      currentPath += `/${part}`
+
+      const name = part
+        .split('-')
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ')
+
+      if (index === urlParts.length - 1) {
+        breadcrumbs.push({
+          name: page.data.title,
+          url: `${baseUrl}${page.url}`,
+        })
+      } else {
+        breadcrumbs.push({
+          name: name,
+          url: `${baseUrl}${currentPath}`,
+        })
+      }
+    })
+
+    return breadcrumbs
+  }
+
+  const breadcrumbs = generateBreadcrumbs()
+
   const CustomFooter = () => (
     <div className='mt-12 flex items-center justify-between border-border border-t py-8'>
       {neighbours?.previous ? (
@@ -58,6 +100,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
         description={page.data.description || ''}
         url={`${baseUrl}${page.url}`}
         lang={params.lang}
+        breadcrumb={breadcrumbs}
       />
       <DocsPage
         toc={page.data.toc}
@@ -134,8 +177,10 @@ export async function generateMetadata(props: {
       url: fullUrl,
       siteName: 'Sim Documentation',
       type: 'article',
-      locale: params.lang,
-      alternateLocale: ['en', 'fr', 'zh'].filter((lang) => lang !== params.lang),
+      locale: params.lang === 'en' ? 'en_US' : `${params.lang}_${params.lang.toUpperCase()}`,
+      alternateLocale: ['en', 'es', 'fr', 'de', 'ja', 'zh']
+        .filter((lang) => lang !== params.lang)
+        .map((lang) => (lang === 'en' ? 'en_US' : `${lang}_${lang.toUpperCase()}`)),
     },
     twitter: {
       card: 'summary',
@@ -158,8 +203,12 @@ export async function generateMetadata(props: {
     alternates: {
       canonical: fullUrl,
       languages: {
-        en: `${baseUrl}/en${page.url.replace(`/${params.lang}`, '')}`,
+        'x-default': `${baseUrl}${page.url.replace(`/${params.lang}`, '')}`,
+        en: `${baseUrl}${page.url.replace(`/${params.lang}`, '')}`,
+        es: `${baseUrl}/es${page.url.replace(`/${params.lang}`, '')}`,
         fr: `${baseUrl}/fr${page.url.replace(`/${params.lang}`, '')}`,
+        de: `${baseUrl}/de${page.url.replace(`/${params.lang}`, '')}`,
+        ja: `${baseUrl}/ja${page.url.replace(`/${params.lang}`, '')}`,
         zh: `${baseUrl}/zh${page.url.replace(`/${params.lang}`, '')}`,
       },
     },

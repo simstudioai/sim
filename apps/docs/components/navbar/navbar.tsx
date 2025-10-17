@@ -6,7 +6,7 @@ import { CustomThemeToggle } from '@/components/ui/custom-theme-toggle'
 import { LanguageDropdown } from '@/components/ui/language-dropdown'
 import { SearchTrigger } from '@/components/ui/search-trigger'
 
-export function CustomNavbar() {
+export function Navbar() {
   return (
     <nav
       className='sticky top-0 z-50 flex h-16 items-center border-border/50 border-b bg-background/90 backdrop-blur-xl'
