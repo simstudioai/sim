@@ -8,6 +8,7 @@ import {
   Box,
   Check,
   Clipboard,
+  CornerDownLeft,
   Info,
   LibraryBig,
   RotateCcw,
@@ -506,7 +507,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       }
     }, [showDownvoteSuccess])
 
-    // Handle Escape key to close restore confirmation
+    // Handle Escape and Enter keys for restore confirmation
     useEffect(() => {
       if (!showRestoreConfirmation) return
 
@@ -514,12 +515,15 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
         if (event.key === 'Escape') {
           setShowRestoreConfirmation(false)
           onRevertModeChange?.(false)
+        } else if (event.key === 'Enter') {
+          event.preventDefault()
+          handleConfirmRevert()
         }
       }
 
       document.addEventListener('keydown', handleKeyDown)
       return () => document.removeEventListener('keydown', handleKeyDown)
-    }, [showRestoreConfirmation, onRevertModeChange])
+    }, [showRestoreConfirmation, onRevertModeChange, handleConfirmRevert])
 
     // Handle Escape and Enter keys for checkpoint discard confirmation
     useEffect(() => {
@@ -747,9 +751,10 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                         setShowCheckpointDiscardModal(false)
                         pendingEditRef.current = null
                       }}
-                      className='flex-1 rounded-md border border-gray-300 bg-muted px-2 py-1 text-foreground text-xs transition-colors hover:bg-muted/80 dark:border-gray-600 dark:bg-background dark:hover:bg-muted'
+                      className='flex flex-1 items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-muted px-2 py-1 text-foreground text-xs transition-colors hover:bg-muted/80 dark:border-gray-600 dark:bg-background dark:hover:bg-muted'
                     >
-                      Cancel
+                      <span>Cancel</span>
+                      <span className='text-[10px] text-muted-foreground'>(Esc)</span>
                     </button>
                     <button
                       onClick={async (e) => {
@@ -805,9 +810,10 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                           pendingEditRef.current = null
                         }
                       }}
-                      className='flex-1 rounded-md bg-[var(--brand-primary-hover-hex)] px-2 py-1 text-white text-xs transition-colors hover:bg-[var(--brand-primary-hex)]'
+                      className='flex flex-1 items-center justify-center gap-1.5 rounded-md bg-[var(--brand-primary-hover-hex)] px-2 py-1 text-white text-xs transition-colors hover:bg-[var(--brand-primary-hex)]'
                     >
-                      Continue and revert
+                      <span>Continue and revert</span>
+                      <CornerDownLeft className='h-3 w-3' />
                     </button>
                   </div>
                 </div>
@@ -1007,15 +1013,17 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
               <div className='flex gap-1.5'>
                 <button
                   onClick={handleCancelRevert}
-                  className='flex-1 rounded-md border border-gray-300 bg-muted px-2 py-1 text-foreground text-xs transition-colors hover:bg-muted/80 dark:border-gray-600'
+                  className='flex flex-1 items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-muted px-2 py-1 text-foreground text-xs transition-colors hover:bg-muted/80 dark:border-gray-600'
                 >
-                  Cancel
+                  <span>Cancel</span>
+                  <span className='text-[10px] text-muted-foreground'>(Esc)</span>
                 </button>
                 <button
                   onClick={handleConfirmRevert}
-                  className='flex-1 rounded-md bg-red-500 px-2 py-1 text-white text-xs transition-colors hover:bg-red-600'
+                  className='flex flex-1 items-center justify-center gap-1.5 rounded-md bg-red-500 px-2 py-1 text-white text-xs transition-colors hover:bg-red-600'
                 >
-                  Revert
+                  <span>Revert</span>
+                  <CornerDownLeft className='h-3 w-3' />
                 </button>
               </div>
             </div>

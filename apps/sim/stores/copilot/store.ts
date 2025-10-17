@@ -1738,6 +1738,14 @@ export const useCopilotStore = create<CopilotStore>()(
             }).catch(() => {})
           } catch {}
         }
+
+        // Fetch context usage after abort
+        logger.info('[Context Usage] Message aborted, fetching usage')
+        get()
+          .fetchContextUsage()
+          .catch((err) => {
+            logger.warn('[Context Usage] Failed to fetch after abort', err)
+          })
       } catch {
         set({ isSendingMessage: false, isAborting: false, abortController: null })
       }
