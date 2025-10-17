@@ -323,9 +323,12 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
         >
           {/* New Workflow */}
           <button
-            className={cn(menuItemClassName, isCreatingWorkflow && 'cursor-not-allowed opacity-50')}
+            className={cn(
+              menuItemClassName,
+              (isCreatingWorkflow || !userPermissions.canEdit) && 'cursor-not-allowed opacity-50'
+            )}
             onClick={handleCreateWorkflow}
-            disabled={isCreatingWorkflow}
+            disabled={isCreatingWorkflow || !userPermissions.canEdit}
           >
             <Plus className={iconClassName} />
             <span className={textClassName}>
@@ -335,27 +338,31 @@ export function CreateMenu({ onCreateWorkflow, isCreatingWorkflow = false }: Cre
 
           {/* New Folder */}
           <button
-            className={cn(menuItemClassName, isCreating && 'cursor-not-allowed opacity-50')}
+            className={cn(
+              menuItemClassName,
+              (isCreating || !userPermissions.canEdit) && 'cursor-not-allowed opacity-50'
+            )}
             onClick={handleCreateFolder}
-            disabled={isCreating}
+            disabled={isCreating || !userPermissions.canEdit}
           >
             <Folder className={iconClassName} />
             <span className={textClassName}>{isCreating ? 'Creating...' : 'New folder'}</span>
           </button>
 
           {/* Import Workflow */}
-          {userPermissions.canEdit && (
-            <button
-              className={cn(menuItemClassName, isImporting && 'cursor-not-allowed opacity-50')}
-              onClick={handleImportWorkflow}
-              disabled={isImporting}
-            >
-              <Download className={iconClassName} />
-              <span className={textClassName}>
-                {isImporting ? 'Importing...' : 'Import workflow'}
-              </span>
-            </button>
-          )}
+          <button
+            className={cn(
+              menuItemClassName,
+              (isImporting || !userPermissions.canEdit) && 'cursor-not-allowed opacity-50'
+            )}
+            onClick={handleImportWorkflow}
+            disabled={isImporting || !userPermissions.canEdit}
+          >
+            <Download className={iconClassName} />
+            <span className={textClassName}>
+              {isImporting ? 'Importing...' : 'Import workflow'}
+            </span>
+          </button>
         </PopoverContent>
       </Popover>
 
