@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import clsx from 'clsx'
 import { ChevronDown } from 'lucide-react'
 import { getBlocksForSidebar } from '@/lib/workflows/trigger-utils'
@@ -8,6 +8,7 @@ import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/component
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import type { BlockConfig } from '@/blocks/types'
 import { usePanelResize } from '../../hooks/use-panel-resize'
+import { useSidebarItemInteractions } from '../../hooks/use-sidebar-item-interactions'
 
 interface BlocksProps {
   disabled?: boolean
@@ -37,6 +38,9 @@ export function Blocks({ disabled = false }: BlocksProps) {
     panelType: 'blocks',
     containerRef,
   })
+
+  // Sidebar item interactions hook
+  const { handleDragStart, handleItemClick } = useSidebarItemInteractions({ disabled })
 
   const blocks = useMemo(() => {
     const allBlocks = getBlocksForSidebar()
@@ -90,59 +94,6 @@ export function Blocks({ disabled = false }: BlocksProps) {
     return [...regularBlockItems, ...toolItems]
   }, [])
 
-  /**
-   * Handle drag start for block items
-   *
-   * @param e - React drag event
-   * @param item - Block item configuration
-   */
-  const handleDragStart = useCallback(
-    (e: React.DragEvent<HTMLElement>, item: BlockItem) => {
-      if (disabled) {
-        e.preventDefault()
-        return
-      }
-
-      try {
-        e.dataTransfer.setData(
-          'application/json',
-          JSON.stringify({
-            type: item.type,
-            enableTriggerMode: false,
-          })
-        )
-        e.dataTransfer.effectAllowed = 'move'
-      } catch (error) {
-        console.error('Failed to set drag data:', error)
-      }
-    },
-    [disabled]
-  )
-
-  /**
-   * Handle click on block item to add to canvas
-   *
-   * @param item - Block item configuration
-   */
-  const handleClick = useCallback(
-    (item: BlockItem) => {
-      if (item.type === 'connectionBlock' || disabled) return
-
-      try {
-        const event = new CustomEvent('add-block-from-toolbar', {
-          detail: {
-            type: item.type,
-            enableTriggerMode: false,
-          },
-        })
-        window.dispatchEvent(event)
-      } catch (error) {
-        console.error('Failed to dispatch add-block event:', error)
-      }
-    },
-    [disabled]
-  )
-
   return (
     <div
       ref={containerRef}
@@ -174,8 +125,8 @@ export function Blocks({ disabled = false }: BlocksProps) {
               <div
                 key={block.type}
                 draggable={!disabled}
-                onDragStart={(e) => handleDragStart(e, block)}
-                onClick={() => handleClick(block)}
+                onDragStart={(e) => handleDragStart(e, block.type, false)}
+                onClick={() => handleItemClick(block.type, false)}
                 className={clsx(
                   'group flex h-[25px] items-center gap-[8px] rounded-[8px] px-[5px] text-[14px]',
                   disabled

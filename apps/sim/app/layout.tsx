@@ -3,46 +3,14 @@ import { PublicEnvScript } from 'next-runtime-env'
 import { BrandedLayout } from '@/components/branded-layout'
 import { generateThemeCSS } from '@/lib/branding/inject-theme'
 import { generateBrandedMetadata, generateStructuredData } from '@/lib/branding/metadata'
-import { createLogger } from '@/lib/logs/console/logger'
 import { PostHogProvider } from '@/lib/posthog/provider'
 import '@/app/globals.css'
 
 import { SessionProvider } from '@/lib/session/session-context'
 import { season } from '@/app/fonts/season/season'
+import { HydrationErrorHandler } from '@/app/hydration-error-handler'
 import { ThemeProvider } from '@/app/theme-provider'
 import { ZoomPrevention } from '@/app/zoom-prevention'
-
-const logger = createLogger('RootLayout')
-
-const BROWSER_EXTENSION_ATTRIBUTES = [
-  'data-new-gr-c-s-check-loaded',
-  'data-gr-ext-installed',
-  'data-gr-ext-disabled',
-  'data-grammarly',
-  'data-fgm',
-  'data-lt-installed',
-]
-
-if (typeof window !== 'undefined') {
-  const originalError = console.error
-  console.error = (...args) => {
-    if (args[0].includes('Hydration')) {
-      const isExtensionError = BROWSER_EXTENSION_ATTRIBUTES.some((attr) =>
-        args.some((arg) => typeof arg === 'string' && arg.includes(attr))
-      )
-
-      if (!isExtensionError) {
-        logger.error('Hydration Error', {
-          details: args,
-          componentStack: args.find(
-            (arg) => typeof arg === 'string' && arg.includes('component stack')
-          ),
-        })
-      }
-    }
-    originalError.apply(console, args)
-  }
-}
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -130,6 +98,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <PublicEnvScript />
       </head>
       <body className={`${season.variable} font-season`} suppressHydrationWarning>
+        <HydrationErrorHandler />
         <PostHogProvider>
           <ThemeProvider>
             <SessionProvider>

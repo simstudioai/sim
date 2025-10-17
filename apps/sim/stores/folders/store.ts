@@ -54,6 +54,7 @@ interface FolderState {
   toggleWorkflowSelection: (workflowId: string) => void
   clearSelection: () => void
   selectOnly: (workflowId: string) => void
+  selectRange: (workflowIds: string[], fromId: string, toId: string) => void
   isWorkflowSelected: (workflowId: string) => boolean
 
   // Computed values
@@ -167,15 +168,21 @@ export const useFolderStore = create<FolderState>()(
           return { selectedWorkflows: newSelected }
         }),
 
-      clearSelection: () =>
-        set(() => ({
-          selectedWorkflows: new Set(),
-        })),
+      clearSelection: () => set({ selectedWorkflows: new Set() }),
 
-      selectOnly: (workflowId) =>
-        set(() => ({
-          selectedWorkflows: new Set([workflowId]),
-        })),
+      selectOnly: (workflowId) => set({ selectedWorkflows: new Set([workflowId]) }),
+
+      selectRange: (workflowIds, fromId, toId) => {
+        const fromIndex = workflowIds.indexOf(fromId)
+        const toIndex = workflowIds.indexOf(toId)
+
+        if (fromIndex === -1 || toIndex === -1) return
+
+        const [start, end] = fromIndex < toIndex ? [fromIndex, toIndex] : [toIndex, fromIndex]
+        const rangeIds = workflowIds.slice(start, end + 1)
+
+        set({ selectedWorkflows: new Set(rangeIds) })
+      },
 
       isWorkflowSelected: (workflowId) => get().selectedWorkflows.has(workflowId),
 

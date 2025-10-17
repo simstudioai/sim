@@ -7,6 +7,7 @@ import { type FolderTreeNode, useFolderStore } from '@/stores/folders/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { useDragDrop } from '../../hooks/use-drag-drop'
 import { useWorkflowImport } from '../../hooks/use-workflow-import'
+import { useWorkflowSelection } from '../../hooks/use-workflow-selection'
 import { FolderItem } from './components/folder-item/folder-item'
 import { WorkflowItem } from './components/workflow-item/workflow-item'
 
@@ -104,21 +105,67 @@ export function WorkflowList({
     [regularWorkflows]
   )
 
+  /**
+   * Build a flat list of all workflow IDs in display order for range selection
+   */
+  const orderedWorkflowIds = useMemo(() => {
+    const ids: string[] = []
+
+    const collectWorkflowIds = (folder: FolderTreeNode) => {
+      const workflowsInFolder = workflowsByFolder[folder.id] || []
+      for (const workflow of workflowsInFolder) {
+        ids.push(workflow.id)
+      }
+      for (const childFolder of folder.children) {
+        collectWorkflowIds(childFolder)
+      }
+    }
+
+    // Collect from folders first
+    for (const folder of folderTree) {
+      collectWorkflowIds(folder)
+    }
+
+    // Then collect root workflows
+    const rootWorkflows = workflowsByFolder.root || []
+    for (const workflow of rootWorkflows) {
+      ids.push(workflow.id)
+    }
+
+    return ids
+  }, [folderTree, workflowsByFolder])
+
+  // Workflow selection hook - uses active workflow ID as anchor for range selection
+  const { handleWorkflowClick } = useWorkflowSelection({
+    workflowIds: orderedWorkflowIds,
+    activeWorkflowId: workflowId,
+  })
+
   const isWorkflowActive = useCallback(
     (workflowId: string) => pathname === `/workspace/${workspaceId}/w/${workflowId}`,
     [pathname, workspaceId]
   )
 
   /**
-   * Auto-expand folders to show the active workflow
+   * Auto-expand folders and select the active workflow
    */
   useEffect(() => {
-    if (!activeWorkflowFolderId) return
-    const folderPath = getFolderPath(activeWorkflowFolderId)
-    for (const folder of folderPath) {
-      setExpanded(folder.id, true)
+    if (!workflowId || isLoading || foldersLoading) return
+
+    // Expand folder path
+    if (activeWorkflowFolderId) {
+      const folderPath = getFolderPath(activeWorkflowFolderId)
+      for (const folder of folderPath) {
+        setExpanded(folder.id, true)
+      }
     }
-  }, [activeWorkflowFolderId, getFolderPath, setExpanded])
+
+    // Auto-select active workflow if not already selected
+    const { selectedWorkflows, selectOnly } = useFolderStore.getState()
+    if (!selectedWorkflows.has(workflowId)) {
+      selectOnly(workflowId)
+    }
+  }, [workflowId, activeWorkflowFolderId, isLoading, foldersLoading, getFolderPath, setExpanded])
 
   /**
    * Fetch folders when workspace changes
@@ -137,11 +184,16 @@ export function WorkflowList({
             paddingLeft: `${level * TREE_SPACING.INDENT_PER_LEVEL}px`,
           }}
         >
-          <WorkflowItem workflow={workflow} active={isWorkflowActive(workflow.id)} level={level} />
+          <WorkflowItem
+            workflow={workflow}
+            active={isWorkflowActive(workflow.id)}
+            level={level}
+            onWorkflowClick={handleWorkflowClick}
+          />
         </div>
       </div>
     ),
-    [isWorkflowActive, createItemDragHandlers]
+    [isWorkflowActive, createItemDragHandlers, handleWorkflowClick]
   )
 
   /**
@@ -203,7 +255,7 @@ export function WorkflowList({
           </div>
 
           {isExpanded && hasChildren && (
-            <div className='relative'>
+            <div className='relative' {...createItemDragHandlers(folder.id)}>
               {/* Vertical line from folder bottom extending through all children - only shown if folder has workflows */}
               {workflowsInFolder.length > 0 && (
                 <div
@@ -264,8 +316,22 @@ export function WorkflowList({
   const hasRootWorkflows = rootWorkflows.length > 0
   const hasFolders = folderTree.length > 0
 
+  /**
+   * Handle click on empty space to revert to active workflow selection
+   */
+  const handleContainerClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      // Only handle clicks directly on the container (empty space)
+      if (e.target !== e.currentTarget) return
+
+      const { selectOnly, clearSelection } = useFolderStore.getState()
+      workflowId ? selectOnly(workflowId) : clearSelection()
+    },
+    [workflowId]
+  )
+
   return (
-    <div className='flex flex-col pb-[8px]'>
+    <div className='flex min-h-full flex-col pb-[8px]' onClick={handleContainerClick}>
       {/* Folders Section */}
       {hasFolders && (
         <div className='mb-[4px] space-y-[4px]'>
@@ -273,12 +339,9 @@ export function WorkflowList({
         </div>
       )}
 
-      {/* Root Workflows Section */}
+      {/* Root Workflows Section - Expands to fill remaining space */}
       <div
-        className={clsx(
-          'relative',
-          !hasRootWorkflows && 'min-h-[25px]' // Only apply min-height when empty
-        )}
+        className={clsx('relative flex-1', !hasRootWorkflows && 'min-h-[25px]')}
         {...handleRootDragEvents}
       >
         {/* Root drop target highlight overlay - always rendered for stable DOM */}
@@ -296,6 +359,7 @@ export function WorkflowList({
               workflow={workflow}
               active={isWorkflowActive(workflow.id)}
               level={0}
+              onWorkflowClick={handleWorkflowClick}
             />
           ))}
         </div>

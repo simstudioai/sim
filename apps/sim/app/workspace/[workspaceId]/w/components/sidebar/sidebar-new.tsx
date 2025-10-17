@@ -14,6 +14,7 @@ import {
 import { Button } from '@/components/emcn/components/button'
 import { FolderPlus } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth-client'
+import { useFolderStore } from '@/stores/folders/store'
 import { Blocks } from './components-new/blocks/blocks'
 import { Triggers } from './components-new/triggers/triggers'
 import { WorkflowList } from './components-new/workflow-list/workflow-list'
@@ -37,6 +38,7 @@ import { useWorkspaceManagement } from './hooks/use-workspace-management'
 export function SidebarNew() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
+  const workflowId = params.workflowId as string | undefined
 
   const sidebarRef = useRef<HTMLElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -81,12 +83,31 @@ export function SidebarNew() {
     }
   }, [])
 
+  /**
+   * Handle click on sidebar elements to revert to active workflow selection
+   */
+  const handleSidebarClick = useCallback(
+    (e: React.MouseEvent<HTMLElement>) => {
+      const target = e.target as HTMLElement
+      // Revert to active workflow selection if clicking on sidebar background, header, or search area
+      // But not on interactive elements like buttons or links
+      if (target.tagName === 'BUTTON' || target.closest('button, [role="button"], a')) {
+        return
+      }
+
+      const { selectOnly, clearSelection } = useFolderStore.getState()
+      workflowId ? selectOnly(workflowId) : clearSelection()
+    },
+    [workflowId]
+  )
+
   return (
     <>
       <aside
         ref={sidebarRef}
         className='sidebar-container fixed inset-y-0 left-0 z-10 overflow-hidden dark:bg-[#1E1E1E]'
         aria-label='Workspace sidebar'
+        onClick={handleSidebarClick}
       >
         <div className='flex h-full flex-col border-r pt-[14px] dark:border-[#2C2C2C]'>
           {/* Header */}
@@ -134,7 +155,7 @@ export function SidebarNew() {
                 Search
               </p>
             </div>
-            <p className='font-medium text-[#7D7D7D] text-small dark:text-[#7D7D7D]'>⌘ + K</p>
+            <p className='font-medium text-[#7D7D7D] text-small dark:text-[#7D7D7D]'>⌘K</p>
           </div>
 
           {/* Workflows */}

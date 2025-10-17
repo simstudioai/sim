@@ -1,11 +1,11 @@
 'use client'
 
-import { useCallback, useMemo, useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import clsx from 'clsx'
 import { ChevronDown } from 'lucide-react'
 import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/trigger-utils'
-import type { BlockConfig } from '@/blocks/types'
 import { usePanelResize } from '../../hooks/use-panel-resize'
+import { useSidebarItemInteractions } from '../../hooks/use-sidebar-item-interactions'
 
 interface TriggersProps {
   disabled?: boolean
@@ -27,65 +27,15 @@ export function Triggers({ disabled = false }: TriggersProps) {
     containerRef,
   })
 
+  // Sidebar item interactions hook
+  const { handleDragStart, handleItemClick } = useSidebarItemInteractions({ disabled })
+
   const triggers = useMemo(() => {
     const allTriggers = getTriggersForSidebar()
 
     // Sort alphabetically
     return allTriggers.sort((a, b) => a.name.localeCompare(b.name))
   }, [])
-
-  /**
-   * Handle drag start for trigger blocks
-   *
-   * @param e - React drag event
-   * @param config - Block configuration
-   */
-  const handleDragStart = useCallback(
-    (e: React.DragEvent<HTMLElement>, config: BlockConfig) => {
-      if (disabled) {
-        e.preventDefault()
-        return
-      }
-
-      try {
-        e.dataTransfer.setData(
-          'application/json',
-          JSON.stringify({
-            type: config.type,
-            enableTriggerMode: hasTriggerCapability(config),
-          })
-        )
-        e.dataTransfer.effectAllowed = 'move'
-      } catch (error) {
-        console.error('Failed to set drag data:', error)
-      }
-    },
-    [disabled]
-  )
-
-  /**
-   * Handle click on trigger block to add to canvas
-   *
-   * @param config - Block configuration
-   */
-  const handleClick = useCallback(
-    (config: BlockConfig) => {
-      if (config.type === 'connectionBlock' || disabled) return
-
-      try {
-        const event = new CustomEvent('add-block-from-toolbar', {
-          detail: {
-            type: config.type,
-            enableTriggerMode: hasTriggerCapability(config),
-          },
-        })
-        window.dispatchEvent(event)
-      } catch (error) {
-        console.error('Failed to dispatch add-block event:', error)
-      }
-    },
-    [disabled]
-  )
 
   return (
     <div
@@ -118,8 +68,8 @@ export function Triggers({ disabled = false }: TriggersProps) {
               <div
                 key={trigger.type}
                 draggable={!disabled}
-                onDragStart={(e) => handleDragStart(e, trigger)}
-                onClick={() => handleClick(trigger)}
+                onDragStart={(e) => handleDragStart(e, trigger.type, hasTriggerCapability(trigger))}
+                onClick={() => handleItemClick(trigger.type, hasTriggerCapability(trigger))}
                 className={clsx(
                   'group flex h-[25px] items-center gap-[8px] rounded-[8px] px-[5px] text-[14px]',
                   disabled

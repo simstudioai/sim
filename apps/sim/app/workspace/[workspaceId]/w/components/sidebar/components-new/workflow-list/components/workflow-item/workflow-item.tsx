@@ -12,6 +12,7 @@ interface WorkflowItemProps {
   workflow: WorkflowMetadata
   active: boolean
   level: number
+  onWorkflowClick: (workflowId: string, shiftKey: boolean, metaKey: boolean) => void
 }
 
 /**
@@ -21,10 +22,10 @@ interface WorkflowItemProps {
  * @param props - Component props
  * @returns Workflow item with drag and selection support
  */
-export function WorkflowItem({ workflow, active, level }: WorkflowItemProps) {
+export function WorkflowItem({ workflow, active, level, onWorkflowClick }: WorkflowItemProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const { selectedWorkflows, selectOnly, toggleWorkflowSelection } = useFolderStore()
+  const { selectedWorkflows } = useFolderStore()
   const isSelected = selectedWorkflows.has(workflow.id)
 
   /**
@@ -49,7 +50,7 @@ export function WorkflowItem({ workflow, active, level }: WorkflowItemProps) {
   })
 
   /**
-   * Handle click - manages workflow selection with shift-key support
+   * Handle click - manages workflow selection with shift-key and cmd/ctrl-key support
    *
    * @param e - React mouse event
    */
@@ -62,23 +63,17 @@ export function WorkflowItem({ workflow, active, level }: WorkflowItemProps) {
         return
       }
 
-      if (e.shiftKey) {
+      const isModifierClick = e.shiftKey || e.metaKey || e.ctrlKey
+
+      // Prevent default link behavior when using modifier keys
+      if (isModifierClick) {
         e.preventDefault()
-        toggleWorkflowSelection(workflow.id)
-      } else {
-        if (!isSelected || selectedWorkflows.size > 1) {
-          selectOnly(workflow.id)
-        }
       }
+
+      // Use metaKey (Cmd on Mac) or ctrlKey (Ctrl on Windows/Linux)
+      onWorkflowClick(workflow.id, e.shiftKey, e.metaKey || e.ctrlKey)
     },
-    [
-      shouldPreventClickRef,
-      workflow.id,
-      isSelected,
-      selectedWorkflows.size,
-      toggleWorkflowSelection,
-      selectOnly,
-    ]
+    [shouldPreventClickRef, workflow.id, onWorkflowClick]
   )
 
   return (
