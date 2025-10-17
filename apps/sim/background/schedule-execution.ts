@@ -1,7 +1,7 @@
-import { db, userStats, workflow, workflowSchedule } from '@sim/db'
+import { db, workflow, workflowSchedule } from '@sim/db'
 import { task } from '@trigger.dev/sdk'
 import { Cron } from 'croner'
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { getApiKeyOwnerUserId } from '@/lib/api-key/service'
 import { checkServerSideUsageLimits } from '@/lib/billing'
@@ -366,20 +366,6 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
 
           if (executionResult.success) {
             await updateWorkflowRunCounts(payload.workflowId)
-
-            try {
-              await db
-                .update(userStats)
-                .set({
-                  totalScheduledExecutions: sql`total_scheduled_executions + 1`,
-                  lastActive: now,
-                })
-                .where(eq(userStats.userId, actorUserId))
-
-              logger.debug(`[${requestId}] Updated user stats for scheduled execution`)
-            } catch (statsError) {
-              logger.error(`[${requestId}] Error updating user stats:`, statsError)
-            }
           }
 
           const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
