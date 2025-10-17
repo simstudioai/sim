@@ -33,7 +33,7 @@ export const TEAM_PLAN_FEATURES: PlanFeature[] = [
 
 export const ENTERPRISE_PLAN_FEATURES: PlanFeature[] = [
   { icon: Zap, text: 'Custom rate limits' },
-  { icon: HardDrive, text: 'Custom file storage' },
+  { icon: HardDrive, text: 'Custom file storage limits' },
   { icon: Server, text: 'Enterprise hosting' },
   { icon: HeadphonesIcon, text: 'Dedicated support' },
 ]

@@ -7,6 +7,7 @@ import {
   Clock,
   Database,
   DollarSign,
+  HardDrive,
   HeadphonesIcon,
   Infinity as InfinityIcon,
   MessageSquare,
@@ -82,6 +83,7 @@ export function SubscriptionModal({ open, onOpenChange }: SubscriptionModalProps
         { text: '$10 free inference credit', included: true, icon: DollarSign },
         { text: '10 runs per minute (sync)', included: true, icon: Zap },
         { text: '50 runs per minute (async)', included: true, icon: Clock },
+        { text: '5GB file storage', included: true, icon: HardDrive },
         { text: '7-day log retention', included: true, icon: Database },
       ],
       isActive: subscription.isFree,
@@ -94,6 +96,7 @@ export function SubscriptionModal({ open, onOpenChange }: SubscriptionModalProps
       features: [
         { text: '25 runs per minute (sync)', included: true, icon: Zap },
         { text: '200 runs per minute (async)', included: true, icon: Clock },
+        { text: '50GB file storage', included: true, icon: HardDrive },
         { text: 'Unlimited workspaces', included: true, icon: Building2 },
         { text: 'Unlimited workflows', included: true, icon: Workflow },
         { text: 'Unlimited invites', included: true, icon: Users },
@@ -109,6 +112,7 @@ export function SubscriptionModal({ open, onOpenChange }: SubscriptionModalProps
       features: [
         { text: '75 runs per minute (sync)', included: true, icon: Zap },
         { text: '500 runs per minute (async)', included: true, icon: Clock },
+        { text: '500GB file storage (pooled)', included: true, icon: HardDrive },
         { text: 'Everything in Pro', included: true, icon: InfinityIcon },
         { text: 'Dedicated Slack channel', included: true, icon: MessageSquare },
       ],
@@ -121,6 +125,7 @@ export function SubscriptionModal({ open, onOpenChange }: SubscriptionModalProps
       description: '',
       features: [
         { text: 'Custom rate limits', included: true, icon: Zap },
+        { text: 'Custom file storage', included: true, icon: HardDrive },
         { text: 'Enterprise hosting license', included: true, icon: Server },
         { text: 'Custom enterprise support', included: true, icon: HeadphonesIcon },
       ],
