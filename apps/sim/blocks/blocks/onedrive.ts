@@ -51,10 +51,9 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       title: 'File Name',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Name of the file',
-      condition: { field: 'operation', value: 'upload' },
-      mode: 'advanced',
-      required: false,
+      placeholder: 'Name of the file (e.g., document.txt)',
+      condition: { field: 'operation', value: ['create_file', 'upload'] },
+      required: true,
     },
     // File upload (basic mode)
     {
@@ -87,9 +86,9 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       title: 'Text Content',
       type: 'long-input',
       layout: 'full',
-      placeholder: 'Text content to upload (leave empty if uploading a file)',
-      condition: { field: 'operation', value: 'upload' },
-      required: false,
+      placeholder: 'Text content for the file',
+      condition: { field: 'operation', value: 'create_file' },
+      required: true,
     },
 
     {

@@ -106,9 +106,9 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       title: 'Text Content',
       type: 'long-input',
       layout: 'full',
-      placeholder: 'Text content to upload (leave empty if uploading a file above)',
-      condition: { field: 'operation', value: 'upload' },
-      required: false,
+      placeholder: 'Text content for the file',
+      condition: { field: 'operation', value: 'create_file' },
+      required: true,
     },
     {
       id: 'mimeType',
@@ -128,7 +128,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
         { label: 'CSV (text/csv)', id: 'text/csv' },
       ],
       placeholder: 'Select a file type (optional)',
-      condition: { field: 'operation', value: 'upload' },
+      condition: { field: 'operation', value: ['create_file', 'upload'] },
       required: false,
     },
     {
