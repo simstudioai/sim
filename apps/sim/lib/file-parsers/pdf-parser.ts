@@ -38,8 +38,11 @@ export class PdfParser implements FileParser {
         pdfData.text.length
       )
 
+      // Remove null bytes from content (PostgreSQL JSONB doesn't allow them)
+      const cleanContent = pdfData.text.replace(/\u0000/g, '')
+
       return {
-        content: pdfData.text,
+        content: cleanContent,
         metadata: {
           pageCount: pdfData.numpages,
           info: pdfData.info,

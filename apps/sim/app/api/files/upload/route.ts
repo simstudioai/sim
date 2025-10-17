@@ -66,6 +66,8 @@ export async function POST(request: NextRequest) {
       logger.info(
         `Uploading files for execution-scoped storage: workflow=${workflowId}, execution=${executionId}`
       )
+    } else if (workspaceId) {
+      logger.info(`Uploading files for workspace-scoped storage: workspace=${workspaceId}`)
     }
 
     const uploadResults = []
@@ -83,6 +85,7 @@ export async function POST(request: NextRequest) {
       const bytes = await file.arrayBuffer()
       const buffer = Buffer.from(bytes)
 
+      // Priority 1: Execution-scoped storage (temporary, 5 min expiry)
       if (workflowId && executionId) {
         const { uploadExecutionFile } = await import('@/lib/workflows/execution-file-storage')
         const userFile = await uploadExecutionFile(
@@ -98,6 +101,47 @@ export async function POST(request: NextRequest) {
 
         uploadResults.push(userFile)
         continue
+      }
+
+      // Priority 2: Workspace-scoped storage (persistent, no expiry)
+      if (workspaceId) {
+        try {
+          const { uploadWorkspaceFile } = await import('@/lib/uploads/workspace-files')
+          const userFile = await uploadWorkspaceFile(
+            workspaceId,
+            session.user.id,
+            buffer,
+            originalName,
+            file.type || 'application/octet-stream'
+          )
+
+          uploadResults.push(userFile)
+          continue
+        } catch (workspaceError) {
+          // Check error type
+          const errorMessage =
+            workspaceError instanceof Error ? workspaceError.message : 'Upload failed'
+          const isDuplicate = errorMessage.includes('already exists')
+          const isStorageLimitError =
+            errorMessage.includes('Storage limit exceeded') ||
+            errorMessage.includes('storage limit')
+
+          logger.warn(`Workspace file upload failed: ${errorMessage}`)
+
+          // Determine appropriate status code
+          let statusCode = 500
+          if (isDuplicate) statusCode = 409
+          else if (isStorageLimitError) statusCode = 413
+
+          return NextResponse.json(
+            {
+              success: false,
+              error: errorMessage,
+              isDuplicate,
+            },
+            { status: statusCode }
+          )
+        }
       }
 
       try {
