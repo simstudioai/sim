@@ -174,11 +174,7 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
       }
 
       // Check if this is an internal workspace file path
-      if (
-        params.fileUpload &&
-        params.fileUpload.path &&
-        params.fileUpload.path.startsWith('/api/files/serve/')
-      ) {
+      if (params.fileUpload?.path?.startsWith('/api/files/serve/')) {
         // Update filePath to the internal path for workspace files
         requestBody.filePath = params.fileUpload.path
       }

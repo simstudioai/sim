@@ -737,7 +737,7 @@ export function FileUpload({
 
       {/* Error message */}
       {uploadError && (
-        <div className='mb-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive'>
+        <div className='mb-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-destructive text-sm'>
           {uploadError}
         </div>
       )}
@@ -804,7 +804,7 @@ export function FileUpload({
                 </SelectItem>
                 {availableWorkspaceFiles.length > 0 && (
                   <>
-                    <div className='px-3 py-1.5 text-xs font-semibold text-muted-foreground'>
+                    <div className='px-3 py-1.5 font-semibold text-muted-foreground text-xs'>
                       Workspace Files
                     </div>
                     {availableWorkspaceFiles.map((file) => (
@@ -855,7 +855,7 @@ export function FileUpload({
               </SelectItem>
               {availableWorkspaceFiles.length > 0 && (
                 <>
-                  <div className='px-3 py-1.5 text-xs font-semibold text-muted-foreground'>
+                  <div className='px-3 py-1.5 font-semibold text-muted-foreground text-xs'>
                     Workspace Files
                   </div>
                   {availableWorkspaceFiles.map((file) => (
