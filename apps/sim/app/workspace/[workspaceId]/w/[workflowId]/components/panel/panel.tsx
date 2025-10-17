@@ -441,13 +441,13 @@ export function Panel() {
                       collisionPadding={8}
                     >
                       {isLoadingChats ? (
-                        <ScrollArea className='max-h-[320px]' hideScrollbar={true}>
+                        <div className='max-h-[280px] overflow-y-auto'>
                           <ChatHistorySkeleton />
-                        </ScrollArea>
+                        </div>
                       ) : groupedChats.length === 0 ? (
                         <div className='px-2 py-6 text-center text-muted-foreground text-sm'>No chats yet</div>
                       ) : (
-                        <ScrollArea className='max-h-[320px]' hideScrollbar={true}>
+                        <div className='max-h-[280px] overflow-y-auto'>
                           {groupedChats.map(([groupName, chats], groupIndex) => (
                             <div key={groupName}>
                               <div
@@ -560,7 +560,7 @@ export function Panel() {
                               </div>
                             </div>
                           ))}
-                        </ScrollArea>
+                        </div>
                       )}
                     </DropdownMenuContent>
                   </DropdownMenu>
