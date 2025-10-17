@@ -184,10 +184,10 @@ button[data-collapse]:not([aria-label="Collapse"]):not([aria-label="Expand"]),
 aside[data-sidebar] [data-theme-toggle],
 [data-sidebar-footer],
 [data-sidebar] footer,
+footer button[aria-label*="heme"],
 aside[data-sidebar] > div:last-child:has(button[aria-label*="heme"]),
 aside[data-sidebar] button[aria-label*="heme"],
 [data-sidebar] button[aria-label*="Theme"],
-footer button[aria-label*="heme"],
 /* Additional theme toggle selectors */
   aside[data-sidebar] > *:last-child
   button,
