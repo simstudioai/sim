@@ -41,20 +41,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       throw error
     }
 
-    // Upsert user stats record
     try {
-      // Check if record exists
       const userStatsRecords = await db
         .select()
         .from(userStats)
         .where(eq(userStats.userId, workflowRecord.userId))
 
       if (userStatsRecords.length === 0) {
-        // Create new record if none exists
         await db.insert(userStats).values({
           id: crypto.randomUUID(),
           userId: workflowRecord.userId,
-          totalManualExecutions: runs,
+          totalManualExecutions: 0,
           totalApiCalls: 0,
           totalWebhookTriggers: 0,
           totalScheduledExecutions: 0,
@@ -64,17 +61,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           lastActive: sql`now()`,
         })
       } else {
-        // Update existing record
         await db
           .update(userStats)
           .set({
-            totalManualExecutions: sql`total_manual_executions + ${runs}`,
-            lastActive: new Date(),
+            lastActive: sql`now()`,
           })
           .where(eq(userStats.userId, workflowRecord.userId))
       }
     } catch (error) {
-      logger.error(`Error upserting userStats for userId ${workflowRecord.userId}:`, error)
+      logger.error(`Error ensuring userStats for userId ${workflowRecord.userId}:`, error)
       // Don't rethrow - we want to continue even if this fails
     }
 

@@ -503,7 +503,8 @@ export function useWorkflowExecution() {
                 workflowInput,
                 onStream,
                 executionId,
-                onBlockComplete
+                onBlockComplete,
+                'chat'
               )
 
               // Check if execution was cancelled
@@ -611,7 +612,13 @@ export function useWorkflowExecution() {
       // For manual (non-chat) execution
       const executionId = uuidv4()
       try {
-        const result = await executeWorkflow(workflowInput, undefined, executionId)
+        const result = await executeWorkflow(
+          workflowInput,
+          undefined,
+          executionId,
+          undefined,
+          'manual'
+        )
         if (result && 'metadata' in result && result.metadata?.isDebugSession) {
           setDebugContext(result.metadata.context || null)
           if (result.metadata.pendingBlocks) {
@@ -666,7 +673,8 @@ export function useWorkflowExecution() {
     workflowInput?: any,
     onStream?: (se: StreamingExecution) => Promise<void>,
     executionId?: string,
-    onBlockComplete?: (blockId: string, output: any) => Promise<void>
+    onBlockComplete?: (blockId: string, output: any) => Promise<void>,
+    overrideTriggerType?: 'chat' | 'manual' | 'api'
   ): Promise<ExecutionResult | StreamingExecution> => {
     // Use currentWorkflow but check if we're in diff mode
     const { blocks: workflowBlocks, edges: workflowEdges } = currentWorkflow
@@ -683,7 +691,8 @@ export function useWorkflowExecution() {
     )
 
     const isExecutingFromChat =
-      workflowInput && typeof workflowInput === 'object' && 'input' in workflowInput
+      overrideTriggerType === 'chat' ||
+      (workflowInput && typeof workflowInput === 'object' && 'input' in workflowInput)
 
     logger.info('Executing workflow', {
       isDiffMode: currentWorkflow.isDiffMode,
