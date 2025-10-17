@@ -3,11 +3,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
-import { extractStorageKey } from '@/lib/uploads/file-utils'
-import { downloadFile } from '@/lib/uploads/storage-client'
+import { downloadFileFromStorage, processSingleFileToUserFile } from '@/lib/uploads/file-processing'
 import { generateRequestId } from '@/lib/utils'
-import { downloadExecutionFile } from '@/lib/workflows/execution-file-storage'
-import { isExecutionFile } from '@/lib/workflows/execution-files'
 
 export const dynamic = 'force-dynamic'
 
@@ -56,7 +53,6 @@ export async function POST(request: NextRequest) {
       hasContent: !!validatedData.content,
     })
 
-    // Initialize S3 client
     const s3Client = new S3Client({
       region: validatedData.region,
       credentials: {
@@ -68,38 +64,28 @@ export async function POST(request: NextRequest) {
     let uploadBody: Buffer | string
     let uploadContentType: string | undefined
 
-    // Determine upload source (file or content)
     if (validatedData.file) {
-      const file = validatedData.file
-      logger.info(`[${requestId}] Processing file upload: ${file.name}`)
+      const rawFile = validatedData.file
+      logger.info(`[${requestId}] Processing file upload: ${rawFile.name}`)
 
-      // Extract storage key
-      const storageKey = file.key || (file.path ? extractStorageKey(file.path) : null)
-
-      if (!storageKey) {
+      let userFile
+      try {
+        userFile = processSingleFileToUserFile(rawFile, requestId, logger)
+      } catch (error) {
         return NextResponse.json(
           {
             success: false,
-            error: 'File has no storage key',
+            error: error instanceof Error ? error.message : 'Failed to process file',
           },
           { status: 400 }
         )
       }
 
-      // Download file from storage
-      let buffer: Buffer
-      if (isExecutionFile(file)) {
-        logger.info(`[${requestId}] Downloading from execution storage: ${storageKey}`)
-        buffer = await downloadExecutionFile(file)
-      } else {
-        logger.info(`[${requestId}] Downloading from regular storage: ${storageKey}`)
-        buffer = await downloadFile(storageKey)
-      }
+      const buffer = await downloadFileFromStorage(userFile, requestId, logger)
 
       uploadBody = buffer
-      uploadContentType = validatedData.contentType || file.type || 'application/octet-stream'
+      uploadContentType = validatedData.contentType || userFile.type || 'application/octet-stream'
     } else if (validatedData.content) {
-      // Upload text content
       uploadBody = Buffer.from(validatedData.content, 'utf-8')
       uploadContentType = validatedData.contentType || 'text/plain'
     } else {
@@ -112,7 +98,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Upload to S3
     const putCommand = new PutObjectCommand({
       Bucket: validatedData.bucketName,
       Key: validatedData.objectKey,
@@ -129,7 +114,6 @@ export async function POST(request: NextRequest) {
       key: validatedData.objectKey,
     })
 
-    // Generate public URL (properly encode the object key)
     const encodedKey = validatedData.objectKey.split('/').map(encodeURIComponent).join('/')
     const url = `https://${validatedData.bucketName}.s3.${validatedData.region}.amazonaws.com/${encodedKey}`
 

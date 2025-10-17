@@ -188,6 +188,7 @@ import {
   telegramSendAnimationTool,
   telegramSendAudioTool,
   telegramSendDocumentTool,
+  telegramSendDocumentTool,
   telegramSendPhotoTool,
   telegramSendVideoTool,
 } from '@/tools/telegram'
@@ -381,6 +382,7 @@ export const tools: Record<string, ToolConfig> = {
   telegram_send_photo: telegramSendPhotoTool,
   telegram_send_video: telegramSendVideoTool,
   telegram_send_document: telegramSendDocumentTool,
+  telegram_send_document: telegramSendDocumentTool,
   clay_populate: clayPopulateTool,
   discord_send_message: discordSendMessageTool,
   discord_get_messages: discordGetMessagesTool,
@@ -445,5 +447,4 @@ export const tools: Record<string, ToolConfig> = {
   sharepoint_create_list: sharepointCreateListTool,
   sharepoint_update_list: sharepointUpdateListItemTool,
   sharepoint_add_list_items: sharepointAddListItemTool,
-  sharepoint_upload_file: sharepointUploadFileTool,
 }
