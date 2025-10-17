@@ -22,6 +22,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       layout: 'full',
       options: [
         { label: 'Create Folder', id: 'create_folder' },
+        { label: 'Create File', id: 'create_file' },
         { label: 'Upload File', id: 'upload' },
         { label: 'List Files', id: 'list' },
       ],
@@ -44,14 +45,15 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       ],
       placeholder: 'Select Microsoft account',
     },
-    // Upload Fields
+    // Create File Fields
     {
       id: 'fileName',
       title: 'File Name',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Name of the file',
-      condition: { field: 'operation', value: 'upload' },
+      placeholder: 'Name of the file (e.g., document.txt)',
+      condition: { field: 'operation', value: ['create_file', 'upload'] },
+      required: true,
     },
     // File upload (basic mode)
     {
@@ -83,9 +85,9 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       title: 'Text Content',
       type: 'long-input',
       layout: 'full',
-      placeholder: 'Text content to upload (leave empty if uploading a file)',
-      condition: { field: 'operation', value: 'upload' },
-      required: false,
+      placeholder: 'Text content for the file',
+      condition: { field: 'operation', value: 'create_file' },
+      required: true,
     },
 
     {
@@ -108,7 +110,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       placeholder: 'Select a parent folder',
       dependsOn: ['credential'],
       mode: 'basic',
-      condition: { field: 'operation', value: 'upload' },
+      condition: { field: 'operation', value: ['create_file', 'upload'] },
     },
     {
       id: 'manualFolderId',
@@ -119,7 +121,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       placeholder: 'Enter parent folder ID (leave empty for root folder)',
       dependsOn: ['credential'],
       mode: 'advanced',
-      condition: { field: 'operation', value: 'upload' },
+      condition: { field: 'operation', value: ['create_file', 'upload'] },
     },
     {
       id: 'folderName',
@@ -220,6 +222,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     config: {
       tool: (params) => {
         switch (params.operation) {
+          case 'create_file':
           case 'upload':
             return 'onedrive_upload'
           case 'create_folder':

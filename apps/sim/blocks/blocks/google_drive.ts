@@ -22,6 +22,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       layout: 'full',
       options: [
         { label: 'Create Folder', id: 'create_folder' },
+        { label: 'Create File', id: 'create_file' },
         { label: 'Upload File', id: 'upload' },
         { label: 'List Files', id: 'list' },
       ],
@@ -39,14 +40,14 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       requiredScopes: ['https://www.googleapis.com/auth/drive.file'],
       placeholder: 'Select Google Drive account',
     },
-    // Upload Fields
+    // Create/Upload File Fields
     {
       id: 'fileName',
       title: 'File Name',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Name of the file',
-      condition: { field: 'operation', value: 'upload' },
+      placeholder: 'Name of the file (e.g., document.txt)',
+      condition: { field: 'operation', value: ['create_file', 'upload'] },
       required: true,
     },
     // File upload (basic mode) - binary files
@@ -79,9 +80,9 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       title: 'Text Content',
       type: 'long-input',
       layout: 'full',
-      placeholder: 'Text content to upload (leave empty if uploading a file above)',
-      condition: { field: 'operation', value: 'upload' },
-      required: false,
+      placeholder: 'Text content for the file',
+      condition: { field: 'operation', value: 'create_file' },
+      required: true,
     },
     {
       id: 'mimeType',
@@ -99,7 +100,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
         { label: 'CSV (text/csv)', id: 'text/csv' },
       ],
       placeholder: 'Select a file type (optional)',
-      condition: { field: 'operation', value: 'upload' },
+      condition: { field: 'operation', value: ['create_file', 'upload'] },
       required: false,
     },
     {
@@ -115,7 +116,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       placeholder: 'Select a parent folder',
       mode: 'basic',
       dependsOn: ['credential'],
-      condition: { field: 'operation', value: 'upload' },
+      condition: { field: 'operation', value: ['create_file', 'upload'] },
     },
     {
       id: 'manualFolderId',
@@ -125,7 +126,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       canonicalParamId: 'folderId',
       placeholder: 'Enter parent folder ID (leave empty for root folder)',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'upload' },
+      condition: { field: 'operation', value: ['create_file', 'upload'] },
     },
     // Get Content Fields
     // {
@@ -253,6 +254,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
     config: {
       tool: (params) => {
         switch (params.operation) {
+          case 'create_file':
           case 'upload':
             return 'google_drive_upload'
           case 'create_folder':
