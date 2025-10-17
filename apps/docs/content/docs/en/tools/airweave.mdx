@@ -1,0 +1,80 @@
+---
+title: Airweave
+description: Search connected data sources
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="airweave"
+  color="#8B5CF6"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      
+      
+      viewBox='0 0 24 24'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <path
+        d='M12 2L2 7L12 12L22 7L12 2Z'
+        stroke='currentColor'
+        strokeWidth='2'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+      <path
+        d='M2 17L12 22L22 17'
+        stroke='currentColor'
+        strokeWidth='2'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+      <path
+        d='M2 12L12 17L22 12'
+        stroke='currentColor'
+        strokeWidth='2'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+    </svg>`}
+/>
+
+## Usage Instructions
+
+Search across all your connected data sources using Airweave. Supports 50+ integrations including Stripe, GitHub, Notion, Slack, HubSpot, Zendesk, and more. Get raw search results or AI-generated summaries.
+
+
+
+## Tools
+
+### `airweave_search`
+
+Search across all connected data sources in your Airweave collection. Supports 50+ integrations including Stripe, GitHub, Notion, Slack, HubSpot, Zendesk, and more. Returns relevant search results with metadata or AI-generated summaries.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `collectionId` | string | Yes | The readable ID of the Airweave collection to search |
+| `query` | string | Yes | The search query to find relevant information from connected data sources |
+| `limit` | number | No | Maximum number of results to return \(1-100, default: 10\) |
+| `offset` | number | No | Number of results to skip for pagination \(default: 0\) |
+| `responseType` | string | No | Response format: 'raw' for search results or 'completion' for AI-generated answer \(default: 'raw'\) |
+| `recencyBias` | number | No | Weight for recent results \(0.0=no bias, 1.0=only recency, default: 0.0\) |
+| `apiKey` | string | Yes | Airweave API Key \(get from https://app.airweave.ai\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Status of the search operation \(success, no_results, no_relevant_results\) |
+| `results` | array | Search results with content and metadata from connected data sources |
+
+
+
+## Notes
+
+- Category: `tools`
+- Type: `airweave`
