@@ -2,11 +2,13 @@ import type { ReactNode } from 'react'
 import { defineI18nUI } from 'fumadocs-ui/i18n'
 import { DocsLayout } from 'fumadocs-ui/layouts/docs'
 import { RootProvider } from 'fumadocs-ui/provider/next'
-import { ExternalLink, GithubIcon } from 'lucide-react'
-import { Inter } from 'next/font/google'
-import Image from 'next/image'
-import Link from 'next/link'
-import { LanguageDropdown } from '@/components/ui/language-dropdown'
+import { Geist_Mono, Inter } from 'next/font/google'
+import {
+  CustomSidebarFolder,
+  CustomSidebarItem,
+  CustomSidebarSeparator,
+} from '@/components/docs-layout/simple-sidebar-components'
+import { CustomNavbar } from '@/components/navbar/custom-navbar'
 import { i18n } from '@/lib/i18n'
 import { source } from '@/lib/source'
 import '../global.css'
@@ -14,6 +16,12 @@ import { Analytics } from '@vercel/analytics/next'
 
 const inter = Inter({
   subsets: ['latin'],
+  variable: '--font-geist-sans',
+})
+
+const geistMono = Geist_Mono({
+  subsets: ['latin'],
+  variable: '--font-geist-mono',
 })
 
 const { provider } = defineI18nUI(i18n, {
@@ -33,19 +41,6 @@ const { provider } = defineI18nUI(i18n, {
   },
 })
 
-const GitHubLink = () => (
-  <div className='fixed right-4 bottom-4 z-50'>
-    <Link
-      href='https://github.com/simstudioai/sim'
-      target='_blank'
-      rel='noopener noreferrer'
-      className='flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background transition-colors hover:bg-muted'
-    >
-      <GithubIcon className='h-4 w-4' />
-    </Link>
-  </div>
-)
-
 type LayoutProps = {
   children: ReactNode
   params: Promise<{ lang: string }>
@@ -55,42 +50,36 @@ export default async function Layout({ children, params }: LayoutProps) {
   const { lang } = await params
 
   return (
-    <html lang={lang} className={inter.className} suppressHydrationWarning>
-      <body className='flex min-h-screen flex-col'>
+    <html
+      lang={lang}
+      className={`${inter.variable} ${geistMono.variable}`}
+      suppressHydrationWarning
+    >
+      <body className='flex min-h-screen flex-col font-sans'>
         <RootProvider i18n={provider(lang)}>
+          <CustomNavbar />
           <DocsLayout
             tree={source.pageTree[lang]}
-            nav={{
-              title: (
-                <div className='flex items-center gap-3'>
-                  <Image
-                    src='/static/logo.png'
-                    alt='Sim'
-                    width={60}
-                    height={24}
-                    className='h-6 w-auto'
-                  />
-                  <LanguageDropdown />
-                </div>
-              ),
+            themeSwitch={{
+              enabled: false,
             }}
-            links={[
-              {
-                text: 'Visit Sim',
-                url: 'https://sim.ai',
-                icon: <ExternalLink className='h-4 w-4' />,
-              },
-            ]}
             sidebar={{
               defaultOpenLevel: 0,
-              collapsible: true,
+              collapsible: false,
               footer: null,
               banner: null,
+              components: {
+                Item: CustomSidebarItem,
+                Folder: CustomSidebarFolder,
+                Separator: CustomSidebarSeparator,
+              },
+            }}
+            containerProps={{
+              className: '!pt-10',
             }}
           >
             {children}
           </DocsLayout>
-          <GitHubLink />
           <Analytics />
         </RootProvider>
       </body>

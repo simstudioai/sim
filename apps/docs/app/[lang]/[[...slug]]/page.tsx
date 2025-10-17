@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { StructuredData } from '@/components/structured-data'
+import { CodeBlock } from '@/components/ui/code-block'
 import { source } from '@/lib/source'
 
 export const dynamic = 'force-dynamic'
@@ -82,7 +83,12 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
         <DocsTitle>{page.data.title}</DocsTitle>
         <DocsDescription>{page.data.description}</DocsDescription>
         <DocsBody>
-          <MDX components={defaultMdxComponents} />
+          <MDX
+            components={{
+              ...defaultMdxComponents,
+              CodeBlock,
+            }}
+          />
         </DocsBody>
       </DocsPage>
     </>

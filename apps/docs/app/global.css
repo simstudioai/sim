@@ -4,6 +4,19 @@
 
 @theme {
   --color-fd-primary: #802fff; /* Purple from control-bar component */
+  --font-geist-sans: var(--font-geist-sans);
+  --font-geist-mono: var(--font-geist-mono);
+}
+
+/* Font family utilities */
+.font-sans {
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.font-mono {
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
 }
 
 /* Target any potential border classes */
@@ -15,139 +28,291 @@
 :root {
   --fd-border: transparent !important;
   --fd-border-sidebar: transparent !important;
+  --fd-nav-height: 64px; /* Custom navbar height (h-16 = 4rem = 64px) */
 }
 
-/* Sidebar improvements for cleaner design */
-[data-sidebar] {
-  --fd-sidebar-width: 280px;
-  background-color: rgb(255 255 255);
-  padding-top: 16px;
+/* ============================================
+   Custom Sidebar Styling (Turborepo-inspired)
+   ============================================ */
+
+/* Floating sidebar appearance - remove background */
+[data-sidebar-container],
+#nd-sidebar {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  --color-fd-muted: transparent !important;
+  --color-fd-card: transparent !important;
+  --color-fd-secondary: transparent !important;
 }
 
-/* Clean sidebar container */
-[data-sidebar] > div {
-  padding: 0 16px;
+aside[data-sidebar],
+aside#nd-sidebar {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  border-right: none !important;
+  left: 22rem !important;
 }
 
-/* Section headers/separators styling */
-[data-sidebar] .text-sm.font-medium.text-muted-foreground,
-[data-sidebar] [data-separator] {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-top: 20px;
-  margin-bottom: 6px;
-  padding-left: 12px;
-  padding-right: 12px;
-  color: rgb(115 115 115);
-  border: none;
-  background: none;
+/* Sidebar spacing - compact like turborepo */
+[data-sidebar-viewport] {
+  padding: 0.5rem 20px 12px;
+  background: transparent !important;
+  background-color: transparent !important;
 }
 
-/* First separator should have less top margin */
-[data-sidebar] [data-separator]:first-of-type {
-  margin-top: 12px;
+/* Override sidebar item styling to match Raindrop */
+/* Target Link and button elements in sidebar - override Fumadocs itemVariants */
+/* Exclude the small chevron-only toggle buttons */
+#nd-sidebar a,
+#nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) {
+  font-size: 0.9375rem !important; /* 15px to match Raindrop */
+  line-height: 1.4 !important;
+  padding: 0.5rem 0.75rem !important; /* More compact like Raindrop */
+  color: rgba(255, 255, 255, 0.6) !important; /* Muted gray text */
+  font-weight: 400 !important;
+  border-radius: 0.75rem !important; /* More rounded like Raindrop */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif !important;
 }
 
-/* Clean sidebar item styling */
-[data-sidebar] a {
-  padding: 8px 12px;
-  margin: 1px 0;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 1.4;
-  transition: all 0.15s ease;
-  display: block;
-  color: rgb(71 85 105);
-  text-decoration: none;
+/* Make sure chevron icons are visible and properly styled */
+#nd-sidebar svg {
+  display: inline-block !important;
+  opacity: 0.6 !important;
+  flex-shrink: 0 !important;
+  width: 0.75rem !important;
+  height: 0.75rem !important;
 }
 
-[data-sidebar] a[data-active="true"] {
-  background-color: rgba(128, 47, 255, 0.08);
-  color: var(--color-fd-primary);
+/* Ensure the small chevron toggle buttons are visible */
+#nd-sidebar button[aria-label*="ollapse"],
+#nd-sidebar button[aria-label*="xpand"] {
+  display: flex !important;
+  opacity: 1 !important;
+  padding: 0.25rem !important;
+}
+
+/* Tighter spacing between sidebar items */
+#nd-sidebar > div > div > * {
+  margin-bottom: 0.0625rem !important;
+}
+
+/* Add tiny gap between nested items */
+#nd-sidebar ul li {
+  margin-bottom: 0.0625rem !important;
+}
+
+#nd-sidebar ul li:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* Section headers should be slightly larger */
+[data-sidebar-viewport] [data-separator] {
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+}
+
+/* Override active state - dark gray background with white text (NO PURPLE) */
+#nd-sidebar a[data-active="true"],
+#nd-sidebar button[data-active="true"],
+#nd-sidebar a.bg-fd-primary\/10,
+#nd-sidebar a.text-fd-primary,
+#nd-sidebar a[class*="bg-fd-primary"],
+#nd-sidebar a[class*="text-fd-primary"],
+/* Override custom sidebar purple classes */
+  #nd-sidebar
+  a.bg-purple-50\/80,
+#nd-sidebar a.text-purple-600,
+#nd-sidebar a[class*="bg-purple"],
+#nd-sidebar a[class*="text-purple"] {
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  color: rgba(255, 255, 255, 1) !important; /* Full white for active */
+  background-image: none !important;
+}
+
+/* Override hover state - lighter gray background only, no text color change */
+#nd-sidebar a:hover:not([data-active="true"]),
+#nd-sidebar button:hover:not([data-active="true"]) {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Ensure active/selected items don't change on hover */
+#nd-sidebar a.bg-purple-50\/80:hover,
+#nd-sidebar a[class*="bg-purple"]:hover,
+#nd-sidebar a[data-active="true"]:hover,
+#nd-sidebar button[data-active="true"]:hover {
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  color: rgba(255, 255, 255, 1) !important;
+}
+
+/* Hide search, platform, and collapse button from sidebar completely */
+[data-sidebar] [data-search],
+[data-sidebar] .search-toggle,
+#nd-sidebar [data-search],
+#nd-sidebar .search-toggle,
+[data-sidebar-viewport] [data-search],
+[data-sidebar-viewport] button[data-search],
+aside[data-sidebar] [role="button"]:has([data-search]),
+aside[data-sidebar] > div > button:first-child,
+#nd-sidebar > div > button:first-child,
+[data-sidebar] a[href*="sim.ai"],
+#nd-sidebar a[href*="sim.ai"],
+[data-sidebar-viewport] a[href*="sim.ai"],
+[data-sidebar-container] > button,
+[data-sidebar-container] [data-toggle],
+aside[data-sidebar] [data-sidebar-toggle],
+button[data-sidebar-toggle],
+/* Hide search buttons (but NOT folder chevron buttons) */
+  aside[data-sidebar] > div:first-child
+  > button:not([aria-label="Collapse"]):not([aria-label="Expand"]),
+#nd-sidebar > div:first-child > button:not([aria-label="Collapse"]):not([aria-label="Expand"]),
+/* Hide main sidebar toggle buttons */
+nav button[data-sidebar-toggle],
+button[aria-label="Toggle Sidebar"],
+button[aria-label="Collapse Sidebar"],
+/* Hide sidebar collapse button (panel icon) - direct children only */
+aside[data-sidebar] > button:first-of-type:not([aria-label="Collapse"]):not([aria-label="Expand"]),
+[data-sidebar]
+  > button[type="button"]:first-of-type:not([aria-label="Collapse"]):not([aria-label="Expand"]),
+button[data-collapse]:not([aria-label="Collapse"]):not([aria-label="Expand"]),
+[data-sidebar-header] button,
+/* Hide theme toggle from sidebar footer */
+aside[data-sidebar] [data-theme-toggle],
+[data-sidebar-footer],
+[data-sidebar] footer,
+aside[data-sidebar] > div:last-child:has(button[aria-label*="heme"]),
+aside[data-sidebar] button[aria-label*="heme"],
+[data-sidebar] button[aria-label*="Theme"],
+footer button[aria-label*="heme"],
+/* Additional theme toggle selectors */
+  aside[data-sidebar] > *:last-child
+  button,
+[data-sidebar-viewport] ~ *,
+aside[data-sidebar] > div:not([data-sidebar-viewport]),
+/* Aggressive theme toggle hiding */
+aside[data-sidebar] svg[class*="sun"],
+aside[data-sidebar] svg[class*="moon"],
+aside[data-sidebar] button[type="button"]:last-child,
+aside button:has(svg:only-child),
+[data-sidebar] div:has(> button[type="button"]:only-child:last-child),
+/* Hide theme toggle and other non-content elements */
+aside[data-sidebar] > *:not([data-sidebar-viewport]) {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  height: 0 !important;
+  max-height: 0 !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+  position: absolute !important;
+  left: -9999px !important;
+}
+
+/* Extra aggressive - hide everything after the viewport */
+aside[data-sidebar] [data-sidebar-viewport] ~ * {
+  display: none !important;
+}
+
+/* Tighter spacing for sidebar content */
+[data-sidebar-viewport] > * {
+  margin-bottom: 0;
+}
+
+[data-sidebar-viewport] ul {
+  margin: 0;
+  padding: 0;
+}
+
+/* Ensure sidebar starts with content immediately */
+aside[data-sidebar] > div:first-child {
+  padding-top: 0;
+}
+
+/* Remove all sidebar borders and backgrounds */
+[data-sidebar-container],
+aside[data-sidebar],
+[data-sidebar],
+[data-sidebar] *,
+#nd-sidebar,
+#nd-sidebar * {
+  border: none !important;
+  border-right: none !important;
+  border-left: none !important;
+  border-top: none !important;
+  border-bottom: none !important;
+}
+
+/* Override fumadocs background colors for sidebar */
+.dark #nd-sidebar,
+.dark [data-sidebar-container],
+.dark aside[data-sidebar] {
+  --color-fd-muted: transparent !important;
+  --color-fd-secondary: transparent !important;
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* Force normal text flow in sidebar */
+[data-sidebar],
+[data-sidebar] *,
+[data-sidebar-viewport],
+[data-sidebar-viewport] * {
+  writing-mode: horizontal-tb !important;
+}
+
+/* ============================================
+   Code Block Styling (Improved)
+   ============================================ */
+
+/* Apply Geist Mono to code elements */
+code,
+pre,
+pre code {
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+}
+
+/* Inline code */
+:not(pre) > code {
+  padding: 0.2em 0.4em;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
   font-weight: 500;
+  background-color: rgb(243 244 246);
+  color: rgb(220 38 38);
+  border: 1px solid rgb(229 231 235);
 }
 
-[data-sidebar] a:hover:not([data-active="true"]) {
-  background-color: rgb(248 250 252);
-  color: rgb(51 65 85);
-}
-
-/* Improve spacing between sidebar items */
-[data-sidebar] nav > * + * {
-  margin-top: 2px;
-}
-
-/* Section group styling */
-[data-sidebar] [data-folder] {
-  margin-bottom: 4px;
-}
-
-[data-sidebar] [data-folder] > div:first-child {
-  font-weight: 500;
-  font-size: 13px;
-  color: rgb(15 23 42);
-  padding: 6px 12px;
-  margin-bottom: 4px;
-}
-
-/* Clean up folder toggle buttons */
-[data-sidebar] button[data-folder-toggle] {
-  padding: 4px 8px 4px 12px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  color: rgb(51 65 85);
-}
-
-[data-sidebar] button[data-folder-toggle]:hover {
-  background-color: rgb(248 250 252);
-}
-
-/* Nested item indentation */
-[data-sidebar] [data-folder] a {
-  padding-left: 24px;
-  font-size: 14px;
-}
-
-/* Dark mode adjustments */
 @media (prefers-color-scheme: dark) {
-  [data-sidebar] {
-    background-color: rgb(2 8 23);
+  :not(pre) > code {
+    background-color: rgb(31 41 55);
+    color: rgb(248 113 113);
+    border-color: rgb(55 65 81);
   }
+}
 
-  [data-sidebar] a {
-    color: rgb(148 163 184);
-  }
+/* Code block container improvements */
+pre {
+  font-size: 0.875rem;
+  line-height: 1.7;
+  tab-size: 2;
+  -webkit-overflow-scrolling: touch;
+}
 
-  [data-sidebar] a:hover:not([data-active="true"]) {
-    background-color: rgb(30 41 59);
-    color: rgb(226 232 240);
-  }
+pre code {
+  display: block;
+  width: fit-content;
+  min-width: 100%;
+}
 
-  [data-sidebar] a[data-active="true"] {
-    background-color: rgba(128, 47, 255, 0.15);
-    color: var(--color-fd-primary);
-  }
-
-  [data-sidebar] .text-sm.font-medium.text-muted-foreground,
-  [data-sidebar] [data-separator] {
-    color: rgb(148 163 184);
-  }
-
-  [data-sidebar] [data-folder] > div:first-child {
-    color: rgb(226 232 240);
-  }
-
-  [data-sidebar] button[data-folder-toggle] {
-    color: rgb(148 163 184);
-  }
-
-  [data-sidebar] button[data-folder-toggle]:hover {
-    background-color: rgb(30 41 59);
-  }
+/* Syntax highlighting adjustments for better readability */
+pre code .line {
+  padding-left: 0;
+  padding-right: 0;
 }
 
 /* Custom text highlighting styles */
@@ -162,13 +327,52 @@
 
 /* Add bottom spacing to prevent abrupt page endings */
 [data-content] {
+  padding-top: 1.5rem !important;
   padding-bottom: 4rem;
 }
 
 /* Alternative fallback for different Fumadocs versions */
 main article,
 .docs-page main {
+  padding-top: 1.5rem !important;
   padding-bottom: 4rem;
+}
+
+/* ============================================
+   Center and Constrain Main Content Width
+   ============================================ */
+
+/* Main content area - center and constrain like turborepo/raindrop */
+main[data-main] {
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 2rem;
+  padding-right: 2rem;
+  padding-top: 1rem;
+  order: 1 !important;
+}
+
+/* Adjust for smaller screens */
+@media (max-width: 768px) {
+  main[data-main] {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+/* Ensure docs page content is properly constrained */
+[data-docs-page] {
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-top: 1.5rem !important;
+}
+
+/* Override Fumadocs default content padding */
+article[data-content],
+div[data-content] {
+  padding-top: 1.5rem !important;
 }
 
 /* Remove any unwanted borders/outlines from video elements */
