@@ -33,4 +33,3 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Failed to delete chat' }, { status: 500 })
   }
 }
-

@@ -961,7 +961,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
                 {/* Abort button when hovering and response is generating (only on last user message) */}
                 {isSendingMessage && isHoveringMessage && isLastUserMessage && (
-                  <div className='absolute bottom-2 right-2'>
+                  <div className='absolute right-2 bottom-2'>
                     <button
                       onClick={(e) => {
                         e.stopPropagation()

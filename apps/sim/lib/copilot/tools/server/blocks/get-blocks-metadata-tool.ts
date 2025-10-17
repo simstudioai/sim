@@ -264,7 +264,7 @@ function transformBlockMetadata(metadata: CopilotBlockMetadata): any {
   // Add auth type and required credentials if available
   if (metadata.authType) {
     transformed.authType = metadata.authType
-    
+
     // Add credential requirements based on auth type
     if (metadata.authType === 'OAuth') {
       transformed.requiredCredentials = {
@@ -295,15 +295,18 @@ function transformBlockMetadata(metadata: CopilotBlockMetadata): any {
   const hasOperations = metadata.operations && Object.keys(metadata.operations).length > 0
   if (hasOperations && metadata.operations) {
     const blockLevelInputs = new Set(Object.keys(metadata.inputDefinitions || {}))
-    transformed.operations = Object.entries(metadata.operations).reduce((acc, [opId, opData]) => {
-      acc[opId] = {
-        name: opData.toolName || opId,
-        description: opData.description,
-        inputs: extractOperationInputs(opData, blockLevelInputs),
-        outputs: formatOutputsFromDefinition(opData.outputs || {}),
-      }
-      return acc
-    }, {} as Record<string, any>)
+    transformed.operations = Object.entries(metadata.operations).reduce(
+      (acc, [opId, opData]) => {
+        acc[opId] = {
+          name: opData.toolName || opId,
+          description: opData.description,
+          inputs: extractOperationInputs(opData, blockLevelInputs),
+          outputs: formatOutputsFromDefinition(opData.outputs || {}),
+        }
+        return acc
+      },
+      {} as Record<string, any>
+    )
   }
 
   // Process outputs - only show at block level if there are NO operations
@@ -321,7 +324,7 @@ function transformBlockMetadata(metadata: CopilotBlockMetadata): any {
 
   // Add triggers if present
   if (metadata.triggers && metadata.triggers.length > 0) {
-    transformed.triggers = metadata.triggers.map(t => ({
+    transformed.triggers = metadata.triggers.map((t) => ({
       id: t.id,
       outputs: formatOutputsFromDefinition(t.outputs || {}),
     }))
@@ -346,23 +349,27 @@ function extractInputs(metadata: CopilotBlockMetadata): {
   // Process inputSchema to get UI-level input information
   for (const schema of metadata.inputSchema || []) {
     // Skip credential inputs (handled by requiredCredentials)
-    if (schema.type === 'oauth-credential' || schema.type === 'credential-input' || schema.type === 'oauth-input') {
+    if (
+      schema.type === 'oauth-credential' ||
+      schema.type === 'credential-input' ||
+      schema.type === 'oauth-input'
+    ) {
       continue
     }
-    
+
     // Skip trigger config (only relevant when setting up triggers)
     if (schema.id === 'triggerConfig' || schema.type === 'trigger-config') {
       continue
     }
 
     const inputDef = inputDefs[schema.id] || inputDefs[schema.canonicalParamId || '']
-    
+
     // For operation field, provide a clearer description
     let description = schema.description || inputDef?.description || schema.title
     if (schema.id === 'operation') {
       description = 'Operation to perform'
     }
-    
+
     const input: any = {
       name: schema.id,
       type: mapSchemaTypeToSimpleType(schema.type, schema),
@@ -373,9 +380,9 @@ function extractInputs(metadata: CopilotBlockMetadata): {
     // For operation field, use IDs instead of labels for clarity
     if (schema.options && schema.options.length > 0) {
       if (schema.id === 'operation') {
-        input.options = schema.options.map(opt => opt.id)
+        input.options = schema.options.map((opt) => opt.id)
       } else {
-        input.options = schema.options.map(opt => opt.label || opt.id)
+        input.options = schema.options.map((opt) => opt.label || opt.id)
       }
     }
 
@@ -408,9 +415,12 @@ function extractInputs(metadata: CopilotBlockMetadata): {
 
     // Determine if required
     // For blocks with operations, the operation field is always required
-    const isOperationField = schema.id === 'operation' && metadata.operations && Object.keys(metadata.operations).length > 0
+    const isOperationField =
+      schema.id === 'operation' &&
+      metadata.operations &&
+      Object.keys(metadata.operations).length > 0
     const isRequired = schema.required || inputDef?.required || isOperationField
-    
+
     if (isRequired) {
       required.push(input)
     } else {
@@ -440,7 +450,11 @@ function extractOperationInputs(
 
     // Skip credential-related inputs (these are inherited from block-level auth)
     const lowerKey = key.toLowerCase()
-    if (lowerKey.includes('token') || lowerKey.includes('credential') || lowerKey.includes('apikey')) {
+    if (
+      lowerKey.includes('token') ||
+      lowerKey.includes('credential') ||
+      lowerKey.includes('apikey')
+    ) {
       continue
     }
 
@@ -495,7 +509,7 @@ function formatOutputsFromDefinition(outputDefs: Record<string, any>): any[] {
   for (const [key, def] of Object.entries(outputDefs)) {
     const output: any = {
       name: key,
-      type: typeof def === 'string' ? def : (def?.type || 'any'),
+      type: typeof def === 'string' ? def : def?.type || 'any',
     }
 
     if (typeof def === 'object') {
@@ -515,10 +529,10 @@ function mapSchemaTypeToSimpleType(schemaType: string, schema: CopilotSubblockMe
     'long-input': 'string',
     'code-input': 'string',
     'number-input': 'number',
-    'slider': 'number',
-    'dropdown': 'string',
-    'combobox': 'string',
-    'toggle': 'boolean',
+    slider: 'number',
+    dropdown: 'string',
+    combobox: 'string',
+    toggle: 'boolean',
     'json-input': 'json',
     'file-upload': 'file',
     'multi-select': 'array',
@@ -984,7 +998,10 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
     outputs: {
       results: { type: 'array', description: 'Array of results from all parallel branches' },
       branchId: { type: 'number', description: 'Current branch ID (0-based)' },
-      branchItem: { type: 'any', description: 'Current item for this branch (for collection type)' },
+      branchItem: {
+        type: 'any',
+        description: 'Current item for this branch (for collection type)',
+      },
       totalBranches: { type: 'number', description: 'Total number of parallel branches' },
     },
     subBlocks: [

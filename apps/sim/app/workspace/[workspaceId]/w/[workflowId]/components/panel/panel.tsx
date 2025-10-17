@@ -7,7 +7,6 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { LandingPromptStorage } from '@/lib/browser-storage'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -445,7 +444,9 @@ export function Panel() {
                           <ChatHistorySkeleton />
                         </div>
                       ) : groupedChats.length === 0 ? (
-                        <div className='px-2 py-6 text-center text-muted-foreground text-sm'>No chats yet</div>
+                        <div className='px-2 py-6 text-center text-muted-foreground text-sm'>
+                          No chats yet
+                        </div>
                       ) : (
                         <div className='max-h-[280px] overflow-y-auto'>
                           {groupedChats.map(([groupName, chats], groupIndex) => (
@@ -462,7 +463,7 @@ export function Panel() {
                                     className={`group relative flex items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors ${
                                       currentChat?.id === chat.id
                                         ? 'bg-accent text-accent-foreground'
-                                        : 'hover:bg-accent/50 text-foreground'
+                                        : 'text-foreground hover:bg-accent/50'
                                     }`}
                                   >
                                     {editingChatId === chat.id ? (
@@ -473,17 +474,18 @@ export function Panel() {
                                         onKeyDown={async (e) => {
                                           if (e.key === 'Enter') {
                                             e.preventDefault()
-                                            const newTitle = editingChatTitle.trim() || 'Untitled Chat'
-                                            
+                                            const newTitle =
+                                              editingChatTitle.trim() || 'Untitled Chat'
+
                                             // Update optimistically in store first
                                             const updatedChats = chats.map((c) =>
                                               c.id === chat.id ? { ...c, title: newTitle } : c
                                             )
                                             useCopilotStore.setState({ chats: updatedChats })
-                                            
+
                                             // Exit edit mode immediately
                                             setEditingChatId(null)
-                                            
+
                                             // Save to database in background
                                             try {
                                               await fetch('/api/copilot/chat/update-title', {
@@ -504,7 +506,6 @@ export function Panel() {
                                           }
                                         }}
                                         onBlur={() => setEditingChatId(null)}
-                                        autoFocus
                                         className='min-w-0 flex-1 rounded border-none bg-transparent px-0 text-sm outline-none focus:outline-none'
                                       />
                                     ) : (
@@ -536,13 +537,13 @@ export function Panel() {
                                           <button
                                             onClick={async (e) => {
                                               e.stopPropagation()
-                                              
+
                                               // Check if deleting current chat
                                               const isDeletingCurrent = currentChat?.id === chat.id
-                                              
+
                                               // Delete the chat (optimistic update happens in store)
                                               await handleDeleteChat(chat.id)
-                                              
+
                                               // If deleted current chat, create new one
                                               if (isDeletingCurrent) {
                                                 copilotRef.current?.createNewChat()

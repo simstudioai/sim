@@ -2288,7 +2288,11 @@ export const useCopilotStore = create<CopilotStore>()(
           logger.info('[Context Usage] Received data', data)
 
           // Check for either tokensUsed or usage field
-          if (data.tokensUsed !== undefined || data.usage !== undefined || data.percentage !== undefined) {
+          if (
+            data.tokensUsed !== undefined ||
+            data.usage !== undefined ||
+            data.percentage !== undefined
+          ) {
             const contextUsage = {
               usage: data.tokensUsed || data.usage || 0,
               percentage: data.percentage || 0,
