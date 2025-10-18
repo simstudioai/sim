@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   TelegramMedia,
   TelegramSendMediaResponse,
@@ -12,6 +13,7 @@ export const telegramSendVideoTool: ToolConfig<TelegramSendVideoParams, Telegram
     name: 'Telegram Send Video',
     description: 'Send videos to Telegram channels or users through the Telegram Bot API.',
     version: '1.0.0',
+    errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 
     params: {
       botToken: {
@@ -64,12 +66,18 @@ export const telegramSendVideoTool: ToolConfig<TelegramSendVideoParams, Telegram
 
     transformResponse: async (response: Response) => {
       const data = await response.json()
+
+      if (!data.ok) {
+        const errorMessage = data.description || data.error || 'Failed to send video'
+        throw new Error(errorMessage)
+      }
+
       const result = data.result as TelegramMedia
 
       return {
-        success: data.ok,
+        success: true,
         output: {
-          message: data.ok ? 'Video sent successfully' : 'Failed to send video',
+          message: 'Video sent successfully',
           data: result,
         },
       }

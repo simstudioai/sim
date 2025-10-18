@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   TelegramAudio,
   TelegramSendAudioParams,
@@ -12,6 +13,7 @@ export const telegramSendAudioTool: ToolConfig<TelegramSendAudioParams, Telegram
     name: 'Telegram Send Audio',
     description: 'Send audio files to Telegram channels or users through the Telegram Bot API.',
     version: '1.0.0',
+    errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 
     params: {
       botToken: {
@@ -64,12 +66,18 @@ export const telegramSendAudioTool: ToolConfig<TelegramSendAudioParams, Telegram
 
     transformResponse: async (response: Response) => {
       const data = await response.json()
+
+      if (!data.ok) {
+        const errorMessage = data.description || data.error || 'Failed to send audio'
+        throw new Error(errorMessage)
+      }
+
       const result = data.result as TelegramAudio
 
       return {
-        success: data.ok,
+        success: true,
         output: {
-          message: data.ok ? 'Audio sent successfully' : 'Failed to send audio',
+          message: 'Audio sent successfully',
           data: result,
         },
       }

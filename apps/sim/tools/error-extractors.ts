@@ -1,0 +1,233 @@
+/**
+ * Error Extractor Registry
+ *
+ * This module provides a clean, config-based approach to extracting error messages
+ * from diverse API error response formats.
+ *
+ * ## How it works
+ *
+ * 1. **Deterministic (Recommended)**: Tools can specify which extractor to use via
+ *    the `errorExtractor` field in their config. This provides predictable, fast
+ *    error extraction without trying multiple patterns.
+ *
+ * 2. **Fallback**: If no extractor is specified, all extractors are tried in order
+ *    until one returns a message. This provides backward compatibility.
+ *
+ * ## Using in tools
+ *
+ * ```typescript
+ * import { ErrorExtractorId } from '@/tools/error-extractors'
+ *
+ * export const myTool: ToolConfig = {
+ *   id: 'my_tool',
+ *   errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
+ *   // ... rest of config
+ * }
+ * ```
+ *
+ * ## Adding a new extractor
+ *
+ * 1. Add entry to ERROR_EXTRACTORS array below:
+ * ```typescript
+ * {
+ *   id: 'stripe-errors',
+ *   description: 'Stripe API error format',
+ *   examples: ['Stripe API'],
+ *   extract: (errorInfo) => errorInfo?.data?.error?.message
+ * }
+ * ```
+ *
+ * 2. Add the ID to ErrorExtractorId constant at the bottom of this file
+ */
+
+export interface ErrorInfo {
+  status?: number
+  statusText?: string
+  data?: any
+}
+
+/**
+ * An error extractor tries to extract an error message from errorInfo
+ * Returns the error message if found, or null/undefined if not applicable
+ */
+export type ErrorExtractor = (errorInfo?: ErrorInfo) => string | null | undefined
+
+/**
+ * Metadata for an error extractor
+ */
+export interface ErrorExtractorConfig {
+  /** Unique identifier for this extractor */
+  id: string
+  /** Human-readable description of what API/pattern this handles */
+  description: string
+  /** Example APIs that use this pattern */
+  examples?: string[]
+  /** The extraction function */
+  extract: ErrorExtractor
+}
+
+/**
+ * Registry of error extractors
+ * Each extractor handles a specific API error format
+ *
+ * To add a new extractor, simply add it to this array
+ */
+const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
+  {
+    id: 'graphql-errors',
+    description: 'GraphQL errors array with message field',
+    examples: ['Linear API', 'GitHub GraphQL'],
+    extract: (errorInfo) => errorInfo?.data?.errors?.[0]?.message,
+  },
+  {
+    id: 'twitter-errors',
+    description: 'X/Twitter API error detail field',
+    examples: ['Twitter/X API'],
+    extract: (errorInfo) => errorInfo?.data?.errors?.[0]?.detail,
+  },
+  {
+    id: 'details-array',
+    description: 'Generic details array with message',
+    examples: ['Various REST APIs'],
+    extract: (errorInfo) => errorInfo?.data?.details?.[0]?.message,
+  },
+  {
+    id: 'hunter-errors',
+    description: 'Hunter API error details',
+    examples: ['Hunter.io API'],
+    extract: (errorInfo) => errorInfo?.data?.errors?.[0]?.details,
+  },
+  {
+    id: 'errors-array-string',
+    description: 'Errors array containing strings or objects with messages',
+    examples: ['Various APIs with error arrays'],
+    extract: (errorInfo) => {
+      if (!Array.isArray(errorInfo?.data?.errors)) return undefined
+      const firstError = errorInfo.data.errors[0]
+      if (typeof firstError === 'string') return firstError
+      return firstError?.message
+    },
+  },
+  {
+    id: 'telegram-description',
+    description: 'Telegram Bot API description field',
+    examples: ['Telegram Bot API'],
+    extract: (errorInfo) => errorInfo?.data?.description,
+  },
+  {
+    id: 'standard-message',
+    description: 'Standard message field in error response',
+    examples: ['Notion', 'Discord', 'GitHub', 'Twilio', 'Slack'],
+    extract: (errorInfo) => errorInfo?.data?.message,
+  },
+  {
+    id: 'soap-fault',
+    description: 'SOAP/XML fault string patterns',
+    examples: ['SOAP APIs', 'Legacy XML services'],
+    extract: (errorInfo) => errorInfo?.data?.fault?.faultstring || errorInfo?.data?.faultstring,
+  },
+  {
+    id: 'oauth-error-description',
+    description: 'OAuth2 error_description field',
+    examples: ['Microsoft OAuth', 'Google OAuth', 'OAuth2 providers'],
+    extract: (errorInfo) => errorInfo?.data?.error_description,
+  },
+  {
+    id: 'nested-error-object',
+    description: 'Error field containing nested object or string',
+    examples: ['Airtable', 'Google APIs'],
+    extract: (errorInfo) => {
+      const error = errorInfo?.data?.error
+      if (!error) return undefined
+      if (typeof error === 'string') return error
+      if (typeof error === 'object') {
+        return error.message || JSON.stringify(error)
+      }
+      return undefined
+    },
+  },
+  {
+    id: 'http-status-text',
+    description: 'HTTP response status text fallback',
+    examples: ['Generic HTTP errors'],
+    extract: (errorInfo) => errorInfo?.statusText,
+  },
+]
+
+/**
+ * Map of extractors by ID
+ */
+const EXTRACTOR_MAP = new Map<string, ErrorExtractorConfig>(ERROR_EXTRACTORS.map((e) => [e.id, e]))
+
+/**
+ * Extract error message using a specific extractor ID
+ * If the extractor is not found or doesn't extract a message, returns a fallback
+ */
+export function extractErrorMessageWithId(
+  errorInfo: ErrorInfo | undefined,
+  extractorId: string
+): string {
+  const extractor = EXTRACTOR_MAP.get(extractorId)
+
+  if (!extractor) {
+    console.warn(`Error extractor '${extractorId}' not found, using fallback`)
+    return `Request failed with status ${errorInfo?.status || 'unknown'}`
+  }
+
+  try {
+    const message = extractor.extract(errorInfo)
+    if (message && message.trim()) {
+      return message
+    }
+  } catch (error) {
+    console.warn(`Error extractor '${extractorId}' threw an error:`, error)
+  }
+
+  // Fallback if extractor didn't return a message
+  return `Request failed with status ${errorInfo?.status || 'unknown'}`
+}
+
+/**
+ * Extract error message from errorInfo
+ * If extractorId is provided, uses that specific extractor (deterministic)
+ * Otherwise tries all extractors in order until one returns a value (fallback)
+ */
+export function extractErrorMessage(errorInfo?: ErrorInfo, extractorId?: string): string {
+  if (extractorId) {
+    return extractErrorMessageWithId(errorInfo, extractorId)
+  }
+
+  // Backwards compatibility
+  for (const extractor of ERROR_EXTRACTORS) {
+    try {
+      const message = extractor.extract(errorInfo)
+      if (message && message.trim()) {
+        return message
+      }
+    } catch (error) {
+      // If an extractor throws, log it and continue to next extractor
+      console.warn(`Error extractor '${extractor.id}' threw an error:`, error)
+    }
+  }
+
+  // Final fallback if no extractor succeeded
+  return `Request failed with status ${errorInfo?.status || 'unknown'}`
+}
+
+/**
+ * Extractor IDs for use in tool configurations
+ * Import these to specify which extractor a tool should use
+ */
+export const ErrorExtractorId = {
+  GRAPHQL_ERRORS: 'graphql-errors',
+  TWITTER_ERRORS: 'twitter-errors',
+  DETAILS_ARRAY: 'details-array',
+  HUNTER_ERRORS: 'hunter-errors',
+  ERRORS_ARRAY_STRING: 'errors-array-string',
+  TELEGRAM_DESCRIPTION: 'telegram-description',
+  STANDARD_MESSAGE: 'standard-message',
+  SOAP_FAULT: 'soap-fault',
+  OAUTH_ERROR_DESCRIPTION: 'oauth-error-description',
+  NESTED_ERROR_OBJECT: 'nested-error-object',
+  HTTP_STATUS_TEXT: 'http-status-text',
+} as const
