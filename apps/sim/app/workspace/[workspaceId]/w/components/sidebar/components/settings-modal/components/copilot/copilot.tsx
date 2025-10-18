@@ -235,7 +235,7 @@ export function Copilot() {
     <div className='relative flex h-full flex-col'>
       {/* Sticky Header with API Keys (only for hosted) */}
       {isHosted && (
-        <div className='sticky top-0 z-10 border-b bg-background px-6 py-4'>
+        <div className='sticky top-0 z-10 bg-background px-6 py-4'>
           <div className='space-y-3'>
             {/* API Keys Header */}
             <div className='flex items-center justify-between'>
@@ -270,27 +270,25 @@ export function Copilot() {
                 </div>
               ) : (
                 keys.map((k) => (
-                  <div
-                    key={k.id}
-                    className='flex items-center justify-between gap-4 rounded-lg border bg-muted/30 px-3 py-2'
-                  >
-                    <div className='flex min-w-0 items-center gap-3'>
-                      <code className='truncate font-mono text-foreground text-xs'>
-                        {k.displayKey}
-                      </code>
+                  <div key={k.id} className='flex flex-col gap-2'>
+                    <div className='flex items-center justify-between gap-4'>
+                      <div className='flex items-center gap-3'>
+                        <div className='flex h-8 items-center rounded-[8px] bg-muted px-3'>
+                          <code className='font-mono text-foreground text-xs'>{k.displayKey}</code>
+                        </div>
+                      </div>
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        onClick={() => {
+                          setDeleteKey(k)
+                          setShowDeleteDialog(true)
+                        }}
+                        className='h-8 text-muted-foreground hover:text-foreground'
+                      >
+                        Delete
+                      </Button>
                     </div>
-
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      onClick={() => {
-                        setDeleteKey(k)
-                        setShowDeleteDialog(true)
-                      }}
-                      className='h-7 flex-shrink-0 text-muted-foreground text-xs hover:text-foreground'
-                    >
-                      Delete
-                    </Button>
                   </div>
                 ))
               )}
@@ -305,15 +303,6 @@ export function Copilot() {
           {/* Models Header */}
           <div>
             <h3 className='font-semibold text-foreground text-sm'>Models</h3>
-            <div className='text-muted-foreground text-xs'>
-              {isModelsLoading ? (
-                <Skeleton className='mt-0.5 h-3 w-32' />
-              ) : (
-                <span>
-                  {enabledCount} of {totalCount} enabled
-                </span>
-              )}
-            </div>
           </div>
 
           {/* Models List */}
@@ -470,9 +459,13 @@ export function Copilot() {
 
 function CopilotKeySkeleton() {
   return (
-    <div className='flex items-center justify-between gap-4 rounded-lg border bg-muted/30 px-3 py-2'>
-      <Skeleton className='h-4 w-48' />
-      <Skeleton className='h-7 w-14' />
+    <div className='flex flex-col gap-2'>
+      <div className='flex items-center justify-between gap-4'>
+        <div className='flex items-center gap-3'>
+          <Skeleton className='h-8 w-20 rounded-[8px]' />
+        </div>
+        <Skeleton className='h-8 w-14' />
+      </div>
     </div>
   )
 }
