@@ -24,7 +24,20 @@ import type { EnvironmentVariable as StoreEnvironmentVariable } from '@/stores/s
 const logger = createLogger('EnvironmentVariables')
 
 const GRID_COLS = 'grid grid-cols-[minmax(0,1fr),minmax(0,1fr),88px] gap-4'
-const INITIAL_ENV_VAR: UIEnvironmentVariable = { key: '', value: '' }
+
+const generateRowId = (() => {
+  let counter = 0
+  return () => {
+    counter += 1
+    return Date.now() + counter
+  }
+})()
+
+const createEmptyEnvVar = (): UIEnvironmentVariable => ({
+  key: '',
+  value: '',
+  id: generateRowId(),
+})
 
 interface UIEnvironmentVariable extends StoreEnvironmentVariable {
   id?: number
@@ -132,7 +145,12 @@ export function EnvironmentVariables({
 
   useEffect(() => {
     const existingVars = Object.values(variables)
-    const initialVars = existingVars.length ? existingVars : [INITIAL_ENV_VAR]
+    const initialVars = existingVars.length
+      ? existingVars.map((envVar) => ({
+          ...envVar,
+          id: generateRowId(),
+        }))
+      : [createEmptyEnvVar()]
     initialVarsRef.current = JSON.parse(JSON.stringify(initialVars))
     setEnvVars(JSON.parse(JSON.stringify(initialVars)))
     pendingClose.current = false
@@ -179,6 +197,22 @@ export function EnvironmentVariables({
     }
   }, [shouldScrollToBottom])
 
+  useEffect(() => {
+    const personalKeys = envVars.map((envVar) => envVar.key.trim()).filter((key) => key.length > 0)
+
+    const uniquePersonalKeys = Array.from(new Set(personalKeys))
+
+    const computedConflicts = uniquePersonalKeys.filter((key) => Object.hasOwn(workspaceVars, key))
+
+    setConflicts((prev) => {
+      if (prev.length === computedConflicts.length) {
+        const sameKeys = prev.every((key) => computedConflicts.includes(key))
+        if (sameKeys) return prev
+      }
+      return computedConflicts
+    })
+  }, [envVars, workspaceVars])
+
   const handleWorkspaceKeyRename = useCallback(
     (currentKey: string, currentValue: string) => {
       const newKey = pendingKeyValue.trim()
@@ -192,17 +226,11 @@ export function EnvironmentVariables({
         next[newKey] = currentValue
         return next
       })
-
-      setConflicts((prev) => {
-        const withoutOld = prev.filter((k) => k !== currentKey)
-        const personalHasNew = !!useEnvironmentStore.getState().variables[newKey]
-        return personalHasNew && !withoutOld.includes(newKey) ? [...withoutOld, newKey] : withoutOld
-      })
     },
-    [pendingKeyValue, renamingKey, setWorkspaceVars, setConflicts]
+    [pendingKeyValue, renamingKey]
   )
   const addEnvVar = () => {
-    const newVar = { key: '', value: '', id: Date.now() }
+    const newVar = createEmptyEnvVar()
     setEnvVars([...envVars, newVar])
     setSearchTerm('')
     setShouldScrollToBottom(true)
@@ -216,7 +244,7 @@ export function EnvironmentVariables({
 
   const removeEnvVar = (index: number) => {
     const newEnvVars = envVars.filter((_, i) => i !== index)
-    setEnvVars(newEnvVars.length ? newEnvVars : [INITIAL_ENV_VAR])
+    setEnvVars(newEnvVars.length ? newEnvVars : [createEmptyEnvVar()])
   }
 
   const handleValueFocus = (index: number, e: React.FocusEvent<HTMLInputElement>) => {
@@ -290,7 +318,7 @@ export function EnvironmentVariables({
         return {
           key,
           value,
-          id: Date.now() + Math.random(),
+          id: generateRowId(),
         }
       })
       .filter((parsed): parsed is NonNullable<typeof parsed> => parsed !== null)
@@ -409,10 +437,10 @@ export function EnvironmentVariables({
                   onClick={() => {
                     if (!envVar.key || !envVar.value || !workspaceId) return
                     setWorkspaceVars((prev) => ({ ...prev, [envVar.key]: envVar.value }))
-                    setConflicts((prev) =>
-                      prev.includes(envVar.key) ? prev : [...prev, envVar.key]
-                    )
-                    removeEnvVar(originalIndex)
+                    setEnvVars((prev) => {
+                      const filtered = prev.filter((entry) => entry !== envVar)
+                      return filtered.length ? filtered : [createEmptyEnvVar()]
+                    })
                   }}
                   className='h-9 w-9 rounded-[8px] bg-muted p-0 text-muted-foreground hover:bg-muted/70'
                 >
@@ -538,7 +566,6 @@ export function EnvironmentVariables({
                                     delete next[key]
                                     return next
                                   })
-                                  setConflicts((prev) => prev.filter((k) => k !== key))
                                 }}
                                 className='h-9 w-9 rounded-[8px] bg-muted p-0 text-muted-foreground hover:bg-muted/70'
                               >
@@ -593,7 +620,6 @@ export function EnvironmentVariables({
                                   delete next[key]
                                   return next
                                 })
-                                setConflicts((prev) => prev.filter((k) => k !== key))
                               }}
                               className='h-9 w-9 rounded-[8px] bg-muted p-0 text-muted-foreground hover:bg-muted/70'
                             >

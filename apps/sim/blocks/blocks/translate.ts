@@ -3,7 +3,6 @@ import { isHosted } from '@/lib/environment'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import {
   getAllModelProviders,
-  getBaseModelProviders,
   getHostedModels,
   getProviderIcon,
   providers,
@@ -61,9 +60,9 @@ export const TranslateBlock: BlockConfig = {
       required: true,
       options: () => {
         const providersState = useProvidersStore.getState()
+        const baseModels = providersState.providers.base.models
         const ollamaModels = providersState.providers.ollama.models
         const openrouterModels = providersState.providers.openrouter.models
-        const baseModels = Object.keys(getBaseModelProviders())
         const allModels = Array.from(new Set([...baseModels, ...ollamaModels, ...openrouterModels]))
 
         return allModels.map((model) => {

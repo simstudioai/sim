@@ -1,6 +1,6 @@
 ---
 title: S3
-description: Afficher les fichiers S3
+description: Téléverser, télécharger, lister et gérer les fichiers S3
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -61,9 +61,34 @@ Dans Sim, l'intégration S3 permet à vos agents de récupérer et d'accéder au
 
 ## Instructions d'utilisation
 
-Intégrer S3 dans le flux de travail. Peut obtenir des URL présignées pour les objets S3. Nécessite une clé d'accès et une clé d'accès secrète.
+Intégrez S3 dans le flux de travail. Téléversez des fichiers, téléchargez des objets, listez le contenu des buckets, supprimez des objets et copiez des objets entre buckets. Nécessite une clé d'accès AWS et une clé d'accès secrète AWS.
 
 ## Outils
+
+### `s3_put_object`
+
+Téléverser un fichier vers un bucket AWS S3
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Oui | Votre ID de clé d'accès AWS |
+| `secretAccessKey` | string | Oui | Votre clé d'accès secrète AWS |
+| `region` | string | Oui | Région AWS (ex. : us-east-1) |
+| `bucketName` | string | Oui | Nom du bucket S3 |
+| `objectKey` | string | Oui | Clé/chemin de l'objet dans S3 (ex. : dossier/nomfichier.ext) |
+| `file` | file | Non | Fichier à téléverser |
+| `content` | string | Non | Contenu textuel à téléverser (alternative au fichier) |
+| `contentType` | string | Non | En-tête Content-Type (détecté automatiquement à partir du fichier si non fourni) |
+| `acl` | string | Non | Liste de contrôle d'accès (ex. : private, public-read) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `url` | string | URL de l'objet S3 téléversé |
+| `metadata` | object | Métadonnées de téléversement incluant ETag et emplacement |
 
 ### `s3_get_object`
 
@@ -72,10 +97,10 @@ Récupérer un objet depuis un bucket AWS S3
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ---------- | ----------- |
-| `accessKeyId` | chaîne | Oui | Votre ID de clé d'accès AWS |
-| `secretAccessKey` | chaîne | Oui | Votre clé d'accès secrète AWS |
-| `s3Uri` | chaîne | Oui | URL de l'objet S3 |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Oui | Votre ID de clé d'accès AWS |
+| `secretAccessKey` | string | Oui | Votre clé d'accès secrète AWS |
+| `s3Uri` | string | Oui | URL de l'objet S3 |
 
 #### Sortie
 
@@ -83,6 +108,73 @@ Récupérer un objet depuis un bucket AWS S3
 | --------- | ---- | ----------- |
 | `url` | chaîne | URL présignée pour télécharger l'objet S3 |
 | `metadata` | objet | Métadonnées du fichier incluant le type, la taille, le nom et la date de dernière modification |
+
+### `s3_list_objects`
+
+Lister les objets dans un bucket AWS S3
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `accessKeyId` | chaîne | Oui | Votre ID de clé d'accès AWS |
+| `secretAccessKey` | chaîne | Oui | Votre clé d'accès secrète AWS |
+| `region` | chaîne | Oui | Région AWS (par ex., us-east-1) |
+| `bucketName` | chaîne | Oui | Nom du bucket S3 |
+| `prefix` | chaîne | Non | Préfixe pour filtrer les objets (par ex., dossier/) |
+| `maxKeys` | nombre | Non | Nombre maximum d'objets à retourner (par défaut : 1000) |
+| `continuationToken` | chaîne | Non | Jeton pour la pagination |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `objects` | tableau | Liste des objets S3 |
+
+### `s3_delete_object`
+
+Supprimer un objet d'un bucket AWS S3
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `accessKeyId` | chaîne | Oui | Votre ID de clé d'accès AWS |
+| `secretAccessKey` | chaîne | Oui | Votre clé d'accès secrète AWS |
+| `region` | chaîne | Oui | Région AWS (par ex., us-east-1) |
+| `bucketName` | chaîne | Oui | Nom du bucket S3 |
+| `objectKey` | chaîne | Oui | Clé/chemin de l'objet à supprimer |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | booléen | Indique si l'objet a été supprimé avec succès |
+| `metadata` | objet | Métadonnées de suppression |
+
+### `s3_copy_object`
+
+Copier un objet au sein d'un même bucket AWS S3 ou entre différents buckets
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `accessKeyId` | chaîne | Oui | Votre ID de clé d'accès AWS |
+| `secretAccessKey` | chaîne | Oui | Votre clé d'accès secrète AWS |
+| `region` | chaîne | Oui | Région AWS (par ex., us-east-1) |
+| `sourceBucket` | chaîne | Oui | Nom du bucket source |
+| `sourceKey` | chaîne | Oui | Clé/chemin de l'objet source |
+| `destinationBucket` | chaîne | Oui | Nom du bucket de destination |
+| `destinationKey` | chaîne | Oui | Clé/chemin de l'objet de destination |
+| `acl` | chaîne | Non | Liste de contrôle d'accès pour l'objet copié (par ex., private, public-read) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `url` | chaîne | URL de l'objet S3 copié |
+| `metadata` | objet | Métadonnées de l'opération de copie |
 
 ## Remarques
 
