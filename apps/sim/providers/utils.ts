@@ -221,7 +221,7 @@ interface ModelBlacklist {
 const MODEL_BLACKLISTS: ModelBlacklist[] = [
   {
     models: ['deepseek-chat', 'deepseek-v3', 'deepseek-r1'],
-    prefixes: ['openrouter/deepseek'],
+    prefixes: ['openrouter/deepseek', 'openrouter/tngtech'],
     envOverride: 'DEEPSEEK_MODELS_ENABLED',
   },
 ]
