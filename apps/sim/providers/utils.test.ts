@@ -122,7 +122,7 @@ describe('Model Capabilities', () => {
         'claude-3-5-sonnet-latest',
         'grok-3-latest',
         'grok-3-fast-latest',
-        'deepseek-v3',
+        // 'deepseek-v3',
       ]
 
       for (const model of supportedModels) {
@@ -141,9 +141,9 @@ describe('Model Capabilities', () => {
         'o4-mini',
         'azure/o3',
         'azure/o4-mini',
-        'deepseek-r1',
+        // 'deepseek-r1',
         // Chat models that don't support temperature
-        'deepseek-chat',
+        // 'deepseek-chat',
         'azure/gpt-4.1',
         'azure/model-router',
         // GPT-5 models don't support temperature (removed in our implementation)
@@ -184,7 +184,7 @@ describe('Model Capabilities', () => {
         'azure/gpt-4o',
         'gemini-2.5-pro',
         'gemini-2.5-flash',
-        'deepseek-v3',
+        // 'deepseek-v3',
       ]
 
       for (const model of modelsRange02) {
@@ -217,7 +217,7 @@ describe('Model Capabilities', () => {
       expect(getMaxTemperature('o4-mini')).toBeUndefined()
       expect(getMaxTemperature('azure/o3')).toBeUndefined()
       expect(getMaxTemperature('azure/o4-mini')).toBeUndefined()
-      expect(getMaxTemperature('deepseek-r1')).toBeUndefined()
+      // expect(getMaxTemperature('deepseek-r1')).toBeUndefined()
       // GPT-5 models don't support temperature
       expect(getMaxTemperature('gpt-5')).toBeUndefined()
       expect(getMaxTemperature('gpt-5-mini')).toBeUndefined()
@@ -250,7 +250,7 @@ describe('Model Capabilities', () => {
         'azure-openai',
         'mistral',
         'anthropic',
-        'deepseek',
+        // 'deepseek',
         'xai',
         'google',
       ]
@@ -276,7 +276,7 @@ describe('Model Capabilities', () => {
     it.concurrent('should have correct models in MODELS_TEMP_RANGE_0_2', () => {
       expect(MODELS_TEMP_RANGE_0_2).toContain('gpt-4o')
       expect(MODELS_TEMP_RANGE_0_2).toContain('gemini-2.5-flash')
-      expect(MODELS_TEMP_RANGE_0_2).toContain('deepseek-v3')
+      // expect(MODELS_TEMP_RANGE_0_2).toContain('deepseek-v3')
       expect(MODELS_TEMP_RANGE_0_2).not.toContain('claude-sonnet-4-0') // Should be in 0-1 range
     })
 
@@ -289,7 +289,7 @@ describe('Model Capabilities', () => {
     it.concurrent('should have correct providers in PROVIDERS_WITH_TOOL_USAGE_CONTROL', () => {
       expect(PROVIDERS_WITH_TOOL_USAGE_CONTROL).toContain('openai')
       expect(PROVIDERS_WITH_TOOL_USAGE_CONTROL).toContain('anthropic')
-      expect(PROVIDERS_WITH_TOOL_USAGE_CONTROL).toContain('deepseek')
+      // expect(PROVIDERS_WITH_TOOL_USAGE_CONTROL).toContain('deepseek')
       expect(PROVIDERS_WITH_TOOL_USAGE_CONTROL).toContain('google')
       expect(PROVIDERS_WITH_TOOL_USAGE_CONTROL).not.toContain('ollama')
     })
@@ -430,7 +430,7 @@ describe('getHostedModels', () => {
 
     // Should not contain models from other providers
     expect(hostedModels).not.toContain('gemini-2.5-pro')
-    expect(hostedModels).not.toContain('deepseek-v3')
+    // expect(hostedModels).not.toContain('deepseek-v3')
   })
 
   it.concurrent('should return an array of strings', () => {

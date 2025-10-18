@@ -220,8 +220,8 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
       'anthropic_chat',
       'google_chat',
       'xai_chat',
-      'deepseek_chat',
-      'deepseek_reasoner',
+      // 'deepseek_chat',
+      // 'deepseek_reasoner',
     ],
     config: {
       tool: (params: Record<string, any>) => {

@@ -26,11 +26,11 @@ export const TOKENIZATION_CONFIG = {
       confidence: 'medium',
       supportedMethods: ['heuristic', 'fallback'],
     },
-    deepseek: {
-      avgCharsPerToken: 4,
-      confidence: 'medium',
-      supportedMethods: ['heuristic', 'fallback'],
-    },
+    // deepseek: {
+    //   avgCharsPerToken: 4,
+    //   confidence: 'medium',
+    //   supportedMethods: ['heuristic', 'fallback'],
+    // },
     xai: {
       avgCharsPerToken: 4,
       confidence: 'medium',

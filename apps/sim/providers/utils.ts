@@ -3,7 +3,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { anthropicProvider } from '@/providers/anthropic'
 import { azureOpenAIProvider } from '@/providers/azure-openai'
 import { cerebrasProvider } from '@/providers/cerebras'
-import { deepseekProvider } from '@/providers/deepseek'
+// import { deepseekProvider } from '@/providers/deepseek'
 import { googleProvider } from '@/providers/google'
 import { groqProvider } from '@/providers/groq'
 import { mistralProvider } from '@/providers/mistral'
@@ -65,11 +65,11 @@ export const providers: Record<
     models: getProviderModelsFromDefinitions('google'),
     modelPatterns: PROVIDER_DEFINITIONS.google.modelPatterns,
   },
-  deepseek: {
-    ...deepseekProvider,
-    models: getProviderModelsFromDefinitions('deepseek'),
-    modelPatterns: PROVIDER_DEFINITIONS.deepseek.modelPatterns,
-  },
+  // deepseek: {
+  //   ...deepseekProvider,
+  //   models: getProviderModelsFromDefinitions('deepseek'),
+  //   modelPatterns: PROVIDER_DEFINITIONS.deepseek.modelPatterns,
+  // },
   xai: {
     ...xAIProvider,
     models: getProviderModelsFromDefinitions('xai'),

@@ -12,7 +12,7 @@ import {
   AnthropicIcon,
   AzureIcon,
   CerebrasIcon,
-  DeepseekIcon,
+  // DeepseekIcon,
   GeminiIcon,
   GroqIcon,
   MistralIcon,
@@ -480,51 +480,51 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       },
     ],
   },
-  deepseek: {
-    id: 'deepseek',
-    name: 'Deepseek',
-    description: "Deepseek's chat models",
-    defaultModel: 'deepseek-chat',
-    modelPatterns: [],
-    icon: DeepseekIcon,
-    capabilities: {
-      toolUsageControl: true,
-    },
-    models: [
-      {
-        id: 'deepseek-chat',
-        pricing: {
-          input: 0.75,
-          cachedInput: 0.4,
-          output: 1.0,
-          updatedAt: '2025-03-21',
-        },
-        capabilities: {},
-      },
-      {
-        id: 'deepseek-v3',
-        pricing: {
-          input: 0.75,
-          cachedInput: 0.4,
-          output: 1.0,
-          updatedAt: '2025-03-21',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 2 },
-        },
-      },
-      {
-        id: 'deepseek-r1',
-        pricing: {
-          input: 1.0,
-          cachedInput: 0.5,
-          output: 1.5,
-          updatedAt: '2025-03-21',
-        },
-        capabilities: {},
-      },
-    ],
-  },
+  // deepseek: {
+  //   id: 'deepseek',
+  //   name: 'Deepseek',
+  //   description: "Deepseek's chat models",
+  //   defaultModel: 'deepseek-chat',
+  //   modelPatterns: [],
+  //   icon: DeepseekIcon,
+  //   capabilities: {
+  //     toolUsageControl: true,
+  //   },
+  //   models: [
+  //     {
+  //       id: 'deepseek-chat',
+  //       pricing: {
+  //         input: 0.75,
+  //         cachedInput: 0.4,
+  //         output: 1.0,
+  //         updatedAt: '2025-03-21',
+  //       },
+  //       capabilities: {},
+  //     },
+  //     {
+  //       id: 'deepseek-v3',
+  //       pricing: {
+  //         input: 0.75,
+  //         cachedInput: 0.4,
+  //         output: 1.0,
+  //         updatedAt: '2025-03-21',
+  //       },
+  //       capabilities: {
+  //         temperature: { min: 0, max: 2 },
+  //       },
+  //     },
+  //     {
+  //       id: 'deepseek-r1',
+  //       pricing: {
+  //         input: 1.0,
+  //         cachedInput: 0.5,
+  //         output: 1.5,
+  //         updatedAt: '2025-03-21',
+  //       },
+  //       capabilities: {},
+  //     },
+  //   ],
+  // },
   xai: {
     id: 'xai',
     name: 'xAI',
