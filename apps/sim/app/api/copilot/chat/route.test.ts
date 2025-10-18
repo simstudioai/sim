@@ -214,18 +214,7 @@ describe('Copilot Chat API Route', () => {
             'x-api-key': 'test-sim-agent-key',
           },
           body: JSON.stringify({
-            messages: [
-              {
-                role: 'user',
-                content: 'Hello',
-              },
-            ],
-            chatMessages: [
-              {
-                role: 'user',
-                content: 'Hello',
-              },
-            ],
+            message: 'Hello',
             workflowId: 'workflow-123',
             userId: 'user-123',
             stream: true,
@@ -233,7 +222,7 @@ describe('Copilot Chat API Route', () => {
             model: 'claude-4.5-sonnet',
             mode: 'agent',
             messageId: 'mock-uuid-1234-5678',
-            version: '1.0.1',
+            version: '1.0.2',
             chatId: 'chat-123',
           }),
         })
@@ -286,16 +275,7 @@ describe('Copilot Chat API Route', () => {
         'http://localhost:8000/api/chat-completion-streaming',
         expect.objectContaining({
           body: JSON.stringify({
-            messages: [
-              { role: 'user', content: 'Previous message' },
-              { role: 'assistant', content: 'Previous response' },
-              { role: 'user', content: 'New message' },
-            ],
-            chatMessages: [
-              { role: 'user', content: 'Previous message' },
-              { role: 'assistant', content: 'Previous response' },
-              { role: 'user', content: 'New message' },
-            ],
+            message: 'New message',
             workflowId: 'workflow-123',
             userId: 'user-123',
             stream: true,
@@ -303,7 +283,7 @@ describe('Copilot Chat API Route', () => {
             model: 'claude-4.5-sonnet',
             mode: 'agent',
             messageId: 'mock-uuid-1234-5678',
-            version: '1.0.1',
+            version: '1.0.2',
             chatId: 'chat-123',
           }),
         })
@@ -341,19 +321,12 @@ describe('Copilot Chat API Route', () => {
       const { POST } = await import('@/app/api/copilot/chat/route')
       await POST(req)
 
-      // Verify implicit feedback was included as system message
+      // Verify implicit feedback was included
       expect(global.fetch).toHaveBeenCalledWith(
         'http://localhost:8000/api/chat-completion-streaming',
         expect.objectContaining({
           body: JSON.stringify({
-            messages: [
-              { role: 'system', content: 'User seems confused about the workflow' },
-              { role: 'user', content: 'Hello' },
-            ],
-            chatMessages: [
-              { role: 'system', content: 'User seems confused about the workflow' },
-              { role: 'user', content: 'Hello' },
-            ],
+            message: 'Hello',
             workflowId: 'workflow-123',
             userId: 'user-123',
             stream: true,
@@ -361,7 +334,7 @@ describe('Copilot Chat API Route', () => {
             model: 'claude-4.5-sonnet',
             mode: 'agent',
             messageId: 'mock-uuid-1234-5678',
-            version: '1.0.1',
+            version: '1.0.2',
             chatId: 'chat-123',
           }),
         })
@@ -444,8 +417,7 @@ describe('Copilot Chat API Route', () => {
         'http://localhost:8000/api/chat-completion-streaming',
         expect.objectContaining({
           body: JSON.stringify({
-            messages: [{ role: 'user', content: 'What is this workflow?' }],
-            chatMessages: [{ role: 'user', content: 'What is this workflow?' }],
+            message: 'What is this workflow?',
             workflowId: 'workflow-123',
             userId: 'user-123',
             stream: true,
@@ -453,7 +425,7 @@ describe('Copilot Chat API Route', () => {
             model: 'claude-4.5-sonnet',
             mode: 'ask',
             messageId: 'mock-uuid-1234-5678',
-            version: '1.0.1',
+            version: '1.0.2',
             chatId: 'chat-123',
           }),
         })
