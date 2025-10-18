@@ -1544,9 +1544,24 @@ export const useCopilotStore = create<CopilotStore>()(
               if (isSendingMessage) {
                 set({ currentChat: { ...updatedCurrentChat, messages: get().messages } })
               } else {
+                const normalizedMessages = normalizeMessagesForUI(updatedCurrentChat.messages || [])
+
+                // Build toolCallsById map from all tool calls in normalized messages
+                const toolCallsById: Record<string, CopilotToolCall> = {}
+                for (const msg of normalizedMessages) {
+                  if (msg.contentBlocks) {
+                    for (const block of msg.contentBlocks as any[]) {
+                      if (block?.type === 'tool_call' && block.toolCall?.id) {
+                        toolCallsById[block.toolCall.id] = block.toolCall
+                      }
+                    }
+                  }
+                }
+
                 set({
                   currentChat: updatedCurrentChat,
-                  messages: normalizeMessagesForUI(updatedCurrentChat.messages || []),
+                  messages: normalizedMessages,
+                  toolCallsById,
                 })
               }
               try {
@@ -1554,9 +1569,24 @@ export const useCopilotStore = create<CopilotStore>()(
               } catch {}
             } else if (!isSendingMessage && !suppressAutoSelect) {
               const mostRecentChat: CopilotChat = data.chats[0]
+              const normalizedMessages = normalizeMessagesForUI(mostRecentChat.messages || [])
+
+              // Build toolCallsById map from all tool calls in normalized messages
+              const toolCallsById: Record<string, CopilotToolCall> = {}
+              for (const msg of normalizedMessages) {
+                if (msg.contentBlocks) {
+                  for (const block of msg.contentBlocks as any[]) {
+                    if (block?.type === 'tool_call' && block.toolCall?.id) {
+                      toolCallsById[block.toolCall.id] = block.toolCall
+                    }
+                  }
+                }
+              }
+
               set({
                 currentChat: mostRecentChat,
-                messages: normalizeMessagesForUI(mostRecentChat.messages || []),
+                messages: normalizedMessages,
+                toolCallsById,
               })
               try {
                 await get().loadMessageCheckpoints(mostRecentChat.id)
