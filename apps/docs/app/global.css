@@ -45,6 +45,28 @@
 /* Remove custom layout variable overrides to fallback to fumadocs defaults */
 
 /* ============================================
+   Navbar Light Mode Styling
+   ============================================ */
+
+/* Light mode navbar and search styling */
+:root:not(.dark) nav {
+  background-color: hsla(0, 0%, 96%, 0.92) !important;
+  backdrop-filter: blur(25px) saturate(180%) brightness(1.05) !important;
+  -webkit-backdrop-filter: blur(25px) saturate(180%) brightness(1.05) !important;
+}
+
+:root:not(.dark) nav button[type="button"] {
+  background-color: hsla(0, 0%, 93%, 0.85) !important;
+  backdrop-filter: blur(33px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(33px) saturate(180%) !important;
+  color: rgba(0, 0, 0, 0.6) !important;
+}
+
+:root:not(.dark) nav button[type="button"] kbd {
+  color: rgba(0, 0, 0, 0.6) !important;
+}
+
+/* ============================================
    Custom Sidebar Styling (Turborepo-inspired)
    ============================================ */
 
@@ -293,7 +315,7 @@ aside[data-sidebar] > *:not([data-sidebar-viewport]) {
   left: -9999px !important;
 }
 
-/* Desktop only: Hide sidebar toggle buttons (keep visible on mobile) */
+/* Desktop only: Hide sidebar toggle buttons and nav title/logo (keep visible on mobile) */
 @media (min-width: 1025px) {
   [data-sidebar-container] > button,
   [data-sidebar-container] [data-toggle],
@@ -301,9 +323,23 @@ aside[data-sidebar] > *:not([data-sidebar-viewport]) {
   button[data-sidebar-toggle],
   nav button[data-sidebar-toggle],
   button[aria-label="Toggle Sidebar"],
-  button[aria-label="Collapse Sidebar"] {
+  button[aria-label="Collapse Sidebar"],
+  /* Hide nav title/logo in sidebar on desktop - target all possible locations */
+  aside[data-sidebar] a[href="/"],
+  aside[data-sidebar] a[href="/"] img,
+  aside[data-sidebar] > a:first-child,
+  aside[data-sidebar] > div > a:first-child,
+  aside[data-sidebar] img[alt="Sim"],
+  [data-sidebar-header],
+  [data-sidebar] [data-title],
+  #nd-sidebar > a:first-child,
+  #nd-sidebar > div:first-child > a:first-child,
+  #nd-sidebar img[alt="Sim"] {
     display: none !important;
     visibility: hidden !important;
+    height: 0 !important;
+    max-height: 0 !important;
+    overflow: hidden !important;
   }
 }
 

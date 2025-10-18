@@ -1,6 +1,5 @@
 'use client'
 
-import { Menu } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { CustomThemeToggle } from '@/components/ui/custom-theme-toggle'
@@ -10,53 +9,13 @@ import { SearchTrigger } from '@/components/ui/search-trigger'
 export function CustomNavbar() {
   return (
     <nav
-      className='sticky top-0 z-50 border-border/50 border-b bg-background/95'
+      className='sticky top-0 z-50 border-border/50 border-b'
       style={{
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
+        backgroundColor: 'hsla(0, 0%, 7.04%, 0.92)',
+        backdropFilter: 'blur(25px) saturate(180%) brightness(0.6)',
+        WebkitBackdropFilter: 'blur(25px) saturate(180%) brightness(0.6)',
       }}
     >
-      {/* Mobile: Stacked Layout */}
-      <div
-        className='flex w-full flex-col bg-background lg:hidden'
-        style={{ paddingLeft: 'var(--layout-gutter)', paddingRight: 'var(--layout-gutter)' }}
-      >
-        {/* Top row: Menu button, Logo and controls */}
-        <div className='flex h-14 items-center justify-between border-border/30 border-b'>
-          <div className='flex items-center gap-3'>
-            <button
-              type='button'
-              className='flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-accent lg:hidden'
-              aria-label='Toggle Sidebar'
-              onClick={() => {
-                const event = new CustomEvent('fd-toggle-sidebar')
-                window.dispatchEvent(event)
-              }}
-            >
-              <Menu className='h-5 w-5' />
-            </button>
-            <Link href='/' className='z-10 flex items-center'>
-              <Image
-                src='/static/logo.png'
-                alt='Sim'
-                width={72}
-                height={28}
-                className='h-7 w-auto'
-                priority
-              />
-            </Link>
-          </div>
-          <div className='z-10 flex items-center gap-2'>
-            <LanguageDropdown />
-            <CustomThemeToggle />
-          </div>
-        </div>
-        {/* Bottom row: Search bar */}
-        <div className='flex w-full items-center justify-center bg-background/95 pt-3 pb-4'>
-          <SearchTrigger />
-        </div>
-      </div>
-
       {/* Desktop: Single row layout */}
       <div className='hidden h-16 w-full items-center lg:flex'>
         <div

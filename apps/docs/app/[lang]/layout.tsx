@@ -3,6 +3,7 @@ import { defineI18nUI } from 'fumadocs-ui/i18n'
 import { DocsLayout } from 'fumadocs-ui/layouts/docs'
 import { RootProvider } from 'fumadocs-ui/provider/next'
 import { Geist_Mono, Inter } from 'next/font/google'
+import Image from 'next/image'
 import {
   SidebarFolder,
   SidebarItem,
@@ -101,6 +102,18 @@ export default async function Layout({ children, params }: LayoutProps) {
             tree={source.pageTree[lang]}
             themeSwitch={{
               enabled: false,
+            }}
+            nav={{
+              title: (
+                <Image
+                  src='/static/logo.png'
+                  alt='Sim'
+                  width={72}
+                  height={28}
+                  className='h-7 w-auto'
+                  priority
+                />
+              ),
             }}
             sidebar={{
               defaultOpenLevel: 0,
