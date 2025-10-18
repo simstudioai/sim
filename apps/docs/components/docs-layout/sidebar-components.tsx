@@ -16,7 +16,7 @@ export function SidebarItem({ item }: { item: PageTree.Item }) {
   const active = isActive(item.url, pathname, false)
 
   return (
-    <li className='list-none'>
+    <li className='mb-[0.0625rem] list-none'>
       <Link
         href={item.url}
         className={cn(
@@ -47,7 +47,7 @@ export function SidebarFolder({
   const [open, setOpen] = useState(hasActiveChild)
 
   return (
-    <li className='mb-0.5 list-none'>
+    <li className='mb-[0.0625rem] list-none'>
       {item.index ? (
         <div className='flex items-center gap-0.5'>
           <Link

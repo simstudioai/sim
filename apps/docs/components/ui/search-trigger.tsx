@@ -4,7 +4,6 @@ import { Search } from 'lucide-react'
 
 export function SearchTrigger() {
   const handleClick = () => {
-    // Trigger fumadocs search
     const event = new KeyboardEvent('keydown', {
       key: 'k',
       metaKey: true,

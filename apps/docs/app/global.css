@@ -162,10 +162,7 @@ aside#nd-sidebar {
   padding: 0.25rem !important;
 }
 
-/* Tighter spacing between sidebar items */
-#nd-sidebar > div > div > * {
-  margin-bottom: 0.0625rem !important;
-}
+/* Root-level spacing now handled by [data-sidebar-viewport] > * rule below */
 
 /* Add tiny gap between nested items */
 #nd-sidebar ul li {
@@ -350,6 +347,10 @@ aside[data-sidebar] [data-sidebar-viewport] ~ * {
 
 /* Tighter spacing for sidebar content */
 [data-sidebar-viewport] > * {
+  margin-bottom: 0.0625rem;
+}
+
+[data-sidebar-viewport] > *:last-child {
   margin-bottom: 0;
 }
 

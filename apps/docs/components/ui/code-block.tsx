@@ -23,8 +23,10 @@ export function CodeBlock(props: React.ComponentProps<typeof FumadocsCodeBlock>)
           <button
             type='button'
             aria-label={copied ? 'Copied Text' : 'Copy Text'}
-            onClick={() => {
-              const pre = document.querySelector('pre')
+            onClick={(e) => {
+              const pre = (e.currentTarget as HTMLElement)
+                .closest('.nd-codeblock')
+                ?.querySelector('pre')
               if (pre) handleCopy(pre.textContent || '')
             }}
             className={cn(
