@@ -1,6 +1,6 @@
 ---
 title: S3
-description: S3-Dateien anzeigen
+description: S3-Dateien hochladen, herunterladen, auflisten und verwalten
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -61,9 +61,34 @@ In Sim ermöglicht die S3-Integration Ihren Agenten das Abrufen und Zugreifen au
 
 ## Gebrauchsanweisung
 
-S3 in den Workflow integrieren. Kann vorsignierte URLs für S3-Objekte erhalten. Erfordert Zugriffsschlüssel und geheimen Zugriffsschlüssel.
+S3 in den Workflow integrieren. Dateien hochladen, Objekte herunterladen, Bucket-Inhalte auflisten, Objekte löschen und Objekte zwischen Buckets kopieren. Erfordert AWS-Zugriffsschlüssel und geheimen Zugriffsschlüssel.
 
 ## Tools
+
+### `s3_put_object`
+
+Eine Datei in einen AWS S3-Bucket hochladen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Ja | Ihre AWS-Zugriffsschlüssel-ID |
+| `secretAccessKey` | string | Ja | Ihr AWS-geheimer Zugriffsschlüssel |
+| `region` | string | Ja | AWS-Region (z. B. us-east-1) |
+| `bucketName` | string | Ja | S3-Bucket-Name |
+| `objectKey` | string | Ja | Objektschlüssel/Pfad in S3 (z. B. ordner/dateiname.ext) |
+| `file` | file | Nein | Hochzuladende Datei |
+| `content` | string | Nein | Hochzuladender Textinhalt (Alternative zur Datei) |
+| `contentType` | string | Nein | Content-Type-Header (wird automatisch aus der Datei erkannt, wenn nicht angegeben) |
+| `acl` | string | Nein | Zugriffskontrollliste (z. B. private, public-read) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `url` | string | URL des hochgeladenen S3-Objekts |
+| `metadata` | object | Upload-Metadaten einschließlich ETag und Speicherort |
 
 ### `s3_get_object`
 
@@ -73,8 +98,8 @@ Ein Objekt aus einem AWS S3-Bucket abrufen
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `accessKeyId` | string | Ja | Ihre AWS Access Key ID |
-| `secretAccessKey` | string | Ja | Ihr AWS Secret Access Key |
+| `accessKeyId` | string | Ja | Ihre AWS-Zugriffsschlüssel-ID |
+| `secretAccessKey` | string | Ja | Ihr AWS-geheimer Zugriffsschlüssel |
 | `s3Uri` | string | Ja | S3-Objekt-URL |
 
 #### Ausgabe
@@ -83,6 +108,73 @@ Ein Objekt aus einem AWS S3-Bucket abrufen
 | --------- | ---- | ----------- |
 | `url` | string | Vorsignierte URL zum Herunterladen des S3-Objekts |
 | `metadata` | object | Dateimetadaten einschließlich Typ, Größe, Name und Datum der letzten Änderung |
+
+### `s3_list_objects`
+
+Objekte in einem AWS S3-Bucket auflisten
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Ja | Ihre AWS Access Key ID |
+| `secretAccessKey` | string | Ja | Ihr AWS Secret Access Key |
+| `region` | string | Ja | AWS-Region (z.B. us-east-1) |
+| `bucketName` | string | Ja | S3-Bucket-Name |
+| `prefix` | string | Nein | Präfix zum Filtern von Objekten (z.B. ordner/) |
+| `maxKeys` | number | Nein | Maximale Anzahl zurückzugebender Objekte (Standard: 1000) |
+| `continuationToken` | string | Nein | Token für Paginierung |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `objects` | array | Liste der S3-Objekte |
+
+### `s3_delete_object`
+
+Ein Objekt aus einem AWS S3-Bucket löschen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Ja | Ihre AWS Access Key ID |
+| `secretAccessKey` | string | Ja | Ihr AWS Secret Access Key |
+| `region` | string | Ja | AWS-Region (z.B. us-east-1) |
+| `bucketName` | string | Ja | S3-Bucket-Name |
+| `objectKey` | string | Ja | Objekt-Schlüssel/Pfad zum Löschen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Ob das Objekt erfolgreich gelöscht wurde |
+| `metadata` | object | Löschmetadaten |
+
+### `s3_copy_object`
+
+Ein Objekt innerhalb von oder zwischen AWS S3-Buckets kopieren
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Ja | Ihre AWS Access Key ID |
+| `secretAccessKey` | string | Ja | Ihr AWS Secret Access Key |
+| `region` | string | Ja | AWS-Region (z.B. us-east-1) |
+| `sourceBucket` | string | Ja | Name des Quell-Buckets |
+| `sourceKey` | string | Ja | Quell-Objektschlüssel/-pfad |
+| `destinationBucket` | string | Ja | Name des Ziel-Buckets |
+| `destinationKey` | string | Ja | Ziel-Objektschlüssel/-pfad |
+| `acl` | string | Nein | Zugriffskontrollliste für das kopierte Objekt (z.B. private, public-read) |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `url` | string | URL des kopierten S3-Objekts |
+| `metadata` | object | Metadaten des Kopiervorgangs |
 
 ## Hinweise
 

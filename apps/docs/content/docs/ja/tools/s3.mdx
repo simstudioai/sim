@@ -1,6 +1,6 @@
 ---
 title: S3
-description: S3ファイルを表示
+description: S3ファイルのアップロード、ダウンロード、一覧表示、管理
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -61,9 +61,34 @@ Simでは、S3統合によりエージェントがAmazon S3バケットに保存
 
 ## 使用手順
 
-S3をワークフローに統合します。S3オブジェクトの署名付きURLを取得できます。アクセスキーとシークレットアクセスキーが必要です。
+S3をワークフローに統合します。ファイルのアップロード、オブジェクトのダウンロード、バケットの内容一覧表示、オブジェクトの削除、バケット間でのオブジェクトのコピーが可能です。AWSアクセスキーとシークレットアクセスキーが必要です。
 
 ## ツール
+
+### `s3_put_object`
+
+AWS S3バケットにファイルをアップロードする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | はい | AWSアクセスキーID |
+| `secretAccessKey` | string | はい | AWSシークレットアクセスキー |
+| `region` | string | はい | AWSリージョン（例：us-east-1） |
+| `bucketName` | string | はい | S3バケット名 |
+| `objectKey` | string | はい | S3内のオブジェクトキー/パス（例：folder/filename.ext） |
+| `file` | file | いいえ | アップロードするファイル |
+| `content` | string | いいえ | アップロードするテキストコンテンツ（ファイルの代わり） |
+| `contentType` | string | いいえ | Content-Typeヘッダー（指定がない場合はファイルから自動検出） |
+| `acl` | string | いいえ | アクセスコントロールリスト（例：private, public-read） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `url` | string | アップロードされたS3オブジェクトのURL |
+| `metadata` | object | ETagと場所を含むアップロードメタデータ |
 
 ### `s3_get_object`
 
@@ -73,8 +98,8 @@ AWS S3バケットからオブジェクトを取得する
 
 | パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
-| `accessKeyId` | string | はい | AWS アクセスキーID |
-| `secretAccessKey` | string | はい | AWS シークレットアクセスキー |
+| `accessKeyId` | string | はい | AWSアクセスキーID |
+| `secretAccessKey` | string | はい | AWSシークレットアクセスキー |
 | `s3Uri` | string | はい | S3オブジェクトURL |
 
 #### 出力
@@ -84,7 +109,74 @@ AWS S3バケットからオブジェクトを取得する
 | `url` | string | S3オブジェクトをダウンロードするための署名付きURL |
 | `metadata` | object | タイプ、サイズ、名前、最終更新日を含むファイルメタデータ |
 
+### `s3_list_objects`
+
+AWS S3バケット内のオブジェクトを一覧表示する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | はい | AWS アクセスキーID |
+| `secretAccessKey` | string | はい | AWS シークレットアクセスキー |
+| `region` | string | はい | AWSリージョン（例：us-east-1） |
+| `bucketName` | string | はい | S3バケット名 |
+| `prefix` | string | いいえ | オブジェクトをフィルタリングするプレフィックス（例：folder/） |
+| `maxKeys` | number | いいえ | 返すオブジェクトの最大数（デフォルト：1000） |
+| `continuationToken` | string | いいえ | ページネーション用トークン |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `objects` | array | S3オブジェクトのリスト |
+
+### `s3_delete_object`
+
+AWS S3バケットからオブジェクトを削除する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | はい | AWS アクセスキーID |
+| `secretAccessKey` | string | はい | AWS シークレットアクセスキー |
+| `region` | string | はい | AWSリージョン（例：us-east-1） |
+| `bucketName` | string | はい | S3バケット名 |
+| `objectKey` | string | はい | 削除するオブジェクトのキー/パス |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | オブジェクトが正常に削除されたかどうか |
+| `metadata` | object | 削除メタデータ |
+
+### `s3_copy_object`
+
+AWS S3バケット内または異なるバケット間でオブジェクトをコピーする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | はい | AWS アクセスキーID |
+| `secretAccessKey` | string | はい | AWS シークレットアクセスキー |
+| `region` | string | はい | AWSリージョン（例：us-east-1） |
+| `sourceBucket` | string | はい | ソースバケット名 |
+| `sourceKey` | string | はい | ソースオブジェクトのキー/パス |
+| `destinationBucket` | string | はい | 宛先バケット名 |
+| `destinationKey` | string | はい | 宛先オブジェクトのキー/パス |
+| `acl` | string | いいえ | コピーされたオブジェクトのアクセス制御リスト（例：private、public-read） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `url` | string | コピーされたS3オブジェクトのURL |
+| `metadata` | object | コピー操作のメタデータ |
+
 ## 注意事項
 
-- カテゴリ: `tools`
+- カテゴリー: `tools`
 - タイプ: `s3`
