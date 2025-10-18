@@ -27,6 +27,10 @@ export async function GET(_request: NextRequest) {
             data.data
               .map((m: any) => m?.id)
               .filter((id: unknown): id is string => typeof id === 'string' && id.length > 0)
+              // Filter out Deepseek models to comply with Google Workspace API User Data Policy
+              // Deepseek's policy allows using user data for training generalized AI models,
+              // which violates Google's strict prohibition on transferring user data for AI/ML training
+              .filter((id: string) => !id.toLowerCase().includes('deepseek'))
               .map((id: string) => `openrouter/${id}`)
           )
         )
@@ -34,6 +38,7 @@ export async function GET(_request: NextRequest) {
 
     logger.info('Successfully fetched OpenRouter models', {
       count: models.length,
+      note: 'Deepseek models filtered out for Google Workspace API compliance',
     })
 
     return NextResponse.json({ models })
