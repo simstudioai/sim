@@ -3,7 +3,6 @@ import {
   Clock,
   Database,
   HardDrive,
-  HardDrive,
   HeadphonesIcon,
   Infinity as InfinityIcon,
   MessageSquare,
@@ -18,7 +17,6 @@ export const PRO_PLAN_FEATURES: PlanFeature[] = [
   { icon: Zap, text: '25 runs per minute (sync)' },
   { icon: Clock, text: '200 runs per minute (async)' },
   { icon: HardDrive, text: '50GB file storage' },
-  { icon: HardDrive, text: '50GB file storage' },
   { icon: Building2, text: 'Unlimited workspaces' },
   { icon: Workflow, text: 'Unlimited workflows' },
   { icon: Users, text: 'Unlimited invites' },
@@ -28,7 +26,6 @@ export const PRO_PLAN_FEATURES: PlanFeature[] = [
 export const TEAM_PLAN_FEATURES: PlanFeature[] = [
   { icon: Zap, text: '75 runs per minute (sync)' },
   { icon: Clock, text: '500 runs per minute (async)' },
-  { icon: HardDrive, text: '500GB file storage (pooled)' },
   { icon: HardDrive, text: '500GB file storage (pooled)' },
   { icon: InfinityIcon, text: 'Everything in Pro' },
   { icon: MessageSquare, text: 'Dedicated Slack channel' },

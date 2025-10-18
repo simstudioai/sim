@@ -188,7 +188,6 @@ import {
   telegramSendAnimationTool,
   telegramSendAudioTool,
   telegramSendDocumentTool,
-  telegramSendDocumentTool,
   telegramSendPhotoTool,
   telegramSendVideoTool,
 } from '@/tools/telegram'
@@ -381,7 +380,6 @@ export const tools: Record<string, ToolConfig> = {
   telegram_send_animation: telegramSendAnimationTool,
   telegram_send_photo: telegramSendPhotoTool,
   telegram_send_video: telegramSendVideoTool,
-  telegram_send_document: telegramSendDocumentTool,
   telegram_send_document: telegramSendDocumentTool,
   clay_populate: clayPopulateTool,
   discord_send_message: discordSendMessageTool,

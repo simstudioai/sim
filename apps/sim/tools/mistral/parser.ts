@@ -66,7 +66,6 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
 
   request: {
     url: '/api/tools/mistral/parse',
-    url: '/api/tools/mistral/parse',
     method: 'POST',
     headers: (params) => {
       return {
@@ -186,7 +185,6 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
           logger.warn('includeImageBase64 parameter should be a boolean, using default (false)')
         } else {
           requestBody.includeImageBase64 = params.includeImageBase64
-          requestBody.includeImageBase64 = params.includeImageBase64
         }
       }
 
@@ -219,7 +217,6 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
         const imageLimit = Number(params.imageLimit)
         if (Number.isInteger(imageLimit) && imageLimit > 0) {
           requestBody.imageLimit = imageLimit
-          requestBody.imageLimit = imageLimit
         } else {
           logger.warn('imageLimit must be a positive integer, ignoring this parameter')
         }
@@ -229,7 +226,6 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
       if (params.imageMinSize !== undefined && params.imageMinSize !== null) {
         const imageMinSize = Number(params.imageMinSize)
         if (Number.isInteger(imageMinSize) && imageMinSize > 0) {
-          requestBody.imageMinSize = imageMinSize
           requestBody.imageMinSize = imageMinSize
         } else {
           logger.warn('imageMinSize must be a positive integer, ignoring this parameter')

@@ -2,7 +2,6 @@
 
 import { useRef, useState } from 'react'
 import { AlertCircle, Check, Loader2, X } from 'lucide-react'
-import { AlertCircle, Check, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -44,7 +43,6 @@ export function UploadModal({
   const [isDragging, setIsDragging] = useState(false)
 
   const { isUploading, uploadProgress, uploadError, uploadFiles, clearError } = useKnowledgeUpload({
-  const { isUploading, uploadProgress, uploadError, uploadFiles, clearError } = useKnowledgeUpload({
     onUploadComplete: () => {
       logger.info(`Successfully uploaded ${files.length} files`)
       onUploadComplete?.()
@@ -57,7 +55,6 @@ export function UploadModal({
 
     setFiles([])
     setFileError(null)
-    clearError()
     clearError()
     setIsDragging(false)
     onOpenChange(false)

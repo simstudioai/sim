@@ -18,7 +18,6 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { WorkspaceFileRecord } from '@/lib/uploads/workspace-files'
-import type { WorkspaceFileRecord } from '@/lib/uploads/workspace-files'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -82,42 +81,9 @@ export function FileUpload({
   const { activeWorkflowId } = useWorkflowRegistry()
   const params = useParams()
   const workspaceId = params?.workspaceId as string
-  const params = useParams()
-  const workspaceId = params?.workspaceId as string
 
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
-
-  // Load workspace files function
-  const loadWorkspaceFiles = async () => {
-    if (!workspaceId || isPreview) return
-
-    try {
-      setLoadingWorkspaceFiles(true)
-      const response = await fetch(`/api/workspaces/${workspaceId}/files`)
-      const data = await response.json()
-
-      if (data.success) {
-        setWorkspaceFiles(data.files || [])
-      }
-    } catch (error) {
-      logger.error('Error loading workspace files:', error)
-    } finally {
-      setLoadingWorkspaceFiles(false)
-    }
-  }
-
-  // Filter out already selected files
-  const availableWorkspaceFiles = workspaceFiles.filter((workspaceFile) => {
-    const existingFiles = Array.isArray(value) ? value : value ? [value] : []
-    // Check if this workspace file is already added (match by name or key)
-    return !existingFiles.some(
-      (existing) =>
-        existing.name === workspaceFile.name ||
-        existing.path?.includes(workspaceFile.key) ||
-        existing.key === workspaceFile.key
-    )
-  })
 
   // Load workspace files function
   const loadWorkspaceFiles = async () => {
@@ -236,8 +202,6 @@ export function FileUpload({
     try {
       setUploadError(null) // Clear previous errors
 
-      setUploadError(null) // Clear previous errors
-
       // Simulate upload progress
       progressInterval = setInterval(() => {
         setUploadProgress((prev) => {
@@ -250,7 +214,6 @@ export function FileUpload({
       const uploadErrors: string[] = []
 
       // Upload each file via server (workspace files need DB records)
-      // Upload each file via server (workspace files need DB records)
       for (const file of validFiles) {
         try {
           // Create FormData for upload
@@ -261,14 +224,6 @@ export function FileUpload({
           if (workspaceId) {
             formData.append('workspaceId', workspaceId)
           }
-          // Create FormData for upload
-          const formData = new FormData()
-          formData.append('file', file)
-
-          // Add workspace ID for workspace-scoped storage
-          if (workspaceId) {
-            formData.append('workspaceId', workspaceId)
-          }
 
           // Upload the file via server
           const response = await fetch('/api/files/upload', {
@@ -277,28 +232,7 @@ export function FileUpload({
           })
 
           const data = await response.json()
-          // Upload the file via server
-          const response = await fetch('/api/files/upload', {
-            method: 'POST',
-            body: formData,
-          })
 
-          const data = await response.json()
-
-          // Handle error response
-          if (!response.ok) {
-            const errorMessage = data.error || `Failed to upload file: ${response.status}`
-            uploadErrors.push(`${file.name}: ${errorMessage}`)
-
-            // Set error message with conditional auto-dismiss
-            setUploadError(errorMessage)
-
-            // Only auto-dismiss duplicate errors, keep other errors (like storage limits) visible
-            if (data.isDuplicate || response.status === 409) {
-              setTimeout(() => setUploadError(null), 5000)
-            }
-            continue
-          }
           // Handle error response
           if (!response.ok) {
             const errorMessage = data.error || `Failed to upload file: ${response.status}`
@@ -361,19 +295,10 @@ export function FileUpload({
           void loadWorkspaceFiles()
         }
 
-        setUploadError(null) // Clear error on successful upload
-
-        // Refresh workspace files list to keep dropdown up to date
-        if (workspaceId) {
-          void loadWorkspaceFiles()
-        }
-
         if (uploadedFiles.length === 1) {
-          logger.info(`${uploadedFiles[0].name} was uploaded successfully`, activeWorkflowId)
           logger.info(`${uploadedFiles[0].name} was uploaded successfully`, activeWorkflowId)
         } else {
           logger.info(
-            `Uploaded ${uploadedFiles.length} files successfully: ${uploadedFiles.map((f) => f.name).join(', ')}`,
             `Uploaded ${uploadedFiles.length} files successfully: ${uploadedFiles.map((f) => f.name).join(', ')}`,
             activeWorkflowId
           )
@@ -476,44 +401,6 @@ export function FileUpload({
   }
 
   /**
-   * Handle selecting an existing workspace file
-   */
-  const handleSelectWorkspaceFile = (fileId: string) => {
-    const selectedFile = workspaceFiles.find((f) => f.id === fileId)
-    if (!selectedFile) return
-
-    // Convert workspace file record to uploaded file format
-    // Path will be converted to presigned URL during execution if needed
-    const uploadedFile: UploadedFile = {
-      name: selectedFile.name,
-      path: selectedFile.path,
-      size: selectedFile.size,
-      type: selectedFile.type,
-    }
-
-    if (multiple) {
-      // For multiple files: Append to existing
-      const existingFiles = Array.isArray(value) ? value : value ? [value] : []
-      const uniqueFiles = new Map()
-
-      existingFiles.forEach((file) => {
-        uniqueFiles.set(file.url || file.path, file)
-      })
-
-      uniqueFiles.set(uploadedFile.path, uploadedFile)
-      const newFiles = Array.from(uniqueFiles.values())
-
-      setStoreValue(newFiles)
-    } else {
-      // For single file: Replace
-      setStoreValue(uploadedFile)
-    }
-
-    useWorkflowStore.getState().triggerUpdate()
-    logger.info(`Selected workspace file: ${selectedFile.name}`, activeWorkflowId)
-  }
-
-  /**
    * Handles deletion of a single file
    */
   const handleRemoveFile = async (file: UploadedFile, e?: React.MouseEvent) => {
@@ -542,28 +429,7 @@ export function FileUpload({
           },
           body: JSON.stringify({ filePath: file.path }),
         })
-      // Check if this is a workspace file (decoded path contains workspaceId pattern)
-      const decodedPath = file.path ? decodeURIComponent(file.path) : ''
-      const isWorkspaceFile =
-        workspaceId &&
-        (decodedPath.includes(`/${workspaceId}/`) || decodedPath.includes(`${workspaceId}/`))
 
-      if (!isWorkspaceFile) {
-        // Only delete from storage if it's NOT a workspace file
-        // Workspace files are permanent and managed through Settings
-        const response = await fetch('/api/files/delete', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ filePath: file.path }),
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: response.statusText }))
-          const errorMessage = errorData.error || `Failed to delete file: ${response.status}`
-          throw new Error(errorMessage)
-        }
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: response.statusText }))
           const errorMessage = errorData.error || `Failed to delete file: ${response.status}`
@@ -571,7 +437,6 @@ export function FileUpload({
         }
       }
 
-      // Update the UI state (remove from selection)
       // Update the UI state (remove from selection)
       if (multiple) {
         // For multiple files: Remove the specific file
@@ -586,7 +451,6 @@ export function FileUpload({
       useWorkflowStore.getState().triggerUpdate()
     } catch (error) {
       logger.error(
-        error instanceof Error ? error.message : 'Failed to remove file',
         error instanceof Error ? error.message : 'Failed to remove file',
         activeWorkflowId
       )
@@ -849,7 +713,6 @@ export function FileUpload({
         )}
       </div>
 
-      {/* Show dropdown selector if no files and not uploading */}
       {/* Show dropdown selector if no files and not uploading */}
       {!hasFiles && !isUploading && (
         <div className='flex items-center'>

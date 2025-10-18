@@ -83,7 +83,6 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     {
       id: 'content',
       title: 'Text Content',
-      title: 'Text Content',
       type: 'long-input',
       layout: 'full',
       placeholder: 'Text content for the file',
@@ -255,9 +254,6 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     credential: { type: 'string', description: 'Microsoft account credential' },
     // Upload and Create Folder operation inputs
     fileName: { type: 'string', description: 'File name' },
-    file: { type: 'json', description: 'File to upload (UserFile object)' },
-    fileReference: { type: 'json', description: 'File reference from previous block' },
-    content: { type: 'string', description: 'Text content to upload' },
     file: { type: 'json', description: 'File to upload (UserFile object)' },
     fileReference: { type: 'json', description: 'File reference from previous block' },
     content: { type: 'string', description: 'Text content to upload' },
