@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Check, ChevronDown } from 'lucide-react'
+import { Check, ChevronRight } from 'lucide-react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 
 const languages = {
@@ -82,15 +82,14 @@ export function LanguageDropdown() {
         aria-haspopup='listbox'
         aria-expanded={isOpen}
         aria-controls='language-menu'
-        className='flex items-center gap-1.5 rounded-lg border border-border/30 bg-muted/40 px-2.5 py-1.5 text-sm shadow-sm backdrop-blur-sm transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+        className='flex items-center gap-1.5 rounded-xl px-3 py-2 font-normal text-[0.9375rem] text-foreground/60 leading-[1.4] transition-colors hover:bg-foreground/8 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+        style={{
+          fontFamily:
+            '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+        }}
       >
-        <span className='text-sm'>{languages[currentLang as keyof typeof languages]?.flag}</span>
-        <span className='font-medium text-foreground'>
-          {languages[currentLang as keyof typeof languages]?.name}
-        </span>
-        <ChevronDown
-          className={`h-3 w-3 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`}
-        />
+        <span>{languages[currentLang as keyof typeof languages]?.name}</span>
+        <ChevronRight className='h-3.5 w-3.5' />
       </button>
 
       {isOpen && (
@@ -99,7 +98,7 @@ export function LanguageDropdown() {
           <div
             id='language-menu'
             role='listbox'
-            className='absolute top-full left-0 z-[1001] mt-1 max-h-[75vh] w-56 overflow-auto rounded-xl border border-border/50 bg-white shadow-2xl md:w-44 md:bg-background/95 md:backdrop-blur-md dark:bg-neutral-950 md:dark:bg-background/95'
+            className='absolute top-full right-0 z-[1001] mt-1 max-h-[75vh] w-56 overflow-auto rounded-xl border border-border/50 bg-white shadow-2xl md:w-44 md:bg-background/95 md:backdrop-blur-md dark:bg-neutral-950 md:dark:bg-background/95'
           >
             {Object.entries(languages).map(([code, lang]) => (
               <button

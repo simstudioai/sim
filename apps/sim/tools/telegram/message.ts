@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   TelegramMessage,
   TelegramSendMessageParams,
@@ -15,6 +16,7 @@ export const telegramMessageTool: ToolConfig<
   description:
     'Send messages to Telegram channels or users through the Telegram Bot API. Enables direct communication and notifications with message tracking and chat confirmation.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 
   params: {
     botToken: {
@@ -53,12 +55,18 @@ export const telegramMessageTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+
+    if (!data.ok) {
+      const errorMessage = data.description || data.error || 'Failed to send message'
+      throw new Error(errorMessage)
+    }
+
     const result = data.result as TelegramMessage
 
     return {
-      success: data.ok,
+      success: true,
       output: {
-        message: data.ok ? 'Message sent successfully' : 'Failed to send message',
+        message: 'Message sent successfully',
         data: result,
       },
     }

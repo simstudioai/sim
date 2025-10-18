@@ -10,6 +10,7 @@ import {
   Copilot,
   Credentials,
   EnvironmentVariables,
+  FileUploads,
   General,
   MCP,
   Privacy,
@@ -36,6 +37,7 @@ type SettingsSection =
   | 'account'
   | 'credentials'
   | 'apikeys'
+  | 'files'
   | 'subscription'
   | 'team'
   | 'sso'
@@ -163,6 +165,11 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             {activeSection === 'apikeys' && (
               <div className='h-full'>
                 <ApiKeys onOpenChange={onOpenChange} />
+              </div>
+            )}
+            {activeSection === 'files' && (
+              <div className='h-full'>
+                <FileUploads />
               </div>
             )}
             {isSubscriptionEnabled && activeSection === 'subscription' && (

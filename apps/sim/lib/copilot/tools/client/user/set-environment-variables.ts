@@ -6,6 +6,7 @@ import {
 } from '@/lib/copilot/tools/client/base-tool'
 import { ExecuteResponseSuccessSchema } from '@/lib/copilot/tools/shared/schemas'
 import { createLogger } from '@/lib/logs/console/logger'
+import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface SetEnvArgs {
@@ -77,6 +78,14 @@ export class SetEnvironmentVariablesClientTool extends BaseClientTool {
       this.setState(ClientToolCallState.success)
       await this.markToolComplete(200, 'Environment variables updated', parsed.result)
       this.setState(ClientToolCallState.success)
+
+      // Refresh the environment store so the UI reflects the new variables
+      try {
+        await useEnvironmentStore.getState().loadEnvironmentVariables()
+        logger.info('Environment store refreshed after setting variables')
+      } catch (error) {
+        logger.warn('Failed to refresh environment store:', error)
+      }
     } catch (e: any) {
       logger.error('execute failed', { message: e?.message })
       this.setState(ClientToolCallState.error)

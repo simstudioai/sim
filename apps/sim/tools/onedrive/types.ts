@@ -53,6 +53,7 @@ export interface OneDriveToolParams {
   folderName?: string
   fileId?: string
   fileName?: string
+  file?: unknown // UserFile or UserFile array
   content?: string
   mimeType?: string
   query?: string

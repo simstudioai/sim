@@ -118,6 +118,18 @@ export async function POST(request: NextRequest) {
       `[${tracker.requestId}] Successfully reverted workflow ${checkpoint.workflowId} to checkpoint ${checkpointId}`
     )
 
+    // Delete the checkpoint after successfully reverting to it
+    try {
+      await db.delete(workflowCheckpoints).where(eq(workflowCheckpoints.id, checkpointId))
+      logger.info(`[${tracker.requestId}] Deleted checkpoint after reverting`, { checkpointId })
+    } catch (deleteError) {
+      logger.warn(`[${tracker.requestId}] Failed to delete checkpoint after revert`, {
+        checkpointId,
+        error: deleteError,
+      })
+      // Don't fail the request if deletion fails - the revert was successful
+    }
+
     return NextResponse.json({
       success: true,
       workflowId: checkpoint.workflowId,

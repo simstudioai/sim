@@ -36,11 +36,17 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
       visibility: 'user-or-llm',
       description: 'The name of the file to upload',
     },
+    file: {
+      type: 'file',
+      required: false,
+      visibility: 'user-only',
+      description: 'The file to upload (binary)',
+    },
     content: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'The content of the file to upload',
+      description: 'The text content to upload (if no file is provided)',
     },
     folderSelector: {
       type: 'string',
@@ -58,6 +64,12 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
 
   request: {
     url: (params) => {
+      // If file is provided, use custom API route for binary upload
+      if (params.file) {
+        return '/api/tools/onedrive/upload'
+      }
+
+      // Text-only upload - use direct Microsoft Graph API
       let fileName = params.fileName || 'untitled'
 
       // Always create .txt files for text content
@@ -74,17 +86,59 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
       // Default to root folder
       return `https://graph.microsoft.com/v1.0/me/drive/root:/${fileName}:/content`
     },
-    method: 'PUT',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.accessToken}`,
-      'Content-Type': 'text/plain',
-    }),
-    body: (params) => (params.content || '') as unknown as Record<string, unknown>,
+    method: (params) => {
+      // Use POST for custom API route, PUT for direct upload
+      return params.file ? 'POST' : 'PUT'
+    },
+    headers: (params) => {
+      const headers: Record<string, string> = {}
+      // For file uploads via custom API, send JSON
+      if (params.file) {
+        headers['Content-Type'] = 'application/json'
+      } else {
+        // For text-only uploads, use direct PUT with access token
+        headers.Authorization = `Bearer ${params.accessToken}`
+        headers['Content-Type'] = 'text/plain'
+      }
+      return headers
+    },
+    body: (params) => {
+      // For file uploads, send all params as JSON to custom API route
+      if (params.file) {
+        return {
+          accessToken: params.accessToken,
+          fileName: params.fileName,
+          file: params.file,
+          folderId: params.manualFolderId || params.folderSelector,
+        }
+      }
+      // For text-only uploads, send content directly
+      return (params.content || '') as unknown as Record<string, unknown>
+    },
   },
 
   transformResponse: async (response: Response, params?: OneDriveToolParams) => {
-    // Microsoft Graph API returns the file metadata directly
-    const fileData = await response.json()
+    const data = await response.json()
+
+    // Handle response from custom API route (for file uploads)
+    if (params?.file && data.success !== undefined) {
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to upload file')
+      }
+
+      logger.info('Successfully uploaded file to OneDrive via custom API', {
+        fileId: data.output?.file?.id,
+        fileName: data.output?.file?.name,
+      })
+
+      return {
+        success: true,
+        output: data.output,
+      }
+    }
+
+    // Handle response from direct Microsoft Graph API (for text-only uploads)
+    const fileData = data
 
     logger.info('Successfully uploaded file to OneDrive', {
       fileId: fileData.id,

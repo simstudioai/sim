@@ -1,6 +1,6 @@
 ---
 title: S3
-description: 查看 S3 文件
+description: 上传、下载、列出和管理 S3 文件
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -61,9 +61,34 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## 使用说明
 
-将 S3 集成到工作流程中。可以获取 S3 对象的预签名 URL。需要访问密钥和秘密访问密钥。
+将 S3 集成到工作流程中。上传文件、下载对象、列出存储桶内容、删除对象以及在存储桶之间复制对象。需要 AWS 访问密钥和秘密访问密钥。
 
 ## 工具
+
+### `s3_put_object`
+
+将文件上传到 AWS S3 存储桶
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | 是 | 您的 AWS 访问密钥 ID |
+| `secretAccessKey` | string | 是 | 您的 AWS 秘密访问密钥 |
+| `region` | string | 是 | AWS 区域（例如，us-east-1） |
+| `bucketName` | string | 是 | S3 存储桶名称 |
+| `objectKey` | string | 是 | S3 中的对象键/路径（例如，folder/filename.ext） |
+| `file` | file | 否 | 要上传的文件 |
+| `content` | string | 否 | 要上传的文本内容（文件的替代选项） |
+| `contentType` | string | 否 | Content-Type 头（如果未提供，将从文件中自动检测） |
+| `acl` | string | 否 | 访问控制列表（例如，private, public-read） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `url` | string | 已上传 S3 对象的 URL |
+| `metadata` | object | 包括 ETag 和位置的上传元数据 |
 
 ### `s3_get_object`
 
@@ -73,8 +98,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `accessKeyId` | string | 是 | 您的 AWS Access Key ID |
-| `secretAccessKey` | string | 是 | 您的 AWS Secret Access Key |
+| `accessKeyId` | string | 是 | 您的 AWS 访问密钥 ID |
+| `secretAccessKey` | string | 是 | 您的 AWS 秘密访问密钥 |
 | `s3Uri` | string | 是 | S3 对象 URL |
 
 #### 输出
@@ -83,6 +108,73 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | ----------- |
 | `url` | string | 用于下载 S3 对象的预签名 URL |
 | `metadata` | object | 文件元数据，包括类型、大小、名称和最后修改日期 |
+
+### `s3_list_objects`
+
+列出 AWS S3 存储桶中的对象
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | 是 | 您的 AWS Access Key ID |
+| `secretAccessKey` | string | 是 | 您的 AWS Secret Access Key |
+| `region` | string | 是 | AWS 区域 \(例如，us-east-1\) |
+| `bucketName` | string | 是 | S3 存储桶名称 |
+| `prefix` | string | 否 | 用于过滤对象的前缀 \(例如，folder/\) |
+| `maxKeys` | number | 否 | 返回的最大对象数 \(默认值：1000\) |
+| `continuationToken` | string | 否 | 分页令牌 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `objects` | array | S3 对象列表 |
+
+### `s3_delete_object`
+
+从 AWS S3 存储桶中删除对象
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | 是 | 您的 AWS Access Key ID |
+| `secretAccessKey` | string | 是 | 您的 AWS Secret Access Key |
+| `region` | string | 是 | AWS 区域 \(例如，us-east-1\) |
+| `bucketName` | string | 是 | S3 存储桶名称 |
+| `objectKey` | string | 是 | 要删除的对象键/路径 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | 对象是否已成功删除 |
+| `metadata` | object | 删除元数据 |
+
+### `s3_copy_object`
+
+在 AWS S3 存储桶内或之间复制对象
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | 是 | 您的 AWS Access Key ID |
+| `secretAccessKey` | string | 是 | 您的 AWS Secret Access Key |
+| `region` | string | 是 | AWS 区域 \(例如，us-east-1\) |
+| `sourceBucket` | string | 是 | 源存储桶名称 |
+| `sourceKey` | string | 是 | 源对象键/路径 |
+| `destinationBucket` | string | 是 | 目标存储桶名称 |
+| `destinationKey` | string | 是 | 目标对象键/路径 |
+| `acl` | string | 否 | 复制对象的访问控制列表 \(例如，private, public-read\) |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `url` | string | 复制的 S3 对象的 URL |
+| `metadata` | object | 复制操作元数据 |
 
 ## 注意事项
 

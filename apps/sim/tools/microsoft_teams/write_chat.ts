@@ -32,6 +32,12 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
       visibility: 'user-or-llm',
       description: 'The content to write to the message',
     },
+    files: {
+      type: 'file[]',
+      required: false,
+      visibility: 'user-only',
+      description: 'Files to attach to the message',
+    },
   },
 
   outputs: {
@@ -49,6 +55,11 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
       const chatId = params.chatId?.trim()
       if (!chatId) {
         throw new Error('Chat ID is required')
+      }
+
+      // If files are provided, use custom API route for attachment handling
+      if (params.files && params.files.length > 0) {
+        return '/api/tools/microsoft_teams/write_chat'
       }
 
       return `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(chatId)}/messages`
@@ -71,6 +82,16 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
         throw new Error('Content is required')
       }
 
+      // If using custom API route (with files), pass all params
+      if (params.files && params.files.length > 0) {
+        return {
+          accessToken: params.accessToken,
+          chatId: params.chatId,
+          content: params.content,
+          files: params.files,
+        }
+      }
+
       // Microsoft Teams API expects this specific format
       const requestBody = {
         body: {
@@ -85,7 +106,12 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
   transformResponse: async (response: Response, params?: MicrosoftTeamsToolParams) => {
     const data = await response.json()
 
-    // Create document metadata from the response
+    // Handle custom API route response format
+    if (data.success !== undefined && data.output) {
+      return data
+    }
+
+    // Handle direct Graph API response format
     const metadata = {
       messageId: data.id || '',
       chatId: data.chatId || '',

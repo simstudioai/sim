@@ -23,6 +23,21 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('Copilot')
 
+// Default enabled/disabled state for all models (must match API)
+const DEFAULT_ENABLED_MODELS: Record<string, boolean> = {
+  'gpt-4o': false,
+  'gpt-4.1': false,
+  'gpt-5-fast': false,
+  'gpt-5': true,
+  'gpt-5-medium': true,
+  'gpt-5-high': false,
+  o3: true,
+  'claude-4-sonnet': false,
+  'claude-4.5-haiku': true,
+  'claude-4.5-sonnet': true,
+  'claude-4.1-opus': true,
+}
+
 interface CopilotProps {
   panelWidth: number
 }
@@ -40,6 +55,10 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
   const [todosCollapsed, setTodosCollapsed] = useState(false)
   const lastWorkflowIdRef = useRef<string | null>(null)
   const hasMountedRef = useRef(false)
+  const hasLoadedModelsRef = useRef(false)
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
+  const [isEditingMessage, setIsEditingMessage] = useState(false)
+  const [revertingMessageId, setRevertingMessageId] = useState<string | null>(null)
 
   // Scroll state
   const [isNearBottom, setIsNearBottom] = useState(true)
@@ -71,7 +90,81 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     chatsLoadedForWorkflow,
     setWorkflowId: setCopilotWorkflowId,
     loadChats,
+    enabledModels,
+    setEnabledModels,
+    selectedModel,
+    setSelectedModel,
+    messageCheckpoints,
+    currentChat,
+    fetchContextUsage,
   } = useCopilotStore()
+
+  // Load user's enabled models on mount
+  useEffect(() => {
+    const loadEnabledModels = async () => {
+      if (hasLoadedModelsRef.current) return
+      hasLoadedModelsRef.current = true
+
+      try {
+        const res = await fetch('/api/copilot/user-models')
+        if (!res.ok) {
+          logger.warn('Failed to fetch user models, using defaults')
+          // Use defaults if fetch fails
+          const enabledArray = Object.keys(DEFAULT_ENABLED_MODELS).filter(
+            (key) => DEFAULT_ENABLED_MODELS[key]
+          )
+          setEnabledModels(enabledArray)
+          return
+        }
+
+        const data = await res.json()
+        const modelsMap = data.enabledModels || DEFAULT_ENABLED_MODELS
+
+        // Convert map to array of enabled model IDs
+        const enabledArray = Object.entries(modelsMap)
+          .filter(([_, enabled]) => enabled)
+          .map(([modelId]) => modelId)
+
+        setEnabledModels(enabledArray)
+        logger.info('Loaded user enabled models', { count: enabledArray.length })
+      } catch (error) {
+        logger.error('Failed to load enabled models', { error })
+        // Use defaults on error
+        const enabledArray = Object.keys(DEFAULT_ENABLED_MODELS).filter(
+          (key) => DEFAULT_ENABLED_MODELS[key]
+        )
+        setEnabledModels(enabledArray)
+      }
+    }
+
+    loadEnabledModels()
+  }, [setEnabledModels])
+
+  // Ensure selected model is in the enabled models list
+  useEffect(() => {
+    if (!enabledModels || enabledModels.length === 0) return
+
+    // Check if current selected model is in the enabled list
+    if (selectedModel && !enabledModels.includes(selectedModel)) {
+      // Switch to the first enabled model (prefer claude-4.5-sonnet if available)
+      const preferredModel = 'claude-4.5-sonnet'
+      const fallbackModel = enabledModels[0] as typeof selectedModel
+
+      if (enabledModels.includes(preferredModel)) {
+        setSelectedModel(preferredModel)
+        logger.info('Selected model not enabled, switching to preferred model', {
+          from: selectedModel,
+          to: preferredModel,
+        })
+      } else if (fallbackModel) {
+        setSelectedModel(fallbackModel)
+        logger.info('Selected model not enabled, switching to first available', {
+          from: selectedModel,
+          to: fallbackModel,
+        })
+      }
+    }
+  }, [enabledModels, selectedModel, setSelectedModel])
 
   // Force fresh initialization on mount (handles hot reload)
   useEffect(() => {
@@ -109,6 +202,16 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
       setIsInitialized(true)
     }
   }, [activeWorkflowId, isLoadingChats, chatsLoadedForWorkflow, isInitialized])
+
+  // Fetch context usage when component is initialized and has a current chat
+  useEffect(() => {
+    if (isInitialized && currentChat?.id && activeWorkflowId) {
+      logger.info('[Copilot] Component initialized, fetching context usage')
+      fetchContextUsage().catch((err) => {
+        logger.warn('[Copilot] Failed to fetch context usage on mount', err)
+      })
+    }
+  }, [isInitialized, currentChat?.id, activeWorkflowId, fetchContextUsage])
 
   // Clear any existing preview when component mounts or workflow changes
   useEffect(() => {
@@ -357,6 +460,16 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
     [isSendingMessage, activeWorkflowId, sendMessage, showPlanTodos]
   )
 
+  const handleEditModeChange = useCallback((messageId: string, isEditing: boolean) => {
+    setEditingMessageId(isEditing ? messageId : null)
+    setIsEditingMessage(isEditing)
+    logger.info('Edit mode changed', { messageId, isEditing, willDimMessages: isEditing })
+  }, [])
+
+  const handleRevertModeChange = useCallback((messageId: string, isReverting: boolean) => {
+    setRevertingMessageId(isReverting ? messageId : null)
+  }, [])
+
   return (
     <>
       <div className='flex h-full flex-col overflow-hidden'>
@@ -376,8 +489,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
             ) : (
               <div className='relative flex-1 overflow-hidden'>
                 <ScrollArea ref={scrollAreaRef} className='h-full' hideScrollbar={true}>
-                  <div className='w-full max-w-full space-y-1 overflow-hidden'>
-                    {messages.length === 0 ? (
+                  <div className='w-full max-w-full space-y-2 overflow-hidden'>
+                    {messages.length === 0 && !isSendingMessage && !isEditingMessage ? (
                       <div className='flex h-full items-center justify-center p-4'>
                         <CopilotWelcome
                           onQuestionClick={handleSubmit}
@@ -385,15 +498,46 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                         />
                       </div>
                     ) : (
-                      messages.map((message) => (
-                        <CopilotMessage
-                          key={message.id}
-                          message={message}
-                          isStreaming={
-                            isSendingMessage && message.id === messages[messages.length - 1]?.id
-                          }
-                        />
-                      ))
+                      messages.map((message, index) => {
+                        // Determine if this message should be dimmed
+                        let isDimmed = false
+
+                        // Dim messages after the one being edited
+                        if (editingMessageId) {
+                          const editingIndex = messages.findIndex((m) => m.id === editingMessageId)
+                          isDimmed = editingIndex !== -1 && index > editingIndex
+                        }
+
+                        // Also dim messages after the one showing restore confirmation
+                        if (!isDimmed && revertingMessageId) {
+                          const revertingIndex = messages.findIndex(
+                            (m) => m.id === revertingMessageId
+                          )
+                          isDimmed = revertingIndex !== -1 && index > revertingIndex
+                        }
+
+                        // Get checkpoint count for this message to force re-render when it changes
+                        const checkpointCount = messageCheckpoints[message.id]?.length || 0
+
+                        return (
+                          <CopilotMessage
+                            key={message.id}
+                            message={message}
+                            isStreaming={
+                              isSendingMessage && message.id === messages[messages.length - 1]?.id
+                            }
+                            panelWidth={panelWidth}
+                            isDimmed={isDimmed}
+                            checkpointCount={checkpointCount}
+                            onEditModeChange={(isEditing) =>
+                              handleEditModeChange(message.id, isEditing)
+                            }
+                            onRevertModeChange={(isReverting) =>
+                              handleRevertModeChange(message.id, isReverting)
+                            }
+                          />
+                        )
+                      })
                     )}
                   </div>
                 </ScrollArea>
@@ -429,19 +573,21 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
 
             {/* Input area with integrated mode selector */}
             {!showCheckpoints && (
-              <UserInput
-                ref={userInputRef}
-                onSubmit={handleSubmit}
-                onAbort={handleAbort}
-                disabled={!activeWorkflowId}
-                isLoading={isSendingMessage}
-                isAborting={isAborting}
-                mode={mode}
-                onModeChange={setMode}
-                value={inputValue}
-                onChange={setInputValue}
-                panelWidth={panelWidth}
-              />
+              <div className='pt-2'>
+                <UserInput
+                  ref={userInputRef}
+                  onSubmit={handleSubmit}
+                  onAbort={handleAbort}
+                  disabled={!activeWorkflowId}
+                  isLoading={isSendingMessage}
+                  isAborting={isAborting}
+                  mode={mode}
+                  onModeChange={setMode}
+                  value={inputValue}
+                  onChange={setInputValue}
+                  panelWidth={panelWidth}
+                />
+              </div>
             )}
           </>
         )}

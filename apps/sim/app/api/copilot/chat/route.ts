@@ -48,6 +48,7 @@ const ChatMessageSchema = z.object({
       'gpt-4.1',
       'o3',
       'claude-4-sonnet',
+      'claude-4.5-haiku',
       'claude-4.5-sonnet',
       'claude-4.1-opus',
     ])
@@ -356,18 +357,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Determine provider and conversationId to use for this request
+    // Determine conversationId to use for this request
     const effectiveConversationId =
       (currentChat?.conversationId as string | undefined) || conversationId
 
-    // If we have a conversationId, only send the most recent user message; else send full history
-    const latestUserMessage =
-      [...messages].reverse().find((m) => m?.role === 'user') || messages[messages.length - 1]
-    const messagesForAgent = effectiveConversationId ? [latestUserMessage] : messages
-
     const requestPayload = {
-      messages: messagesForAgent,
-      chatMessages: messages, // Full unfiltered messages array
+      message: message, // Just send the current user message text
       workflowId,
       userId: authenticatedUserId,
       stream: stream,
@@ -382,14 +377,16 @@ export async function POST(req: NextRequest) {
       ...(session?.user?.name && { userName: session.user.name }),
       ...(agentContexts.length > 0 && { context: agentContexts }),
       ...(actualChatId ? { chatId: actualChatId } : {}),
+      ...(processedFileContents.length > 0 && { fileAttachments: processedFileContents }),
     }
 
     try {
-      logger.info(`[${tracker.requestId}] About to call Sim Agent with context`, {
-        context: (requestPayload as any).context,
-        messagesCount: messagesForAgent.length,
-        chatMessagesCount: messages.length,
+      logger.info(`[${tracker.requestId}] About to call Sim Agent`, {
+        hasContext: agentContexts.length > 0,
+        contextCount: agentContexts.length,
         hasConversationId: !!effectiveConversationId,
+        hasFileAttachments: processedFileContents.length > 0,
+        messageLength: message.length,
       })
     } catch {}
 
@@ -462,8 +459,6 @@ export async function POST(req: NextRequest) {
             controller.enqueue(encoder.encode(chatIdEvent))
             logger.debug(`[${tracker.requestId}] Sent initial chatId event to client`)
           }
-
-          // Note: context_usage events are forwarded from sim-agent (which has accurate token counts)
 
           // Start title generation in parallel if needed
           if (actualChatId && !currentChat?.title && conversationHistory.length === 0) {
@@ -596,7 +591,6 @@ export async function POST(req: NextRequest) {
                             lastSafeDoneResponseId = responseIdFromDone
                           }
                         }
-                        // Note: context_usage events are forwarded from sim-agent
                         break
 
                       case 'error':

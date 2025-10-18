@@ -1,0 +1,3 @@
+{
+  "pages": ["index", "api", "chat", "input-form", "manual", "schedule", "starter", "webhook"]
+}

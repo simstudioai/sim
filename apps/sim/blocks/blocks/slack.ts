@@ -109,6 +109,31 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       },
       required: true,
     },
+    // File upload (basic mode)
+    {
+      id: 'attachmentFiles',
+      title: 'Attachments',
+      type: 'file-upload',
+      layout: 'full',
+      canonicalParamId: 'files',
+      placeholder: 'Upload files to attach',
+      condition: { field: 'operation', value: 'send' },
+      mode: 'basic',
+      multiple: true,
+      required: false,
+    },
+    // Variable reference (advanced mode)
+    {
+      id: 'files',
+      title: 'File Attachments',
+      type: 'short-input',
+      layout: 'full',
+      canonicalParamId: 'files',
+      placeholder: 'Reference files from previous blocks',
+      condition: { field: 'operation', value: 'send' },
+      mode: 'advanced',
+      required: false,
+    },
     // Canvas specific fields
     {
       id: 'title',
@@ -194,6 +219,8 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
           content,
           limit,
           oldest,
+          attachmentFiles,
+          files,
           ...rest
         } = params
 
@@ -224,12 +251,18 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
 
         // Handle operation-specific params
         switch (operation) {
-          case 'send':
+          case 'send': {
             if (!rest.text) {
               throw new Error('Message text is required for send operation')
             }
             baseParams.text = rest.text
+            // Add files if provided
+            const fileParam = attachmentFiles || files
+            if (fileParam) {
+              baseParams.files = fileParam
+            }
             break
+          }
 
           case 'canvas':
             if (!title || !content) {
@@ -264,6 +297,8 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
     channel: { type: 'string', description: 'Channel identifier' },
     manualChannel: { type: 'string', description: 'Manual channel identifier' },
     text: { type: 'string', description: 'Message text' },
+    attachmentFiles: { type: 'json', description: 'Files to attach (UI upload)' },
+    files: { type: 'json', description: 'Files to attach (UserFile array)' },
     title: { type: 'string', description: 'Canvas title' },
     content: { type: 'string', description: 'Canvas content' },
     limit: { type: 'string', description: 'Message limit' },

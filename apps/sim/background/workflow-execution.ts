@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { userStats, workflow as workflowTable } from '@sim/db/schema'
+import { workflow as workflowTable } from '@sim/db/schema'
 import { task } from '@trigger.dev/sdk'
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
@@ -148,24 +148,6 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
     // Update workflow run counts on success
     if (executionResult.success) {
       await updateWorkflowRunCounts(workflowId)
-
-      // Track execution in user stats
-      const statsUpdate =
-        triggerType === 'api'
-          ? { totalApiCalls: sql`total_api_calls + 1` }
-          : triggerType === 'webhook'
-            ? { totalWebhookTriggers: sql`total_webhook_triggers + 1` }
-            : triggerType === 'schedule'
-              ? { totalScheduledExecutions: sql`total_scheduled_executions + 1` }
-              : { totalManualExecutions: sql`total_manual_executions + 1` }
-
-      await db
-        .update(userStats)
-        .set({
-          ...statsUpdate,
-          lastActive: sql`now()`,
-        })
-        .where(eq(userStats.userId, payload.userId))
     }
 
     // Build trace spans and complete logging session (for both success and failure)

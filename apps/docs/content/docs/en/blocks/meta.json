@@ -1,0 +1,16 @@
+{
+  "pages": [
+    "index",
+    "agent",
+    "api",
+    "condition",
+    "evaluator",
+    "function",
+    "guardrails",
+    "loop",
+    "parallel",
+    "response",
+    "router",
+    "workflow"
+  ]
+}

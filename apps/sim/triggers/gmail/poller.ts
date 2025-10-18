@@ -31,6 +31,14 @@ export const gmailPollingTrigger: TriggerConfig = {
         'Include only emails with selected labels, or exclude emails with selected labels',
       required: true,
     },
+    searchQuery: {
+      type: 'string',
+      label: 'Gmail Search Query',
+      placeholder: 'subject:report OR from:important@example.com',
+      description:
+        'Optional Gmail search query to filter emails. Use the same format as Gmail search box (e.g., "subject:invoice", "from:boss@company.com", "has:attachment"). Leave empty to search all emails.',
+      required: false,
+    },
     markAsRead: {
       type: 'boolean',
       label: 'Mark as Read',
@@ -43,13 +51,6 @@ export const gmailPollingTrigger: TriggerConfig = {
       label: 'Include Attachments',
       defaultValue: false,
       description: 'Download and include email attachments in the trigger payload',
-      required: false,
-    },
-    includeRawEmail: {
-      type: 'boolean',
-      label: 'Include Raw Email Data',
-      defaultValue: false,
-      description: 'Include the complete raw Gmail API response in the trigger payload',
       required: false,
     },
   },
@@ -108,10 +109,6 @@ export const gmailPollingTrigger: TriggerConfig = {
     timestamp: {
       type: 'string',
       description: 'Event timestamp',
-    },
-    rawEmail: {
-      type: 'json',
-      description: 'Complete raw email data from Gmail API (if enabled)',
     },
   },
 

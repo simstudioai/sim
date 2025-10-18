@@ -115,6 +115,11 @@ export interface TelegramSendAnimationParams extends TelegramAuthParams {
   caption?: string
 }
 
+export interface TelegramSendDocumentParams extends TelegramAuthParams {
+  files?: any
+  caption?: string
+}
+
 export interface TelegramDeleteMessageParams extends TelegramAuthParams {
   messageId: number
 }
@@ -157,11 +162,19 @@ export interface TelegramSendPhotoResponse extends ToolResponse {
   }
 }
 
+export interface TelegramSendDocumentResponse extends ToolResponse {
+  output: {
+    message: string
+    data?: TelegramMedia
+  }
+}
+
 export type TelegramResponse =
   | TelegramSendMessageResponse
   | TelegramSendPhotoResponse
   | TelegramSendAudioResponse
   | TelegramSendMediaResponse
+  | TelegramSendDocumentResponse
   | TelegramDeleteMessageResponse
 
 // Legacy type for backwards compatibility

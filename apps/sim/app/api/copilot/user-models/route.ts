@@ -15,7 +15,8 @@ const DEFAULT_ENABLED_MODELS: Record<string, boolean> = {
   'gpt-5-medium': true,
   'gpt-5-high': false,
   o3: true,
-  'claude-4-sonnet': true,
+  'claude-4-sonnet': false,
+  'claude-4.5-haiku': true,
   'claude-4.5-sonnet': true,
   'claude-4.1-opus': true,
 }
@@ -67,15 +68,14 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // If no settings record exists, create one with empty object (client will use defaults)
-    const [created] = await db
-      .insert(settings)
-      .values({
-        id: userId,
-        userId,
-        copilotEnabledModels: {},
-      })
-      .returning()
+    // If no settings record exists, create one with defaults
+    await db.insert(settings).values({
+      id: userId,
+      userId,
+      copilotEnabledModels: DEFAULT_ENABLED_MODELS,
+    })
+
+    logger.info('Created new settings record with default models', { userId })
 
     return NextResponse.json({
       enabledModels: DEFAULT_ENABLED_MODELS,

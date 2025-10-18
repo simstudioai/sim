@@ -71,6 +71,7 @@ export interface MicrosoftTeamsToolParams {
   teamId?: string
   content?: string
   includeAttachments?: boolean
+  files?: any[] // UserFile array for attachments
 }
 
 export type MicrosoftTeamsResponse = MicrosoftTeamsReadResponse | MicrosoftTeamsWriteResponse

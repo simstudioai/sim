@@ -79,7 +79,7 @@ export function ThinkingBlock({
           })
         }}
         className={cn(
-          'mb-1 inline-flex items-center gap-1 text-gray-400 text-xs transition-colors hover:text-gray-500',
+          'mb-1 inline-flex items-center gap-1 text-[11px] text-gray-400 transition-colors hover:text-gray-500',
           'font-normal italic'
         )}
         type='button'
@@ -96,7 +96,7 @@ export function ThinkingBlock({
 
       {isExpanded && (
         <div className='ml-1 border-gray-200 border-l-2 pl-2 dark:border-gray-700'>
-          <pre className='whitespace-pre-wrap font-mono text-gray-400 text-xs dark:text-gray-500'>
+          <pre className='whitespace-pre-wrap font-mono text-[11px] text-gray-400 dark:text-gray-500'>
             {content}
             {isStreaming && (
               <span className='ml-1 inline-block h-2 w-1 animate-pulse bg-gray-400' />

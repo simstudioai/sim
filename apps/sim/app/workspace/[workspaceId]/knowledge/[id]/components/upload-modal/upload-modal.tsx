@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { Check, Loader2, X } from 'lucide-react'
+import { AlertCircle, Check, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -42,7 +42,7 @@ export function UploadModal({
   const [fileError, setFileError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
 
-  const { isUploading, uploadProgress, uploadFiles } = useKnowledgeUpload({
+  const { isUploading, uploadProgress, uploadError, uploadFiles, clearError } = useKnowledgeUpload({
     onUploadComplete: () => {
       logger.info(`Successfully uploaded ${files.length} files`)
       onUploadComplete?.()
@@ -55,6 +55,7 @@ export function UploadModal({
 
     setFiles([])
     setFileError(null)
+    clearError()
     setIsDragging(false)
     onOpenChange(false)
   }
@@ -276,7 +277,20 @@ export function UploadModal({
               </div>
             )}
 
-            {fileError && <p className='text-destructive text-sm'>{fileError}</p>}
+            {fileError && (
+              <div className='rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-destructive text-sm'>
+                {fileError}
+              </div>
+            )}
+
+            {uploadError && (
+              <div className='rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2'>
+                <div className='flex items-start gap-2'>
+                  <AlertCircle className='mt-0.5 h-4 w-4 shrink-0 text-destructive' />
+                  <div className='flex-1 text-destructive text-sm'>{uploadError.message}</div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

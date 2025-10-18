@@ -1,5 +1,4 @@
 import type { GmailSendParams, GmailToolResponse } from '@/tools/gmail/types'
-import { GMAIL_API_BASE } from '@/tools/gmail/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const gmailSendTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
@@ -51,50 +50,50 @@ export const gmailSendTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
       visibility: 'user-or-llm',
       description: 'BCC recipients (comma-separated)',
     },
+    attachments: {
+      type: 'file[]',
+      required: false,
+      visibility: 'user-only',
+      description: 'Files to attach to the email',
+    },
   },
 
   request: {
-    url: () => `${GMAIL_API_BASE}/messages/send`,
+    url: '/api/tools/gmail/send',
     method: 'POST',
-    headers: (params: GmailSendParams) => ({
-      Authorization: `Bearer ${params.accessToken}`,
+    headers: () => ({
       'Content-Type': 'application/json',
     }),
-    body: (params: GmailSendParams): Record<string, any> => {
-      const emailHeaders = [
-        'Content-Type: text/plain; charset="UTF-8"',
-        'MIME-Version: 1.0',
-        `To: ${params.to}`,
-      ]
-
-      if (params.cc) {
-        emailHeaders.push(`Cc: ${params.cc}`)
-      }
-      if (params.bcc) {
-        emailHeaders.push(`Bcc: ${params.bcc}`)
-      }
-
-      emailHeaders.push(`Subject: ${params.subject}`, '', params.body)
-      const email = emailHeaders.join('\n')
-
-      return {
-        raw: Buffer.from(email).toString('base64url'),
-      }
-    },
+    body: (params: GmailSendParams) => ({
+      accessToken: params.accessToken,
+      to: params.to,
+      subject: params.subject,
+      body: params.body,
+      cc: params.cc,
+      bcc: params.bcc,
+      attachments: params.attachments,
+    }),
   },
 
   transformResponse: async (response) => {
     const data = await response.json()
 
+    if (!data.success) {
+      return {
+        success: false,
+        output: {
+          content: data.error || 'Failed to send email',
+          metadata: {},
+        },
+        error: data.error,
+      }
+    }
+
     return {
       success: true,
       output: {
-        content: 'Email sent successfully',
-        metadata: {
-          id: data.id,
-          threadId: data.threadId,
-          labelIds: data.labelIds,
-        },
+        content: data.output.content,
+        metadata: data.output.metadata,
       },
     }
   },

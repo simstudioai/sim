@@ -368,6 +368,18 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     models: [
       {
+        id: 'claude-haiku-4-5',
+        pricing: {
+          input: 1.0,
+          cachedInput: 0.5,
+          output: 5.0,
+          updatedAt: '2025-10-11',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+      },
+      {
         id: 'claude-sonnet-4-5',
         pricing: {
           input: 3.0,

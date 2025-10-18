@@ -26,6 +26,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Lint code
+        run: bun run lint:check
+
       - name: Run tests with coverage
         env:
           NODE_OPTIONS: '--no-warnings'

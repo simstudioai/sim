@@ -66,6 +66,7 @@ export interface SendMessageRequest {
     | 'gpt-4.1'
     | 'o3'
     | 'claude-4-sonnet'
+    | 'claude-4.5-haiku'
     | 'claude-4.5-sonnet'
     | 'claude-4.1-opus'
   prefetch?: boolean

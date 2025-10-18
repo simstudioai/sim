@@ -44,6 +44,8 @@ const OPENAI_MODELS: ModelOption[] = [
 ]
 
 const ANTHROPIC_MODELS: ModelOption[] = [
+  // Zap model (Haiku)
+  { value: 'claude-4.5-haiku', label: 'claude-4.5-haiku', icon: 'zap' },
   // Brain models
   { value: 'claude-4-sonnet', label: 'claude-4-sonnet', icon: 'brain' },
   { value: 'claude-4.5-sonnet', label: 'claude-4.5-sonnet', icon: 'brain' },
@@ -62,7 +64,8 @@ const DEFAULT_ENABLED_MODELS: Record<string, boolean> = {
   'gpt-5-medium': true,
   'gpt-5-high': false,
   o3: true,
-  'claude-4-sonnet': true,
+  'claude-4-sonnet': false,
+  'claude-4.5-haiku': true,
   'claude-4.5-sonnet': true,
   'claude-4.1-opus': true,
 }
@@ -235,7 +238,7 @@ export function Copilot() {
     <div className='relative flex h-full flex-col'>
       {/* Sticky Header with API Keys (only for hosted) */}
       {isHosted && (
-        <div className='sticky top-0 z-10 border-b bg-background px-6 py-4'>
+        <div className='sticky top-0 z-10 bg-background px-6 py-4'>
           <div className='space-y-3'>
             {/* API Keys Header */}
             <div className='flex items-center justify-between'>
@@ -270,27 +273,25 @@ export function Copilot() {
                 </div>
               ) : (
                 keys.map((k) => (
-                  <div
-                    key={k.id}
-                    className='flex items-center justify-between gap-4 rounded-lg border bg-muted/30 px-3 py-2'
-                  >
-                    <div className='flex min-w-0 items-center gap-3'>
-                      <code className='truncate font-mono text-foreground text-xs'>
-                        {k.displayKey}
-                      </code>
+                  <div key={k.id} className='flex flex-col gap-2'>
+                    <div className='flex items-center justify-between gap-4'>
+                      <div className='flex items-center gap-3'>
+                        <div className='flex h-8 items-center rounded-[8px] bg-muted px-3'>
+                          <code className='font-mono text-foreground text-xs'>{k.displayKey}</code>
+                        </div>
+                      </div>
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        onClick={() => {
+                          setDeleteKey(k)
+                          setShowDeleteDialog(true)
+                        }}
+                        className='h-8 text-muted-foreground hover:text-foreground'
+                      >
+                        Delete
+                      </Button>
                     </div>
-
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      onClick={() => {
-                        setDeleteKey(k)
-                        setShowDeleteDialog(true)
-                      }}
-                      className='h-7 flex-shrink-0 text-muted-foreground text-xs hover:text-foreground'
-                    >
-                      Delete
-                    </Button>
                   </div>
                 ))
               )}
@@ -305,15 +306,6 @@ export function Copilot() {
           {/* Models Header */}
           <div>
             <h3 className='font-semibold text-foreground text-sm'>Models</h3>
-            <div className='text-muted-foreground text-xs'>
-              {isModelsLoading ? (
-                <Skeleton className='mt-0.5 h-3 w-32' />
-              ) : (
-                <span>
-                  {enabledCount} of {totalCount} enabled
-                </span>
-              )}
-            </div>
           </div>
 
           {/* Models List */}
@@ -328,13 +320,13 @@ export function Copilot() {
             </div>
           ) : (
             <div className='space-y-4'>
-              {/* OpenAI Models */}
+              {/* Anthropic Models */}
               <div>
                 <div className='mb-2 px-2 font-medium text-[10px] text-muted-foreground uppercase'>
-                  OpenAI
+                  Anthropic
                 </div>
                 <div className='space-y-1'>
-                  {OPENAI_MODELS.map((model) => {
+                  {ANTHROPIC_MODELS.map((model) => {
                     const isEnabled = enabledModelsMap[model.value] ?? false
                     return (
                       <div
@@ -356,13 +348,13 @@ export function Copilot() {
                 </div>
               </div>
 
-              {/* Anthropic Models */}
+              {/* OpenAI Models */}
               <div>
                 <div className='mb-2 px-2 font-medium text-[10px] text-muted-foreground uppercase'>
-                  Anthropic
+                  OpenAI
                 </div>
                 <div className='space-y-1'>
-                  {ANTHROPIC_MODELS.map((model) => {
+                  {OPENAI_MODELS.map((model) => {
                     const isEnabled = enabledModelsMap[model.value] ?? false
                     return (
                       <div
@@ -470,9 +462,13 @@ export function Copilot() {
 
 function CopilotKeySkeleton() {
   return (
-    <div className='flex items-center justify-between gap-4 rounded-lg border bg-muted/30 px-3 py-2'>
-      <Skeleton className='h-4 w-48' />
-      <Skeleton className='h-7 w-14' />
+    <div className='flex flex-col gap-2'>
+      <div className='flex items-center justify-between gap-4'>
+        <div className='flex items-center gap-3'>
+          <Skeleton className='h-8 w-20 rounded-[8px]' />
+        </div>
+        <Skeleton className='h-8 w-14' />
+      </div>
     </div>
   )
 }

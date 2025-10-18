@@ -1,7 +1,7 @@
 import { ShieldCheckIcon } from '@/components/icons'
 import { isHosted } from '@/lib/environment'
 import type { BlockConfig } from '@/blocks/types'
-import { getBaseModelProviders, getHostedModels, getProviderIcon } from '@/providers/utils'
+import { getHostedModels, getProviderIcon } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
 import type { ToolResponse } from '@/tools/types'
 
@@ -99,9 +99,9 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
       required: true,
       options: () => {
         const providersState = useProvidersStore.getState()
+        const baseModels = providersState.providers.base.models
         const ollamaModels = providersState.providers.ollama.models
         const openrouterModels = providersState.providers.openrouter.models
-        const baseModels = Object.keys(getBaseModelProviders())
         const allModels = Array.from(new Set([...baseModels, ...ollamaModels, ...openrouterModels]))
 
         return allModels.map((model) => {

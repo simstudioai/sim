@@ -141,29 +141,29 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
     () => ({
       // Paragraph
       p: ({ children }: React.HTMLAttributes<HTMLParagraphElement>) => (
-        <p className='mb-1 font-geist-sans text-base text-gray-800 leading-relaxed last:mb-0 dark:text-gray-200'>
+        <p className='mb-1 font-sans text-gray-800 text-sm leading-[1.25rem] last:mb-0 dark:text-gray-200'>
           {children}
         </p>
       ),
 
       // Headings
       h1: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-        <h1 className='mt-3 mb-3 font-geist-sans font-semibold text-2xl text-gray-900 dark:text-gray-100'>
+        <h1 className='mt-3 mb-3 font-sans font-semibold text-2xl text-gray-900 dark:text-gray-100'>
           {children}
         </h1>
       ),
       h2: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-        <h2 className='mt-2.5 mb-2.5 font-geist-sans font-semibold text-gray-900 text-xl dark:text-gray-100'>
+        <h2 className='mt-2.5 mb-2.5 font-sans font-semibold text-gray-900 text-xl dark:text-gray-100'>
           {children}
         </h2>
       ),
       h3: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-        <h3 className='mt-2 mb-2 font-geist-sans font-semibold text-gray-900 text-lg dark:text-gray-100'>
+        <h3 className='mt-2 mb-2 font-sans font-semibold text-gray-900 text-lg dark:text-gray-100'>
           {children}
         </h3>
       ),
       h4: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-        <h4 className='mt-5 mb-2 font-geist-sans font-semibold text-base text-gray-900 dark:text-gray-100'>
+        <h4 className='mt-5 mb-2 font-sans font-semibold text-base text-gray-900 dark:text-gray-100'>
           {children}
         </h4>
       ),
@@ -171,7 +171,7 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
       // Lists
       ul: ({ children }: React.HTMLAttributes<HTMLUListElement>) => (
         <ul
-          className='mt-1 mb-1 space-y-1 pl-6 font-geist-sans text-gray-800 dark:text-gray-200'
+          className='mt-1 mb-1 space-y-1 pl-6 font-sans text-gray-800 dark:text-gray-200'
           style={{ listStyleType: 'disc' }}
         >
           {children}
@@ -179,7 +179,7 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
       ),
       ol: ({ children }: React.HTMLAttributes<HTMLOListElement>) => (
         <ol
-          className='mt-1 mb-1 space-y-1 pl-6 font-geist-sans text-gray-800 dark:text-gray-200'
+          className='mt-1 mb-1 space-y-1 pl-6 font-sans text-gray-800 dark:text-gray-200'
           style={{ listStyleType: 'decimal' }}
         >
           {children}
@@ -189,10 +189,7 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
         children,
         ordered,
       }: React.LiHTMLAttributes<HTMLLIElement> & { ordered?: boolean }) => (
-        <li
-          className='font-geist-sans text-gray-800 dark:text-gray-200'
-          style={{ display: 'list-item' }}
-        >
+        <li className='font-sans text-gray-800 dark:text-gray-200' style={{ display: 'list-item' }}>
           {children}
         </li>
       ),
@@ -321,7 +318,7 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
 
       // Blockquotes
       blockquote: ({ children }: React.HTMLAttributes<HTMLQuoteElement>) => (
-        <blockquote className='my-4 border-gray-300 border-l-4 py-1 pl-4 font-geist-sans text-gray-700 italic dark:border-gray-600 dark:text-gray-300'>
+        <blockquote className='my-4 border-gray-300 border-l-4 py-1 pl-4 font-sans text-gray-700 italic dark:border-gray-600 dark:text-gray-300'>
           {children}
         </blockquote>
       ),
@@ -339,7 +336,7 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
       // Tables
       table: ({ children }: React.TableHTMLAttributes<HTMLTableElement>) => (
         <div className='my-4 max-w-full overflow-x-auto'>
-          <table className='min-w-full table-auto border border-gray-300 font-geist-sans text-sm dark:border-gray-700'>
+          <table className='min-w-full table-auto border border-gray-300 font-sans text-sm dark:border-gray-700'>
             {children}
           </table>
         </div>
@@ -380,7 +377,7 @@ export default function CopilotMarkdownRenderer({ content }: CopilotMarkdownRend
   )
 
   return (
-    <div className='copilot-markdown-wrapper max-w-full space-y-4 break-words font-geist-sans text-[#0D0D0D] text-base leading-relaxed dark:text-gray-100'>
+    <div className='copilot-markdown-wrapper max-w-full space-y-3 break-words font-sans text-[#0D0D0D] text-sm leading-[1.25rem] dark:text-gray-100'>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
         {content}
       </ReactMarkdown>
