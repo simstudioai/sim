@@ -45,13 +45,6 @@ export const outlookPollingTrigger: TriggerConfig = {
       description: 'Download and include email attachments in the trigger payload',
       required: false,
     },
-    includeRawEmail: {
-      type: 'boolean',
-      label: 'Include Raw Email Data',
-      defaultValue: false,
-      description: 'Include the complete raw Microsoft Graph API response in the trigger payload',
-      required: false,
-    },
   },
 
   outputs: {
@@ -120,10 +113,6 @@ export const outlookPollingTrigger: TriggerConfig = {
     timestamp: {
       type: 'string',
       description: 'Event timestamp',
-    },
-    rawEmail: {
-      type: 'json',
-      description: 'Complete raw email data from Microsoft Graph API (if enabled)',
     },
   },
 
