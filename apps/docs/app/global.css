@@ -29,7 +29,20 @@
   --fd-border: transparent !important;
   --fd-border-sidebar: transparent !important;
   --fd-nav-height: 64px; /* Custom navbar height (h-16 = 4rem = 64px) */
+  /* Content container width used to center main content */
+  --spacing-fd-container: 1400px;
+  /* Edge gutter = leftover space on each side of centered container */
+  --edge-gutter: max(1rem, calc((100vw - var(--spacing-fd-container)) / 2));
+  /* Shift the sidebar slightly left from the content edge for extra breathing room */
+  --sidebar-shift: 90px;
+  --sidebar-offset: max(0px, calc(var(--edge-gutter) - var(--sidebar-shift)));
+  --toc-offset: var(--edge-gutter);
+  /* Sidebar and TOC have 20px internal padding - navbar accounts for this directly */
+  /* Extra gap between sidebar/TOC and the main text content */
+  --content-gap: 1.75rem;
 }
+
+/* Remove custom layout variable overrides to fallback to fumadocs defaults */
 
 /* ============================================
    Custom Sidebar Styling (Turborepo-inspired)
@@ -52,7 +65,29 @@ aside#nd-sidebar {
   background-color: transparent !important;
   border: none !important;
   border-right: none !important;
-  left: 22rem !important;
+}
+
+/* Responsive sidebar positioning */
+/* Mobile: Fumadocs handles drawer */
+@media (min-width: 768px) and (max-width: 1024px) {
+  aside[data-sidebar],
+  aside#nd-sidebar {
+    left: var(--sidebar-offset) !important;
+  }
+}
+
+/* Desktop layout alignment */
+@media (min-width: 1025px) {
+  [data-sidebar-container] {
+    margin-left: var(--sidebar-offset) !important;
+  }
+  aside[data-sidebar],
+  aside#nd-sidebar {
+    left: var(--sidebar-offset) !important;
+  }
+  [data-toc] {
+    margin-right: var(--toc-offset) !important;
+  }
 }
 
 /* Sidebar spacing - compact like turborepo */
@@ -216,18 +251,10 @@ aside[data-sidebar] > div > button:first-child,
 [data-sidebar] a[href*="sim.ai"],
 #nd-sidebar a[href*="sim.ai"],
 [data-sidebar-viewport] a[href*="sim.ai"],
-[data-sidebar-container] > button,
-[data-sidebar-container] [data-toggle],
-aside[data-sidebar] [data-sidebar-toggle],
-button[data-sidebar-toggle],
 /* Hide search buttons (but NOT folder chevron buttons) */
   aside[data-sidebar] > div:first-child
   > button:not([aria-label="Collapse"]):not([aria-label="Expand"]),
 #nd-sidebar > div:first-child > button:not([aria-label="Collapse"]):not([aria-label="Expand"]),
-/* Hide main sidebar toggle buttons */
-nav button[data-sidebar-toggle],
-button[aria-label="Toggle Sidebar"],
-button[aria-label="Collapse Sidebar"],
 /* Hide sidebar collapse button (panel icon) - direct children only */
 aside[data-sidebar] > button:first-of-type:not([aria-label="Collapse"]):not([aria-label="Expand"]),
 [data-sidebar]
@@ -264,6 +291,20 @@ aside[data-sidebar] > *:not([data-sidebar-viewport]) {
   pointer-events: none !important;
   position: absolute !important;
   left: -9999px !important;
+}
+
+/* Desktop only: Hide sidebar toggle buttons (keep visible on mobile) */
+@media (min-width: 1025px) {
+  [data-sidebar-container] > button,
+  [data-sidebar-container] [data-toggle],
+  aside[data-sidebar] [data-sidebar-toggle],
+  button[data-sidebar-toggle],
+  nav button[data-sidebar-toggle],
+  button[aria-label="Toggle Sidebar"],
+  button[aria-label="Collapse Sidebar"] {
+    display: none !important;
+    visibility: hidden !important;
+  }
 }
 
 /* Extra aggressive - hide everything after the viewport */
@@ -401,12 +442,12 @@ main article,
 
 /* Main content area - center and constrain like turborepo/raindrop */
 main[data-main] {
-  max-width: 1400px;
+  max-width: var(--spacing-fd-container, 1400px);
   margin-left: auto;
   margin-right: auto;
-  padding-left: 2rem;
-  padding-right: 2rem;
   padding-top: 1rem;
+  padding-left: calc(var(--sidebar-offset) + var(--content-gap));
+  padding-right: calc(var(--toc-offset) + var(--content-gap));
   order: 1 !important;
 }
 

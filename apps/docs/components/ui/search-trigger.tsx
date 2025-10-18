@@ -16,11 +16,7 @@ export function SearchTrigger() {
   return (
     <button
       type='button'
-      className='flex h-10 w-[450px] items-center gap-2 rounded-xl border border-border/50 bg-background/80 px-3 py-2 text-foreground/60 text-sm backdrop-blur-xl transition-colors hover:border-border'
-      style={{
-        backdropFilter: 'blur(32px) saturate(180%)',
-        WebkitBackdropFilter: 'blur(32px) saturate(180%)',
-      }}
+      className='flex h-10 w-full items-center gap-2 rounded-xl border border-border/50 bg-background px-3 py-2 text-foreground/60 text-sm transition-colors hover:border-border lg:w-[450px]'
       onClick={handleClick}
     >
       <Search className='h-4 w-4' />
