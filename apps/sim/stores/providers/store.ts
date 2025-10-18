@@ -6,6 +6,11 @@ import type { ProviderConfig, ProviderName, ProvidersStore } from './types'
 const logger = createLogger('ProvidersStore')
 
 const PROVIDER_CONFIGS: Record<ProviderName, ProviderConfig> = {
+  base: {
+    apiEndpoint: '/api/providers/base/models',
+    dedupeModels: true,
+    updateFunction: () => {},
+  },
   ollama: {
     apiEndpoint: '/api/providers/ollama/models',
     updateFunction: updateOllamaProviderModels,
@@ -42,6 +47,7 @@ const fetchProviderModels = async (provider: ProviderName): Promise<string[]> =>
 
 export const useProvidersStore = create<ProvidersStore>((set, get) => ({
   providers: {
+    base: { models: [], isLoading: false },
     ollama: { models: [], isLoading: false },
     openrouter: { models: [], isLoading: false },
   },
@@ -120,6 +126,7 @@ export const useProvidersStore = create<ProvidersStore>((set, get) => ({
 if (typeof window !== 'undefined') {
   setTimeout(() => {
     const store = useProvidersStore.getState()
+    store.fetchModels('base')
     store.fetchModels('ollama')
     store.fetchModels('openrouter')
   }, 1000)

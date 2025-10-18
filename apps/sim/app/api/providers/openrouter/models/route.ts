@@ -1,9 +1,18 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
+import { filterBlacklistedModels } from '@/providers/utils'
 
 const logger = createLogger('OpenRouterModelsAPI')
 
 export const dynamic = 'force-dynamic'
+
+interface OpenRouterModel {
+  id: string
+}
+
+interface OpenRouterResponse {
+  data: OpenRouterModel[]
+}
 
 export async function GET(_request: NextRequest) {
   try {
@@ -20,20 +29,13 @@ export async function GET(_request: NextRequest) {
       return NextResponse.json({ models: [] })
     }
 
-    const data = await response.json()
-    const models = Array.isArray(data?.data)
-      ? Array.from(
-          new Set(
-            data.data
-              .map((m: any) => m?.id)
-              .filter((id: unknown): id is string => typeof id === 'string' && id.length > 0)
-              .map((id: string) => `openrouter/${id}`)
-          )
-        )
-      : []
+    const data = (await response.json()) as OpenRouterResponse
+    const allModels = Array.from(new Set(data.data?.map((model) => `openrouter/${model.id}`) ?? []))
+    const models = filterBlacklistedModels(allModels)
 
     logger.info('Successfully fetched OpenRouter models', {
       count: models.length,
+      filtered: allModels.length - models.length,
     })
 
     return NextResponse.json({ models })
