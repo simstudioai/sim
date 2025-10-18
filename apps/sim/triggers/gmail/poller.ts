@@ -53,13 +53,6 @@ export const gmailPollingTrigger: TriggerConfig = {
       description: 'Download and include email attachments in the trigger payload',
       required: false,
     },
-    includeRawEmail: {
-      type: 'boolean',
-      label: 'Include Raw Email Data',
-      defaultValue: false,
-      description: 'Include the complete raw Gmail API response in the trigger payload',
-      required: false,
-    },
   },
 
   outputs: {
@@ -116,10 +109,6 @@ export const gmailPollingTrigger: TriggerConfig = {
     timestamp: {
       type: 'string',
       description: 'Event timestamp',
-    },
-    rawEmail: {
-      type: 'json',
-      description: 'Complete raw email data from Gmail API (if enabled)',
     },
   },
 

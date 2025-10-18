@@ -751,58 +751,54 @@ export async function formatWebhookInput(
     }
 
     // Microsoft Teams outgoing webhook - Teams sending data to us
-    //
     const messageText = body?.text || ''
     const messageId = body?.id || ''
     const timestamp = body?.timestamp || body?.localTimestamp || ''
     const from = body?.from || {}
     const conversation = body?.conversation || {}
 
+    // Construct the message object
+    const messageObj = {
+      raw: {
+        attachments: body?.attachments || [],
+        channelData: body?.channelData || {},
+        conversation: body?.conversation || {},
+        text: messageText,
+        messageType: body?.type || 'message',
+        channelId: body?.channelId || '',
+        timestamp,
+      },
+    }
+
+    // Construct the from object
+    const fromObj = {
+      id: from.id || '',
+      name: from.name || '',
+      aadObjectId: from.aadObjectId || '',
+    }
+
+    // Construct the conversation object
+    const conversationObj = {
+      id: conversation.id || '',
+      name: conversation.name || '',
+      isGroup: conversation.isGroup || false,
+      tenantId: conversation.tenantId || '',
+      aadObjectId: conversation.aadObjectId || '',
+      conversationType: conversation.conversationType || '',
+    }
+
+    // Construct the activity object
+    const activityObj = body || {}
+
     return {
       input: messageText, // Primary workflow input - the message text
 
-      // Top-level properties for backward compatibility with <blockName.text> syntax
-      type: body?.type || 'message',
-      id: messageId,
-      timestamp,
-      localTimestamp: body?.localTimestamp || '',
-      serviceUrl: body?.serviceUrl || '',
-      channelId: body?.channelId || '',
-      from_id: from.id || '',
-      from_name: from.name || '',
-      conversation_id: conversation.id || '',
-      text: messageText,
+      // Top-level properties for direct access with <microsoftteams.from.name> syntax
+      from: fromObj,
+      message: messageObj,
+      activity: activityObj,
+      conversation: conversationObj,
 
-      microsoftteams: {
-        message: {
-          id: messageId,
-          text: messageText,
-          timestamp,
-          type: body?.type || 'message',
-          serviceUrl: body?.serviceUrl,
-          channelId: body?.channelId,
-          raw: body,
-        },
-        from: {
-          id: from.id,
-          name: from.name,
-          aadObjectId: from.aadObjectId,
-        },
-        conversation: {
-          id: conversation.id,
-          name: conversation.name,
-          conversationType: conversation.conversationType,
-          tenantId: conversation.tenantId,
-        },
-        activity: {
-          type: body?.type,
-          id: body?.id,
-          timestamp: body?.timestamp,
-          localTimestamp: body?.localTimestamp,
-          serviceUrl: body?.serviceUrl,
-          channelId: body?.channelId,
-        },
-      },
       webhook: {
         data: {
           provider: 'microsoftteams',
