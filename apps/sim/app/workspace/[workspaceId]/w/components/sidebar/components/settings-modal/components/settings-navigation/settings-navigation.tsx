@@ -203,7 +203,7 @@ export function SettingsNavigation({
 
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex-1 px-2 py-4'>
+      <div className='flex-1 overflow-y-auto px-2 py-4'>
         {navigationItems.map((item) => (
           <div key={item.id} className='mb-1'>
             <button

@@ -279,7 +279,7 @@ export function TeamMembers({
               }
               onRemoveMember(currentUserMember)
             }}
-            className='w-full text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/20'
+            className='w-full hover:bg-muted'
           >
             <LogOut className='mr-2 h-4 w-4' />
             Leave Organization

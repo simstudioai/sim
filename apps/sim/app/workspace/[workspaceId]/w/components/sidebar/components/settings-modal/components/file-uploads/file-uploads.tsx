@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Download, Search, Trash2, Upload } from 'lucide-react'
+import { Download, Search, Trash2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Input } from '@/components/ui'
 import { Button } from '@/components/ui/button'
@@ -46,6 +46,7 @@ export function FileUploads() {
   const [uploading, setUploading] = useState(false)
   const [deletingFileId, setDeletingFileId] = useState<string | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { permissions: workspacePermissions, loading: permissionsLoading } =
@@ -94,9 +95,12 @@ export function FileUploads() {
         if (!ok) unsupported.push(f.name)
         return ok
       })
+
+      setUploadProgress({ completed: 0, total: allowedFiles.length })
       let lastError: string | null = null
 
-      for (const selectedFile of allowedFiles) {
+      for (let i = 0; i < allowedFiles.length; i++) {
+        const selectedFile = allowedFiles[i]
         try {
           const formData = new FormData()
           formData.append('file', selectedFile)
@@ -109,6 +113,8 @@ export function FileUploads() {
           const data = await response.json()
           if (!data.success) {
             lastError = data.error || 'Upload failed'
+          } else {
+            setUploadProgress({ completed: i + 1, total: allowedFiles.length })
           }
         } catch (err) {
           logger.error('Error uploading file:', err)
@@ -127,6 +133,7 @@ export function FileUploads() {
       setTimeout(() => setUploadError(null), 5000)
     } finally {
       setUploading(false)
+      setUploadProgress({ completed: 0, total: 0 })
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
@@ -225,6 +232,7 @@ export function FileUploads() {
                 onChange={handleFileChange}
                 disabled={uploading}
                 accept={ACCEPT_ATTR}
+                multiple
               />
               <Button
                 onClick={handleUploadClick}
@@ -232,8 +240,11 @@ export function FileUploads() {
                 variant='ghost'
                 className='h-9 rounded-[8px] border bg-background px-3 shadow-xs hover:bg-muted focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
               >
-                <Upload className='mr-2 h-4 w-4 stroke-[2px]' />
-                {uploading ? 'Uploading...' : 'Upload File'}
+                {uploading && uploadProgress.total > 0
+                  ? `Uploading ${uploadProgress.completed}/${uploadProgress.total}...`
+                  : uploading
+                    ? 'Uploading...'
+                    : 'Upload File'}
               </Button>
             </div>
           )}
