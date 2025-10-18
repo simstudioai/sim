@@ -707,7 +707,10 @@ export function EnvironmentVariables({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className='flex'>
-            <AlertDialogCancel onClick={handleCancel} className='h-9 w-full rounded-[8px]'>
+            <AlertDialogCancel
+              onClick={handleCancel}
+              className='h-9 w-full rounded-[8px] bg-red-500 text-white transition-all duration-200 hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600'
+            >
               Discard Changes
             </AlertDialogCancel>
             {hasConflicts ? (
@@ -715,7 +718,7 @@ export function EnvironmentVariables({
                 <TooltipTrigger asChild>
                   <AlertDialogAction
                     disabled={true}
-                    className='h-9 w-full cursor-not-allowed rounded-[8px] opacity-50 transition-all duration-200'
+                    className='h-9 w-full cursor-not-allowed rounded-[8px] bg-primary text-white opacity-50 transition-all duration-200'
                   >
                     Save Changes
                   </AlertDialogAction>
@@ -725,7 +728,7 @@ export function EnvironmentVariables({
             ) : (
               <AlertDialogAction
                 onClick={handleSave}
-                className='h-9 w-full rounded-[8px] transition-all duration-200'
+                className='h-9 w-full rounded-[8px] bg-primary text-white transition-all duration-200 hover:bg-primary/90'
               >
                 Save Changes
               </AlertDialogAction>
