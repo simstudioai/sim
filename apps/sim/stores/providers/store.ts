@@ -7,7 +7,7 @@ const logger = createLogger('ProvidersStore')
 
 const PROVIDER_CONFIGS: Record<ProviderName, ProviderConfig> = {
   base: {
-    apiEndpoint: '/api/models/available',
+    apiEndpoint: '/api/providers/base/models',
     dedupeModels: true,
     updateFunction: () => {},
   },
