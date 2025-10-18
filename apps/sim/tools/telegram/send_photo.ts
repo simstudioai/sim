@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   TelegramPhoto,
   TelegramSendPhotoParams,
@@ -12,6 +13,7 @@ export const telegramSendPhotoTool: ToolConfig<TelegramSendPhotoParams, Telegram
     name: 'Telegram Send Photo',
     description: 'Send photos to Telegram channels or users through the Telegram Bot API.',
     version: '1.0.0',
+    errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 
     params: {
       botToken: {
@@ -64,12 +66,18 @@ export const telegramSendPhotoTool: ToolConfig<TelegramSendPhotoParams, Telegram
 
     transformResponse: async (response: Response) => {
       const data = await response.json()
+
+      if (!data.ok) {
+        const errorMessage = data.description || data.error || 'Failed to send photo'
+        throw new Error(errorMessage)
+      }
+
       const result = data.result as TelegramPhoto
 
       return {
-        success: data.ok,
+        success: true,
         output: {
-          message: data.ok ? 'Photo sent successfully' : 'Failed to send photo',
+          message: 'Photo sent successfully',
           data: result,
         },
       }

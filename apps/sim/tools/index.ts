@@ -4,6 +4,8 @@ import { parseMcpToolId } from '@/lib/mcp/utils'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { generateRequestId } from '@/lib/utils'
 import type { ExecutionContext } from '@/executor/types'
+import type { ErrorInfo } from '@/tools/error-extractors'
+import { extractErrorMessage } from '@/tools/error-extractors'
 import type { OAuthTokenPayload, ToolConfig, ToolResponse } from '@/tools/types'
 import {
   formatRequestParams,
@@ -29,52 +31,12 @@ const MCP_SYSTEM_PARAMETERS = new Set([
   'blockNameMapping',
 ])
 
-// Extract a concise, meaningful error message from diverse API error shapes
-function getDeepApiErrorMessage(errorInfo?: {
-  status?: number
-  statusText?: string
-  data?: any
-}): string {
-  return (
-    // GraphQL errors (Linear API)
-    errorInfo?.data?.errors?.[0]?.message ||
-    // X/Twitter API specific pattern
-    errorInfo?.data?.errors?.[0]?.detail ||
-    // Generic details array
-    errorInfo?.data?.details?.[0]?.message ||
-    // Hunter API pattern
-    errorInfo?.data?.errors?.[0]?.details ||
-    // Direct errors array (when errors[0] is a string or simple object)
-    (Array.isArray(errorInfo?.data?.errors)
-      ? typeof errorInfo.data.errors[0] === 'string'
-        ? errorInfo.data.errors[0]
-        : errorInfo.data.errors[0]?.message
-      : undefined) ||
-    // Notion/Discord/GitHub/Twilio pattern
-    errorInfo?.data?.message ||
-    // SOAP/XML fault patterns
-    errorInfo?.data?.fault?.faultstring ||
-    errorInfo?.data?.faultstring ||
-    // Microsoft/OAuth error descriptions
-    errorInfo?.data?.error_description ||
-    // Airtable/Google fallback pattern
-    (typeof errorInfo?.data?.error === 'object'
-      ? errorInfo?.data?.error?.message || JSON.stringify(errorInfo?.data?.error)
-      : errorInfo?.data?.error) ||
-    // HTTP status text fallback
-    errorInfo?.statusText ||
-    // Final fallback
-    `Request failed with status ${errorInfo?.status || 'unknown'}`
-  )
-}
-
-// Create an Error instance from errorInfo and attach useful context
-function createTransformedErrorFromErrorInfo(errorInfo?: {
-  status?: number
-  statusText?: string
-  data?: any
-}): Error {
-  const message = getDeepApiErrorMessage(errorInfo)
+/**
+ * Create an Error instance from errorInfo and attach useful context
+ * Uses the error extractor registry to find the best error message
+ */
+function createTransformedErrorFromErrorInfo(errorInfo?: ErrorInfo, extractorId?: string): Error {
+  const message = extractErrorMessage(errorInfo, extractorId)
   const transformed = new Error(message)
   Object.assign(transformed, {
     status: errorInfo?.status,
@@ -506,7 +468,7 @@ async function handleInternalRequest(
 
       const { isError, errorInfo } = isErrorResponse(response, errorData)
       if (isError) {
-        const errorToTransform = createTransformedErrorFromErrorInfo(errorInfo)
+        const errorToTransform = createTransformedErrorFromErrorInfo(errorInfo, tool.errorExtractor)
 
         logger.error(`[${requestId}] Internal API error for ${toolId}:`, {
           status: errorInfo?.status,
@@ -543,7 +505,7 @@ async function handleInternalRequest(
 
     if (isError) {
       // Handle error case
-      const errorToTransform = createTransformedErrorFromErrorInfo(errorInfo)
+      const errorToTransform = createTransformedErrorFromErrorInfo(errorInfo, tool.errorExtractor)
 
       logger.error(`[${requestId}] Internal API error for ${toolId}:`, {
         status: errorInfo?.status,

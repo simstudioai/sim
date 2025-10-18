@@ -78,6 +78,11 @@ export interface ToolConfig<P = any, R = any> {
   // OAuth configuration for this tool (if it requires authentication)
   oauth?: OAuthConfig
 
+  // Error extractor to use for this tool's error responses
+  // If specified, only this extractor will be used (deterministic)
+  // If not specified, will try all extractors in order (fallback)
+  errorExtractor?: string
+
   // Request configuration
   request: {
     url: string | ((params: P) => string)
