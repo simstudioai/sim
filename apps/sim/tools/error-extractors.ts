@@ -134,7 +134,7 @@ export function extractErrorMessageWithId(
 
   try {
     const message = extractor.extract(errorInfo)
-    if (message && message.trim()) {
+    if (message?.trim()) {
       return message
     }
   } catch (error) {}
@@ -151,7 +151,7 @@ export function extractErrorMessage(errorInfo?: ErrorInfo, extractorId?: string)
   for (const extractor of ERROR_EXTRACTORS) {
     try {
       const message = extractor.extract(errorInfo)
-      if (message && message.trim()) {
+      if (message?.trim()) {
         return message
       }
     } catch (error) {}
