@@ -8,6 +8,14 @@ export async function GET() {
 
   const allPages = source.getPages()
 
+  const getPriority = (url: string): string => {
+    if (url === '/introduction' || url === '/') return '1.0'
+    if (url === '/getting-started') return '0.9'
+    if (url.match(/^\/[^/]+$/)) return '0.8'
+    if (url.includes('/sdks/') || url.includes('/tools/')) return '0.7'
+    return '0.6'
+  }
+
   const urls = allPages
     .flatMap((page) => {
       const urlWithoutLang = page.url.replace(/^\/[a-z]{2}\//, '/')
@@ -22,7 +30,7 @@ export async function GET() {
     <loc>${url}</loc>
     <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>${urlWithoutLang === '/introduction' ? '1.0' : '0.8'}</priority>
+    <priority>${getPriority(urlWithoutLang)}</priority>
     ${i18n.languages.length > 1 ? generateAlternateLinks(baseUrl, urlWithoutLang) : ''}
   </url>`
       })
@@ -37,6 +45,7 @@ ${urls}
   return new Response(sitemap, {
     headers: {
       'Content-Type': 'application/xml',
+      'Cache-Control': 'public, max-age=3600, s-maxage=3600',
     },
   })
 }

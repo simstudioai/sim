@@ -2,11 +2,14 @@ import type { ReactNode } from 'react'
 import { defineI18nUI } from 'fumadocs-ui/i18n'
 import { DocsLayout } from 'fumadocs-ui/layouts/docs'
 import { RootProvider } from 'fumadocs-ui/provider/next'
-import { ExternalLink, GithubIcon } from 'lucide-react'
-import { Inter } from 'next/font/google'
+import { Geist_Mono, Inter } from 'next/font/google'
 import Image from 'next/image'
-import Link from 'next/link'
-import { LanguageDropdown } from '@/components/ui/language-dropdown'
+import {
+  SidebarFolder,
+  SidebarItem,
+  SidebarSeparator,
+} from '@/components/docs-layout/sidebar-components'
+import { Navbar } from '@/components/navbar/navbar'
 import { i18n } from '@/lib/i18n'
 import { source } from '@/lib/source'
 import '../global.css'
@@ -14,6 +17,12 @@ import { Analytics } from '@vercel/analytics/next'
 
 const inter = Inter({
   subsets: ['latin'],
+  variable: '--font-geist-sans',
+})
+
+const geistMono = Geist_Mono({
+  subsets: ['latin'],
+  variable: '--font-geist-mono',
 })
 
 const { provider } = defineI18nUI(i18n, {
@@ -27,24 +36,17 @@ const { provider } = defineI18nUI(i18n, {
     fr: {
       displayName: 'Français',
     },
+    de: {
+      displayName: 'Deutsch',
+    },
+    ja: {
+      displayName: '日本語',
+    },
     zh: {
       displayName: '简体中文',
     },
   },
 })
-
-const GitHubLink = () => (
-  <div className='fixed right-4 bottom-4 z-50'>
-    <Link
-      href='https://github.com/simstudioai/sim'
-      target='_blank'
-      rel='noopener noreferrer'
-      className='flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background transition-colors hover:bg-muted'
-    >
-      <GithubIcon className='h-4 w-4' />
-    </Link>
-  </div>
-)
 
 type LayoutProps = {
   children: ReactNode
@@ -54,43 +56,82 @@ type LayoutProps = {
 export default async function Layout({ children, params }: LayoutProps) {
   const { lang } = await params
 
+  const structuredData = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'Sim Documentation',
+    description:
+      'Comprehensive documentation for Sim - the visual workflow builder for AI Agent Workflows.',
+    url: 'https://docs.sim.ai',
+    publisher: {
+      '@type': 'Organization',
+      name: 'Sim',
+      url: 'https://sim.ai',
+      logo: {
+        '@type': 'ImageObject',
+        url: 'https://docs.sim.ai/static/logo.png',
+      },
+    },
+    inLanguage: lang,
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: {
+        '@type': 'EntryPoint',
+        urlTemplate: 'https://docs.sim.ai/api/search?q={search_term_string}',
+      },
+      'query-input': 'required name=search_term_string',
+    },
+  }
+
   return (
-    <html lang={lang} className={inter.className} suppressHydrationWarning>
-      <body className='flex min-h-screen flex-col'>
+    <html
+      lang={lang}
+      className={`${inter.variable} ${geistMono.variable}`}
+      suppressHydrationWarning
+    >
+      <head>
+        <script
+          type='application/ld+json'
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        />
+      </head>
+      <body className='flex min-h-screen flex-col font-sans'>
         <RootProvider i18n={provider(lang)}>
+          <Navbar />
           <DocsLayout
             tree={source.pageTree[lang]}
+            themeSwitch={{
+              enabled: false,
+            }}
             nav={{
               title: (
-                <div className='flex items-center gap-3'>
-                  <Image
-                    src='/static/logo.png'
-                    alt='Sim'
-                    width={60}
-                    height={24}
-                    className='h-6 w-auto'
-                  />
-                  <LanguageDropdown />
-                </div>
+                <Image
+                  src='/static/logo.png'
+                  alt='Sim'
+                  width={72}
+                  height={28}
+                  className='h-7 w-auto'
+                  priority
+                />
               ),
             }}
-            links={[
-              {
-                text: 'Visit Sim',
-                url: 'https://sim.ai',
-                icon: <ExternalLink className='h-4 w-4' />,
-              },
-            ]}
             sidebar={{
               defaultOpenLevel: 0,
-              collapsible: true,
+              collapsible: false,
               footer: null,
               banner: null,
+              components: {
+                Item: SidebarItem,
+                Folder: SidebarFolder,
+                Separator: SidebarSeparator,
+              },
+            }}
+            containerProps={{
+              className: '!pt-10',
             }}
           >
             {children}
           </DocsLayout>
-          <GitHubLink />
           <Analytics />
         </RootProvider>
       </body>
