@@ -129,7 +129,6 @@ export function extractErrorMessageWithId(
   const extractor = EXTRACTOR_MAP.get(extractorId)
 
   if (!extractor) {
-    console.warn(`Error extractor '${extractorId}' not found, using fallback`)
     return `Request failed with status ${errorInfo?.status || 'unknown'}`
   }
 
@@ -138,11 +137,8 @@ export function extractErrorMessageWithId(
     if (message && message.trim()) {
       return message
     }
-  } catch (error) {
-    console.warn(`Error extractor '${extractorId}' threw an error:`, error)
-  }
+  } catch (error) {}
 
-  // Fallback if extractor didn't return a message
   return `Request failed with status ${errorInfo?.status || 'unknown'}`
 }
 
