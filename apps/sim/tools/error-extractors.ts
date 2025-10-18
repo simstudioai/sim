@@ -4,27 +4,6 @@
  * This module provides a clean, config-based approach to extracting error messages
  * from diverse API error response formats.
  *
- * ## How it works
- *
- * 1. **Deterministic (Recommended)**: Tools can specify which extractor to use via
- *    the `errorExtractor` field in their config. This provides predictable, fast
- *    error extraction without trying multiple patterns.
- *
- * 2. **Fallback**: If no extractor is specified, all extractors are tried in order
- *    until one returns a message. This provides backward compatibility.
- *
- * ## Using in tools
- *
- * ```typescript
- * import { ErrorExtractorId } from '@/tools/error-extractors'
- *
- * export const myTool: ToolConfig = {
- *   id: 'my_tool',
- *   errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
- *   // ... rest of config
- * }
- * ```
- *
  * ## Adding a new extractor
  *
  * 1. Add entry to ERROR_EXTRACTORS array below:
@@ -46,15 +25,8 @@ export interface ErrorInfo {
   data?: any
 }
 
-/**
- * An error extractor tries to extract an error message from errorInfo
- * Returns the error message if found, or null/undefined if not applicable
- */
 export type ErrorExtractor = (errorInfo?: ErrorInfo) => string | null | undefined
 
-/**
- * Metadata for an error extractor
- */
 export interface ErrorExtractorConfig {
   /** Unique identifier for this extractor */
   id: string
@@ -66,12 +38,6 @@ export interface ErrorExtractorConfig {
   extract: ErrorExtractor
 }
 
-/**
- * Registry of error extractors
- * Each extractor handles a specific API error format
- *
- * To add a new extractor, simply add it to this array
- */
 const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
   {
     id: 'graphql-errors',
@@ -154,15 +120,8 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
   },
 ]
 
-/**
- * Map of extractors by ID
- */
 const EXTRACTOR_MAP = new Map<string, ErrorExtractorConfig>(ERROR_EXTRACTORS.map((e) => [e.id, e]))
 
-/**
- * Extract error message using a specific extractor ID
- * If the extractor is not found or doesn't extract a message, returns a fallback
- */
 export function extractErrorMessageWithId(
   errorInfo: ErrorInfo | undefined,
   extractorId: string
@@ -187,11 +146,6 @@ export function extractErrorMessageWithId(
   return `Request failed with status ${errorInfo?.status || 'unknown'}`
 }
 
-/**
- * Extract error message from errorInfo
- * If extractorId is provided, uses that specific extractor (deterministic)
- * Otherwise tries all extractors in order until one returns a value (fallback)
- */
 export function extractErrorMessage(errorInfo?: ErrorInfo, extractorId?: string): string {
   if (extractorId) {
     return extractErrorMessageWithId(errorInfo, extractorId)
@@ -204,20 +158,12 @@ export function extractErrorMessage(errorInfo?: ErrorInfo, extractorId?: string)
       if (message && message.trim()) {
         return message
       }
-    } catch (error) {
-      // If an extractor throws, log it and continue to next extractor
-      console.warn(`Error extractor '${extractor.id}' threw an error:`, error)
-    }
+    } catch (error) {}
   }
 
-  // Final fallback if no extractor succeeded
   return `Request failed with status ${errorInfo?.status || 'unknown'}`
 }
 
-/**
- * Extractor IDs for use in tool configurations
- * Import these to specify which extractor a tool should use
- */
 export const ErrorExtractorId = {
   GRAPHQL_ERRORS: 'graphql-errors',
   TWITTER_ERRORS: 'twitter-errors',
