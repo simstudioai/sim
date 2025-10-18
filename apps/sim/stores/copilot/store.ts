@@ -14,6 +14,7 @@ import { GetTriggerBlocksClientTool } from '@/lib/copilot/tools/client/blocks/ge
 import { GetExamplesRagClientTool } from '@/lib/copilot/tools/client/examples/get-examples-rag'
 import { GetOperationsExamplesClientTool } from '@/lib/copilot/tools/client/examples/get-operations-examples'
 import { GetTriggerExamplesClientTool } from '@/lib/copilot/tools/client/examples/get-trigger-examples'
+import { SummarizeClientTool } from '@/lib/copilot/tools/client/examples/summarize'
 import { ListGDriveFilesClientTool } from '@/lib/copilot/tools/client/gdrive/list-files'
 import { ReadGDriveFileClientTool } from '@/lib/copilot/tools/client/gdrive/read-file'
 import { GDriveRequestAccessClientTool } from '@/lib/copilot/tools/client/google/gdrive-request-access'
@@ -92,6 +93,7 @@ const CLIENT_TOOL_INSTANTIATORS: Record<string, (id: string) => any> = {
   get_trigger_examples: (id) => new GetTriggerExamplesClientTool(id),
   get_examples_rag: (id) => new GetExamplesRagClientTool(id),
   get_operations_examples: (id) => new GetOperationsExamplesClientTool(id),
+  summarize_conversation: (id) => new SummarizeClientTool(id),
 }
 
 // Read-only static metadata for class-based tools (no instances)
@@ -123,6 +125,7 @@ export const CLASS_TOOL_METADATA: Record<string, BaseClientToolMetadata | undefi
   get_examples_rag: (GetExamplesRagClientTool as any)?.metadata,
   oauth_request_access: (OAuthRequestAccessClientTool as any)?.metadata,
   get_operations_examples: (GetOperationsExamplesClientTool as any)?.metadata,
+  summarize_conversation: (SummarizeClientTool as any)?.metadata,
 }
 
 function ensureClientToolInstance(toolName: string | undefined, toolCallId: string | undefined) {
@@ -291,67 +294,76 @@ function normalizeMessagesForUI(messages: CopilotMessage[]): CopilotMessage[] {
 
       // Use existing contentBlocks ordering if present; otherwise only render text content
       const blocks: any[] = Array.isArray(message.contentBlocks)
-        ? (message.contentBlocks as any[]).map((b: any) =>
-            b?.type === 'tool_call' && b.toolCall
-              ? {
-                  ...b,
-                  toolCall: {
-                    ...b.toolCall,
-                    state:
-                      isRejectedState(b.toolCall?.state) ||
-                      isReviewState(b.toolCall?.state) ||
-                      isBackgroundState(b.toolCall?.state) ||
-                      b.toolCall?.state === ClientToolCallState.success ||
-                      b.toolCall?.state === ClientToolCallState.error ||
-                      b.toolCall?.state === ClientToolCallState.aborted
-                        ? b.toolCall.state
-                        : ClientToolCallState.rejected,
-                    display: resolveToolDisplay(
-                      b.toolCall?.name,
-                      (isRejectedState(b.toolCall?.state) ||
-                      isReviewState(b.toolCall?.state) ||
-                      isBackgroundState(b.toolCall?.state) ||
-                      b.toolCall?.state === ClientToolCallState.success ||
-                      b.toolCall?.state === ClientToolCallState.error ||
-                      b.toolCall?.state === ClientToolCallState.aborted
-                        ? (b.toolCall?.state as any)
-                        : ClientToolCallState.rejected) as any,
-                      b.toolCall?.id,
-                      b.toolCall?.params
-                    ),
-                  },
-                }
-              : b
-          )
+        ? (message.contentBlocks as any[]).map((b: any) => {
+            if (b?.type === 'tool_call' && b.toolCall) {
+              // Ensure client tool instance is registered for this tool call
+              ensureClientToolInstance(b.toolCall?.name, b.toolCall?.id)
+
+              return {
+                ...b,
+                toolCall: {
+                  ...b.toolCall,
+                  state:
+                    isRejectedState(b.toolCall?.state) ||
+                    isReviewState(b.toolCall?.state) ||
+                    isBackgroundState(b.toolCall?.state) ||
+                    b.toolCall?.state === ClientToolCallState.success ||
+                    b.toolCall?.state === ClientToolCallState.error ||
+                    b.toolCall?.state === ClientToolCallState.aborted
+                      ? b.toolCall.state
+                      : ClientToolCallState.rejected,
+                  display: resolveToolDisplay(
+                    b.toolCall?.name,
+                    (isRejectedState(b.toolCall?.state) ||
+                    isReviewState(b.toolCall?.state) ||
+                    isBackgroundState(b.toolCall?.state) ||
+                    b.toolCall?.state === ClientToolCallState.success ||
+                    b.toolCall?.state === ClientToolCallState.error ||
+                    b.toolCall?.state === ClientToolCallState.aborted
+                      ? (b.toolCall?.state as any)
+                      : ClientToolCallState.rejected) as any,
+                    b.toolCall?.id,
+                    b.toolCall?.params
+                  ),
+                },
+              }
+            }
+            return b
+          })
         : []
 
       // Prepare toolCalls with display for non-block UI components, but do not fabricate blocks
       const updatedToolCalls = Array.isArray((message as any).toolCalls)
-        ? (message as any).toolCalls.map((tc: any) => ({
-            ...tc,
-            state:
-              isRejectedState(tc?.state) ||
-              isReviewState(tc?.state) ||
-              isBackgroundState(tc?.state) ||
-              tc?.state === ClientToolCallState.success ||
-              tc?.state === ClientToolCallState.error ||
-              tc?.state === ClientToolCallState.aborted
-                ? tc.state
-                : ClientToolCallState.rejected,
-            display: resolveToolDisplay(
-              tc?.name,
-              (isRejectedState(tc?.state) ||
-              isReviewState(tc?.state) ||
-              isBackgroundState(tc?.state) ||
-              tc?.state === ClientToolCallState.success ||
-              tc?.state === ClientToolCallState.error ||
-              tc?.state === ClientToolCallState.aborted
-                ? (tc?.state as any)
-                : ClientToolCallState.rejected) as any,
-              tc?.id,
-              tc?.params
-            ),
-          }))
+        ? (message as any).toolCalls.map((tc: any) => {
+            // Ensure client tool instance is registered for this tool call
+            ensureClientToolInstance(tc?.name, tc?.id)
+
+            return {
+              ...tc,
+              state:
+                isRejectedState(tc?.state) ||
+                isReviewState(tc?.state) ||
+                isBackgroundState(tc?.state) ||
+                tc?.state === ClientToolCallState.success ||
+                tc?.state === ClientToolCallState.error ||
+                tc?.state === ClientToolCallState.aborted
+                  ? tc.state
+                  : ClientToolCallState.rejected,
+              display: resolveToolDisplay(
+                tc?.name,
+                (isRejectedState(tc?.state) ||
+                isReviewState(tc?.state) ||
+                isBackgroundState(tc?.state) ||
+                tc?.state === ClientToolCallState.success ||
+                tc?.state === ClientToolCallState.error ||
+                tc?.state === ClientToolCallState.aborted
+                  ? (tc?.state as any)
+                  : ClientToolCallState.rejected) as any,
+                tc?.id,
+                tc?.params
+              ),
+            }
+          })
         : (message as any).toolCalls
 
       return {
@@ -431,10 +443,11 @@ class StringBuilder {
 function createUserMessage(
   content: string,
   fileAttachments?: MessageFileAttachment[],
-  contexts?: ChatContext[]
+  contexts?: ChatContext[],
+  messageId?: string
 ): CopilotMessage {
   return {
-    id: crypto.randomUUID(),
+    id: messageId || crypto.randomUUID(),
     role: 'user',
     content,
     timestamp: new Date().toISOString(),
@@ -1166,25 +1179,6 @@ const sseHandlers: Record<string, SSEHandler> = {
     context.currentTextBlock = null
     updateStreamingMessage(set, context)
   },
-  context_usage: (data, _context, _get, set) => {
-    try {
-      const usageData = data?.data
-      if (usageData) {
-        set({
-          contextUsage: {
-            usage: usageData.usage || 0,
-            percentage: usageData.percentage || 0,
-            model: usageData.model || '',
-            contextWindow: usageData.context_window || usageData.contextWindow || 0,
-            when: usageData.when || 'start',
-            estimatedTokens: usageData.estimated_tokens || usageData.estimatedTokens,
-          },
-        })
-      }
-    } catch (err) {
-      logger.warn('Failed to handle context_usage event:', err)
-    }
-  },
   default: () => {},
 }
 
@@ -1417,16 +1411,35 @@ export const useCopilotStore = create<CopilotStore>()(
         if (data.success && Array.isArray(data.chats)) {
           const latestChat = data.chats.find((c: CopilotChat) => c.id === chat.id)
           if (latestChat) {
+            const normalizedMessages = normalizeMessagesForUI(latestChat.messages || [])
+
+            // Build toolCallsById map from all tool calls in normalized messages
+            const toolCallsById: Record<string, CopilotToolCall> = {}
+            for (const msg of normalizedMessages) {
+              if (msg.contentBlocks) {
+                for (const block of msg.contentBlocks as any[]) {
+                  if (block?.type === 'tool_call' && block.toolCall?.id) {
+                    toolCallsById[block.toolCall.id] = block.toolCall
+                  }
+                }
+              }
+            }
+
             set({
               currentChat: latestChat,
-              messages: normalizeMessagesForUI(latestChat.messages || []),
+              messages: normalizedMessages,
               chats: (get().chats || []).map((c: CopilotChat) =>
                 c.id === chat.id ? latestChat : c
               ),
+              contextUsage: null,
+              toolCallsById,
             })
             try {
               await get().loadMessageCheckpoints(latestChat.id)
             } catch {}
+            // Fetch context usage for the selected chat
+            logger.info('[Context Usage] Chat selected, fetching usage')
+            await get().fetchContextUsage()
           }
         }
       } catch {}
@@ -1456,6 +1469,7 @@ export const useCopilotStore = create<CopilotStore>()(
         }
       } catch {}
 
+      logger.info('[Context Usage] New chat created, clearing context usage')
       set({
         currentChat: null,
         messages: [],
@@ -1467,8 +1481,32 @@ export const useCopilotStore = create<CopilotStore>()(
       })
     },
 
-    deleteChat: async (_chatId: string) => {
-      // no-op for now
+    deleteChat: async (chatId: string) => {
+      try {
+        // Call delete API
+        const response = await fetch('/api/copilot/chat/delete', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chatId }),
+        })
+
+        if (!response.ok) {
+          throw new Error(`Failed to delete chat: ${response.status}`)
+        }
+
+        // Remove from local state
+        set((state) => ({
+          chats: state.chats.filter((c) => c.id !== chatId),
+          // If deleted chat was current, clear it
+          currentChat: state.currentChat?.id === chatId ? null : state.currentChat,
+          messages: state.currentChat?.id === chatId ? [] : state.messages,
+        }))
+
+        logger.info('Chat deleted', { chatId })
+      } catch (error) {
+        logger.error('Failed to delete chat:', error)
+        throw error
+      }
     },
 
     areChatsFresh: (_workflowId: string) => false,
@@ -1509,9 +1547,24 @@ export const useCopilotStore = create<CopilotStore>()(
               if (isSendingMessage) {
                 set({ currentChat: { ...updatedCurrentChat, messages: get().messages } })
               } else {
+                const normalizedMessages = normalizeMessagesForUI(updatedCurrentChat.messages || [])
+
+                // Build toolCallsById map from all tool calls in normalized messages
+                const toolCallsById: Record<string, CopilotToolCall> = {}
+                for (const msg of normalizedMessages) {
+                  if (msg.contentBlocks) {
+                    for (const block of msg.contentBlocks as any[]) {
+                      if (block?.type === 'tool_call' && block.toolCall?.id) {
+                        toolCallsById[block.toolCall.id] = block.toolCall
+                      }
+                    }
+                  }
+                }
+
                 set({
                   currentChat: updatedCurrentChat,
-                  messages: normalizeMessagesForUI(updatedCurrentChat.messages || []),
+                  messages: normalizedMessages,
+                  toolCallsById,
                 })
               }
               try {
@@ -1519,9 +1572,24 @@ export const useCopilotStore = create<CopilotStore>()(
               } catch {}
             } else if (!isSendingMessage && !suppressAutoSelect) {
               const mostRecentChat: CopilotChat = data.chats[0]
+              const normalizedMessages = normalizeMessagesForUI(mostRecentChat.messages || [])
+
+              // Build toolCallsById map from all tool calls in normalized messages
+              const toolCallsById: Record<string, CopilotToolCall> = {}
+              for (const msg of normalizedMessages) {
+                if (msg.contentBlocks) {
+                  for (const block of msg.contentBlocks as any[]) {
+                    if (block?.type === 'tool_call' && block.toolCall?.id) {
+                      toolCallsById[block.toolCall.id] = block.toolCall
+                    }
+                  }
+                }
+              }
+
               set({
                 currentChat: mostRecentChat,
-                messages: normalizeMessagesForUI(mostRecentChat.messages || []),
+                messages: normalizedMessages,
+                toolCallsById,
               })
               try {
                 await get().loadMessageCheckpoints(mostRecentChat.id)
@@ -1549,17 +1617,19 @@ export const useCopilotStore = create<CopilotStore>()(
         stream = true,
         fileAttachments,
         contexts,
+        messageId,
       } = options as {
         stream?: boolean
         fileAttachments?: MessageFileAttachment[]
         contexts?: ChatContext[]
+        messageId?: string
       }
       if (!workflowId) return
 
       const abortController = new AbortController()
       set({ isSendingMessage: true, error: null, abortController })
 
-      const userMessage = createUserMessage(message, fileAttachments, contexts)
+      const userMessage = createUserMessage(message, fileAttachments, contexts, messageId)
       const streamingMessage = createStreamingMessage()
 
       let newMessages: CopilotMessage[]
@@ -1568,7 +1638,16 @@ export const useCopilotStore = create<CopilotStore>()(
         newMessages = [...currentMessages, userMessage, streamingMessage]
         set({ revertState: null, inputValue: '' })
       } else {
-        newMessages = [...get().messages, userMessage, streamingMessage]
+        const currentMessages = get().messages
+        // If messageId is provided, check if it already exists (e.g., from edit flow)
+        const existingIndex = messageId ? currentMessages.findIndex((m) => m.id === messageId) : -1
+        if (existingIndex !== -1) {
+          // Replace existing message instead of adding new one
+          newMessages = [...currentMessages.slice(0, existingIndex), userMessage, streamingMessage]
+        } else {
+          // Add new messages normally
+          newMessages = [...currentMessages, userMessage, streamingMessage]
+        }
       }
 
       const isFirstMessage = get().messages.length === 0 && !currentChat?.title
@@ -1716,6 +1795,14 @@ export const useCopilotStore = create<CopilotStore>()(
             }).catch(() => {})
           } catch {}
         }
+
+        // Fetch context usage after abort
+        logger.info('[Context Usage] Message aborted, fetching usage')
+        get()
+          .fetchContextUsage()
+          .catch((err) => {
+            logger.warn('[Context Usage] Failed to fetch after abort', err)
+          })
       } catch {
         set({ isSendingMessage: false, isAborting: false, abortController: null })
       }
@@ -1969,6 +2056,11 @@ export const useCopilotStore = create<CopilotStore>()(
         const result = await response.json()
         const reverted = result?.checkpoint?.workflowState || null
         if (reverted) {
+          // Clear any active diff preview
+          try {
+            useWorkflowDiffStore.getState().clearDiff()
+          } catch {}
+
           // Apply to main workflow store
           useWorkflowStore.setState({
             blocks: reverted.blocks || {},
@@ -2123,6 +2215,10 @@ export const useCopilotStore = create<CopilotStore>()(
         try {
           // Removed: stats sending now occurs only on accept/reject with minimal payload
         } catch {}
+
+        // Fetch context usage after response completes
+        logger.info('[Context Usage] Stream completed, fetching usage')
+        await get().fetchContextUsage()
       } finally {
         clearTimeout(timeoutId)
       }
@@ -2206,9 +2302,86 @@ export const useCopilotStore = create<CopilotStore>()(
     updateDiffStore: async (_yamlContent: string) => {},
     updateDiffStoreWithWorkflowState: async (_workflowState: any) => {},
 
-    setSelectedModel: (model) => set({ selectedModel: model }),
+    setSelectedModel: async (model) => {
+      logger.info('[Context Usage] Model changed', { from: get().selectedModel, to: model })
+      set({ selectedModel: model })
+      // Fetch context usage after model switch
+      await get().fetchContextUsage()
+    },
     setAgentPrefetch: (prefetch) => set({ agentPrefetch: prefetch }),
     setEnabledModels: (models) => set({ enabledModels: models }),
+
+    // Fetch context usage from sim-agent API
+    fetchContextUsage: async () => {
+      try {
+        const { currentChat, selectedModel, workflowId } = get()
+        logger.info('[Context Usage] Starting fetch', {
+          hasChatId: !!currentChat?.id,
+          hasWorkflowId: !!workflowId,
+          chatId: currentChat?.id,
+          workflowId,
+          model: selectedModel,
+        })
+
+        if (!currentChat?.id || !workflowId) {
+          logger.info('[Context Usage] Skipping: missing chat or workflow', {
+            hasChatId: !!currentChat?.id,
+            hasWorkflowId: !!workflowId,
+          })
+          return
+        }
+
+        const requestPayload = {
+          chatId: currentChat.id,
+          model: selectedModel,
+          workflowId,
+        }
+
+        logger.info('[Context Usage] Calling API', requestPayload)
+
+        // Call the backend API route which proxies to sim-agent
+        const response = await fetch('/api/copilot/context-usage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestPayload),
+        })
+
+        logger.info('[Context Usage] API response', { status: response.status, ok: response.ok })
+
+        if (response.ok) {
+          const data = await response.json()
+          logger.info('[Context Usage] Received data', data)
+
+          // Check for either tokensUsed or usage field
+          if (
+            data.tokensUsed !== undefined ||
+            data.usage !== undefined ||
+            data.percentage !== undefined
+          ) {
+            const contextUsage = {
+              usage: data.tokensUsed || data.usage || 0,
+              percentage: data.percentage || 0,
+              model: data.model || selectedModel,
+              contextWindow: data.contextWindow || data.context_window || 0,
+              when: data.when || 'end',
+              estimatedTokens: data.tokensUsed || data.estimated_tokens || data.estimatedTokens,
+            }
+            set({ contextUsage })
+            logger.info('[Context Usage] Updated store', contextUsage)
+          } else {
+            logger.warn('[Context Usage] No usage data in response', data)
+          }
+        } else {
+          const errorText = await response.text().catch(() => 'Unable to read error')
+          logger.warn('[Context Usage] API call failed', {
+            status: response.status,
+            error: errorText,
+          })
+        }
+      } catch (err) {
+        logger.error('[Context Usage] Error fetching:', err)
+      }
+    },
   }))
 )
 

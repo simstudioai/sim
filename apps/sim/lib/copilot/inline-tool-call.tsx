@@ -326,7 +326,19 @@ export function InlineToolCall({
     if (toolCall.name === 'set_environment_variables') {
       const variables =
         params.variables && typeof params.variables === 'object' ? params.variables : {}
-      const entries = Object.entries(variables)
+
+      // Normalize variables - handle both direct key-value and nested {name, value} format
+      const normalizedEntries: Array<[string, string]> = []
+      Object.entries(variables).forEach(([key, value]) => {
+        if (typeof value === 'object' && value !== null && 'name' in value && 'value' in value) {
+          // Handle {name: "key", value: "val"} format
+          normalizedEntries.push([String((value as any).name), String((value as any).value)])
+        } else {
+          // Handle direct key-value format
+          normalizedEntries.push([key, String(value)])
+        }
+      })
+
       return (
         <div className='mt-0.5 w-full overflow-hidden rounded border border-muted bg-card'>
           <div className='grid grid-cols-2 gap-0 border-muted/60 border-b bg-muted/40 px-2 py-1.5'>
@@ -337,18 +349,21 @@ export function InlineToolCall({
               Value
             </div>
           </div>
-          {entries.length === 0 ? (
+          {normalizedEntries.length === 0 ? (
             <div className='px-2 py-2 text-muted-foreground text-xs'>No variables provided</div>
           ) : (
             <div className='divide-y divide-muted/60'>
-              {entries.map(([k, v]) => (
-                <div key={k} className='grid grid-cols-[auto_1fr] items-center gap-2 px-2 py-1.5'>
+              {normalizedEntries.map(([name, value]) => (
+                <div
+                  key={name}
+                  className='grid grid-cols-[auto_1fr] items-center gap-2 px-2 py-1.5'
+                >
                   <div className='truncate font-medium text-amber-800 text-xs dark:text-amber-200'>
-                    {k}
+                    {name}
                   </div>
                   <div className='min-w-0'>
                     <span className='block overflow-x-auto whitespace-nowrap font-mono text-amber-700 text-xs dark:text-amber-300'>
-                      {String(v)}
+                      {value}
                     </span>
                   </div>
                 </div>
@@ -455,7 +470,7 @@ export function InlineToolCall({
       >
         <div className='flex items-center gap-2 text-muted-foreground'>
           <div className='flex-shrink-0'>{renderDisplayIcon()}</div>
-          <span className='text-base'>{displayName}</span>
+          <span className='text-sm'>{displayName}</span>
         </div>
         {showButtons ? (
           <RunSkipButtons toolCall={toolCall} onStateChange={handleStateChange} />

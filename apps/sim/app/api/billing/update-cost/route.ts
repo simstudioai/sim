@@ -8,22 +8,17 @@ import { checkInternalApiKey } from '@/lib/copilot/utils'
 import { isBillingEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
-import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('BillingUpdateCostAPI')
 
 const UpdateCostSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
-  input: z.number().min(0, 'Input tokens must be a non-negative number'),
-  output: z.number().min(0, 'Output tokens must be a non-negative number'),
-  model: z.string().min(1, 'Model is required'),
-  inputMultiplier: z.number().min(0),
-  outputMultiplier: z.number().min(0),
+  cost: z.number().min(0, 'Cost must be a non-negative number'),
 })
 
 /**
  * POST /api/billing/update-cost
- * Update user cost based on token usage with internal API key auth
+ * Update user cost with a pre-calculated cost value (internal API key auth required)
  */
 export async function POST(req: NextRequest) {
   const requestId = generateRequestId()
@@ -77,44 +72,12 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const { userId, input, output, model, inputMultiplier, outputMultiplier } = validation.data
+    const { userId, cost } = validation.data
 
     logger.info(`[${requestId}] Processing cost update`, {
       userId,
-      input,
-      output,
-      model,
-      inputMultiplier,
-      outputMultiplier,
+      cost,
     })
-
-    const finalPromptTokens = input
-    const finalCompletionTokens = output
-    const totalTokens = input + output
-
-    // Calculate cost using provided multiplier (required)
-    const costResult = calculateCost(
-      model,
-      finalPromptTokens,
-      finalCompletionTokens,
-      false,
-      inputMultiplier,
-      outputMultiplier
-    )
-
-    logger.info(`[${requestId}] Cost calculation result`, {
-      userId,
-      model,
-      promptTokens: finalPromptTokens,
-      completionTokens: finalCompletionTokens,
-      totalTokens: totalTokens,
-      inputMultiplier,
-      outputMultiplier,
-      costResult,
-    })
-
-    // Follow the exact same logic as ExecutionLogger.updateUserStats but with direct userId
-    const costToStore = costResult.total // No additional multiplier needed since calculateCost already applied it
 
     // Check if user stats record exists (same as ExecutionLogger)
     const userStatsRecords = await db.select().from(userStats).where(eq(userStats.userId, userId))
@@ -128,16 +91,13 @@ export async function POST(req: NextRequest) {
       )
       return NextResponse.json({ error: 'User stats record not found' }, { status: 500 })
     }
-    // Update existing user stats record (same logic as ExecutionLogger)
+    // Update existing user stats record
     const updateFields = {
-      totalTokensUsed: sql`total_tokens_used + ${totalTokens}`,
-      totalCost: sql`total_cost + ${costToStore}`,
-      currentPeriodCost: sql`current_period_cost + ${costToStore}`,
+      totalCost: sql`total_cost + ${cost}`,
+      currentPeriodCost: sql`current_period_cost + ${cost}`,
       // Copilot usage tracking increments
-      totalCopilotCost: sql`total_copilot_cost + ${costToStore}`,
-      totalCopilotTokens: sql`total_copilot_tokens + ${totalTokens}`,
+      totalCopilotCost: sql`total_copilot_cost + ${cost}`,
       totalCopilotCalls: sql`total_copilot_calls + 1`,
-      totalApiCalls: sql`total_api_calls`,
       lastActive: new Date(),
     }
 
@@ -145,8 +105,7 @@ export async function POST(req: NextRequest) {
 
     logger.info(`[${requestId}] Updated user stats record`, {
       userId,
-      addedCost: costToStore,
-      addedTokens: totalTokens,
+      addedCost: cost,
     })
 
     // Check if user has hit overage threshold and bill incrementally
@@ -157,29 +116,14 @@ export async function POST(req: NextRequest) {
     logger.info(`[${requestId}] Cost update completed successfully`, {
       userId,
       duration,
-      cost: costResult.total,
-      totalTokens,
+      cost,
     })
 
     return NextResponse.json({
       success: true,
       data: {
         userId,
-        input,
-        output,
-        totalTokens,
-        model,
-        cost: {
-          input: costResult.input,
-          output: costResult.output,
-          total: costResult.total,
-        },
-        tokenBreakdown: {
-          prompt: finalPromptTokens,
-          completion: finalCompletionTokens,
-          total: totalTokens,
-        },
-        pricing: costResult.pricing,
+        cost,
         processedAt: new Date().toISOString(),
         requestId,
       },

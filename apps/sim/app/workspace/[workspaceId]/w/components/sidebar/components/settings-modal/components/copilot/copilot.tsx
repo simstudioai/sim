@@ -44,6 +44,8 @@ const OPENAI_MODELS: ModelOption[] = [
 ]
 
 const ANTHROPIC_MODELS: ModelOption[] = [
+  // Zap model (Haiku)
+  { value: 'claude-4.5-haiku', label: 'claude-4.5-haiku', icon: 'zap' },
   // Brain models
   { value: 'claude-4-sonnet', label: 'claude-4-sonnet', icon: 'brain' },
   { value: 'claude-4.5-sonnet', label: 'claude-4.5-sonnet', icon: 'brain' },
@@ -62,7 +64,8 @@ const DEFAULT_ENABLED_MODELS: Record<string, boolean> = {
   'gpt-5-medium': true,
   'gpt-5-high': false,
   o3: true,
-  'claude-4-sonnet': true,
+  'claude-4-sonnet': false,
+  'claude-4.5-haiku': true,
   'claude-4.5-sonnet': true,
   'claude-4.1-opus': true,
 }
@@ -328,13 +331,13 @@ export function Copilot() {
             </div>
           ) : (
             <div className='space-y-4'>
-              {/* OpenAI Models */}
+              {/* Anthropic Models */}
               <div>
                 <div className='mb-2 px-2 font-medium text-[10px] text-muted-foreground uppercase'>
-                  OpenAI
+                  Anthropic
                 </div>
                 <div className='space-y-1'>
-                  {OPENAI_MODELS.map((model) => {
+                  {ANTHROPIC_MODELS.map((model) => {
                     const isEnabled = enabledModelsMap[model.value] ?? false
                     return (
                       <div
@@ -356,13 +359,13 @@ export function Copilot() {
                 </div>
               </div>
 
-              {/* Anthropic Models */}
+              {/* OpenAI Models */}
               <div>
                 <div className='mb-2 px-2 font-medium text-[10px] text-muted-foreground uppercase'>
-                  Anthropic
+                  OpenAI
                 </div>
                 <div className='space-y-1'>
-                  {ANTHROPIC_MODELS.map((model) => {
+                  {OPENAI_MODELS.map((model) => {
                     const isEnabled = enabledModelsMap[model.value] ?? false
                     return (
                       <div

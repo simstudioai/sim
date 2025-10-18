@@ -36,6 +36,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { createPortal } from 'react-dom'
 import {
   Button,
   DropdownMenu,
@@ -49,7 +50,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
-import { isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useCopilotStore } from '@/stores/copilot/store'
@@ -95,6 +95,8 @@ interface UserInputProps {
   value?: string // Controlled value from outside
   onChange?: (value: string) => void // Callback when value changes
   panelWidth?: number // Panel width to adjust truncation
+  hideContextUsage?: boolean // Hide the context usage pill
+  clearOnSubmit?: boolean // Whether to clear input after submit (default true for bottom input, false for edit mode)
 }
 
 interface UserInputRef {
@@ -116,6 +118,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       value: controlledValue,
       onChange: onControlledChange,
       panelWidth = 308,
+      hideContextUsage = false,
+      clearOnSubmit = true,
     },
     ref
   ) => {
@@ -127,8 +131,19 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const overlayRef = useRef<HTMLDivElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const containerRef = useRef<HTMLDivElement>(null)
     const [showMentionMenu, setShowMentionMenu] = useState(false)
     const mentionMenuRef = useRef<HTMLDivElement>(null)
+    const mentionPortalRef = useRef<HTMLDivElement>(null)
+    const [isNearTop, setIsNearTop] = useState(false)
+    const [mentionMenuMaxHeight, setMentionMenuMaxHeight] = useState<number | undefined>(undefined)
+    const [mentionPortalStyle, setMentionPortalStyle] = useState<{
+      top: number
+      left: number
+      width: number
+      maxHeight: number
+      showBelow: boolean
+    } | null>(null)
     const submenuRef = useRef<HTMLDivElement>(null)
     const menuListRef = useRef<HTMLDivElement>(null)
     const [mentionActiveIndex, setMentionActiveIndex] = useState(0)
@@ -208,7 +223,15 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       ref,
       () => ({
         focus: () => {
-          textareaRef.current?.focus()
+          const textarea = textareaRef.current
+          if (textarea) {
+            textarea.focus()
+            // Position cursor at the end of the text
+            const length = textarea.value.length
+            textarea.setSelectionRange(length, length)
+            // Scroll to the end
+            textarea.scrollTop = textarea.scrollHeight
+          }
         },
       }),
       []
@@ -226,9 +249,14 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       }
     }, [workflowId])
 
+    // Reset past chats when workflow changes to ensure we only load chats from the current workflow
+    useEffect(() => {
+      setPastChats([])
+      setIsLoadingPastChats(false)
+    }, [workflowId])
+
     // Fetch enabled models when dropdown is opened for the first time
     const fetchEnabledModelsOnce = useCallback(async () => {
-      if (!isHosted) return
       if (enabledModels !== null) return // Already loaded
 
       try {
@@ -284,6 +312,44 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       return () => textarea.removeEventListener('scroll', handleScroll)
     }, [])
 
+    // Detect if input is near the top of the screen (update dynamically)
+    useEffect(() => {
+      const checkPosition = () => {
+        if (containerRef.current) {
+          const rect = containerRef.current.getBoundingClientRect()
+          // Consider "near top" if less than 300px from top of viewport
+          setIsNearTop(rect.top < 300)
+        }
+      }
+
+      checkPosition()
+
+      // Check position on scroll within the copilot panel
+      const scrollContainer = containerRef.current?.closest('[data-radix-scroll-area-viewport]')
+      if (scrollContainer) {
+        scrollContainer.addEventListener('scroll', checkPosition, { passive: true })
+      }
+
+      window.addEventListener('scroll', checkPosition, true)
+      window.addEventListener('resize', checkPosition)
+
+      return () => {
+        if (scrollContainer) {
+          scrollContainer.removeEventListener('scroll', checkPosition)
+        }
+        window.removeEventListener('scroll', checkPosition, true)
+        window.removeEventListener('resize', checkPosition)
+      }
+    }, [])
+
+    // Also check position when mention menu opens
+    useEffect(() => {
+      if (showMentionMenu && containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect()
+        setIsNearTop(rect.top < 300)
+      }
+    }, [showMentionMenu])
+
     // Close mention menu on outside click
     useEffect(() => {
       if (!showMentionMenu) return
@@ -292,6 +358,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         if (
           mentionMenuRef.current &&
           !mentionMenuRef.current.contains(target) &&
+          (!mentionPortalRef.current || !mentionPortalRef.current.contains(target)) &&
           (!submenuRef.current || !submenuRef.current.contains(target)) &&
           textareaRef.current &&
           !textareaRef.current.contains(target as Node)
@@ -313,18 +380,11 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         const data = await resp.json()
         const items = Array.isArray(data?.chats) ? data.chats : []
 
-        if (workflows.length === 0) {
-          await ensureWorkflowsLoaded()
-        }
-
-        const workspaceWorkflowIds = new Set(workflows.map((w) => w.id))
-
-        const workspaceChats = items.filter(
-          (c: any) => !c.workflowId || workspaceWorkflowIds.has(c.workflowId)
-        )
+        // Filter chats to only include those from the current workflow
+        const currentWorkflowChats = items.filter((c: any) => c.workflowId === workflowId)
 
         setPastChats(
-          workspaceChats.map((c: any) => ({
+          currentWorkflowChats.map((c: any) => ({
             id: c.id,
             title: c.title ?? null,
             workflowId: c.workflowId ?? null,
@@ -620,25 +680,28 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       // Send only the explicitly selected contexts
       onSubmit(trimmedMessage, fileAttachments, selectedContexts as any)
 
-      // Clean up preview URLs before clearing
-      attachedFiles.forEach((f) => {
-        if (f.previewUrl) {
-          URL.revokeObjectURL(f.previewUrl)
+      // Only clear after submit if clearOnSubmit is true (default behavior for bottom input)
+      if (clearOnSubmit) {
+        // Clean up preview URLs before clearing
+        attachedFiles.forEach((f) => {
+          if (f.previewUrl) {
+            URL.revokeObjectURL(f.previewUrl)
+          }
+        })
+
+        // Clear the message and files after submit
+        if (controlledValue !== undefined) {
+          onControlledChange?.('')
+        } else {
+          setInternalMessage('')
         }
-      })
+        setAttachedFiles([])
 
-      // Clear the message and files after submit
-      if (controlledValue !== undefined) {
-        onControlledChange?.('')
-      } else {
-        setInternalMessage('')
+        // Clear @mention contexts after submission
+        setSelectedContexts([])
+
+        setOpenSubmenuFor(null)
       }
-      setAttachedFiles([])
-
-      // Clear @mention contexts after submission
-      setSelectedContexts([])
-
-      setOpenSubmenuFor(null)
       setShowMentionMenu(false)
     }
 
@@ -1689,13 +1752,14 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       { value: 'gpt-4.1', label: 'gpt-4.1' },
       { value: 'o3', label: 'o3' },
       { value: 'claude-4-sonnet', label: 'claude-4-sonnet' },
+      { value: 'claude-4.5-haiku', label: 'claude-4.5-haiku' },
       { value: 'claude-4.5-sonnet', label: 'claude-4.5-sonnet' },
       { value: 'claude-4.1-opus', label: 'claude-4.1-opus' },
     ] as const
 
-    // Filter models based on user preferences (only for hosted)
+    // Filter models based on user preferences
     const modelOptions =
-      isHosted && enabledModels !== null
+      enabledModels !== null
         ? allModelOptions.filter((model) => enabledModels.includes(model.value))
         : allModelOptions
 
@@ -1705,7 +1769,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     }
 
     const getModelIcon = () => {
-      // Only Brain and BrainCircuit models show purple when agentPrefetch is false
+      // Brain and BrainCircuit models show purple when agentPrefetch is false
       const isBrainModel = [
         'gpt-5',
         'gpt-5-medium',
@@ -1713,8 +1777,11 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         'claude-4.5-sonnet',
       ].includes(selectedModel)
       const isBrainCircuitModel = ['gpt-5-high', 'o3', 'claude-4.1-opus'].includes(selectedModel)
+      const isHaikuModel = selectedModel === 'claude-4.5-haiku'
+
+      // Haiku shows purple when selected, other zap models don't
       const colorClass =
-        (isBrainModel || isBrainCircuitModel) && !agentPrefetch
+        (isBrainModel || isBrainCircuitModel || isHaikuModel) && !agentPrefetch
           ? 'text-[var(--brand-primary-hover-hex)]'
           : 'text-muted-foreground'
 
@@ -1725,7 +1792,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       if (isBrainModel) {
         return <Brain className={`h-3 w-3 ${colorClass}`} />
       }
-      if (['gpt-4o', 'gpt-4.1', 'gpt-5-fast'].includes(selectedModel)) {
+      if (['gpt-4o', 'gpt-4.1', 'gpt-5-fast', 'claude-4.5-haiku'].includes(selectedModel)) {
         return <Zap className={`h-3 w-3 ${colorClass}`} />
       }
       return <InfinityIcon className={`h-3 w-3 ${colorClass}`} />
@@ -1919,11 +1986,175 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       setOpenSubmenuFor(null)
     }
 
+    useEffect(() => {
+      const textarea = textareaRef.current
+      const overlay = overlayRef.current
+      if (!textarea || !overlay || typeof window === 'undefined') return
+
+      const syncOverlayStyles = () => {
+        const styles = window.getComputedStyle(textarea)
+        overlay.style.font = styles.font
+        overlay.style.letterSpacing = styles.letterSpacing
+        overlay.style.padding = styles.padding
+        overlay.style.lineHeight = styles.lineHeight
+        overlay.style.color = styles.color
+        overlay.style.whiteSpace = styles.whiteSpace
+        overlay.style.wordBreak = styles.wordBreak
+        overlay.style.width = `${textarea.clientWidth}px`
+        overlay.style.height = `${textarea.clientHeight}px`
+        overlay.style.borderRadius = styles.borderRadius
+      }
+
+      syncOverlayStyles()
+
+      let resizeObserver: ResizeObserver | null = null
+      if (typeof ResizeObserver !== 'undefined') {
+        resizeObserver = new ResizeObserver(() => syncOverlayStyles())
+        resizeObserver.observe(textarea)
+      }
+      window.addEventListener('resize', syncOverlayStyles)
+
+      return () => {
+        resizeObserver?.disconnect()
+        window.removeEventListener('resize', syncOverlayStyles)
+      }
+    }, [panelWidth, message, selectedContexts])
+
+    // Update mention menu max height when visibility or position changes
+    useEffect(() => {
+      if (!showMentionMenu || !containerRef.current) {
+        setMentionMenuMaxHeight(undefined)
+        return
+      }
+      const rect = containerRef.current.getBoundingClientRect()
+      const margin = 16
+      let available = isNearTop ? window.innerHeight - rect.bottom - margin : rect.top - margin
+      available = Math.max(available, 120)
+      setMentionMenuMaxHeight(available)
+    }, [showMentionMenu, isNearTop])
+
+    // Position the portal mention menu
+    useEffect(() => {
+      const updatePosition = () => {
+        if (!showMentionMenu || !containerRef.current || !textareaRef.current) {
+          setMentionPortalStyle(null)
+          return
+        }
+        const rect = containerRef.current.getBoundingClientRect()
+        const margin = 8
+
+        // Calculate cursor position using a temporary span
+        const textarea = textareaRef.current
+        const caretPos = getCaretPos()
+
+        // Create a mirror div to calculate caret position
+        const div = document.createElement('div')
+        const style = window.getComputedStyle(textarea)
+
+        // Copy relevant styles
+        div.style.position = 'absolute'
+        div.style.visibility = 'hidden'
+        div.style.whiteSpace = 'pre-wrap'
+        div.style.wordWrap = 'break-word'
+        div.style.font = style.font
+        div.style.padding = style.padding
+        div.style.border = style.border
+        div.style.width = style.width
+        div.style.lineHeight = style.lineHeight
+
+        // Add text up to cursor position
+        const textBeforeCaret = message.substring(0, caretPos)
+        div.textContent = textBeforeCaret
+
+        // Add a span at the end to measure position
+        const span = document.createElement('span')
+        span.textContent = '|'
+        div.appendChild(span)
+
+        document.body.appendChild(div)
+        const spanRect = span.getBoundingClientRect()
+        const divRect = div.getBoundingClientRect()
+        document.body.removeChild(div)
+
+        // Calculate the left offset relative to the textarea
+        const caretLeftOffset = spanRect.left - divRect.left
+
+        // Calculate available space above and below
+        const spaceAbove = rect.top - margin
+        const spaceBelow = window.innerHeight - rect.bottom - margin
+
+        // Cap max height to show ~8-10 items before scrolling (each item ~40px)
+        // This prevents the menu from extending too far in either direction
+        const maxMenuHeight = 360
+
+        // Show below if near top OR if more space below, otherwise show above
+        const showBelow = rect.top < 300 || spaceBelow > spaceAbove
+
+        // Calculate max height based on available space, but never exceed maxMenuHeight
+        // Use the smaller of available space and our cap to ensure menu fits
+        const maxHeight = Math.min(
+          Math.max(showBelow ? spaceBelow : spaceAbove, 120),
+          maxMenuHeight
+        )
+
+        // Determine menu width based on submenu state
+        const menuWidth =
+          openSubmenuFor === 'Blocks'
+            ? 320
+            : openSubmenuFor === 'Templates' || openSubmenuFor === 'Logs' || aggregatedActive
+              ? 384
+              : 224
+
+        // Calculate left position: use caret position but ensure menu doesn't go off-screen
+        const idealLeft = rect.left + caretLeftOffset
+        const maxLeft = window.innerWidth - menuWidth - margin
+        const finalLeft = Math.min(idealLeft, maxLeft)
+
+        setMentionPortalStyle({
+          top: showBelow ? rect.bottom + 4 : rect.top - 4,
+          left: Math.max(rect.left, finalLeft), // Don't go past left edge of container
+          width: menuWidth,
+          maxHeight: maxHeight,
+          showBelow,
+        })
+
+        // Update isNearTop state for reference
+        setIsNearTop(showBelow)
+      }
+
+      let rafId: number | null = null
+      if (showMentionMenu) {
+        updatePosition()
+        window.addEventListener('resize', updatePosition)
+
+        // Update position on scroll
+        const scrollContainer = containerRef.current?.closest('[data-radix-scroll-area-viewport]')
+        if (scrollContainer) {
+          scrollContainer.addEventListener('scroll', updatePosition, { passive: true })
+        }
+
+        // Continuously update position (for smooth tracking)
+        const loop = () => {
+          updatePosition()
+          rafId = requestAnimationFrame(loop)
+        }
+        rafId = requestAnimationFrame(loop)
+
+        return () => {
+          window.removeEventListener('resize', updatePosition)
+          if (scrollContainer) {
+            scrollContainer.removeEventListener('scroll', updatePosition)
+          }
+          if (rafId) cancelAnimationFrame(rafId)
+        }
+      }
+    }, [showMentionMenu, openSubmenuFor, aggregatedActive, message])
+
     return (
-      <div className={cn('relative flex-none pb-4', className)}>
+      <div ref={containerRef} className={cn('relative flex-none pb-3', className)}>
         <div
           className={cn(
-            'relative rounded-[8px] border border-[#E5E5E5] bg-[#FFFFFF] p-2 shadow-xs transition-all duration-200 dark:border-[#414141] dark:bg-[var(--surface-elevated)]',
+            'relative rounded-[8px] border border-[#E5E5E5] bg-[#FFFFFF] px-3 py-1.5 shadow-xs transition-all duration-200 dark:border-[#414141] dark:bg-[var(--surface-elevated)]',
             isDragging &&
               'border-[var(--brand-primary-hover-hex)] bg-purple-50/50 dark:border-[var(--brand-primary-hover-hex)] dark:bg-purple-950/20'
           )}
@@ -1933,7 +2164,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           onDrop={handleDrop}
         >
           {/* Context Usage Pill - Top Right */}
-          {contextUsage && contextUsage.percentage > 0 && (
+          {!hideContextUsage && contextUsage && contextUsage.percentage > 0 && (
             <div className='absolute top-2 right-2 z-10'>
               <ContextUsagePill
                 percentage={contextUsage.percentage}
@@ -1941,6 +2172,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               />
             </div>
           )}
+
           {/* Attached Files Display with Thumbnails */}
           {attachedFiles.length > 0 && (
             <div className='mb-2 flex flex-wrap gap-1.5'>
@@ -2054,9 +2286,10 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             {/* Highlight overlay */}
             <div
               ref={overlayRef}
-              className='pointer-events-none absolute inset-0 z-[1] max-h-[120px] overflow-y-auto overflow-x-hidden py-1 pr-14 pl-[2px] [&::-webkit-scrollbar]:hidden'
+              className='pointer-events-none absolute inset-0 z-[1] max-h-[120px] overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words [&::-webkit-scrollbar]:hidden'
+              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
-              <pre className='whitespace-pre-wrap break-words font-sans text-foreground text-sm leading-[1.25rem]'>
+              <pre className='m-0 whitespace-pre-wrap break-words font-sans text-foreground text-sm leading-[1.25rem]'>
                 {(() => {
                   const elements: React.ReactNode[] = []
                   const remaining = message
@@ -2065,7 +2298,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                   // Build regex for all labels
                   const labels = contexts.map((c) => c.label).filter(Boolean)
                   const pattern = new RegExp(
-                    `@(${labels.map((l) => l.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')).join('|')})`,
+                    `@(${labels.map((l) => l.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')).join('|')})`,
                     'g'
                   )
                   let lastIndex = 0
@@ -2075,11 +2308,14 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                     const before = remaining.slice(lastIndex, i)
                     if (before) elements.push(before)
                     const mentionText = match[0]
-                    const mentionLabel = match[1]
                     elements.push(
                       <span
                         key={`${mentionText}-${i}-${lastIndex}`}
-                        className='rounded-[6px] bg-[color-mix(in_srgb,var(--brand-primary-hover-hex)_14%,transparent)]'
+                        style={{
+                          backgroundColor:
+                            'color-mix(in srgb, var(--brand-primary-hover-hex) 14%, transparent)',
+                          borderRadius: '6px',
+                        }}
                       >
                         {mentionText}
                       </span>
@@ -2099,760 +2335,496 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               onKeyDown={handleKeyDown}
               onSelect={handleSelectAdjust}
               onMouseUp={handleSelectAdjust}
+              onScroll={(e) => {
+                if (overlayRef.current) {
+                  overlayRef.current.scrollTop = e.currentTarget.scrollTop
+                  overlayRef.current.scrollLeft = e.currentTarget.scrollLeft
+                }
+              }}
               placeholder={isDragging ? 'Drop files here...' : effectivePlaceholder}
               disabled={disabled}
               rows={1}
-              className='relative z-[2] mb-2 min-h-[32px] w-full resize-none overflow-y-auto overflow-x-hidden break-words border-0 bg-transparent py-1 pr-14 pl-[2px] font-sans text-sm text-transparent leading-[1.25rem] caret-foreground focus-visible:ring-0 focus-visible:ring-offset-0'
-              style={{ height: 'auto', wordBreak: 'break-word' }}
+              className='relative z-[2] mb-2 min-h-[32px] w-full resize-none overflow-y-auto overflow-x-hidden break-words border-0 bg-transparent py-1 pr-14 pl-[2px] font-sans text-sm text-transparent leading-[1.25rem] caret-foreground focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-scrollbar]:hidden'
+              style={{
+                height: 'auto',
+                wordBreak: 'break-word',
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none',
+              }}
             />
 
-            {showMentionMenu && (
-              <>
+            {showMentionMenu &&
+              mentionPortalStyle &&
+              createPortal(
                 <div
-                  ref={mentionMenuRef}
-                  className={cn(
-                    'absolute bottom-full left-0 z-50 mb-1 flex max-h-64 flex-col overflow-hidden rounded-[8px] border bg-popover p-1 text-foreground shadow-md',
-                    openSubmenuFor === 'Blocks'
-                      ? 'w-80'
-                      : openSubmenuFor === 'Templates' ||
-                          openSubmenuFor === 'Logs' ||
-                          aggregatedActive
-                        ? 'w-96'
-                        : 'w-56'
-                  )}
+                  ref={mentionPortalRef}
+                  style={{
+                    position: 'fixed',
+                    top: mentionPortalStyle.top,
+                    left: mentionPortalStyle.left,
+                    width: mentionPortalStyle.width,
+                    maxHeight: mentionPortalStyle.maxHeight,
+                    zIndex: 9999999,
+                    pointerEvents: 'auto',
+                    isolation: 'isolate',
+                    transform: mentionPortalStyle.showBelow ? 'none' : 'translateY(-100%)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                  }}
                 >
-                  {openSubmenuFor ? (
-                    <>
-                      <div className='px-2 py-1.5 text-muted-foreground text-xs'>
-                        {openSubmenuFor === 'Chats'
-                          ? 'Chats'
-                          : openSubmenuFor === 'Workflows'
-                            ? 'All workflows'
-                            : openSubmenuFor === 'Knowledge'
-                              ? 'Knowledge Bases'
-                              : openSubmenuFor === 'Blocks'
-                                ? 'Blocks'
-                                : openSubmenuFor === 'Workflow Blocks'
-                                  ? 'Workflow Blocks'
-                                  : openSubmenuFor === 'Templates'
-                                    ? 'Templates'
-                                    : 'Logs'}
-                      </div>
-                      <div ref={menuListRef} className='flex-1 overflow-auto overscroll-contain'>
-                        {isSubmenu('Chats') && (
-                          <>
-                            {isLoadingPastChats ? (
-                              <div className='px-2 py-2 text-muted-foreground text-sm'>
-                                Loading...
-                              </div>
-                            ) : pastChats.length === 0 ? (
-                              <div className='px-2 py-2 text-muted-foreground text-sm'>
-                                No past chats
-                              </div>
-                            ) : (
-                              pastChats
-                                .filter((c) =>
-                                  (c.title || 'Untitled Chat')
-                                    .toLowerCase()
-                                    .includes(getSubmenuQuery().toLowerCase())
-                                )
-                                .map((chat, idx) => (
-                                  <div
-                                    key={chat.id}
-                                    data-idx={idx}
-                                    className={cn(
-                                      'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
-                                      submenuActiveIndex === idx && 'bg-muted'
-                                    )}
-                                    role='menuitem'
-                                    aria-selected={submenuActiveIndex === idx}
-                                    onMouseEnter={() => setSubmenuActiveIndex(idx)}
-                                    onClick={() => {
-                                      insertPastChatMention(chat)
-                                      setSubmenuQueryStart(null)
-                                    }}
-                                  >
-                                    <div className='flex h-4 w-4 flex-shrink-0 items-center justify-center'>
-                                      <Bot
-                                        className='h-3.5 w-3.5 text-muted-foreground'
-                                        strokeWidth={1.5}
-                                      />
-                                    </div>
-                                    <span className='truncate'>
-                                      {chat.title || 'Untitled Chat'}
-                                    </span>
-                                  </div>
-                                ))
-                            )}
-                          </>
-                        )}
-                        {isSubmenu('Workflows') && (
-                          <>
-                            {isLoadingWorkflows ? (
-                              <div className='px-2 py-2 text-muted-foreground text-sm'>
-                                Loading...
-                              </div>
-                            ) : workflows.length === 0 ? (
-                              <div className='px-2 py-2 text-muted-foreground text-sm'>
-                                No workflows
-                              </div>
-                            ) : (
-                              workflows
-                                .filter((w) =>
-                                  (w.name || 'Untitled Workflow')
-                                    .toLowerCase()
-                                    .includes(getSubmenuQuery().toLowerCase())
-                                )
-                                .map((wf, idx) => (
-                                  <div
-                                    key={wf.id}
-                                    data-idx={idx}
-                                    className={cn(
-                                      'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
-                                      submenuActiveIndex === idx && 'bg-muted'
-                                    )}
-                                    role='menuitem'
-                                    aria-selected={submenuActiveIndex === idx}
-                                    onMouseEnter={() => setSubmenuActiveIndex(idx)}
-                                    onClick={() => {
-                                      insertWorkflowMention(wf)
-                                      setSubmenuQueryStart(null)
-                                    }}
-                                  >
-                                    <div
-                                      className='h-3.5 w-3.5 flex-shrink-0 rounded'
-                                      style={{ backgroundColor: wf.color || '#3972F6' }}
-                                    />
-                                    <span className='truncate'>
-                                      {wf.name || 'Untitled Workflow'}
-                                    </span>
-                                  </div>
-                                ))
-                            )}
-                          </>
-                        )}
-                        {isSubmenu('Knowledge') && (
-                          <>
-                            {isLoadingKnowledge ? (
-                              <div className='px-2 py-2 text-muted-foreground text-sm'>
-                                Loading...
-                              </div>
-                            ) : knowledgeBases.length === 0 ? (
-                              <div className='px-2 py-2 text-muted-foreground text-sm'>
-                                No knowledge bases
-                              </div>
-                            ) : (
-                              knowledgeBases
-                                .filter((k) =>
-                                  (k.name || 'Untitled')
-                                    .toLowerCase()
-                                    .includes(getSubmenuQuery().toLowerCase())
-                                )
-                                .map((kb, idx) => (
-                                  <div
-                                    key={kb.id}
-                                    data-idx={idx}
-                                    className={cn(
-                                      'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
-                                      submenuActiveIndex === idx && 'bg-muted'
-                                    )}
-                                    role='menuitem'
-                                    aria-selected={submenuActiveIndex === idx}
-                                    onMouseEnter={() => setSubmenuActiveIndex(idx)}
-                                    onClick={() => {
-                                      insertKnowledgeMention(kb)
-                                      setSubmenuQueryStart(null)
-                                    }}
-                                  >
-                                    <LibraryBig className='h-3.5 w-3.5 text-muted-foreground' />
-                                    <span className='truncate'>{kb.name || 'Untitled'}</span>
-                                  </div>
-                                ))
-                            )}
-                          </>
-                        )}
-                        {isSubmenu('Blocks') && (
-                          <>
-                            {isLoadingBlocks ? (
-                              <div className='px-2 py-2 text-muted-foreground text-sm'>
-                                Loading...
-                              </div>
-                            ) : blocksList.length === 0 ? (
-                              <div className='px-2 py-2 text-muted-foreground text-sm'>
-                                No blocks found
-                              </div>
-                            ) : (
-                              blocksList
-                                .filter((b) =>
-                                  (b.name || b.id)
-                                    .toLowerCase()
-                                    .includes(getSubmenuQuery().toLowerCase())
-                                )
-                                .map((blk, idx) => (
-                                  <div
-                                    key={blk.id}
-                                    data-idx={idx}
-                                    className={cn(
-                                      'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
-                                      submenuActiveIndex === idx && 'bg-muted'
-                                    )}
-                                    role='menuitem'
-                                    aria-selected={submenuActiveIndex === idx}
-                                    onMouseEnter={() => setSubmenuActiveIndex(idx)}
-                                    onClick={() => {
-                                      insertBlockMention(blk)
-                                      setSubmenuQueryStart(null)
-                                    }}
-                                  >
-                                    <div
-                                      className='relative flex h-4 w-4 items-center justify-center rounded-[3px]'
-                                      style={{ backgroundColor: blk.bgColor || '#6B7280' }}
-                                    >
-                                      {blk.iconComponent && (
-                                        <blk.iconComponent className='!h-3 !w-3 text-white' />
-                                      )}
-                                    </div>
-                                    <span className='truncate'>{blk.name || blk.id}</span>
-                                  </div>
-                                ))
-                            )}
-                          </>
-                        )}
-                        {isSubmenu('Workflow Blocks') && (
-                          <>
-                            {isLoadingWorkflowBlocks ? (
-                              <div className='px-2 py-2 text-muted-foreground text-sm'>
-                                Loading...
-                              </div>
-                            ) : workflowBlocks.length === 0 ? (
-                              <div className='px-2 py-2 text-muted-foreground text-sm'>
-                                No blocks in this workflow
-                              </div>
-                            ) : (
-                              workflowBlocks
-                                .filter((b) =>
-                                  (b.name || b.id)
-                                    .toLowerCase()
-                                    .includes(getSubmenuQuery().toLowerCase())
-                                )
-                                .map((blk, idx) => (
-                                  <div
-                                    key={blk.id}
-                                    data-idx={idx}
-                                    className={cn(
-                                      'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
-                                      submenuActiveIndex === idx && 'bg-muted'
-                                    )}
-                                    role='menuitem'
-                                    aria-selected={submenuActiveIndex === idx}
-                                    onMouseEnter={() => setSubmenuActiveIndex(idx)}
-                                    onClick={() => {
-                                      insertWorkflowBlockMention(blk)
-                                      setSubmenuQueryStart(null)
-                                    }}
-                                  >
-                                    <div
-                                      className='relative flex h-4 w-4 items-center justify-center rounded-[3px]'
-                                      style={{ backgroundColor: blk.bgColor || '#6B7280' }}
-                                    >
-                                      {blk.iconComponent && (
-                                        <blk.iconComponent className='!h-3 !w-3 text-white' />
-                                      )}
-                                    </div>
-                                    <span className='truncate'>{blk.name || blk.id}</span>
-                                  </div>
-                                ))
-                            )}
-                          </>
-                        )}
-                        {isSubmenu('Templates') && (
-                          <>
-                            {isLoadingTemplates ? (
-                              <div className='px-2 py-2 text-muted-foreground text-sm'>
-                                Loading...
-                              </div>
-                            ) : templatesList.length === 0 ? (
-                              <div className='px-2 py-2 text-muted-foreground text-sm'>
-                                No templates found
-                              </div>
-                            ) : (
-                              templatesList
-                                .filter((t) =>
-                                  (t.name || 'Untitled Template')
-                                    .toLowerCase()
-                                    .includes(getSubmenuQuery().toLowerCase())
-                                )
-                                .map((tpl, idx) => (
-                                  <div
-                                    key={tpl.id}
-                                    data-idx={idx}
-                                    className={cn(
-                                      'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
-                                      submenuActiveIndex === idx && 'bg-muted'
-                                    )}
-                                    role='menuitem'
-                                    aria-selected={submenuActiveIndex === idx}
-                                    onMouseEnter={() => setSubmenuActiveIndex(idx)}
-                                    onClick={() => {
-                                      insertTemplateMention(tpl)
-                                      setSubmenuQueryStart(null)
-                                    }}
-                                  >
-                                    <div className='flex h-4 w-4 items-center justify-center'>
-                                      ★
-                                    </div>
-                                    <span className='truncate'>{tpl.name}</span>
-                                    <span className='ml-auto text-muted-foreground text-xs'>
-                                      {tpl.stars}
-                                    </span>
-                                  </div>
-                                ))
-                            )}
-                          </>
-                        )}
-                        {isSubmenu('Logs') && (
-                          <>
-                            {isLoadingLogs ? (
-                              <div className='px-2 py-2 text-muted-foreground text-sm'>
-                                Loading...
-                              </div>
-                            ) : logsList.length === 0 ? (
-                              <div className='px-2 py-2 text-muted-foreground text-sm'>
-                                No executions found
-                              </div>
-                            ) : (
-                              logsList
-                                .filter((l) =>
-                                  [l.workflowName, l.trigger || '']
-                                    .join(' ')
-                                    .toLowerCase()
-                                    .includes(getSubmenuQuery().toLowerCase())
-                                )
-                                .map((log, idx) => (
-                                  <div
-                                    key={log.id}
-                                    data-idx={idx}
-                                    className={cn(
-                                      'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
-                                      submenuActiveIndex === idx && 'bg-muted'
-                                    )}
-                                    role='menuitem'
-                                    aria-selected={submenuActiveIndex === idx}
-                                    onMouseEnter={() => setSubmenuActiveIndex(idx)}
-                                    onClick={() => {
-                                      insertLogMention(log)
-                                      setSubmenuQueryStart(null)
-                                    }}
-                                  >
-                                    {log.level === 'error' ? (
-                                      <X className='h-4 w-4 text-red-500' />
-                                    ) : (
-                                      <Check className='h-4 w-4 text-green-500' />
-                                    )}
-                                    <span className='min-w-0 truncate'>{log.workflowName}</span>
-                                    <span className='text-muted-foreground'>·</span>
-                                    <span className='whitespace-nowrap'>
-                                      {formatTimestamp(log.createdAt)}
-                                    </span>
-                                    <span className='text-muted-foreground'>·</span>
-                                    <span className='capitalize'>
-                                      {(log.trigger || 'manual').toLowerCase()}
-                                    </span>
-                                  </div>
-                                ))
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      {(() => {
-                        const q = (
-                          getActiveMentionQueryAtPosition(getCaretPos())?.query || ''
-                        ).toLowerCase()
-                        const filtered = mentionOptions.filter((label) =>
-                          label.toLowerCase().includes(q)
-                        )
-                        if (q.length > 0 && filtered.length === 0) {
-                          // Aggregated search view
-                          const aggregated = [
-                            ...workflowBlocks
-                              .filter((b) => (b.name || b.id).toLowerCase().includes(q))
-                              .map((b) => ({
-                                type: 'Workflow Blocks' as const,
-                                id: b.id,
-                                value: b,
-                                onClick: () => insertWorkflowBlockMention(b),
-                              })),
-                            ...workflows
-                              .filter((w) =>
-                                (w.name || 'Untitled Workflow').toLowerCase().includes(q)
-                              )
-                              .map((w) => ({
-                                type: 'Workflows' as const,
-                                id: w.id,
-                                value: w,
-                                onClick: () => insertWorkflowMention(w),
-                              })),
-                            ...blocksList
-                              .filter((b) => (b.name || b.id).toLowerCase().includes(q))
-                              .map((b) => ({
-                                type: 'Blocks' as const,
-                                id: b.id,
-                                value: b,
-                                onClick: () => insertBlockMention(b),
-                              })),
-                            ...knowledgeBases
-                              .filter((k) => (k.name || 'Untitled').toLowerCase().includes(q))
-                              .map((k) => ({
-                                type: 'Knowledge' as const,
-                                id: k.id,
-                                value: k,
-                                onClick: () => insertKnowledgeMention(k),
-                              })),
-                            ...templatesList
-                              .filter((t) =>
-                                (t.name || 'Untitled Template').toLowerCase().includes(q)
-                              )
-                              .map((t) => ({
-                                type: 'Templates' as const,
-                                id: t.id,
-                                value: t,
-                                onClick: () => insertTemplateMention(t),
-                              })),
-                            ...pastChats
-                              .filter((c) => (c.title || 'Untitled Chat').toLowerCase().includes(q))
-                              .map((c) => ({
-                                type: 'Chats' as const,
-                                id: c.id,
-                                value: c,
-                                onClick: () => insertPastChatMention(c),
-                              })),
-                            ...logsList
-                              .filter((l) =>
-                                (l.workflowName || 'Untitled Workflow').toLowerCase().includes(q)
-                              )
-                              .map((l) => ({
-                                type: 'Logs' as const,
-                                id: l.id,
-                                value: l,
-                                onClick: () => insertLogMention(l),
-                              })),
-                          ]
-                          return (
-                            <div
-                              ref={menuListRef}
-                              className='flex-1 overflow-auto overscroll-contain'
-                            >
-                              {aggregated.length === 0 ? (
+                  <div
+                    ref={mentionMenuRef}
+                    className='flex flex-col overflow-hidden rounded-[8px] border bg-popover p-1 text-foreground shadow-md'
+                    style={{
+                      maxHeight: mentionPortalStyle.maxHeight,
+                      height: '100%',
+                      position: 'relative',
+                      zIndex: 9999999,
+                    }}
+                  >
+                    {openSubmenuFor ? (
+                      <>
+                        <div className='px-2 py-1.5 text-muted-foreground text-xs'>
+                          {openSubmenuFor === 'Chats'
+                            ? 'Chats'
+                            : openSubmenuFor === 'Workflows'
+                              ? 'All workflows'
+                              : openSubmenuFor === 'Knowledge'
+                                ? 'Knowledge Bases'
+                                : openSubmenuFor === 'Blocks'
+                                  ? 'Blocks'
+                                  : openSubmenuFor === 'Workflow Blocks'
+                                    ? 'Workflow Blocks'
+                                    : openSubmenuFor === 'Templates'
+                                      ? 'Templates'
+                                      : 'Logs'}
+                        </div>
+                        <div ref={menuListRef} className='flex-1 overflow-auto overscroll-contain'>
+                          {isSubmenu('Chats') && (
+                            <>
+                              {isLoadingPastChats ? (
                                 <div className='px-2 py-2 text-muted-foreground text-sm'>
-                                  No matches
+                                  Loading...
+                                </div>
+                              ) : pastChats.length === 0 ? (
+                                <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                  No past chats
                                 </div>
                               ) : (
-                                aggregated.map((item, idx) => (
-                                  <div
-                                    key={`${item.type}-${item.id}`}
-                                    data-idx={idx}
-                                    className={cn(
-                                      'flex cursor-default items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
-                                      submenuActiveIndex === idx && 'bg-muted'
-                                    )}
-                                    role='menuitem'
-                                    aria-selected={submenuActiveIndex === idx}
-                                    onMouseEnter={() => setSubmenuActiveIndex(idx)}
-                                    onClick={() => item.onClick()}
-                                  >
-                                    {item.type === 'Chats' ? (
-                                      <>
-                                        <div className='flex h-4 w-4 flex-shrink-0 items-center justify-center'>
-                                          <Bot
-                                            className='h-3.5 w-3.5 text-muted-foreground'
-                                            strokeWidth={1.5}
-                                          />
-                                        </div>
-                                        <span className='truncate'>
-                                          {(item.value as any).title || 'Untitled Chat'}
-                                        </span>
-                                      </>
-                                    ) : item.type === 'Workflows' ? (
-                                      <>
-                                        <div
-                                          className='h-3.5 w-3.5 flex-shrink-0 rounded'
-                                          style={{
-                                            backgroundColor: (item.value as any).color || '#3972F6',
-                                          }}
-                                        />
-                                        <span className='truncate'>
-                                          {(item.value as any).name || 'Untitled Workflow'}
-                                        </span>
-                                      </>
-                                    ) : item.type === 'Knowledge' ? (
-                                      <>
-                                        <LibraryBig className='h-3.5 w-3.5 text-muted-foreground' />
-                                        <span className='truncate'>
-                                          {(item.value as any).name || 'Untitled'}
-                                        </span>
-                                      </>
-                                    ) : item.type === 'Blocks' ? (
-                                      <>
-                                        <div
-                                          className='relative flex h-4 w-4 items-center justify-center rounded-[3px]'
-                                          style={{
-                                            backgroundColor:
-                                              (item.value as any).bgColor || '#6B7280',
-                                          }}
-                                        >
-                                          {(() => {
-                                            const Icon = (item.value as any).iconComponent
-                                            return Icon ? (
-                                              <Icon className='!h-3 !w-3 text-white' />
-                                            ) : null
-                                          })()}
-                                        </div>
-                                        <span className='truncate'>
-                                          {(item.value as any).name || (item.value as any).id}
-                                        </span>
-                                      </>
-                                    ) : item.type === 'Workflow Blocks' ? (
-                                      <>
-                                        <div
-                                          className='relative flex h-4 w-4 items-center justify-center rounded-[3px]'
-                                          style={{
-                                            backgroundColor:
-                                              (item.value as any).bgColor || '#6B7280',
-                                          }}
-                                        >
-                                          {(() => {
-                                            const Icon = (item.value as any).iconComponent
-                                            return Icon ? (
-                                              <Icon className='!h-3 !w-3 text-white' />
-                                            ) : null
-                                          })()}
-                                        </div>
-                                        <span className='truncate'>
-                                          {(item.value as any).name || (item.value as any).id}
-                                        </span>
-                                      </>
-                                    ) : item.type === 'Logs' ? (
-                                      <>
-                                        {(() => {
-                                          const v = item.value as any
-                                          return v.level === 'error' ? (
-                                            <X className='h-3.5 w-3.5 text-red-500' />
-                                          ) : (
-                                            <Check className='h-3.5 w-3.5 text-green-500' />
-                                          )
-                                        })()}
-                                        <span className='min-w-0 truncate'>
-                                          {(item.value as any).workflowName}
-                                        </span>
-                                        <span className='text-muted-foreground'>·</span>
-                                        <span className='whitespace-nowrap'>
-                                          {formatTimestamp((item.value as any).createdAt)}
-                                        </span>
-                                        <span className='text-muted-foreground'>·</span>
-                                        <span className='capitalize'>
-                                          {(
-                                            ((item.value as any).trigger as string) || 'manual'
-                                          ).toLowerCase()}
-                                        </span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <div className='flex h-4 w-4 items-center justify-center'>
-                                          ★
-                                        </div>
-                                        <span className='truncate'>
-                                          {(item.value as any).name || 'Untitled Template'}
-                                        </span>
-                                        {typeof (item.value as any).stars === 'number' && (
-                                          <span className='ml-auto text-muted-foreground text-xs'>
-                                            {(item.value as any).stars}
-                                          </span>
-                                        )}
-                                      </>
-                                    )}
-                                  </div>
-                                ))
-                              )}
-                            </div>
-                          )
-                        }
-                        // Filtered top-level options view
-                        return (
-                          <div
-                            ref={menuListRef}
-                            className='flex-1 overflow-auto overscroll-contain'
-                          >
-                            {filtered.map((label, idx) => (
-                              <div
-                                key={label}
-                                data-idx={idx}
-                                className={cn(
-                                  'flex cursor-default items-center justify-between gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
-                                  !inAggregated && mentionActiveIndex === idx && 'bg-muted'
-                                )}
-                                role='menuitem'
-                                aria-selected={!inAggregated && mentionActiveIndex === idx}
-                                onMouseEnter={() => {
-                                  setInAggregated(false)
-                                  setMentionActiveIndex(idx)
-                                }}
-                                onClick={() => {
-                                  if (label === 'Chats') {
-                                    resetActiveMentionQuery()
-                                    setOpenSubmenuFor('Chats')
-                                    setSubmenuActiveIndex(0)
-                                    setSubmenuQueryStart(getCaretPos())
-                                    void ensurePastChatsLoaded()
-                                  } else if (label === 'Workflows') {
-                                    resetActiveMentionQuery()
-                                    setOpenSubmenuFor('Workflows')
-                                    setSubmenuActiveIndex(0)
-                                    setSubmenuQueryStart(getCaretPos())
-                                    void ensureWorkflowsLoaded()
-                                  } else if (label === 'Knowledge') {
-                                    resetActiveMentionQuery()
-                                    setOpenSubmenuFor('Knowledge')
-                                    setSubmenuActiveIndex(0)
-                                    setSubmenuQueryStart(getCaretPos())
-                                    void ensureKnowledgeLoaded()
-                                  } else if (label === 'Blocks') {
-                                    resetActiveMentionQuery()
-                                    setOpenSubmenuFor('Blocks')
-                                    setSubmenuActiveIndex(0)
-                                    setSubmenuQueryStart(getCaretPos())
-                                    void ensureBlocksLoaded()
-                                  } else if (label === 'Workflow Blocks') {
-                                    resetActiveMentionQuery()
-                                    setOpenSubmenuFor('Workflow Blocks')
-                                    setSubmenuActiveIndex(0)
-                                    setSubmenuQueryStart(getCaretPos())
-                                    void ensureWorkflowBlocksLoaded()
-                                  } else if (label === 'Docs') {
-                                    // No submenu; insert immediately
-                                    insertDocsMention()
-                                  } else if (label === 'Templates') {
-                                    resetActiveMentionQuery()
-                                    setOpenSubmenuFor('Templates')
-                                    setSubmenuActiveIndex(0)
-                                    setSubmenuQueryStart(getCaretPos())
-                                    void ensureTemplatesLoaded()
-                                  } else if (label === 'Logs') {
-                                    resetActiveMentionQuery()
-                                    setOpenSubmenuFor('Logs')
-                                    setSubmenuActiveIndex(0)
-                                    setSubmenuQueryStart(getCaretPos())
-                                    void ensureLogsLoaded()
-                                  }
-                                }}
-                              >
-                                <div className='flex items-center gap-2'>
-                                  {label === 'Chats' ? (
-                                    <Bot className='h-3.5 w-3.5 text-muted-foreground' />
-                                  ) : label === 'Workflows' ? (
-                                    <Workflow className='h-3.5 w-3.5 text-muted-foreground' />
-                                  ) : label === 'Blocks' ? (
-                                    <Blocks className='h-3.5 w-3.5 text-muted-foreground' />
-                                  ) : label === 'Workflow Blocks' ? (
-                                    <Box className='h-3.5 w-3.5 text-muted-foreground' />
-                                  ) : label === 'Knowledge' ? (
-                                    <LibraryBig className='h-3.5 w-3.5 text-muted-foreground' />
-                                  ) : label === 'Docs' ? (
-                                    <BookOpen className='h-3.5 w-3.5 text-muted-foreground' />
-                                  ) : label === 'Templates' ? (
-                                    <Shapes className='h-3.5 w-3.5 text-muted-foreground' />
-                                  ) : label === 'Logs' ? (
-                                    <SquareChevronRight className='h-3.5 w-3.5 text-muted-foreground' />
-                                  ) : (
-                                    <div className='h-3.5 w-3.5' />
-                                  )}
-                                  <span>{label === 'Workflows' ? 'All workflows' : label}</span>
-                                </div>
-                                {label !== 'Docs' && (
-                                  <ChevronRight className='h-3.5 w-3.5 text-muted-foreground' />
-                                )}
-                              </div>
-                            ))}
-
-                            {(() => {
-                              const aq = (
-                                getActiveMentionQueryAtPosition(getCaretPos())?.query || ''
-                              ).toLowerCase()
-                              const filteredLen = mentionOptions.filter((label) =>
-                                label.toLowerCase().includes(aq)
-                              ).length
-                              const aggregated = [
-                                ...workflowBlocks
-                                  .filter((b) => (b.name || b.id).toLowerCase().includes(aq))
-                                  .map((b) => ({ type: 'Workflow Blocks' as const, value: b })),
-                                ...workflows
-                                  .filter((w) =>
-                                    (w.name || 'Untitled Workflow').toLowerCase().includes(aq)
-                                  )
-                                  .map((w) => ({ type: 'Workflows' as const, value: w })),
-                                ...blocksList
-                                  .filter((b) => (b.name || b.id).toLowerCase().includes(aq))
-                                  .map((b) => ({ type: 'Blocks' as const, value: b })),
-                                ...knowledgeBases
-                                  .filter((k) => (k.name || 'Untitled').toLowerCase().includes(aq))
-                                  .map((k) => ({ type: 'Knowledge' as const, value: k })),
-                                ...templatesList
-                                  .filter((t) =>
-                                    (t.name || 'Untitled Template').toLowerCase().includes(aq)
-                                  )
-                                  .map((t) => ({ type: 'Templates' as const, value: t })),
-                                ...pastChats
+                                pastChats
                                   .filter((c) =>
-                                    (c.title || 'Untitled Chat').toLowerCase().includes(aq)
-                                  )
-                                  .map((c) => ({ type: 'Chats' as const, value: c })),
-                                ...logsList
-                                  .filter((l) =>
-                                    (l.workflowName || 'Untitled Workflow')
+                                    (c.title || 'Untitled Chat')
                                       .toLowerCase()
-                                      .includes(aq)
+                                      .includes(getSubmenuQuery().toLowerCase())
                                   )
-                                  .map((l) => ({ type: 'Logs' as const, value: l })),
-                              ]
-                              if (!aq || aq.length === 0 || aggregated.length === 0) return null
-                              return (
-                                <>
-                                  <div className='my-1 h-px bg-border/70' />
-                                  <div className='px-2 py-1 text-[11px] text-muted-foreground'>
-                                    Matches
-                                  </div>
-                                  {aggregated.map((item, idx) => (
+                                  .map((chat, idx) => (
                                     <div
-                                      key={`${item.type}-${(item.value as any).id}`}
-                                      data-idx={filteredLen + idx}
+                                      key={chat.id}
+                                      data-idx={idx}
                                       className={cn(
-                                        'flex cursor-default items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
-                                        inAggregated && submenuActiveIndex === idx && 'bg-muted'
+                                        'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
+                                        submenuActiveIndex === idx && 'bg-muted'
                                       )}
                                       role='menuitem'
-                                      aria-selected={inAggregated && submenuActiveIndex === idx}
-                                      onMouseEnter={() => {
-                                        setInAggregated(true)
-                                        setSubmenuActiveIndex(idx)
-                                      }}
+                                      aria-selected={submenuActiveIndex === idx}
+                                      onMouseEnter={() => setSubmenuActiveIndex(idx)}
                                       onClick={() => {
-                                        if (item.type === 'Chats')
-                                          insertPastChatMention(item.value as any)
-                                        else if (item.type === 'Workflows')
-                                          insertWorkflowMention(item.value as any)
-                                        else if (item.type === 'Knowledge')
-                                          insertKnowledgeMention(item.value as any)
-                                        else if (item.type === 'Blocks')
-                                          insertBlockMention(item.value as any)
-                                        else if ((item as any).type === 'Workflow Blocks')
-                                          insertWorkflowBlockMention(item.value as any)
-                                        else if (item.type === 'Templates')
-                                          insertTemplateMention(item.value as any)
-                                        else if (item.type === 'Logs')
-                                          insertLogMention(item.value as any)
+                                        insertPastChatMention(chat)
+                                        setSubmenuQueryStart(null)
                                       }}
+                                    >
+                                      <div className='flex h-4 w-4 flex-shrink-0 items-center justify-center'>
+                                        <Bot
+                                          className='h-3.5 w-3.5 text-muted-foreground'
+                                          strokeWidth={1.5}
+                                        />
+                                      </div>
+                                      <span className='truncate'>
+                                        {chat.title || 'Untitled Chat'}
+                                      </span>
+                                    </div>
+                                  ))
+                              )}
+                            </>
+                          )}
+                          {isSubmenu('Workflows') && (
+                            <>
+                              {isLoadingWorkflows ? (
+                                <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                  Loading...
+                                </div>
+                              ) : workflows.length === 0 ? (
+                                <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                  No workflows
+                                </div>
+                              ) : (
+                                workflows
+                                  .filter((w) =>
+                                    (w.name || 'Untitled Workflow')
+                                      .toLowerCase()
+                                      .includes(getSubmenuQuery().toLowerCase())
+                                  )
+                                  .map((wf, idx) => (
+                                    <div
+                                      key={wf.id}
+                                      data-idx={idx}
+                                      className={cn(
+                                        'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
+                                        submenuActiveIndex === idx && 'bg-muted'
+                                      )}
+                                      role='menuitem'
+                                      aria-selected={submenuActiveIndex === idx}
+                                      onMouseEnter={() => setSubmenuActiveIndex(idx)}
+                                      onClick={() => {
+                                        insertWorkflowMention(wf)
+                                        setSubmenuQueryStart(null)
+                                      }}
+                                    >
+                                      <div
+                                        className='h-3.5 w-3.5 flex-shrink-0 rounded'
+                                        style={{ backgroundColor: wf.color || '#3972F6' }}
+                                      />
+                                      <span className='truncate'>
+                                        {wf.name || 'Untitled Workflow'}
+                                      </span>
+                                    </div>
+                                  ))
+                              )}
+                            </>
+                          )}
+                          {isSubmenu('Knowledge') && (
+                            <>
+                              {isLoadingKnowledge ? (
+                                <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                  Loading...
+                                </div>
+                              ) : knowledgeBases.length === 0 ? (
+                                <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                  No knowledge bases
+                                </div>
+                              ) : (
+                                knowledgeBases
+                                  .filter((k) =>
+                                    (k.name || 'Untitled')
+                                      .toLowerCase()
+                                      .includes(getSubmenuQuery().toLowerCase())
+                                  )
+                                  .map((kb, idx) => (
+                                    <div
+                                      key={kb.id}
+                                      data-idx={idx}
+                                      className={cn(
+                                        'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
+                                        submenuActiveIndex === idx && 'bg-muted'
+                                      )}
+                                      role='menuitem'
+                                      aria-selected={submenuActiveIndex === idx}
+                                      onMouseEnter={() => setSubmenuActiveIndex(idx)}
+                                      onClick={() => {
+                                        insertKnowledgeMention(kb)
+                                        setSubmenuQueryStart(null)
+                                      }}
+                                    >
+                                      <LibraryBig className='h-3.5 w-3.5 text-muted-foreground' />
+                                      <span className='truncate'>{kb.name || 'Untitled'}</span>
+                                    </div>
+                                  ))
+                              )}
+                            </>
+                          )}
+                          {isSubmenu('Blocks') && (
+                            <>
+                              {isLoadingBlocks ? (
+                                <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                  Loading...
+                                </div>
+                              ) : blocksList.length === 0 ? (
+                                <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                  No blocks found
+                                </div>
+                              ) : (
+                                blocksList
+                                  .filter((b) =>
+                                    (b.name || b.id)
+                                      .toLowerCase()
+                                      .includes(getSubmenuQuery().toLowerCase())
+                                  )
+                                  .map((blk, idx) => (
+                                    <div
+                                      key={blk.id}
+                                      data-idx={idx}
+                                      className={cn(
+                                        'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
+                                        submenuActiveIndex === idx && 'bg-muted'
+                                      )}
+                                      role='menuitem'
+                                      aria-selected={submenuActiveIndex === idx}
+                                      onMouseEnter={() => setSubmenuActiveIndex(idx)}
+                                      onClick={() => {
+                                        insertBlockMention(blk)
+                                        setSubmenuQueryStart(null)
+                                      }}
+                                    >
+                                      <div
+                                        className='relative flex h-4 w-4 items-center justify-center rounded-[3px]'
+                                        style={{ backgroundColor: blk.bgColor || '#6B7280' }}
+                                      >
+                                        {blk.iconComponent && (
+                                          <blk.iconComponent className='!h-3 !w-3 text-white' />
+                                        )}
+                                      </div>
+                                      <span className='truncate'>{blk.name || blk.id}</span>
+                                    </div>
+                                  ))
+                              )}
+                            </>
+                          )}
+                          {isSubmenu('Workflow Blocks') && (
+                            <>
+                              {isLoadingWorkflowBlocks ? (
+                                <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                  Loading...
+                                </div>
+                              ) : workflowBlocks.length === 0 ? (
+                                <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                  No blocks in this workflow
+                                </div>
+                              ) : (
+                                workflowBlocks
+                                  .filter((b) =>
+                                    (b.name || b.id)
+                                      .toLowerCase()
+                                      .includes(getSubmenuQuery().toLowerCase())
+                                  )
+                                  .map((blk, idx) => (
+                                    <div
+                                      key={blk.id}
+                                      data-idx={idx}
+                                      className={cn(
+                                        'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
+                                        submenuActiveIndex === idx && 'bg-muted'
+                                      )}
+                                      role='menuitem'
+                                      aria-selected={submenuActiveIndex === idx}
+                                      onMouseEnter={() => setSubmenuActiveIndex(idx)}
+                                      onClick={() => {
+                                        insertWorkflowBlockMention(blk)
+                                        setSubmenuQueryStart(null)
+                                      }}
+                                    >
+                                      <div
+                                        className='relative flex h-4 w-4 items-center justify-center rounded-[3px]'
+                                        style={{ backgroundColor: blk.bgColor || '#6B7280' }}
+                                      >
+                                        {blk.iconComponent && (
+                                          <blk.iconComponent className='!h-3 !w-3 text-white' />
+                                        )}
+                                      </div>
+                                      <span className='truncate'>{blk.name || blk.id}</span>
+                                    </div>
+                                  ))
+                              )}
+                            </>
+                          )}
+                          {isSubmenu('Templates') && (
+                            <>
+                              {isLoadingTemplates ? (
+                                <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                  Loading...
+                                </div>
+                              ) : templatesList.length === 0 ? (
+                                <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                  No templates found
+                                </div>
+                              ) : (
+                                templatesList
+                                  .filter((t) =>
+                                    (t.name || 'Untitled Template')
+                                      .toLowerCase()
+                                      .includes(getSubmenuQuery().toLowerCase())
+                                  )
+                                  .map((tpl, idx) => (
+                                    <div
+                                      key={tpl.id}
+                                      data-idx={idx}
+                                      className={cn(
+                                        'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
+                                        submenuActiveIndex === idx && 'bg-muted'
+                                      )}
+                                      role='menuitem'
+                                      aria-selected={submenuActiveIndex === idx}
+                                      onMouseEnter={() => setSubmenuActiveIndex(idx)}
+                                      onClick={() => {
+                                        insertTemplateMention(tpl)
+                                        setSubmenuQueryStart(null)
+                                      }}
+                                    >
+                                      <div className='flex h-4 w-4 items-center justify-center'>
+                                        ★
+                                      </div>
+                                      <span className='truncate'>{tpl.name}</span>
+                                      <span className='ml-auto text-muted-foreground text-xs'>
+                                        {tpl.stars}
+                                      </span>
+                                    </div>
+                                  ))
+                              )}
+                            </>
+                          )}
+                          {isSubmenu('Logs') && (
+                            <>
+                              {isLoadingLogs ? (
+                                <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                  Loading...
+                                </div>
+                              ) : logsList.length === 0 ? (
+                                <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                  No executions found
+                                </div>
+                              ) : (
+                                logsList
+                                  .filter((l) =>
+                                    [l.workflowName, l.trigger || '']
+                                      .join(' ')
+                                      .toLowerCase()
+                                      .includes(getSubmenuQuery().toLowerCase())
+                                  )
+                                  .map((log, idx) => (
+                                    <div
+                                      key={log.id}
+                                      data-idx={idx}
+                                      className={cn(
+                                        'flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
+                                        submenuActiveIndex === idx && 'bg-muted'
+                                      )}
+                                      role='menuitem'
+                                      aria-selected={submenuActiveIndex === idx}
+                                      onMouseEnter={() => setSubmenuActiveIndex(idx)}
+                                      onClick={() => {
+                                        insertLogMention(log)
+                                        setSubmenuQueryStart(null)
+                                      }}
+                                    >
+                                      {log.level === 'error' ? (
+                                        <X className='h-4 w-4 text-red-500' />
+                                      ) : (
+                                        <Check className='h-4 w-4 text-green-500' />
+                                      )}
+                                      <span className='min-w-0 truncate'>{log.workflowName}</span>
+                                      <span className='text-muted-foreground'>·</span>
+                                      <span className='whitespace-nowrap'>
+                                        {formatTimestamp(log.createdAt)}
+                                      </span>
+                                      <span className='text-muted-foreground'>·</span>
+                                      <span className='capitalize'>
+                                        {(log.trigger || 'manual').toLowerCase()}
+                                      </span>
+                                    </div>
+                                  ))
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        {(() => {
+                          const q = (
+                            getActiveMentionQueryAtPosition(getCaretPos())?.query || ''
+                          ).toLowerCase()
+                          const filtered = mentionOptions.filter((label) =>
+                            label.toLowerCase().includes(q)
+                          )
+                          if (q.length > 0 && filtered.length === 0) {
+                            // Aggregated search view
+                            const aggregated = [
+                              ...workflowBlocks
+                                .filter((b) => (b.name || b.id).toLowerCase().includes(q))
+                                .map((b) => ({
+                                  type: 'Workflow Blocks' as const,
+                                  id: b.id,
+                                  value: b,
+                                  onClick: () => insertWorkflowBlockMention(b),
+                                })),
+                              ...workflows
+                                .filter((w) =>
+                                  (w.name || 'Untitled Workflow').toLowerCase().includes(q)
+                                )
+                                .map((w) => ({
+                                  type: 'Workflows' as const,
+                                  id: w.id,
+                                  value: w,
+                                  onClick: () => insertWorkflowMention(w),
+                                })),
+                              ...blocksList
+                                .filter((b) => (b.name || b.id).toLowerCase().includes(q))
+                                .map((b) => ({
+                                  type: 'Blocks' as const,
+                                  id: b.id,
+                                  value: b,
+                                  onClick: () => insertBlockMention(b),
+                                })),
+                              ...knowledgeBases
+                                .filter((k) => (k.name || 'Untitled').toLowerCase().includes(q))
+                                .map((k) => ({
+                                  type: 'Knowledge' as const,
+                                  id: k.id,
+                                  value: k,
+                                  onClick: () => insertKnowledgeMention(k),
+                                })),
+                              ...templatesList
+                                .filter((t) =>
+                                  (t.name || 'Untitled Template').toLowerCase().includes(q)
+                                )
+                                .map((t) => ({
+                                  type: 'Templates' as const,
+                                  id: t.id,
+                                  value: t,
+                                  onClick: () => insertTemplateMention(t),
+                                })),
+                              ...pastChats
+                                .filter((c) =>
+                                  (c.title || 'Untitled Chat').toLowerCase().includes(q)
+                                )
+                                .map((c) => ({
+                                  type: 'Chats' as const,
+                                  id: c.id,
+                                  value: c,
+                                  onClick: () => insertPastChatMention(c),
+                                })),
+                              ...logsList
+                                .filter((l) =>
+                                  (l.workflowName || 'Untitled Workflow').toLowerCase().includes(q)
+                                )
+                                .map((l) => ({
+                                  type: 'Logs' as const,
+                                  id: l.id,
+                                  value: l,
+                                  onClick: () => insertLogMention(l),
+                                })),
+                            ]
+                            return (
+                              <div
+                                ref={menuListRef}
+                                className='flex-1 overflow-auto overscroll-contain'
+                              >
+                                {aggregated.length === 0 ? (
+                                  <div className='px-2 py-2 text-muted-foreground text-sm'>
+                                    No matches
+                                  </div>
+                                ) : (
+                                  aggregated.map((item, idx) => (
+                                    <div
+                                      key={`${item.type}-${item.id}`}
+                                      data-idx={idx}
+                                      className={cn(
+                                        'flex cursor-default items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
+                                        submenuActiveIndex === idx && 'bg-muted'
+                                      )}
+                                      role='menuitem'
+                                      aria-selected={submenuActiveIndex === idx}
+                                      onMouseEnter={() => setSubmenuActiveIndex(idx)}
+                                      onClick={() => item.onClick()}
                                     >
                                       {item.type === 'Chats' ? (
                                         <>
@@ -2966,18 +2938,313 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                         </>
                                       )}
                                     </div>
-                                  ))}
-                                </>
-                              )
-                            })()}
-                          </div>
-                        )
-                      })()}
-                    </>
-                  )}
-                </div>
-              </>
-            )}
+                                  ))
+                                )}
+                              </div>
+                            )
+                          }
+                          // Filtered top-level options view
+                          return (
+                            <div
+                              ref={menuListRef}
+                              className='flex-1 overflow-auto overscroll-contain'
+                            >
+                              {filtered.map((label, idx) => (
+                                <div
+                                  key={label}
+                                  data-idx={idx}
+                                  className={cn(
+                                    'flex cursor-default items-center justify-between gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
+                                    !inAggregated && mentionActiveIndex === idx && 'bg-muted'
+                                  )}
+                                  role='menuitem'
+                                  aria-selected={!inAggregated && mentionActiveIndex === idx}
+                                  onMouseEnter={() => {
+                                    setInAggregated(false)
+                                    setMentionActiveIndex(idx)
+                                  }}
+                                  onClick={() => {
+                                    if (label === 'Chats') {
+                                      resetActiveMentionQuery()
+                                      setOpenSubmenuFor('Chats')
+                                      setSubmenuActiveIndex(0)
+                                      setSubmenuQueryStart(getCaretPos())
+                                      void ensurePastChatsLoaded()
+                                    } else if (label === 'Workflows') {
+                                      resetActiveMentionQuery()
+                                      setOpenSubmenuFor('Workflows')
+                                      setSubmenuActiveIndex(0)
+                                      setSubmenuQueryStart(getCaretPos())
+                                      void ensureWorkflowsLoaded()
+                                    } else if (label === 'Knowledge') {
+                                      resetActiveMentionQuery()
+                                      setOpenSubmenuFor('Knowledge')
+                                      setSubmenuActiveIndex(0)
+                                      setSubmenuQueryStart(getCaretPos())
+                                      void ensureKnowledgeLoaded()
+                                    } else if (label === 'Blocks') {
+                                      resetActiveMentionQuery()
+                                      setOpenSubmenuFor('Blocks')
+                                      setSubmenuActiveIndex(0)
+                                      setSubmenuQueryStart(getCaretPos())
+                                      void ensureBlocksLoaded()
+                                    } else if (label === 'Workflow Blocks') {
+                                      resetActiveMentionQuery()
+                                      setOpenSubmenuFor('Workflow Blocks')
+                                      setSubmenuActiveIndex(0)
+                                      setSubmenuQueryStart(getCaretPos())
+                                      void ensureWorkflowBlocksLoaded()
+                                    } else if (label === 'Docs') {
+                                      // No submenu; insert immediately
+                                      insertDocsMention()
+                                    } else if (label === 'Templates') {
+                                      resetActiveMentionQuery()
+                                      setOpenSubmenuFor('Templates')
+                                      setSubmenuActiveIndex(0)
+                                      setSubmenuQueryStart(getCaretPos())
+                                      void ensureTemplatesLoaded()
+                                    } else if (label === 'Logs') {
+                                      resetActiveMentionQuery()
+                                      setOpenSubmenuFor('Logs')
+                                      setSubmenuActiveIndex(0)
+                                      setSubmenuQueryStart(getCaretPos())
+                                      void ensureLogsLoaded()
+                                    }
+                                  }}
+                                >
+                                  <div className='flex items-center gap-2'>
+                                    {label === 'Chats' ? (
+                                      <Bot className='h-3.5 w-3.5 text-muted-foreground' />
+                                    ) : label === 'Workflows' ? (
+                                      <Workflow className='h-3.5 w-3.5 text-muted-foreground' />
+                                    ) : label === 'Blocks' ? (
+                                      <Blocks className='h-3.5 w-3.5 text-muted-foreground' />
+                                    ) : label === 'Workflow Blocks' ? (
+                                      <Box className='h-3.5 w-3.5 text-muted-foreground' />
+                                    ) : label === 'Knowledge' ? (
+                                      <LibraryBig className='h-3.5 w-3.5 text-muted-foreground' />
+                                    ) : label === 'Docs' ? (
+                                      <BookOpen className='h-3.5 w-3.5 text-muted-foreground' />
+                                    ) : label === 'Templates' ? (
+                                      <Shapes className='h-3.5 w-3.5 text-muted-foreground' />
+                                    ) : label === 'Logs' ? (
+                                      <SquareChevronRight className='h-3.5 w-3.5 text-muted-foreground' />
+                                    ) : (
+                                      <div className='h-3.5 w-3.5' />
+                                    )}
+                                    <span>{label === 'Workflows' ? 'All workflows' : label}</span>
+                                  </div>
+                                  {label !== 'Docs' && (
+                                    <ChevronRight className='h-3.5 w-3.5 text-muted-foreground' />
+                                  )}
+                                </div>
+                              ))}
+
+                              {(() => {
+                                const aq = (
+                                  getActiveMentionQueryAtPosition(getCaretPos())?.query || ''
+                                ).toLowerCase()
+                                const filteredLen = mentionOptions.filter((label) =>
+                                  label.toLowerCase().includes(aq)
+                                ).length
+                                const aggregated = [
+                                  ...workflowBlocks
+                                    .filter((b) => (b.name || b.id).toLowerCase().includes(aq))
+                                    .map((b) => ({ type: 'Workflow Blocks' as const, value: b })),
+                                  ...workflows
+                                    .filter((w) =>
+                                      (w.name || 'Untitled Workflow').toLowerCase().includes(aq)
+                                    )
+                                    .map((w) => ({ type: 'Workflows' as const, value: w })),
+                                  ...blocksList
+                                    .filter((b) => (b.name || b.id).toLowerCase().includes(aq))
+                                    .map((b) => ({ type: 'Blocks' as const, value: b })),
+                                  ...knowledgeBases
+                                    .filter((k) =>
+                                      (k.name || 'Untitled').toLowerCase().includes(aq)
+                                    )
+                                    .map((k) => ({ type: 'Knowledge' as const, value: k })),
+                                  ...templatesList
+                                    .filter((t) =>
+                                      (t.name || 'Untitled Template').toLowerCase().includes(aq)
+                                    )
+                                    .map((t) => ({ type: 'Templates' as const, value: t })),
+                                  ...pastChats
+                                    .filter((c) =>
+                                      (c.title || 'Untitled Chat').toLowerCase().includes(aq)
+                                    )
+                                    .map((c) => ({ type: 'Chats' as const, value: c })),
+                                  ...logsList
+                                    .filter((l) =>
+                                      (l.workflowName || 'Untitled Workflow')
+                                        .toLowerCase()
+                                        .includes(aq)
+                                    )
+                                    .map((l) => ({ type: 'Logs' as const, value: l })),
+                                ]
+                                if (!aq || aq.length === 0 || aggregated.length === 0) return null
+                                return (
+                                  <>
+                                    <div className='my-1 h-px bg-border/70' />
+                                    <div className='px-2 py-1 text-[11px] text-muted-foreground'>
+                                      Matches
+                                    </div>
+                                    {aggregated.map((item, idx) => (
+                                      <div
+                                        key={`${item.type}-${(item.value as any).id}`}
+                                        data-idx={filteredLen + idx}
+                                        className={cn(
+                                          'flex cursor-default items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm hover:bg-muted/60',
+                                          inAggregated && submenuActiveIndex === idx && 'bg-muted'
+                                        )}
+                                        role='menuitem'
+                                        aria-selected={inAggregated && submenuActiveIndex === idx}
+                                        onMouseEnter={() => {
+                                          setInAggregated(true)
+                                          setSubmenuActiveIndex(idx)
+                                        }}
+                                        onClick={() => {
+                                          if (item.type === 'Chats')
+                                            insertPastChatMention(item.value as any)
+                                          else if (item.type === 'Workflows')
+                                            insertWorkflowMention(item.value as any)
+                                          else if (item.type === 'Knowledge')
+                                            insertKnowledgeMention(item.value as any)
+                                          else if (item.type === 'Blocks')
+                                            insertBlockMention(item.value as any)
+                                          else if ((item as any).type === 'Workflow Blocks')
+                                            insertWorkflowBlockMention(item.value as any)
+                                          else if (item.type === 'Templates')
+                                            insertTemplateMention(item.value as any)
+                                          else if (item.type === 'Logs')
+                                            insertLogMention(item.value as any)
+                                        }}
+                                      >
+                                        {item.type === 'Chats' ? (
+                                          <>
+                                            <div className='flex h-4 w-4 flex-shrink-0 items-center justify-center'>
+                                              <Bot
+                                                className='h-3.5 w-3.5 text-muted-foreground'
+                                                strokeWidth={1.5}
+                                              />
+                                            </div>
+                                            <span className='truncate'>
+                                              {(item.value as any).title || 'Untitled Chat'}
+                                            </span>
+                                          </>
+                                        ) : item.type === 'Workflows' ? (
+                                          <>
+                                            <div
+                                              className='h-3.5 w-3.5 flex-shrink-0 rounded'
+                                              style={{
+                                                backgroundColor:
+                                                  (item.value as any).color || '#3972F6',
+                                              }}
+                                            />
+                                            <span className='truncate'>
+                                              {(item.value as any).name || 'Untitled Workflow'}
+                                            </span>
+                                          </>
+                                        ) : item.type === 'Knowledge' ? (
+                                          <>
+                                            <LibraryBig className='h-3.5 w-3.5 text-muted-foreground' />
+                                            <span className='truncate'>
+                                              {(item.value as any).name || 'Untitled'}
+                                            </span>
+                                          </>
+                                        ) : item.type === 'Blocks' ? (
+                                          <>
+                                            <div
+                                              className='relative flex h-4 w-4 items-center justify-center rounded-[3px]'
+                                              style={{
+                                                backgroundColor:
+                                                  (item.value as any).bgColor || '#6B7280',
+                                              }}
+                                            >
+                                              {(() => {
+                                                const Icon = (item.value as any).iconComponent
+                                                return Icon ? (
+                                                  <Icon className='!h-3 !w-3 text-white' />
+                                                ) : null
+                                              })()}
+                                            </div>
+                                            <span className='truncate'>
+                                              {(item.value as any).name || (item.value as any).id}
+                                            </span>
+                                          </>
+                                        ) : item.type === 'Workflow Blocks' ? (
+                                          <>
+                                            <div
+                                              className='relative flex h-4 w-4 items-center justify-center rounded-[3px]'
+                                              style={{
+                                                backgroundColor:
+                                                  (item.value as any).bgColor || '#6B7280',
+                                              }}
+                                            >
+                                              {(() => {
+                                                const Icon = (item.value as any).iconComponent
+                                                return Icon ? (
+                                                  <Icon className='!h-3 !w-3 text-white' />
+                                                ) : null
+                                              })()}
+                                            </div>
+                                            <span className='truncate'>
+                                              {(item.value as any).name || (item.value as any).id}
+                                            </span>
+                                          </>
+                                        ) : item.type === 'Logs' ? (
+                                          <>
+                                            {(() => {
+                                              const v = item.value as any
+                                              return v.level === 'error' ? (
+                                                <X className='h-3.5 w-3.5 text-red-500' />
+                                              ) : (
+                                                <Check className='h-3.5 w-3.5 text-green-500' />
+                                              )
+                                            })()}
+                                            <span className='min-w-0 truncate'>
+                                              {(item.value as any).workflowName}
+                                            </span>
+                                            <span className='text-muted-foreground'>·</span>
+                                            <span className='whitespace-nowrap'>
+                                              {formatTimestamp((item.value as any).createdAt)}
+                                            </span>
+                                            <span className='text-muted-foreground'>·</span>
+                                            <span className='capitalize'>
+                                              {(
+                                                ((item.value as any).trigger as string) || 'manual'
+                                              ).toLowerCase()}
+                                            </span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <div className='flex h-4 w-4 items-center justify-center'>
+                                              ★
+                                            </div>
+                                            <span className='truncate'>
+                                              {(item.value as any).name || 'Untitled Template'}
+                                            </span>
+                                            {typeof (item.value as any).stars === 'number' && (
+                                              <span className='ml-auto text-muted-foreground text-xs'>
+                                                {(item.value as any).stars}
+                                              </span>
+                                            )}
+                                          </>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </>
+                                )
+                              })()}
+                            </div>
+                          )
+                        })()}
+                      </>
+                    )}
+                  </div>
+                </div>,
+                document.body
+              )}
           </div>
 
           {/* Bottom Row: Mode Selector + Attach Button + Send Button */}
@@ -2996,7 +3263,11 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                     <span>{getModeText()}</span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align='start' side='top' className='p-0'>
+                <DropdownMenuContent
+                  align='start'
+                  side={isNearTop ? 'bottom' : 'top'}
+                  className='p-0'
+                >
                   <TooltipProvider>
                     <div className='w-[160px] p-1'>
                       <Tooltip>
@@ -3066,7 +3337,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                 const isBrainCircuitModel = ['gpt-5-high', 'o3', 'claude-4.1-opus'].includes(
                   selectedModel
                 )
-                const showPurple = (isBrainModel || isBrainCircuitModel) && !agentPrefetch
+                const isHaikuModel = selectedModel === 'claude-4.5-haiku'
+                const showPurple =
+                  (isBrainModel || isBrainCircuitModel || isHaikuModel) && !agentPrefetch
 
                 return (
                   <DropdownMenu
@@ -3098,7 +3371,11 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                         </span>
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align='start' side='top' className='max-h-[400px] p-0'>
+                    <DropdownMenuContent
+                      align='start'
+                      side={isNearTop ? 'bottom' : 'top'}
+                      className='max-h-[400px] p-0'
+                    >
                       <TooltipProvider delayDuration={100} skipDelayDuration={0}>
                         <div className='w-[220px]'>
                           <div className='max-h-[280px] overflow-y-auto p-2'>
@@ -3127,7 +3404,14 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                     ) {
                                       return <Brain className='h-3 w-3 text-muted-foreground' />
                                     }
-                                    if (['gpt-4o', 'gpt-4.1', 'gpt-5-fast'].includes(modelValue)) {
+                                    if (
+                                      [
+                                        'gpt-4o',
+                                        'gpt-4.1',
+                                        'gpt-5-fast',
+                                        'claude-4.5-haiku',
+                                      ].includes(modelValue)
+                                    ) {
                                       return <Zap className='h-3 w-3 text-muted-foreground' />
                                     }
                                     return <div className='h-3 w-3' />
@@ -3162,6 +3446,25 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
                                   return (
                                     <>
+                                      {/* Anthropic Models */}
+                                      <div>
+                                        <div className='px-2 py-1 font-medium text-[10px] text-muted-foreground uppercase'>
+                                          Anthropic
+                                        </div>
+                                        <div className='space-y-0.5'>
+                                          {modelOptions
+                                            .filter((option) =>
+                                              [
+                                                'claude-4-sonnet',
+                                                'claude-4.5-haiku',
+                                                'claude-4.5-sonnet',
+                                                'claude-4.1-opus',
+                                              ].includes(option.value)
+                                            )
+                                            .map(renderModelOption)}
+                                        </div>
+                                      </div>
+
                                       {/* OpenAI Models */}
                                       <div>
                                         <div className='px-2 py-1 font-medium text-[10px] text-muted-foreground uppercase'>
@@ -3184,43 +3487,23 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                                         </div>
                                       </div>
 
-                                      {/* Anthropic Models */}
-                                      <div>
-                                        <div className='px-2 py-1 font-medium text-[10px] text-muted-foreground uppercase'>
-                                          Anthropic
-                                        </div>
-                                        <div className='space-y-0.5'>
-                                          {modelOptions
-                                            .filter((option) =>
-                                              [
-                                                'claude-4-sonnet',
-                                                'claude-4.5-sonnet',
-                                                'claude-4.1-opus',
-                                              ].includes(option.value)
+                                      {/* More Models Button */}
+                                      <div className='mt-1 border-t pt-1'>
+                                        <button
+                                          type='button'
+                                          onClick={() => {
+                                            // Dispatch event to open settings modal on copilot tab
+                                            window.dispatchEvent(
+                                              new CustomEvent('open-settings', {
+                                                detail: { tab: 'copilot' },
+                                              })
                                             )
-                                            .map(renderModelOption)}
-                                        </div>
+                                          }}
+                                          className='w-full rounded-sm px-2 py-1.5 text-left text-muted-foreground text-xs transition-colors hover:bg-muted/50'
+                                        >
+                                          More Models...
+                                        </button>
                                       </div>
-
-                                      {/* More Models Button (only for hosted) */}
-                                      {isHosted && (
-                                        <div className='mt-1 border-t pt-1'>
-                                          <button
-                                            type='button'
-                                            onClick={() => {
-                                              // Dispatch event to open settings modal on copilot tab
-                                              window.dispatchEvent(
-                                                new CustomEvent('open-settings', {
-                                                  detail: { tab: 'copilot' },
-                                                })
-                                              )
-                                            }}
-                                            className='w-full rounded-sm px-2 py-1.5 text-left text-muted-foreground text-xs transition-colors hover:bg-muted/50'
-                                          >
-                                            More Models...
-                                          </button>
-                                        </div>
-                                      )}
                                     </>
                                   )
                                 })()}
