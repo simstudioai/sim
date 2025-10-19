@@ -9,7 +9,6 @@ import {
   Database,
   DollarSign,
   HardDrive,
-  Users,
   Workflow,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -45,7 +44,6 @@ const FREE_PLAN_FEATURES: PricingFeature[] = [
   { icon: DollarSign, text: '$10 usage limit' },
   { icon: HardDrive, text: '5GB file storage' },
   { icon: Workflow, text: 'Public template access' },
-  { icon: Users, text: 'Community support' },
   { icon: Database, text: 'Limited log retention' },
   { icon: Code2, text: 'CLI/SDK Access' },
 ]
@@ -233,7 +231,7 @@ export default function LandingPricing() {
     <section id='pricing' className='px-4 pt-[19px] sm:px-0 sm:pt-0' aria-label='Pricing plans'>
       <h2 className='sr-only'>Pricing Plans</h2>
       <div className='relative mx-auto w-full max-w-[1289px]'>
-        <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-0 lg:grid-cols-4'>
+        <div className='grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-0 lg:grid-cols-4'>
           {pricingTiers.map((tier, index) => {
             const nextTier = pricingTiers[index + 1]
             const isBeforeFeatured = nextTier?.featured
