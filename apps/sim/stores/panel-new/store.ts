@@ -12,8 +12,8 @@ interface PanelState {
 /**
  * Panel width constraints
  */
-const DEFAULT_PANEL_WIDTH = 232
-const MIN_PANEL_WIDTH = 232
+const DEFAULT_PANEL_WIDTH = 240
+const MIN_PANEL_WIDTH = 236
 const MAX_PANEL_WIDTH = 400
 
 export const usePanelStore = create<PanelState>()(

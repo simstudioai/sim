@@ -98,7 +98,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     var panelParsed = JSON.parse(panelStored);
                     var panelState = panelParsed?.state;
                     var panelWidth = panelState?.panelWidth;
-                    if (panelWidth >= 232 && panelWidth <= 400) {
+                    if (panelWidth >= 236 && panelWidth <= 400) {
                       document.documentElement.style.setProperty('--panel-width', panelWidth + 'px');
                     }
                   }

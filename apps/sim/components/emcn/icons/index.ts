@@ -1,3 +1,7 @@
+export { BubbleChatPreview } from './bubble-chat-preview'
 export { ChevronDown } from './chevron-down'
 export { FolderPlus } from './folder-plus'
+export { MoreHorizontal } from './more-horizontal'
 export { PanelLeft } from './panel-left'
+export { Play } from './play'
+export { Rocket } from './rocket'

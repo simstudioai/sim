@@ -3,6 +3,7 @@
 import { useMemo, useRef } from 'react'
 import clsx from 'clsx'
 import { ChevronDown } from 'lucide-react'
+import { Button } from '@/components/emcn/components/button'
 import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/trigger-utils'
 import { usePanelResize } from '../../hooks/use-panel-resize'
 import { useSidebarItemInteractions } from '../../hooks/use-sidebar-item-interactions'
@@ -46,19 +47,17 @@ export function Triggers({ disabled = false }: TriggersProps) {
         className='absolute top-[-4px] right-0 left-0 z-20 h-[8px] cursor-ns-resize'
         onMouseDown={handleMouseDown}
       />
-      <div
-        className='flex flex-shrink-0 cursor-pointer items-center justify-between px-[10px] pt-[3px] pb-[5px]'
+      <Button
+        variant='ghost'
+        className='hover:!text-[#787878] dark:hover:!text-[#787878] flex w-full flex-shrink-0 cursor-pointer items-center justify-between rounded-[0px] p-0 px-[10px] pt-[3px] pb-[5px]'
         onClick={handleToggle}
       >
         <div className='font-medium text-[#AEAEAE] text-small dark:text-[#AEAEAE]'>Triggers</div>
         <ChevronDown
-          className={clsx(
-            'h-[12px] w-[12px] text-[#787878] dark:text-[#787878]',
-            !isCollapsed && 'rotate-180'
-          )}
+          className={clsx('h-[12px] w-[12px]', !isCollapsed && 'rotate-180 transition-all')}
           aria-hidden='true'
         />
-      </div>
+      </Button>
 
       <div className='triggers-scrollable flex-1 overflow-y-auto overflow-x-hidden px-[8px]'>
         <div className='space-y-[4px] pb-[8px]'>

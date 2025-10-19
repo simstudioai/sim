@@ -1,6 +1,8 @@
 'use client'
 
 import { useRef } from 'react'
+import { Button } from '@/components/emcn'
+import { BubbleChatPreview, MoreHorizontal, Play, Rocket } from '@/components/emcn/icons'
 import { usePanelResize } from './hooks/use-panel-resize'
 
 /**
@@ -29,7 +31,27 @@ export function Panel() {
         aria-label='Workflow panel'
       >
         <div className='flex h-full flex-col border-l pt-[14px] dark:border-[#2C2C2C]'>
-          <></>
+          {/* Header */}
+          <div className='flex flex-shrink-0 items-center justify-between px-[8px]'>
+            <div className='flex gap-[4px]'>
+              <Button className='h-[32px] w-[32px] bg-[#272727] dark:bg-[#272727]'>
+                <MoreHorizontal />
+              </Button>
+              <Button className='h-[32px] w-[32px] bg-[#272727] dark:bg-[#272727]'>
+                <BubbleChatPreview />
+              </Button>
+            </div>
+            <div className='flex gap-[4px]'>
+              <Button className='h-[32px] gap-[8px] bg-[#272727] px-[10px] text-[12px] dark:bg-[#272727]'>
+                <Rocket className='h-[13px] w-[13px]' />
+                Deploy
+              </Button>
+              <Button className='h-[32px] gap-[8px] px-[10px] text-[12px]' variant='primary'>
+                <Play className='h-[11px] w-[11px]' />
+                Run
+              </Button>
+            </div>
+          </div>
         </div>
       </aside>
 

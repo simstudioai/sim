@@ -126,13 +126,18 @@ export function SidebarNew() {
             {/* Collapse/Expand */}
             <div className='flex items-center gap-[14px]'>
               {/* TODO: Add sidebar collapse */}
-              <button type='button' aria-label='Collapse sidebar' className='group -m-1 p-1'>
-                <ChevronDown className='h-[8px] w-[12px] text-[#787878] transition-colors dark:text-[#787878] dark:group-hover:text-[#E6E6E6]' />
-              </button>
+              <Button
+                variant='ghost'
+                type='button'
+                aria-label='Collapse sidebar'
+                className='group -m-1 p-0 p-1'
+              >
+                <ChevronDown className='h-[8px] w-[12px]' />
+              </Button>
               {/* TODO: Add panel toggle */}
-              <button type='button' aria-label='Collapse sidebar' className='group'>
-                <PanelLeft className='h-[17.5px] w-[17.5px] text-[#787878] transition-colors dark:text-[#787878] dark:group-hover:text-[#E6E6E6]' />
-              </button>
+              <Button variant='ghost' type='button' aria-label='Toggle panel' className='group p-0'>
+                <PanelLeft className='h-[17.5px] w-[17.5px]' />
+              </Button>
             </div>
           </div>
 
