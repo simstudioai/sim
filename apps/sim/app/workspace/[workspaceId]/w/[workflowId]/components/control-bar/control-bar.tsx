@@ -814,8 +814,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
 
       setIsAutoLayouting(true)
       try {
-        // Use the shared auto layout utility for immediate frontend updates
-        const { applyAutoLayoutAndUpdateStore } = await import('../../utils/auto-layout')
+        // Use the standalone auto layout utility for immediate frontend updates
+        const { applyAutoLayoutAndUpdateStore } = await import('../../utils')
 
         const result = await applyAutoLayoutAndUpdateStore(activeWorkflowId!)
 

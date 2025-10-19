@@ -90,6 +90,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 } catch (e) {
                   // Fallback handled by CSS defaults
                 }
+                
+                // Set panel width
+                try {
+                  var panelStored = localStorage.getItem('panel-state');
+                  if (panelStored) {
+                    var panelParsed = JSON.parse(panelStored);
+                    var panelState = panelParsed?.state;
+                    var panelWidth = panelState?.panelWidth;
+                    if (panelWidth >= 232 && panelWidth <= 400) {
+                      document.documentElement.style.setProperty('--panel-width', panelWidth + 'px');
+                    }
+                  }
+                } catch (e) {
+                  // Fallback handled by CSS defaults
+                }
               })();
             `,
           }}
