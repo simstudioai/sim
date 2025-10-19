@@ -45,15 +45,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/bulkfetch`
+    // Use documented search endpoint with JQL instead of deprecated/undocumented bulk fetch
+    const searchUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search`
 
-    const requestBody = {
-      expand: ['names'],
-      fields: ['summary', 'status', 'assignee', 'updated', 'project'],
-      fieldsByKeys: false,
-      issueIdsOrKeys: issueKeys,
-      properties: [],
-    }
+    const jql = `issueKey in (${issueKeys.map((k: string) => k.trim()).join(',')})`
 
     const requestConfig = {
       method: 'POST',
@@ -62,10 +57,14 @@ export async function POST(request: Request) {
         Accept: 'application/json',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify({
+        jql,
+        fields: ['summary', 'status', 'assignee', 'updated', 'project'],
+        maxResults: Math.min(issueKeys.length, 100),
+      }),
     }
 
-    const response = await fetch(url, requestConfig)
+    const response = await fetch(searchUrl, requestConfig)
 
     if (!response.ok) {
       logger.error(`Jira API error: ${response.status} ${response.statusText}`)
@@ -77,13 +76,13 @@ export async function POST(request: Request) {
     }
 
     const data = await response.json()
-    const issues = (data.issues || []).map((issue: any) => ({
-      id: issue.key,
-      name: issue.fields.summary,
+    const issues = (data.issues || []).map((it: any) => ({
+      id: it.key,
+      name: it.fields?.summary || it.key,
       mimeType: 'jira/issue',
-      url: `https://${domain}/browse/${issue.key}`,
-      modifiedTime: issue.fields.updated,
-      webViewLink: `https://${domain}/browse/${issue.key}`,
+      url: `https://${domain}/browse/${it.key}`,
+      modifiedTime: it.fields?.updated,
+      webViewLink: `https://${domain}/browse/${it.key}`,
     }))
 
     return NextResponse.json({ issues, cloudId })
