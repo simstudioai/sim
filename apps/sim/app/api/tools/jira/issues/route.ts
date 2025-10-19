@@ -72,6 +72,16 @@ export async function POST(request: Request) {
         response,
         `Failed to fetch Jira issues (${response.status})`
       )
+      if (response.status === 401 || response.status === 403) {
+        return NextResponse.json(
+          {
+            error: errorMessage,
+            authRequired: true,
+            requiredScopes: ['read:jira-work', 'read:project:jira'],
+          },
+          { status: response.status }
+        )
+      }
       return NextResponse.json({ error: errorMessage }, { status: response.status })
     }
 
@@ -187,6 +197,16 @@ export async function GET(request: Request) {
             response,
             `Failed to fetch issues (${response.status})`
           )
+          if (response.status === 401 || response.status === 403) {
+            return NextResponse.json(
+              {
+                error: errorMessage,
+                authRequired: true,
+                requiredScopes: ['read:jira-work', 'read:project:jira'],
+              },
+              { status: response.status }
+            )
+          }
           return NextResponse.json({ error: errorMessage }, { status: response.status })
         }
 
