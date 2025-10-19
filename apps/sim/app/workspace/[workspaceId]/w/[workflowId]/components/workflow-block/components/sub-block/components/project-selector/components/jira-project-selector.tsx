@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown, ExternalLink, RefreshCw, X } from 'lucide-react'
 import { JiraIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
@@ -114,17 +114,17 @@ export function JiraProjectSelector({
     return getServiceIdFromScopes(provider, requiredScopes)
   }
 
-  // Determine the appropriate provider ID based on service and scopes
-  const getProviderId = (): string => {
+  // Determine the appropriate provider ID based on service and scopes (stabilized)
+  const providerId = useMemo(() => {
     const effectiveServiceId = getServiceId()
     return getProviderIdFromServiceId(effectiveServiceId)
-  }
+  }, [serviceId, provider, requiredScopes])
 
   // Fetch available credentials for this provider
   const fetchCredentials = useCallback(async () => {
+    if (!providerId) return
     setIsLoading(true)
     try {
-      const providerId = getProviderId()
       const response = await fetch(`/api/auth/oauth/credentials?provider=${providerId}`)
 
       if (response.ok) {
@@ -137,7 +137,7 @@ export function JiraProjectSelector({
     } finally {
       setIsLoading(false)
     }
-  }, [provider, getProviderId, selectedCredentialId])
+  }, [providerId])
 
   // Fetch detailed project information
   const fetchProjectInfo = useCallback(
