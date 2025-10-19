@@ -20,8 +20,15 @@ app:
     NEXT_PUBLIC_SOCKET_URL: "https://sim-ws.acme.ai"
     
     # Security settings (REQUIRED)
+    # Generate using: openssl rand -hex 32
     BETTER_AUTH_SECRET: "your-production-auth-secret-here"
     ENCRYPTION_KEY: "your-production-encryption-key-here"
+    INTERNAL_API_SECRET: "your-production-internal-api-secret-here"
+    CRON_SECRET: "your-production-cron-secret-here"
+
+    # Optional: API Key Encryption (RECOMMENDED for production)
+    # Generate 64-character hex string using: openssl rand -hex 32
+    API_ENCRYPTION_KEY: "your-64-char-hex-api-encryption-key-here"  # Optional but recommended
     
     # UI Branding & Whitelabeling Configuration
     NEXT_PUBLIC_BRAND_NAME: "Acme AI Studio"

@@ -63,6 +63,12 @@ app:
     # Generate secure 32-character secrets using: openssl rand -hex 32
     BETTER_AUTH_SECRET: ""  # REQUIRED - set via --set flag or external secret manager
     ENCRYPTION_KEY: ""      # REQUIRED - set via --set flag or external secret manager
+    INTERNAL_API_SECRET: "" # REQUIRED - set via --set flag or external secret manager, used for internal service-to-service authentication
+    CRON_SECRET: ""         # REQUIRED - set via --set flag or external secret manager, used for authenticating scheduled job requests
+
+    # Optional: API Key Encryption (RECOMMENDED for production)
+    # Generate 64-character hex string using: openssl rand -hex 32
+    API_ENCRYPTION_KEY: ""  # OPTIONAL - encrypts API keys at rest in database, if not set API keys are stored in plain text
     
     # Email & Communication
     EMAIL_VERIFICATION_ENABLED: "false"                   # Enable email verification for user registration and login (defaults to false)
