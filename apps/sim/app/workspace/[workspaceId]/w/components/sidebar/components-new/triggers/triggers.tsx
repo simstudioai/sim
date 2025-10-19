@@ -48,8 +48,8 @@ export function Triggers({ disabled = false }: TriggersProps) {
         onMouseDown={handleMouseDown}
       />
       <Button
-        variant='ghost'
-        className='hover:!text-[#787878] dark:hover:!text-[#787878] flex w-full flex-shrink-0 cursor-pointer items-center justify-between rounded-[0px] p-0 px-[10px] pt-[3px] pb-[5px]'
+        variant='ghost-secondary'
+        className='flex w-full flex-shrink-0 cursor-pointer items-center justify-between rounded-[0px] p-0 px-[10px] pt-[3px] pb-[5px] hover:text-[#787878] dark:hover:text-[#787878]'
         onClick={handleToggle}
       >
         <div className='font-medium text-[#AEAEAE] text-small dark:text-[#AEAEAE]'>Triggers</div>

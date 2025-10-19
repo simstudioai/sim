@@ -127,7 +127,7 @@ export function SidebarNew() {
             <div className='flex items-center gap-[14px]'>
               {/* TODO: Add sidebar collapse */}
               <Button
-                variant='ghost'
+                variant='ghost-secondary'
                 type='button'
                 aria-label='Collapse sidebar'
                 className='group -m-1 p-0 p-1'
@@ -135,7 +135,12 @@ export function SidebarNew() {
                 <ChevronDown className='h-[8px] w-[12px]' />
               </Button>
               {/* TODO: Add panel toggle */}
-              <Button variant='ghost' type='button' aria-label='Toggle panel' className='group p-0'>
+              <Button
+                variant='ghost-secondary'
+                type='button'
+                aria-label='Toggle panel'
+                className='group p-0'
+              >
                 <PanelLeft className='h-[17.5px] w-[17.5px]' />
               </Button>
             </div>
@@ -164,7 +169,7 @@ export function SidebarNew() {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
-                        variant='default'
+                        variant='ghost'
                         className='translate-y-[-0.25px] p-[1px]'
                         onClick={handleImportWorkflow}
                         disabled={isImporting}
@@ -179,7 +184,7 @@ export function SidebarNew() {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
-                        variant='default'
+                        variant='ghost'
                         className='mr-[1px] translate-y-[-0.25px] p-[1px]'
                         onClick={handleCreateFolder}
                         disabled={isCreatingFolder}

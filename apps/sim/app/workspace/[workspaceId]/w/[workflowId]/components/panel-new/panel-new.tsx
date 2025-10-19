@@ -34,23 +34,36 @@ export function Panel() {
           {/* Header */}
           <div className='flex flex-shrink-0 items-center justify-between px-[8px]'>
             <div className='flex gap-[4px]'>
-              <Button className='h-[32px] w-[32px] bg-[#272727] dark:bg-[#272727]'>
+              <Button className='h-[32px] w-[32px]'>
                 <MoreHorizontal />
               </Button>
-              <Button className='h-[32px] w-[32px] bg-[#272727] dark:bg-[#272727]'>
+              <Button className='h-[32px] w-[32px]'>
                 <BubbleChatPreview />
               </Button>
             </div>
             <div className='flex gap-[4px]'>
-              <Button className='h-[32px] gap-[8px] bg-[#272727] px-[10px] text-[12px] dark:bg-[#272727]'>
+              <Button className='h-[32px] gap-[8px] px-[10px]'>
                 <Rocket className='h-[13px] w-[13px]' />
                 Deploy
               </Button>
-              <Button className='h-[32px] gap-[8px] px-[10px] text-[12px]' variant='primary'>
+              <Button className='h-[32px] gap-[8px] px-[10px]' variant='primary'>
                 <Play className='h-[11px] w-[11px]' />
                 Run
               </Button>
             </div>
+          </div>
+
+          {/* Tabs */}
+          <div className='flex flex-shrink-0 items-center gap-[4px] px-[8px] pt-[14px]'>
+            <Button className='h-[30px] gap-[8px] px-[10px]' variant='ghost'>
+              Design
+            </Button>
+            <Button className='h-[30px] gap-[8px] px-[10px]' variant='active'>
+              Copilot
+            </Button>
+            <Button className='h-[30px] gap-[8px] px-[10px]' variant='ghost'>
+              Variables
+            </Button>
           </div>
         </div>
       </aside>
