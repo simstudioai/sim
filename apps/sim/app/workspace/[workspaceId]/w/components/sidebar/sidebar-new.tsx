@@ -125,27 +125,16 @@ export function SidebarNew() {
             </div>
             {/* Collapse/Expand */}
             <div className='flex items-center gap-[14px]'>
+              {/* TODO: Add sidebar collapse */}
               <button type='button' aria-label='Collapse sidebar' className='group -m-1 p-1'>
                 <ChevronDown className='h-[8px] w-[12px] text-[#787878] transition-colors dark:text-[#787878] dark:group-hover:text-[#E6E6E6]' />
               </button>
+              {/* TODO: Add panel toggle */}
               <button type='button' aria-label='Collapse sidebar' className='group'>
                 <PanelLeft className='h-[17.5px] w-[17.5px] text-[#787878] transition-colors dark:text-[#787878] dark:group-hover:text-[#E6E6E6]' />
               </button>
             </div>
           </div>
-
-          {/* Add */}
-          {/* <div className='mt-[14px] flex items-center'>
-            <Button
-              variant='3d'
-              className='w-full gap-[12px] rounded-[8px] py-[5px] text-small'
-              onClick={() => handleCreateWorkflow()}
-              disabled={isCreatingWorkflow}
-            >
-              <Plus className='h-[14px] w-[14px]' />
-              Add Workflow
-            </Button>
-          </div> */}
 
           {/* Search */}
           <div className='mx-[8px] mt-[14px] flex flex-shrink-0 cursor-pointer items-center justify-between rounded-[8px] bg-[#272727] px-[6px] py-[7px] dark:bg-[#272727]'>

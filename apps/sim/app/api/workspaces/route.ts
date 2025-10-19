@@ -80,7 +80,9 @@ export async function POST(req: Request) {
 
 // Helper function to create a default workspace
 async function createDefaultWorkspace(userId: string, userName?: string | null) {
-  const workspaceName = userName ? `${userName}'s Workspace` : 'My Workspace'
+  // Extract first name only by splitting on spaces and taking the first part
+  const firstName = userName?.split(' ')[0] || null
+  const workspaceName = firstName ? `${firstName}'s Workspace` : 'My Workspace'
   return createWorkspace(userId, workspaceName)
 }
 
