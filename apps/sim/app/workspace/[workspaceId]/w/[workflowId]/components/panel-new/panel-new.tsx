@@ -1,12 +1,14 @@
 'use client'
 
 import { useRef } from 'react'
-import { Button } from '@/components/emcn'
-import { BubbleChatPreview, MoreHorizontal, Play, Rocket } from '@/components/emcn/icons'
+import { BubbleChatPreview, Button, MoreHorizontal, Play, Rocket } from '@/components/emcn'
+import { usePanelStore } from '@/stores/panel-new/store'
+import type { PanelTab } from '@/stores/panel-new/types'
+import { Copilot, Design } from './components'
 import { usePanelResize } from './hooks/use-panel-resize'
 
 /**
- * Panel component with resizable width that persists across page refreshes.
+ * Panel component with resizable width and tab navigation that persists across page refreshes.
  *
  * Uses a CSS-based approach to prevent hydration mismatches:
  * 1. Width is controlled by CSS variable (--panel-width)
@@ -19,9 +21,31 @@ import { usePanelResize } from './hooks/use-panel-resize'
  */
 export function Panel() {
   const panelRef = useRef<HTMLElement>(null)
+  const { activeTab, setActiveTab } = usePanelStore()
 
   // Panel resize hook
   const { handleMouseDown } = usePanelResize()
+
+  /**
+   * Renders the active tab content based on the current selection
+   */
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'copilot':
+        return <Copilot />
+      case 'design':
+        return <Design />
+      default:
+        return <Copilot />
+    }
+  }
+
+  /**
+   * Handles tab click events
+   */
+  const handleTabClick = (tab: PanelTab) => {
+    setActiveTab(tab)
+  }
 
   return (
     <>
@@ -42,7 +66,7 @@ export function Panel() {
               </Button>
             </div>
             <div className='flex gap-[4px]'>
-              <Button className='h-[32px] gap-[8px] px-[10px]'>
+              <Button className='h-[32px] gap-[8px] px-[10px]' variant='active'>
                 <Rocket className='h-[13px] w-[13px]' />
                 Deploy
               </Button>
@@ -55,16 +79,24 @@ export function Panel() {
 
           {/* Tabs */}
           <div className='flex flex-shrink-0 items-center gap-[4px] px-[8px] pt-[14px]'>
-            <Button className='h-[30px] gap-[8px] px-[10px]' variant='ghost'>
-              Design
-            </Button>
-            <Button className='h-[30px] gap-[8px] px-[10px]' variant='active'>
+            <Button
+              className='px-[8px] py-[5px] text-[12.5px] hover:bg-[#353535] hover:text-[#E6E6E6] dark:hover:bg-[#353535] dark:hover:text-[#E6E6E6]'
+              variant={activeTab === 'copilot' ? 'active' : 'ghost'}
+              onClick={() => handleTabClick('copilot')}
+            >
               Copilot
             </Button>
-            <Button className='h-[30px] gap-[8px] px-[10px]' variant='ghost'>
-              Variables
+            <Button
+              className='px-[8px] py-[5px] text-[12.5px] hover:bg-[#353535] hover:text-[#E6E6E6] dark:hover:bg-[#353535] dark:hover:text-[#E6E6E6]'
+              variant={activeTab === 'design' ? 'active' : 'ghost'}
+              onClick={() => handleTabClick('design')}
+            >
+              Design
             </Button>
           </div>
+
+          {/* Tab Content */}
+          <div className='flex-1 pt-[12px]'>{renderTabContent()}</div>
         </div>
       </aside>
 

@@ -3,7 +3,7 @@
 import { useMemo, useRef } from 'react'
 import clsx from 'clsx'
 import { ChevronDown } from 'lucide-react'
-import { Button } from '@/components/emcn/components/button'
+import { Button } from '@/components/emcn'
 import { getBlocksForSidebar } from '@/lib/workflows/trigger-utils'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'

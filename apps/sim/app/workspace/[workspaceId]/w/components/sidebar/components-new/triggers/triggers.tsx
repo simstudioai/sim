@@ -3,7 +3,7 @@
 import { useMemo, useRef } from 'react'
 import clsx from 'clsx'
 import { ChevronDown } from 'lucide-react'
-import { Button } from '@/components/emcn/components/button'
+import { Button } from '@/components/emcn'
 import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/trigger-utils'
 import { usePanelResize } from '../../hooks/use-panel-resize'
 import { useSidebarItemInteractions } from '../../hooks/use-sidebar-item-interactions'

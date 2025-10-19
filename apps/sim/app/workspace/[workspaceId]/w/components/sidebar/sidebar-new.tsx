@@ -5,14 +5,14 @@ import { ArrowDown, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
+  Button,
   ChevronDown,
+  FolderPlus,
   PanelLeft,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/emcn'
-import { Button } from '@/components/emcn/components/button'
-import { FolderPlus } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth-client'
 import { useFolderStore } from '@/stores/folders/store'
 import { Blocks } from './components-new/blocks/blocks'

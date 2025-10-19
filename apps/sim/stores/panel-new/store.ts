@@ -1,13 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-
-/**
- * Panel state interface
- */
-interface PanelState {
-  panelWidth: number
-  setPanelWidth: (width: number) => void
-}
+import type { PanelState, PanelTab } from './types'
 
 /**
  * Panel width constraints
@@ -15,6 +8,11 @@ interface PanelState {
 const DEFAULT_PANEL_WIDTH = 240
 const MIN_PANEL_WIDTH = 236
 const MAX_PANEL_WIDTH = 400
+
+/**
+ * Default panel tab
+ */
+const DEFAULT_TAB: PanelTab = 'copilot'
 
 export const usePanelStore = create<PanelState>()(
   persist(
@@ -28,6 +26,8 @@ export const usePanelStore = create<PanelState>()(
           document.documentElement.style.setProperty('--panel-width', `${clampedWidth}px`)
         }
       },
+      activeTab: DEFAULT_TAB,
+      setActiveTab: (tab) => set({ activeTab: tab }),
     }),
     {
       name: 'panel-state',
