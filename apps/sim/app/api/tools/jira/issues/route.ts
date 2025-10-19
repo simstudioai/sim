@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     }
 
     // Use documented search endpoint with JQL instead of deprecated/undocumented bulk fetch
-    const searchUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search`
+    const searchUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/jql/search`
 
     const jql = `issueKey in (${issueKeys.map((k: string) => k.trim()).join(',')})`
 
@@ -137,38 +137,28 @@ export async function GET(request: Request) {
 
     let data: any
 
-    if (query) {
-      const params = new URLSearchParams({ query })
-      const apiUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/picker?${params}`
-      const response = await fetch(apiUrl, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        const errorMessage = await createErrorResponse(
-          response,
-          `Failed to fetch issue suggestions (${response.status})`
-        )
-        return NextResponse.json({ error: errorMessage }, { status: response.status })
-      }
-      data = await response.json()
-    } else if (projectId || manualProjectId) {
+    if (query || projectId || manualProjectId) {
       const SAFETY_CAP = 1000
       const PAGE_SIZE = 100
       const target = Math.min(all ? limit || SAFETY_CAP : 25, SAFETY_CAP)
-      const projectKey = (projectId || manualProjectId).trim()
+      const projectKey = (projectId || manualProjectId || '').trim()
 
-      const buildSearchUrl = (startAt: number) => {
-        const params = new URLSearchParams({
-          jql: `project=${projectKey} ORDER BY updated DESC`,
-          maxResults: String(Math.min(PAGE_SIZE, target)),
-          startAt: String(startAt),
-          fields: 'summary,key,updated',
-        })
-        return `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search?${params}`
+      const escapeJql = (s: string) => s.replace(/"/g, '\\"')
+
+      const buildJql = (startAt: number) => {
+        const jqlParts: string[] = []
+        if (projectKey) jqlParts.push(`project = ${projectKey}`)
+        if (query) {
+          const q = escapeJql(query)
+          // Match by key prefix or summary text
+          jqlParts.push(`(key ~ "${q}" OR summary ~ "${q}")`)
+        }
+        const jql = (jqlParts.length ? jqlParts.join(' AND ') + ' ' : '') + 'ORDER BY updated DESC'
+        return {
+          jql,
+          url: `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/jql/search`,
+          startAt,
+        }
       }
 
       let startAt = 0
@@ -176,11 +166,20 @@ export async function GET(request: Request) {
       let total = 0
 
       do {
-        const response = await fetch(buildSearchUrl(startAt), {
+        const { jql, url: apiUrl, startAt: sa } = buildJql(startAt)
+        const response = await fetch(apiUrl, {
           headers: {
             Authorization: `Bearer ${accessToken}`,
             Accept: 'application/json',
+            'Content-Type': 'application/json',
           },
+          method: 'POST',
+          body: JSON.stringify({
+            jql,
+            startAt: sa,
+            maxResults: Math.min(PAGE_SIZE, target),
+            fields: ['summary', 'key', 'updated'],
+          }),
         })
 
         if (!response.ok) {

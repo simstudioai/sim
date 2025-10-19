@@ -43,20 +43,25 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
   request: {
     url: (params: JiraRetrieveBulkParams) => {
       if (params.cloudId) {
-        const base = `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/search`
-        // Don't encode JQL here - transformResponse will handle project resolution
-        // Initial page; transformResponse will paginate to retrieve all (with a safety cap)
-        return `${base}?maxResults=100&startAt=0&fields=summary,description,created,updated`
+        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/jql/search`
       }
       // If no cloudId, use the accessible resources endpoint
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
-    method: 'GET',
+    method: (params: JiraRetrieveBulkParams) => (params.cloudId ? 'POST' : 'GET'),
     headers: (params: JiraRetrieveBulkParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
       Accept: 'application/json',
     }),
-    body: (params: JiraRetrieveBulkParams) => ({}),
+    body: (params: JiraRetrieveBulkParams) =>
+      params.cloudId
+        ? {
+            jql: '', // Will be set in transformResponse when we know the resolved project key
+            startAt: 0,
+            maxResults: 100,
+            fields: ['summary', 'description', 'created', 'updated'],
+          }
+        : {},
   },
 
   transformResponse: async (response: Response, params?: JiraRetrieveBulkParams) => {
@@ -101,26 +106,32 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
         (r: any) => r.url.toLowerCase() === normalizedInput
       )
 
-      const base = `https://api.atlassian.com/ex/jira/${matchedResource.id}/rest/api/3/search`
+      const base = `https://api.atlassian.com/ex/jira/${matchedResource.id}/rest/api/3/jql/search`
       const projectKey = await resolveProjectKey(
         matchedResource.id,
         params!.accessToken,
         params!.projectId
       )
-      const jql = encodeURIComponent(`project=${projectKey} ORDER BY updated DESC`)
+      const jql = `project = ${projectKey} ORDER BY updated DESC`
 
       let startAt = 0
       let collected: any[] = []
       let total = 0
 
       while (startAt < MAX_TOTAL) {
-        const url = `${base}?jql=${jql}&maxResults=${PAGE_SIZE}&startAt=${startAt}&fields=summary,description,created,updated`
-        const pageResponse = await fetch(url, {
-          method: 'GET',
+        const pageResponse = await fetch(base, {
+          method: 'POST',
           headers: {
             Authorization: `Bearer ${params?.accessToken}`,
             Accept: 'application/json',
+            'Content-Type': 'application/json',
           },
+          body: JSON.stringify({
+            jql,
+            startAt,
+            maxResults: PAGE_SIZE,
+            fields: ['summary', 'description', 'created', 'updated'],
+          }),
         })
 
         const pageData = await pageResponse.json()
@@ -152,21 +163,27 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
       params!.projectId
     )
 
-    const base = `https://api.atlassian.com/ex/jira/${params?.cloudId}/rest/api/3/search`
-    const jql = encodeURIComponent(`project=${projectKey} ORDER BY updated DESC`)
+    const base = `https://api.atlassian.com/ex/jira/${params?.cloudId}/rest/api/3/jql/search`
+    const jql = `project = ${projectKey} ORDER BY updated DESC`
 
     // Always do full pagination with resolved key
     let collected: any[] = []
     let total = 0
     let startAt = 0
     while (startAt < MAX_TOTAL) {
-      const url = `${base}?jql=${jql}&maxResults=${PAGE_SIZE}&startAt=${startAt}&fields=summary,description,created,updated`
-      const pageResponse = await fetch(url, {
-        method: 'GET',
+      const pageResponse = await fetch(base, {
+        method: 'POST',
         headers: {
           Authorization: `Bearer ${params?.accessToken}`,
           Accept: 'application/json',
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          jql,
+          startAt,
+          maxResults: PAGE_SIZE,
+          fields: ['summary', 'description', 'created', 'updated'],
+        }),
       })
       const pageData = await pageResponse.json()
       const issues = pageData.issues || []
