@@ -153,7 +153,7 @@ export async function GET(request: Request) {
           // Match by key prefix or summary text
           jqlParts.push(`(key ~ "${q}" OR summary ~ "${q}")`)
         }
-        const jql = (jqlParts.length ? jqlParts.join(' AND ') + ' ' : '') + 'ORDER BY updated DESC'
+        const jql = `${jqlParts.length ? `${jqlParts.join(' AND ')} ` : ''}ORDER BY updated DESC`
         return {
           jql,
           url: `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/jql/search`,
