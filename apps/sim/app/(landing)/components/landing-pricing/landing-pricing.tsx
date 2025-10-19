@@ -9,7 +9,6 @@ import {
   Database,
   DollarSign,
   HardDrive,
-  Users,
   Workflow,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -45,7 +44,6 @@ const FREE_PLAN_FEATURES: PricingFeature[] = [
   { icon: DollarSign, text: '$10 usage limit' },
   { icon: HardDrive, text: '5GB file storage' },
   { icon: Workflow, text: 'Public template access' },
-  { icon: Users, text: 'Community support' },
   { icon: Database, text: 'Limited log retention' },
   { icon: Code2, text: 'CLI/SDK Access' },
 ]

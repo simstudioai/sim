@@ -8,7 +8,6 @@ import {
   MessageSquare,
   Server,
   Users,
-  Workflow,
   Zap,
 } from 'lucide-react'
 import type { PlanFeature } from './components/plan-card'
@@ -18,7 +17,6 @@ export const PRO_PLAN_FEATURES: PlanFeature[] = [
   { icon: Clock, text: '200 runs per minute (async)' },
   { icon: HardDrive, text: '50GB file storage' },
   { icon: Building2, text: 'Unlimited workspaces' },
-  { icon: Workflow, text: 'Unlimited workflows' },
   { icon: Users, text: 'Unlimited invites' },
   { icon: Database, text: 'Unlimited log retention' },
 ]
