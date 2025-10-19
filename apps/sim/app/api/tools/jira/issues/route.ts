@@ -45,26 +45,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    // Use documented search endpoint with JQL instead of deprecated/undocumented bulk fetch
-    const searchUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/jql/search`
-
+    // Use search/jql endpoint (GET) with URL parameters
     const jql = `issueKey in (${issueKeys.map((k: string) => k.trim()).join(',')})`
+    const params = new URLSearchParams({
+      jql,
+      fields: 'summary,status,assignee,updated,project',
+      maxResults: String(Math.min(issueKeys.length, 100)),
+    })
+    const searchUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${params.toString()}`
 
-    const requestConfig = {
-      method: 'POST',
+    const response = await fetch(searchUrl, {
+      method: 'GET',
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: 'application/json',
-        'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        jql,
-        fields: ['summary', 'status', 'assignee', 'updated', 'project'],
-        maxResults: Math.min(issueKeys.length, 100),
-      }),
-    }
-
-    const response = await fetch(searchUrl, requestConfig)
+    })
 
     if (!response.ok) {
       logger.error(`Jira API error: ${response.status} ${response.statusText}`)
@@ -164,10 +160,16 @@ export async function GET(request: Request) {
           jqlParts.push(`(key ~ "${q}" OR summary ~ "${q}")`)
         }
         const jql = `${jqlParts.length ? `${jqlParts.join(' AND ')} ` : ''}ORDER BY updated DESC`
-        return {
+        const params = new URLSearchParams({
           jql,
-          url: `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/jql/search`,
-          startAt,
+          fields: 'summary,key,updated',
+          maxResults: String(Math.min(PAGE_SIZE, target)),
+        })
+        if (startAt > 0) {
+          params.set('startAt', String(startAt))
+        }
+        return {
+          url: `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${params.toString()}`,
         }
       }
 
@@ -176,20 +178,13 @@ export async function GET(request: Request) {
       let total = 0
 
       do {
-        const { jql, url: apiUrl, startAt: sa } = buildJql(startAt)
+        const { url: apiUrl } = buildJql(startAt)
         const response = await fetch(apiUrl, {
+          method: 'GET',
           headers: {
             Authorization: `Bearer ${accessToken}`,
             Accept: 'application/json',
-            'Content-Type': 'application/json',
           },
-          method: 'POST',
-          body: JSON.stringify({
-            jql,
-            startAt: sa,
-            maxResults: Math.min(PAGE_SIZE, target),
-            fields: ['summary', 'key', 'updated'],
-          }),
         })
 
         if (!response.ok) {

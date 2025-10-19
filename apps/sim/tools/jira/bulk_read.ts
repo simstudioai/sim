@@ -42,13 +42,10 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
 
   request: {
     url: (params: JiraRetrieveBulkParams) => {
-      if (params.cloudId) {
-        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/jql/search`
-      }
-      // If no cloudId, use the accessible resources endpoint
+      // Always return accessible resources endpoint; transformResponse will build search URLs
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
-    method: (params: JiraRetrieveBulkParams) => (params.cloudId ? 'POST' : 'GET'),
+    method: 'GET',
     headers: (params: JiraRetrieveBulkParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
       Accept: 'application/json',
@@ -106,7 +103,6 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
         (r: any) => r.url.toLowerCase() === normalizedInput
       )
 
-      const base = `https://api.atlassian.com/ex/jira/${matchedResource.id}/rest/api/3/jql/search`
       const projectKey = await resolveProjectKey(
         matchedResource.id,
         params!.accessToken,
@@ -119,19 +115,21 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
       let total = 0
 
       while (startAt < MAX_TOTAL) {
-        const pageResponse = await fetch(base, {
-          method: 'POST',
+        const queryParams = new URLSearchParams({
+          jql,
+          fields: 'summary,description,created,updated',
+          maxResults: String(PAGE_SIZE),
+        })
+        if (startAt > 0) {
+          queryParams.set('startAt', String(startAt))
+        }
+        const url = `https://api.atlassian.com/ex/jira/${matchedResource.id}/rest/api/3/search/jql?${queryParams.toString()}`
+        const pageResponse = await fetch(url, {
+          method: 'GET',
           headers: {
             Authorization: `Bearer ${params?.accessToken}`,
             Accept: 'application/json',
-            'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            jql,
-            startAt,
-            maxResults: PAGE_SIZE,
-            fields: ['summary', 'description', 'created', 'updated'],
-          }),
         })
 
         const pageData = await pageResponse.json()
@@ -163,7 +161,6 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
       params!.projectId
     )
 
-    const base = `https://api.atlassian.com/ex/jira/${params?.cloudId}/rest/api/3/jql/search`
     const jql = `project = ${projectKey} ORDER BY updated DESC`
 
     // Always do full pagination with resolved key
@@ -171,19 +168,21 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
     let total = 0
     let startAt = 0
     while (startAt < MAX_TOTAL) {
-      const pageResponse = await fetch(base, {
-        method: 'POST',
+      const queryParams = new URLSearchParams({
+        jql,
+        fields: 'summary,description,created,updated',
+        maxResults: String(PAGE_SIZE),
+      })
+      if (startAt > 0) {
+        queryParams.set('startAt', String(startAt))
+      }
+      const url = `https://api.atlassian.com/ex/jira/${params?.cloudId}/rest/api/3/search/jql?${queryParams.toString()}`
+      const pageResponse = await fetch(url, {
+        method: 'GET',
         headers: {
           Authorization: `Bearer ${params?.accessToken}`,
           Accept: 'application/json',
-          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          jql,
-          startAt,
-          maxResults: PAGE_SIZE,
-          fields: ['summary', 'description', 'created', 'updated'],
-        }),
       })
       const pageData = await pageResponse.json()
       const issues = pageData.issues || []
