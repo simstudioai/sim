@@ -323,6 +323,7 @@ export class AgentBlockHandler implements BlockHandler {
               toolName,
               arguments: { ...params, ...callParams },
               workspaceId: context.workspaceId,
+              workflowId: context.workflowId,
             }),
           })
 
