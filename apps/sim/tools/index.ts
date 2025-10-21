@@ -227,7 +227,7 @@ export async function executeTool(
     const isInternalRoute = endpointUrl.startsWith('/api/')
 
     if (isInternalRoute || skipProxy) {
-      const result = await handleInternalRequest(toolId, tool, contextParams)
+      const result = await handleInternalRequest(toolId, tool, contextParams, executionContext)
 
       // Apply post-processing if available and not skipped
       let finalResult = result
@@ -414,7 +414,8 @@ function isErrorResponse(
 async function handleInternalRequest(
   toolId: string,
   tool: ToolConfig,
-  params: Record<string, any>
+  params: Record<string, any>,
+  executionContext?: ExecutionContext
 ): Promise<ToolResponse> {
   const requestId = generateRequestId()
 
@@ -427,7 +428,11 @@ async function handleInternalRequest(
     const endpointUrl =
       typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
 
-    const fullUrl = new URL(endpointUrl, baseUrl).toString()
+    const fullUrlObj = new URL(endpointUrl, baseUrl)
+    if (executionContext?.workflowId && typeof window === 'undefined') {
+      fullUrlObj.searchParams.set('workflowId', executionContext.workflowId)
+    }
+    const fullUrl = fullUrlObj.toString()
 
     // For custom tools, validate parameters on the client side before sending
     if (toolId.startsWith('custom_') && tool.request.body) {
@@ -445,10 +450,21 @@ async function handleInternalRequest(
       }
     }
 
+    const headers = new Headers(requestParams.headers)
+    if (typeof window === 'undefined') {
+      try {
+        const internalToken = await generateInternalToken()
+        headers.set('Authorization', `Bearer ${internalToken}`)
+        logger.info(`[${requestId}] Added internal auth token for ${toolId}`)
+      } catch (error) {
+        logger.error(`[${requestId}] Failed to generate internal token for ${toolId}:`, error)
+      }
+    }
+
     // Prepare request options
     const requestOptions = {
       method: requestParams.method,
-      headers: new Headers(requestParams.headers),
+      headers: headers,
       body: requestParams.body,
     }
 
