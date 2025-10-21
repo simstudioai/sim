@@ -417,10 +417,19 @@ async function parseWithMistralOCR(fileUrl: string, filename: string, mimeType: 
           url = `${getBaseUrl()}${url}`
         }
 
-        const headers =
+        let headers =
           typeof mistralParserTool.request!.headers === 'function'
             ? mistralParserTool.request!.headers(params)
             : mistralParserTool.request!.headers
+
+        if (url.includes('/api/tools/mistral/parse')) {
+          const { generateInternalToken } = await import('@/lib/auth/internal')
+          const internalToken = await generateInternalToken()
+          headers = {
+            ...headers,
+            authorization: `Bearer ${internalToken}`,
+          }
+        }
 
         const requestBody = mistralParserTool.request!.body!(params) as OCRRequestBody
         return makeOCRRequest(url, headers as Record<string, string>, requestBody)
