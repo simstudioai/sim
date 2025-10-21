@@ -407,10 +407,15 @@ async function parseWithMistralOCR(fileUrl: string, filename: string, mimeType: 
   try {
     const response = await retryWithExponentialBackoff(
       async () => {
-        const url =
+        let url =
           typeof mistralParserTool.request!.url === 'function'
             ? mistralParserTool.request!.url(params)
             : mistralParserTool.request!.url
+
+        if (url.startsWith('/')) {
+          const { getBaseUrl } = await import('@/lib/urls/utils')
+          url = `${getBaseUrl()}${url}`
+        }
 
         const headers =
           typeof mistralParserTool.request!.headers === 'function'
