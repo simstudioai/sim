@@ -15,7 +15,7 @@ export function SearchTrigger() {
   return (
     <button
       type='button'
-      className='flex h-10 w-[500px] items-center gap-2 rounded-xl border border-border/50 px-3 py-2 text-sm backdrop-blur-xl transition-colors hover:border-border'
+      className='flex h-10 w-[460px] items-center gap-2 rounded-xl border border-border/50 px-3 py-2 text-sm backdrop-blur-xl transition-colors hover:border-border'
       style={{
         backgroundColor: 'hsla(0, 0%, 5%, 0.85)',
         backdropFilter: 'blur(33px) saturate(180%)',

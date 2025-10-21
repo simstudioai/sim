@@ -39,7 +39,7 @@ export function Navbar() {
           </div>
 
           {/* Center cluster: search */}
-          <div className='flex flex-1 items-center justify-center'>
+          <div className='flex flex-1 items-center justify-center pl-32'>
             <SearchTrigger />
           </div>
 

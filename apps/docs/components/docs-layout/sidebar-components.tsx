@@ -97,7 +97,7 @@ export function SidebarFolder({
       <div
         className={cn(
           'overflow-hidden transition-all duration-200 ease-in-out',
-          open ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
+          open ? 'max-h-[10000px] opacity-100' : 'max-h-0 opacity-0'
         )}
       >
         <ul className='mt-0.5 ml-2 space-y-[0.0625rem] border-gray-200/60 border-l pl-2.5 dark:border-gray-700/60'>
