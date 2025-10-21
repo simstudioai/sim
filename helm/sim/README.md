@@ -629,10 +629,19 @@ helm uninstall sim
 
 For production deployments, make sure to:
 
-1. **Change default secrets**: Update `BETTER_AUTH_SECRET` and `ENCRYPTION_KEY` with secure, randomly generated values
+1. **Change default secrets**: Update `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, and `INTERNAL_API_SECRET` with secure, randomly generated values using `openssl rand -hex 32`
 2. **Use strong database passwords**: Set `postgresql.auth.password` to a strong password
 3. **Enable TLS**: Configure `postgresql.tls.enabled=true` and provide proper certificates
 4. **Configure ingress TLS**: Enable HTTPS with proper SSL certificates
+
+**Required Secrets:**
+- `BETTER_AUTH_SECRET`: Authentication JWT signing (minimum 32 characters)
+- `ENCRYPTION_KEY`: Encrypts sensitive data like environment variables (minimum 32 characters)
+- `INTERNAL_API_SECRET`: Internal service-to-service authentication (minimum 32 characters)
+
+**Optional Security (Recommended for Production):**
+- `CRON_SECRET`: Authenticates scheduled job requests to API endpoints (required only if `cronjobs.enabled=true`)
+- `API_ENCRYPTION_KEY`: Encrypts API keys at rest in database (must be exactly 64 hex characters). If not set, API keys are stored in plain text. Generate using: `openssl rand -hex 32` (outputs 64 hex chars representing 32 bytes)
 
 ### Example secure values:
 
@@ -641,6 +650,9 @@ app:
   env:
     BETTER_AUTH_SECRET: "your-secure-random-string-here"
     ENCRYPTION_KEY: "your-secure-encryption-key-here"
+    INTERNAL_API_SECRET: "your-secure-internal-api-secret-here"
+    CRON_SECRET: "your-secure-cron-secret-here"
+    API_ENCRYPTION_KEY: "your-64-char-hex-string-for-api-key-encryption"  # Optional but recommended
 
 postgresql:
   auth:
