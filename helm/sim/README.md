@@ -629,7 +629,7 @@ helm uninstall sim
 
 For production deployments, make sure to:
 
-1. **Change default secrets**: Update `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, `INTERNAL_API_SECRET`, and `CRON_SECRET` with secure, randomly generated values using `openssl rand -hex 32`
+1. **Change default secrets**: Update `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, and `INTERNAL_API_SECRET` with secure, randomly generated values using `openssl rand -hex 32`
 2. **Use strong database passwords**: Set `postgresql.auth.password` to a strong password
 3. **Enable TLS**: Configure `postgresql.tls.enabled=true` and provide proper certificates
 4. **Configure ingress TLS**: Enable HTTPS with proper SSL certificates
@@ -638,10 +638,10 @@ For production deployments, make sure to:
 - `BETTER_AUTH_SECRET`: Authentication JWT signing (minimum 32 characters)
 - `ENCRYPTION_KEY`: Encrypts sensitive data like environment variables (minimum 32 characters)
 - `INTERNAL_API_SECRET`: Internal service-to-service authentication (minimum 32 characters)
-- `CRON_SECRET`: Authenticates scheduled job requests to API endpoints (minimum 32 characters)
 
 **Optional Security (Recommended for Production):**
-- `API_ENCRYPTION_KEY`: Encrypts API keys at rest in database (64-character hex string). If not set, API keys are stored in plain text. Generate using: `openssl rand -hex 32`
+- `CRON_SECRET`: Authenticates scheduled job requests to API endpoints (required only if `cronjobs.enabled=true`)
+- `API_ENCRYPTION_KEY`: Encrypts API keys at rest in database (must be exactly 64 hex characters). If not set, API keys are stored in plain text. Generate using: `openssl rand -hex 32` (outputs 64 hex chars representing 32 bytes)
 
 ### Example secure values:
 
