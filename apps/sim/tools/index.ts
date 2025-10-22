@@ -429,7 +429,10 @@ async function handleInternalRequest(
       typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
 
     const fullUrlObj = new URL(endpointUrl, baseUrl)
-    if (executionContext?.workflowId && typeof window === 'undefined') {
+    const isInternalRoute = endpointUrl.startsWith('/api/')
+
+    // Only add workflowId to internal routes, not external APIs
+    if (executionContext?.workflowId && typeof window === 'undefined' && isInternalRoute) {
       fullUrlObj.searchParams.set('workflowId', executionContext.workflowId)
     }
     const fullUrl = fullUrlObj.toString()
@@ -451,7 +454,6 @@ async function handleInternalRequest(
     }
 
     const headers = new Headers(requestParams.headers)
-    const isInternalRoute = endpointUrl.startsWith('/api/')
     if (typeof window === 'undefined') {
       if (isInternalRoute) {
         try {
