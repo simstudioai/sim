@@ -10,7 +10,7 @@ import Controls from '@/app/workspace/[workspaceId]/logs/components/dashboard/co
 import { AutocompleteSearch } from '@/app/workspace/[workspaceId]/logs/components/search/search'
 import { Sidebar } from '@/app/workspace/[workspaceId]/logs/components/sidebar/sidebar'
 import ExecutionsDashboard from '@/app/workspace/[workspaceId]/logs/executions-dashboard'
-import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils/format-date'
+import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useFolderStore } from '@/stores/folders/store'
 import { useFilterStore } from '@/stores/logs/filters/store'

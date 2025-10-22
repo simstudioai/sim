@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { formatDate as formatDashboardDate } from '../../utils/format-date'
+import { formatDate as formatDashboardDate } from '../../utils'
 
 export interface LineChartPoint {
   timestamp: string

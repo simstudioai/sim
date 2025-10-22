@@ -6,7 +6,7 @@ import LineChart, {
   type LineChartPoint,
 } from '@/app/workspace/[workspaceId]/logs/components/dashboard/line-chart'
 import { getTriggerColor } from '@/app/workspace/[workspaceId]/logs/components/dashboard/utils'
-import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils/format-date'
+import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 export interface ExecutionLogItem {
@@ -208,7 +208,7 @@ export function WorkflowDetails({
                   {hasDuration && (
                     <LineChart
                       data={details.durations!}
-                      label='Workflow Duration'
+                      label='Duration'
                       color='#3b82f6'
                       unit='ms'
                       series={
@@ -438,7 +438,7 @@ export function WorkflowDetails({
                     })
                   })()}
                   {/* Bottom loading / sentinel */}
-                  {hasMore && (
+                  {hasMore && details.logs.length > 0 && (
                     <div className='flex items-center justify-center py-3 text-muted-foreground'>
                       <div ref={loaderRef} className='flex items-center gap-2'>
                         {isLoadingMore ? (

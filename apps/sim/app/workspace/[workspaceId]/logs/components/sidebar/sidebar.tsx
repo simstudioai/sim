@@ -13,7 +13,7 @@ import { FileDownload } from '@/app/workspace/[workspaceId]/logs/components/side
 import LogMarkdownRenderer from '@/app/workspace/[workspaceId]/logs/components/sidebar/components/markdown-renderer'
 import { ToolCallsDisplay } from '@/app/workspace/[workspaceId]/logs/components/tool-calls/tool-calls-display'
 import { TraceSpans } from '@/app/workspace/[workspaceId]/logs/components/trace-spans/trace-spans'
-import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils/format-date'
+import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
 import { formatCost } from '@/providers/utils'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
 

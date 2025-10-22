@@ -9,6 +9,7 @@ import KPIs from '@/app/workspace/[workspaceId]/logs/components/dashboard/kpis'
 import WorkflowDetails from '@/app/workspace/[workspaceId]/logs/components/dashboard/workflow-details'
 import WorkflowsList from '@/app/workspace/[workspaceId]/logs/components/dashboard/workflows-list'
 import Timeline from '@/app/workspace/[workspaceId]/logs/components/filters/components/timeline'
+import { mapToExecutionLog, mapToExecutionLogAlt } from '@/app/workspace/[workspaceId]/logs/utils'
 import { formatCost } from '@/providers/utils'
 import { useFilterStore } from '@/stores/logs/filters/store'
 
@@ -346,78 +347,7 @@ export default function ExecutionsDashboard() {
         let mappedLogs: ExecutionLog[] = []
         if (logsResponse.ok) {
           const logsData = await logsResponse.json()
-          mappedLogs = (logsData.data || []).map((l: any) => {
-            const started = l.startedAt
-              ? new Date(l.startedAt)
-              : l.endedAt
-                ? new Date(l.endedAt)
-                : null
-            const startedAt =
-              started && !Number.isNaN(started.getTime())
-                ? started.toISOString()
-                : new Date().toISOString()
-            const durationCandidate =
-              typeof l.totalDurationMs === 'number'
-                ? l.totalDurationMs
-                : typeof l.duration === 'number'
-                  ? l.duration
-                  : typeof l.totalDurationMs === 'string'
-                    ? Number.parseInt(l.totalDurationMs.replace(/[^0-9]/g, ''), 10)
-                    : typeof l.duration === 'string'
-                      ? Number.parseInt(l.duration.replace(/[^0-9]/g, ''), 10)
-                      : null
-            let output: any = null
-            if (l.executionData?.finalOutput !== undefined) {
-              output = l.executionData.finalOutput
-            }
-            if (typeof l.output === 'string') {
-              output = l.output
-            } else if (l.executionData?.traceSpans && Array.isArray(l.executionData.traceSpans)) {
-              const spans: any[] = l.executionData.traceSpans
-              for (let i = spans.length - 1; i >= 0; i--) {
-                const s = spans[i]
-                if (s?.output && Object.keys(s.output).length > 0) {
-                  output = s.output
-                  break
-                }
-                if (s?.status === 'error' && (s?.output?.error || s?.error)) {
-                  output = s.output?.error || s.error
-                  break
-                }
-              }
-              if (!output && l.executionData?.output) {
-                output = l.executionData.output
-              }
-            }
-            if (!output) {
-              const be = l.executionData?.blockExecutions
-              if (Array.isArray(be) && be.length > 0) {
-                const last = be[be.length - 1]
-                output = last?.outputData || last?.errorMessage || null
-              }
-            }
-            if (!output) output = l.message || null
-
-            return {
-              id: l.id,
-              executionId: l.executionId,
-              startedAt,
-              level: l.level || 'info',
-              trigger: l.trigger || 'manual',
-              triggerUserId: l.triggerUserId || null,
-              triggerInputs: undefined,
-              outputs: output || undefined,
-              errorMessage: l.error || null,
-              duration: Number.isFinite(durationCandidate as number)
-                ? (durationCandidate as number)
-                : null,
-              cost: l.cost
-                ? { input: l.cost.input || 0, output: l.cost.output || 0, total: l.cost.total || 0 }
-                : null,
-              workflowName: l.workflowName || l.workflow?.name,
-              workflowColor: l.workflowColor || l.workflow?.color,
-            } as ExecutionLog
-          })
+          mappedLogs = (logsData.data || []).map(mapToExecutionLog)
         }
 
         setGlobalDetails({
@@ -471,68 +401,7 @@ export default function ExecutionsDashboard() {
         }
 
         const data = await response.json()
-        const mappedLogs: ExecutionLog[] = (data.data || []).map((l: any) => {
-          let durationCandidate: number | null = null
-          if (typeof l.totalDurationMs === 'number') durationCandidate = l.totalDurationMs
-          else if (typeof l.duration === 'number') durationCandidate = l.duration
-          else if (typeof l.totalDurationMs === 'string')
-            durationCandidate = Number.parseInt(
-              String(l.totalDurationMs).replace(/[^0-9]/g, ''),
-              10
-            )
-          else if (typeof l.duration === 'string')
-            durationCandidate = Number.parseInt(String(l.duration).replace(/[^0-9]/g, ''), 10)
-
-          let output: any = null
-          if (l.executionData?.finalOutput !== undefined) {
-            output = l.executionData.finalOutput
-          } else if (typeof l.output === 'string') {
-            output = l.output
-          } else if (l.executionData?.traceSpans && Array.isArray(l.executionData.traceSpans)) {
-            const spans: any[] = l.executionData.traceSpans
-            for (let i = spans.length - 1; i >= 0; i--) {
-              const s = spans[i]
-              if (s?.output && Object.keys(s.output).length > 0) {
-                output = s.output
-                break
-              }
-              if (s?.status === 'error' && (s?.output?.error || s?.error)) {
-                output = s.output?.error || s.error
-                break
-              }
-            }
-            if (!output && l.executionData?.output) {
-              output = l.executionData.output
-            }
-          }
-          if (!output) {
-            const be = l.executionData?.blockExecutions
-            if (Array.isArray(be) && be.length > 0) {
-              const last = be[be.length - 1]
-              output = last?.outputData || last?.errorMessage || null
-            }
-          }
-
-          return {
-            id: l.id,
-            executionId: l.executionId,
-            startedAt: l.createdAt || l.startedAt,
-            level: l.level || 'info',
-            trigger: l.trigger || 'manual',
-            triggerUserId: l.triggerUserId || null,
-            triggerInputs: undefined,
-            outputs: output || undefined,
-            errorMessage: l.error || null,
-            duration: Number.isFinite(durationCandidate as number)
-              ? (durationCandidate as number)
-              : null,
-            cost: l.cost
-              ? { input: l.cost.input || 0, output: l.cost.output || 0, total: l.cost.total || 0 }
-              : null,
-            workflowName: l.workflow?.name,
-            workflowColor: l.workflow?.color,
-          } as ExecutionLog
-        })
+        const mappedLogs: ExecutionLog[] = (data.data || []).map(mapToExecutionLogAlt)
 
         setWorkflowDetails((prev) => ({
           ...prev,
@@ -581,64 +450,7 @@ export default function ExecutionsDashboard() {
         const res = await fetch(`/api/logs?${qp.toString()}`)
         if (!res.ok) return
         const data = await res.json()
-        const more: ExecutionLog[] = (data.data || []).map((l: any) => {
-          let durationCandidate: number | null = null
-          if (typeof l.totalDurationMs === 'number') durationCandidate = l.totalDurationMs
-          else if (typeof l.duration === 'number') durationCandidate = l.duration
-          else if (typeof l.totalDurationMs === 'string')
-            durationCandidate = Number.parseInt(
-              String(l.totalDurationMs).replace(/[^0-9]/g, ''),
-              10
-            )
-          else if (typeof l.duration === 'string')
-            durationCandidate = Number.parseInt(String(l.duration).replace(/[^0-9]/g, ''), 10)
-          let output: any = null
-          if (l.executionData?.finalOutput !== undefined) {
-            output = l.executionData.finalOutput
-          } else if (l.executionData?.traceSpans && Array.isArray(l.executionData.traceSpans)) {
-            const spans: any[] = l.executionData.traceSpans
-            for (let i = spans.length - 1; i >= 0; i--) {
-              const s = spans[i]
-              if (s?.output && Object.keys(s.output).length > 0) {
-                output = s.output
-                break
-              }
-              if (s?.status === 'error' && (s?.output?.error || s?.error)) {
-                output = s.output?.error || s.error
-                break
-              }
-            }
-            if (!output && l.executionData?.output) {
-              output = l.executionData.output
-            }
-          }
-          if (!output) {
-            const be = l.executionData?.blockExecutions
-            if (Array.isArray(be) && be.length > 0) {
-              const last = be[be.length - 1]
-              output = last?.outputData || last?.errorMessage || null
-            }
-          }
-          return {
-            id: l.id,
-            executionId: l.executionId,
-            startedAt: l.createdAt || l.startedAt,
-            level: l.level || 'info',
-            trigger: l.trigger || 'manual',
-            triggerUserId: l.triggerUserId || null,
-            triggerInputs: undefined,
-            outputs: output || undefined,
-            errorMessage: l.error || null,
-            duration: Number.isFinite(durationCandidate as number)
-              ? (durationCandidate as number)
-              : null,
-            cost: l.cost
-              ? { input: l.cost.input || 0, output: l.cost.output || 0, total: l.cost.total || 0 }
-              : null,
-            workflowName: l.workflow?.name,
-            workflowColor: l.workflow?.color,
-          } as ExecutionLog
-        })
+        const more: ExecutionLog[] = (data.data || []).map(mapToExecutionLogAlt)
 
         setWorkflowDetails((prev) => {
           const cur = prev[workflowId]
@@ -695,34 +507,7 @@ export default function ExecutionsDashboard() {
       const res = await fetch(`/api/logs?${qp.toString()}`)
       if (!res.ok) return
       const data = await res.json()
-      const more: ExecutionLog[] = (data.data || []).map((l: any) => {
-        let durationCandidate: number | null = null
-        if (typeof l.totalDurationMs === 'number') durationCandidate = l.totalDurationMs
-        else if (typeof l.duration === 'number') durationCandidate = l.duration
-        else if (typeof l.totalDurationMs === 'string')
-          durationCandidate = Number.parseInt(String(l.totalDurationMs).replace(/[^0-9]/g, ''), 10)
-        else if (typeof l.duration === 'string')
-          durationCandidate = Number.parseInt(String(l.duration).replace(/[^0-9]/g, ''), 10)
-        return {
-          id: l.id,
-          executionId: l.executionId,
-          startedAt: l.startedAt || l.createdAt,
-          level: l.level || 'info',
-          trigger: l.trigger || 'manual',
-          triggerUserId: l.triggerUserId || null,
-          triggerInputs: undefined,
-          outputs: l.executionData?.output || undefined,
-          errorMessage: l.error || null,
-          duration: Number.isFinite(durationCandidate as number)
-            ? (durationCandidate as number)
-            : null,
-          cost: l.cost
-            ? { input: l.cost.input || 0, output: l.cost.output || 0, total: l.cost.total || 0 }
-            : null,
-          workflowName: l.workflow?.name || l.workflowName,
-          workflowColor: l.workflow?.color || l.workflowColor,
-        } as ExecutionLog
-      })
+      const more: ExecutionLog[] = (data.data || []).map(mapToExecutionLog)
 
       setGlobalDetails((prev) => {
         if (!prev) return prev
