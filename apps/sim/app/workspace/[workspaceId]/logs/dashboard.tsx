@@ -65,7 +65,7 @@ interface WorkflowDetailsDataLocal {
   __meta?: { offset: number; hasMore: boolean }
 }
 
-export default function ExecutionsDashboard() {
+export default function Dashboard() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const router = useRouter()

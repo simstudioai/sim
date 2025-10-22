@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 import Controls from '@/app/workspace/[workspaceId]/logs/components/dashboard/controls'
 import { AutocompleteSearch } from '@/app/workspace/[workspaceId]/logs/components/search/search'
 import { Sidebar } from '@/app/workspace/[workspaceId]/logs/components/sidebar/sidebar'
-import ExecutionsDashboard from '@/app/workspace/[workspaceId]/logs/executions-dashboard'
+import Dashboard from '@/app/workspace/[workspaceId]/logs/dashboard'
 import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useFolderStore } from '@/stores/folders/store'
@@ -680,7 +680,7 @@ export default function Logs() {
 
   // If in dashboard mode, show the dashboard
   if (viewMode === 'dashboard') {
-    return <ExecutionsDashboard />
+    return <Dashboard />
   }
 
   return (
