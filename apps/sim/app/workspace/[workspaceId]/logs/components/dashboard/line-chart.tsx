@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { formatDate as formatDashboardDate } from '../../utils'
+import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
 
 export interface LineChartPoint {
   timestamp: string
@@ -152,7 +152,7 @@ export function LineChart({
   const getCompactDateLabel = (timestamp?: string) => {
     if (!timestamp) return ''
     try {
-      const f = formatDashboardDate(timestamp)
+      const f = formatDate(timestamp)
       return `${f.compactDate} · ${f.compactTime}`
     } catch (e) {
       const d = new Date(timestamp)
