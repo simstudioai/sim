@@ -57,7 +57,7 @@ export const setupHandlerMocks = () => {
  * Setup store mocks with configurable options
  */
 export const setupStoreMocks = (options?: {
-  isDebugModeEnabled?: boolean
+  isDebugging?: boolean
   consoleAddFn?: ReturnType<typeof vi.fn>
   consoleUpdateFn?: ReturnType<typeof vi.fn>
 }) => {
@@ -66,15 +66,14 @@ export const setupStoreMocks = (options?: {
 
   vi.doMock('@/stores/settings/general/store', () => ({
     useGeneralStore: {
-      getState: () => ({
-        isDebugModeEnabled: options?.isDebugModeEnabled ?? false,
-      }),
+      getState: () => ({}),
     },
   }))
 
   vi.doMock('@/stores/execution/store', () => ({
     useExecutionStore: {
       getState: () => ({
+        isDebugging: options?.isDebugging ?? false,
         setIsExecuting: vi.fn(),
         reset: vi.fn(),
         setActiveBlocks: vi.fn(),
@@ -925,7 +924,7 @@ export const setupParallelTestMocks = (options?: {
  * Sets up all standard mocks for executor tests
  */
 export const setupAllMocks = (options?: {
-  isDebugModeEnabled?: boolean
+  isDebugging?: boolean
   consoleAddFn?: ReturnType<typeof vi.fn>
   consoleUpdateFn?: ReturnType<typeof vi.fn>
 }) => {

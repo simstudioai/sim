@@ -36,7 +36,6 @@ import { VirtualBlockUtils } from '@/executor/utils/virtual-blocks'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
-import { useGeneralStore } from '@/stores/settings/general/store'
 
 const logger = createLogger('Executor')
 
@@ -217,7 +216,7 @@ export class Executor {
       new GenericBlockHandler(),
     ]
 
-    this.isDebugging = useGeneralStore.getState().isDebugModeEnabled
+    this.isDebugging = useExecutionStore.getState().isDebugging
   }
 
   /**

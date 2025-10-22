@@ -21,7 +21,6 @@ export const useGeneralStore = create<GeneralStore>()(
           isAutoConnectEnabled: true,
           isAutoPanEnabled: true,
           isConsoleExpandedByDefault: true,
-          isDebugModeEnabled: false,
           showFloatingControls: true,
           showTrainingControls: false,
           theme: 'system' as const, // Keep for compatibility but not used
@@ -99,10 +98,6 @@ export const useGeneralStore = create<GeneralStore>()(
               'isConsoleExpandedByDefaultLoading',
               'isConsoleExpandedByDefault'
             )
-          },
-
-          toggleDebugMode: () => {
-            set({ isDebugModeEnabled: !get().isDebugModeEnabled })
           },
 
           toggleFloatingControls: async () => {

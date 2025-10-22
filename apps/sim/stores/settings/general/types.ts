@@ -2,7 +2,6 @@ export interface General {
   isAutoConnectEnabled: boolean
   isAutoPanEnabled: boolean
   isConsoleExpandedByDefault: boolean
-  isDebugModeEnabled: boolean
   showFloatingControls: boolean
   showTrainingControls: boolean
   theme: 'system' | 'light' | 'dark'
@@ -24,7 +23,6 @@ export interface GeneralActions {
   toggleAutoConnect: () => Promise<void>
   toggleAutoPan: () => Promise<void>
   toggleConsoleExpandedByDefault: () => Promise<void>
-  toggleDebugMode: () => void
   toggleFloatingControls: () => Promise<void>
   toggleTrainingControls: () => Promise<void>
   setTheme: (theme: 'system' | 'light' | 'dark') => Promise<void>
