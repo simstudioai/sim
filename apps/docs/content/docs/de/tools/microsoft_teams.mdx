@@ -135,6 +135,7 @@ Inhalte in einem Microsoft Teams-Chat schreiben oder aktualisieren
 | --------- | ---- | -------- | ----------- |
 | `chatId` | string | Ja | Die ID des Chats, in den geschrieben werden soll |
 | `content` | string | Ja | Der Inhalt, der in die Nachricht geschrieben werden soll |
+| `files` | file[] | Nein | Dateien, die der Nachricht angehängt werden sollen |
 
 #### Ausgabe
 
@@ -181,9 +182,10 @@ Schreiben oder senden einer Nachricht an einen Microsoft Teams-Kanal
 
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `teamId` | string | Ja | Die ID des Teams, an das geschrieben werden soll |
-| `channelId` | string | Ja | Die ID des Kanals, an den geschrieben werden soll |
-| `content` | string | Ja | Der Inhalt, der an den Kanal gesendet werden soll |
+| `teamId` | string | Ja | Die ID des Teams, in das geschrieben werden soll |
+| `channelId` | string | Ja | Die ID des Kanals, in den geschrieben werden soll |
+| `content` | string | Ja | Der Inhalt, der in den Kanal geschrieben werden soll |
+| `files` | file[] | Nein | Dateien, die der Nachricht angehängt werden sollen |
 
 #### Ausgabe
 

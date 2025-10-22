@@ -202,7 +202,29 @@ Supabaseテーブルにデータを挿入または更新する（アップサー
 | `message` | string | 操作ステータスメッセージ |
 | `results` | array | アップサートされたレコードの配列 |
 
+### `supabase_vector_search`
+
+Supabaseテーブルでpgvectorを使用して類似性検索を実行する
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | はい | あなたのSupabaseプロジェクトID（例：jdrkgepadsdopsntdlom） |
+| `functionName` | string | はい | ベクトル検索を実行するPostgreSQL関数の名前（例：match_documents） |
+| `queryEmbedding` | array | はい | 類似アイテムを検索するためのクエリベクトル/埋め込み |
+| `matchThreshold` | number | いいえ | 最小類似度しきい値（0-1）、通常は0.7-0.9 |
+| `matchCount` | number | いいえ | 返す結果の最大数（デフォルト：10） |
+| `apiKey` | string | はい | あなたのSupabaseサービスロールシークレットキー |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作ステータスメッセージ |
+| `results` | array | ベクトル検索からの類似度スコア付きレコードの配列。各レコードには、クエリベクトルとの類似度を示す類似度フィールド（0-1）が含まれます。 |
+
 ## 注意事項
 
-- カテゴリー: `tools`
+- カテゴリ: `tools`
 - タイプ: `supabase`

@@ -189,6 +189,26 @@ Telegram Bot APIを通じてTelegramチャンネルまたはユーザーにア�
 | `message` | string | 成功またはエラーメッセージ |
 | `data` | object | オプションのメディアを含むTelegramメッセージデータ |
 
+### `telegram_send_document`
+
+Telegram Bot APIを通じて、Telegramチャンネルやユーザーにドキュメント（PDF、ZIP、DOCなど）を送信します。
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | はい | あなたのTelegram Bot APIトークン |
+| `chatId` | string | はい | 対象のTelegramチャットID |
+| `files` | file[] | いいえ | 送信するドキュメントファイル（PDF、ZIP、DOCなど）。最大サイズ：50MB |
+| `caption` | string | いいえ | ドキュメントのキャプション（任意） |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功またはエラーメッセージ |
+| `data` | object | ドキュメントを含むTelegramメッセージデータ |
+
 ## 注意事項
 
 - カテゴリー: `tools`

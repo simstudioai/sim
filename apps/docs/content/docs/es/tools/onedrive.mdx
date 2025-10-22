@@ -61,11 +61,12 @@ Subir un archivo a OneDrive
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | -------- | ----------- |
+| --------- | ---- | ----------- | ----------- |
 | `fileName` | string | Sí | El nombre del archivo a subir |
-| `content` | string | Sí | El contenido del archivo a subir |
+| `file` | file | No | El archivo a subir \(binario\) |
+| `content` | string | No | El contenido de texto a subir \(si no se proporciona un archivo\) |
 | `folderSelector` | string | No | Seleccionar la carpeta donde subir el archivo |
-| `manualFolderId` | string | No | ID de carpeta introducido manualmente \(modo avanzado\) |
+| `manualFolderId` | string | No | ID de carpeta ingresado manualmente \(modo avanzado\) |
 
 #### Salida
 

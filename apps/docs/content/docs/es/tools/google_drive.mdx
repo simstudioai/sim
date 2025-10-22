@@ -85,9 +85,10 @@ Subir un archivo a Google Drive
 | Parámetro | Tipo | Obligatorio | Descripción |
 | --------- | ---- | ----------- | ----------- |
 | `fileName` | string | Sí | El nombre del archivo a subir |
-| `content` | string | Sí | El contenido del archivo a subir |
-| `mimeType` | string | No | El tipo MIME del archivo a subir |
-| `folderSelector` | string | No | Selecciona la carpeta donde subir el archivo |
+| `file` | file | No | Archivo binario para subir \(objeto UserFile\) |
+| `content` | string | No | Contenido de texto para subir \(use esto O archivo, no ambos\) |
+| `mimeType` | string | No | El tipo MIME del archivo a subir \(auto-detectado del archivo si no se proporciona\) |
+| `folderSelector` | string | No | Seleccione la carpeta donde subir el archivo |
 | `folderId` | string | No | El ID de la carpeta donde subir el archivo \(uso interno\) |
 
 #### Salida

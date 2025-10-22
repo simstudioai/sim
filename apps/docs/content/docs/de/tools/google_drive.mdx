@@ -85,10 +85,11 @@ Eine Datei zu Google Drive hochladen
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `fileName` | string | Ja | Der Name der hochzuladenden Datei |
-| `content` | string | Ja | Der Inhalt der hochzuladenden Datei |
-| `mimeType` | string | Nein | Der MIME-Typ der hochzuladenden Datei |
+| `file` | file | Nein | Binärdatei zum Hochladen (UserFile-Objekt) |
+| `content` | string | Nein | Textinhalt zum Hochladen (verwenden Sie entweder diesen ODER file, nicht beides) |
+| `mimeType` | string | Nein | Der MIME-Typ der hochzuladenden Datei (wird automatisch aus der Datei erkannt, wenn nicht angegeben) |
 | `folderSelector` | string | Nein | Wählen Sie den Ordner aus, in den die Datei hochgeladen werden soll |
-| `folderId` | string | Nein | Die ID des Ordners, in den die Datei hochgeladen werden soll \(interne Verwendung\) |
+| `folderId` | string | Nein | Die ID des Ordners, in den die Datei hochgeladen werden soll (interne Verwendung) |
 
 #### Ausgabe
 

@@ -75,11 +75,12 @@ Envoyez des messages aux canaux ou utilisateurs Slack via l'API Slack. Prend en 
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | ---------- | ----------- |
 | `authMethod` | chaîne | Non | Méthode d'authentification : oauth ou bot_token |
-| `botToken` | chaîne | Non | Jeton du bot pour le Bot personnalisé |
-| `channel` | chaîne | Oui | Canal Slack cible (par ex., #general) |
-| `text` | chaîne | Oui | Texte du message à envoyer (prend en charge le formatage mrkdwn de Slack) |
+| `botToken` | chaîne | Non | Jeton du bot pour Bot personnalisé |
+| `channel` | chaîne | Oui | Canal Slack cible \(par ex., #general\) |
+| `text` | chaîne | Oui | Texte du message à envoyer \(prend en charge le formatage mrkdwn de Slack\) |
+| `files` | fichier[] | Non | Fichiers à joindre au message |
 
 #### Sortie
 

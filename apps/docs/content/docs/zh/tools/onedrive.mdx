@@ -62,10 +62,11 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `fileName` | string | 是 | 要上传的文件名 |
-| `content` | string | 是 | 要上传的文件内容 |
-| `folderSelector` | string | 否 | 选择要上传文件的文件夹 |
-| `manualFolderId` | string | 否 | 手动输入的文件夹 ID（高级模式） |
+| `fileName` | string | 是 | 要上传文件的名称 |
+| `file` | file | 否 | 要上传的文件 \(二进制\) |
+| `content` | string | 否 | 要上传的文本内容 \(如果未提供文件\) |
+| `folderSelector` | string | 否 | 选择上传文件的文件夹 |
+| `manualFolderId` | string | 否 | 手动输入的文件夹 ID \(高级模式\) |
 
 #### 输出
 

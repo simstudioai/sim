@@ -61,11 +61,12 @@ Télécharger un fichier vers OneDrive
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
-| `fileName` | chaîne | Oui | Le nom du fichier à télécharger |
-| `content` | chaîne | Oui | Le contenu du fichier à télécharger |
-| `folderSelector` | chaîne | Non | Sélectionnez le dossier où télécharger le fichier |
-| `manualFolderId` | chaîne | Non | ID du dossier saisi manuellement \(mode avancé\) |
+| --------- | ---- | ---------- | ----------- |
+| `fileName` | string | Oui | Le nom du fichier à télécharger |
+| `file` | file | Non | Le fichier à télécharger \(binaire\) |
+| `content` | string | Non | Le contenu textuel à télécharger \(si aucun fichier n'est fourni\) |
+| `folderSelector` | string | Non | Sélectionner le dossier dans lequel télécharger le fichier |
+| `manualFolderId` | string | Non | ID de dossier saisi manuellement \(mode avancé\) |
 
 #### Sortie
 

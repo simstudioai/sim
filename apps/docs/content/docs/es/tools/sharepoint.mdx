@@ -199,6 +199,26 @@ Añadir un nuevo elemento a una lista de SharePoint
 | --------- | ---- | ----------- |
 | `item` | object | Elemento de lista de SharePoint creado |
 
+### `sharepoint_upload_file`
+
+Subir archivos a una biblioteca de documentos de SharePoint
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | cadena | No | El ID del sitio de SharePoint |
+| `driveId` | cadena | No | El ID de la biblioteca de documentos \(unidad\). Si no se proporciona, usa la unidad predeterminada. |
+| `folderPath` | cadena | No | Ruta de carpeta opcional dentro de la biblioteca de documentos \(p. ej., /Documents/Subfolder\) |
+| `fileName` | cadena | No | Opcional: sobrescribir el nombre del archivo subido |
+| `files` | archivo[] | No | Archivos para subir a SharePoint |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `uploadedFiles` | array | Array de objetos de archivos subidos |
+
 ## Notas
 
 - Categoría: `tools`

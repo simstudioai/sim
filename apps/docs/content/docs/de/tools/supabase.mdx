@@ -202,6 +202,28 @@ Daten in eine Supabase-Tabelle einfügen oder aktualisieren (Upsert-Operation)
 | `message` | string | Statusmeldung der Operation |
 | `results` | array | Array der eingefügten/aktualisierten Datensätze |
 
+### `supabase_vector_search`
+
+Ähnlichkeitssuche mit pgvector in einer Supabase-Tabelle durchführen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Ja | Ihre Supabase-Projekt-ID \(z.B. jdrkgepadsdopsntdlom\) |
+| `functionName` | string | Ja | Der Name der PostgreSQL-Funktion, die die Vektorsuche durchführt \(z.B. match_documents\) |
+| `queryEmbedding` | array | Ja | Der Abfragevektor/Embedding, nach dem ähnliche Elemente gesucht werden sollen |
+| `matchThreshold` | number | Nein | Minimaler Ähnlichkeitsschwellenwert \(0-1\), typischerweise 0,7-0,9 |
+| `matchCount` | number | Nein | Maximale Anzahl der zurückzugebenden Ergebnisse \(Standard: 10\) |
+| `apiKey` | string | Ja | Ihr Supabase Service Role Secret Key |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `message` | string | Statusmeldung der Operation |
+| `results` | array | Array von Datensätzen mit Ähnlichkeitswerten aus der Vektorsuche. Jeder Datensatz enthält ein Ähnlichkeitsfeld \(0-1\), das angibt, wie ähnlich er dem Abfragevektor ist. |
+
 ## Hinweise
 
 - Kategorie: `tools`

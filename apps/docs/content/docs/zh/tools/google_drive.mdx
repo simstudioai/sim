@@ -84,11 +84,12 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `fileName` | string | 是 | 要上传的文件名称 |
-| `content` | string | 是 | 要上传的文件内容 |
-| `mimeType` | string | 否 | 要上传文件的 MIME 类型 |
-| `folderSelector` | string | 否 | 选择上传文件的文件夹 |
-| `folderId` | string | 否 | 要上传文件的文件夹 ID（内部使用） |
+| `fileName` | string | 是 | 要上传文件的名称 |
+| `file` | file | 否 | 要上传的二进制文件 \(UserFile 对象\) |
+| `content` | string | 否 | 要上传的文本内容 \(使用此项或 file，不可同时使用\) |
+| `mimeType` | string | 否 | 要上传文件的 MIME 类型 \(如果未提供，将从文件中自动检测\) |
+| `folderSelector` | string | 否 | 选择要上传文件的文件夹 |
+| `folderId` | string | 否 | 要上传文件的文件夹 ID \(内部使用\) |
 
 #### 输出
 

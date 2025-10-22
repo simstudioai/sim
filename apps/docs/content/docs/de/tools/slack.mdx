@@ -78,7 +78,8 @@ Senden Sie Nachrichten an Slack-Kanäle oder Benutzer über die Slack-API. Unter
 | `authMethod` | string | Nein | Authentifizierungsmethode: oauth oder bot_token |
 | `botToken` | string | Nein | Bot-Token für Custom Bot |
 | `channel` | string | Ja | Ziel-Slack-Kanal \(z.B. #general\) |
-| `text` | string | Ja | Zu sendender Nachrichtentext \(unterstützt Slack mrkdwn-Formatierung\) |
+| `text` | string | Ja | Nachrichtentext zum Senden \(unterstützt Slack mrkdwn-Formatierung\) |
+| `files` | file[] | Nein | Dateien, die an die Nachricht angehängt werden sollen |
 
 #### Ausgabe
 

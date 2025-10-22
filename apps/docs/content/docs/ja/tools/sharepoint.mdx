@@ -199,7 +199,27 @@ SharePointリストに新しいアイテムを追加する
 | --------- | ---- | ----------- |
 | `item` | object | 作成されたSharePointリストアイテム |
 
+### `sharepoint_upload_file`
+
+SharePointドキュメントライブラリにファイルをアップロードする
+
+#### 入力
+
+| パラメータ | 型 | 必須 | 説明 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | いいえ | SharePointサイトのID |
+| `driveId` | string | いいえ | ドキュメントライブラリ（ドライブ）のID。提供されない場合、デフォルトドライブを使用します。 |
+| `folderPath` | string | いいえ | ドキュメントライブラリ内のオプションのフォルダパス（例：/Documents/Subfolder） |
+| `fileName` | string | いいえ | オプション：アップロードされるファイル名を上書きする |
+| `files` | file[] | いいえ | SharePointにアップロードするファイル |
+
+#### 出力
+
+| パラメータ | 型 | 説明 |
+| --------- | ---- | ----------- |
+| `uploadedFiles` | array | アップロードされたファイルオブジェクトの配列 |
+
 ## 注意事項
 
-- カテゴリー: `tools`
+- カテゴリ: `tools`
 - タイプ: `sharepoint`
