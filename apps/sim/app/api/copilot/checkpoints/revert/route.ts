@@ -12,6 +12,7 @@ import {
 } from '@/lib/copilot/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { validateUUID } from '@/lib/security/input-validation'
+import { getBaseUrl } from '@/lib/urls/utils'
 
 const logger = createLogger('CheckpointRevertAPI')
 
@@ -93,7 +94,7 @@ export async function POST(request: NextRequest) {
     }
 
     const stateResponse = await fetch(
-      `${request.nextUrl.origin}/api/workflows/${checkpoint.workflowId}/state`,
+      `${getBaseUrl()}/api/workflows/${checkpoint.workflowId}/state`,
       {
         method: 'PUT',
         headers: {
