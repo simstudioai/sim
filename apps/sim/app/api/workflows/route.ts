@@ -3,7 +3,7 @@ import { workflow, workspace } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getSession } from '@/lib/auth'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { generateRequestId } from '@/lib/utils'
@@ -20,20 +20,20 @@ const CreateWorkflowSchema = z.object({
 })
 
 // GET /api/workflows - Get workflows for user (optionally filtered by workspaceId)
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const requestId = generateRequestId()
   const startTime = Date.now()
   const url = new URL(request.url)
   const workspaceId = url.searchParams.get('workspaceId')
 
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
+    const authResult = await checkHybridAuth(request)
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized workflow access attempt`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userId = session.user.id
+    const userId = authResult.userId
 
     if (workspaceId) {
       const workspaceExists = await db
@@ -84,9 +84,9 @@ export async function GET(request: Request) {
 // POST /api/workflows - Create a new workflow
 export async function POST(req: NextRequest) {
   const requestId = generateRequestId()
-  const session = await getSession()
+  const authResult = await checkHybridAuth(req)
 
-  if (!session?.user?.id) {
+  if (!authResult.success || !authResult.userId) {
     logger.warn(`[${requestId}] Unauthorized workflow creation attempt`)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
     const workflowId = crypto.randomUUID()
     const now = new Date()
 
-    logger.info(`[${requestId}] Creating workflow ${workflowId} for user ${session.user.id}`)
+    logger.info(`[${requestId}] Creating workflow ${workflowId} for user ${authResult.userId}`)
 
     // Track workflow creation
     try {
@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
 
     await db.insert(workflow).values({
       id: workflowId,
-      userId: session.user.id,
+      userId: authResult.userId,
       workspaceId: workspaceId || null,
       folderId: folderId || null,
       name,
