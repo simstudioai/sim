@@ -451,13 +451,18 @@ async function handleInternalRequest(
     }
 
     const headers = new Headers(requestParams.headers)
+    const isInternalRoute = endpointUrl.startsWith('/api/')
     if (typeof window === 'undefined') {
-      try {
-        const internalToken = await generateInternalToken()
-        headers.set('Authorization', `Bearer ${internalToken}`)
-        logger.info(`[${requestId}] Added internal auth token for ${toolId}`)
-      } catch (error) {
-        logger.error(`[${requestId}] Failed to generate internal token for ${toolId}:`, error)
+      if (isInternalRoute) {
+        try {
+          const internalToken = await generateInternalToken()
+          headers.set('Authorization', `Bearer ${internalToken}`)
+          logger.info(`[${requestId}] Added internal auth token for ${toolId}`)
+        } catch (error) {
+          logger.error(`[${requestId}] Failed to generate internal token for ${toolId}:`, error)
+        }
+      } else {
+        logger.info(`[${requestId}] Skipping internal auth token for external URL: ${endpointUrl}`)
       }
     }
 
