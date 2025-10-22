@@ -427,7 +427,7 @@ async function parseWithMistralOCR(fileUrl: string, filename: string, mimeType: 
           const internalToken = await generateInternalToken()
           headers = {
             ...headers,
-            authorization: `Bearer ${internalToken}`,
+            Authorization: `Bearer ${internalToken}`,
           }
         }
 
