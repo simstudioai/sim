@@ -13,7 +13,6 @@ import { useExecutionStore } from '@/stores/execution/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
-import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
@@ -100,7 +99,6 @@ export function useWorkflowExecution() {
   const { activeWorkflowId, workflows } = useWorkflowRegistry()
   const { toggleConsole } = useConsoleStore()
   const { getAllVariables, loadWorkspaceEnvironment } = useEnvironmentStore()
-  const { isDebugModeEnabled } = useGeneralStore()
   const { getVariablesByWorkflowId, variables } = useVariablesStore()
   const {
     isExecuting,
@@ -145,11 +143,6 @@ export function useWorkflowExecution() {
     setExecutor(null)
     setPendingBlocks([])
     setActiveBlocks(new Set())
-
-    // Reset debug mode setting if it was enabled
-    if (isDebugModeEnabled) {
-      useGeneralStore.getState().toggleDebugMode()
-    }
   }, [
     setIsExecuting,
     setIsDebugging,
@@ -157,7 +150,6 @@ export function useWorkflowExecution() {
     setExecutor,
     setPendingBlocks,
     setActiveBlocks,
-    isDebugModeEnabled,
   ])
 
   /**
@@ -626,11 +618,10 @@ export function useWorkflowExecution() {
           }
         } else if (result && 'success' in result) {
           setExecutionResult(result)
-          if (!isDebugModeEnabled) {
-            setIsExecuting(false)
-            setIsDebugging(false)
-            setActiveBlocks(new Set())
-          }
+          // Reset execution state after successful non-debug execution
+          setIsExecuting(false)
+          setIsDebugging(false)
+          setActiveBlocks(new Set())
 
           if (isChatExecution) {
             if (!result.metadata) {
@@ -659,7 +650,6 @@ export function useWorkflowExecution() {
       getAllVariables,
       loadWorkspaceEnvironment,
       getVariablesByWorkflowId,
-      isDebugModeEnabled,
       setIsExecuting,
       setIsDebugging,
       setDebugContext,

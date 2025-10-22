@@ -386,11 +386,11 @@ describe('Executor', () => {
    * Debug mode tests
    */
   describe('debug mode', () => {
-    it('should detect debug mode from settings', async () => {
+    it('should detect debug mode from execution store', async () => {
       vi.resetModules()
       vi.clearAllMocks()
 
-      setupAllMocks({ isDebugModeEnabled: true })
+      setupAllMocks({ isDebugging: true })
 
       const { Executor } = await import('@/executor/index')
 
@@ -405,7 +405,7 @@ describe('Executor', () => {
       vi.resetModules()
       vi.clearAllMocks()
 
-      setupAllMocks({ isDebugModeEnabled: false })
+      setupAllMocks({ isDebugging: false })
 
       const { Executor } = await import('@/executor/index')
 

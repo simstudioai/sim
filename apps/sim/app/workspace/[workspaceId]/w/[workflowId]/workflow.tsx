@@ -252,8 +252,7 @@ const WorkflowContent = React.memo(() => {
   } = useCollaborativeWorkflow()
 
   // Execution and debug mode state
-  const { activeBlockIds, pendingBlocks } = useExecutionStore()
-  const { isDebugModeEnabled } = useGeneralStore()
+  const { activeBlockIds, pendingBlocks, isDebugging } = useExecutionStore()
   const [dragStartParentId, setDragStartParentId] = useState<string | null>(null)
 
   // Helper function to validate workflow for nested subflows
@@ -1273,7 +1272,7 @@ const WorkflowContent = React.memo(() => {
       const position = block.position
 
       const isActive = activeBlockIds.has(block.id)
-      const isPending = isDebugModeEnabled && pendingBlocks.includes(block.id)
+      const isPending = isDebugging && pendingBlocks.includes(block.id)
 
       // Create stable node object - React Flow will handle shallow comparison
       nodeArray.push({
@@ -1302,7 +1301,7 @@ const WorkflowContent = React.memo(() => {
     blocks,
     activeBlockIds,
     pendingBlocks,
-    isDebugModeEnabled,
+    isDebugging,
     nestedSubflowErrors,
     getBlockConfig,
   ])
