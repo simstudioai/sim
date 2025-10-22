@@ -12,6 +12,7 @@ import Timeline from '@/app/workspace/[workspaceId]/logs/components/filters/comp
 import { mapToExecutionLog, mapToExecutionLogAlt } from '@/app/workspace/[workspaceId]/logs/utils'
 import { formatCost } from '@/providers/utils'
 import { useFilterStore } from '@/stores/logs/filters/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 type TimeFilter = '30m' | '1h' | '6h' | '12h' | '24h' | '3d' | '7d' | '14d' | '30d'
 
@@ -112,8 +113,8 @@ export default function ExecutionsDashboard() {
   const [aggregateSegments, setAggregateSegments] = useState<
     { timestamp: string; totalExecutions: number; successfulExecutions: number }[]
   >([])
-  const [selectedSegmentIndices, setSelectedSegmentIndices] = useState<number[]>([])
-  const [lastAnchorIndex, setLastAnchorIndex] = useState<number | null>(null)
+  const [selectedSegments, setSelectedSegments] = useState<Record<string, number[]>>({})
+  const [lastAnchorIndices, setLastAnchorIndices] = useState<Record<string, number>>({})
   const [searchQuery, setSearchQuery] = useState('')
   const [segmentCount, setSegmentCount] = useState<number>(DEFAULT_SEGMENTS)
   const barsAreaRef = useRef<HTMLDivElement | null>(null)
@@ -126,6 +127,8 @@ export default function ExecutionsDashboard() {
     setViewMode,
     timeRange: sidebarTimeRange,
   } = useFilterStore()
+
+  const { workflows } = useWorkflowRegistry()
 
   const timeFilter = getTimeFilterFromRange(sidebarTimeRange)
 
@@ -545,12 +548,8 @@ export default function ExecutionsDashboard() {
     (workflowId: string) => {
       if (expandedWorkflowId === workflowId) {
         setExpandedWorkflowId(null)
-        setSelectedSegmentIndices([])
-        setLastAnchorIndex(null)
       } else {
         setExpandedWorkflowId(workflowId)
-        setSelectedSegmentIndices([])
-        setLastAnchorIndex(null)
         if (!workflowDetails[workflowId]) {
           fetchWorkflowDetails(workflowId)
         }
@@ -566,38 +565,69 @@ export default function ExecutionsDashboard() {
       _timestamp: string,
       mode: 'single' | 'toggle' | 'range'
     ) => {
-      if (expandedWorkflowId !== workflowId) {
-        setExpandedWorkflowId(workflowId)
-        if (!workflowDetails[workflowId]) {
-          fetchWorkflowDetails(workflowId)
-        }
-        setSelectedSegmentIndices([segmentIndex])
-        setLastAnchorIndex(segmentIndex)
-      } else {
-        setSelectedSegmentIndices((prev) => {
-          if (mode === 'single') {
-            setLastAnchorIndex(segmentIndex)
-            if (prev.includes(segmentIndex)) {
-              return prev.filter((i) => i !== segmentIndex)
+      // Fetch workflow details if not already loaded
+      if (!workflowDetails[workflowId]) {
+        fetchWorkflowDetails(workflowId)
+      }
+
+      if (mode === 'toggle') {
+        // Toggle mode: Add/remove segment from selection, allowing cross-workflow selection
+        setSelectedSegments((prev) => {
+          const currentSegments = prev[workflowId] || []
+          const exists = currentSegments.includes(segmentIndex)
+          const nextSegments = exists
+            ? currentSegments.filter((i) => i !== segmentIndex)
+            : [...currentSegments, segmentIndex].sort((a, b) => a - b)
+
+          if (nextSegments.length === 0) {
+            const { [workflowId]: _, ...rest } = prev
+            // If this was the only workflow with selections, clear expanded
+            if (Object.keys(rest).length === 0) {
+              setExpandedWorkflowId(null)
             }
-            return [segmentIndex]
+            return rest
           }
-          if (mode === 'toggle') {
-            const exists = prev.includes(segmentIndex)
-            const next = exists ? prev.filter((i) => i !== segmentIndex) : [...prev, segmentIndex]
-            setLastAnchorIndex(segmentIndex)
-            return next.sort((a, b) => a - b)
+
+          const newState = { ...prev, [workflowId]: nextSegments }
+
+          // Set to multi-workflow mode if multiple workflows have selections
+          const selectedWorkflowIds = Object.keys(newState)
+          if (selectedWorkflowIds.length > 1) {
+            setExpandedWorkflowId('__multi__')
+          } else if (selectedWorkflowIds.length === 1) {
+            setExpandedWorkflowId(selectedWorkflowIds[0])
           }
-          const anchor = lastAnchorIndex ?? segmentIndex
-          const [start, end] =
-            anchor < segmentIndex ? [anchor, segmentIndex] : [segmentIndex, anchor]
-          const range = Array.from({ length: end - start + 1 }, (_, i) => start + i)
-          const union = new Set([...(prev || []), ...range])
-          return Array.from(union).sort((a, b) => a - b)
+
+          return newState
         })
+
+        setLastAnchorIndices((prev) => ({ ...prev, [workflowId]: segmentIndex }))
+      } else if (mode === 'single') {
+        // Single mode: Clear all selections and select only this segment
+        setExpandedWorkflowId(workflowId)
+        setSelectedSegments({ [workflowId]: [segmentIndex] })
+        setLastAnchorIndices({ [workflowId]: segmentIndex })
+      } else if (mode === 'range') {
+        // Range mode: Expand selection within the current workflow
+        if (expandedWorkflowId === workflowId) {
+          setSelectedSegments((prev) => {
+            const currentSegments = prev[workflowId] || []
+            const anchor = lastAnchorIndices[workflowId] ?? segmentIndex
+            const [start, end] =
+              anchor < segmentIndex ? [anchor, segmentIndex] : [segmentIndex, anchor]
+            const range = Array.from({ length: end - start + 1 }, (_, i) => start + i)
+            const union = new Set([...currentSegments, ...range])
+            return { ...prev, [workflowId]: Array.from(union).sort((a, b) => a - b) }
+          })
+        } else {
+          // If clicking range on a different workflow, treat as single click
+          setExpandedWorkflowId(workflowId)
+          setSelectedSegments({ [workflowId]: [segmentIndex] })
+          setLastAnchorIndices({ [workflowId]: segmentIndex })
+        }
       }
     },
-    [expandedWorkflowId, workflowDetails, fetchWorkflowDetails, lastAnchorIndex]
+    [expandedWorkflowId, workflowDetails, fetchWorkflowDetails, lastAnchorIndices]
   )
 
   const isInitialMount = useRef(true)
@@ -616,8 +646,8 @@ export default function ExecutionsDashboard() {
   }, [expandedWorkflowId, timeFilter, endTime, workflowIds, folderIds, fetchWorkflowDetails])
 
   useEffect(() => {
-    setSelectedSegmentIndices([])
-    setLastAnchorIndex(null)
+    setSelectedSegments({})
+    setLastAnchorIndices({})
   }, [timeFilter, endTime, workflowIds, folderIds, triggers])
 
   useEffect(() => {
@@ -812,7 +842,7 @@ export default function ExecutionsDashboard() {
                     filteredExecutions={filteredExecutions as any}
                     expandedWorkflowId={expandedWorkflowId}
                     onToggleWorkflow={toggleWorkflow}
-                    selectedSegmentIndex={selectedSegmentIndices as any}
+                    selectedSegments={selectedSegments}
                     onSegmentClick={handleSegmentClick}
                     searchQuery={searchQuery}
                     segmentDurationMs={
@@ -825,6 +855,170 @@ export default function ExecutionsDashboard() {
               {/* Details section in its own scroll area */}
               <div className='min-h-0 flex-1 overflow-auto'>
                 {(() => {
+                  // Handle multi-workflow selection view
+                  if (expandedWorkflowId === '__multi__') {
+                    const selectedWorkflowIds = Object.keys(selectedSegments)
+                    const totalMs = endTime.getTime() - getStartTime().getTime()
+                    const segMs = totalMs / Math.max(1, segmentCount)
+
+                    // Collect all unique segment indices across all workflows
+                    const allSegmentIndices = new Set<number>()
+                    for (const indices of Object.values(selectedSegments)) {
+                      indices.forEach((idx) => allSegmentIndices.add(idx))
+                    }
+                    const sortedIndices = Array.from(allSegmentIndices).sort((a, b) => a - b)
+
+                    // Aggregate logs from all selected workflows/segments
+                    const allLogs: any[] = []
+                    let totalExecutions = 0
+                    let totalSuccess = 0
+
+                    // Build aggregated chart series
+                    const aggregatedSegments: Array<{
+                      timestamp: string
+                      totalExecutions: number
+                      successfulExecutions: number
+                      avgDurationMs: number
+                      durationCount: number
+                    }> = []
+
+                    // Initialize aggregated segments for each unique index
+                    for (const idx of sortedIndices) {
+                      // Get the timestamp from the first workflow that has this index
+                      let timestamp = ''
+                      for (const wfId of selectedWorkflowIds) {
+                        const wf = executions.find((w) => w.workflowId === wfId)
+                        if (wf?.segments[idx]) {
+                          timestamp = wf.segments[idx].timestamp
+                          break
+                        }
+                      }
+
+                      aggregatedSegments.push({
+                        timestamp,
+                        totalExecutions: 0,
+                        successfulExecutions: 0,
+                        avgDurationMs: 0,
+                        durationCount: 0,
+                      })
+                    }
+
+                    // Aggregate data from all workflows
+                    for (const wfId of selectedWorkflowIds) {
+                      const wf = executions.find((w) => w.workflowId === wfId)
+                      const details = workflowDetails[wfId]
+                      const indices = selectedSegments[wfId] || []
+
+                      if (!wf || !details || indices.length === 0) continue
+
+                      // Calculate time windows for this workflow's selected segments
+                      const windows = indices
+                        .map((idx) => wf.segments[idx])
+                        .filter(Boolean)
+                        .map((s) => {
+                          const start = new Date(s.timestamp).getTime()
+                          const end = start + segMs
+                          totalExecutions += s.totalExecutions || 0
+                          totalSuccess += s.successfulExecutions || 0
+                          return { start, end }
+                        })
+
+                      const inAnyWindow = (t: number) =>
+                        windows.some((w) => t >= w.start && t < w.end)
+
+                      // Filter logs for this workflow's selected segments
+                      const workflowLogs = details.allLogs
+                        .filter((log) => inAnyWindow(new Date(log.startedAt).getTime()))
+                        .map((log) => ({
+                          ...log,
+                          workflowName: (log as any).workflowName || wf.workflowName,
+                          workflowColor:
+                            (log as any).workflowColor || workflows[wfId]?.color || '#64748b',
+                        }))
+
+                      allLogs.push(...workflowLogs)
+
+                      // Aggregate segment metrics
+                      indices.forEach((idx) => {
+                        const segment = wf.segments[idx]
+                        if (!segment) return
+
+                        const aggIndex = sortedIndices.indexOf(idx)
+                        if (aggIndex >= 0 && aggregatedSegments[aggIndex]) {
+                          const agg = aggregatedSegments[aggIndex]
+                          agg.totalExecutions += segment.totalExecutions || 0
+                          agg.successfulExecutions += segment.successfulExecutions || 0
+                          if (segment.avgDurationMs) {
+                            agg.avgDurationMs += segment.avgDurationMs
+                            agg.durationCount += 1
+                          }
+                        }
+                      })
+                    }
+
+                    // Build chart series
+                    const errorRates = aggregatedSegments.map((seg) => ({
+                      timestamp: seg.timestamp,
+                      value:
+                        seg.totalExecutions > 0
+                          ? (1 - seg.successfulExecutions / seg.totalExecutions) * 100
+                          : 0,
+                    }))
+
+                    const executionCounts = aggregatedSegments.map((seg) => ({
+                      timestamp: seg.timestamp,
+                      value: seg.totalExecutions,
+                    }))
+
+                    const durations = aggregatedSegments.map((seg) => ({
+                      timestamp: seg.timestamp,
+                      value: seg.durationCount > 0 ? seg.avgDurationMs / seg.durationCount : 0,
+                    }))
+
+                    // Sort logs by time (most recent first)
+                    allLogs.sort(
+                      (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+                    )
+
+                    const totalFailures = Math.max(totalExecutions - totalSuccess, 0)
+                    const totalRate =
+                      totalExecutions > 0 ? (totalSuccess / totalExecutions) * 100 : 100
+
+                    return (
+                      <WorkflowDetails
+                        workspaceId={workspaceId}
+                        expandedWorkflowId={'__multi__'}
+                        workflowName={`${selectedWorkflowIds.length} workflows selected`}
+                        overview={{
+                          total: totalExecutions,
+                          success: totalSuccess,
+                          failures: totalFailures,
+                          rate: totalRate,
+                        }}
+                        details={
+                          {
+                            errorRates,
+                            durations,
+                            executionCounts,
+                            logs: allLogs,
+                            allLogs: allLogs,
+                          } as any
+                        }
+                        selectedSegmentIndex={[]}
+                        selectedSegment={null}
+                        clearSegmentSelection={() => {
+                          setSelectedSegments({})
+                          setLastAnchorIndices({})
+                          setExpandedWorkflowId(null)
+                        }}
+                        formatCost={formatCost}
+                        onLoadMore={undefined}
+                        hasMore={false}
+                        isLoadingMore={false}
+                      />
+                    )
+                  }
+
                   if (expandedWorkflowId) {
                     const wf = executions.find((w) => w.workflowId === expandedWorkflowId)
                     if (!wf) return null
@@ -896,11 +1090,12 @@ export default function ExecutionsDashboard() {
                       }
                     }
 
-                    if (details && selectedSegmentIndices.length > 0) {
+                    const workflowSelectedIndices = selectedSegments[expandedWorkflowId] || []
+                    if (details && workflowSelectedIndices.length > 0) {
                       const totalMs = endTime.getTime() - getStartTime().getTime()
                       const segMs = totalMs / Math.max(1, segmentCount)
 
-                      const windows = selectedSegmentIndices
+                      const windows = workflowSelectedIndices
                         .map((idx) => wf.segments[idx])
                         .filter(Boolean)
                         .map((s) => {
@@ -919,11 +1114,8 @@ export default function ExecutionsDashboard() {
                           workflowName: (log as any).workflowName || wf.workflowName,
                         }))
 
-                      const minStart = new Date(Math.min(...windows.map((w) => w.start)))
-                      const maxEnd = new Date(Math.max(...windows.map((w) => w.end)))
-
                       // Build series from selected segments indices
-                      const idxSet = new Set(selectedSegmentIndices)
+                      const idxSet = new Set(workflowSelectedIndices)
                       const selectedSegs = wf.segments.filter((_, i) => idxSet.has(i))
                       ;(details as any).__filtered = buildSeriesFromSegments(selectedSegs as any)
                     }
@@ -949,8 +1141,8 @@ export default function ExecutionsDashboard() {
                       : undefined
 
                     const selectedSegment =
-                      selectedSegmentIndices.length === 1
-                        ? wf.segments[selectedSegmentIndices[0]]
+                      workflowSelectedIndices.length === 1
+                        ? wf.segments[workflowSelectedIndices[0]]
                         : null
 
                     return (
@@ -960,7 +1152,7 @@ export default function ExecutionsDashboard() {
                         workflowName={wf.workflowName}
                         overview={{ total, success, failures, rate }}
                         details={detailsWithFilteredLogs as any}
-                        selectedSegmentIndex={selectedSegmentIndices}
+                        selectedSegmentIndex={workflowSelectedIndices}
                         selectedSegment={
                           selectedSegment
                             ? {
@@ -970,8 +1162,8 @@ export default function ExecutionsDashboard() {
                             : null
                         }
                         clearSegmentSelection={() => {
-                          setSelectedSegmentIndices([])
-                          setLastAnchorIndex(null)
+                          setSelectedSegments({})
+                          setLastAnchorIndices({})
                         }}
                         formatCost={formatCost}
                         onLoadMore={() => loadMoreLogs(expandedWorkflowId)}
@@ -1003,8 +1195,8 @@ export default function ExecutionsDashboard() {
                       selectedSegmentIndex={[]}
                       selectedSegment={null}
                       clearSegmentSelection={() => {
-                        setSelectedSegmentIndices([])
-                        setLastAnchorIndex(null)
+                        setSelectedSegments({})
+                        setLastAnchorIndices({})
                       }}
                       formatCost={formatCost}
                       onLoadMore={loadMoreGlobalLogs}
