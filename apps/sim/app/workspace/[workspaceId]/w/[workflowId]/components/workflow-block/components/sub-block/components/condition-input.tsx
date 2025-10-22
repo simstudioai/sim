@@ -14,8 +14,11 @@ import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
+import { isLikelyReferenceSegment, SYSTEM_REFERENCE_PREFIXES } from '@/lib/workflows/references'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
+import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useTagSelection } from '@/hooks/use-tag-selection'
+import { normalizeBlockName } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('ConditionInput')
@@ -58,8 +61,33 @@ export function ConditionInput({
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
 
   const emitTagSelection = useTagSelection(blockId, subBlockId)
+  const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
   const containerRef = useRef<HTMLDivElement>(null)
+
+  const shouldHighlightReference = (part: string): boolean => {
+    if (!part.startsWith('<') || !part.endsWith('>')) {
+      return false
+    }
+
+    if (!isLikelyReferenceSegment(part)) {
+      return false
+    }
+
+    if (!accessiblePrefixes) {
+      return true
+    }
+
+    const inner = part.slice(1, -1)
+    const [prefix] = inner.split('.')
+    const normalizedPrefix = normalizeBlockName(prefix)
+
+    if (SYSTEM_REFERENCE_PREFIXES.has(normalizedPrefix)) {
+      return true
+    }
+
+    return accessiblePrefixes.has(normalizedPrefix)
+  }
   const [visualLineHeights, setVisualLineHeights] = useState<{
     [key: string]: number[]
   }>({})
@@ -778,7 +806,57 @@ export function ConditionInput({
                       )
                     }
                   }}
-                  highlight={(code) => highlight(code, languages.javascript, 'javascript')}
+                  highlight={(codeToHighlight) => {
+                    const placeholders: {
+                      placeholder: string
+                      original: string
+                      type: 'var' | 'env'
+                    }[] = []
+                    let processedCode = codeToHighlight
+
+                    // Replace environment variables with placeholders
+                    processedCode = processedCode.replace(/\{\{([^}]+)\}\}/g, (match) => {
+                      const placeholder = `__ENV_VAR_${placeholders.length}__`
+                      placeholders.push({ placeholder, original: match, type: 'env' })
+                      return placeholder
+                    })
+
+                    // Replace variable references with placeholders
+                    processedCode = processedCode.replace(/<([^>]+)>/g, (match) => {
+                      if (shouldHighlightReference(match)) {
+                        const placeholder = `__VAR_REF_${placeholders.length}__`
+                        placeholders.push({ placeholder, original: match, type: 'var' })
+                        return placeholder
+                      }
+                      return match
+                    })
+
+                    // Apply Prism syntax highlighting
+                    let highlightedCode = highlight(
+                      processedCode,
+                      languages.javascript,
+                      'javascript'
+                    )
+
+                    // Restore and highlight the placeholders
+                    placeholders.forEach(({ placeholder, original, type }) => {
+                      if (type === 'env') {
+                        highlightedCode = highlightedCode.replace(
+                          placeholder,
+                          `<span class="text-blue-500">${original}</span>`
+                        )
+                      } else if (type === 'var') {
+                        // Escape the < and > for display
+                        const escaped = original.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                        highlightedCode = highlightedCode.replace(
+                          placeholder,
+                          `<span class="text-blue-500">${escaped}</span>`
+                        )
+                      }
+                    })
+
+                    return highlightedCode
+                  }}
                   padding={12}
                   style={{
                     fontFamily: 'inherit',
