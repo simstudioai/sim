@@ -838,7 +838,7 @@ async function generateBlockDoc(blockPath: string, icons: Record<string, string>
       return
     }
 
-    if (blockConfig.type.includes('_trigger')) {
+    if (blockConfig.type.includes('_trigger') || blockConfig.type.includes('_webhook')) {
       console.log(`Skipping ${blockConfig.type} - contains '_trigger'`)
       return
     }
