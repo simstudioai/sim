@@ -29,6 +29,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
         { label: 'Update a Row', id: 'update' },
         { label: 'Delete a Row', id: 'delete' },
         { label: 'Upsert a Row', id: 'upsert' },
+        { label: 'Vector Search', id: 'vector_search' },
       ],
       value: () => 'query',
     },
@@ -381,6 +382,41 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       placeholder: '100',
       condition: { field: 'operation', value: 'query' },
     },
+    // Vector search operation fields
+    {
+      id: 'functionName',
+      title: 'Function Name',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'match_documents',
+      condition: { field: 'operation', value: 'vector_search' },
+      required: true,
+    },
+    {
+      id: 'queryEmbedding',
+      title: 'Query Embedding',
+      type: 'code',
+      layout: 'full',
+      placeholder: '[0.1, 0.2, 0.3, ...]',
+      condition: { field: 'operation', value: 'vector_search' },
+      required: true,
+    },
+    {
+      id: 'matchThreshold',
+      title: 'Match Threshold (optional)',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: '0.78',
+      condition: { field: 'operation', value: 'vector_search' },
+    },
+    {
+      id: 'matchCount',
+      title: 'Match Count (optional)',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: '10',
+      condition: { field: 'operation', value: 'vector_search' },
+    },
   ],
   tools: {
     access: [
@@ -390,6 +426,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
       'supabase_update',
       'supabase_delete',
       'supabase_upsert',
+      'supabase_vector_search',
     ],
     config: {
       tool: (params) => {
@@ -406,12 +443,14 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
             return 'supabase_delete'
           case 'upsert':
             return 'supabase_upsert'
+          case 'vector_search':
+            return 'supabase_vector_search'
           default:
             throw new Error(`Invalid Supabase operation: ${params.operation}`)
         }
       },
       params: (params) => {
-        const { operation, data, filter, ...rest } = params
+        const { operation, data, filter, queryEmbedding, ...rest } = params
 
         // Parse JSON data if it's a string
         let parsedData
@@ -435,6 +474,21 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           parsedFilter = filter.trim()
         }
 
+        // Handle query embedding for vector search
+        let parsedQueryEmbedding
+        if (queryEmbedding && typeof queryEmbedding === 'string' && queryEmbedding.trim()) {
+          try {
+            parsedQueryEmbedding = JSON.parse(queryEmbedding)
+          } catch (parseError) {
+            const errorMsg = parseError instanceof Error ? parseError.message : 'Unknown JSON error'
+            throw new Error(
+              `Invalid query embedding format: ${errorMsg}. Please provide a valid array of numbers like [0.1, 0.2, 0.3].`
+            )
+          }
+        } else if (queryEmbedding && Array.isArray(queryEmbedding)) {
+          parsedQueryEmbedding = queryEmbedding
+        }
+
         // Build params object, only including defined values
         const result = { ...rest }
 
@@ -444,6 +498,10 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
 
         if (parsedFilter !== undefined && parsedFilter !== '') {
           result.filter = parsedFilter
+        }
+
+        if (parsedQueryEmbedding !== undefined) {
+          result.queryEmbedding = parsedQueryEmbedding
         }
 
         return result
@@ -462,6 +520,11 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     // Query operation inputs
     orderBy: { type: 'string', description: 'Sort column' },
     limit: { type: 'number', description: 'Result limit' },
+    // Vector search operation inputs
+    functionName: { type: 'string', description: 'PostgreSQL function name for vector search' },
+    queryEmbedding: { type: 'array', description: 'Query vector/embedding for similarity search' },
+    matchThreshold: { type: 'number', description: 'Minimum similarity threshold (0-1)' },
+    matchCount: { type: 'number', description: 'Maximum number of similar results to return' },
   },
   outputs: {
     message: {

@@ -205,6 +205,28 @@ Insert or update data in a Supabase table (upsert operation)
 | `message` | string | Operation status message |
 | `results` | array | Array of upserted records |
 
+### `supabase_vector_search`
+
+Perform similarity search using pgvector in a Supabase table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| `functionName` | string | Yes | The name of the PostgreSQL function that performs vector search \(e.g., match_documents\) |
+| `queryEmbedding` | array | Yes | The query vector/embedding to search for similar items |
+| `matchThreshold` | number | No | Minimum similarity threshold \(0-1\), typically 0.7-0.9 |
+| `matchCount` | number | No | Maximum number of results to return \(default: 10\) |
+| `apiKey` | string | Yes | Your Supabase service role secret key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `results` | array | Array of records with similarity scores from the vector search. Each record includes a similarity field \(0-1\) indicating how similar it is to the query vector. |
+
 
 
 ## Notes

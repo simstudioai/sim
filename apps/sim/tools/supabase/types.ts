@@ -45,6 +45,15 @@ export interface SupabaseUpsertParams {
   data: any
 }
 
+export interface SupabaseVectorSearchParams {
+  apiKey: string
+  projectId: string
+  functionName: string
+  queryEmbedding: number[]
+  matchThreshold?: number
+  matchCount?: number
+}
+
 export interface SupabaseBaseResponse extends ToolResponse {
   output: {
     message: string
@@ -64,5 +73,7 @@ export interface SupabaseUpdateResponse extends SupabaseBaseResponse {}
 export interface SupabaseDeleteResponse extends SupabaseBaseResponse {}
 
 export interface SupabaseUpsertResponse extends SupabaseBaseResponse {}
+
+export interface SupabaseVectorSearchResponse extends SupabaseBaseResponse {}
 
 export interface SupabaseResponse extends SupabaseBaseResponse {}

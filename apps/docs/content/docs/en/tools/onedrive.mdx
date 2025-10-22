@@ -66,7 +66,8 @@ Upload a file to OneDrive
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `fileName` | string | Yes | The name of the file to upload |
-| `content` | string | Yes | The content of the file to upload |
+| `file` | file | No | The file to upload \(binary\) |
+| `content` | string | No | The text content to upload \(if no file is provided\) |
 | `folderSelector` | string | No | Select the folder to upload the file to |
 | `manualFolderId` | string | No | Manually entered folder ID \(advanced mode\) |
 

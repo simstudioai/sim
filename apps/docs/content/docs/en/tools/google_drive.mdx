@@ -88,8 +88,9 @@ Upload a file to Google Drive
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `fileName` | string | Yes | The name of the file to upload |
-| `content` | string | Yes | The content of the file to upload |
-| `mimeType` | string | No | The MIME type of the file to upload |
+| `file` | file | No | Binary file to upload \(UserFile object\) |
+| `content` | string | No | Text content to upload \(use this OR file, not both\) |
+| `mimeType` | string | No | The MIME type of the file to upload \(auto-detected from file if not provided\) |
 | `folderSelector` | string | No | Select the folder to upload the file to |
 | `folderId` | string | No | The ID of the folder to upload the file to \(internal use\) |
 
