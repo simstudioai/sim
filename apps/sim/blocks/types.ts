@@ -2,7 +2,7 @@ import type { JSX, SVGProps } from 'react'
 import type { ToolResponse } from '@/tools/types'
 
 export type BlockIcon = (props: SVGProps<SVGSVGElement>) => JSX.Element
-export type ParamType = 'string' | 'number' | 'boolean' | 'json'
+export type ParamType = 'string' | 'number' | 'boolean' | 'json' | 'array'
 export type PrimitiveValueType =
   | 'string'
   | 'number'

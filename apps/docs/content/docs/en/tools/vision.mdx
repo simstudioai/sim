@@ -62,7 +62,8 @@ Process and analyze images using advanced vision models. Capable of understandin
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | API key for the selected model provider |
-| `imageUrl` | string | Yes | Publicly accessible image URL |
+| `imageUrl` | string | No | Publicly accessible image URL |
+| `imageFile` | file | No | Image file to analyze |
 | `model` | string | No | Vision model to use \(gpt-4o, claude-3-opus-20240229, etc\) |
 | `prompt` | string | No | Custom prompt for image analysis |
 

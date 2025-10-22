@@ -202,6 +202,26 @@ Add a new item to a SharePoint list
 | --------- | ---- | ----------- |
 | `item` | object | Created SharePoint list item |
 
+### `sharepoint_upload_file`
+
+Upload files to a SharePoint document library
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | No | The ID of the SharePoint site |
+| `driveId` | string | No | The ID of the document library \(drive\). If not provided, uses default drive. |
+| `folderPath` | string | No | Optional folder path within the document library \(e.g., /Documents/Subfolder\) |
+| `fileName` | string | No | Optional: override the uploaded file name |
+| `files` | file[] | No | Files to upload to SharePoint |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `uploadedFiles` | array | Array of uploaded file objects |
+
 
 
 ## Notes

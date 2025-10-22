@@ -180,6 +180,7 @@ import {
   supabaseQueryTool,
   supabaseUpdateTool,
   supabaseUpsertTool,
+  supabaseVectorSearchTool,
 } from '@/tools/supabase'
 import { tavilyExtractTool, tavilySearchTool } from '@/tools/tavily'
 import {
@@ -271,6 +272,7 @@ export const tools: Record<string, ToolConfig> = {
   supabase_update: supabaseUpdateTool,
   supabase_delete: supabaseDeleteTool,
   supabase_upsert: supabaseUpsertTool,
+  supabase_vector_search: supabaseVectorSearchTool,
   typeform_responses: typeformResponsesTool,
   typeform_files: typeformFilesTool,
   typeform_insights: typeformInsightsTool,
