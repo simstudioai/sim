@@ -189,6 +189,26 @@ Telegram 的主要功能包括：
 | `message` | 字符串 | 成功或错误消息 |
 | `data` | 对象 | 包含可选媒体的 Telegram 消息数据 |
 
+### `telegram_send_document`
+
+通过 Telegram Bot API 将文档（PDF、ZIP、DOC 等）发送到 Telegram 频道或用户。
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | 是 | 您的 Telegram Bot API 令牌 |
+| `chatId` | string | 是 | 目标 Telegram 聊天 ID |
+| `files` | file[] | 否 | 要发送的文档文件（PDF、ZIP、DOC 等）。最大大小：50MB |
+| `caption` | string | 否 | 文档标题（可选） |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 成功或错误消息 |
+| `data` | object | 包含文档的 Telegram 消息数据 |
+
 ## 注意
 
 - 类别：`tools`

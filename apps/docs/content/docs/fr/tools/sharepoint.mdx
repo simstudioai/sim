@@ -199,6 +199,26 @@ Ajouter un nouvel élément à une liste SharePoint
 | --------- | ---- | ----------- |
 | `item` | object | Élément de liste SharePoint créé |
 
+### `sharepoint_upload_file`
+
+Télécharger des fichiers vers une bibliothèque de documents SharePoint
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ---------- | ----------- |
+| `siteId` | chaîne | Non | L'ID du site SharePoint |
+| `driveId` | chaîne | Non | L'ID de la bibliothèque de documents \(lecteur\). Si non fourni, utilise le lecteur par défaut. |
+| `folderPath` | chaîne | Non | Chemin de dossier optionnel dans la bibliothèque de documents \(par exemple, /Documents/Sousdossier\) |
+| `fileName` | chaîne | Non | Optionnel : remplacer le nom du fichier téléchargé |
+| `files` | fichier[] | Non | Fichiers à télécharger vers SharePoint |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `uploadedFiles` | tableau | Tableau d'objets de fichiers téléchargés |
+
 ## Remarques
 
 - Catégorie : `tools`

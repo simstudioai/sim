@@ -199,6 +199,26 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | --------- | ---- | ----------- |
 | `item` | object | 创建的 SharePoint 列表项 |
 
+### `sharepoint_upload_file`
+
+将文件上传到 SharePoint 文档库
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | 否 | SharePoint 站点的 ID |
+| `driveId` | string | 否 | 文档库（驱动器）的 ID。如果未提供，则使用默认驱动器。 |
+| `folderPath` | string | 否 | 文档库中的可选文件夹路径（例如，/Documents/Subfolder） |
+| `fileName` | string | 否 | 可选：覆盖上传文件的名称 |
+| `files` | file[] | 否 | 要上传到 SharePoint 的文件 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `uploadedFiles` | array | 上传文件对象的数组 |
+
 ## 注意事项
 
 - 类别：`tools`

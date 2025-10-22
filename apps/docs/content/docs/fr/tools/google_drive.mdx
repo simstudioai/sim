@@ -84,11 +84,12 @@ Téléverser un fichier vers Google Drive
 
 | Paramètre | Type | Obligatoire | Description |
 | --------- | ---- | ---------- | ----------- |
-| `fileName` | chaîne | Oui | Le nom du fichier à téléverser |
-| `content` | chaîne | Oui | Le contenu du fichier à téléverser |
-| `mimeType` | chaîne | Non | Le type MIME du fichier à téléverser |
-| `folderSelector` | chaîne | Non | Sélectionnez le dossier où téléverser le fichier |
-| `folderId` | chaîne | Non | L'ID du dossier où téléverser le fichier \(usage interne\) |
+| `fileName` | string | Oui | Le nom du fichier à télécharger |
+| `file` | file | Non | Fichier binaire à télécharger \(objet UserFile\) |
+| `content` | string | Non | Contenu textuel à télécharger \(utilisez ceci OU fichier, pas les deux\) |
+| `mimeType` | string | Non | Le type MIME du fichier à télécharger \(détecté automatiquement à partir du fichier si non fourni\) |
+| `folderSelector` | string | Non | Sélectionnez le dossier dans lequel télécharger le fichier |
+| `folderId` | string | Non | L'ID du dossier dans lequel télécharger le fichier \(usage interne\) |
 
 #### Sortie
 

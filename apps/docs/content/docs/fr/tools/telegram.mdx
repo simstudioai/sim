@@ -190,6 +190,26 @@ Envoyez des animations (GIF) aux canaux ou utilisateurs Telegram via l'API Bot T
 | `message` | chaîne | Message de succès ou d'erreur |
 | `data` | objet | Données du message Telegram incluant les médias optionnels |
 
+### `telegram_send_document`
+
+Envoyez des documents (PDF, ZIP, DOC, etc.) aux canaux ou utilisateurs Telegram via l'API Bot Telegram.
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `botToken` | chaîne | Oui | Votre jeton d'API Bot Telegram |
+| `chatId` | chaîne | Oui | ID du chat Telegram cible |
+| `files` | fichier[] | Non | Fichier document à envoyer \(PDF, ZIP, DOC, etc.\). Taille max : 50 Mo |
+| `caption` | chaîne | Non | Légende du document \(facultatif\) |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message de succès ou d'erreur |
+| `data` | objet | Données du message Telegram incluant le document |
+
 ## Notes
 
 - Catégorie : `tools`

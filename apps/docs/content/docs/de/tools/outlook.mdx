@@ -154,10 +154,11 @@ E-Mails über Outlook versenden
 | `to` | string | Ja | E-Mail-Adresse des Empfängers |
 | `subject` | string | Ja | E-Mail-Betreff |
 | `body` | string | Ja | E-Mail-Inhalt |
-| `replyToMessageId` | string | Nein | Nachrichten-ID für Antworten \(für Threading\) |
+| `replyToMessageId` | string | Nein | Nachrichten-ID, auf die geantwortet wird \(für Threading\) |
 | `conversationId` | string | Nein | Konversations-ID für Threading |
 | `cc` | string | Nein | CC-Empfänger \(durch Kommas getrennt\) |
 | `bcc` | string | Nein | BCC-Empfänger \(durch Kommas getrennt\) |
+| `attachments` | file[] | Nein | Dateien, die an die E-Mail angehängt werden sollen |
 
 #### Ausgabe
 
@@ -177,10 +178,11 @@ E-Mails mit Outlook erstellen
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `to` | string | Ja | E-Mail-Adresse des Empfängers |
-| `subject` | string | Ja | Betreff der E-Mail |
-| `body` | string | Ja | Inhalt der E-Mail |
-| `cc` | string | Nein | CC-Empfänger \(durch Komma getrennt\) |
-| `bcc` | string | Nein | BCC-Empfänger \(durch Komma getrennt\) |
+| `subject` | string | Ja | E-Mail-Betreff |
+| `body` | string | Ja | E-Mail-Inhalt |
+| `cc` | string | Nein | CC-Empfänger \(durch Kommas getrennt\) |
+| `bcc` | string | Nein | BCC-Empfänger \(durch Kommas getrennt\) |
+| `attachments` | file[] | Nein | Dateien, die an den E-Mail-Entwurf angehängt werden sollen |
 
 #### Ausgabe
 

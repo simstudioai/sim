@@ -202,6 +202,28 @@ Insertar o actualizar datos en una tabla de Supabase (operación upsert)
 | `message` | string | Mensaje de estado de la operación |
 | `results` | array | Array de registros insertados o actualizados |
 
+### `supabase_vector_search`
+
+Realizar búsqueda de similitud usando pgvector en una tabla de Supabase
+
+#### Entrada
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | string | Sí | ID de tu proyecto Supabase \(p. ej., jdrkgepadsdopsntdlom\) |
+| `functionName` | string | Sí | Nombre de la función PostgreSQL que realiza la búsqueda vectorial \(p. ej., match_documents\) |
+| `queryEmbedding` | array | Sí | El vector/embedding de consulta para buscar elementos similares |
+| `matchThreshold` | number | No | Umbral mínimo de similitud \(0-1\), típicamente 0.7-0.9 |
+| `matchCount` | number | No | Número máximo de resultados a devolver \(predeterminado: 10\) |
+| `apiKey` | string | Sí | Tu clave secreta de rol de servicio de Supabase |
+
+#### Salida
+
+| Parámetro | Tipo | Descripción |
+| --------- | ---- | ----------- |
+| `message` | string | Mensaje de estado de la operación |
+| `results` | array | Array de registros con puntuaciones de similitud de la búsqueda vectorial. Cada registro incluye un campo de similitud \(0-1\) que indica cuán similar es al vector de consulta. |
+
 ## Notas
 
 - Categoría: `tools`

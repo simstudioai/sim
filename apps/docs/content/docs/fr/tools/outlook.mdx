@@ -150,14 +150,15 @@ Envoyer des e-mails avec Outlook
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ----------- | ----------- |
-| `to` | chaîne | Oui | Adresse e-mail du destinataire |
-| `subject` | chaîne | Oui | Objet de l'e-mail |
-| `body` | chaîne | Oui | Contenu du corps de l'e-mail |
-| `replyToMessageId` | chaîne | Non | ID du message auquel répondre \(pour le fil de discussion\) |
-| `conversationId` | chaîne | Non | ID de conversation pour le fil de discussion |
-| `cc` | chaîne | Non | Destinataires en CC \(séparés par des virgules\) |
-| `bcc` | chaîne | Non | Destinataires en BCC \(séparés par des virgules\) |
+| --------- | ---- | ---------- | ----------- |
+| `to` | string | Oui | Adresse e-mail du destinataire |
+| `subject` | string | Oui | Objet de l'e-mail |
+| `body` | string | Oui | Contenu du corps de l'e-mail |
+| `replyToMessageId` | string | Non | ID du message auquel répondre \(pour le fil de discussion\) |
+| `conversationId` | string | Non | ID de conversation pour le fil de discussion |
+| `cc` | string | Non | Destinataires en CC \(séparés par des virgules\) |
+| `bcc` | string | Non | Destinataires en BCC \(séparés par des virgules\) |
+| `attachments` | file[] | Non | Fichiers à joindre à l'e-mail |
 
 #### Sortie
 
@@ -175,12 +176,13 @@ Rédiger des e-mails avec Outlook
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | -------- | ----------- |
+| --------- | ---- | ---------- | ----------- |
 | `to` | string | Oui | Adresse e-mail du destinataire |
 | `subject` | string | Oui | Objet de l'e-mail |
 | `body` | string | Oui | Contenu du corps de l'e-mail |
 | `cc` | string | Non | Destinataires en CC \(séparés par des virgules\) |
 | `bcc` | string | Non | Destinataires en BCC \(séparés par des virgules\) |
+| `attachments` | file[] | Non | Fichiers à joindre au brouillon d'e-mail |
 
 #### Sortie
 

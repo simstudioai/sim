@@ -202,6 +202,28 @@ Sim 的 Supabase 集成使您能够轻松地将代理工作流连接到您的 Su
 | `message` | string | 操作状态消息 |
 | `results` | array | 已 upsert 的记录数组 |
 
+### `supabase_vector_search`
+
+在 Supabase 表中使用 pgvector 执行相似性搜索
+
+#### 输入
+
+| 参数 | 类型 | 必需 | 描述 |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | 是 | 您的 Supabase 项目 ID \(例如：jdrkgepadsdopsntdlom\) |
+| `functionName` | string | 是 | 执行向量搜索的 PostgreSQL 函数名称 \(例如：match_documents\) |
+| `queryEmbedding` | array | 是 | 要搜索相似项的查询向量/嵌入 |
+| `matchThreshold` | number | 否 | 最小相似度阈值 \(0-1\)，通常为 0.7-0.9 |
+| `matchCount` | number | 否 | 返回结果的最大数量 \(默认值：10\) |
+| `apiKey` | string | 是 | 您的 Supabase 服务角色密钥 |
+
+#### 输出
+
+| 参数 | 类型 | 描述 |
+| --------- | ---- | ----------- |
+| `message` | string | 操作状态消息 |
+| `results` | array | 包含向量搜索相似度分数的记录数组。每条记录包括一个相似度字段 \(0-1\)，表示与查询向量的相似程度。 |
+
 ## 注意事项
 
 - 类别：`tools`

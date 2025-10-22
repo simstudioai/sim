@@ -135,6 +135,7 @@ Lire le contenu d'un chat Microsoft Teams
 | --------- | ---- | -------- | ----------- |
 | `chatId` | chaîne | Oui | L'ID de la conversation dans laquelle écrire |
 | `content` | chaîne | Oui | Le contenu à écrire dans le message |
+| `files` | fichier[] | Non | Fichiers à joindre au message |
 
 #### Sortie
 
@@ -180,10 +181,11 @@ Lire le contenu d'un canal Microsoft Teams
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ---------- | ----------- |
-| `teamId` | chaîne | Oui | L'ID de l'équipe à laquelle écrire |
-| `channelId` | chaîne | Oui | L'ID du canal auquel écrire |
+| --------- | ---- | -------- | ----------- |
+| `teamId` | chaîne | Oui | L'ID de l'équipe dans laquelle écrire |
+| `channelId` | chaîne | Oui | L'ID du canal dans lequel écrire |
 | `content` | chaîne | Oui | Le contenu à écrire dans le canal |
+| `files` | fichier[] | Non | Fichiers à joindre au message |
 
 #### Sortie
 

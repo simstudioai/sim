@@ -199,6 +199,26 @@ Ein neues Element zu einer SharePoint-Liste hinzufügen
 | --------- | ---- | ----------- |
 | `item` | object | Erstelltes SharePoint-Listenelement |
 
+### `sharepoint_upload_file`
+
+Dateien in eine SharePoint-Dokumentenbibliothek hochladen
+
+#### Eingabe
+
+| Parameter | Typ | Erforderlich | Beschreibung |
+| --------- | ---- | -------- | ----------- |
+| `siteId` | string | Nein | Die ID der SharePoint-Website |
+| `driveId` | string | Nein | Die ID der Dokumentenbibliothek (Laufwerk). Wenn nicht angegeben, wird das Standardlaufwerk verwendet. |
+| `folderPath` | string | Nein | Optionaler Ordnerpfad innerhalb der Dokumentenbibliothek (z.B. /Documents/Subfolder) |
+| `fileName` | string | Nein | Optional: Überschreiben des hochgeladenen Dateinamens |
+| `files` | file[] | Nein | Dateien, die nach SharePoint hochgeladen werden sollen |
+
+#### Ausgabe
+
+| Parameter | Typ | Beschreibung |
+| --------- | ---- | ----------- |
+| `uploadedFiles` | array | Array von hochgeladenen Dateiobjekten |
+
 ## Hinweise
 
 - Kategorie: `tools`

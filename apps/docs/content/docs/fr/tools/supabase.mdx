@@ -202,6 +202,28 @@ Insérer ou mettre à jour des données dans une table Supabase (opération upse
 | `message` | string | Message d'état de l'opération |
 | `results` | array | Tableau des enregistrements insérés ou mis à jour |
 
+### `supabase_vector_search`
+
+Effectuer une recherche de similarité en utilisant pgvector dans une table Supabase
+
+#### Entrée
+
+| Paramètre | Type | Obligatoire | Description |
+| --------- | ---- | ----------- | ----------- |
+| `projectId` | chaîne | Oui | L'ID de votre projet Supabase (ex. : jdrkgepadsdopsntdlom) |
+| `functionName` | chaîne | Oui | Le nom de la fonction PostgreSQL qui effectue la recherche vectorielle (ex. : match_documents) |
+| `queryEmbedding` | tableau | Oui | Le vecteur/embedding de requête pour rechercher des éléments similaires |
+| `matchThreshold` | nombre | Non | Seuil minimum de similarité (0-1), généralement 0,7-0,9 |
+| `matchCount` | nombre | Non | Nombre maximum de résultats à retourner (par défaut : 10) |
+| `apiKey` | chaîne | Oui | Votre clé secrète de rôle de service Supabase |
+
+#### Sortie
+
+| Paramètre | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | chaîne | Message d'état de l'opération |
+| `results` | tableau | Tableau d'enregistrements avec scores de similarité issus de la recherche vectorielle. Chaque enregistrement inclut un champ de similarité (0-1) indiquant son degré de similarité avec le vecteur de requête. |
+
 ## Notes
 
 - Catégorie : `tools`

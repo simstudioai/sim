@@ -57,11 +57,12 @@ Procesa y analiza imágenes utilizando modelos avanzados de visión. Capaz de co
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | ---------- | ----------- |
 | `apiKey` | string | Sí | Clave API para el proveedor de modelo seleccionado |
-| `imageUrl` | string | Sí | URL de imagen de acceso público |
+| `imageUrl` | string | No | URL de imagen accesible públicamente |
+| `imageFile` | file | No | Archivo de imagen para analizar |
 | `model` | string | No | Modelo de visión a utilizar \(gpt-4o, claude-3-opus-20240229, etc\) |
-| `prompt` | string | No | Indicación personalizada para análisis de imágenes |
+| `prompt` | string | No | Prompt personalizado para análisis de imagen |
 
 #### Salida
 

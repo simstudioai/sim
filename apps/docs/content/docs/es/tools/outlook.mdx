@@ -150,14 +150,15 @@ Enviar correos electrónicos usando Outlook
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 | `to` | string | Sí | Dirección de correo electrónico del destinatario |
 | `subject` | string | Sí | Asunto del correo electrónico |
 | `body` | string | Sí | Contenido del cuerpo del correo electrónico |
-| `replyToMessageId` | string | No | ID del mensaje al que responder (para hilos) |
+| `replyToMessageId` | string | No | ID del mensaje al que responder \(para hilos\) |
 | `conversationId` | string | No | ID de conversación para hilos |
-| `cc` | string | No | Destinatarios en CC (separados por comas) |
-| `bcc` | string | No | Destinatarios en CCO (separados por comas) |
+| `cc` | string | No | Destinatarios en CC \(separados por comas\) |
+| `bcc` | string | No | Destinatarios en CCO \(separados por comas\) |
+| `attachments` | file[] | No | Archivos para adjuntar al correo electrónico |
 
 #### Salida
 
@@ -181,6 +182,7 @@ Crear borradores de correos electrónicos usando Outlook
 | `body` | string | Sí | Contenido del cuerpo del correo electrónico |
 | `cc` | string | No | Destinatarios en CC \(separados por comas\) |
 | `bcc` | string | No | Destinatarios en CCO \(separados por comas\) |
+| `attachments` | file[] | No | Archivos para adjuntar al borrador de correo electrónico |
 
 #### Salida
 
