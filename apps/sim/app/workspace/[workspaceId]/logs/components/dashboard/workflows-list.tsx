@@ -17,7 +17,7 @@ export function WorkflowsList({
   filteredExecutions,
   expandedWorkflowId,
   onToggleWorkflow,
-  selectedSegmentIndex,
+  selectedSegments,
   onSegmentClick,
   searchQuery,
   segmentDurationMs,
@@ -26,7 +26,7 @@ export function WorkflowsList({
   filteredExecutions: WorkflowExecutionItem[]
   expandedWorkflowId: string | null
   onToggleWorkflow: (workflowId: string) => void
-  selectedSegmentIndex: number[] | null
+  selectedSegments: Record<string, number[]>
   onSegmentClick: (
     workflowId: string,
     segmentIndex: number,
@@ -111,7 +111,7 @@ export function WorkflowsList({
                   <div className='flex-1'>
                     <StatusBar
                       segments={workflow.segments}
-                      selectedSegmentIndices={isSelected ? selectedSegmentIndex : null}
+                      selectedSegmentIndices={selectedSegments[workflow.workflowId] || null}
                       onSegmentClick={onSegmentClick as any}
                       workflowId={workflow.workflowId}
                       segmentDurationMs={segmentDurationMs}
