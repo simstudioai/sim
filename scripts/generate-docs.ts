@@ -1111,7 +1111,7 @@ function updateMetaJson() {
   ]
 
   const metaJson = {
-    items,
+    pages: items,
   }
 
   fs.writeFileSync(metaJsonPath, JSON.stringify(metaJson, null, 2))
