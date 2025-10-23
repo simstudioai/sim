@@ -78,10 +78,10 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
   ],
 
   samplePayload: {
-    siteId: '6c3592',
-    workspaceId: 'abc123def456',
+    siteId: '68f9666057aa8abaa9b0b668',
+    workspaceId: '68f96081e7018465432953b5',
     name: 'Contact Form',
-    id: 'sub-abc123xyz',
+    id: '68fa8445de250e147cd95cfd',
     submittedAt: '2024-01-15T12:00:00.000Z',
     data: {
       name: 'John Doe',
@@ -96,7 +96,7 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
         { name: 'message', type: 'textarea' },
       ],
     },
-    formElementId: 'form-contact-123',
+    formElementId: '68f9666257aa8abaa9b0b6e2',
   },
 
   webhook: {

@@ -35,6 +35,7 @@ interface TriggerConfigSectionProps {
   onChange: (fieldId: string, value: any) => void
   webhookUrl: string
   dynamicOptions?: Record<string, Array<{ id: string; name: string }> | string[]>
+  loadingFields?: Record<string, boolean>
 }
 
 export function TriggerConfigSection({
@@ -44,6 +45,7 @@ export function TriggerConfigSection({
   onChange,
   webhookUrl,
   dynamicOptions = {},
+  loadingFields = {},
 }: TriggerConfigSectionProps) {
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({})
   const [copied, setCopied] = useState<string | null>(null)
@@ -83,6 +85,7 @@ export function TriggerConfigSection({
       case 'select': {
         // Use dynamic options if available, otherwise fall back to static options
         const rawOptions = dynamicOptions?.[fieldId] || fieldDef.options || []
+        const isLoading = loadingFields[fieldId] || false
 
         // Handle both string[] and {id, name}[] formats
         const availableOptions = Array.isArray(rawOptions)
@@ -96,13 +99,20 @@ export function TriggerConfigSection({
 
         return (
           <div className='space-y-2'>
-            <Label htmlFor={fieldId}>
+            <Label htmlFor={fieldId} className='font-medium text-sm'>
               {fieldDef.label}
               {fieldDef.required && <span className='ml-1 text-red-500'>*</span>}
             </Label>
-            <Select value={value} onValueChange={(value) => onChange(fieldId, value)}>
-              <SelectTrigger>
-                <SelectValue placeholder={fieldDef.placeholder} />
+            {fieldDef.description && (
+              <p className='text-muted-foreground text-sm'>{fieldDef.description}</p>
+            )}
+            <Select
+              value={value}
+              onValueChange={(value) => onChange(fieldId, value)}
+              disabled={isLoading}
+            >
+              <SelectTrigger id={fieldId} className='h-10'>
+                <SelectValue placeholder={isLoading ? 'Loading...' : fieldDef.placeholder} />
               </SelectTrigger>
               <SelectContent>
                 {availableOptions.map((option: any) => (
@@ -112,9 +122,6 @@ export function TriggerConfigSection({
                 ))}
               </SelectContent>
             </Select>
-            {fieldDef.description && (
-              <p className='text-muted-foreground text-sm'>{fieldDef.description}</p>
-            )}
           </div>
         )
       }

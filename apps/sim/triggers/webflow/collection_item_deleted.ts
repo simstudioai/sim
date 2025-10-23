@@ -63,11 +63,11 @@ export const webflowCollectionItemDeletedTrigger: TriggerConfig = {
   ],
 
   samplePayload: {
-    siteId: '6c3592',
-    workspaceId: 'abc123def456',
+    siteId: '68f9666057aa8abaa9b0b668',
+    workspaceId: '68f96081e7018465432953b5',
     collectionId: '68f9666257aa8abaa9b0b6d6',
     payload: {
-      id: '68f9666257aa8abaa9b0b6d7',
+      id: '68fa8445de250e147cd95cfd',
       deletedOn: '2024-01-15T16:20:00.000Z',
     },
   },

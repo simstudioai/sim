@@ -96,6 +96,7 @@ export function TriggerModal({
   const [dynamicOptions, setDynamicOptions] = useState<
     Record<string, Array<{ id: string; name: string }>>
   >({})
+  const [loadingFields, setLoadingFields] = useState<Record<string, boolean>>({})
   const lastCredentialIdRef = useRef<string | null>(null)
   const [testUrl, setTestUrl] = useState<string | null>(null)
   const [testUrlExpiresAt, setTestUrlExpiresAt] = useState<string | null>(null)
@@ -271,6 +272,7 @@ export function TriggerModal({
 
   // Load Webflow sites for the connected account
   const loadWebflowSites = async () => {
+    setLoadingFields((prev) => ({ ...prev, siteId: true }))
     try {
       const response = await fetch('/api/tools/webflow/sites')
       if (response.ok) {
@@ -286,11 +288,14 @@ export function TriggerModal({
       }
     } catch (error) {
       logger.error('Error loading Webflow sites:', error)
+    } finally {
+      setLoadingFields((prev) => ({ ...prev, siteId: false }))
     }
   }
 
   // Load Webflow collections for the selected site
   const loadWebflowCollections = async (siteId: string) => {
+    setLoadingFields((prev) => ({ ...prev, collectionId: true }))
     try {
       const response = await fetch(`/api/tools/webflow/collections?siteId=${siteId}`)
       if (response.ok) {
@@ -306,6 +311,8 @@ export function TriggerModal({
       }
     } catch (error) {
       logger.error('Error loading Webflow collections:', error)
+    } finally {
+      setLoadingFields((prev) => ({ ...prev, collectionId: false }))
     }
   }
 
@@ -592,6 +599,7 @@ export function TriggerModal({
               onChange={handleConfigChange}
               webhookUrl={webhookUrl}
               dynamicOptions={dynamicOptions}
+              loadingFields={loadingFields}
             />
 
             {triggerDef.webhook && (
