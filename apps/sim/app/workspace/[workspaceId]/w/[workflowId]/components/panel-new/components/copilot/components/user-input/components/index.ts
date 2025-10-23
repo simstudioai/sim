@@ -1,6 +1,5 @@
 export { AttachedFilesDisplay } from './attached-files-display'
 export { ContextPills } from './context-pills'
-export { CopilotSlider } from './copilot-slider'
 export { MentionMenuPortal } from './mention-menu-portal'
 export { ModeSelector } from './mode-selector'
 export { ModelSelector } from './model-selector'

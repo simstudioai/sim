@@ -2,6 +2,7 @@
 
 import { memo } from 'react'
 import { Plus } from 'lucide-react'
+import { Badge } from '@/components/emcn'
 import { cn } from '@/lib/utils'
 
 /**
@@ -52,7 +53,7 @@ export const ContextUsagePill = memo(
     const isHighUsage = percentage >= HIGH_USAGE_THRESHOLD
 
     /**
-     * Determines the color class based on usage percentage
+     * Determines the color classes based on usage percentage
      * @returns Tailwind classes for background and text color
      */
     const getColorClass = () => {
@@ -65,7 +66,7 @@ export const ContextUsagePill = memo(
       if (percentage >= COLOR_THRESHOLDS.MODERATE) {
         return 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400'
       }
-      return 'bg-gray-500/10 text-gray-600 dark:text-gray-400'
+      return ''
     }
 
     /**
@@ -75,13 +76,8 @@ export const ContextUsagePill = memo(
     const formattedPercentage = percentage < 1 ? percentage.toFixed(1) : percentage.toFixed(0)
 
     return (
-      <div
-        className={cn(
-          'inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium text-[11px] tabular-nums transition-colors',
-          getColorClass(),
-          isHighUsage && 'border border-red-500/50',
-          className
-        )}
+      <Badge
+        className={cn('tabular-nums transition-colors', getColorClass(), className)}
         title={`Context used in this chat: ${percentage.toFixed(2)}%`}
       >
         <span>{formattedPercentage}%</span>
@@ -91,14 +87,14 @@ export const ContextUsagePill = memo(
               e.stopPropagation()
               onCreateNewChat()
             }}
-            className='inline-flex items-center justify-center transition-opacity hover:opacity-70'
+            className='inline-flex items-center justify-center border-none bg-transparent p-0 transition-opacity hover:opacity-70'
             title='Recommended: Start a new chat for better quality'
             type='button'
           >
             <Plus className='h-3 w-3' />
           </button>
         )}
-      </div>
+      </Badge>
     )
   }
 )

@@ -8,10 +8,11 @@ import {
   useImperativeHandle,
   useState,
 } from 'react'
-import { ArrowUp, AtSign, Loader2, Paperclip, X } from 'lucide-react'
+import { ArrowUp, AtSign, Image, Loader2, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { createPortal } from 'react-dom'
-import { Button, Textarea } from '@/components/ui'
+import { Badge, Button } from '@/components/emcn'
+import { Button as ShadCNButton, Textarea } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
@@ -118,8 +119,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     // Effective placeholder
     const effectivePlaceholder =
-      placeholder ||
-      (mode === 'ask' ? 'Ask, plan, understand workflows' : 'Build, edit, debug workflows')
+      placeholder || (mode === 'ask' ? 'Ask about your workflow' : 'Plan, search, build anything')
 
     // Custom hooks - order matters for ref sharing
     const mentionMenu = useMentionMenu({
@@ -905,16 +905,17 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         >
           {/* Top Row: @ Button + Context Usage Pill */}
           <div className='mb-[6px] flex items-center justify-between'>
-            <Button
-              variant='ghost'
-              size='icon'
+            <Badge
               onClick={handleOpenMentionMenuWithAt}
-              disabled={disabled || isLoading}
-              className='!h-3 !w-3 text-muted-foreground hover:text-foreground'
               title='Insert @'
+              className={cn(
+                'radius-[6px] cursor-pointer border border-[#575757] bg-transparent dark:border-[#575757] dark:bg-transparent',
+                (disabled || isLoading) && 'cursor-not-allowed',
+                'rounded-[6px] p-[4.5px]'
+              )}
             >
-              <AtSign className='!h-[14px] !w-[14px]' strokeWidth={1.25} />
-            </Button>
+              <AtSign className='h-3 w-3' strokeWidth={1.25} />
+            </Badge>
 
             {/* Context Usage Pill */}
             {!hideContextUsage && contextUsage && contextUsage.percentage > 0 && (
@@ -1037,20 +1038,20 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             </div>
 
             {/* Right side: Attach Button + Send Button */}
-            <div className='flex flex-shrink-0 items-center gap-1.5'>
-              <Button
-                variant='ghost'
-                size='icon'
+            <div className='flex flex-shrink-0 items-center gap-[10px]'>
+              <Badge
                 onClick={fileAttachments.handleFileSelect}
-                disabled={disabled || isLoading}
-                className='h-6 w-6 text-muted-foreground hover:text-foreground'
                 title='Attach file'
+                className={cn(
+                  'cursor-pointer rounded-[6px] bg-transparent p-[0px] dark:bg-transparent',
+                  (disabled || isLoading) && 'cursor-not-allowed opacity-50'
+                )}
               >
-                <Paperclip className='h-3 w-3' />
-              </Button>
+                <Image className='!h-3.5 !w-3.5 scale-x-110' />
+              </Badge>
 
               {showAbortButton ? (
-                <Button
+                <ShadCNButton
                   onClick={handleAbort}
                   disabled={isAborting}
                   size='icon'
@@ -1062,18 +1063,22 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                   ) : (
                     <X className='h-3 w-3' />
                   )}
-                </Button>
+                </ShadCNButton>
               ) : (
                 <Button
+                  variant='primary'
                   onClick={handleSubmit}
                   disabled={!canSubmit}
-                  size='icon'
-                  className='h-6 w-6 rounded-full bg-[var(--brand-primary-hover-hex)] text-white shadow-[0_0_0_0_var(--brand-primary-hover-hex)] transition-all duration-200 hover:bg-[var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
+                  className={cn(
+                    'h-[22px] w-[22px] rounded-full p-0',
+                    canSubmit &&
+                      'ring-2 ring-[#8E4CFB] ring-offset-2 ring-offset-[#282828] dark:ring-offset-[#353535]'
+                  )}
                 >
                   {isLoading ? (
-                    <Loader2 className='h-3 w-3 animate-spin' />
+                    <Loader2 className='h-3.5 w-3.5 animate-spin' />
                   ) : (
-                    <ArrowUp className='h-3 w-3' />
+                    <ArrowUp className='h-3.5 w-3.5' />
                   )}
                 </Button>
               )}
