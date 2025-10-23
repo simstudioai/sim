@@ -428,6 +428,26 @@ export async function POST(request: NextRequest) {
     }
     // --- End Outlook specific logic ---
 
+    // --- Webflow webhook setup ---
+    if (savedWebhook && provider === 'webflow') {
+      logger.info(
+        `[${requestId}] Webflow provider detected. Attempting to create webhook in Webflow.`
+      )
+      try {
+        await createWebflowWebhookSubscription(request, userId, savedWebhook, requestId)
+      } catch (err) {
+        logger.error(`[${requestId}] Error creating Webflow webhook`, err)
+        return NextResponse.json(
+          {
+            error: 'Failed to create webhook in Webflow',
+            details: err instanceof Error ? err.message : 'Unknown error',
+          },
+          { status: 500 }
+        )
+      }
+    }
+    // --- End Webflow specific logic ---
+
     const status = targetWebhookId ? 200 : 201
     return NextResponse.json({ webhook: savedWebhook }, { status })
   } catch (error: any) {
@@ -546,5 +566,138 @@ async function createAirtableWebhookSubscription(
         stack: error.stack,
       }
     )
+  }
+}
+// Helper function to create the webhook subscription in Webflow
+async function createWebflowWebhookSubscription(
+  request: NextRequest,
+  userId: string,
+  webhookData: any,
+  requestId: string
+) {
+  try {
+    const { path, providerConfig } = webhookData
+    const { siteId, triggerId, collectionId, formId } = providerConfig || {}
+
+    if (!siteId) {
+      logger.warn(`[${requestId}] Missing siteId for Webflow webhook creation.`, {
+        webhookId: webhookData.id,
+      })
+      throw new Error('Site ID is required to create Webflow webhook')
+    }
+
+    if (!triggerId) {
+      logger.warn(`[${requestId}] Missing triggerId for Webflow webhook creation.`, {
+        webhookId: webhookData.id,
+      })
+      throw new Error('Trigger type is required to create Webflow webhook')
+    }
+
+    const accessToken = await getOAuthToken(userId, 'webflow')
+    if (!accessToken) {
+      logger.warn(
+        `[${requestId}] Could not retrieve Webflow access token for user ${userId}. Cannot create webhook in Webflow.`
+      )
+      throw new Error(
+        'Webflow account connection required. Please connect your Webflow account in the trigger configuration and try again.'
+      )
+    }
+
+    const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
+
+    // Map trigger IDs to Webflow trigger types
+    const triggerTypeMap: Record<string, string> = {
+      webflow_collection_item_created: 'collection_item_created',
+      webflow_collection_item_changed: 'collection_item_changed',
+      webflow_collection_item_deleted: 'collection_item_deleted',
+      webflow_form_submission: 'form_submission',
+    }
+
+    const webflowTriggerType = triggerTypeMap[triggerId]
+    if (!webflowTriggerType) {
+      logger.warn(`[${requestId}] Invalid triggerId for Webflow: ${triggerId}`, {
+        webhookId: webhookData.id,
+      })
+      throw new Error(`Invalid Webflow trigger type: ${triggerId}`)
+    }
+
+    const webflowApiUrl = `https://api.webflow.com/v2/sites/${siteId}/webhooks`
+
+    const requestBody: any = {
+      triggerType: webflowTriggerType,
+      url: notificationUrl,
+    }
+
+    // Add filter for collection-based triggers
+    if (collectionId && webflowTriggerType.startsWith('collection_item_')) {
+      requestBody.filter = {
+        resource_type: 'collection',
+        resource_id: collectionId,
+      }
+    }
+
+    // Add filter for form submissions
+    if (formId && webflowTriggerType === 'form_submission') {
+      requestBody.filter = {
+        resource_type: 'form',
+        resource_id: formId,
+      }
+    }
+
+    const webflowResponse = await fetch(webflowApiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        accept: 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    const responseBody = await webflowResponse.json()
+
+    if (!webflowResponse.ok || responseBody.error) {
+      const errorMessage = responseBody.message || responseBody.error || 'Unknown Webflow API error'
+      logger.error(
+        `[${requestId}] Failed to create webhook in Webflow for webhook ${webhookData.id}. Status: ${webflowResponse.status}`,
+        { message: errorMessage, response: responseBody }
+      )
+      throw new Error(errorMessage)
+    }
+
+    logger.info(
+      `[${requestId}] Successfully created webhook in Webflow for webhook ${webhookData.id}.`,
+      {
+        webflowWebhookId: responseBody.id || responseBody._id,
+      }
+    )
+
+    // Store the Webflow webhook ID in the providerConfig
+    try {
+      const currentConfig = (webhookData.providerConfig as Record<string, any>) || {}
+      const updatedConfig = {
+        ...currentConfig,
+        externalId: responseBody.id || responseBody._id,
+      }
+      await db
+        .update(webhook)
+        .set({ providerConfig: updatedConfig, updatedAt: new Date() })
+        .where(eq(webhook.id, webhookData.id))
+    } catch (dbError: any) {
+      logger.error(
+        `[${requestId}] Failed to store externalId in providerConfig for webhook ${webhookData.id}.`,
+        dbError
+      )
+      // Even if saving fails, the webhook exists in Webflow. Log and continue.
+    }
+  } catch (error: any) {
+    logger.error(
+      `[${requestId}] Exception during Webflow webhook creation for webhook ${webhookData.id}.`,
+      {
+        message: error.message,
+        stack: error.stack,
+      }
+    )
+    throw error
   }
 }

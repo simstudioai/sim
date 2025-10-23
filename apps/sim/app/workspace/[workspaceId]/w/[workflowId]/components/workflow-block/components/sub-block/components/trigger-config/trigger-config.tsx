@@ -152,12 +152,8 @@ export function TriggerConfig({
       setTriggerConfig(config)
       setStoredTriggerId(effectiveTriggerId)
 
-      // Map trigger ID to webhook provider name
-      const webhookProvider = effectiveTriggerId
-        .replace(/_chat_subscription$/, '')
-        .replace(/_webhook$/, '')
-        .replace(/_poller$/, '')
-        .replace(/_subscription$/, '') // e.g., 'slack_webhook' -> 'slack', 'gmail_poller' -> 'gmail', 'microsoftteams_chat_subscription' -> 'microsoftteams'
+      // Use the provider from the trigger definition (more reliable than deriving from ID)
+      const webhookProvider = triggerDef.provider
 
       // Include selected credential from the modal (if any)
       const selectedCredentialId =

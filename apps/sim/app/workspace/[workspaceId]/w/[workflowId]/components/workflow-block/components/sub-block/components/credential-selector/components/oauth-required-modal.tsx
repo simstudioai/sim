@@ -115,6 +115,10 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'users:read': 'View workspace users',
   'files:write': 'Upload files',
   'canvases:write': 'Create canvas documents',
+  'sites:read': 'View your Webflow sites',
+  'sites:write': 'Manage webhooks and site settings',
+  'cms:read': 'View your CMS content',
+  'cms:write': 'Manage your CMS content',
 }
 
 // Convert OAuth scope to user-friendly description

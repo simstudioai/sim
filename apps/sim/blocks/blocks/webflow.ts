@@ -9,9 +9,10 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
   description: 'Manage Webflow CMS collections',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrates Webflow CMS into the workflow. Can create, get, list, update, or delete items in Webflow CMS collections. Manage your Webflow content programmatically.',
+    'Integrates Webflow CMS into the workflow. Can create, get, list, update, or delete items in Webflow CMS collections. Manage your Webflow content programmatically. Can be used in trigger mode to trigger workflows when collection items change or forms are submitted.',
   docsLink: 'https://docs.sim.ai/tools/webflow',
   category: 'tools',
+  triggerAllowed: true,
   bgColor: '#E0E0E0',
   icon: WebflowIcon,
   subBlocks: [
@@ -36,7 +37,7 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
       layout: 'full',
       provider: 'webflow',
       serviceId: 'webflow',
-      requiredScopes: ['cms:read', 'cms:write', 'sites:read'],
+      requiredScopes: ['sites:read', 'sites:write', 'cms:read', 'cms:write'],
       placeholder: 'Select Webflow account',
       required: true,
     },
@@ -83,6 +84,19 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
       placeholder: 'Field data as JSON: `{ "name": "Item Name", "slug": "item-slug" }`',
       condition: { field: 'operation', value: ['create', 'update'] },
       required: true,
+    },
+    {
+      id: 'triggerConfig',
+      title: 'Trigger Configuration',
+      type: 'trigger-config',
+      layout: 'full',
+      triggerProvider: 'webflow',
+      availableTriggers: [
+        'webflow_collection_item_created',
+        'webflow_collection_item_changed',
+        'webflow_collection_item_deleted',
+        'webflow_form_submission',
+      ],
     },
   ],
   tools: {
@@ -154,5 +168,25 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
     item: { type: 'json', description: 'Single item data (get/create/update operations)' },
     success: { type: 'boolean', description: 'Operation success status (delete operation)' },
     metadata: { type: 'json', description: 'Operation metadata' },
+    // Trigger outputs
+    siteId: { type: 'string', description: 'Site ID where event occurred' },
+    workspaceId: { type: 'string', description: 'Workspace ID where event occurred' },
+    collectionId: { type: 'string', description: 'Collection ID (for collection events)' },
+    payload: { type: 'json', description: 'Event payload data (item data for collection events)' },
+    name: { type: 'string', description: 'Form name (for form submissions)' },
+    id: { type: 'string', description: 'Submission ID (for form submissions)' },
+    submittedAt: { type: 'string', description: 'Submission timestamp (for form submissions)' },
+    data: { type: 'json', description: 'Form field data (for form submissions)' },
+    schema: { type: 'json', description: 'Form schema (for form submissions)' },
+    formElementId: { type: 'string', description: 'Form element ID (for form submissions)' },
+  },
+  triggers: {
+    enabled: true,
+    available: [
+      'webflow_collection_item_created',
+      'webflow_collection_item_changed',
+      'webflow_collection_item_deleted',
+      'webflow_form_submission',
+    ],
   },
 }

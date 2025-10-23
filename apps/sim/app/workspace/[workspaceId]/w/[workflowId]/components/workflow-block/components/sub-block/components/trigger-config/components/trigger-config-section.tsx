@@ -81,6 +81,19 @@ export function TriggerConfigSection({
         )
 
       case 'select': {
+        // Use dynamic options if available, otherwise fall back to static options
+        const rawOptions = dynamicOptions?.[fieldId] || fieldDef.options || []
+
+        // Handle both string[] and {id, name}[] formats
+        const availableOptions = Array.isArray(rawOptions)
+          ? rawOptions.map((option: any) => {
+              if (typeof option === 'string') {
+                return { id: option, name: option }
+              }
+              return option
+            })
+          : []
+
         return (
           <div className='space-y-2'>
             <Label htmlFor={fieldId}>
@@ -92,9 +105,9 @@ export function TriggerConfigSection({
                 <SelectValue placeholder={fieldDef.placeholder} />
               </SelectTrigger>
               <SelectContent>
-                {fieldDef.options?.map((option: string) => (
-                  <SelectItem key={option} value={option}>
-                    {option}
+                {availableOptions.map((option: any) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -352,9 +365,14 @@ export function TriggerConfigSection({
     }
   }
 
+  // Show webhook URL only for manual webhooks (have webhook config but no OAuth auto-registration)
+  // Auto-registered webhooks (like Webflow, Airtable) have requiresCredentials and register via API
+  // Polling triggers (like Gmail) don't have webhook property at all
+  const shouldShowWebhookUrl = webhookUrl && triggerDef.webhook && !triggerDef.requiresCredentials
+
   return (
     <div className='space-y-4 rounded-md border border-border bg-card p-4 shadow-sm'>
-      {webhookUrl && (
+      {shouldShowWebhookUrl && (
         <div className='mb-4 space-y-1'>
           <div className='flex items-center gap-2'>
             <Label className='font-medium text-sm'>Webhook URL</Label>
