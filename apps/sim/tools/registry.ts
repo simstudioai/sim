@@ -205,6 +205,13 @@ import {
   wealthboxWriteNoteTool,
   wealthboxWriteTaskTool,
 } from '@/tools/wealthbox'
+import {
+  webflowCreateItemTool,
+  webflowDeleteItemTool,
+  webflowGetItemTool,
+  webflowListItemsTool,
+  webflowUpdateItemTool,
+} from '@/tools/webflow'
 import { whatsappSendMessageTool } from '@/tools/whatsapp'
 import {
   wikipediaPageContentTool,
@@ -420,6 +427,11 @@ export const tools: Record<string, ToolConfig> = {
   wealthbox_write_task: wealthboxWriteTaskTool,
   wealthbox_read_note: wealthboxReadNoteTool,
   wealthbox_write_note: wealthboxWriteNoteTool,
+  webflow_list_items: webflowListItemsTool,
+  webflow_get_item: webflowGetItemTool,
+  webflow_create_item: webflowCreateItemTool,
+  webflow_update_item: webflowUpdateItemTool,
+  webflow_delete_item: webflowDeleteItemTool,
   wikipedia_summary: wikipediaPageSummaryTool,
   wikipedia_search: wikipediaSearchTool,
   wikipedia_content: wikipediaPageContentTool,

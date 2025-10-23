@@ -25,6 +25,7 @@ import {
   SlackIcon,
   SupabaseIcon,
   WealthboxIcon,
+  WebflowIcon,
   xIcon,
 } from '@/components/icons'
 import { env } from '@/lib/env'
@@ -47,6 +48,7 @@ export type OAuthProvider =
   | 'slack'
   | 'reddit'
   | 'wealthbox'
+  | 'webflow'
   | string
 
 export type OAuthService =
@@ -76,6 +78,7 @@ export type OAuthService =
   | 'reddit'
   | 'wealthbox'
   | 'onedrive'
+  | 'webflow'
 export interface OAuthProviderConfig {
   id: OAuthProvider
   name: string
@@ -500,6 +503,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'wealthbox',
   },
+  webflow: {
+    id: 'webflow',
+    name: 'Webflow',
+    icon: (props) => WebflowIcon(props),
+    services: {
+      webflow: {
+        id: 'webflow',
+        name: 'Webflow',
+        description: 'Manage Webflow CMS collections, sites, and content.',
+        providerId: 'webflow',
+        icon: (props) => WebflowIcon(props),
+        baseProviderIcon: (props) => WebflowIcon(props),
+        scopes: ['cms:read', 'cms:write', 'sites:read'],
+      },
+    },
+    defaultService: 'webflow',
+  },
 }
 
 // Helper function to get a service by provider and service ID
@@ -584,6 +604,8 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     return 'reddit'
   } else if (provider === 'wealthbox') {
     return 'wealthbox'
+  } else if (provider === 'webflow') {
+    return 'webflow'
   }
 
   return providerConfig.defaultService
@@ -884,6 +906,19 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret,
         useBasicAuth: false,
         supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'webflow': {
+      const { clientId, clientSecret } = getCredentials(
+        env.WEBFLOW_CLIENT_ID,
+        env.WEBFLOW_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://api.webflow.com/oauth/access_token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        supportsRefreshTokenRotation: false,
       }
     }
     default:

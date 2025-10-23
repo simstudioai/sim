@@ -152,6 +152,7 @@ export const auth = betterAuth({
         'microsoft',
         'slack',
         'reddit',
+        'webflow',
 
         // Common SSO provider patterns
         ...SSO_TRUSTED_PROVIDERS,
@@ -1210,6 +1211,58 @@ export const auth = betterAuth({
               }
             } catch (error) {
               logger.error('Error creating Slack bot profile:', { error })
+              return null
+            }
+          },
+        },
+
+        // Webflow provider
+        {
+          providerId: 'webflow',
+          clientId: env.WEBFLOW_CLIENT_ID as string,
+          clientSecret: env.WEBFLOW_CLIENT_SECRET as string,
+          authorizationUrl: 'https://webflow.com/oauth/authorize',
+          tokenUrl: 'https://api.webflow.com/oauth/access_token',
+          userInfoUrl: 'https://api.webflow.com/v2/token/introspect',
+          scopes: ['sites:read', 'cms:read', 'cms:write'],
+          responseType: 'code',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/webflow`,
+          getUserInfo: async (tokens) => {
+            try {
+              logger.info('Fetching Webflow user info')
+
+              const response = await fetch('https://api.webflow.com/v2/token/introspect', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
+
+              if (!response.ok) {
+                logger.error('Error fetching Webflow user info:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                return null
+              }
+
+              const data = await response.json()
+              const now = new Date()
+
+              // Webflow doesn't provide user email in introspect endpoint
+              // Create a unique identifier based on the user_id
+              const userId = data.user_id || `webflow-${Date.now()}`
+              const uniqueId = `webflow-${userId}`
+
+              return {
+                id: uniqueId,
+                name: data.user_name || 'Webflow User',
+                email: `${uniqueId.replace(/[^a-zA-Z0-9]/g, '')}@webflow.user`,
+                emailVerified: false,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in Webflow getUserInfo:', { error })
               return null
             }
           },
