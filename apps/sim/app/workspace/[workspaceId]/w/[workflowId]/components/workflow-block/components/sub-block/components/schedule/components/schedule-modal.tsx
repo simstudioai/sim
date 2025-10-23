@@ -318,7 +318,11 @@ export function ScheduleModal({
 
   return (
     <>
-      <DialogContent className='flex flex-col gap-0 p-0 sm:max-w-[600px]' hideCloseButton>
+      <DialogContent
+        className='flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]'
+        hideCloseButton
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <DialogHeader className='border-b px-6 py-4'>
           <div className='flex items-center justify-between'>
             <DialogTitle className='font-medium text-lg'>Schedule Configuration</DialogTitle>
@@ -329,7 +333,7 @@ export function ScheduleModal({
           </div>
         </DialogHeader>
 
-        <div className='overflow-y-auto px-6 pt-4 pb-6'>
+        <div className='flex-1 overflow-y-auto px-6 py-6'>
           {errorMessage && (
             <Alert variant='destructive' className='mb-4'>
               <AlertDescription>{errorMessage}</AlertDescription>
@@ -548,7 +552,7 @@ export function ScheduleModal({
           </div>
         </div>
 
-        <DialogFooter className='w-full px-6 pt-0 pb-6'>
+        <DialogFooter className='border-t px-6 py-4'>
           <div className='flex w-full justify-between'>
             <div>
               {scheduleId && onDelete && (
@@ -558,23 +562,38 @@ export function ScheduleModal({
                   onClick={openDeleteConfirm}
                   disabled={isDeleting || isSaving}
                   size='default'
-                  className='h-10'
+                  className='h-9 rounded-[8px]'
                 >
-                  <Trash2 className='mr-2 h-4 w-4' />
-                  {isDeleting ? 'Deleting...' : 'Delete Schedule'}
+                  {isDeleting ? (
+                    <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
+                  ) : (
+                    <Trash2 className='mr-2 h-4 w-4' />
+                  )}
+                  {isDeleting ? 'Deleting...' : 'Delete'}
                 </Button>
               )}
             </div>
             <div className='flex gap-2'>
-              <Button variant='outline' onClick={handleClose} size='default' className='h-10'>
+              <Button
+                variant='outline'
+                onClick={handleClose}
+                size='default'
+                className='h-9 rounded-[8px]'
+              >
                 Cancel
               </Button>
               <Button
                 onClick={handleSave}
                 disabled={!hasChanges || isSaving}
-                className={cn('h-10', hasChanges ? 'bg-primary hover:bg-primary/90' : '')}
-                size='default'
+                className={cn(
+                  'w-[140px] rounded-[8px]',
+                  hasChanges ? 'bg-primary hover:bg-primary/90' : ''
+                )}
+                size='sm'
               >
+                {isSaving && (
+                  <div className='h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
+                )}
                 {isSaving ? 'Saving...' : 'Save Changes'}
               </Button>
             </div>
