@@ -906,15 +906,15 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           {/* Top Row: @ Button + Context Usage Pill */}
           <div className='mb-[6px] flex items-center justify-between'>
             <Badge
+              variant='outline'
               onClick={handleOpenMentionMenuWithAt}
               title='Insert @'
               className={cn(
-                'radius-[6px] cursor-pointer border border-[#575757] bg-transparent dark:border-[#575757] dark:bg-transparent',
-                (disabled || isLoading) && 'cursor-not-allowed',
-                'rounded-[6px] p-[4.5px]'
+                'cursor-pointer rounded-[6px] p-[4.5px]',
+                (disabled || isLoading) && 'cursor-not-allowed'
               )}
             >
-              <AtSign className='h-3 w-3' strokeWidth={1.25} />
+              <AtSign className='h-3 w-3' strokeWidth={1.75} />
             </Badge>
 
             {/* Context Usage Pill */}

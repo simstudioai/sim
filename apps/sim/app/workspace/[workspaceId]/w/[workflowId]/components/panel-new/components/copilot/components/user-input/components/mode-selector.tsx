@@ -1,6 +1,6 @@
 'use client'
 
-import { Check, MessageCircle, Package } from 'lucide-react'
+import { Bot, Check, MessageSquare } from 'lucide-react'
 import { Badge } from '@/components/emcn'
 import {
   DropdownMenu,
@@ -35,9 +35,9 @@ interface ModeSelectorProps {
 export function ModeSelector({ mode, onModeChange, isNearTop, disabled }: ModeSelectorProps) {
   const getModeIcon = () => {
     if (mode === 'ask') {
-      return <MessageCircle className='h-3 w-3 text-muted-foreground' />
+      return <MessageSquare className='h-3 w-3' />
     }
-    return <Package className='h-3 w-3 text-muted-foreground' />
+    return <Bot className='h-3 w-3' />
   }
 
   const getModeText = () => {
@@ -51,6 +51,7 @@ export function ModeSelector({ mode, onModeChange, isNearTop, disabled }: ModeSe
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Badge
+          variant='outline'
           className={cn(
             'cursor-pointer rounded-[6px]',
             (disabled || !onModeChange) && 'cursor-not-allowed opacity-50'
@@ -78,7 +79,7 @@ export function ModeSelector({ mode, onModeChange, isNearTop, disabled }: ModeSe
                   )}
                 >
                   <span className='flex items-center gap-1.5'>
-                    <MessageCircle className='h-3 w-3 text-muted-foreground' />
+                    <MessageSquare className='h-3 w-3 text-muted-foreground' />
                     Ask
                   </span>
                   {mode === 'ask' && <Check className='h-3 w-3 text-muted-foreground' />}
@@ -104,7 +105,7 @@ export function ModeSelector({ mode, onModeChange, isNearTop, disabled }: ModeSe
                   )}
                 >
                   <span className='flex items-center gap-1.5'>
-                    <Package className='h-3 w-3 text-muted-foreground' />
+                    <Bot className='h-3 w-3 text-muted-foreground' />
                     Agent
                   </span>
                   {mode === 'agent' && <Check className='h-3 w-3 text-muted-foreground' />}

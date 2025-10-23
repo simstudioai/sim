@@ -39,7 +39,7 @@ function getModelIconComponent(modelValue: string) {
   if (!IconComponent) {
     return null
   }
-  return <IconComponent className='h-3 w-3 text-muted-foreground' />
+  return <IconComponent className='h-3 w-3' />
 }
 
 /**
@@ -77,7 +77,7 @@ export function ModelSelector({
     }
     return (
       <span className='flex-shrink-0'>
-        <IconComponent className='h-3 w-3 text-muted-foreground' />
+        <IconComponent className='h-3 w-3' />
       </span>
     )
   }
@@ -91,7 +91,11 @@ export function ModelSelector({
       }}
     >
       <DropdownMenuTrigger asChild>
-        <Badge className='min-w-0 max-w-full cursor-pointer rounded-[6px]' title='Choose model'>
+        <Badge
+          variant='outline'
+          className='min-w-0 max-w-full cursor-pointer rounded-[6px]'
+          title='Choose model'
+        >
           {getModelIcon()}
           <span className='min-w-0 truncate'>
             {getCollapsedModeLabel()}
