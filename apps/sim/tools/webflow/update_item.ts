@@ -20,12 +20,6 @@ export const webflowUpdateItemTool: ToolConfig<WebflowUpdateItemParams, WebflowU
         visibility: 'hidden',
         description: 'OAuth access token',
       },
-      siteId: {
-        type: 'string',
-        required: true,
-        visibility: 'user-only',
-        description: 'ID of the Webflow site',
-      },
       collectionId: {
         type: 'string',
         required: true,

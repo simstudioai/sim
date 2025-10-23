@@ -19,12 +19,6 @@ export const webflowListItemsTool: ToolConfig<WebflowListItemsParams, WebflowLis
       visibility: 'hidden',
       description: 'OAuth access token',
     },
-    siteId: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'ID of the Webflow site',
-    },
     collectionId: {
       type: 'string',
       required: true,

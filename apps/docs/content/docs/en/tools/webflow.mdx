@@ -58,7 +58,6 @@ List all items from a Webflow CMS collection
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Yes | ID of the Webflow site |
 | `collectionId` | string | Yes | ID of the collection |
 | `offset` | number | No | Offset for pagination \(optional\) |
 | `limit` | number | No | Maximum number of items to return \(optional, default: 100\) |
@@ -78,7 +77,6 @@ Get a single item from a Webflow CMS collection
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Yes | ID of the Webflow site |
 | `collectionId` | string | Yes | ID of the collection |
 | `itemId` | string | Yes | ID of the item to retrieve |
 
@@ -97,7 +95,6 @@ Create a new item in a Webflow CMS collection
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Yes | ID of the Webflow site |
 | `collectionId` | string | Yes | ID of the collection |
 | `fieldData` | json | Yes | Field data for the new item as a JSON object. Keys should match collection field names. |
 
@@ -116,7 +113,6 @@ Update an existing item in a Webflow CMS collection
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Yes | ID of the Webflow site |
 | `collectionId` | string | Yes | ID of the collection |
 | `itemId` | string | Yes | ID of the item to update |
 | `fieldData` | json | Yes | Field data to update as a JSON object. Only include fields you want to change. |
@@ -136,7 +132,6 @@ Delete an item from a Webflow CMS collection
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `siteId` | string | Yes | ID of the Webflow site |
 | `collectionId` | string | Yes | ID of the collection |
 | `itemId` | string | Yes | ID of the item to delete |
 

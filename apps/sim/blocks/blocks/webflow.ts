@@ -41,21 +41,12 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
       required: true,
     },
     {
-      id: 'siteId',
-      title: 'Site ID',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Enter your Webflow site ID',
-      dependsOn: ['credential'],
-      required: true,
-    },
-    {
       id: 'collectionId',
       title: 'Collection ID',
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter collection ID',
-      dependsOn: ['credential', 'siteId'],
+      dependsOn: ['credential'],
       required: true,
     },
     {
@@ -151,7 +142,6 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     credential: { type: 'string', description: 'Webflow OAuth access token' },
-    siteId: { type: 'string', description: 'Webflow site identifier' },
     collectionId: { type: 'string', description: 'Webflow collection identifier' },
     // Conditional inputs
     itemId: { type: 'string', description: 'Item identifier' }, // Required for get/update/delete

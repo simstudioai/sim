@@ -1,7 +1,6 @@
 // Base parameters shared across all Webflow tools
 export interface WebflowBaseParams {
   accessToken: string
-  siteId: string
   collectionId: string
 }
 
