@@ -14,7 +14,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get the OAuth token using the helper
     const accessToken = await getOAuthToken(session.user.id, 'webflow')
 
     if (!accessToken) {
@@ -24,7 +23,6 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Fetch sites from Webflow API
     const response = await fetch('https://api.webflow.com/v2/sites', {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -47,7 +45,6 @@ export async function GET(request: NextRequest) {
     const data = await response.json()
     const sites = data.sites || []
 
-    // Transform to the format expected by the UI
     const formattedSites = sites.map((site: any) => ({
       id: site.id,
       name: site.displayName || site.shortName || site.id,

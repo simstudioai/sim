@@ -128,7 +128,6 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
         const { credential, fieldData, ...rest } = params
         let parsedFieldData: any | undefined
 
-        // Parse JSON input for fieldData
         try {
           if (fieldData && (params.operation === 'create' || params.operation === 'update')) {
             parsedFieldData = JSON.parse(fieldData)
@@ -137,7 +136,6 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
           throw new Error(`Invalid JSON input for ${params.operation} operation: ${error.message}`)
         }
 
-        // Construct parameters based on operation
         const baseParams = {
           credential,
           ...rest,

@@ -10,7 +10,6 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: WebflowIcon,
 
-  // Webflow requires OAuth credentials to create webhooks
   requiresCredentials: true,
   credentialProvider: 'webflow',
 
@@ -21,7 +20,7 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
       placeholder: 'Select a site',
       description: 'The Webflow site to monitor',
       required: true,
-      options: [], // Will be populated dynamically from API
+      options: [],
     },
     formId: {
       type: 'string',

@@ -37,7 +37,7 @@ export function WebflowConfig({
   webhookId,
   triggerType,
 }: WebflowConfigProps) {
-  const isCollectionTrigger = triggerType?.includes('collection_item') || !triggerType // Default to collection
+  const isCollectionTrigger = triggerType?.includes('collection_item') || !triggerType
   const isFormTrigger = triggerType?.includes('form_submission')
 
   return (

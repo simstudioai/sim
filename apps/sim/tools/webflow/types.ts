@@ -1,10 +1,8 @@
-// Base parameters shared across all Webflow tools
 export interface WebflowBaseParams {
   accessToken: string
   collectionId: string
 }
 
-// List Items
 export interface WebflowListItemsParams extends WebflowBaseParams {
   offset?: number
   limit?: number
@@ -24,7 +22,6 @@ export interface WebflowListItemsResponse {
   output: WebflowListItemsOutput
 }
 
-// Get Item
 export interface WebflowGetItemParams extends WebflowBaseParams {
   itemId: string
 }
@@ -41,7 +38,6 @@ export interface WebflowGetItemResponse {
   output: WebflowGetItemOutput
 }
 
-// Create Item
 export interface WebflowCreateItemParams extends WebflowBaseParams {
   fieldData: Record<string, any>
 }
@@ -58,7 +54,6 @@ export interface WebflowCreateItemResponse {
   output: WebflowCreateItemOutput
 }
 
-// Update Item
 export interface WebflowUpdateItemParams extends WebflowBaseParams {
   itemId: string
   fieldData: Record<string, any>
@@ -76,7 +71,6 @@ export interface WebflowUpdateItemResponse {
   output: WebflowUpdateItemOutput
 }
 
-// Delete Item
 export interface WebflowDeleteItemParams extends WebflowBaseParams {
   itemId: string
 }
@@ -93,7 +87,6 @@ export interface WebflowDeleteItemResponse {
   output: WebflowDeleteItemOutput
 }
 
-// Union type for all Webflow responses
 export type WebflowResponse =
   | WebflowListItemsResponse
   | WebflowGetItemResponse

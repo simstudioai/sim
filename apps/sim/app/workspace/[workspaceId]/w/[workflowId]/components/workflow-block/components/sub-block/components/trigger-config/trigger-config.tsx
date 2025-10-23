@@ -145,17 +145,14 @@ export function TriggerConfig({
         throw new Error('Trigger definition not found')
       }
 
-      // Set the trigger path and config in the block state
       if (path && path !== triggerPath) {
         setTriggerPath(path)
       }
       setTriggerConfig(config)
       setStoredTriggerId(effectiveTriggerId)
 
-      // Use the provider from the trigger definition (more reliable than deriving from ID)
       const webhookProvider = triggerDef.provider
 
-      // Include selected credential from the modal (if any)
       const selectedCredentialId =
         (useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as string | null) ||
         null

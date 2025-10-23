@@ -21,7 +21,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Missing siteId parameter' }, { status: 400 })
     }
 
-    // Get the OAuth token using the helper
     const accessToken = await getOAuthToken(session.user.id, 'webflow')
 
     if (!accessToken) {
@@ -31,7 +30,6 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Fetch collections from Webflow API
     const response = await fetch(`https://api.webflow.com/v2/sites/${siteId}/collections`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -55,7 +53,6 @@ export async function GET(request: NextRequest) {
     const data = await response.json()
     const collections = data.collections || []
 
-    // Transform to the format expected by the UI
     const formattedCollections = collections.map((collection: any) => ({
       id: collection.id,
       name: collection.displayName || collection.slug || collection.id,

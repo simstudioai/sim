@@ -83,11 +83,9 @@ export function TriggerConfigSection({
         )
 
       case 'select': {
-        // Use dynamic options if available, otherwise fall back to static options
         const rawOptions = dynamicOptions?.[fieldId] || fieldDef.options || []
         const isLoading = loadingFields[fieldId] || false
 
-        // Handle both string[] and {id, name}[] formats
         const availableOptions = Array.isArray(rawOptions)
           ? rawOptions.map((option: any) => {
               if (typeof option === 'string') {

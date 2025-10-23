@@ -515,7 +515,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'webflow',
         icon: (props) => WebflowIcon(props),
         baseProviderIcon: (props) => WebflowIcon(props),
-        scopes: ['cms:read', 'cms:write', 'sites:read'],
+        scopes: ['cms:read', 'cms:write', 'sites:read', 'sites:write'],
       },
     },
     defaultService: 'webflow',

@@ -10,7 +10,6 @@ export const webflowCollectionItemChangedTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: WebflowIcon,
 
-  // Webflow requires OAuth credentials to create webhooks
   requiresCredentials: true,
   credentialProvider: 'webflow',
 
@@ -21,7 +20,7 @@ export const webflowCollectionItemChangedTrigger: TriggerConfig = {
       placeholder: 'Select a site',
       description: 'The Webflow site to monitor',
       required: true,
-      options: [], // Will be populated dynamically from API
+      options: [],
     },
     collectionId: {
       type: 'select',
@@ -29,7 +28,7 @@ export const webflowCollectionItemChangedTrigger: TriggerConfig = {
       placeholder: 'Select a collection (optional)',
       description: 'Optionally filter to monitor only a specific collection',
       required: false,
-      options: [], // Will be populated dynamically based on selected site
+      options: [],
     },
   },
 
