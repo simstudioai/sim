@@ -1248,8 +1248,6 @@ export const auth = betterAuth({
               const data = await response.json()
               const now = new Date()
 
-              // Webflow doesn't provide user email in introspect endpoint
-              // Create a unique identifier based on the user_id
               const userId = data.user_id || `webflow-${Date.now()}`
               const uniqueId = `webflow-${userId}`
 

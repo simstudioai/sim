@@ -85,7 +85,6 @@ export interface WebflowDeleteItemParams extends WebflowBaseParams {
 export interface WebflowDeleteItemOutput {
   success: boolean
   metadata: {
-    itemId: string
     deleted: boolean
   }
 }

@@ -50,7 +50,6 @@ export const webflowDeleteItemTool: ToolConfig<WebflowDeleteItemParams, WebflowD
     },
 
     transformResponse: async (response) => {
-      // Delete operations typically return 204 No Content or minimal response
       const isSuccess = response.status === 204 || response.ok
 
       return {
@@ -58,7 +57,6 @@ export const webflowDeleteItemTool: ToolConfig<WebflowDeleteItemParams, WebflowD
         output: {
           success: isSuccess,
           metadata: {
-            itemId: 'unknown', // We don't have params here
             deleted: isSuccess,
           },
         },
