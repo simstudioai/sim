@@ -145,21 +145,14 @@ export function TriggerConfig({
         throw new Error('Trigger definition not found')
       }
 
-      // Set the trigger path and config in the block state
       if (path && path !== triggerPath) {
         setTriggerPath(path)
       }
       setTriggerConfig(config)
       setStoredTriggerId(effectiveTriggerId)
 
-      // Map trigger ID to webhook provider name
-      const webhookProvider = effectiveTriggerId
-        .replace(/_chat_subscription$/, '')
-        .replace(/_webhook$/, '')
-        .replace(/_poller$/, '')
-        .replace(/_subscription$/, '') // e.g., 'slack_webhook' -> 'slack', 'gmail_poller' -> 'gmail', 'microsoftteams_chat_subscription' -> 'microsoftteams'
+      const webhookProvider = triggerDef.provider
 
-      // Include selected credential from the modal (if any)
       const selectedCredentialId =
         (useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as string | null) ||
         null

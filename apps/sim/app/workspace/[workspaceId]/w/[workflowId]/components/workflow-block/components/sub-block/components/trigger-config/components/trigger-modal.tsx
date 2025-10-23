@@ -96,6 +96,7 @@ export function TriggerModal({
   const [dynamicOptions, setDynamicOptions] = useState<
     Record<string, Array<{ id: string; name: string }>>
   >({})
+  const [loadingFields, setLoadingFields] = useState<Record<string, boolean>>({})
   const lastCredentialIdRef = useRef<string | null>(null)
   const [testUrl, setTestUrl] = useState<string | null>(null)
   const [testUrlExpiresAt, setTestUrlExpiresAt] = useState<string | null>(null)
@@ -113,6 +114,9 @@ export function TriggerModal({
       } else if (triggerDef.provider === 'airtable') {
         if (typeof next.baseId === 'string') next.baseId = ''
         if (typeof next.tableId === 'string') next.tableId = ''
+      } else if (triggerDef.provider === 'webflow') {
+        if (typeof next.siteId === 'string') next.siteId = ''
+        if (typeof next.collectionId === 'string') next.collectionId = ''
       }
       return next
     })
@@ -177,6 +181,8 @@ export function TriggerModal({
               void loadGmailLabels(currentCredentialId)
             } else if (triggerDef.provider === 'outlook') {
               void loadOutlookFolders(currentCredentialId)
+            } else if (triggerDef.provider === 'webflow') {
+              void loadWebflowSites()
             }
           }
           return
@@ -197,6 +203,8 @@ export function TriggerModal({
             void loadGmailLabels(currentCredentialId)
           } else if (triggerDef.provider === 'outlook') {
             void loadOutlookFolders(currentCredentialId)
+          } else if (triggerDef.provider === 'webflow') {
+            void loadWebflowSites()
           }
         }
       }
@@ -262,9 +270,57 @@ export function TriggerModal({
     }
   }
 
-  // Generate webhook path and URL
+  const loadWebflowSites = async () => {
+    setLoadingFields((prev) => ({ ...prev, siteId: true }))
+    try {
+      const response = await fetch('/api/tools/webflow/sites')
+      if (response.ok) {
+        const data = await response.json()
+        if (data.sites && Array.isArray(data.sites)) {
+          setDynamicOptions((prev) => ({
+            ...prev,
+            siteId: data.sites,
+          }))
+        }
+      } else {
+        logger.error('Failed to load Webflow sites:', response.statusText)
+      }
+    } catch (error) {
+      logger.error('Error loading Webflow sites:', error)
+    } finally {
+      setLoadingFields((prev) => ({ ...prev, siteId: false }))
+    }
+  }
+
+  const loadWebflowCollections = async (siteId: string) => {
+    setLoadingFields((prev) => ({ ...prev, collectionId: true }))
+    try {
+      const response = await fetch(`/api/tools/webflow/collections?siteId=${siteId}`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.collections && Array.isArray(data.collections)) {
+          setDynamicOptions((prev) => ({
+            ...prev,
+            collectionId: data.collections,
+          }))
+        }
+      } else {
+        logger.error('Failed to load Webflow collections:', response.statusText)
+      }
+    } catch (error) {
+      logger.error('Error loading Webflow collections:', error)
+    } finally {
+      setLoadingFields((prev) => ({ ...prev, collectionId: false }))
+    }
+  }
+
   useEffect(() => {
-    // For triggers that don't use webhooks (like Gmail polling), skip URL generation
+    if (triggerDef.provider === 'webflow' && config.siteId) {
+      void loadWebflowCollections(config.siteId)
+    }
+  }, [config.siteId, triggerDef.provider])
+
+  useEffect(() => {
     if (triggerDef.requiresCredentials && !triggerDef.webhook) {
       setWebhookUrl('')
       setGeneratedPath('')
@@ -273,14 +329,11 @@ export function TriggerModal({
 
     let finalPath = triggerPath
 
-    // If no path exists and we haven't generated one yet, generate one
     if (!finalPath && !generatedPath) {
-      // Use UUID format consistent with other webhooks
       const newPath = crypto.randomUUID()
       setGeneratedPath(newPath)
       finalPath = newPath
     } else if (generatedPath && !triggerPath) {
-      // Use the already generated path
       finalPath = generatedPath
     }
 
@@ -538,6 +591,7 @@ export function TriggerModal({
               onChange={handleConfigChange}
               webhookUrl={webhookUrl}
               dynamicOptions={dynamicOptions}
+              loadingFields={loadingFields}
             />
 
             {triggerDef.webhook && (
@@ -684,17 +738,15 @@ export function TriggerModal({
                   (!(hasConfigChanged || hasCredentialChanged) && !!triggerId)
                 }
                 className={cn(
-                  'h-9 rounded-[8px]',
+                  'w-[140px] rounded-[8px]',
                   isConfigValid() && (hasConfigChanged || hasCredentialChanged || !triggerId)
                     ? 'bg-primary hover:bg-primary/90'
-                    : '',
-                  isSaving &&
-                    'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20'
+                    : ''
                 )}
-                size='default'
+                size='sm'
               >
                 {isSaving && (
-                  <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
+                  <div className='h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
                 )}
                 {isSaving ? 'Saving...' : 'Save Changes'}
               </Button>

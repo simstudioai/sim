@@ -900,6 +900,57 @@ export async function formatWebhookInput(
     }
   }
 
+  if (foundWebhook.provider === 'webflow') {
+    const triggerType = body?.triggerType || 'unknown'
+    const siteId = body?.siteId || ''
+    const workspaceId = body?.workspaceId || ''
+    const collectionId = body?.collectionId || ''
+    const payload = body?.payload || {}
+    const formId = body?.formId || ''
+    const formName = body?.name || ''
+    const formSubmissionId = body?.id || ''
+    const submittedAt = body?.submittedAt || ''
+    const formData = body?.data || {}
+    const schema = body?.schema || {}
+
+    return {
+      siteId,
+      workspaceId,
+      collectionId,
+      payload,
+      triggerType,
+
+      formId,
+      name: formName,
+      id: formSubmissionId,
+      submittedAt,
+      data: formData,
+      schema,
+      formElementId: body?.formElementId || '',
+
+      webflow: {
+        siteId,
+        workspaceId,
+        collectionId,
+        payload,
+        triggerType,
+        raw: body,
+      },
+
+      webhook: {
+        data: {
+          provider: 'webflow',
+          path: foundWebhook.path,
+          providerConfig: foundWebhook.providerConfig,
+          payload: body,
+          headers: Object.fromEntries(request.headers.entries()),
+          method: request.method,
+        },
+      },
+      workflowId: foundWorkflow.id,
+    }
+  }
+
   if (foundWebhook.provider === 'generic') {
     return body
   }
