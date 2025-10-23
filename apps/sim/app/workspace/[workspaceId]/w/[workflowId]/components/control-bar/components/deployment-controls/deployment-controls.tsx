@@ -35,6 +35,7 @@ export function DeploymentControls({
   const isDeployed = deploymentStatus?.isDeployed || false
 
   const workflowNeedsRedeployment = needsRedeployment
+  const isPreviousVersionActive = isDeployed && workflowNeedsRedeployment
 
   const [isDeploying, _setIsDeploying] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -71,6 +72,9 @@ export function DeploymentControls({
     if (isDeploying) {
       return 'Deploying...'
     }
+    if (isPreviousVersionActive) {
+      return 'Previous version active - Deploy to update'
+    }
     if (isDeployed && workflowNeedsRedeployment) {
       return 'Workflow changes detected'
     }
@@ -93,7 +97,9 @@ export function DeploymentControls({
                 'h-12 w-12 rounded-[11px] border bg-card text-card-foreground shadow-xs',
                 'hover:border-[var(--brand-primary-hex)] hover:bg-[var(--brand-primary-hex)] hover:text-white',
                 'transition-all duration-200',
-                isDeployed && 'text-[var(--brand-primary-hover-hex)]',
+                isDeployed && !isPreviousVersionActive && 'text-[var(--brand-primary-hover-hex)]',
+                isPreviousVersionActive &&
+                  'border-purple-500 bg-purple-500/10 text-purple-600 dark:text-purple-400',
                 isDisabled &&
                   'cursor-not-allowed opacity-50 hover:border hover:bg-card hover:text-card-foreground hover:shadow-xs'
               )}

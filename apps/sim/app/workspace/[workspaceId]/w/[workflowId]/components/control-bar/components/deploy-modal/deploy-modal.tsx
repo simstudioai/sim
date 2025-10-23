@@ -86,8 +86,8 @@ export function DeployModal({
   const [deploymentInfo, setDeploymentInfo] = useState<WorkflowDeploymentInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
-  const [keysLoaded, setKeysLoaded] = useState(false)
   const [activeTab, setActiveTab] = useState<TabView>('general')
+  const [selectedApiKeyId, setSelectedApiKeyId] = useState<string>('')
   const [chatSubmitting, setChatSubmitting] = useState(false)
   const [apiDeployError, setApiDeployError] = useState<string | null>(null)
   const [chatExists, setChatExists] = useState(false)
@@ -106,6 +106,7 @@ export function DeployModal({
   const [editValue, setEditValue] = useState('')
   const [isRenaming, setIsRenaming] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<number | null>(null)
+  const [versionToActivate, setVersionToActivate] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -212,17 +213,14 @@ export function DeployModal({
     if (!open) return
 
     try {
-      setKeysLoaded(false)
       const response = await fetch('/api/users/me/api-keys')
 
       if (response.ok) {
         const data = await response.json()
         setApiKeys(data.keys || [])
-        setKeysLoaded(true)
       }
     } catch (error) {
       logger.error('Error fetching API keys:', { error })
-      setKeysLoaded(true)
     }
   }
 
@@ -257,12 +255,31 @@ export function DeployModal({
       fetchApiKeys()
       fetchChatDeploymentInfo()
       setActiveTab('api')
+      setVersionToActivate(null)
+    } else {
+      setSelectedApiKeyId('')
+      setVersionToActivate(null)
     }
   }, [open, workflowId])
 
   useEffect(() => {
+    if (apiKeys.length === 0) return
+
+    if (deploymentInfo?.apiKey) {
+      const matchingKey = apiKeys.find((k) => k.key === deploymentInfo.apiKey)
+      if (matchingKey) {
+        setSelectedApiKeyId(matchingKey.id)
+        return
+      }
+    }
+
+    if (!selectedApiKeyId) {
+      setSelectedApiKeyId(apiKeys[0].id)
+    }
+  }, [deploymentInfo, apiKeys])
+
+  useEffect(() => {
     async function fetchDeploymentInfo() {
-      // If not open or not deployed, clear info and stop
       if (!open || !workflowId || !isDeployed) {
         setDeploymentInfo(null)
         if (!open) {
@@ -271,7 +288,6 @@ export function DeployModal({
         return
       }
 
-      // If we already have deploymentInfo (e.g., just deployed and set locally), avoid overriding it
       if (deploymentInfo?.isDeployed && !needsRedeployment) {
         setIsLoading(false)
         return
@@ -288,7 +304,7 @@ export function DeployModal({
 
         const data = await response.json()
         const endpoint = `${getEnv('NEXT_PUBLIC_APP_URL')}/api/workflows/${workflowId}/execute`
-        const inputFormatExample = getInputFormatExample(selectedStreamingOutputs.length > 0) // Include streaming params only if outputs selected
+        const inputFormatExample = getInputFormatExample(selectedStreamingOutputs.length > 0)
 
         setDeploymentInfo({
           isDeployed: data.isDeployed,
@@ -314,13 +330,20 @@ export function DeployModal({
     try {
       setIsSubmitting(true)
 
-      const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
+      const apiKeyToUse = data.apiKey || selectedApiKeyId
+
+      let deployEndpoint = `/api/workflows/${workflowId}/deploy`
+      if (versionToActivate !== null) {
+        deployEndpoint = `/api/workflows/${workflowId}/deployments/${versionToActivate}/activate`
+      }
+
+      const response = await fetch(deployEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          apiKey: data.apiKey,
+          apiKey: apiKeyToUse,
           deployChatEnabled: false,
         }),
       })
@@ -330,28 +353,34 @@ export function DeployModal({
         throw new Error(errorData.error || 'Failed to deploy workflow')
       }
 
-      const { isDeployed: newDeployStatus, deployedAt, apiKey } = await response.json()
+      const responseData = await response.json()
 
-      setDeploymentStatus(
-        workflowId,
-        newDeployStatus,
-        deployedAt ? new Date(deployedAt) : undefined,
-        apiKey || data.apiKey
-      )
+      const isActivating = versionToActivate !== null
+      const isDeployedStatus = isActivating ? true : (responseData.isDeployed ?? false)
+      const deployedAtTime = responseData.deployedAt ? new Date(responseData.deployedAt) : undefined
+      const apiKeyFromResponse = responseData.apiKey || apiKeyToUse
 
-      setNeedsRedeployment(false)
-      if (workflowId) {
-        useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
+      setDeploymentStatus(workflowId, isDeployedStatus, deployedAtTime, apiKeyFromResponse)
+
+      const matchingKey = apiKeys.find((k) => k.key === apiKeyFromResponse || k.id === apiKeyToUse)
+      if (matchingKey) {
+        setSelectedApiKeyId(matchingKey.id)
       }
-      const endpoint = `${getEnv('NEXT_PUBLIC_APP_URL')}/api/workflows/${workflowId}/execute`
-      const inputFormatExample = getInputFormatExample(selectedStreamingOutputs.length > 0) // Include streaming params only if outputs selected
+
+      const isActivatingVersion = versionToActivate !== null
+      setNeedsRedeployment(isActivatingVersion)
+      if (workflowId) {
+        useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, isActivatingVersion)
+      }
+      const apiEndpoint = `${getEnv('NEXT_PUBLIC_APP_URL')}/api/workflows/${workflowId}/execute`
+      const inputFormatExample = getInputFormatExample(selectedStreamingOutputs.length > 0)
 
       const newDeploymentInfo = {
         isDeployed: true,
-        deployedAt: deployedAt,
-        apiKey: apiKey || data.apiKey,
-        endpoint,
-        exampleCommand: `curl -X POST -H "X-API-Key: ${apiKey || data.apiKey}" -H "Content-Type: application/json"${inputFormatExample} ${endpoint}`,
+        deployedAt: deployedAtTime?.toISOString(),
+        apiKey: apiKeyFromResponse,
+        endpoint: apiEndpoint,
+        exampleCommand: `curl -X POST -H "X-API-Key: ${apiKeyFromResponse}" -H "Content-Type: application/json"${inputFormatExample} ${apiEndpoint}`,
         needsRedeployment: false,
       }
 
@@ -359,6 +388,9 @@ export function DeployModal({
 
       await refetchDeployedState()
       await fetchVersions()
+
+      setVersionToActivate(null)
+      setApiDeployError(null)
     } catch (error: unknown) {
       logger.error('Error deploying workflow:', { error })
       const errorMessage = error instanceof Error ? error.message : 'Failed to deploy workflow'
@@ -392,28 +424,9 @@ export function DeployModal({
     }
   }, [open, workflowId])
 
-  const activateVersion = async (version: number) => {
-    if (!workflowId) return
-    try {
-      setActivatingVersion(version)
-      const res = await fetch(`/api/workflows/${workflowId}/deployments/${version}/activate`, {
-        method: 'POST',
-      })
-      if (res.ok) {
-        await refetchDeployedState()
-        await fetchVersions()
-        if (workflowId) {
-          useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
-        }
-        if (previewVersion !== null) {
-          setPreviewVersion(null)
-          setPreviewDeployedState(null)
-          setPreviewing(false)
-        }
-      }
-    } finally {
-      setActivatingVersion(null)
-    }
+  const handleActivateVersion = (version: number, deploymentType: 'api' | 'chat') => {
+    setVersionToActivate(version)
+    setActiveTab(deploymentType)
   }
 
   const openVersionPreview = async (version: number) => {
@@ -538,7 +551,6 @@ export function DeployModal({
       await refetchDeployedState()
       await fetchVersions()
 
-      // Ensure modal status updates immediately
       setDeploymentInfo((prev) => (prev ? { ...prev, needsRedeployment: false } : prev))
     } catch (error: unknown) {
       logger.error('Error redeploying workflow:', { error })
@@ -554,13 +566,22 @@ export function DeployModal({
   }
 
   const handleWorkflowPreDeploy = async () => {
-    // Always deploy to ensure a new deployment version exists
-    const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
+    if (!selectedApiKeyId) {
+      throw new Error('Please select an API key before deploying')
+    }
+
+    let endpoint = `/api/workflows/${workflowId}/deploy`
+    if (versionToActivate !== null) {
+      endpoint = `/api/workflows/${workflowId}/deployments/${versionToActivate}/activate`
+    }
+
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
+        apiKey: selectedApiKeyId,
         deployApiEnabled: true,
         deployChatEnabled: false,
       }),
@@ -571,16 +592,29 @@ export function DeployModal({
       throw new Error(errorData.error || 'Failed to deploy workflow')
     }
 
-    const { isDeployed: newDeployStatus, deployedAt, apiKey } = await response.json()
+    const responseData = await response.json()
 
-    setDeploymentStatus(
-      workflowId,
-      newDeployStatus,
-      deployedAt ? new Date(deployedAt) : undefined,
-      apiKey
-    )
+    const isActivating = versionToActivate !== null
+    const isDeployedStatus = isActivating ? true : (responseData.isDeployed ?? false)
+    const deployedAtTime = responseData.deployedAt ? new Date(responseData.deployedAt) : undefined
+    const apiKeyFromResponse = responseData.apiKey || selectedApiKeyId
 
-    setDeploymentInfo((prev) => (prev ? { ...prev, apiKey } : null))
+    setDeploymentStatus(workflowId, isDeployedStatus, deployedAtTime, apiKeyFromResponse)
+
+    const matchingKey = apiKeys.find((k) => k.id === selectedApiKeyId)
+    if (matchingKey) {
+      setSelectedApiKeyId(matchingKey.id)
+    }
+
+    setDeploymentInfo((prev) => (prev ? { ...prev, apiKey: apiKeyFromResponse } : null))
+
+    const isActivatingVersion = versionToActivate !== null
+    setNeedsRedeployment(isActivatingVersion)
+    if (workflowId) {
+      useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, isActivatingVersion)
+    }
+
+    setVersionToActivate(null)
   }
 
   const handleChatFormSubmit = () => {
@@ -597,365 +631,400 @@ export function DeployModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleCloseModal}>
-      <DialogContent
-        className='flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[700px]'
-        hideCloseButton
-      >
-        <DialogHeader className='flex-shrink-0 border-b px-6 py-4'>
-          <div className='flex items-center justify-between'>
-            <DialogTitle className='font-medium text-lg'>Deploy Workflow</DialogTitle>
-            <Button variant='ghost' size='icon' className='h-8 w-8 p-0' onClick={handleCloseModal}>
-              <X className='h-4 w-4' />
-              <span className='sr-only'>Close</span>
-            </Button>
-          </div>
-        </DialogHeader>
-
-        <div className='flex flex-1 flex-col overflow-hidden'>
-          <div className='flex h-14 flex-none items-center border-b px-6'>
-            <div className='flex gap-2'>
-              <button
-                onClick={() => setActiveTab('api')}
-                className={`rounded-md px-3 py-1 text-sm transition-colors ${
-                  activeTab === 'api'
-                    ? 'bg-accent text-foreground'
-                    : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
-                }`}
+    <>
+      <Dialog open={open} onOpenChange={handleCloseModal}>
+        <DialogContent
+          className='flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[700px]'
+          hideCloseButton
+        >
+          <DialogHeader className='flex-shrink-0 border-b px-6 py-4'>
+            <div className='flex items-center justify-between'>
+              <div className='flex items-center gap-2'>
+                <DialogTitle className='font-medium text-lg'>Deploy Workflow</DialogTitle>
+                {needsRedeployment && versions.length > 0 && (
+                  <span className='inline-flex items-center rounded-md bg-purple-500/10 px-2 py-1 font-medium text-purple-600 text-xs dark:text-purple-400'>
+                    {versions.find((v) => v.isActive)?.name ||
+                      `v${versions.find((v) => v.isActive)?.version}`}{' '}
+                    active
+                  </span>
+                )}
+              </div>
+              <Button
+                variant='ghost'
+                size='icon'
+                className='h-8 w-8 p-0'
+                onClick={handleCloseModal}
               >
-                API
-              </button>
-              <button
-                onClick={() => setActiveTab('versions')}
-                className={`rounded-md px-3 py-1 text-sm transition-colors ${
-                  activeTab === 'versions'
-                    ? 'bg-accent text-foreground'
-                    : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
-                }`}
-              >
-                Versions
-              </button>
-              <button
-                onClick={() => setActiveTab('chat')}
-                className={`rounded-md px-3 py-1 text-sm transition-colors ${
-                  activeTab === 'chat'
-                    ? 'bg-accent text-foreground'
-                    : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
-                }`}
-              >
-                Chat
-              </button>
+                <X className='h-4 w-4' />
+                <span className='sr-only'>Close</span>
+              </Button>
             </div>
-          </div>
+          </DialogHeader>
 
-          <div className='flex-1 overflow-y-auto'>
-            <div className='p-6'>
-              {activeTab === 'api' && (
-                <>
-                  {isDeployed ? (
-                    <DeploymentInfo
-                      isLoading={isLoading}
-                      deploymentInfo={
-                        deploymentInfo ? { ...deploymentInfo, needsRedeployment } : null
-                      }
-                      onRedeploy={handleRedeploy}
-                      onUndeploy={handleUndeploy}
-                      isSubmitting={isSubmitting}
-                      isUndeploying={isUndeploying}
-                      workflowId={workflowId}
-                      deployedState={deployedState}
-                      isLoadingDeployedState={isLoadingDeployedState}
-                      getInputFormatExample={getInputFormatExample}
-                      selectedStreamingOutputs={selectedStreamingOutputs}
-                      onSelectedStreamingOutputsChange={setSelectedStreamingOutputs}
-                    />
-                  ) : (
-                    <>
-                      {apiDeployError && (
-                        <div className='mb-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-destructive text-sm'>
-                          <div className='font-semibold'>API Deployment Error</div>
-                          <div>{apiDeployError}</div>
-                        </div>
-                      )}
+          <div className='flex flex-1 flex-col overflow-hidden'>
+            <div className='flex h-14 flex-none items-center border-b px-6'>
+              <div className='flex gap-2'>
+                <button
+                  onClick={() => setActiveTab('api')}
+                  className={`rounded-md px-3 py-1 text-sm transition-colors ${
+                    activeTab === 'api'
+                      ? 'bg-accent text-foreground'
+                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                  }`}
+                >
+                  API
+                </button>
+                <button
+                  onClick={() => setActiveTab('chat')}
+                  className={`rounded-md px-3 py-1 text-sm transition-colors ${
+                    activeTab === 'chat'
+                      ? 'bg-accent text-foreground'
+                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                  }`}
+                >
+                  Chat
+                </button>
+                <button
+                  onClick={() => setActiveTab('versions')}
+                  className={`rounded-md px-3 py-1 text-sm transition-colors ${
+                    activeTab === 'versions'
+                      ? 'bg-accent text-foreground'
+                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                  }`}
+                >
+                  Versions
+                </button>
+              </div>
+            </div>
 
-                      <div className='-mx-1 px-1'>
-                        <DeployForm
-                          apiKeys={apiKeys}
-                          keysLoaded={keysLoaded}
-                          onSubmit={onDeploy}
-                          onApiKeyCreated={fetchApiKeys}
-                          formId='deploy-api-form'
-                        />
-                      </div>
-                    </>
-                  )}
-                </>
-              )}
-
-              {activeTab === 'versions' && (
-                <>
-                  <div className='mb-3 font-medium text-sm'>Deployment Versions</div>
-                  {versionsLoading ? (
-                    <div className='rounded-md border p-4 text-center text-muted-foreground text-sm'>
-                      Loading deployments...
-                    </div>
-                  ) : versions.length === 0 ? (
-                    <div className='rounded-md border p-4 text-center text-muted-foreground text-sm'>
-                      No deployments yet
-                    </div>
-                  ) : (
-                    <>
-                      <div className='overflow-hidden rounded-md border'>
-                        <table className='w-full'>
-                          <thead className='border-b bg-muted/50'>
-                            <tr>
-                              <th className='w-10' />
-                              <th className='w-[200px] whitespace-nowrap px-4 py-2 text-left font-medium text-muted-foreground text-xs'>
-                                Version
-                              </th>
-                              <th className='whitespace-nowrap px-4 py-2 text-left font-medium text-muted-foreground text-xs'>
-                                Deployed By
-                              </th>
-                              <th className='whitespace-nowrap px-4 py-2 text-left font-medium text-muted-foreground text-xs'>
-                                Created
-                              </th>
-                              <th className='w-10' />
-                            </tr>
-                          </thead>
-                          <tbody className='divide-y'>
-                            {versions
-                              .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-                              .map((v) => (
-                                <tr
-                                  key={v.id}
-                                  className='cursor-pointer transition-colors hover:bg-muted/30'
-                                  onClick={() => {
-                                    if (editingVersion !== v.version) {
-                                      openVersionPreview(v.version)
-                                    }
-                                  }}
-                                >
-                                  <td className='px-4 py-2.5'>
-                                    <div
-                                      className={`h-2 w-2 rounded-full ${
-                                        v.isActive ? 'bg-green-500' : 'bg-muted-foreground/40'
-                                      }`}
-                                      title={v.isActive ? 'Active' : 'Inactive'}
-                                    />
-                                  </td>
-                                  <td className='w-[220px] max-w-[220px] px-4 py-2.5'>
-                                    {editingVersion === v.version ? (
-                                      <input
-                                        ref={inputRef}
-                                        value={editValue}
-                                        onChange={(e) => setEditValue(e.target.value)}
-                                        onKeyDown={(e) => {
-                                          if (e.key === 'Enter') {
-                                            e.preventDefault()
-                                            handleSaveRename(v.version)
-                                          } else if (e.key === 'Escape') {
-                                            e.preventDefault()
-                                            handleCancelRename()
-                                          }
-                                        }}
-                                        onBlur={() => handleSaveRename(v.version)}
-                                        className='w-full border-0 bg-transparent p-0 font-medium text-sm leading-5 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
-                                        maxLength={100}
-                                        disabled={isRenaming}
-                                        autoComplete='off'
-                                        autoCorrect='off'
-                                        autoCapitalize='off'
-                                        spellCheck='false'
-                                      />
-                                    ) : (
-                                      <span className='block whitespace-pre-wrap break-words break-all font-medium text-sm leading-5'>
-                                        {v.name || `v${v.version}`}
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td className='whitespace-nowrap px-4 py-2.5'>
-                                    <span className='text-muted-foreground text-sm'>
-                                      {v.deployedBy || 'Unknown'}
-                                    </span>
-                                  </td>
-                                  <td className='whitespace-nowrap px-4 py-2.5'>
-                                    <span className='text-muted-foreground text-sm'>
-                                      {new Date(v.createdAt).toLocaleDateString()}{' '}
-                                      {new Date(v.createdAt).toLocaleTimeString()}
-                                    </span>
-                                  </td>
-                                  <td className='px-4 py-2.5' onClick={(e) => e.stopPropagation()}>
-                                    <DropdownMenu
-                                      open={openDropdown === v.version}
-                                      onOpenChange={(open) =>
-                                        setOpenDropdown(open ? v.version : null)
-                                      }
-                                    >
-                                      <DropdownMenuTrigger asChild>
-                                        <Button
-                                          variant='ghost'
-                                          size='icon'
-                                          className='h-8 w-8'
-                                          disabled={activatingVersion === v.version}
-                                        >
-                                          <MoreVertical className='h-4 w-4' />
-                                        </Button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent
-                                        align='end'
-                                        onCloseAutoFocus={(event) => event.preventDefault()}
-                                      >
-                                        <DropdownMenuItem
-                                          onClick={() => activateVersion(v.version)}
-                                          disabled={v.isActive || activatingVersion === v.version}
-                                        >
-                                          {v.isActive
-                                            ? 'Active'
-                                            : activatingVersion === v.version
-                                              ? 'Activating...'
-                                              : 'Activate'}
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem
-                                          onClick={() => openVersionPreview(v.version)}
-                                        >
-                                          Inspect
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem
-                                          onClick={() => handleStartRename(v.version, v.name)}
-                                        >
-                                          Rename
-                                        </DropdownMenuItem>
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
-                                  </td>
-                                </tr>
-                              ))}
-                          </tbody>
-                        </table>
-                      </div>
-                      {versions.length > itemsPerPage && (
-                        <div className='mt-3 flex items-center justify-between'>
-                          <span className='text-muted-foreground text-sm'>
-                            Showing{' '}
-                            {Math.min((currentPage - 1) * itemsPerPage + 1, versions.length)} -{' '}
-                            {Math.min(currentPage * itemsPerPage, versions.length)} of{' '}
-                            {versions.length}
-                          </span>
-                          <div className='flex gap-2'>
-                            <Button
-                              variant='outline'
-                              size='sm'
-                              onClick={() => setCurrentPage(currentPage - 1)}
-                              disabled={currentPage === 1}
-                            >
-                              Previous
-                            </Button>
-                            <Button
-                              variant='outline'
-                              size='sm'
-                              onClick={() => setCurrentPage(currentPage + 1)}
-                              disabled={currentPage * itemsPerPage >= versions.length}
-                            >
-                              Next
-                            </Button>
+            <div className='flex-1 overflow-y-auto'>
+              <div className='p-6' key={`${activeTab}-${versionToActivate}`}>
+                {activeTab === 'api' && (
+                  <>
+                    {versionToActivate !== null && (
+                      <div className='mb-4 flex items-start justify-between rounded-md border border-blue-500/30 bg-blue-500/10 p-3 text-sm'>
+                        <div>
+                          <div className='font-semibold text-blue-700 dark:text-blue-400'>
+                            Activating{' '}
+                            {versions.find((v) => v.version === versionToActivate)?.name ||
+                              `v${versionToActivate}`}
+                          </div>
+                          <div className='text-muted-foreground text-xs'>
+                            Configure your deployment and click Deploy API to activate this version
                           </div>
                         </div>
-                      )}
-                    </>
-                  )}
-                </>
-              )}
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          className='h-6 px-2'
+                          onClick={() => setVersionToActivate(null)}
+                        >
+                          <X className='h-3.5 w-3.5' />
+                        </Button>
+                      </div>
+                    )}
+                    {versionToActivate !== null ? (
+                      <>
+                        {apiDeployError && (
+                          <div className='mb-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-destructive text-sm'>
+                            <div className='font-semibold'>API Deployment Error</div>
+                            <div>{apiDeployError}</div>
+                          </div>
+                        )}
 
-              {activeTab === 'chat' && (
-                <ChatDeploy
-                  workflowId={workflowId || ''}
-                  deploymentInfo={deploymentInfo}
-                  onChatExistsChange={setChatExists}
-                  chatSubmitting={chatSubmitting}
-                  setChatSubmitting={setChatSubmitting}
-                  onValidationChange={setIsChatFormValid}
-                  onPreDeployWorkflow={handleWorkflowPreDeploy}
-                  onDeploymentComplete={handleCloseModal}
-                  onDeployed={async () => {
-                    await refetchDeployedState()
-                    await fetchVersions()
-                    if (workflowId) {
-                      useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
-                    }
-                  }}
-                />
-              )}
+                        <div className='-mx-1 px-1'>
+                          <DeployForm
+                            apiKeys={apiKeys}
+                            selectedApiKeyId={selectedApiKeyId}
+                            onApiKeyChange={setSelectedApiKeyId}
+                            onSubmit={onDeploy}
+                            onApiKeyCreated={fetchApiKeys}
+                            formId='deploy-api-form'
+                            isDeployed={false}
+                            deployedApiKeyDisplay={undefined}
+                          />
+                        </div>
+                      </>
+                    ) : isDeployed ? (
+                      <>
+                        <DeploymentInfo
+                          isLoading={isLoading}
+                          deploymentInfo={
+                            deploymentInfo ? { ...deploymentInfo, needsRedeployment } : null
+                          }
+                          onRedeploy={handleRedeploy}
+                          onUndeploy={handleUndeploy}
+                          isSubmitting={isSubmitting}
+                          isUndeploying={isUndeploying}
+                          workflowId={workflowId}
+                          deployedState={deployedState}
+                          isLoadingDeployedState={isLoadingDeployedState}
+                          getInputFormatExample={getInputFormatExample}
+                          selectedStreamingOutputs={selectedStreamingOutputs}
+                          onSelectedStreamingOutputsChange={setSelectedStreamingOutputs}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        {apiDeployError && (
+                          <div className='mb-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-destructive text-sm'>
+                            <div className='font-semibold'>API Deployment Error</div>
+                            <div>{apiDeployError}</div>
+                          </div>
+                        )}
+
+                        <div className='-mx-1 px-1'>
+                          <DeployForm
+                            apiKeys={apiKeys}
+                            selectedApiKeyId={selectedApiKeyId}
+                            onApiKeyChange={setSelectedApiKeyId}
+                            onSubmit={onDeploy}
+                            onApiKeyCreated={fetchApiKeys}
+                            formId='deploy-api-form'
+                            isDeployed={false}
+                            deployedApiKeyDisplay={undefined}
+                          />
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
+
+                {activeTab === 'versions' && (
+                  <>
+                    <div className='mb-3 font-medium text-sm'>Deployment Versions</div>
+                    {versionsLoading ? (
+                      <div className='rounded-md border p-4 text-center text-muted-foreground text-sm'>
+                        Loading deployments...
+                      </div>
+                    ) : versions.length === 0 ? (
+                      <div className='rounded-md border p-4 text-center text-muted-foreground text-sm'>
+                        No deployments yet
+                      </div>
+                    ) : (
+                      <>
+                        <div className='overflow-hidden rounded-md border'>
+                          <table className='w-full'>
+                            <thead className='border-b bg-muted/50'>
+                              <tr>
+                                <th className='w-10' />
+                                <th className='w-[200px] whitespace-nowrap px-4 py-2 text-left font-medium text-muted-foreground text-xs'>
+                                  Version
+                                </th>
+                                <th className='whitespace-nowrap px-4 py-2 text-left font-medium text-muted-foreground text-xs'>
+                                  Deployed By
+                                </th>
+                                <th className='whitespace-nowrap px-4 py-2 text-left font-medium text-muted-foreground text-xs'>
+                                  Created
+                                </th>
+                                <th className='w-10' />
+                              </tr>
+                            </thead>
+                            <tbody className='divide-y'>
+                              {versions
+                                .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                                .map((v) => (
+                                  <tr
+                                    key={v.id}
+                                    className='cursor-pointer transition-colors hover:bg-muted/30'
+                                    onClick={() => {
+                                      if (editingVersion !== v.version) {
+                                        openVersionPreview(v.version)
+                                      }
+                                    }}
+                                  >
+                                    <td className='px-4 py-2.5'>
+                                      <div
+                                        className={`h-2 w-2 rounded-full ${
+                                          v.isActive ? 'bg-green-500' : 'bg-muted-foreground/40'
+                                        }`}
+                                        title={v.isActive ? 'Active' : 'Inactive'}
+                                      />
+                                    </td>
+                                    <td className='w-[220px] max-w-[220px] px-4 py-2.5'>
+                                      {editingVersion === v.version ? (
+                                        <input
+                                          ref={inputRef}
+                                          value={editValue}
+                                          onChange={(e) => setEditValue(e.target.value)}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                              e.preventDefault()
+                                              handleSaveRename(v.version)
+                                            } else if (e.key === 'Escape') {
+                                              e.preventDefault()
+                                              handleCancelRename()
+                                            }
+                                          }}
+                                          onBlur={() => handleSaveRename(v.version)}
+                                          className='w-full border-0 bg-transparent p-0 font-medium text-sm leading-5 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                                          maxLength={100}
+                                          disabled={isRenaming}
+                                          autoComplete='off'
+                                          autoCorrect='off'
+                                          autoCapitalize='off'
+                                          spellCheck='false'
+                                        />
+                                      ) : (
+                                        <span className='block whitespace-pre-wrap break-words break-all font-medium text-sm leading-5'>
+                                          {v.name || `v${v.version}`}
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className='whitespace-nowrap px-4 py-2.5'>
+                                      <span className='text-muted-foreground text-sm'>
+                                        {v.deployedBy || 'Unknown'}
+                                      </span>
+                                    </td>
+                                    <td className='whitespace-nowrap px-4 py-2.5'>
+                                      <span className='text-muted-foreground text-sm'>
+                                        {new Date(v.createdAt).toLocaleDateString()}{' '}
+                                        {new Date(v.createdAt).toLocaleTimeString()}
+                                      </span>
+                                    </td>
+                                    <td
+                                      className='px-4 py-2.5'
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <DropdownMenu
+                                        open={openDropdown === v.version}
+                                        onOpenChange={(open) =>
+                                          setOpenDropdown(open ? v.version : null)
+                                        }
+                                      >
+                                        <DropdownMenuTrigger asChild>
+                                          <Button
+                                            variant='ghost'
+                                            size='icon'
+                                            className='h-8 w-8'
+                                            disabled={activatingVersion === v.version}
+                                          >
+                                            <MoreVertical className='h-4 w-4' />
+                                          </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent
+                                          align='end'
+                                          onCloseAutoFocus={(event) => event.preventDefault()}
+                                        >
+                                          <DropdownMenuItem
+                                            onClick={() => openVersionPreview(v.version)}
+                                          >
+                                            {v.isActive ? 'View Active' : 'Inspect'}
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            onClick={() => handleStartRename(v.version, v.name)}
+                                          >
+                                            Rename
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
+                                    </td>
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        {versions.length > itemsPerPage && (
+                          <div className='mt-3 flex items-center justify-between'>
+                            <span className='text-muted-foreground text-sm'>
+                              Showing{' '}
+                              {Math.min((currentPage - 1) * itemsPerPage + 1, versions.length)} -{' '}
+                              {Math.min(currentPage * itemsPerPage, versions.length)} of{' '}
+                              {versions.length}
+                            </span>
+                            <div className='flex gap-2'>
+                              <Button
+                                variant='outline'
+                                size='sm'
+                                onClick={() => setCurrentPage(currentPage - 1)}
+                                disabled={currentPage === 1}
+                              >
+                                Previous
+                              </Button>
+                              <Button
+                                variant='outline'
+                                size='sm'
+                                onClick={() => setCurrentPage(currentPage + 1)}
+                                disabled={currentPage * itemsPerPage >= versions.length}
+                              >
+                                Next
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </>
+                )}
+
+                {activeTab === 'chat' && (
+                  <>
+                    {versionToActivate !== null && (
+                      <div className='mb-4 flex items-start justify-between rounded-md border border-blue-500/30 bg-blue-500/10 p-3 text-sm'>
+                        <div>
+                          <div className='font-semibold text-blue-700 dark:text-blue-400'>
+                            Activating{' '}
+                            {versions.find((v) => v.version === versionToActivate)?.name ||
+                              `v${versionToActivate}`}
+                          </div>
+                          <div className='text-muted-foreground text-xs'>
+                            Configure your chat deployment and click Deploy Chat to activate this
+                            version
+                          </div>
+                        </div>
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          className='h-6 px-2'
+                          onClick={() => setVersionToActivate(null)}
+                        >
+                          <X className='h-3.5 w-3.5' />
+                        </Button>
+                      </div>
+                    )}
+                    <ChatDeploy
+                      workflowId={workflowId || ''}
+                      deploymentInfo={deploymentInfo}
+                      onChatExistsChange={setChatExists}
+                      chatSubmitting={chatSubmitting}
+                      setChatSubmitting={setChatSubmitting}
+                      onValidationChange={setIsChatFormValid}
+                      onPreDeployWorkflow={handleWorkflowPreDeploy}
+                      onDeploymentComplete={handleCloseModal}
+                      onDeployed={async () => {
+                        await refetchDeployedState()
+                        await fetchVersions()
+                        if (workflowId) {
+                          const isActivatingVersion = versionToActivate !== null
+                          useWorkflowRegistry
+                            .getState()
+                            .setWorkflowNeedsRedeployment(workflowId, isActivatingVersion)
+                        }
+                      }}
+                      apiKeys={apiKeys}
+                      selectedApiKeyId={selectedApiKeyId}
+                      onApiKeyChange={setSelectedApiKeyId}
+                      onApiKeyCreated={fetchApiKeys}
+                      isDeployed={false}
+                      onUndeploy={handleUndeploy}
+                      onVersionActivated={() => setVersionToActivate(null)}
+                    />
+                  </>
+                )}
+              </div>
             </div>
           </div>
-        </div>
 
-        {activeTab === 'api' && !isDeployed && (
-          <div className='flex flex-shrink-0 justify-between border-t px-6 py-4'>
-            <Button variant='outline' onClick={handleCloseModal}>
-              Cancel
-            </Button>
+          {activeTab === 'api' && (versionToActivate !== null || !isDeployed) && (
+            <div className='flex flex-shrink-0 justify-between border-t px-6 py-4'>
+              <Button variant='outline' onClick={handleCloseModal}>
+                Cancel
+              </Button>
 
-            <Button
-              type='submit'
-              form='deploy-api-form'
-              disabled={isSubmitting || (!keysLoaded && !apiKeys.length)}
-              className={cn(
-                'gap-2 font-medium',
-                'bg-[var(--brand-primary-hover-hex)] hover:bg-[var(--brand-primary-hover-hex)]',
-                'shadow-[0_0_0_0_var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
-                'text-white transition-all duration-200',
-                'disabled:opacity-50 disabled:hover:bg-[var(--brand-primary-hover-hex)] disabled:hover:shadow-none'
-              )}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
-                  Deploying...
-                </>
-              ) : (
-                'Deploy API'
-              )}
-            </Button>
-          </div>
-        )}
-
-        {activeTab === 'chat' && (
-          <div className='flex flex-shrink-0 justify-between border-t px-6 py-4'>
-            <Button variant='outline' onClick={handleCloseModal}>
-              Cancel
-            </Button>
-
-            <div className='flex gap-2'>
-              {chatExists && (
-                <Button
-                  type='button'
-                  onClick={() => {
-                    const form = document.getElementById('chat-deploy-form') as HTMLFormElement
-                    if (form) {
-                      const deleteButton = form.querySelector(
-                        '[data-delete-trigger]'
-                      ) as HTMLButtonElement
-                      if (deleteButton) {
-                        deleteButton.click()
-                      }
-                    }
-                  }}
-                  disabled={chatSubmitting}
-                  className={cn(
-                    'gap-2 font-medium',
-                    'bg-red-500 hover:bg-red-600',
-                    'shadow-[0_0_0_0_rgb(239,68,68)] hover:shadow-[0_0_0_4px_rgba(239,68,68,0.15)]',
-                    'text-white transition-all duration-200',
-                    'disabled:opacity-50 disabled:hover:bg-red-500 disabled:hover:shadow-none'
-                  )}
-                >
-                  Delete
-                </Button>
-              )}
               <Button
-                type='button'
-                onClick={handleChatFormSubmit}
-                disabled={chatSubmitting || !isChatFormValid}
+                type='submit'
+                form='deploy-api-form'
+                disabled={isSubmitting || !apiKeys.length}
                 className={cn(
                   'gap-2 font-medium',
                   'bg-[var(--brand-primary-hover-hex)] hover:bg-[var(--brand-primary-hover-hex)]',
@@ -964,42 +1033,105 @@ export function DeployModal({
                   'disabled:opacity-50 disabled:hover:bg-[var(--brand-primary-hover-hex)] disabled:hover:shadow-none'
                 )}
               >
-                {chatSubmitting ? (
+                {isSubmitting ? (
                   <>
                     <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
                     Deploying...
                   </>
-                ) : chatExists ? (
-                  'Update'
                 ) : (
-                  'Deploy Chat'
+                  'Deploy API'
                 )}
               </Button>
             </div>
-          </div>
+          )}
+
+          {activeTab === 'chat' && (
+            <div className='flex flex-shrink-0 justify-between border-t px-6 py-4'>
+              <Button variant='outline' onClick={handleCloseModal}>
+                Cancel
+              </Button>
+
+              <div className='flex gap-2'>
+                {chatExists && (
+                  <Button
+                    type='button'
+                    onClick={() => {
+                      const form = document.getElementById('chat-deploy-form') as HTMLFormElement
+                      if (form) {
+                        const deleteButton = form.querySelector(
+                          '[data-delete-trigger]'
+                        ) as HTMLButtonElement
+                        if (deleteButton) {
+                          deleteButton.click()
+                        }
+                      }
+                    }}
+                    disabled={chatSubmitting}
+                    className={cn(
+                      'gap-2 font-medium',
+                      'bg-red-500 hover:bg-red-600',
+                      'shadow-[0_0_0_0_rgb(239,68,68)] hover:shadow-[0_0_0_4px_rgba(239,68,68,0.15)]',
+                      'text-white transition-all duration-200',
+                      'disabled:opacity-50 disabled:hover:bg-red-500 disabled:hover:shadow-none'
+                    )}
+                  >
+                    Delete
+                  </Button>
+                )}
+                <Button
+                  type='button'
+                  onClick={handleChatFormSubmit}
+                  disabled={chatSubmitting || !isChatFormValid}
+                  className={cn(
+                    'gap-2 font-medium',
+                    'bg-[var(--brand-primary-hover-hex)] hover:bg-[var(--brand-primary-hover-hex)]',
+                    'shadow-[0_0_0_0_var(--brand-primary-hover-hex)] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
+                    'text-white transition-all duration-200',
+                    'disabled:opacity-50 disabled:hover:bg-[var(--brand-primary-hover-hex)] disabled:hover:shadow-none'
+                  )}
+                >
+                  {chatSubmitting ? (
+                    <>
+                      <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
+                      Deploying...
+                    </>
+                  ) : chatExists ? (
+                    'Update'
+                  ) : (
+                    'Deploy Chat'
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+        {previewVersion !== null && previewDeployedState && workflowId && (
+          <DeployedWorkflowModal
+            isOpen={true}
+            onClose={() => {
+              setPreviewVersion(null)
+              setPreviewDeployedState(null)
+              setPreviewing(false)
+            }}
+            needsRedeployment={true}
+            activeDeployedState={deployedState}
+            selectedDeployedState={previewDeployedState as WorkflowState}
+            selectedVersion={previewVersion}
+            onActivateVersion={(deploymentType) => {
+              handleActivateVersion(previewVersion, deploymentType)
+              setPreviewVersion(null)
+              setPreviewDeployedState(null)
+              setPreviewing(false)
+            }}
+            isActivating={activatingVersion === previewVersion}
+            selectedVersionLabel={
+              versions.find((v) => v.version === previewVersion)?.name || `v${previewVersion}`
+            }
+            workflowId={workflowId}
+            isSelectedVersionActive={versions.find((v) => v.version === previewVersion)?.isActive}
+          />
         )}
-      </DialogContent>
-      {previewVersion !== null && previewDeployedState && workflowId && (
-        <DeployedWorkflowModal
-          isOpen={true}
-          onClose={() => {
-            setPreviewVersion(null)
-            setPreviewDeployedState(null)
-            setPreviewing(false)
-          }}
-          needsRedeployment={true}
-          activeDeployedState={deployedState}
-          selectedDeployedState={previewDeployedState as WorkflowState}
-          selectedVersion={previewVersion}
-          onActivateVersion={() => activateVersion(previewVersion)}
-          isActivating={activatingVersion === previewVersion}
-          selectedVersionLabel={
-            versions.find((v) => v.version === previewVersion)?.name || `v${previewVersion}`
-          }
-          workflowId={workflowId}
-          isSelectedVersionActive={versions.find((v) => v.version === previewVersion)?.isActive}
-        />
-      )}
-    </Dialog>
+      </Dialog>
+    </>
   )
 }
