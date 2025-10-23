@@ -10,14 +10,14 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { LandingPromptStorage } from '@/lib/browser-storage'
 import { createLogger } from '@/lib/logs/console/logger'
-import { useCopilotStore } from '@/stores/copilot/store'
 import { useChatStore } from '@/stores/panel/chat/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
 import { usePanelStore } from '@/stores/panel/store'
+import { useCopilotStore } from '@/stores/panel-new/copilot/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { Copilot } from '../panel-new/components/copilot/copilot'
 import { Chat } from './components/chat/chat'
 import { Console } from './components/console/console'
-import { Copilot } from './components/copilot/copilot'
 import { Variables } from './components/variables/variables'
 
 const logger = createLogger('Panel')

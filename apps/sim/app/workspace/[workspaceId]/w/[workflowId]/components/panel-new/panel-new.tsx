@@ -17,28 +17,21 @@ import { usePanelResize } from './hooks/use-panel-resize'
  *
  * This ensures server and client render identical HTML, preventing hydration errors.
  *
+ * Note: All tabs are kept mounted but hidden to preserve component state during tab switches.
+ * This prevents unnecessary remounting which would trigger data reloads and reset state.
+ *
  * @returns Panel on the right side of the workflow
  */
 export function Panel() {
   const panelRef = useRef<HTMLElement>(null)
-  const { activeTab, setActiveTab } = usePanelStore()
+  const { activeTab, setActiveTab, panelWidth } = usePanelStore()
+  const copilotRef = useRef<{
+    createNewChat: () => void
+    setInputValueAndFocus: (value: string) => void
+  }>(null)
 
   // Panel resize hook
   const { handleMouseDown } = usePanelResize()
-
-  /**
-   * Renders the active tab content based on the current selection
-   */
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'copilot':
-        return <Copilot />
-      case 'design':
-        return <Design />
-      default:
-        return <Copilot />
-    }
-  }
 
   /**
    * Handles tab click events
@@ -95,8 +88,15 @@ export function Panel() {
             </Button>
           </div>
 
-          {/* Tab Content */}
-          <div className='flex-1 pt-[12px]'>{renderTabContent()}</div>
+          {/* Tab Content - Keep all tabs mounted but hidden to preserve state */}
+          <div className='flex-1 overflow-hidden pt-[12px]'>
+            <div className={activeTab === 'copilot' ? 'h-full' : 'hidden'}>
+              <Copilot ref={copilotRef} panelWidth={panelWidth} />
+            </div>
+            <div className={activeTab === 'design' ? 'h-full' : 'hidden'}>
+              <Design />
+            </div>
+          </div>
         </div>
       </aside>
 

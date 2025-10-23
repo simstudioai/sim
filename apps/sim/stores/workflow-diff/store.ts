@@ -166,7 +166,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             // Attempt to capture the triggering user message id from copilot store
             let triggerMessageId: string | null = null
             try {
-              const { useCopilotStore } = await import('@/stores/copilot/store')
+              const { useCopilotStore } = await import('@/stores/panel-new/copilot/store')
               const { messages } = useCopilotStore.getState() as any
               if (Array.isArray(messages) && messages.length > 0) {
                 for (let i = messages.length - 1; i >= 0; i--) {
@@ -338,7 +338,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
             // Immediately flag diffAccepted on stats if we can (early upsert with minimal fields)
             try {
-              const { useCopilotStore } = await import('@/stores/copilot/store')
+              const { useCopilotStore } = await import('@/stores/panel-new/copilot/store')
               const { currentChat } = useCopilotStore.getState() as any
               const triggerMessageId = get()._triggerMessageId
               if (currentChat?.id && triggerMessageId) {
@@ -422,7 +422,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
               // Update copilot tool call state to 'accepted'
               try {
-                const { useCopilotStore } = await import('@/stores/copilot/store')
+                const { useCopilotStore } = await import('@/stores/panel-new/copilot/store')
                 const { messages, toolCallsById } = useCopilotStore.getState()
 
                 // Prefer the latest assistant message's build/edit tool_call from contentBlocks
@@ -472,7 +472,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
           // Update copilot tool call state to 'rejected'
           try {
-            const { useCopilotStore } = await import('@/stores/copilot/store')
+            const { useCopilotStore } = await import('@/stores/panel-new/copilot/store')
             const { currentChat, messages, toolCallsById } = useCopilotStore.getState() as any
 
             // Post early diffAccepted=false if we have trigger + chat
