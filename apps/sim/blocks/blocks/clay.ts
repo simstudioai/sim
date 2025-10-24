@@ -55,6 +55,10 @@ Plain Text: Best for populating a table in free-form style.
     data: { type: 'json', description: 'Data to populate' },
   },
   outputs: {
-    data: { type: 'json', description: 'Response data' },
+    data: { type: 'json', description: 'Response data from Clay webhook' },
+    metadata: {
+      type: 'json',
+      description: 'Webhook metadata including status, headers, timestamp, and content type',
+    },
   },
 }

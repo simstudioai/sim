@@ -51,27 +51,52 @@ export const clayPopulateTool: ToolConfig<ClayPopulateParams, ClayPopulateRespon
 
   transformResponse: async (response: Response) => {
     const contentType = response.headers.get('content-type')
-    let data
+    const timestamp = new Date().toISOString()
 
+    // Extract response headers
+    const headers: Record<string, string> = {}
+    response.headers.forEach((value, key) => {
+      headers[key] = value
+    })
+
+    // Parse response body
+    let responseData
     if (contentType?.includes('application/json')) {
-      data = await response.json()
+      responseData = await response.json()
     } else {
-      data = await response.text()
+      responseData = await response.text()
     }
 
     return {
       success: true,
       output: {
-        data: contentType?.includes('application/json') ? data : { message: data },
+        data: contentType?.includes('application/json') ? responseData : { message: responseData },
+        metadata: {
+          status: response.status,
+          statusText: response.statusText,
+          headers: headers,
+          timestamp: timestamp,
+          contentType: contentType || 'unknown',
+        },
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    data: {
       type: 'json',
-      description: 'Clay populate operation results including response data from Clay webhook',
+      description: 'Response data from Clay webhook',
+    },
+    metadata: {
+      type: 'object',
+      description: 'Webhook response metadata',
+      properties: {
+        status: { type: 'number', description: 'HTTP status code' },
+        statusText: { type: 'string', description: 'HTTP status text' },
+        headers: { type: 'object', description: 'Response headers from Clay' },
+        timestamp: { type: 'string', description: 'ISO timestamp when webhook was received' },
+        contentType: { type: 'string', description: 'Content type of the response' },
+      },
     },
   },
 }
