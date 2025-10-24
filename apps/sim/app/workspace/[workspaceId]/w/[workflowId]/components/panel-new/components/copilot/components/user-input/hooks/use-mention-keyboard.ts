@@ -520,13 +520,15 @@ export function useMentionKeyboard({
         const idx = Math.max(0, Math.min(submenuActiveIndex, aggregated.length - 1))
         const chosen = aggregated[idx]
         if (chosen) {
-          if (chosen.type === 'Chats') insertPastChatMention(chosen.value)
-          else if (chosen.type === 'Workflows') insertWorkflowMention(chosen.value)
-          else if (chosen.type === 'Knowledge') insertKnowledgeMention(chosen.value)
-          else if (chosen.type === 'Workflow Blocks') insertWorkflowBlockMention(chosen.value)
-          else if (chosen.type === 'Blocks') insertBlockMention(chosen.value)
-          else if (chosen.type === 'Templates') insertTemplateMention(chosen.value)
-          else if (chosen.type === 'Logs') insertLogMention(chosen.value)
+          if (chosen.type === 'Chats') insertPastChatMention(chosen.value as ChatItem)
+          else if (chosen.type === 'Workflows') insertWorkflowMention(chosen.value as WorkflowItem)
+          else if (chosen.type === 'Knowledge')
+            insertKnowledgeMention(chosen.value as KnowledgeItem)
+          else if (chosen.type === 'Workflow Blocks')
+            insertWorkflowBlockMention(chosen.value as BlockItem)
+          else if (chosen.type === 'Blocks') insertBlockMention(chosen.value as BlockItem)
+          else if (chosen.type === 'Templates') insertTemplateMention(chosen.value as TemplateItem)
+          else if (chosen.type === 'Logs') insertLogMention(chosen.value as LogItem)
         }
       } else if (!openSubmenuFor && selected === 'Chats') {
         resetActiveMentionQuery()

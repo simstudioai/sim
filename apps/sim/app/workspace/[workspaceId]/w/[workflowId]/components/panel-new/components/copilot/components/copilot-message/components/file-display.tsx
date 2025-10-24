@@ -1,6 +1,6 @@
 import { memo, useState } from 'react'
 import { FileText, Image } from 'lucide-react'
-import type { MessageFileAttachment } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/copilot/components/user-input/user-input'
+import type { MessageFileAttachment } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/copilot/components/user-input/hooks/use-file-attachments'
 
 /**
  * File size units for formatting

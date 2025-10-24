@@ -171,7 +171,7 @@ export function useNodeUtilities(blocks: Record<string, any>) {
       dimensions: { width: number; height: number }
     } | null => {
       const containingNodes = getNodes()
-        .filter((n) => isContainerType(n.type))
+        .filter((n) => n.type && isContainerType(n.type))
         .filter((n) => {
           // Use absolute coordinates for nested containers
           const absolutePos = getNodeAbsolutePosition(n.id)
@@ -241,7 +241,7 @@ export function useNodeUtilities(blocks: Record<string, any>) {
         maxY = Math.max(maxY, node.position.y + nodeHeight + 50)
       })
 
-      const hasNestedContainers = childNodes.some((node) => isContainerType(node.type))
+      const hasNestedContainers = childNodes.some((node) => node.type && isContainerType(node.type))
 
       const sidePadding = hasNestedContainers ? 150 : 120
 
@@ -262,7 +262,7 @@ export function useNodeUtilities(blocks: Record<string, any>) {
   const resizeLoopNodes = useCallback(
     (updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => void) => {
       const containerNodes = getNodes()
-        .filter((node) => isContainerType(node.type))
+        .filter((node) => node.type && isContainerType(node.type))
         .map((node) => ({
           ...node,
           depth: getNodeDepth(node.id),
