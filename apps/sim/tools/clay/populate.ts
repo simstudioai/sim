@@ -23,19 +23,27 @@ export const clayPopulateTool: ToolConfig<ClayPopulateParams, ClayPopulateRespon
     },
     authToken: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
-      description: 'Auth token for Clay webhook authentication',
+      description:
+        'Optional auth token for Clay webhook authentication (most webhooks do not require this)',
     },
   },
 
   request: {
     url: (params: ClayPopulateParams) => params.webhookURL,
     method: 'POST',
-    headers: (params: ClayPopulateParams) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.authToken}`,
-    }),
+    headers: (params: ClayPopulateParams) => {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+
+      if (params.authToken && params.authToken.trim() !== '') {
+        headers['x-clay-webhook-auth'] = params.authToken
+      }
+
+      return headers
+    },
     body: (params: ClayPopulateParams) => ({
       data: params.data,
     }),

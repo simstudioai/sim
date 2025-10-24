@@ -35,13 +35,15 @@ Plain Text: Best for populating a table in free-form style.
     },
     {
       id: 'authToken',
-      title: 'Auth Token',
+      title: 'Auth Token (Optional)',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Enter your Clay Auth token',
+      placeholder: 'Enter your Clay webhook auth token (optional)',
       password: true,
       connectionDroppable: false,
-      required: true,
+      required: false,
+      description:
+        'Optional: If your Clay table has webhook authentication enabled, enter the auth token here. This will be sent in the x-clay-webhook-auth header.',
     },
   ],
   tools: {
