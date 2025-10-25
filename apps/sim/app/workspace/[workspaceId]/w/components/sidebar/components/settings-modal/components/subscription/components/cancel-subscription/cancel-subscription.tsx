@@ -29,6 +29,7 @@ interface CancelSubscriptionProps {
   }
   subscriptionData?: {
     periodEnd?: Date | null
+    cancelAtPeriodEnd?: boolean
   }
 }
 
@@ -126,35 +127,48 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
       const subscriptionStatus = getSubscriptionStatus()
       const activeOrgId = activeOrganization?.id
 
-      // For team/enterprise plans, get the subscription ID from organization store
-      if ((subscriptionStatus.isTeam || subscriptionStatus.isEnterprise) && activeOrgId) {
-        const orgSubscription = useOrganizationStore.getState().subscriptionData
-
-        if (orgSubscription?.id && orgSubscription?.cancelAtPeriodEnd) {
-          // Restore the organization subscription
-          if (!betterAuthSubscription.restore) {
-            throw new Error('Subscription restore not available')
-          }
-
-          const result = await betterAuthSubscription.restore({
-            referenceId: activeOrgId,
-            subscriptionId: orgSubscription.id,
-          })
-          logger.info('Organization subscription restored successfully', result)
+      if (isCancelAtPeriodEnd) {
+        if (!betterAuthSubscription.restore) {
+          throw new Error('Subscription restore not available')
         }
+
+        let referenceId: string
+        let subscriptionId: string | undefined
+
+        if ((subscriptionStatus.isTeam || subscriptionStatus.isEnterprise) && activeOrgId) {
+          const orgSubscription = useOrganizationStore.getState().subscriptionData
+          referenceId = activeOrgId
+          subscriptionId = orgSubscription?.id
+        } else {
+          // For personal subscriptions, use user ID and let better-auth find the subscription
+          referenceId = session.user.id
+          subscriptionId = undefined
+        }
+
+        logger.info('Restoring subscription', { referenceId, subscriptionId })
+
+        // Build restore params - only include subscriptionId if we have one (team/enterprise)
+        const restoreParams: any = { referenceId }
+        if (subscriptionId) {
+          restoreParams.subscriptionId = subscriptionId
+        }
+
+        const result = await betterAuthSubscription.restore(restoreParams)
+
+        logger.info('Subscription restored successfully', result)
       }
 
-      // Refresh state and close
       await refresh()
       if (activeOrgId) {
         await loadOrganizationSubscription(activeOrgId)
         await refreshOrganization().catch(() => {})
       }
+
       setIsDialogOpen(false)
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to keep subscription'
+      const errorMessage = error instanceof Error ? error.message : 'Failed to restore subscription'
       setError(errorMessage)
-      logger.error('Failed to keep subscription', { error })
+      logger.error('Failed to restore subscription', { error })
     } finally {
       setIsLoading(false)
     }
@@ -190,6 +204,12 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
 
   // Check if subscription is set to cancel at period end
   const isCancelAtPeriodEnd = (() => {
+    // First check if it's passed via props (works for all subscription types)
+    if (subscriptionData?.cancelAtPeriodEnd === true) {
+      return true
+    }
+
+    // Fall back to checking organization store for team subscriptions
     const subscriptionStatus = getSubscriptionStatus()
     if (subscriptionStatus.isTeam || subscriptionStatus.isEnterprise) {
       return useOrganizationStore.getState().subscriptionData?.cancelAtPeriodEnd === true
@@ -271,12 +291,7 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
 
             {(() => {
               const subscriptionStatus = getSubscriptionStatus()
-              if (
-                subscriptionStatus.isPaid &&
-                (activeOrganization?.id
-                  ? useOrganizationStore.getState().subscriptionData?.cancelAtPeriodEnd
-                  : false)
-              ) {
+              if (subscriptionStatus.isPaid && isCancelAtPeriodEnd) {
                 return (
                   <AlertDialogAction
                     onClick={handleKeep}
