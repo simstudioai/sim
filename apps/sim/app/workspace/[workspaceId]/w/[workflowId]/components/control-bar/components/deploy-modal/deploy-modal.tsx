@@ -424,9 +424,9 @@ export function DeployModal({
     }
   }, [open, workflowId])
 
-  const handleActivateVersion = (version: number, deploymentType: 'api' | 'chat') => {
+  const handleActivateVersion = (version: number) => {
     setVersionToActivate(version)
-    setActiveTab(deploymentType)
+    setActiveTab('api')
   }
 
   const openVersionPreview = async (version: number) => {
@@ -563,72 +563,6 @@ export function DeployModal({
     setIsSubmitting(false)
     setChatSubmitting(false)
     onOpenChange(false)
-  }
-
-  const handleWorkflowPreDeploy = async () => {
-    if (!selectedApiKeyId) {
-      throw new Error('Please select an API key before deploying')
-    }
-
-    let endpoint = `/api/workflows/${workflowId}/deploy`
-    if (versionToActivate !== null) {
-      endpoint = `/api/workflows/${workflowId}/deployments/${versionToActivate}/activate`
-    }
-
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        apiKey: selectedApiKeyId,
-        deployApiEnabled: true,
-        deployChatEnabled: false,
-      }),
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.error || 'Failed to deploy workflow')
-    }
-
-    const responseData = await response.json()
-
-    const isActivating = versionToActivate !== null
-    const isDeployedStatus = isActivating ? true : (responseData.isDeployed ?? false)
-    const deployedAtTime = responseData.deployedAt ? new Date(responseData.deployedAt) : undefined
-    const apiKeyFromResponse = responseData.apiKey || selectedApiKeyId
-
-    setDeploymentStatus(workflowId, isDeployedStatus, deployedAtTime, apiKeyFromResponse)
-
-    const matchingKey = apiKeys.find((k) => k.id === selectedApiKeyId)
-    if (matchingKey) {
-      setSelectedApiKeyId(matchingKey.id)
-    }
-
-    const isActivatingVersion = versionToActivate !== null
-    setNeedsRedeployment(isActivatingVersion)
-    if (workflowId) {
-      useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, isActivatingVersion)
-    }
-
-    setVersionToActivate(null)
-
-    const deploymentInfoResponse = await fetch(`/api/workflows/${workflowId}/deploy`)
-    if (deploymentInfoResponse.ok) {
-      const deploymentData = await deploymentInfoResponse.json()
-      const apiEndpoint = `${getEnv('NEXT_PUBLIC_APP_URL')}/api/workflows/${workflowId}/execute`
-      const inputFormatExample = getInputFormatExample(selectedStreamingOutputs.length > 0)
-
-      setDeploymentInfo({
-        isDeployed: deploymentData.isDeployed,
-        deployedAt: deploymentData.deployedAt,
-        apiKey: deploymentData.apiKey,
-        endpoint: apiEndpoint,
-        exampleCommand: `curl -X POST -H "X-API-Key: ${deploymentData.apiKey}" -H "Content-Type: application/json"${inputFormatExample} ${apiEndpoint}`,
-        needsRedeployment: isActivatingVersion,
-      })
-    }
   }
 
   const handleChatFormSubmit = () => {
@@ -973,29 +907,6 @@ export function DeployModal({
 
                 {activeTab === 'chat' && (
                   <>
-                    {versionToActivate !== null && (
-                      <div className='mb-4 flex items-start justify-between rounded-md border border-blue-500/30 bg-blue-500/10 p-3 text-sm'>
-                        <div>
-                          <div className='font-semibold text-blue-700 dark:text-blue-400'>
-                            Activating{' '}
-                            {versions.find((v) => v.version === versionToActivate)?.name ||
-                              `v${versionToActivate}`}
-                          </div>
-                          <div className='text-muted-foreground text-xs'>
-                            Configure your chat deployment and click Deploy Chat to activate this
-                            version
-                          </div>
-                        </div>
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          className='h-6 px-2'
-                          onClick={() => setVersionToActivate(null)}
-                        >
-                          <X className='h-3.5 w-3.5' />
-                        </Button>
-                      </div>
-                    )}
                     <ChatDeploy
                       workflowId={workflowId || ''}
                       deploymentInfo={deploymentInfo}
@@ -1003,7 +914,6 @@ export function DeployModal({
                       chatSubmitting={chatSubmitting}
                       setChatSubmitting={setChatSubmitting}
                       onValidationChange={setIsChatFormValid}
-                      onPreDeployWorkflow={handleWorkflowPreDeploy}
                       onDeploymentComplete={handleCloseModal}
                       onDeployed={async () => {
                         await refetchDeployedState()
@@ -1015,11 +925,6 @@ export function DeployModal({
                             .setWorkflowNeedsRedeployment(workflowId, isActivatingVersion)
                         }
                       }}
-                      apiKeys={apiKeys}
-                      selectedApiKeyId={selectedApiKeyId}
-                      onApiKeyChange={setSelectedApiKeyId}
-                      onApiKeyCreated={fetchApiKeys}
-                      isDeployed={false}
                       onUndeploy={handleUndeploy}
                       onVersionActivated={() => setVersionToActivate(null)}
                     />
@@ -1131,8 +1036,8 @@ export function DeployModal({
             activeDeployedState={deployedState}
             selectedDeployedState={previewDeployedState as WorkflowState}
             selectedVersion={previewVersion}
-            onActivateVersion={(deploymentType) => {
-              handleActivateVersion(previewVersion, deploymentType)
+            onActivateVersion={() => {
+              handleActivateVersion(previewVersion)
               setPreviewVersion(null)
               setPreviewDeployedState(null)
               setPreviewing(false)

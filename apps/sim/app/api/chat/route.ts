@@ -9,6 +9,7 @@ import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { encryptSecret } from '@/lib/utils'
+import { deployWorkflow } from '@/lib/workflows/db-helpers'
 import { checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
@@ -119,9 +120,18 @@ export async function POST(request: NextRequest) {
         return createErrorResponse('Workflow not found or access denied', 404)
       }
 
-      // Verify the workflow is deployed (required for chat deployment)
+      // Auto-deploy the workflow if not already deployed
       if (!workflowRecord.isDeployed) {
-        return createErrorResponse('Workflow must be deployed before creating a chat', 400)
+        const result = await deployWorkflow({
+          workflowId,
+          deployedBy: session.user.email || session.user.name || 'Unknown',
+        })
+
+        if (!result.success) {
+          return createErrorResponse(result.error || 'Failed to deploy workflow', 500)
+        }
+
+        logger.info(`Auto-deployed workflow ${workflowId} for chat creation (v${result.version})`)
       }
 
       // Encrypt password if provided

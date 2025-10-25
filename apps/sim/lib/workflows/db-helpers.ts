@@ -1,13 +1,15 @@
 import {
   db,
+  workflow,
   workflowBlocks,
   workflowDeploymentVersion,
   workflowEdges,
   workflowSubflows,
 } from '@sim/db'
 import type { InferSelectModel } from 'drizzle-orm'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
+import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/validation'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
@@ -350,6 +352,134 @@ export async function migrateWorkflowToNormalizedTables(
     return await saveWorkflowToNormalizedTables(workflowId, workflowState)
   } catch (error) {
     logger.error(`Error migrating workflow ${workflowId} to normalized tables:`, error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }
+  }
+}
+
+/**
+ * Deploy a workflow by creating a new deployment version
+ */
+export async function deployWorkflow(params: {
+  workflowId: string
+  deployedBy: string
+  pinnedApiKeyId?: string
+  includeDeployedState?: boolean
+  workflowName?: string
+}): Promise<{
+  success: boolean
+  version?: number
+  deployedAt?: Date
+  currentState?: any
+  error?: string
+}> {
+  const {
+    workflowId,
+    deployedBy,
+    pinnedApiKeyId,
+    includeDeployedState = false,
+    workflowName,
+  } = params
+
+  try {
+    const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
+    if (!normalizedData) {
+      return { success: false, error: 'Failed to load workflow state' }
+    }
+
+    const currentState = {
+      blocks: normalizedData.blocks,
+      edges: normalizedData.edges,
+      loops: normalizedData.loops,
+      parallels: normalizedData.parallels,
+      lastSaved: Date.now(),
+    }
+
+    const now = new Date()
+
+    const deployedVersion = await db.transaction(async (tx) => {
+      // Get next version number
+      const [{ maxVersion }] = await tx
+        .select({ maxVersion: sql`COALESCE(MAX("version"), 0)` })
+        .from(workflowDeploymentVersion)
+        .where(eq(workflowDeploymentVersion.workflowId, workflowId))
+
+      const nextVersion = Number(maxVersion) + 1
+
+      // Deactivate all existing versions
+      await tx
+        .update(workflowDeploymentVersion)
+        .set({ isActive: false })
+        .where(eq(workflowDeploymentVersion.workflowId, workflowId))
+
+      // Create new deployment version
+      await tx.insert(workflowDeploymentVersion).values({
+        id: uuidv4(),
+        workflowId,
+        version: nextVersion,
+        state: currentState,
+        isActive: true,
+        createdBy: deployedBy,
+        createdAt: now,
+      })
+
+      // Update workflow to deployed
+      const updateData: Record<string, unknown> = {
+        isDeployed: true,
+        deployedAt: now,
+      }
+
+      if (includeDeployedState) {
+        updateData.deployedState = currentState
+      }
+
+      if (pinnedApiKeyId) {
+        updateData.pinnedApiKeyId = pinnedApiKeyId
+      }
+
+      await tx.update(workflow).set(updateData).where(eq(workflow.id, workflowId))
+
+      return nextVersion
+    })
+
+    logger.info(`Deployed workflow ${workflowId} as v${deployedVersion}`)
+
+    // Track deployment telemetry if workflow name is provided
+    if (workflowName) {
+      try {
+        const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
+
+        const blockTypeCounts: Record<string, number> = {}
+        for (const block of Object.values(currentState.blocks)) {
+          const blockType = (block as any).type || 'unknown'
+          blockTypeCounts[blockType] = (blockTypeCounts[blockType] || 0) + 1
+        }
+
+        trackPlatformEvent('platform.workflow.deployed', {
+          'workflow.id': workflowId,
+          'workflow.name': workflowName,
+          'workflow.blocks_count': Object.keys(currentState.blocks).length,
+          'workflow.edges_count': currentState.edges.length,
+          'workflow.loops_count': Object.keys(currentState.loops).length,
+          'workflow.parallels_count': Object.keys(currentState.parallels).length,
+          'workflow.block_types': JSON.stringify(blockTypeCounts),
+          'deployment.version': deployedVersion,
+        })
+      } catch (telemetryError) {
+        logger.warn(`Failed to track deployment telemetry for ${workflowId}`, telemetryError)
+      }
+    }
+
+    return {
+      success: true,
+      version: deployedVersion,
+      deployedAt: now,
+      currentState,
+    }
+  } catch (error) {
+    logger.error(`Error deploying workflow ${workflowId}:`, error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',

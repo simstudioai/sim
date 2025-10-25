@@ -23,10 +23,6 @@ import {
 } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getEmailDomain } from '@/lib/urls/utils'
-import {
-  type ApiKey,
-  ApiKeySelector,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/api-key-selector/api-key-selector'
 import { AuthSelector } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/chat-deploy/components/auth-selector'
 import { IdentifierInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/chat-deploy/components/identifier-input'
 import { SuccessView } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/chat-deploy/components/success-view'
@@ -45,16 +41,10 @@ interface ChatDeployProps {
   chatSubmitting: boolean
   setChatSubmitting: (submitting: boolean) => void
   onValidationChange?: (isValid: boolean) => void
-  onPreDeployWorkflow?: () => Promise<void>
   showDeleteConfirmation?: boolean
   setShowDeleteConfirmation?: (show: boolean) => void
   onDeploymentComplete?: () => void
   onDeployed?: () => void
-  apiKeys?: ApiKey[]
-  selectedApiKeyId?: string
-  onApiKeyChange?: (keyId: string) => void
-  onApiKeyCreated?: () => void
-  isDeployed?: boolean
   onUndeploy?: () => Promise<void>
   onVersionActivated?: () => void
 }
@@ -80,16 +70,10 @@ export function ChatDeploy({
   chatSubmitting,
   setChatSubmitting,
   onValidationChange,
-  onPreDeployWorkflow,
   showDeleteConfirmation: externalShowDeleteConfirmation,
   setShowDeleteConfirmation: externalSetShowDeleteConfirmation,
   onDeploymentComplete,
   onDeployed,
-  apiKeys = [],
-  selectedApiKeyId = '',
-  onApiKeyChange,
-  onApiKeyCreated,
-  isDeployed = false,
   onUndeploy,
   onVersionActivated,
 }: ChatDeployProps) {
@@ -123,8 +107,7 @@ export function ChatDeploy({
     (formData.authType !== 'password' ||
       Boolean(formData.password.trim()) ||
       Boolean(existingChat)) &&
-    (formData.authType !== 'email' || formData.emails.length > 0) &&
-    Boolean(selectedApiKeyId)
+    (formData.authType !== 'email' || formData.emails.length > 0)
 
   useEffect(() => {
     onValidationChange?.(isFormValid)
@@ -197,8 +180,6 @@ export function ChatDeploy({
     setChatSubmitting(true)
 
     try {
-      await onPreDeployWorkflow?.()
-
       if (!validateForm()) {
         setChatSubmitting(false)
         return
@@ -210,22 +191,7 @@ export function ChatDeploy({
         return
       }
 
-      if (!selectedApiKeyId) {
-        setError('general', 'Please select an API key before deploying')
-        setChatSubmitting(false)
-        return
-      }
-
-      const selectedKey = apiKeys.find((k) => k.id === selectedApiKeyId)
-      if (!selectedKey) {
-        setError('general', 'Selected API key not found. Please select a valid API key.')
-        setChatSubmitting(false)
-        return
-      }
-
-      const apiKeyForDeployment = { apiKey: selectedKey.key }
-
-      await deployChat(workflowId, formData, apiKeyForDeployment, existingChat?.id, imageUrl)
+      await deployChat(workflowId, formData, null, existingChat?.id, imageUrl)
 
       onChatExistsChange?.(true)
       setShowSuccessView(true)
@@ -358,19 +324,6 @@ export function ChatDeploy({
             disabled={chatSubmitting}
             onValidationChange={setIsIdentifierValid}
             isEditingExisting={!!existingChat}
-          />
-
-          {/* API Key Selector */}
-          <ApiKeySelector
-            value={selectedApiKeyId}
-            onChange={(keyId) => onApiKeyChange?.(keyId)}
-            disabled={chatSubmitting}
-            apiKeys={apiKeys}
-            onApiKeyCreated={onApiKeyCreated}
-            showLabel={true}
-            label='API Key'
-            isDeployed={isDeployed}
-            deployedApiKeyDisplay={deploymentInfo?.apiKey}
           />
 
           <div className='space-y-2'>

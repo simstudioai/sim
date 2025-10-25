@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,12 +14,6 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { createLogger } from '@/lib/logs/console/logger'
 import { DeployedWorkflowCard } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deployment-controls/components/deployed-workflow-card'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -37,7 +30,7 @@ interface DeployedWorkflowModalProps {
   activeDeployedState?: WorkflowState
   selectedDeployedState?: WorkflowState
   selectedVersion?: number
-  onActivateVersion?: (deploymentType: 'api' | 'chat') => void
+  onActivateVersion?: () => void
   isActivating?: boolean
   selectedVersionLabel?: string
   workflowId: string
@@ -129,30 +122,10 @@ export function DeployedWorkflowModal({
                   <Button
                     variant='outline'
                     disabled={!!isActivating}
-                    className='rounded-r-none border-r-0'
-                    onClick={() => onActivateVersion?.('api')}
+                    onClick={() => onActivateVersion?.()}
                   >
                     {isActivating ? 'Activating…' : 'Activate'}
                   </Button>
-                  <DropdownMenu modal={false}>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant='outline'
-                        disabled={!!isActivating}
-                        className='rounded-l-none px-2'
-                      >
-                        <ChevronDown className='h-4 w-4' />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align='start' style={{ zIndex: 1002 }}>
-                      <DropdownMenuItem onClick={() => onActivateVersion?.('api')}>
-                        API
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onActivateVersion?.('chat')}>
-                        Chat
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
                 </div>
               ))}
           </div>
