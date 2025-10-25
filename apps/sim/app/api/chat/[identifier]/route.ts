@@ -118,9 +118,12 @@ export async function POST(
         .where(eq(workspace.id, workflowResult[0].workspaceId))
         .limit(1)
 
-      if (workspaceData.length > 0) {
-        workspaceOwnerId = workspaceData[0].ownerId
+      if (workspaceData.length === 0) {
+        logger.error(`[${requestId}] Workspace not found for workflow ${deployment.workflowId}`)
+        return addCorsHeaders(createErrorResponse('Workspace not found', 500), request)
       }
+
+      workspaceOwnerId = workspaceData[0].ownerId
     }
 
     try {
