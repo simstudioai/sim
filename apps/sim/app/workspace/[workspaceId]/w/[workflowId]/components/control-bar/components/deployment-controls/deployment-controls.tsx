@@ -108,6 +108,16 @@ export function DeploymentControls({
               )}
               <span className='sr-only'>Deploy API</span>
             </Button>
+
+            {isDeployed && workflowNeedsRedeployment && (
+              <div className='pointer-events-none absolute right-2 bottom-2 flex items-center justify-center'>
+                <div className='relative'>
+                  <div className='absolute inset-0 h-[6px] w-[6px] animate-ping rounded-full bg-amber-500/50' />
+                  <div className='zoom-in fade-in relative h-[6px] w-[6px] animate-in rounded-full bg-amber-500/80 duration-300' />
+                </div>
+                <span className='sr-only'>Needs Redeployment</span>
+              </div>
+            )}
           </div>
         </TooltipTrigger>
         <TooltipContent>{getTooltipText()}</TooltipContent>
