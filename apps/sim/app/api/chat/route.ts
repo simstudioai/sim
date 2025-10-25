@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
       // Always deploy/redeploy the workflow to ensure latest version
       const result = await deployWorkflow({
         workflowId,
-        deployedBy: session.user.email,
+        deployedBy: session.user.id,
       })
 
       if (!result.success) {

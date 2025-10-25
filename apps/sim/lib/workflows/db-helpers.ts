@@ -364,7 +364,7 @@ export async function migrateWorkflowToNormalizedTables(
  */
 export async function deployWorkflow(params: {
   workflowId: string
-  deployedBy: string
+  deployedBy: string // User ID of the person deploying
   pinnedApiKeyId?: string
   includeDeployedState?: boolean
   workflowName?: string

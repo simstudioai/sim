@@ -138,7 +138,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       // Redeploy the workflow to ensure latest version is active
       const deployResult = await deployWorkflow({
         workflowId: existingChat[0].workflowId,
-        deployedBy: session.user.email,
+        deployedBy: session.user.id,
       })
 
       if (!deployResult.success) {

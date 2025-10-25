@@ -565,6 +565,34 @@ export function DeployModal({
     onOpenChange(false)
   }
 
+  const handlePostDeploymentUpdate = async () => {
+    if (!workflowId) return
+
+    const isActivating = versionToActivate !== null
+
+    setDeploymentStatus(workflowId, true, new Date())
+
+    const deploymentInfoResponse = await fetch(`/api/workflows/${workflowId}/deploy`)
+    if (deploymentInfoResponse.ok) {
+      const deploymentData = await deploymentInfoResponse.json()
+      const apiEndpoint = `${getEnv('NEXT_PUBLIC_APP_URL')}/api/workflows/${workflowId}/execute`
+      const inputFormatExample = getInputFormatExample(selectedStreamingOutputs.length > 0)
+
+      setDeploymentInfo({
+        isDeployed: deploymentData.isDeployed,
+        deployedAt: deploymentData.deployedAt,
+        apiKey: deploymentData.apiKey,
+        endpoint: apiEndpoint,
+        exampleCommand: `curl -X POST -H "X-API-Key: ${deploymentData.apiKey}" -H "Content-Type: application/json"${inputFormatExample} ${apiEndpoint}`,
+        needsRedeployment: isActivating,
+      })
+    }
+
+    await refetchDeployedState()
+    await fetchVersions()
+    useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, isActivating)
+  }
+
   const handleChatFormSubmit = () => {
     const form = document.getElementById('chat-deploy-form') as HTMLFormElement
     if (form) {
@@ -915,16 +943,7 @@ export function DeployModal({
                       setChatSubmitting={setChatSubmitting}
                       onValidationChange={setIsChatFormValid}
                       onDeploymentComplete={handleCloseModal}
-                      onDeployed={async () => {
-                        await refetchDeployedState()
-                        await fetchVersions()
-                        if (workflowId) {
-                          const isActivatingVersion = versionToActivate !== null
-                          useWorkflowRegistry
-                            .getState()
-                            .setWorkflowNeedsRedeployment(workflowId, isActivatingVersion)
-                        }
-                      }}
+                      onDeployed={handlePostDeploymentUpdate}
                       onUndeploy={handleUndeploy}
                       onVersionActivated={() => setVersionToActivate(null)}
                     />
