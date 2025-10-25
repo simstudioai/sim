@@ -12,7 +12,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession, useSubscription } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
@@ -202,7 +201,9 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
     <>
       <div className='flex items-center justify-between'>
         <div>
-          <span className='font-medium text-sm'>Manage Subscription</span>
+          <span className='font-medium text-sm'>
+            {isCancelAtPeriodEnd ? 'Restore Subscription' : 'Manage Subscription'}
+          </span>
           {isCancelAtPeriodEnd && (
             <p className='mt-1 text-muted-foreground text-xs'>
               You'll keep access until {formatDate(periodEndDate)}
@@ -217,10 +218,12 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
             'h-8 rounded-[8px] font-medium text-xs transition-all duration-200',
             error
               ? 'border-red-500 text-red-500 dark:border-red-500 dark:text-red-500'
-              : 'text-muted-foreground hover:border-red-500 hover:bg-red-500 hover:text-white dark:hover:border-red-500 dark:hover:bg-red-500'
+              : isCancelAtPeriodEnd
+                ? 'text-muted-foreground hover:border-green-500 hover:bg-green-500 hover:text-white dark:hover:border-green-500 dark:hover:bg-green-500'
+                : 'text-muted-foreground hover:border-red-500 hover:bg-red-500 hover:text-white dark:hover:border-red-500 dark:hover:bg-red-500'
           )}
         >
-          {error ? 'Error' : 'Manage'}
+          {error ? 'Error' : isCancelAtPeriodEnd ? 'Restore' : 'Manage'}
         </Button>
       </div>
 
@@ -228,11 +231,11 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {isCancelAtPeriodEnd ? 'Manage' : 'Cancel'} {subscription.plan} subscription?
+              {isCancelAtPeriodEnd ? 'Restore' : 'Cancel'} {subscription.plan} subscription?
             </AlertDialogTitle>
             <AlertDialogDescription>
               {isCancelAtPeriodEnd
-                ? 'Your subscription is set to cancel at the end of the billing period. You can reactivate it or manage other settings.'
+                ? 'Your subscription is set to cancel at the end of the billing period. Would you like to keep your subscription active?'
                 : `You'll be redirected to Stripe to manage your subscription. You'll keep access until ${formatDate(
                     periodEndDate
                   )}, then downgrade to free plan.`}{' '}
@@ -260,10 +263,10 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
           <AlertDialogFooter className='flex'>
             <AlertDialogCancel
               className='h-9 w-full rounded-[8px]'
-              onClick={handleKeep}
+              onClick={isCancelAtPeriodEnd ? () => setIsDialogOpen(false) : handleKeep}
               disabled={isLoading}
             >
-              Keep Subscription
+              {isCancelAtPeriodEnd ? 'Cancel' : 'Keep Subscription'}
             </AlertDialogCancel>
 
             {(() => {
@@ -275,23 +278,13 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
                   : false)
               ) {
                 return (
-                  <TooltipProvider delayDuration={0}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className='w-full'>
-                          <AlertDialogAction
-                            disabled
-                            className='h-9 w-full cursor-not-allowed rounded-[8px] bg-muted text-muted-foreground opacity-50'
-                          >
-                            Continue
-                          </AlertDialogAction>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent side='top'>
-                        <p>Subscription will be cancelled at end of billing period</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  <AlertDialogAction
+                    onClick={handleKeep}
+                    className='h-9 w-full rounded-[8px] bg-green-500 text-white transition-all duration-200 hover:bg-green-600 dark:bg-green-500 dark:hover:bg-green-600'
+                    disabled={isLoading}
+                  >
+                    {isLoading ? 'Restoring...' : 'Restore Subscription'}
+                  </AlertDialogAction>
                 )
               }
               return (
