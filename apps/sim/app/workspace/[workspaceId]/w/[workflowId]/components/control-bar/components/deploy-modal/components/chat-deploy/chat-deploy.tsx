@@ -104,7 +104,7 @@ export function ChatDeploy({
     (formData.authType !== 'password' ||
       Boolean(formData.password.trim()) ||
       Boolean(existingChat)) &&
-    (formData.authType !== 'email' || formData.emails.length > 0)
+    ((formData.authType !== 'email' && formData.authType !== 'sso') || formData.emails.length > 0)
 
   useEffect(() => {
     onValidationChange?.(isFormValid)

@@ -27,7 +27,7 @@ const chatSchema = z.object({
     welcomeMessage: z.string(),
     imageUrl: z.string().optional(),
   }),
-  authType: z.enum(['public', 'password', 'email']).default('public'),
+  authType: z.enum(['public', 'password', 'email', 'sso']).default('public'),
   password: z.string().optional(),
   allowedEmails: z.array(z.string()).optional().default([]),
   outputConfigs: z
@@ -94,6 +94,13 @@ export async function POST(request: NextRequest) {
       if (authType === 'email' && (!Array.isArray(allowedEmails) || allowedEmails.length === 0)) {
         return createErrorResponse(
           'At least one email or domain is required when using email access control',
+          400
+        )
+      }
+
+      if (authType === 'sso' && (!Array.isArray(allowedEmails) || allowedEmails.length === 0)) {
+        return createErrorResponse(
+          'At least one email or domain is required when using SSO access control',
           400
         )
       }

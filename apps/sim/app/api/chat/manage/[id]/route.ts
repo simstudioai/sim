@@ -31,7 +31,7 @@ const chatUpdateSchema = z.object({
       imageUrl: z.string().optional(),
     })
     .optional(),
-  authType: z.enum(['public', 'password', 'email']).optional(),
+  authType: z.enum(['public', 'password', 'email', 'sso']).optional(),
   password: z.string().optional(),
   allowedEmails: z.array(z.string()).optional(),
   outputConfigs: z
@@ -165,7 +165,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           updateData.allowedEmails = []
         } else if (authType === 'password') {
           updateData.allowedEmails = []
-        } else if (authType === 'email') {
+        } else if (authType === 'email' || authType === 'sso') {
           updateData.password = null
         }
       }

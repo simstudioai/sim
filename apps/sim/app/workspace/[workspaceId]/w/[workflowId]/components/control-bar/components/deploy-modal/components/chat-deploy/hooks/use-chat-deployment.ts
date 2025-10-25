@@ -85,7 +85,8 @@ export function useChatDeployment() {
           },
           authType: formData.authType,
           password: formData.authType === 'password' ? formData.password : undefined,
-          allowedEmails: formData.authType === 'email' ? formData.emails : [],
+          allowedEmails:
+            formData.authType === 'email' || formData.authType === 'sso' ? formData.emails : [],
           outputConfigs,
           apiKey: deploymentInfo?.apiKey,
           deployApiEnabled: !existingChatId, // Only deploy API for new chats
