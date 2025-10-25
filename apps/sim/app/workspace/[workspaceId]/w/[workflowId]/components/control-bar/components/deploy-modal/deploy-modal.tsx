@@ -525,7 +525,6 @@ export function DeployModal({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          apiKey: selectedApiKeyId,
           deployChatEnabled: false,
         }),
       })
