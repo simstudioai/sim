@@ -203,19 +203,7 @@ export function CancelSubscription({ subscription, subscriptionData }: CancelSub
   const periodEndDate = getPeriodEndDate()
 
   // Check if subscription is set to cancel at period end
-  const isCancelAtPeriodEnd = (() => {
-    // First check if it's passed via props (works for all subscription types)
-    if (subscriptionData?.cancelAtPeriodEnd === true) {
-      return true
-    }
-
-    // Fall back to checking organization store for team subscriptions
-    const subscriptionStatus = getSubscriptionStatus()
-    if (subscriptionStatus.isTeam || subscriptionStatus.isEnterprise) {
-      return useOrganizationStore.getState().subscriptionData?.cancelAtPeriodEnd === true
-    }
-    return false
-  })()
+  const isCancelAtPeriodEnd = subscriptionData?.cancelAtPeriodEnd === true
 
   return (
     <>
