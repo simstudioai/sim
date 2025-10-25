@@ -617,7 +617,7 @@ export function DeployModal({
             <div className='flex items-center justify-between'>
               <div className='flex items-center gap-2'>
                 <DialogTitle className='font-medium text-lg'>Deploy Workflow</DialogTitle>
-                {needsRedeployment && versions.length > 0 && (
+                {needsRedeployment && versions.length > 0 && versionToActivate === null && (
                   <span className='inline-flex items-center rounded-md bg-purple-500/10 px-2 py-1 font-medium text-purple-600 text-xs dark:text-purple-400'>
                     {versions.find((v) => v.isActive)?.name ||
                       `v${versions.find((v) => v.isActive)?.version}`}{' '}
@@ -677,28 +677,6 @@ export function DeployModal({
               <div className='p-6' key={`${activeTab}-${versionToActivate}`}>
                 {activeTab === 'api' && (
                   <>
-                    {versionToActivate !== null && (
-                      <div className='mb-4 flex items-start justify-between rounded-md border border-blue-500/30 bg-blue-500/10 p-3 text-sm'>
-                        <div>
-                          <div className='font-semibold text-blue-700 dark:text-blue-400'>
-                            Activating{' '}
-                            {versions.find((v) => v.version === versionToActivate)?.name ||
-                              `v${versionToActivate}`}
-                          </div>
-                          <div className='text-muted-foreground text-xs'>
-                            Configure your deployment and click Deploy API to activate this version
-                          </div>
-                        </div>
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          className='h-6 px-2'
-                          onClick={() => setVersionToActivate(null)}
-                        >
-                          <X className='h-3.5 w-3.5' />
-                        </Button>
-                      </div>
-                    )}
                     {versionToActivate !== null ? (
                       <>
                         {apiDeployError && (
@@ -976,6 +954,8 @@ export function DeployModal({
                     <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
                     Deploying...
                   </>
+                ) : versionToActivate !== null ? (
+                  `Deploy ${versions.find((v) => v.version === versionToActivate)?.name || `v${versionToActivate}`}`
                 ) : (
                   'Deploy API'
                 )}
