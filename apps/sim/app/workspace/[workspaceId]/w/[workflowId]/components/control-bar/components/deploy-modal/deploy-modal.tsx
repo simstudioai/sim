@@ -372,22 +372,25 @@ export function DeployModal({
       if (workflowId) {
         useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, isActivatingVersion)
       }
-      const apiEndpoint = `${getEnv('NEXT_PUBLIC_APP_URL')}/api/workflows/${workflowId}/execute`
-      const inputFormatExample = getInputFormatExample(selectedStreamingOutputs.length > 0)
-
-      const newDeploymentInfo = {
-        isDeployed: true,
-        deployedAt: deployedAtTime?.toISOString(),
-        apiKey: apiKeyFromResponse,
-        endpoint: apiEndpoint,
-        exampleCommand: `curl -X POST -H "X-API-Key: ${apiKeyFromResponse}" -H "Content-Type: application/json"${inputFormatExample} ${apiEndpoint}`,
-        needsRedeployment: false,
-      }
-
-      setDeploymentInfo(newDeploymentInfo)
 
       await refetchDeployedState()
       await fetchVersions()
+
+      const deploymentInfoResponse = await fetch(`/api/workflows/${workflowId}/deploy`)
+      if (deploymentInfoResponse.ok) {
+        const deploymentData = await deploymentInfoResponse.json()
+        const apiEndpoint = `${getEnv('NEXT_PUBLIC_APP_URL')}/api/workflows/${workflowId}/execute`
+        const inputFormatExample = getInputFormatExample(selectedStreamingOutputs.length > 0)
+
+        setDeploymentInfo({
+          isDeployed: deploymentData.isDeployed,
+          deployedAt: deploymentData.deployedAt,
+          apiKey: deploymentData.apiKey,
+          endpoint: apiEndpoint,
+          exampleCommand: `curl -X POST -H "X-API-Key: ${deploymentData.apiKey}" -H "Content-Type: application/json"${inputFormatExample} ${apiEndpoint}`,
+          needsRedeployment: isActivatingVersion,
+        })
+      }
 
       setVersionToActivate(null)
       setApiDeployError(null)
