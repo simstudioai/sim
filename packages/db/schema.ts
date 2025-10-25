@@ -648,9 +648,9 @@ export const chat = pgTable(
     customizations: json('customizations').default('{}'), // For UI customization options
 
     // Authentication options
-    authType: text('auth_type').notNull().default('public'), // 'public', 'password', 'email'
+    authType: text('auth_type').notNull().default('public'), // 'public', 'password', 'email', 'sso'
     password: text('password'), // Stored hashed, populated when authType is 'password'
-    allowedEmails: json('allowed_emails').default('[]'), // Array of allowed emails or domains when authType is 'email'
+    allowedEmails: json('allowed_emails').default('[]'), // Array of allowed emails or domains when authType is 'email' or 'sso'
 
     // Output configuration
     outputConfigs: json('output_configs').default('[]'), // Array of {blockId, path} objects

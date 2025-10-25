@@ -27,7 +27,7 @@ const chatSchema = z.object({
     welcomeMessage: z.string(),
     imageUrl: z.string().optional(),
   }),
-  authType: z.enum(['public', 'password', 'email']).default('public'),
+  authType: z.enum(['public', 'password', 'email', 'sso']).default('public'),
   password: z.string().optional(),
   allowedEmails: z.array(z.string()).optional().default([]),
   outputConfigs: z
@@ -98,6 +98,13 @@ export async function POST(request: NextRequest) {
         )
       }
 
+      if (authType === 'sso' && (!Array.isArray(allowedEmails) || allowedEmails.length === 0)) {
+        return createErrorResponse(
+          'At least one email or domain is required when using SSO access control',
+          400
+        )
+      }
+
       // Check if identifier is available
       const existingIdentifier = await db
         .select()
@@ -163,7 +170,7 @@ export async function POST(request: NextRequest) {
         isActive: true,
         authType,
         password: encryptedPassword,
-        allowedEmails: authType === 'email' ? allowedEmails : [],
+        allowedEmails: authType === 'email' || authType === 'sso' ? allowedEmails : [],
         outputConfigs,
         createdAt: new Date(),
         updatedAt: new Date(),

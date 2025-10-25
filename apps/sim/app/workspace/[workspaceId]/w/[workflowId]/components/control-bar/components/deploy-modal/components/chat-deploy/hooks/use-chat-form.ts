@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 
-export type AuthType = 'public' | 'password' | 'email'
+export type AuthType = 'public' | 'password' | 'email' | 'sso'
 
 export interface ChatFormData {
   identifier: string
@@ -83,6 +83,10 @@ export function useChatForm(initialData?: Partial<ChatFormData>) {
 
     if (formData.authType === 'email' && formData.emails.length === 0) {
       newErrors.emails = 'At least one email or domain is required when using email access control'
+    }
+
+    if (formData.authType === 'sso' && formData.emails.length === 0) {
+      newErrors.emails = 'At least one email or domain is required when using SSO access control'
     }
 
     if (formData.selectedOutputBlocks.length === 0) {

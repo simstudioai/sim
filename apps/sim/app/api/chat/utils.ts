@@ -262,7 +262,67 @@ export async function validateChatAuth(
     }
   }
 
-  // Unknown auth type
+  if (authType === 'sso') {
+    if (request.method === 'GET') {
+      return { authorized: false, error: 'auth_required_sso' }
+    }
+
+    try {
+      if (!parsedBody) {
+        return { authorized: false, error: 'SSO authentication is required' }
+      }
+
+      const { email, input, checkSSOAccess } = parsedBody
+
+      if (checkSSOAccess) {
+        if (!email) {
+          return { authorized: false, error: 'Email is required' }
+        }
+
+        const allowedEmails = deployment.allowedEmails || []
+
+        if (allowedEmails.includes(email)) {
+          return { authorized: true }
+        }
+
+        const domain = email.split('@')[1]
+        if (domain && allowedEmails.some((allowed: string) => allowed === `@${domain}`)) {
+          return { authorized: true }
+        }
+
+        return { authorized: false, error: 'Email not authorized for SSO access' }
+      }
+
+      const { auth } = await import('@/lib/auth')
+      const session = await auth.api.getSession({ headers: request.headers })
+
+      if (!session || !session.user) {
+        return { authorized: false, error: 'auth_required_sso' }
+      }
+
+      const userEmail = session.user.email
+      if (!userEmail) {
+        return { authorized: false, error: 'SSO session does not contain email' }
+      }
+
+      const allowedEmails = deployment.allowedEmails || []
+
+      if (allowedEmails.includes(userEmail)) {
+        return { authorized: true }
+      }
+
+      const domain = userEmail.split('@')[1]
+      if (domain && allowedEmails.some((allowed: string) => allowed === `@${domain}`)) {
+        return { authorized: true }
+      }
+
+      return { authorized: false, error: 'Your email is not authorized to access this chat' }
+    } catch (error) {
+      logger.error(`[${requestId}] Error validating SSO:`, error)
+      return { authorized: false, error: 'SSO authentication error' }
+    }
+  }
+
   return { authorized: false, error: 'Unsupported authentication type' }
 }
 
