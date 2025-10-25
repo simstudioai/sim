@@ -120,19 +120,19 @@ export async function POST(request: NextRequest) {
         return createErrorResponse('Workflow not found or access denied', 404)
       }
 
-      // Auto-deploy the workflow if not already deployed
-      if (!workflowRecord.isDeployed) {
-        const result = await deployWorkflow({
-          workflowId,
-          deployedBy: session.user.email || session.user.name || 'Unknown',
-        })
+      // Always deploy/redeploy the workflow to ensure latest version
+      const result = await deployWorkflow({
+        workflowId,
+        deployedBy: session.user.email,
+      })
 
-        if (!result.success) {
-          return createErrorResponse(result.error || 'Failed to deploy workflow', 500)
-        }
-
-        logger.info(`Auto-deployed workflow ${workflowId} for chat creation (v${result.version})`)
+      if (!result.success) {
+        return createErrorResponse(result.error || 'Failed to deploy workflow', 500)
       }
+
+      logger.info(
+        `${workflowRecord.isDeployed ? 'Redeployed' : 'Auto-deployed'} workflow ${workflowId} for chat (v${result.version})`
+      )
 
       // Encrypt password if provided
       let encryptedPassword = null

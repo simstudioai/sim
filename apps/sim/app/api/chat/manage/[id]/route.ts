@@ -8,6 +8,7 @@ import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getEmailDomain } from '@/lib/urls/utils'
 import { encryptSecret } from '@/lib/utils'
+import { deployWorkflow } from '@/lib/workflows/db-helpers'
 import { checkChatAccess } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
@@ -132,6 +133,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         if (existingIdentifier.length > 0 && existingIdentifier[0].id !== chatId) {
           return createErrorResponse('Identifier already in use', 400)
         }
+      }
+
+      // Redeploy the workflow to ensure latest version is active
+      const deployResult = await deployWorkflow({
+        workflowId: existingChat[0].workflowId,
+        deployedBy: session.user.email,
+      })
+
+      if (!deployResult.success) {
+        logger.warn(
+          `Failed to redeploy workflow for chat update: ${deployResult.error}, continuing with chat update`
+        )
+      } else {
+        logger.info(
+          `Redeployed workflow ${existingChat[0].workflowId} for chat update (v${deployResult.version})`
+        )
       }
 
       let encryptedPassword
