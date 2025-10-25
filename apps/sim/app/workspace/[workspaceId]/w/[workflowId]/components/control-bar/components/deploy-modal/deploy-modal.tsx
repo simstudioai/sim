@@ -607,8 +607,6 @@ export function DeployModal({
       setSelectedApiKeyId(matchingKey.id)
     }
 
-    setDeploymentInfo((prev) => (prev ? { ...prev, apiKey: apiKeyFromResponse } : null))
-
     const isActivatingVersion = versionToActivate !== null
     setNeedsRedeployment(isActivatingVersion)
     if (workflowId) {
@@ -616,6 +614,22 @@ export function DeployModal({
     }
 
     setVersionToActivate(null)
+
+    const deploymentInfoResponse = await fetch(`/api/workflows/${workflowId}/deploy`)
+    if (deploymentInfoResponse.ok) {
+      const deploymentData = await deploymentInfoResponse.json()
+      const apiEndpoint = `${getEnv('NEXT_PUBLIC_APP_URL')}/api/workflows/${workflowId}/execute`
+      const inputFormatExample = getInputFormatExample(selectedStreamingOutputs.length > 0)
+
+      setDeploymentInfo({
+        isDeployed: deploymentData.isDeployed,
+        deployedAt: deploymentData.deployedAt,
+        apiKey: deploymentData.apiKey,
+        endpoint: apiEndpoint,
+        exampleCommand: `curl -X POST -H "X-API-Key: ${deploymentData.apiKey}" -H "Content-Type: application/json"${inputFormatExample} ${apiEndpoint}`,
+        needsRedeployment: isActivatingVersion,
+      })
+    }
   }
 
   const handleChatFormSubmit = () => {
