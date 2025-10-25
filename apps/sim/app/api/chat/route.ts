@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
         isActive: true,
         authType,
         password: encryptedPassword,
-        allowedEmails: authType === 'email' ? allowedEmails : [],
+        allowedEmails: authType === 'email' || authType === 'sso' ? allowedEmails : [],
         outputConfigs,
         createdAt: new Date(),
         updatedAt: new Date(),
