@@ -39,6 +39,7 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   // 'https://www.googleapis.com/auth/gmail.readonly': 'View and read your email messages',
   // 'https://www.googleapis.com/auth/drive': 'View and manage your Google Drive files',
   'https://www.googleapis.com/auth/drive.readonly': 'View and read your Google Drive files',
+  'https://www.googleapis.com/auth/drive.file': 'View and manage your Google Drive files',
   // 'https://www.googleapis.com/auth/documents': 'View and manage your Google Docs',
   'https://www.googleapis.com/auth/calendar': 'View and manage your calendar',
   'https://www.googleapis.com/auth/userinfo.email': 'View your email address',

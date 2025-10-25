@@ -11,7 +11,10 @@ export const readTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReadResponse> 
   oauth: {
     required: true,
     provider: 'google-docs',
-    additionalScopes: ['https://www.googleapis.com/auth/drive.readonly'],
+    additionalScopes: [
+      'https://www.googleapis.com/auth/drive.readonly',
+      'https://www.googleapis.com/auth/drive.file',
+    ],
   },
 
   params: {
