@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { chat, workflow } from '@sim/db/schema'
+import { chat, workflow, workspace } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -94,11 +94,12 @@ export async function POST(
       return addCorsHeaders(createErrorResponse('No input provided', 400), request)
     }
 
-    // Get the workflow for this chat
+    // Get the workflow and workspace owner for this chat
     const workflowResult = await db
       .select({
         isDeployed: workflow.isDeployed,
         workspaceId: workflow.workspaceId,
+        variables: workflow.variables,
       })
       .from(workflow)
       .where(eq(workflow.id, deployment.workflowId))
@@ -107,6 +108,22 @@ export async function POST(
     if (workflowResult.length === 0 || !workflowResult[0].isDeployed) {
       logger.warn(`[${requestId}] Workflow not found or not deployed: ${deployment.workflowId}`)
       return addCorsHeaders(createErrorResponse('Chat workflow is not available', 503), request)
+    }
+
+    let workspaceOwnerId = deployment.userId
+    if (workflowResult[0].workspaceId) {
+      const workspaceData = await db
+        .select({ ownerId: workspace.ownerId })
+        .from(workspace)
+        .where(eq(workspace.id, workflowResult[0].workspaceId))
+        .limit(1)
+
+      if (workspaceData.length === 0) {
+        logger.error(`[${requestId}] Workspace not found for workflow ${deployment.workflowId}`)
+        return addCorsHeaders(createErrorResponse('Workspace not found', 500), request)
+      }
+
+      workspaceOwnerId = workspaceData[0].ownerId
     }
 
     try {
@@ -145,16 +162,19 @@ export async function POST(
         }
       }
 
+      const workflowForExecution = {
+        id: deployment.workflowId,
+        userId: deployment.userId,
+        workspaceId: workflowResult[0].workspaceId,
+        isDeployed: true,
+        variables: workflowResult[0].variables || {},
+      }
+
       const stream = await createStreamingResponse({
         requestId,
-        workflow: {
-          id: deployment.workflowId,
-          userId: deployment.userId,
-          workspaceId: workflowResult[0].workspaceId,
-          isDeployed: true,
-        },
+        workflow: workflowForExecution,
         input: workflowInput,
-        executingUserId: deployment.userId,
+        executingUserId: workspaceOwnerId,
         streamConfig: {
           selectedOutputs,
           isSecureMode: true,

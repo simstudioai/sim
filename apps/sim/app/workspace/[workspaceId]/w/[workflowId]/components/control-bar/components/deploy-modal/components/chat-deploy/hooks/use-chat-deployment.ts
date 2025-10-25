@@ -72,7 +72,6 @@ export function useChatDeployment() {
           })
           .filter(Boolean) as OutputConfig[]
 
-        // Create request payload
         const payload = {
           workflowId,
           identifier: formData.identifier.trim(),
@@ -89,7 +88,7 @@ export function useChatDeployment() {
             formData.authType === 'email' || formData.authType === 'sso' ? formData.emails : [],
           outputConfigs,
           apiKey: deploymentInfo?.apiKey,
-          deployApiEnabled: !existingChatId, // Only deploy API for new chats
+          deployApiEnabled: !existingChatId,
         }
 
         // Validate with Zod

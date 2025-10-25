@@ -1,4 +1,4 @@
-import { db, workflow, workflowDeploymentVersion } from '@sim/db'
+import { apiKey, db, workflow, workflowDeploymentVersion } from '@sim/db'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -19,7 +19,11 @@ export async function POST(
   const { id, version } = await params
 
   try {
-    const { error } = await validateWorkflowPermissions(id, requestId, 'admin')
+    const {
+      error,
+      session,
+      workflow: workflowData,
+    } = await validateWorkflowPermissions(id, requestId, 'admin')
     if (error) {
       return createErrorResponse(error.message, error.status)
     }
@@ -27,6 +31,52 @@ export async function POST(
     const versionNum = Number(version)
     if (!Number.isFinite(versionNum)) {
       return createErrorResponse('Invalid version', 400)
+    }
+
+    let providedApiKey: string | null = null
+    try {
+      const parsed = await request.json()
+      if (parsed && typeof parsed.apiKey === 'string' && parsed.apiKey.trim().length > 0) {
+        providedApiKey = parsed.apiKey.trim()
+      }
+    } catch (_err) {}
+
+    let pinnedApiKeyId: string | null = null
+    if (providedApiKey) {
+      const currentUserId = session?.user?.id
+      if (currentUserId) {
+        const [personalKey] = await db
+          .select({ id: apiKey.id })
+          .from(apiKey)
+          .where(
+            and(
+              eq(apiKey.id, providedApiKey),
+              eq(apiKey.userId, currentUserId),
+              eq(apiKey.type, 'personal')
+            )
+          )
+          .limit(1)
+
+        if (personalKey) {
+          pinnedApiKeyId = personalKey.id
+        } else if (workflowData!.workspaceId) {
+          const [workspaceKey] = await db
+            .select({ id: apiKey.id })
+            .from(apiKey)
+            .where(
+              and(
+                eq(apiKey.id, providedApiKey),
+                eq(apiKey.workspaceId, workflowData!.workspaceId),
+                eq(apiKey.type, 'workspace')
+              )
+            )
+            .limit(1)
+
+          if (workspaceKey) {
+            pinnedApiKeyId = workspaceKey.id
+          }
+        }
+      }
     }
 
     const now = new Date()
@@ -57,10 +107,16 @@ export async function POST(
         throw new Error('Deployment version not found')
       }
 
-      await tx
-        .update(workflow)
-        .set({ isDeployed: true, deployedAt: now })
-        .where(eq(workflow.id, id))
+      const updateData: Record<string, unknown> = {
+        isDeployed: true,
+        deployedAt: now,
+      }
+
+      if (pinnedApiKeyId) {
+        updateData.pinnedApiKeyId = pinnedApiKeyId
+      }
+
+      await tx.update(workflow).set(updateData).where(eq(workflow.id, id))
     })
 
     return createSuccessResponse({ success: true, deployedAt: now })
