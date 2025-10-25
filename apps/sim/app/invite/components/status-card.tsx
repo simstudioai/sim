@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { LoadingAgent } from '@/components/ui/loading-agent'
 import { useBrandConfig } from '@/lib/branding/branding'
-import { inter } from '@/app/fonts/inter'
+import { inter } from '@/app/fonts/inter/inter'
 import { soehne } from '@/app/fonts/soehne/soehne'
 
 interface InviteStatusCardProps {

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { useBrandConfig } from '@/lib/branding/branding'
 import Nav from '@/app/(landing)/components/nav/nav'
-import { inter } from '@/app/fonts/inter'
+import { inter } from '@/app/fonts/inter/inter'
 import { soehne } from '@/app/fonts/soehne/soehne'
 
 interface ChatErrorStateProps {

@@ -2,11 +2,11 @@
 
 import { useEffect } from 'react'
 import { createLogger } from '@/lib/logs/console/logger'
-import { useCopilotStore } from '@/stores/copilot/store'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
+import { useCopilotStore } from '@/stores/panel-new/copilot/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useSubscriptionStore } from '@/stores/subscription/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'

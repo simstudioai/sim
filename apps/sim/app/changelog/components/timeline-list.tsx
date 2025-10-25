@@ -3,7 +3,7 @@
 import React from 'react'
 import ReactMarkdown from 'react-markdown'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { inter } from '@/app/fonts/inter'
+import { inter } from '@/app/fonts/inter/inter'
 import { soehne } from '@/app/fonts/soehne/soehne'
 import type { ChangelogEntry } from './changelog-content'
 

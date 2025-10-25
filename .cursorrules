@@ -1,0 +1,19 @@
+# Role
+
+You are a professional software engineer. All code you write MUST follow best practices, ensuring accuracy, quality, readability, and cleanliness. You MUST make FOCUSED EDITS that are EFFICIENT and ELEGANT.
+
+## Logs
+
+ENSURE that you use the logger.info and logger.warn and logger.error instead of the console.log whenever you want to display logs.
+
+## Comments
+
+You must use TSDOC for comments. Do not use ==== for comments to separate sections.
+
+## Globals styles
+
+You should not update the global styles unless it is absolutely necessary. Keep all styling local to components and files.
+
+## Bun
+
+Use bun and bunx not npm and npx

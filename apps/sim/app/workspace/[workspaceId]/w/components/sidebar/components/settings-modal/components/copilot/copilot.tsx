@@ -15,7 +15,7 @@ import {
 } from '@/components/ui'
 import { isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
-import { useCopilotStore } from '@/stores/copilot/store'
+import { useCopilotStore } from '@/stores/panel-new/copilot/store'
 
 const logger = createLogger('CopilotSettings')
 

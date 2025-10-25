@@ -3,6 +3,55 @@
 @tailwind utilities;
 
 /* ==========================================================================
+   SIDEBAR WIDTH PERSISTENCE
+   ========================================================================== */
+/**
+ * CSS-based sidebar width to prevent SSR hydration mismatches.
+ *
+ * How it works:
+ * 1. Default width set here in CSS (232px)
+ * 2. Blocking script in layout.tsx updates this before React hydrates
+ * 3. Store updates this variable when user resizes
+ *
+ * This approach ensures server and client always render identical HTML.
+ */
+:root {
+  --sidebar-width: 232px;
+  --triggers-height: 200px;
+  --blocks-height: 200px;
+  --panel-width: 240px;
+}
+
+.sidebar-container {
+  width: var(--sidebar-width);
+}
+
+.panel-container {
+  width: var(--panel-width);
+}
+
+.triggers-container {
+  height: var(--triggers-height);
+}
+
+.blocks-container {
+  height: var(--blocks-height);
+}
+
+/* Scrollable area constraints for sidebar panels */
+.workflows-section {
+  padding-bottom: var(--triggers-height);
+}
+
+.triggers-scrollable {
+  max-height: calc(var(--triggers-height) - 28px - var(--blocks-height));
+}
+
+.blocks-scrollable {
+  max-height: calc(var(--blocks-height) - 28px);
+}
+
+/* ==========================================================================
    WORKFLOW COMPONENT Z-INDEX FIXES
    ========================================================================== */
 .workflow-container .react-flow__edges {
@@ -110,7 +159,6 @@
 
     /* Workflow Properties */
     --workflow-background: 0 0% 100%;
-    --workflow-dots: 0 0% 94.5%;
     --card-background: 0 0% 99.2%;
     --card-border: 0 0% 89.8%;
     --card-text: 0 0% 3.9%;
@@ -179,8 +227,7 @@
     --scrollbar-thumb-hover: 0 0% 40%;
 
     /* Workflow Properties */
-    --workflow-background: 0 0% 3.9%;
-    --workflow-dots: 0 0% 7.5%;
+    --workflow-background: 0 0% 10.6%;
     --card-background: 0 0% 9.0%;
     --card-border: 0 0% 22.7%;
     --card-text: 0 0% 98%;
@@ -214,6 +261,10 @@
     overscroll-behavior-x: none;
   }
 
+  *:focus {
+    outline: none;
+  }
+
   body {
     @apply bg-background text-foreground;
     overscroll-behavior-x: none;
@@ -223,6 +274,12 @@
     scrollbar-gutter: stable;
     /* Improve animation performance */
     text-rendering: optimizeSpeed;
+    /* Default text styles */
+    letter-spacing: 0.28px;
+  }
+
+  .dark body {
+    @apply antialiased;
   }
 
   /* Global Scrollbar Styling */
@@ -244,22 +301,20 @@
     background-color: hsl(var(--muted-foreground) / 0.3);
   }
 
+  /* Dark Mode Sidebar Scrollbar - Match search div background */
+  .dark .sidebar-container ::-webkit-scrollbar-track {
+    background: #272727;
+  }
+
+  .dark .sidebar-container {
+    scrollbar-color: hsl(var(--muted-foreground) / 0.3) #272727;
+  }
+
   /* For Firefox */
   * {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
   }
-}
-
-/* ==========================================================================
-   TYPOGRAPHY
-   ========================================================================== */
-.font-geist-sans {
-  font-family: var(--font-geist-sans);
-}
-
-.font-geist-mono {
-  font-family: var(--font-geist-mono);
 }
 
 /* ==========================================================================

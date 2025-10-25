@@ -3,7 +3,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import ReactFlow, {
-  Background,
   ConnectionLineType,
   type Edge,
   type EdgeTypes,
@@ -15,11 +14,10 @@ import 'reactflow/dist/style.css'
 import { createLogger } from '@/lib/logs/console/logger'
 import { TriggerUtils } from '@/lib/workflows/triggers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { ControlBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/control-bar'
 import { DiffControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/diff-controls'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
 import { FloatingControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/floating-controls/floating-controls'
-import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/panel'
+import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/panel-new'
 import { SubflowNodeComponent } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
 import { TrainingControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/training-controls/training-controls'
 import { TriggerList } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/trigger-list/trigger-list'
@@ -29,21 +27,17 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/trigger-warning-dialog'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
-import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import {
-  getNodeAbsolutePosition,
-  getNodeDepth,
-  getNodeHierarchy,
-  isPointInLoopNode,
-  resizeLoopNodes,
-  updateNodeParent as updateNodeParentUtil,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
+  useAutoLayout,
+  useCurrentWorkflow,
+  useNodeUtilities,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { getBlock } from '@/blocks'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
-import { useCopilotStore } from '@/stores/copilot/store'
 import { useExecutionStore } from '@/stores/execution/store'
+import { useCopilotStore } from '@/stores/panel-new/copilot/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { hasWorkflowsInitiallyLoaded, useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -137,6 +131,20 @@ const WorkflowContent = React.memo(() => {
 
   // Extract workflow data from the abstraction
   const { blocks, edges, isDiffMode, lastSaved } = currentWorkflow
+
+  // Node utilities hook for position/hierarchy calculations (requires blocks)
+  const {
+    getNodeDepth,
+    getNodeHierarchy,
+    getNodeAbsolutePosition,
+    isPointInLoopNode,
+    resizeLoopNodes,
+    updateNodeParent: updateNodeParentUtil,
+    getNodeAnchorPosition,
+  } = useNodeUtilities(blocks)
+
+  // Auto-layout hook
+  const { applyAutoLayoutAndUpdateStore } = useAutoLayout(activeWorkflowId || null)
 
   // Check if workflow is empty (no blocks)
   const isWorkflowEmpty = useMemo(() => {
@@ -321,13 +329,6 @@ const WorkflowContent = React.memo(() => {
 
       let newPosition = oldPosition
       if (newParentId) {
-        const getNodeAbsolutePosition = (id: string): { x: number; y: number } => {
-          const n = getNodes().find((node: any) => node.id === id)
-          if (!n) return { x: 0, y: 0 }
-          if (!n.parentId) return n.position
-          const parentPos = getNodeAbsolutePosition(n.parentId)
-          return { x: parentPos.x + n.position.x, y: parentPos.y + n.position.y }
-        }
         const nodeAbsPos = getNodeAbsolutePosition(nodeId)
         const parentAbsPos = getNodeAbsolutePosition(newParentId)
         newPosition = {
@@ -335,24 +336,15 @@ const WorkflowContent = React.memo(() => {
           y: nodeAbsPos.y - parentAbsPos.y,
         }
       } else if (oldParentId) {
-        const getNodeAbsolutePosition = (id: string): { x: number; y: number } => {
-          const n = getNodes().find((node: any) => node.id === id)
-          if (!n) return { x: 0, y: 0 }
-          if (!n.parentId) return n.position
-          const parentPos = getNodeAbsolutePosition(n.parentId)
-          return { x: parentPos.x + n.position.x, y: parentPos.y + n.position.y }
-        }
         newPosition = getNodeAbsolutePosition(nodeId)
       }
 
       const result = updateNodeParentUtil(
         nodeId,
         newParentId,
-        getNodes,
-        blocks,
         collaborativeUpdateBlockPosition,
         updateParentId,
-        () => resizeLoopNodes(getNodes, updateNodeDimensions, blocks)
+        () => resizeLoopNodes(updateNodeDimensions)
       )
 
       if (oldParentId !== newParentId) {
@@ -379,87 +371,23 @@ const WorkflowContent = React.memo(() => {
       updateNodeDimensions,
       blocks,
       edgesForDisplay,
+      getNodeAbsolutePosition,
+      updateNodeParentUtil,
+      resizeLoopNodes,
     ]
   )
 
-  // Function to resize all loop nodes with improved hierarchy handling
+  // Wrapper to call resizeLoopNodes with updateNodeDimensions
   const resizeLoopNodesWrapper = useCallback(() => {
-    return resizeLoopNodes(getNodes, updateNodeDimensions, blocks)
-  }, [getNodes, updateNodeDimensions, blocks])
+    return resizeLoopNodes(updateNodeDimensions)
+  }, [resizeLoopNodes, updateNodeDimensions])
 
-  // Wrapper functions that use the utilities but provide the getNodes function
-  const getNodeDepthWrapper = useCallback(
-    (nodeId: string): number => {
-      return getNodeDepth(nodeId, getNodes, blocks)
-    },
-    [getNodes, blocks]
-  )
-
-  const getNodeHierarchyWrapper = useCallback(
-    (nodeId: string): string[] => {
-      return getNodeHierarchy(nodeId, getNodes, blocks)
-    },
-    [getNodes, blocks]
-  )
-
-  const getNodeAbsolutePositionWrapper = useCallback(
-    (nodeId: string): { x: number; y: number } => {
-      return getNodeAbsolutePosition(nodeId, getNodes, blocks)
-    },
-    [getNodes, blocks]
-  )
-
-  const isPointInLoopNodeWrapper = useCallback(
-    (position: { x: number; y: number }) => {
-      return isPointInLoopNode(position, getNodes, blocks)
-    },
-    [getNodes, blocks]
-  )
-
-  // Compute the absolute position of a node's source anchor (right-middle)
-  const getNodeAnchorPosition = useCallback(
-    (nodeId: string): { x: number; y: number } => {
-      const node = getNodes().find((n) => n.id === nodeId)
-      const absPos = getNodeAbsolutePositionWrapper(nodeId)
-
-      if (!node) {
-        return absPos
-      }
-
-      // Use known defaults per node type without type casting
-      const isSubflow = node.type === 'subflowNode'
-      const width = isSubflow
-        ? typeof node.data?.width === 'number'
-          ? node.data.width
-          : 500
-        : typeof node.width === 'number'
-          ? node.width
-          : 350
-      const height = isSubflow
-        ? typeof node.data?.height === 'number'
-          ? node.data.height
-          : 300
-        : typeof node.height === 'number'
-          ? node.height
-          : 100
-
-      return {
-        x: absPos.x + width,
-        y: absPos.y + height / 2,
-      }
-    },
-    [getNodes, getNodeAbsolutePositionWrapper]
-  )
-
-  // Auto-layout handler - now uses frontend auto layout for immediate updates
+  // Auto-layout handler - uses the hook for immediate frontend updates
   const handleAutoLayout = useCallback(async () => {
     if (Object.keys(blocks).length === 0) return
 
     try {
-      // Use the shared auto layout utility for immediate frontend updates
-      const { applyAutoLayoutAndUpdateStore } = await import('./utils/auto-layout')
-
-      const result = await applyAutoLayoutAndUpdateStore(activeWorkflowId!)
+      const result = await applyAutoLayoutAndUpdateStore()
 
       if (result.success) {
         logger.info('Auto layout completed successfully')
@@ -469,7 +397,7 @@ const WorkflowContent = React.memo(() => {
     } catch (error) {
       logger.error('Auto layout error:', error)
     }
-  }, [activeWorkflowId, blocks])
+  }, [blocks, applyAutoLayoutAndUpdateStore])
 
   const debouncedAutoLayout = useCallback(() => {
     const debounceTimer = setTimeout(() => {
@@ -561,7 +489,7 @@ const WorkflowContent = React.memo(() => {
   const findClosestOutput = useCallback(
     (newNodePosition: { x: number; y: number }): BlockData | null => {
       // Determine if drop is inside a container; if not, exclude child nodes from candidates
-      const containerAtPoint = isPointInLoopNodeWrapper(newNodePosition)
+      const containerAtPoint = isPointInLoopNode(newNodePosition)
       const nodeIndex = new Map(getNodes().map((n) => [n.id, n]))
 
       const candidates = Object.entries(blocks)
@@ -590,7 +518,7 @@ const WorkflowContent = React.memo(() => {
 
       return candidates[0] || null
     },
-    [blocks, getNodes, getNodeAnchorPosition, isPointInLoopNodeWrapper]
+    [blocks, getNodes, getNodeAnchorPosition, isPointInLoopNode]
   )
 
   // Determine the appropriate source handle based on block type
@@ -824,7 +752,7 @@ const WorkflowContent = React.memo(() => {
         })
 
         // Check if dropping inside a container node (loop or parallel)
-        const containerInfo = isPointInLoopNodeWrapper(position)
+        const containerInfo = isPointInLoopNode(position)
 
         // Clear any drag-over styling
         document
@@ -1058,7 +986,7 @@ const WorkflowContent = React.memo(() => {
       addEdge,
       findClosestOutput,
       determineSourceHandle,
-      isPointInLoopNodeWrapper,
+      isPointInLoopNode,
       getNodes,
       setTriggerWarning,
     ]
@@ -1080,7 +1008,7 @@ const WorkflowContent = React.memo(() => {
         })
 
         // Check if hovering over a container node
-        const containerInfo = isPointInLoopNodeWrapper(position)
+        const containerInfo = isPointInLoopNode(position)
 
         // Clear any previous highlighting
         document
@@ -1115,7 +1043,7 @@ const WorkflowContent = React.memo(() => {
         logger.error('Error in onDragOver', { err })
       }
     },
-    [project, isPointInLoopNodeWrapper, getNodes]
+    [project, isPointInLoopNode, getNodes]
   )
 
   // Initialize workflow when it exists in registry and isn't active
@@ -1351,14 +1279,14 @@ const WorkflowContent = React.memo(() => {
         })
 
         // Fix the node by removing its parent reference and calculating absolute position
-        const absolutePosition = getNodeAbsolutePositionWrapper(id)
+        const absolutePosition = getNodeAbsolutePosition(id)
 
         // Update the node to remove parent reference and use absolute position
         collaborativeUpdateBlockPosition(id, absolutePosition)
         updateParentId(id, '', 'parent')
       }
     })
-  }, [blocks, collaborativeUpdateBlockPosition, updateParentId, getNodeAbsolutePositionWrapper])
+  }, [blocks, collaborativeUpdateBlockPosition, updateParentId, getNodeAbsolutePosition])
 
   // Validate nested subflows whenever blocks change
   useEffect(() => {
@@ -1493,7 +1421,7 @@ const WorkflowContent = React.memo(() => {
       }
 
       // Get the node's absolute position to properly calculate intersections
-      const nodeAbsolutePos = getNodeAbsolutePositionWrapper(node.id)
+      const nodeAbsolutePos = getNodeAbsolutePosition(node.id)
 
       // Find intersections with container nodes using absolute coordinates
       const intersectingNodes = getNodes()
@@ -1507,7 +1435,7 @@ const WorkflowContent = React.memo(() => {
           // Skip self-nesting: prevent a container from becoming its own descendant
           if (node.type === 'subflowNode') {
             // Get the full hierarchy of the potential parent
-            const hierarchy = getNodeHierarchyWrapper(n.id)
+            const hierarchy = getNodeHierarchy(n.id)
 
             // If the dragged node is in the hierarchy, this would create a circular reference
             if (hierarchy.includes(node.id)) {
@@ -1516,7 +1444,7 @@ const WorkflowContent = React.memo(() => {
           }
 
           // Get the container's absolute position
-          const containerAbsolutePos = getNodeAbsolutePositionWrapper(n.id)
+          const containerAbsolutePos = getNodeAbsolutePosition(n.id)
 
           // Get dimensions based on node type
           const nodeWidth =
@@ -1559,7 +1487,7 @@ const WorkflowContent = React.memo(() => {
         // Add more information for sorting
         .map((n) => ({
           container: n,
-          depth: getNodeDepthWrapper(n.id),
+          depth: getNodeDepth(n.id),
           // Calculate size for secondary sorting
           size: (n.data?.width || 500) * (n.data?.height || 300),
         }))
@@ -1580,7 +1508,7 @@ const WorkflowContent = React.memo(() => {
         const bestContainerMatch = sortedContainers[0]
 
         // Add a check to see if the bestContainerMatch is a part of the hierarchy of the node being dragged
-        const hierarchy = getNodeHierarchyWrapper(node.id)
+        const hierarchy = getNodeHierarchy(node.id)
         if (hierarchy.includes(bestContainerMatch.container.id)) {
           setPotentialParentId(null)
           return
@@ -1623,9 +1551,9 @@ const WorkflowContent = React.memo(() => {
       getNodes,
       potentialParentId,
       blocks,
-      getNodeHierarchyWrapper,
-      getNodeAbsolutePositionWrapper,
-      getNodeDepthWrapper,
+      getNodeHierarchy,
+      getNodeAbsolutePosition,
+      getNodeDepth,
       collaborativeUpdateBlockPosition,
     ]
   )
@@ -1702,7 +1630,7 @@ const WorkflowContent = React.memo(() => {
       // If we're dragging a container node, do additional checks to prevent circular references
       if (node.type === 'subflowNode' && potentialParentId) {
         // Get the hierarchy of the potential parent container
-        const parentHierarchy = getNodeHierarchyWrapper(potentialParentId)
+        const parentHierarchy = getNodeHierarchy(potentialParentId)
 
         // If the dragged node is in the parent's hierarchy, it would create a circular reference
         if (parentHierarchy.includes(node.id)) {
@@ -1719,8 +1647,8 @@ const WorkflowContent = React.memo(() => {
       // Update the node's parent relationship
       if (potentialParentId) {
         // Compute relative position BEFORE updating parent to avoid stale state
-        const containerAbsPosBefore = getNodeAbsolutePositionWrapper(potentialParentId)
-        const nodeAbsPosBefore = getNodeAbsolutePositionWrapper(node.id)
+        const containerAbsPosBefore = getNodeAbsolutePosition(potentialParentId)
+        const nodeAbsPosBefore = getNodeAbsolutePosition(node.id)
         const relativePositionBefore = {
           x: nodeAbsPosBefore.x - containerAbsPosBefore.x,
           y: nodeAbsPosBefore.y - containerAbsPosBefore.y,
@@ -1803,12 +1731,12 @@ const WorkflowContent = React.memo(() => {
       dragStartParentId,
       potentialParentId,
       updateNodeParent,
-      getNodeHierarchyWrapper,
+      getNodeHierarchy,
       collaborativeUpdateBlockPosition,
       addEdge,
       determineSourceHandle,
       blocks,
-      getNodeAbsolutePositionWrapper,
+      getNodeAbsolutePosition,
       getDragStartPosition,
       setDragStartPosition,
     ]
@@ -1922,19 +1850,9 @@ const WorkflowContent = React.memo(() => {
     return (
       <div className='flex h-screen w-full flex-col overflow-hidden'>
         <div className='relative h-full w-full flex-1 transition-all duration-200'>
-          <div className='fixed top-0 right-0 z-10'>
-            <Panel />
-          </div>
-          <ControlBar hasValidationErrors={nestedSubflowErrors.size > 0} />
-          <div className='workflow-container h-full'>
-            <Background
-              color='hsl(var(--workflow-dots))'
-              size={4}
-              gap={40}
-              style={{ backgroundColor: 'hsl(var(--workflow-background))' }}
-            />
-          </div>
+          <div className='workflow-container h-full' />
         </div>
+        <Panel />
       </div>
     )
   }
@@ -1942,13 +1860,6 @@ const WorkflowContent = React.memo(() => {
   return (
     <div className='flex h-screen w-full flex-col overflow-hidden'>
       <div className='relative h-full w-full flex-1 transition-all duration-200'>
-        <div className='fixed top-0 right-0 z-10'>
-          <Panel />
-        </div>
-
-        {/* Floating Control Bar */}
-        <ControlBar hasValidationErrors={nestedSubflowErrors.size > 0} />
-
         {/* Floating Controls (Zoom, Undo, Redo) */}
         <FloatingControls />
 
@@ -2005,14 +1916,7 @@ const WorkflowContent = React.memo(() => {
           elevateNodesOnSelect={true}
           autoPanOnConnect={effectivePermissions.canEdit}
           autoPanOnNodeDrag={effectivePermissions.canEdit}
-        >
-          <Background
-            color='hsl(var(--workflow-dots))'
-            size={4}
-            gap={40}
-            style={{ backgroundColor: 'hsl(var(--workflow-background))' }}
-          />
-        </ReactFlow>
+        />
 
         {/* Show DiffControls if diff is available (regardless of current view mode) */}
         <DiffControls />
@@ -2029,6 +1933,8 @@ const WorkflowContent = React.memo(() => {
         {isWorkflowReady && isWorkflowEmpty && effectivePermissions.canEdit && (
           <TriggerList onSelect={handleTriggerSelect} />
         )}
+
+        <Panel />
       </div>
     </div>
   )

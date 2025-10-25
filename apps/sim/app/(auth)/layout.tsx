@@ -28,7 +28,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   }, [])
   return (
     <AuthBackground>
-      <main className='relative flex min-h-screen flex-col font-geist-sans text-foreground'>
+      <main className='relative flex min-h-screen flex-col text-foreground'>
         {/* Header - Nav handles all conditional logic */}
         <Nav hideAuthButtons={true} variant='auth' />
 

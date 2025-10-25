@@ -10,8 +10,8 @@ import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
 import { getClientTool } from '@/lib/copilot/tools/client/manager'
 import { getRegisteredTools } from '@/lib/copilot/tools/client/registry'
 import { getEnv } from '@/lib/env'
-import { CLASS_TOOL_METADATA, useCopilotStore } from '@/stores/copilot/store'
-import type { CopilotToolCall } from '@/stores/copilot/types'
+import { CLASS_TOOL_METADATA, useCopilotStore } from '@/stores/panel-new/copilot/store'
+import type { CopilotToolCall } from '@/stores/panel-new/copilot/types'
 
 interface InlineToolCallProps {
   toolCall?: CopilotToolCall

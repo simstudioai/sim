@@ -135,7 +135,7 @@ export function useWorkflowDiff(): UseWorkflowDiffReturn {
       const currentState = workflowStore.getWorkflowState()
 
       // Get current copilot chat ID (if available)
-      const { useCopilotStore } = await import('@/stores/copilot/store')
+      const { useCopilotStore } = await import('@/stores/panel-new/copilot/store')
       const { currentChat, messages } = useCopilotStore.getState()
 
       if (!currentChat?.id) {

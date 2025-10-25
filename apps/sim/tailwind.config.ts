@@ -11,6 +11,14 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        season: ['var(--font-season)'],
+      },
+      fontSize: {
+        xs: '11px',
+        small: '13px', // Override default 14px to 13px
+        base: '15px', // Override default 16px to 15px
+      },
       colors: {
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
@@ -58,8 +66,9 @@ export default {
         },
       },
       fontWeight: {
+        base: '430',
         medium: '460',
-        semibold: '540',
+        semibold: '550',
       },
       borderRadius: {
         lg: 'var(--radius)',
