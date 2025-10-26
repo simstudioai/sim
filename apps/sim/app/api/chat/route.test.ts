@@ -19,6 +19,7 @@ describe('Chat API Route', () => {
   const mockCreateErrorResponse = vi.fn()
   const mockEncryptSecret = vi.fn()
   const mockCheckWorkflowAccessForChatCreation = vi.fn()
+  const mockDeployWorkflow = vi.fn()
 
   beforeEach(() => {
     vi.resetModules()
@@ -75,6 +76,14 @@ describe('Chat API Route', () => {
 
     vi.doMock('@/app/api/chat/utils', () => ({
       checkWorkflowAccessForChatCreation: mockCheckWorkflowAccessForChatCreation,
+    }))
+
+    vi.doMock('@/lib/workflows/db-helpers', () => ({
+      deployWorkflow: mockDeployWorkflow.mockResolvedValue({
+        success: true,
+        version: 1,
+        deployedAt: new Date(),
+      }),
     }))
   })
 
@@ -236,7 +245,7 @@ describe('Chat API Route', () => {
     it('should allow chat deployment when user owns workflow directly', async () => {
       vi.doMock('@/lib/auth', () => ({
         getSession: vi.fn().mockResolvedValue({
-          user: { id: 'user-id' },
+          user: { id: 'user-id', email: 'user@example.com' },
         }),
       }))
 
@@ -283,7 +292,7 @@ describe('Chat API Route', () => {
     it('should allow chat deployment when user has workspace admin permission', async () => {
       vi.doMock('@/lib/auth', () => ({
         getSession: vi.fn().mockResolvedValue({
-          user: { id: 'user-id' },
+          user: { id: 'user-id', email: 'user@example.com' },
         }),
       }))
 
@@ -393,10 +402,10 @@ describe('Chat API Route', () => {
       expect(mockCheckWorkflowAccessForChatCreation).toHaveBeenCalledWith('workflow-123', 'user-id')
     })
 
-    it('should reject if workflow is not deployed', async () => {
+    it('should auto-deploy workflow if not already deployed', async () => {
       vi.doMock('@/lib/auth', () => ({
         getSession: vi.fn().mockResolvedValue({
-          user: { id: 'user-id' },
+          user: { id: 'user-id', email: 'user@example.com' },
         }),
       }))
 
@@ -415,6 +424,7 @@ describe('Chat API Route', () => {
         hasAccess: true,
         workflow: { userId: 'user-id', workspaceId: null, isDeployed: false },
       })
+      mockReturning.mockResolvedValue([{ id: 'test-uuid' }])
 
       const req = new NextRequest('http://localhost:3000/api/chat', {
         method: 'POST',
@@ -423,11 +433,11 @@ describe('Chat API Route', () => {
       const { POST } = await import('@/app/api/chat/route')
       const response = await POST(req)
 
-      expect(response.status).toBe(400)
-      expect(mockCreateErrorResponse).toHaveBeenCalledWith(
-        'Workflow must be deployed before creating a chat',
-        400
-      )
+      expect(response.status).toBe(200)
+      expect(mockDeployWorkflow).toHaveBeenCalledWith({
+        workflowId: 'workflow-123',
+        deployedBy: 'user-id',
+      })
     })
   })
 })

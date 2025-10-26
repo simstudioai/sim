@@ -32,6 +32,12 @@ export const fetchPointsTool: ToolConfig<QdrantFetchParams, QdrantResponse> = {
       visibility: 'user-only',
       description: 'Array of point IDs to fetch',
     },
+    fetch_return_data: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Data to return from fetch',
+    },
     with_payload: {
       type: 'boolean',
       required: false,
@@ -53,11 +59,38 @@ export const fetchPointsTool: ToolConfig<QdrantFetchParams, QdrantResponse> = {
       'Content-Type': 'application/json',
       ...(params.apiKey ? { 'api-key': params.apiKey } : {}),
     }),
-    body: (params) => ({
-      ids: params.ids,
-      with_payload: params.with_payload,
-      with_vector: params.with_vector,
-    }),
+    body: (params) => {
+      // Calculate with_payload and with_vector from fetch_return_data if provided
+      let withPayload = params.with_payload ?? false
+      let withVector = params.with_vector ?? false
+
+      if (params.fetch_return_data) {
+        switch (params.fetch_return_data) {
+          case 'payload_only':
+            withPayload = true
+            withVector = false
+            break
+          case 'vector_only':
+            withPayload = false
+            withVector = true
+            break
+          case 'both':
+            withPayload = true
+            withVector = true
+            break
+          case 'none':
+            withPayload = false
+            withVector = false
+            break
+        }
+      }
+
+      return {
+        ids: params.ids,
+        with_payload: withPayload,
+        with_vector: withVector,
+      }
+    },
   },
 
   transformResponse: async (response) => {

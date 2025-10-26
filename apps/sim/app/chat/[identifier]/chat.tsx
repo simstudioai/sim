@@ -14,6 +14,7 @@ import {
   ChatMessageContainer,
   EmailAuth,
   PasswordAuth,
+  SSOAuth,
   VoiceInterface,
 } from '@/app/chat/components'
 import { CHAT_ERROR_MESSAGES, CHAT_REQUEST_TIMEOUT_MS } from '@/app/chat/constants'
@@ -32,7 +33,7 @@ interface ChatConfig {
     welcomeMessage?: string
     headerText?: string
   }
-  authType?: 'public' | 'password' | 'email'
+  authType?: 'public' | 'password' | 'email' | 'sso'
   outputConfigs?: Array<{ blockId: string; path?: string }>
 }
 
@@ -119,7 +120,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
   const [userHasScrolled, setUserHasScrolled] = useState(false)
   const isUserScrollingRef = useRef(false)
 
-  const [authRequired, setAuthRequired] = useState<'password' | 'email' | null>(null)
+  const [authRequired, setAuthRequired] = useState<'password' | 'email' | 'sso' | null>(null)
 
   const [isVoiceFirstMode, setIsVoiceFirstMode] = useState(false)
   const { isStreamingResponse, abortControllerRef, stopStreaming, handleStreamedResponse } =
@@ -220,6 +221,10 @@ export default function ChatClient({ identifier }: { identifier: string }) {
           }
           if (errorData.error === 'auth_required_email') {
             setAuthRequired('email')
+            return
+          }
+          if (errorData.error === 'auth_required_sso') {
+            setAuthRequired('sso')
             return
           }
         }
@@ -493,6 +498,16 @@ export default function ChatClient({ identifier }: { identifier: string }) {
     if (authRequired === 'email') {
       return (
         <EmailAuth
+          identifier={identifier}
+          onAuthSuccess={handleAuthSuccess}
+          title={title}
+          primaryColor={primaryColor}
+        />
+      )
+    }
+    if (authRequired === 'sso') {
+      return (
+        <SSOAuth
           identifier={identifier}
           onAuthSuccess={handleAuthSuccess}
           title={title}

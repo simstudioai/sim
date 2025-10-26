@@ -71,6 +71,12 @@ export default function SSOForm() {
         }
       }
 
+      // Pre-fill email if provided in URL (e.g., from deployed chat SSO)
+      const emailParam = searchParams.get('email')
+      if (emailParam) {
+        setEmail(emailParam)
+      }
+
       // Check for SSO error from redirect
       const error = searchParams.get('error')
       if (error) {

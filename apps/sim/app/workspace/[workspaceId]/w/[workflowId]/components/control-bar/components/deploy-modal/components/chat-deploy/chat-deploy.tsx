@@ -41,11 +41,12 @@ interface ChatDeployProps {
   chatSubmitting: boolean
   setChatSubmitting: (submitting: boolean) => void
   onValidationChange?: (isValid: boolean) => void
-  onPreDeployWorkflow?: () => Promise<void>
   showDeleteConfirmation?: boolean
   setShowDeleteConfirmation?: (show: boolean) => void
   onDeploymentComplete?: () => void
   onDeployed?: () => void
+  onUndeploy?: () => Promise<void>
+  onVersionActivated?: () => void
 }
 
 interface ExistingChat {
@@ -69,11 +70,12 @@ export function ChatDeploy({
   chatSubmitting,
   setChatSubmitting,
   onValidationChange,
-  onPreDeployWorkflow,
   showDeleteConfirmation: externalShowDeleteConfirmation,
   setShowDeleteConfirmation: externalSetShowDeleteConfirmation,
   onDeploymentComplete,
   onDeployed,
+  onUndeploy,
+  onVersionActivated,
 }: ChatDeployProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [existingChat, setExistingChat] = useState<ExistingChat | null>(null)
@@ -97,6 +99,7 @@ export function ChatDeploy({
   const { deployedUrl, deployChat } = useChatDeployment()
   const formRef = useRef<HTMLFormElement>(null)
   const [isIdentifierValid, setIsIdentifierValid] = useState(false)
+
   const isFormValid =
     isIdentifierValid &&
     Boolean(formData.title.trim()) &&
@@ -104,7 +107,7 @@ export function ChatDeploy({
     (formData.authType !== 'password' ||
       Boolean(formData.password.trim()) ||
       Boolean(existingChat)) &&
-    (formData.authType !== 'email' || formData.emails.length > 0)
+    ((formData.authType !== 'email' && formData.authType !== 'sso') || formData.emails.length > 0)
 
   useEffect(() => {
     onValidationChange?.(isFormValid)
@@ -148,7 +151,6 @@ export function ChatDeploy({
                 : [],
             })
 
-            // Set image URL if it exists
             if (chatDetail.customizations?.imageUrl) {
               setImageUrl(chatDetail.customizations.imageUrl)
             }
@@ -178,8 +180,6 @@ export function ChatDeploy({
     setChatSubmitting(true)
 
     try {
-      await onPreDeployWorkflow?.()
-
       if (!validateForm()) {
         setChatSubmitting(false)
         return
@@ -191,14 +191,13 @@ export function ChatDeploy({
         return
       }
 
-      await deployChat(workflowId, formData, deploymentInfo, existingChat?.id, imageUrl)
+      await deployChat(workflowId, formData, null, existingChat?.id, imageUrl)
 
       onChatExistsChange?.(true)
       setShowSuccessView(true)
       onDeployed?.()
+      onVersionActivated?.()
 
-      // Fetch the updated chat data immediately after deployment
-      // This ensures existingChat is available when switching back to edit mode
       await fetchExistingChat()
     } catch (error: any) {
       if (error.message?.includes('identifier')) {
@@ -226,13 +225,15 @@ export function ChatDeploy({
         throw new Error(error.error || 'Failed to delete chat')
       }
 
-      // Update state
+      if (onUndeploy) {
+        await onUndeploy()
+      }
+
       setExistingChat(null)
       setImageUrl(null)
       setImageUploadError(null)
       onChatExistsChange?.(false)
 
-      // Notify parent of successful deletion
       onDeploymentComplete?.()
     } catch (error: any) {
       logger.error('Failed to delete chat:', error)
@@ -268,8 +269,8 @@ export function ChatDeploy({
                 This will permanently delete your chat deployment at{' '}
                 <span className='font-mono text-destructive'>
                   {getEmailDomain()}/chat/{existingChat?.identifier}
-                </span>
-                .
+                </span>{' '}
+                and undeploy the workflow.
                 <span className='mt-2 block'>
                   All users will lose access immediately, and this action cannot be undone.
                 </span>
@@ -324,6 +325,7 @@ export function ChatDeploy({
             onValidationChange={setIsIdentifierValid}
             isEditingExisting={!!existingChat}
           />
+
           <div className='space-y-2'>
             <Label htmlFor='title' className='font-medium text-sm'>
               Chat Title
@@ -403,14 +405,13 @@ export function ChatDeploy({
             </p>
           </div>
 
-          {/* Image Upload Section */}
           <div className='space-y-2'>
             <Label className='font-medium text-sm'>Chat Logo</Label>
             <ImageUpload
               value={imageUrl}
               onUpload={(url) => {
                 setImageUrl(url)
-                setImageUploadError(null) // Clear error on successful upload
+                setImageUploadError(null)
               }}
               onError={setImageUploadError}
               onUploadStart={setIsImageUploading}
@@ -427,7 +428,6 @@ export function ChatDeploy({
             )}
           </div>
 
-          {/* Hidden delete trigger button for modal footer */}
           <button
             type='button'
             data-delete-trigger
@@ -437,7 +437,6 @@ export function ChatDeploy({
         </div>
       </form>
 
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteConfirmation} onOpenChange={setShowDeleteConfirmation}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -446,8 +445,8 @@ export function ChatDeploy({
               This will permanently delete your chat deployment at{' '}
               <span className='font-mono text-destructive'>
                 {getEmailDomain()}/chat/{existingChat?.identifier}
-              </span>
-              .
+              </span>{' '}
+              and undeploy the workflow.
               <span className='mt-2 block'>
                 All users will lose access immediately, and this action cannot be undone.
               </span>

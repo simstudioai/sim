@@ -118,9 +118,15 @@ export function DeployedWorkflowModal({
                   Active
                 </div>
               ) : (
-                <Button onClick={onActivateVersion} disabled={!!isActivating}>
-                  {isActivating ? 'Activating…' : 'Activate'}
-                </Button>
+                <div className='flex items-center gap-0'>
+                  <Button
+                    variant='outline'
+                    disabled={!!isActivating}
+                    onClick={() => onActivateVersion?.()}
+                  >
+                    {isActivating ? 'Activating…' : 'Activate'}
+                  </Button>
+                </div>
               ))}
           </div>
 

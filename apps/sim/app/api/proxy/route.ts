@@ -1,4 +1,6 @@
+import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -242,12 +244,18 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
   const startTime = new Date()
   const startTimeISO = startTime.toISOString()
 
   try {
+    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+    if (!authResult.success) {
+      logger.error(`[${requestId}] Authentication failed for proxy:`, authResult.error)
+      return createErrorResponse('Unauthorized', 401)
+    }
+
     let requestBody
     try {
       requestBody = await request.json()
@@ -311,7 +319,6 @@ export async function POST(request: Request) {
         error: result.error || 'Unknown error',
       })
 
-      // Let the main executeTool handle error transformation to avoid double transformation
       throw new Error(result.error || 'Tool execution failed')
     }
 
@@ -319,10 +326,8 @@ export async function POST(request: Request) {
     const endTimeISO = endTime.toISOString()
     const duration = endTime.getTime() - startTime.getTime()
 
-    // Add explicit timing information directly to the response
     const responseWithTimingData = {
       ...result,
-      // Add timing data both at root level and in nested timing object
       startTime: startTimeISO,
       endTime: endTimeISO,
       duration,
@@ -335,7 +340,6 @@ export async function POST(request: Request) {
 
     logger.info(`[${requestId}] Tool executed successfully: ${toolId} (${duration}ms)`)
 
-    // Return the response with CORS headers
     return formatResponse(responseWithTimingData)
   } catch (error: any) {
     logger.error(`[${requestId}] Proxy request failed`, {
@@ -344,7 +348,6 @@ export async function POST(request: Request) {
       name: error instanceof Error ? error.name : undefined,
     })
 
-    // Add timing information even to error responses
     const endTime = new Date()
     const endTimeISO = endTime.toISOString()
     const duration = endTime.getTime() - startTime.getTime()

@@ -9,6 +9,7 @@ import { isDev } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { encryptSecret } from '@/lib/utils'
+import { deployWorkflow } from '@/lib/workflows/db-helpers'
 import { checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
@@ -27,7 +28,7 @@ const chatSchema = z.object({
     welcomeMessage: z.string(),
     imageUrl: z.string().optional(),
   }),
-  authType: z.enum(['public', 'password', 'email']).default('public'),
+  authType: z.enum(['public', 'password', 'email', 'sso']).default('public'),
   password: z.string().optional(),
   allowedEmails: z.array(z.string()).optional().default([]),
   outputConfigs: z
@@ -98,6 +99,13 @@ export async function POST(request: NextRequest) {
         )
       }
 
+      if (authType === 'sso' && (!Array.isArray(allowedEmails) || allowedEmails.length === 0)) {
+        return createErrorResponse(
+          'At least one email or domain is required when using SSO access control',
+          400
+        )
+      }
+
       // Check if identifier is available
       const existingIdentifier = await db
         .select()
@@ -119,10 +127,19 @@ export async function POST(request: NextRequest) {
         return createErrorResponse('Workflow not found or access denied', 404)
       }
 
-      // Verify the workflow is deployed (required for chat deployment)
-      if (!workflowRecord.isDeployed) {
-        return createErrorResponse('Workflow must be deployed before creating a chat', 400)
+      // Always deploy/redeploy the workflow to ensure latest version
+      const result = await deployWorkflow({
+        workflowId,
+        deployedBy: session.user.id,
+      })
+
+      if (!result.success) {
+        return createErrorResponse(result.error || 'Failed to deploy workflow', 500)
       }
+
+      logger.info(
+        `${workflowRecord.isDeployed ? 'Redeployed' : 'Auto-deployed'} workflow ${workflowId} for chat (v${result.version})`
+      )
 
       // Encrypt password if provided
       let encryptedPassword = null
@@ -163,7 +180,7 @@ export async function POST(request: NextRequest) {
         isActive: true,
         authType,
         password: encryptedPassword,
-        allowedEmails: authType === 'email' ? allowedEmails : [],
+        allowedEmails: authType === 'email' || authType === 'sso' ? allowedEmails : [],
         outputConfigs,
         createdAt: new Date(),
         updatedAt: new Date(),

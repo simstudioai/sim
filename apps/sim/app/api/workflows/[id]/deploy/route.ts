@@ -1,10 +1,9 @@
 import { apiKey, db, workflow, workflowDeploymentVersion } from '@sim/db'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { generateRequestId } from '@/lib/utils'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
+import { deployWorkflow } from '@/lib/workflows/db-helpers'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
@@ -138,37 +137,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     } catch (_err) {}
 
-    logger.debug(`[${requestId}] Getting current workflow state for deployment`)
-
-    const normalizedData = await loadWorkflowFromNormalizedTables(id)
-
-    if (!normalizedData) {
-      logger.error(`[${requestId}] Failed to load workflow from normalized tables`)
-      return createErrorResponse('Failed to load workflow state', 500)
-    }
-
-    const currentState = {
-      blocks: normalizedData.blocks,
-      edges: normalizedData.edges,
-      loops: normalizedData.loops,
-      parallels: normalizedData.parallels,
-      lastSaved: Date.now(),
-    }
-
-    logger.debug(`[${requestId}] Current state retrieved from normalized tables:`, {
-      blocksCount: Object.keys(currentState.blocks).length,
-      edgesCount: currentState.edges.length,
-      loopsCount: Object.keys(currentState.loops).length,
-      parallelsCount: Object.keys(currentState.parallels).length,
-    })
-
-    if (!currentState || !currentState.blocks) {
-      logger.error(`[${requestId}] Invalid workflow state retrieved`, { currentState })
-      throw new Error('Invalid workflow state: missing blocks')
-    }
-
-    const deployedAt = new Date()
-    logger.debug(`[${requestId}] Proceeding with deployment at ${deployedAt.toISOString()}`)
+    logger.debug(`[${requestId}] Validating API key for deployment`)
 
     let keyInfo: { name: string; type: 'personal' | 'workspace' } | null = null
     let matchedKey: {
@@ -260,45 +229,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return createErrorResponse('Unable to determine deploying user', 400)
     }
 
-    await db.transaction(async (tx) => {
-      const [{ maxVersion }] = await tx
-        .select({ maxVersion: sql`COALESCE(MAX("version"), 0)` })
-        .from(workflowDeploymentVersion)
-        .where(eq(workflowDeploymentVersion.workflowId, id))
-
-      const nextVersion = Number(maxVersion) + 1
-
-      await tx
-        .update(workflowDeploymentVersion)
-        .set({ isActive: false })
-        .where(
-          and(
-            eq(workflowDeploymentVersion.workflowId, id),
-            eq(workflowDeploymentVersion.isActive, true)
-          )
-        )
-
-      await tx.insert(workflowDeploymentVersion).values({
-        id: uuidv4(),
-        workflowId: id,
-        version: nextVersion,
-        state: currentState,
-        isActive: true,
-        createdAt: deployedAt,
-        createdBy: actorUserId,
-      })
-
-      const updateData: Record<string, unknown> = {
-        isDeployed: true,
-        deployedAt,
-        deployedState: currentState,
-      }
-      if (providedApiKey && matchedKey) {
-        updateData.pinnedApiKeyId = matchedKey.id
-      }
-
-      await tx.update(workflow).set(updateData).where(eq(workflow.id, id))
+    const deployResult = await deployWorkflow({
+      workflowId: id,
+      deployedBy: actorUserId,
+      pinnedApiKeyId: matchedKey?.id,
+      includeDeployedState: true,
+      workflowName: workflowData!.name,
     })
+
+    if (!deployResult.success) {
+      return createErrorResponse(deployResult.error || 'Failed to deploy workflow', 500)
+    }
+
+    const deployedAt = deployResult.deployedAt!
 
     if (matchedKey) {
       try {
@@ -312,31 +255,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     logger.info(`[${requestId}] Workflow deployed successfully: ${id}`)
-
-    // Track workflow deployment
-    try {
-      const { trackPlatformEvent } = await import('@/lib/telemetry/tracer')
-
-      // Aggregate block types to understand which blocks are being used
-      const blockTypeCounts: Record<string, number> = {}
-      for (const block of Object.values(currentState.blocks)) {
-        const blockType = (block as any).type || 'unknown'
-        blockTypeCounts[blockType] = (blockTypeCounts[blockType] || 0) + 1
-      }
-
-      trackPlatformEvent('platform.workflow.deployed', {
-        'workflow.id': id,
-        'workflow.name': workflowData!.name,
-        'workflow.blocks_count': Object.keys(currentState.blocks).length,
-        'workflow.edges_count': currentState.edges.length,
-        'workflow.has_loops': Object.keys(currentState.loops).length > 0,
-        'workflow.has_parallels': Object.keys(currentState.parallels).length > 0,
-        'workflow.api_key_type': keyInfo?.type || 'default',
-        'workflow.block_types': JSON.stringify(blockTypeCounts),
-      })
-    } catch (_e) {
-      // Silently fail
-    }
 
     const responseApiKeyInfo = keyInfo ? `${keyInfo.name} (${keyInfo.type})` : 'Default key'
 
