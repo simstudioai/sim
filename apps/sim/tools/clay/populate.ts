@@ -23,19 +23,27 @@ export const clayPopulateTool: ToolConfig<ClayPopulateParams, ClayPopulateRespon
     },
     authToken: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
-      description: 'Auth token for Clay webhook authentication',
+      description:
+        'Optional auth token for Clay webhook authentication (most webhooks do not require this)',
     },
   },
 
   request: {
     url: (params: ClayPopulateParams) => params.webhookURL,
     method: 'POST',
-    headers: (params: ClayPopulateParams) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.authToken}`,
-    }),
+    headers: (params: ClayPopulateParams) => {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+
+      if (params.authToken && params.authToken.trim() !== '') {
+        headers['x-clay-webhook-auth'] = params.authToken
+      }
+
+      return headers
+    },
     body: (params: ClayPopulateParams) => ({
       data: params.data,
     }),
@@ -43,27 +51,52 @@ export const clayPopulateTool: ToolConfig<ClayPopulateParams, ClayPopulateRespon
 
   transformResponse: async (response: Response) => {
     const contentType = response.headers.get('content-type')
-    let data
+    const timestamp = new Date().toISOString()
 
+    // Extract response headers
+    const headers: Record<string, string> = {}
+    response.headers.forEach((value, key) => {
+      headers[key] = value
+    })
+
+    // Parse response body
+    let responseData
     if (contentType?.includes('application/json')) {
-      data = await response.json()
+      responseData = await response.json()
     } else {
-      data = await response.text()
+      responseData = await response.text()
     }
 
     return {
       success: true,
       output: {
-        data: contentType?.includes('application/json') ? data : { message: data },
+        data: contentType?.includes('application/json') ? responseData : { message: responseData },
+        metadata: {
+          status: response.status,
+          statusText: response.statusText,
+          headers: headers,
+          timestamp: timestamp,
+          contentType: contentType || 'unknown',
+        },
       },
     }
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Operation success status' },
-    output: {
+    data: {
       type: 'json',
-      description: 'Clay populate operation results including response data from Clay webhook',
+      description: 'Response data from Clay webhook',
+    },
+    metadata: {
+      type: 'object',
+      description: 'Webhook response metadata',
+      properties: {
+        status: { type: 'number', description: 'HTTP status code' },
+        statusText: { type: 'string', description: 'HTTP status text' },
+        headers: { type: 'object', description: 'Response headers from Clay' },
+        timestamp: { type: 'string', description: 'ISO timestamp when webhook was received' },
+        contentType: { type: 'string', description: 'Content type of the response' },
+      },
     },
   },
 }
