@@ -1,4 +1,5 @@
 import type { NextRequest } from 'next/server'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { validateAlphanumericId } from '@/lib/security/input-validation'
@@ -7,6 +8,12 @@ const logger = createLogger('ProxyTTSStreamAPI')
 
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+    if (!authResult.success) {
+      logger.error('Authentication failed for TTS stream proxy:', authResult.error)
+      return new Response('Unauthorized', { status: 401 })
+    }
+
     const body = await request.json()
     const { text, voiceId, modelId = 'eleven_turbo_v2_5' } = body
 

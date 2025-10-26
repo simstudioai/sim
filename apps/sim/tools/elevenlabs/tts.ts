@@ -51,6 +51,16 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
+    if (!response.ok || data.error) {
+      return {
+        success: false,
+        error: data.error || 'Unknown error occurred',
+        output: {
+          audioUrl: '',
+        },
+      }
+    }
+
     return {
       success: true,
       output: {

@@ -409,6 +409,38 @@ function isErrorResponse(
 }
 
 /**
+ * Add internal authentication token to headers if running on server
+ * @param headers - Headers object to modify
+ * @param isInternalRoute - Whether the target URL is an internal route
+ * @param requestId - Request ID for logging
+ * @param context - Context string for logging (e.g., toolId or 'proxy')
+ */
+async function addInternalAuthIfNeeded(
+  headers: Headers | Record<string, string>,
+  isInternalRoute: boolean,
+  requestId: string,
+  context: string
+): Promise<void> {
+  if (typeof window === 'undefined') {
+    if (isInternalRoute) {
+      try {
+        const internalToken = await generateInternalToken()
+        if (headers instanceof Headers) {
+          headers.set('Authorization', `Bearer ${internalToken}`)
+        } else {
+          headers.Authorization = `Bearer ${internalToken}`
+        }
+        logger.info(`[${requestId}] Added internal auth token for ${context}`)
+      } catch (error) {
+        logger.error(`[${requestId}] Failed to generate internal token for ${context}:`, error)
+      }
+    } else {
+      logger.info(`[${requestId}] Skipping internal auth token for external URL: ${context}`)
+    }
+  }
+}
+
+/**
  * Handle an internal/direct tool request
  */
 async function handleInternalRequest(
@@ -448,19 +480,7 @@ async function handleInternalRequest(
     }
 
     const headers = new Headers(requestParams.headers)
-    if (typeof window === 'undefined') {
-      if (isInternalRoute) {
-        try {
-          const internalToken = await generateInternalToken()
-          headers.set('Authorization', `Bearer ${internalToken}`)
-          logger.info(`[${requestId}] Added internal auth token for ${toolId}`)
-        } catch (error) {
-          logger.error(`[${requestId}] Failed to generate internal token for ${toolId}:`, error)
-        }
-      } else {
-        logger.info(`[${requestId}] Skipping internal auth token for external URL: ${endpointUrl}`)
-      }
-    }
+    await addInternalAuthIfNeeded(headers, isInternalRoute, requestId, toolId)
 
     // Prepare request options
     const requestOptions = {
@@ -652,9 +672,12 @@ async function handleProxyRequest(
   const proxyUrl = new URL('/api/proxy', baseUrl).toString()
 
   try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    await addInternalAuthIfNeeded(headers, true, requestId, `proxy:${toolId}`)
+
     const response = await fetch(proxyUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ toolId, params, executionContext }),
     })
 
@@ -669,9 +692,7 @@ async function handleProxyRequest(
       let errorMessage = `HTTP error ${response.status}: ${response.statusText}`
 
       try {
-        // Try to parse as JSON for more details
         const errorJson = JSON.parse(errorText)
-        // Enhanced error extraction to match internal API patterns
         errorMessage =
           // Primary error patterns
           errorJson.errors?.[0]?.message ||
