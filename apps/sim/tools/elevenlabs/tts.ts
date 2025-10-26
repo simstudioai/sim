@@ -55,7 +55,9 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
       return {
         success: false,
         error: data.error || 'Unknown error occurred',
-        output: {},
+        output: {
+          audioUrl: '',
+        },
       }
     }
 
