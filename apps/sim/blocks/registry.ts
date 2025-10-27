@@ -75,6 +75,7 @@ import { TwilioSMSBlock } from '@/blocks/blocks/twilio'
 import { TypeformBlock } from '@/blocks/blocks/typeform'
 import { VariablesBlock } from '@/blocks/blocks/variables'
 import { VisionBlock } from '@/blocks/blocks/vision'
+import { WaitBlock } from '@/blocks/blocks/wait'
 import { WealthboxBlock } from '@/blocks/blocks/wealthbox'
 import { WebflowBlock } from '@/blocks/blocks/webflow'
 import { WebhookBlock } from '@/blocks/blocks/webhook'
@@ -168,6 +169,7 @@ export const registry: Record<string, BlockConfig> = {
   typeform: TypeformBlock,
   variables: VariablesBlock,
   vision: VisionBlock,
+  wait: WaitBlock,
   wealthbox: WealthboxBlock,
   webflow: WebflowBlock,
   webhook: WebhookBlock,

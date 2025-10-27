@@ -10,6 +10,7 @@ import { ResponseBlockHandler } from '@/executor/handlers/response/response-hand
 import { RouterBlockHandler } from '@/executor/handlers/router/router-handler'
 import { TriggerBlockHandler } from '@/executor/handlers/trigger/trigger-handler'
 import { VariablesBlockHandler } from '@/executor/handlers/variables/variables-handler'
+import { WaitBlockHandler } from '@/executor/handlers/wait/wait-handler'
 import { WorkflowBlockHandler } from '@/executor/handlers/workflow/workflow-handler'
 
 export {
@@ -25,5 +26,6 @@ export {
   RouterBlockHandler,
   TriggerBlockHandler,
   VariablesBlockHandler,
+  WaitBlockHandler,
   WorkflowBlockHandler,
 }

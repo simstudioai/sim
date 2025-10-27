@@ -17,6 +17,7 @@ import {
   RouterBlockHandler,
   TriggerBlockHandler,
   VariablesBlockHandler,
+  WaitBlockHandler,
   WorkflowBlockHandler,
 } from '@/executor/handlers'
 import { LoopManager } from '@/executor/loops/loops'
@@ -215,6 +216,7 @@ export class Executor {
       new ResponseBlockHandler(),
       new WorkflowBlockHandler(),
       new VariablesBlockHandler(),
+      new WaitBlockHandler(),
       new GenericBlockHandler(),
     ]
 
