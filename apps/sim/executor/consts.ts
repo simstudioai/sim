@@ -15,6 +15,7 @@ export enum BlockType {
   WORKFLOW = 'workflow', // Deprecated - kept for backwards compatibility
   WORKFLOW_INPUT = 'workflow_input', // Current workflow block type
   STARTER = 'starter',
+  VARIABLES = 'variables',
 }
 
 /**
