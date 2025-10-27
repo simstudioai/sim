@@ -9,5 +9,12 @@ export interface ClayPopulateParams {
 export interface ClayPopulateResponse extends ToolResponse {
   output: {
     data: any
+    metadata: {
+      status: number
+      statusText: string
+      headers: Record<string, string>
+      timestamp: string
+      contentType: string
+    }
   }
 }

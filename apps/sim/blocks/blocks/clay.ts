@@ -38,10 +38,12 @@ Plain Text: Best for populating a table in free-form style.
       title: 'Auth Token',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Enter your Clay Auth token',
+      placeholder: 'Enter your Clay webhook auth token',
       password: true,
       connectionDroppable: false,
-      required: true,
+      required: false,
+      description:
+        'Optional: If your Clay table has webhook authentication enabled, enter the auth token here. This will be sent in the x-clay-webhook-auth header.',
     },
   ],
   tools: {
@@ -53,6 +55,10 @@ Plain Text: Best for populating a table in free-form style.
     data: { type: 'json', description: 'Data to populate' },
   },
   outputs: {
-    data: { type: 'json', description: 'Response data' },
+    data: { type: 'json', description: 'Response data from Clay webhook' },
+    metadata: {
+      type: 'json',
+      description: 'Webhook metadata including status, headers, timestamp, and content type',
+    },
   },
 }
