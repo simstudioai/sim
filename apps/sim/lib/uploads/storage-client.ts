@@ -98,11 +98,18 @@ export async function uploadFile(
   const { v4: uuidv4 } = await import('uuid')
   const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/setup.server')
 
-  const safeFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_')
+  const safeFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_').replace(/\.\./g, '')
   const uniqueKey = `${uuidv4()}-${safeFileName}`
   const filePath = join(UPLOAD_DIR_SERVER, uniqueKey)
 
-  await writeFile(filePath, file)
+  try {
+    await writeFile(filePath, file)
+  } catch (error) {
+    logger.error(`Failed to write file to local storage: ${fileName}`, error)
+    throw new Error(
+      `Failed to write file to local storage: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
+  }
 
   const fileSize = typeof configOrSize === 'number' ? configOrSize : size || file.length
 
@@ -164,11 +171,26 @@ export async function downloadFile(
 
   logger.info(`Downloading file from local storage: ${key}`)
   const { readFile } = await import('fs/promises')
-  const { join } = await import('path')
+  const { join, resolve, sep } = await import('path')
   const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/setup.server')
 
-  const filePath = join(UPLOAD_DIR_SERVER, key)
-  return readFile(filePath)
+  const safeKey = key.replace(/\.\./g, '').replace(/[/\\]/g, '')
+  const filePath = join(UPLOAD_DIR_SERVER, safeKey)
+
+  const resolvedPath = resolve(filePath)
+  const allowedDir = resolve(UPLOAD_DIR_SERVER)
+  if (!resolvedPath.startsWith(allowedDir + sep) && resolvedPath !== allowedDir) {
+    throw new Error('Invalid file path')
+  }
+
+  try {
+    return await readFile(filePath)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new Error(`File not found: ${key}`)
+    }
+    throw error
+  }
 }
 
 /**
@@ -190,11 +212,27 @@ export async function deleteFile(key: string): Promise<void> {
 
   logger.info(`Deleting file from local storage: ${key}`)
   const { unlink } = await import('fs/promises')
-  const { join } = await import('path')
+  const { join, resolve, sep } = await import('path')
   const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/setup.server')
 
-  const filePath = join(UPLOAD_DIR_SERVER, key)
-  await unlink(filePath)
+  const safeKey = key.replace(/\.\./g, '').replace(/[/\\]/g, '')
+  const filePath = join(UPLOAD_DIR_SERVER, safeKey)
+
+  const resolvedPath = resolve(filePath)
+  const allowedDir = resolve(UPLOAD_DIR_SERVER)
+  if (!resolvedPath.startsWith(allowedDir + sep) && resolvedPath !== allowedDir) {
+    throw new Error('Invalid file path')
+  }
+
+  try {
+    await unlink(filePath)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      logger.warn(`File not found during deletion: ${key}`)
+      return
+    }
+    throw error
+  }
 }
 
 /**
