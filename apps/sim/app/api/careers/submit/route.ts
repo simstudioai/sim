@@ -11,6 +11,14 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('CareersAPI')
 
+// Max file size: 10MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024
+const ALLOWED_FILE_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]
+
 const CareersSubmissionSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Please enter a valid email address'),
@@ -27,13 +35,70 @@ export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    const body = await request.json()
-    const validatedData = CareersSubmissionSchema.parse(body)
+    const formData = await request.formData()
+
+    // Extract form fields
+    const data = {
+      name: formData.get('name') as string,
+      email: formData.get('email') as string,
+      phone: formData.get('phone') as string,
+      position: formData.get('position') as string,
+      linkedin: formData.get('linkedin') as string,
+      portfolio: formData.get('portfolio') as string,
+      experience: formData.get('experience') as string,
+      location: formData.get('location') as string,
+      message: formData.get('message') as string,
+    }
+
+    // Extract and validate resume file
+    const resumeFile = formData.get('resume') as File | null
+    if (!resumeFile) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Resume is required',
+          errors: [{ path: ['resume'], message: 'Resume is required' }],
+        },
+        { status: 400 }
+      )
+    }
+
+    // Validate file size
+    if (resumeFile.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Resume file size must be less than 10MB',
+          errors: [{ path: ['resume'], message: 'File size must be less than 10MB' }],
+        },
+        { status: 400 }
+      )
+    }
+
+    // Validate file type
+    if (!ALLOWED_FILE_TYPES.includes(resumeFile.type)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Resume must be a PDF or Word document',
+          errors: [{ path: ['resume'], message: 'File must be PDF or Word document' }],
+        },
+        { status: 400 }
+      )
+    }
+
+    // Convert file to base64 for email attachment
+    const resumeBuffer = await resumeFile.arrayBuffer()
+    const resumeBase64 = Buffer.from(resumeBuffer).toString('base64')
+
+    const validatedData = CareersSubmissionSchema.parse(data)
 
     logger.info(`[${requestId}] Processing career application`, {
       name: validatedData.name,
       email: validatedData.email,
       position: validatedData.position,
+      resumeSize: resumeFile.size,
+      resumeType: resumeFile.type,
     })
 
     const submittedDate = new Date()
@@ -61,12 +126,20 @@ export async function POST(request: NextRequest) {
       })
     )
 
+    // Send email with resume attachment
     const careersEmailResult = await sendEmail({
       to: 'careers@sim.ai',
       subject: `New Career Application: ${validatedData.name} - ${validatedData.position}`,
       html: careersEmailHtml,
       emailType: 'transactional',
       replyTo: validatedData.email,
+      attachments: [
+        {
+          filename: resumeFile.name,
+          content: resumeBase64,
+          contentType: resumeFile.type,
+        },
+      ],
     })
 
     if (!careersEmailResult.success) {
