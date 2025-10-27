@@ -13,6 +13,7 @@ interface McpTool {
   serverName: string
   icon: React.ComponentType<any>
   bgColor: string
+  inputSchema?: any
 }
 
 interface StoredTool {
@@ -26,6 +27,7 @@ interface StoredTool {
   }
   isExpanded: boolean
   usageControl: 'auto'
+  schema?: any
 }
 
 interface McpToolsListProps {
@@ -71,6 +73,7 @@ export function McpToolsList({
                 },
                 isExpanded: true,
                 usageControl: 'auto',
+                schema: mcpTool.inputSchema,
               }
 
               onToolSelect(newTool)

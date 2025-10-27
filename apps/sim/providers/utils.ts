@@ -991,10 +991,10 @@ export function prepareToolExecution(
   toolParams: Record<string, any>
   executionParams: Record<string, any>
 } {
-  // Only merge actual tool parameters for logging
+  // User-provided params take precedence over LLM-generated params
   const toolParams = {
-    ...tool.params,
     ...llmArgs,
+    ...tool.params,
   }
 
   // Add system parameters for execution
