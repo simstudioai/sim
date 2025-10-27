@@ -2,7 +2,6 @@ import { db } from '@sim/db'
 import { member, subscription, userStats } from '@sim/db/schema'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
-import { DEFAULT_OVERAGE_THRESHOLD } from '@/lib/billing/constants'
 import { calculateSubscriptionOverage, getPlanPricing } from '@/lib/billing/core/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
@@ -11,7 +10,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 
 const logger = createLogger('ThresholdBilling')
 
-const OVERAGE_THRESHOLD = env.OVERAGE_THRESHOLD_DOLLARS || DEFAULT_OVERAGE_THRESHOLD
+const OVERAGE_THRESHOLD = env.OVERAGE_THRESHOLD_DOLLARS
 
 function parseDecimal(value: string | number | null | undefined): number {
   if (value === null || value === undefined) return 0

@@ -1,37 +1,31 @@
-import {
-  DEFAULT_ENTERPRISE_TIER_COST_LIMIT,
-  DEFAULT_FREE_CREDITS,
-  DEFAULT_PRO_TIER_COST_LIMIT,
-  DEFAULT_TEAM_TIER_COST_LIMIT,
-} from '@/lib/billing/constants'
 import { env } from '@/lib/env'
 
 /**
- * Get the free tier limit from env or fallback to default
+ * Get the free tier limit
  */
 export function getFreeTierLimit(): number {
-  return env.FREE_TIER_COST_LIMIT || DEFAULT_FREE_CREDITS
+  return env.FREE_TIER_COST_LIMIT
 }
 
 /**
- * Get the pro tier limit from env or fallback to default
+ * Get the pro tier limit
  */
 export function getProTierLimit(): number {
-  return env.PRO_TIER_COST_LIMIT || DEFAULT_PRO_TIER_COST_LIMIT
+  return env.PRO_TIER_COST_LIMIT
 }
 
 /**
- * Get the team tier limit per seat from env or fallback to default
+ * Get the team tier limit per seat
  */
 export function getTeamTierLimitPerSeat(): number {
-  return env.TEAM_TIER_COST_LIMIT || DEFAULT_TEAM_TIER_COST_LIMIT
+  return env.TEAM_TIER_COST_LIMIT
 }
 
 /**
- * Get the enterprise tier limit per seat from env or fallback to default
+ * Get the enterprise tier limit per seat
  */
 export function getEnterpriseTierLimitPerSeat(): number {
-  return env.ENTERPRISE_TIER_COST_LIMIT || DEFAULT_ENTERPRISE_TIER_COST_LIMIT
+  return env.ENTERPRISE_TIER_COST_LIMIT
 }
 
 export function checkEnterprisePlan(subscription: any): boolean {
