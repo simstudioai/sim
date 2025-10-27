@@ -143,6 +143,7 @@ Search for similar vectors in a Qdrant collection
 | `vector` | array | Yes | Vector to search for |
 | `limit` | number | No | Number of results to return |
 | `filter` | object | No | Filter to apply to the search |
+| `search_return_data` | string | No | Data to return from search |
 | `with_payload` | boolean | No | Include payload in response |
 | `with_vector` | boolean | No | Include vector in response |
 
@@ -165,6 +166,7 @@ Fetch points by ID from a Qdrant collection
 | `apiKey` | string | No | Qdrant API key \(optional\) |
 | `collection` | string | Yes | Collection name |
 | `ids` | array | Yes | Array of point IDs to fetch |
+| `fetch_return_data` | string | No | Data to return from fetch |
 | `with_payload` | boolean | No | Include payload in response |
 | `with_vector` | boolean | No | Include vector in response |
 
