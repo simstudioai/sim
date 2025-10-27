@@ -25,7 +25,7 @@ describe('/api/files/presigned', () => {
   })
 
   describe('POST', () => {
-    it('should return error when cloud storage is not enabled', async () => {
+    it('should return graceful fallback response when cloud storage is not enabled', async () => {
       setupFileApiMocks({
         cloudEnabled: false,
         storageProvider: 's3',
@@ -45,10 +45,14 @@ describe('/api/files/presigned', () => {
       const response = await POST(request)
       const data = await response.json()
 
-      expect(response.status).toBe(500)
-      expect(data.error).toBe('Direct uploads are only available when cloud storage is enabled')
-      expect(data.code).toBe('STORAGE_CONFIG_ERROR')
+      expect(response.status).toBe(200)
       expect(data.directUploadSupported).toBe(false)
+      expect(data.presignedUrl).toBe('')
+      expect(data.fileName).toBe('test.txt')
+      expect(data.fileInfo).toBeDefined()
+      expect(data.fileInfo.name).toBe('test.txt')
+      expect(data.fileInfo.size).toBe(1024)
+      expect(data.fileInfo.type).toBe('text/plain')
     })
 
     it('should return error when fileName is missing', async () => {
