@@ -270,25 +270,6 @@ export async function POST(request: NextRequest) {
         // Always start at A1 on resolved first sheet
         const address = 'A1'
 
-        // Helpers to compute end address based on values size
-        const colLettersToIndex = (letters: string): number => {
-          let n = 0
-          for (let i = 0; i < letters.length; i++) {
-            n = n * 26 + (letters.charCodeAt(i) - 64)
-          }
-          return n
-        }
-        const indexToColLetters = (index: number): string => {
-          let n = index
-          let s = ''
-          while (n > 0) {
-            const rem = (n - 1) % 26
-            s = String.fromCharCode(65 + rem) + s
-            n = Math.floor((n - 1) / 26)
-          }
-          return s
-        }
-
         // Normalize values to rectangular shape and compute dimensions
         let processedValues: any = validatedData.values || []
         if (
@@ -334,30 +315,34 @@ export async function POST(request: NextRequest) {
           })
         }
 
-        // Compute end address if needed
-        const addrMatch = address.match(/^([A-Za-z]+)(\d+)$/)
-        let computedRangeAddress = address
-        if (addrMatch && rowsCount > 0 && colsCount > 0) {
-          const startColLetters = addrMatch[1].toUpperCase()
-          const startRow = Number.parseInt(addrMatch[2]!, 10)
-          const startColIdx = colLettersToIndex(startColLetters)
-          const endColIdx = startColIdx + colsCount - 1
-          const endRow = startRow + rowsCount - 1
-          const endColLetters = indexToColLetters(endColIdx)
-          computedRangeAddress = `${startColLetters}${startRow}:${endColLetters}${endRow}`
+        // Compute concise end range from A1 and matrix size (no network round-trip)
+        const indexToColLetters = (index: number): string => {
+          let n = index
+          let s = ''
+          while (n > 0) {
+            const rem = (n - 1) % 26
+            s = String.fromCharCode(65 + rem) + s
+            n = Math.floor((n - 1) / 26)
+          }
+          return s
         }
+
+        const endColLetters = colsCount > 0 ? indexToColLetters(colsCount) : 'A'
+        const endRow = rowsCount > 0 ? rowsCount : 1
+        const computedRangeAddress = `A1:${endColLetters}${endRow}`
 
         logger.info(`[${requestId}] Computed Excel range`, {
           sheetName,
-          startAddress: address,
+          startAddress: 'A1',
           computedRangeAddress,
           rowsCount,
           colsCount,
         })
 
-        // Build URL following the excel write tool pattern
         const url = new URL(
-          `${MICROSOFT_GRAPH_BASE}/me/drive/items/${encodeURIComponent(fileData.id)}/workbook/worksheets('${encodeURIComponent(
+          `${MICROSOFT_GRAPH_BASE}/me/drive/items/${encodeURIComponent(
+            fileData.id
+          )}/workbook/worksheets('${encodeURIComponent(
             sheetName
           )}')/range(address='${encodeURIComponent(computedRangeAddress)}')`
         )
@@ -369,7 +354,7 @@ export async function POST(request: NextRequest) {
         // Logging details before write
         logger.info(`[${requestId}] Writing Excel content`, {
           sheetName,
-          address,
+          address: computedRangeAddress,
           valuesRows: Array.isArray(processedValues) ? processedValues.length : 0,
           valuesCols:
             Array.isArray(processedValues) && processedValues[0]
