@@ -207,18 +207,18 @@ Populate Clay with data from a JSON file. Enables direct communication and notif
 
 #### Input
 
-| Parameter | Type | Required | Description |
+| Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
-| `webhookURL` | string | Yes | The webhook URL to populate |
-| `data` | json | Yes | The data to populate |
-| `authToken` | string | Yes | Auth token for Clay webhook authentication |
+| `webhookURL` | string | Ja | Die Webhook-URL, die befüllt werden soll |
+| `data` | json | Ja | Die Daten, die befüllt werden sollen |
+| `authToken` | string | Nein | Optionaler Auth-Token für die Clay-Webhook-Authentifizierung \(die meisten Webhooks benötigen dies nicht\) |
 
 #### Output
 
-| Parameter | Type | Description |
+| Parameter | Typ | Beschreibung |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | json | Clay populate operation results including response data from Clay webhook |
+| `data` | json | Antwortdaten vom Clay-Webhook |
+| `metadata` | object | Webhook-Antwort-Metadaten |
 
 ## Notes
 

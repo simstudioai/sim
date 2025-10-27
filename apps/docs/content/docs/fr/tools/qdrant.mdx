@@ -133,13 +133,14 @@ Rechercher des vecteurs similaires dans une collection Qdrant
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ---------- | ----------- |
-| `url` | chaîne | Oui | URL de base Qdrant |
+| --------- | ---- | ----------- | ----------- |
+| `url` | chaîne | Oui | URL de base de Qdrant |
 | `apiKey` | chaîne | Non | Clé API Qdrant \(facultative\) |
 | `collection` | chaîne | Oui | Nom de la collection |
 | `vector` | tableau | Oui | Vecteur à rechercher |
 | `limit` | nombre | Non | Nombre de résultats à retourner |
 | `filter` | objet | Non | Filtre à appliquer à la recherche |
+| `search_return_data` | chaîne | Non | Données à retourner de la recherche |
 | `with_payload` | booléen | Non | Inclure la charge utile dans la réponse |
 | `with_vector` | booléen | Non | Inclure le vecteur dans la réponse |
 
@@ -157,11 +158,12 @@ Récupérer des points par ID depuis une collection Qdrant
 #### Entrée
 
 | Paramètre | Type | Obligatoire | Description |
-| --------- | ---- | ---------- | ----------- |
-| `url` | chaîne | Oui | URL de base Qdrant |
+| --------- | ---- | ----------- | ----------- |
+| `url` | chaîne | Oui | URL de base de Qdrant |
 | `apiKey` | chaîne | Non | Clé API Qdrant \(facultative\) |
 | `collection` | chaîne | Oui | Nom de la collection |
 | `ids` | tableau | Oui | Tableau d'identifiants de points à récupérer |
+| `fetch_return_data` | chaîne | Non | Données à retourner de la récupération |
 | `with_payload` | booléen | Non | Inclure la charge utile dans la réponse |
 | `with_vector` | booléen | Non | Inclure le vecteur dans la réponse |
 

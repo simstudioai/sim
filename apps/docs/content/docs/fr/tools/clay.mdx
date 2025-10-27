@@ -211,14 +211,14 @@ Remplir Clay avec des données provenant d'un fichier JSON. Permet une communica
 | --------- | ---- | ---------- | ----------- |
 | `webhookURL` | string | Oui | L'URL du webhook à remplir |
 | `data` | json | Oui | Les données à remplir |
-| `authToken` | string | Oui | Jeton d'authentification pour l'authentification du webhook Clay |
+| `authToken` | string | Non | Jeton d'authentification optionnel pour l'authentification du webhook Clay \(la plupart des webhooks ne nécessitent pas cela\) |
 
 #### Sortie
 
 | Paramètre | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Statut de réussite de l'opération |
-| `output` | json | Résultats de l'opération de remplissage Clay incluant les données de réponse du webhook Clay |
+| `data` | json | Données de réponse du webhook Clay |
+| `metadata` | object | Métadonnées de réponse du webhook |
 
 ## Notes
 

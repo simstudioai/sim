@@ -209,16 +209,16 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `webhookURL` | string | 是 | 用于填充的 webhook URL |
+| `webhookURL` | string | 是 | 要填充的 webhook URL |
 | `data` | json | 是 | 要填充的数据 |
-| `authToken` | string | 是 | 用于 Clay webhook 认证的授权令牌 |
+| `authToken` | string | 否 | 用于 Clay webhook 认证的可选身份验证令牌（大多数 webhook 不需要此令牌） |
 
 #### 输出
 
 | 参数 | 类型 | 描述 |
 | --------- | ---- | ----------- |
-| `success` | boolean | 操作成功状态 |
-| `output` | json | Clay 填充操作结果，包括来自 Clay webhook 的响应数据 |
+| `data` | json | 来自 Clay webhook 的响应数据 |
+| `metadata` | object | webhook 响应元数据 |
 
 ## 注意事项
 

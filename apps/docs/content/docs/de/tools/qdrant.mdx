@@ -139,7 +139,8 @@ Suche nach ähnlichen Vektoren in einer Qdrant-Sammlung
 | `collection` | string | Ja | Sammlungsname |
 | `vector` | array | Ja | Zu suchender Vektor |
 | `limit` | number | Nein | Anzahl der zurückzugebenden Ergebnisse |
-| `filter` | object | Nein | Filter für die Suche |
+| `filter` | object | Nein | Auf die Suche anzuwendender Filter |
+| `search_return_data` | string | Nein | Aus der Suche zurückzugebende Daten |
 | `with_payload` | boolean | Nein | Payload in Antwort einschließen |
 | `with_vector` | boolean | Nein | Vektor in Antwort einschließen |
 
@@ -161,7 +162,8 @@ Punkte anhand der ID aus einer Qdrant-Sammlung abrufen
 | `url` | string | Ja | Qdrant-Basis-URL |
 | `apiKey` | string | Nein | Qdrant-API-Schlüssel \(optional\) |
 | `collection` | string | Ja | Sammlungsname |
-| `ids` | array | Ja | Array von abzurufenden Punkt-IDs |
+| `ids` | array | Ja | Array von Punkt-IDs zum Abrufen |
+| `fetch_return_data` | string | Nein | Aus dem Abruf zurückzugebende Daten |
 | `with_payload` | boolean | Nein | Payload in Antwort einschließen |
 | `with_vector` | boolean | Nein | Vektor in Antwort einschließen |
 
