@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Download, Search, Trash2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Input } from '@/components/ui'
+import { Input, Progress, Skeleton } from '@/components/ui'
 import { Button } from '@/components/ui/button'
 import {
   Table,
@@ -16,6 +16,7 @@ import {
 import { createLogger } from '@/lib/logs/console/logger'
 import { getFileExtension } from '@/lib/uploads/file-utils'
 import type { WorkspaceFileRecord } from '@/lib/uploads/workspace-files'
+import { cn } from '@/lib/utils'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
@@ -38,6 +39,17 @@ const SUPPORTED_EXTENSIONS = [
 ] as const
 const ACCEPT_ATTR = '.pdf,.csv,.doc,.docx,.txt,.md,.xlsx,.xls,.html,.htm,.pptx,.ppt'
 
+interface StorageInfo {
+  usedBytes: number
+  limitBytes: number
+  percentUsed: number
+}
+
+interface UsageData {
+  plan: string
+  storage: StorageInfo
+}
+
 export function FileUploads() {
   const params = useParams()
   const workspaceId = params?.workspaceId as string
@@ -48,6 +60,9 @@ export function FileUploads() {
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null)
+  const [planName, setPlanName] = useState<string>('free')
+  const [storageLoading, setStorageLoading] = useState(true)
 
   const { permissions: workspacePermissions, loading: permissionsLoading } =
     useWorkspacePermissions(workspaceId)
@@ -71,8 +86,28 @@ export function FileUploads() {
     }
   }
 
+  const loadStorageInfo = async () => {
+    try {
+      setStorageLoading(true)
+      const response = await fetch('/api/users/me/usage-limits')
+      const data = await response.json()
+
+      if (data.success && data.storage) {
+        setStorageInfo(data.storage)
+        if (data.usage?.plan) {
+          setPlanName(data.usage.plan)
+        }
+      }
+    } catch (error) {
+      logger.error('Error loading storage info:', error)
+    } finally {
+      setStorageLoading(false)
+    }
+  }
+
   useEffect(() => {
     void loadFiles()
+    void loadStorageInfo()
   }, [workspaceId])
 
   const handleUploadClick = () => {
@@ -123,6 +158,7 @@ export function FileUploads() {
       }
 
       await loadFiles()
+      await loadStorageInfo()
       if (unsupported.length) {
         lastError = `Unsupported file type: ${unsupported.join(', ')}`
       }
@@ -171,6 +207,7 @@ export function FileUploads() {
 
       if (data.success) {
         await loadFiles()
+        await loadStorageInfo()
       }
     } catch (error) {
       logger.error('Error deleting file:', error)
@@ -206,6 +243,27 @@ export function FileUploads() {
     return `${text.slice(0, start)}...${text.slice(-end)}`
   }
 
+  const formatStorageSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+  }
+
+  // Plan name mapping (same as usage indicator)
+  const PLAN_NAMES = {
+    enterprise: 'Enterprise',
+    team: 'Team',
+    pro: 'Pro',
+    free: 'Free',
+  } as const
+
+  const displayPlanName = PLAN_NAMES[planName as keyof typeof PLAN_NAMES] || 'Free'
+
+  // Gradient text style for paid plans
+  const GRADIENT_TEXT_STYLES =
+    'gradient-text bg-gradient-to-b from-gradient-primary via-gradient-secondary to-gradient-primary'
+
   return (
     <div className='relative flex h-full flex-col'>
       {/* Header: search left, file count + Upload right */}
@@ -220,9 +278,31 @@ export function FileUploads() {
           />
         </div>
         <div className='flex items-center gap-3'>
-          <div className='text-muted-foreground text-sm'>
-            {files.length} {files.length === 1 ? 'file' : 'files'}
-          </div>
+          {storageLoading ? (
+            <Skeleton className='h-4 w-32' />
+          ) : storageInfo ? (
+            <div className='flex flex-col items-end gap-1'>
+              <div className='flex items-center gap-2 text-sm'>
+                <span
+                  className={cn(
+                    'font-medium',
+                    planName === 'free' ? 'text-foreground' : GRADIENT_TEXT_STYLES
+                  )}
+                >
+                  {displayPlanName}
+                </span>
+                <span className='text-muted-foreground tabular-nums'>
+                  {formatStorageSize(storageInfo.usedBytes)} /{' '}
+                  {formatStorageSize(storageInfo.limitBytes)}
+                </span>
+              </div>
+              <Progress
+                value={Math.min(storageInfo.percentUsed, 100)}
+                className='h-1 w-full'
+                indicatorClassName='bg-black dark:bg-white'
+              />
+            </div>
+          ) : null}
           {userPermissions.canEdit && (
             <div className='flex items-center'>
               <input
@@ -265,7 +345,7 @@ export function FileUploads() {
         ) : (
           <Table className='table-auto text-[13px]'>
             <TableHeader>
-              <TableRow>
+              <TableRow className='hover:bg-transparent'>
                 <TableHead className='w-[56%] px-3 text-xs'>Name</TableHead>
                 <TableHead className='w-[14%] px-3 text-left text-xs'>Size</TableHead>
                 <TableHead className='w-[15%] px-3 text-left text-xs'>Uploaded</TableHead>

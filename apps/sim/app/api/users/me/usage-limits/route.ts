@@ -3,6 +3,7 @@ import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getEffectiveCurrentPeriodCost } from '@/lib/billing/core/usage'
+import { getUserStorageLimit, getUserStorageUsage } from '@/lib/billing/storage'
 import { createLogger } from '@/lib/logs/console/logger'
 import { createErrorResponse } from '@/app/api/workflows/utils'
 import { RateLimiter } from '@/services/queue'
@@ -37,9 +38,11 @@ export async function GET(request: NextRequest) {
     ])
 
     // Usage summary (current period cost + limit + plan)
-    const [usageCheck, effectiveCost] = await Promise.all([
+    const [usageCheck, effectiveCost, storageUsage, storageLimit] = await Promise.all([
       checkServerSideUsageLimits(authenticatedUserId),
       getEffectiveCurrentPeriodCost(authenticatedUserId),
+      getUserStorageUsage(authenticatedUserId),
+      getUserStorageLimit(authenticatedUserId),
     ])
 
     const currentPeriodCost = effectiveCost
@@ -65,6 +68,11 @@ export async function GET(request: NextRequest) {
         currentPeriodCost,
         limit: usageCheck.limit,
         plan: userSubscription?.plan || 'free',
+      },
+      storage: {
+        usedBytes: storageUsage,
+        limitBytes: storageLimit,
+        percentUsed: storageLimit > 0 ? (storageUsage / storageLimit) * 100 : 0,
       },
     })
   } catch (error: any) {
