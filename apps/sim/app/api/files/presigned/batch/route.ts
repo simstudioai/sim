@@ -121,10 +121,24 @@ export async function POST(request: NextRequest) {
     }
 
     if (!isUsingCloudStorage()) {
-      return NextResponse.json(
-        { error: 'Direct uploads are only available when cloud storage is enabled' },
-        { status: 400 }
+      logger.info(
+        `Local storage detected - batch presigned URLs not available, client will use API fallback`
       )
+      return NextResponse.json({
+        files: files.map((file) => ({
+          fileName: file.fileName,
+          presignedUrl: '', // Empty URL signals fallback to API upload
+          fileInfo: {
+            path: '',
+            key: '',
+            name: file.fileName,
+            size: file.fileSize,
+            type: file.contentType,
+          },
+          directUploadSupported: false,
+        })),
+        directUploadSupported: false,
+      })
     }
 
     const storageProvider = getStorageProvider()

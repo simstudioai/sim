@@ -92,9 +92,27 @@ export async function uploadFile(
     return uploadToS3(file, fileName, contentType, configOrSize)
   }
 
-  throw new Error(
-    'No storage provider configured. Set Azure credentials (AZURE_CONNECTION_STRING or AZURE_ACCOUNT_NAME + AZURE_ACCOUNT_KEY) or configure AWS credentials for S3.'
-  )
+  logger.info(`Uploading file to local storage: ${fileName}`)
+  const { writeFile } = await import('fs/promises')
+  const { join } = await import('path')
+  const { v4: uuidv4 } = await import('uuid')
+  const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/setup.server')
+
+  const safeFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_')
+  const uniqueKey = `${uuidv4()}-${safeFileName}`
+  const filePath = join(UPLOAD_DIR_SERVER, uniqueKey)
+
+  await writeFile(filePath, file)
+
+  const fileSize = typeof configOrSize === 'number' ? configOrSize : size || file.length
+
+  return {
+    path: `/api/files/serve/${uniqueKey}`,
+    key: uniqueKey,
+    name: fileName,
+    size: fileSize,
+    type: contentType,
+  }
 }
 
 /**
@@ -144,9 +162,13 @@ export async function downloadFile(
     return downloadFromS3(key)
   }
 
-  throw new Error(
-    'No storage provider configured. Set Azure credentials (AZURE_CONNECTION_STRING or AZURE_ACCOUNT_NAME + AZURE_ACCOUNT_KEY) or configure AWS credentials for S3.'
-  )
+  logger.info(`Downloading file from local storage: ${key}`)
+  const { readFile } = await import('fs/promises')
+  const { join } = await import('path')
+  const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/setup.server')
+
+  const filePath = join(UPLOAD_DIR_SERVER, key)
+  return readFile(filePath)
 }
 
 /**
@@ -166,9 +188,13 @@ export async function deleteFile(key: string): Promise<void> {
     return deleteFromS3(key)
   }
 
-  throw new Error(
-    'No storage provider configured. Set Azure credentials (AZURE_CONNECTION_STRING or AZURE_ACCOUNT_NAME + AZURE_ACCOUNT_KEY) or configure AWS credentials for S3.'
-  )
+  logger.info(`Deleting file from local storage: ${key}`)
+  const { unlink } = await import('fs/promises')
+  const { join } = await import('path')
+  const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/setup.server')
+
+  const filePath = join(UPLOAD_DIR_SERVER, key)
+  await unlink(filePath)
 }
 
 /**
@@ -190,9 +216,8 @@ export async function getPresignedUrl(key: string, expiresIn = 3600): Promise<st
     return getS3PresignedUrl(key, expiresIn)
   }
 
-  throw new Error(
-    'No storage provider configured. Set Azure credentials (AZURE_CONNECTION_STRING or AZURE_ACCOUNT_NAME + AZURE_ACCOUNT_KEY) or configure AWS credentials for S3.'
-  )
+  logger.info(`Generating serve path for local storage: ${key}`)
+  return `/api/files/serve/${encodeURIComponent(key)}`
 }
 
 /**
