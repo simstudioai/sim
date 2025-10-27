@@ -433,26 +433,19 @@ export const WorkflowBlock = memo(
       )
     )
 
-    // Memoized SubBlock layout management - only recalculate when dependencies change
-    // Helper function to generate stable keys for subblocks
-    // This prevents unnecessary re-mounting when subblock values change
     const getSubBlockStableKey = useCallback(
       (subBlock: SubBlockConfig, stateToUse: Record<string, any>): string => {
-        // For MCP dynamic args, create a stable key based on server and tool selection
-        // This ensures the component only re-mounts when server or tool changes, not on arg changes
         if (subBlock.type === 'mcp-dynamic-args') {
           const serverValue = stateToUse.server?.value || 'no-server'
           const toolValue = stateToUse.tool?.value || 'no-tool'
           return `${id}-${subBlock.id}-${serverValue}-${toolValue}`
         }
 
-        // For MCP tool selector, key on server selection
         if (subBlock.type === 'mcp-tool-selector') {
           const serverValue = stateToUse.server?.value || 'no-server'
           return `${id}-${subBlock.id}-${serverValue}`
         }
 
-        // For all other subblocks, use a simple stable key based on block ID and subblock ID
         return `${id}-${subBlock.id}`
       },
       [id]

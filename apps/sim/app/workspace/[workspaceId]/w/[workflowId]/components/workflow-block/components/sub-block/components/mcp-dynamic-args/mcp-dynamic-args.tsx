@@ -144,7 +144,6 @@ function McpInputWithTags({
   )
 }
 
-// Wrapper component for Textarea with tag dropdown support
 interface McpTextareaWithTagsProps {
   value: string
   onChange: (value: string) => void
