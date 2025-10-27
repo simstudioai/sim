@@ -856,18 +856,25 @@ async function handleSubflowOperationTx(
       // Also update the corresponding block's data to keep UI in sync
       if (payload.type === 'loop' && payload.config.iterations !== undefined) {
         // Update the loop block's data.count property
+        const blockData: any = {
+          ...payload.config,
+          count: payload.config.iterations,
+          loopType: payload.config.loopType,
+          collection: payload.config.forEachItems,
+          width: 500,
+          height: 300,
+          type: 'subflowNode',
+        }
+
+        // Add while condition if present
+        if (payload.config.loopType === 'while' && payload.config.whileCondition !== undefined) {
+          blockData.condition = payload.config.whileCondition
+        }
+
         await tx
           .update(workflowBlocks)
           .set({
-            data: {
-              ...payload.config,
-              count: payload.config.iterations,
-              loopType: payload.config.loopType,
-              collection: payload.config.forEachItems,
-              width: 500,
-              height: 300,
-              type: 'subflowNode',
-            },
+            data: blockData,
             updatedAt: new Date(),
           })
           .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))

@@ -46,14 +46,15 @@ interface IterationBadgesProps {
 
 const CONFIG = {
   loop: {
-    typeLabels: { for: 'For Loop', forEach: 'For Each' },
+    typeLabels: { for: 'For Loop', forEach: 'For Each', while: 'While' },
     typeKey: 'loopType' as const,
     storeKey: 'loops' as const,
     maxIterations: 100,
     configKeys: {
       iterations: 'iterations' as const,
       items: 'forEachItems' as const,
-    },
+      condition: 'whileCondition' as const,
+    } as any,
   },
   parallel: {
     typeLabels: { count: 'Parallel Count', collection: 'Parallel Each' },
@@ -78,17 +79,28 @@ export function IterationBadges({ nodeId, data, iterationType }: IterationBadges
   // Determine current type and values
   const currentType = (data?.[config.typeKey] ||
     (iterationType === 'loop' ? 'for' : 'count')) as any
+  
+  // Determine if we're in count mode, collection mode, or condition mode
+  const isCountMode =
+    (iterationType === 'loop' && currentType === 'for') ||
+    (iterationType === 'parallel' && currentType === 'count')
+  const isConditionMode = iterationType === 'loop' && currentType === 'while'
+  
   const configIterations = (nodeConfig as any)?.[config.configKeys.iterations] ?? data?.count ?? 5
   const configCollection = (nodeConfig as any)?.[config.configKeys.items] ?? data?.collection ?? ''
+  const configCondition = iterationType === 'loop' 
+    ? ((nodeConfig as any)?.['whileCondition'] ?? (data as any)?.condition ?? '')
+    : ''
 
   const iterations = configIterations
   const collectionString =
     typeof configCollection === 'string' ? configCollection : JSON.stringify(configCollection) || ''
+  const conditionString = typeof configCondition === 'string' ? configCondition : ''
 
   // State management
   const [tempInputValue, setTempInputValue] = useState<string | null>(null)
   const inputValue = tempInputValue ?? iterations.toString()
-  const editorValue = collectionString
+  const editorValue = isConditionMode ? conditionString : collectionString
   const [typePopoverOpen, setTypePopoverOpen] = useState(false)
   const [configPopoverOpen, setConfigPopoverOpen] = useState(false)
   const [showTagDropdown, setShowTagDropdown] = useState(false)
@@ -190,11 +202,6 @@ export function IterationBadges({ nodeId, data, iterationType }: IterationBadges
     [nodeId, iterationType, collaborativeUpdateIterationCollection, isPreview]
   )
 
-  // Determine if we're in count mode or collection mode
-  const isCountMode =
-    (iterationType === 'loop' && currentType === 'for') ||
-    (iterationType === 'parallel' && currentType === 'count')
-
   // Get type options
   const typeOptions = Object.entries(config.typeLabels)
 
@@ -259,7 +266,7 @@ export function IterationBadges({ nodeId, data, iterationType }: IterationBadges
             )}
             style={{ pointerEvents: isPreview ? 'none' : 'auto' }}
           >
-            {isCountMode ? `Iterations: ${iterations}` : 'Items'}
+            {isCountMode ? `Iterations: ${iterations}` : isConditionMode ? 'Condition' : 'Items'}
             {!isPreview && <ChevronDown className='h-3 w-3 text-muted-foreground' />}
           </Badge>
         </PopoverTrigger>
@@ -273,7 +280,9 @@ export function IterationBadges({ nodeId, data, iterationType }: IterationBadges
               <div className='font-medium text-muted-foreground text-xs'>
                 {isCountMode
                   ? `${iterationType === 'loop' ? 'Loop' : 'Parallel'} Iterations`
-                  : `${iterationType === 'loop' ? 'Collection' : 'Parallel'} Items`}
+                  : isConditionMode
+                    ? 'While Condition'
+                    : `${iterationType === 'loop' ? 'Collection' : 'Parallel'} Items`}
               </div>
 
               {isCountMode ? (
@@ -288,6 +297,43 @@ export function IterationBadges({ nodeId, data, iterationType }: IterationBadges
                     className='h-8 text-sm'
                     autoFocus
                   />
+                </div>
+              ) : isConditionMode ? (
+                // Code editor for while condition
+                <div ref={editorContainerRef} className='relative'>
+                  <div className='relative min-h-[80px] rounded-md border border-input bg-background px-3 pt-2 pb-3 font-mono text-sm'>
+                    {conditionString === '' && (
+                      <div className='pointer-events-none absolute top-[8.5px] left-3 select-none text-muted-foreground/50'>
+                        {'<counter.value> < 10'}
+                      </div>
+                    )}
+                    <Editor
+                      value={conditionString}
+                      onValueChange={handleEditorChange}
+                      highlight={(code) => highlight(code, languages.javascript, 'javascript')}
+                      padding={0}
+                      style={{
+                        fontFamily: 'monospace',
+                        lineHeight: '21px',
+                      }}
+                      className='w-full focus:outline-none'
+                      textareaClassName='focus:outline-none focus:ring-0 bg-transparent resize-none w-full overflow-hidden whitespace-pre-wrap'
+                    />
+                  </div>
+                  <div className='mt-2 text-[10px] text-muted-foreground'>
+                    JavaScript expression that evaluates to true/false. Type "{'<'}" to reference blocks.
+                  </div>
+                  {showTagDropdown && (
+                    <TagDropdown
+                      visible={showTagDropdown}
+                      onSelect={handleTagSelect}
+                      blockId={nodeId}
+                      activeSourceBlockId={null}
+                      inputValue={conditionString}
+                      cursorPosition={cursorPosition}
+                      onClose={() => setShowTagDropdown(false)}
+                    />
+                  )}
                 </div>
               ) : (
                 // Code editor for collection-based mode

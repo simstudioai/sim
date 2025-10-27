@@ -1261,7 +1261,7 @@ export function useCollaborativeWorkflow() {
   )
 
   const collaborativeUpdateLoopType = useCallback(
-    (loopId: string, loopType: 'for' | 'forEach') => {
+    (loopId: string, loopType: 'for' | 'forEach' | 'while') => {
       const currentBlock = workflowStore.blocks[loopId]
       if (!currentBlock || currentBlock.type !== 'loop') return
 
@@ -1271,13 +1271,20 @@ export function useCollaborativeWorkflow() {
 
       const currentIterations = currentBlock.data?.count || 5
       const currentCollection = currentBlock.data?.collection || ''
+      const currentCondition = currentBlock.data?.condition || ''
 
-      const config = {
+      const config: any = {
         id: loopId,
         nodes: childNodes,
         iterations: currentIterations,
         loopType,
-        forEachItems: currentCollection,
+      }
+
+      // Include the appropriate field based on loop type
+      if (loopType === 'forEach') {
+        config.forEachItems = currentCollection
+      } else if (loopType === 'while') {
+        config.whileCondition = currentCondition
       }
 
       executeQueuedOperation('update', 'subflow', { id: loopId, type: 'loop', config }, () =>
@@ -1386,12 +1393,18 @@ export function useCollaborativeWorkflow() {
         const currentIterations = currentBlock.data?.count || 5
         const currentLoopType = currentBlock.data?.loopType || 'for'
 
-        const config = {
+        const config: any = {
           id: nodeId,
           nodes: childNodes,
           iterations: currentIterations,
           loopType: currentLoopType,
-          forEachItems: collection,
+        }
+
+        // Add the appropriate field based on loop type
+        if (currentLoopType === 'forEach') {
+          config.forEachItems = collection
+        } else if (currentLoopType === 'while') {
+          config.whileCondition = collection
         }
 
         executeQueuedOperation('update', 'subflow', { id: nodeId, type: 'loop', config }, () =>

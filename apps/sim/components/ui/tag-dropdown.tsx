@@ -585,13 +585,43 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     )
 
     let loopBlockGroup: BlockTagGroup | null = null
+    
+    // Check if blockId IS a loop block (for editing loop config like while condition)
+    const isLoopBlock = blocks[blockId]?.type === 'loop'
+    const currentLoop = isLoopBlock ? loops[blockId] : null
+    
+    // Check if blockId is INSIDE a loop
     const containingLoop = Object.entries(loops).find(([_, loop]) => loop.nodes.includes(blockId))
+    
     let containingLoopBlockId: string | null = null
-    if (containingLoop) {
+    
+    // Prioritize current loop if editing the loop block itself
+    if (currentLoop && isLoopBlock) {
+      containingLoopBlockId = blockId
+      const loopType = currentLoop.loopType || 'for'
+      const contextualTags: string[] = ['index', 'currentIteration']
+      if (loopType === 'forEach') {
+        contextualTags.push('currentItem')
+        contextualTags.push('items')
+      }
+
+      const loopBlock = blocks[blockId]
+      if (loopBlock) {
+        const loopBlockName = loopBlock.name || loopBlock.type
+
+        loopBlockGroup = {
+          blockName: loopBlockName,
+          blockId: blockId,
+          blockType: 'loop',
+          tags: contextualTags,
+          distance: 0,
+        }
+      }
+    } else if (containingLoop) {
       const [loopId, loop] = containingLoop
       containingLoopBlockId = loopId
       const loopType = loop.loopType || 'for'
-      const contextualTags: string[] = ['index']
+      const contextualTags: string[] = ['index', 'currentIteration']
       if (loopType === 'forEach') {
         contextualTags.push('currentItem')
         contextualTags.push('items')

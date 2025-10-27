@@ -1,6 +1,7 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/consts'
+import { evaluateConditionExpression } from '@/executor/handlers/condition/condition-handler'
 import type { PathTracker } from '@/executor/path/path'
 import type { InputResolver } from '@/executor/resolver/resolver'
 import { Routing } from '@/executor/routing/routing'
@@ -50,6 +51,8 @@ export class LoopBlockHandler implements BlockHandler {
     const currentIteration = context.loopIterations.get(block.id) || 1
     let maxIterations: number
     let forEachItems: any[] | Record<string, any> | null = null
+    let shouldContinueLoop = true
+    
     if (loop.loopType === 'forEach') {
       if (
         !loop.forEachItems ||
@@ -82,14 +85,90 @@ export class LoopBlockHandler implements BlockHandler {
       logger.info(
         `forEach loop ${block.id} - Items: ${itemsLength}, Max iterations: ${maxIterations}`
       )
+    } else if (loop.loopType === 'while') {
+      // For while loops, set loop context BEFORE evaluating condition
+      // This makes variables like index, currentIteration available in the condition
+      const loopContext = {
+        index: currentIteration - 1, // 0-based index
+        currentIteration, // 1-based iteration number
+      }
+      context.loopItems.set(block.id, loopContext)
+      logger.info(
+        `While loop ${block.id} - Set loop context for iteration ${currentIteration}:`,
+        loopContext
+      )
+
+      // Evaluate the condition to determine if we should continue
+      if (!loop.whileCondition || loop.whileCondition.trim() === '') {
+        throw new Error(
+          `while loop "${block.id}" requires a condition expression. Please provide a valid JavaScript expression.`
+        )
+      }
+
+      // Evaluate the condition at the start of each iteration
+      try {
+        if (!this.resolver) {
+          throw new Error('Resolver is required for while loop condition evaluation')
+        }
+        shouldContinueLoop = await evaluateConditionExpression(
+          loop.whileCondition,
+          context,
+          block,
+          this.resolver
+        )
+        logger.info(
+          `While loop ${block.id} - Condition evaluated to: ${shouldContinueLoop} (iteration ${currentIteration})`
+        )
+      } catch (error: any) {
+        logger.error(`Failed to evaluate while loop condition:`, error)
+        throw new Error(
+          `Failed to evaluate while loop condition for "${block.id}": ${error.message}`
+        )
+      }
+
+      // Use a safety limit to prevent infinite loops
+      maxIterations = loop.iterations || 1000
+      logger.info(
+        `While loop ${block.id} - Condition: ${shouldContinueLoop}, Max iterations (safety): ${maxIterations}`
+      )
     } else {
       maxIterations = loop.iterations || DEFAULT_MAX_ITERATIONS
       logger.info(`For loop ${block.id} - Max iterations: ${maxIterations}`)
     }
 
     logger.info(
-      `Loop ${block.id} - Current iteration: ${currentIteration}, Max iterations: ${maxIterations}`
+      `Loop ${block.id} - Current iteration: ${currentIteration}, Max iterations: ${maxIterations}, Should continue: ${shouldContinueLoop}`
     )
+
+    // For while loops, check if the condition is false
+    if (loop.loopType === 'while' && !shouldContinueLoop) {
+      logger.info(
+        `While loop ${block.id} condition is false at iteration ${currentIteration}, exiting loop`
+      )
+      
+      // Mark the loop as completed
+      context.completedLoops.add(block.id)
+      
+      // Activate the loop-end connections (blocks after the loop)
+      const loopEndConnections =
+        context.workflow?.connections.filter(
+          (conn) => conn.source === block.id && conn.sourceHandle === 'loop-end-source'
+        ) || []
+
+      for (const conn of loopEndConnections) {
+        context.activeExecutionPath.add(conn.target)
+        logger.info(`Activated post-loop path from ${block.id} to ${conn.target}`)
+      }
+
+      return {
+        loopId: block.id,
+        currentIteration: currentIteration - 1,
+        maxIterations,
+        loopType: 'while',
+        completed: true,
+        message: `While loop completed after ${currentIteration - 1} iterations (condition became false)`,
+      } as Record<string, any>
+    }
 
     if (currentIteration > maxIterations) {
       logger.info(`Loop ${block.id} has reached maximum iterations (${maxIterations})`)

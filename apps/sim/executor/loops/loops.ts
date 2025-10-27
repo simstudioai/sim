@@ -81,6 +81,9 @@ export class LoopManager {
               )
             }
           }
+        } else if (loop.loopType === 'while') {
+          // For while loops, use the safety limit
+          maxIterations = loop.iterations || 1000
         }
 
         logger.info(`Loop ${loopId} - Current: ${currentIteration}, Max: ${maxIterations}`)
@@ -131,6 +134,10 @@ export class LoopManager {
 
           logger.info(`Loop ${loopId} - Completed and activated end connections`)
         } else {
+          // For while loops, check the condition before continuing to the next iteration
+          // Note: The condition will be re-evaluated when the loop block executes again
+          // This just ensures we don't increment and reset if we're at the end
+          
           context.loopIterations.set(loopId, currentIteration + 1)
           logger.info(`Loop ${loopId} - Incremented counter to ${currentIteration + 1}`)
 

@@ -30,13 +30,20 @@ export function convertLoopBlockToLoop(
     }
   }
 
-  return {
+  const loop: Loop = {
     id: loopBlockId,
     nodes: findChildNodes(loopBlockId, blocks),
     iterations: loopBlock.data?.count || DEFAULT_LOOP_ITERATIONS,
     loopType: loopBlock.data?.loopType || 'for',
     forEachItems,
   }
+
+  // Add while condition if present
+  if (loopBlock.data?.loopType === 'while' && loopBlock.data?.condition) {
+    loop.whileCondition = loopBlock.data.condition
+  }
+
+  return loop
 }
 
 /**

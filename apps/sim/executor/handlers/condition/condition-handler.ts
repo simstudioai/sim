@@ -9,6 +9,60 @@ import type { SerializedBlock } from '@/serializer/types'
 const logger = createLogger('ConditionBlockHandler')
 
 /**
+ * Evaluates a single condition expression with variable/block reference resolution
+ * Returns true if condition is met, false otherwise
+ */
+export async function evaluateConditionExpression(
+  conditionExpression: string,
+  context: ExecutionContext,
+  block: SerializedBlock,
+  resolver: InputResolver
+): Promise<boolean> {
+  // Build evaluation context
+  const evalContext = {
+    // Add loop context if applicable
+    ...(context.loopItems.get(block.id) || {}),
+  }
+
+  let resolvedConditionValue = conditionExpression
+  try {
+    // Use full resolution pipeline: variables -> block references -> env vars
+    const resolvedVars = resolver.resolveVariableReferences(conditionExpression, block)
+    const resolvedRefs = resolver.resolveBlockReferences(resolvedVars, context, block)
+    resolvedConditionValue = resolver.resolveEnvVariables(resolvedRefs)
+    logger.info(`Resolved condition: from "${conditionExpression}" to "${resolvedConditionValue}"`)
+  } catch (resolveError: any) {
+    logger.error(`Failed to resolve references in condition: ${resolveError.message}`, {
+      conditionExpression,
+      resolveError,
+    })
+    throw new Error(`Failed to resolve references in condition: ${resolveError.message}`)
+  }
+
+  // Evaluate the RESOLVED condition string
+  try {
+    logger.info(`Evaluating resolved condition: "${resolvedConditionValue}"`, { evalContext })
+    // IMPORTANT: The resolved value (e.g., "some string".length > 0) IS the code to run
+    const conditionMet = new Function(
+      'context',
+      `with(context) { return ${resolvedConditionValue} }`
+    )(evalContext)
+    logger.info(`Condition evaluated to: ${conditionMet}`)
+    return Boolean(conditionMet)
+  } catch (evalError: any) {
+    logger.error(`Failed to evaluate condition: ${evalError.message}`, {
+      originalCondition: conditionExpression,
+      resolvedCondition: resolvedConditionValue,
+      evalContext,
+      evalError,
+    })
+    throw new Error(
+      `Evaluation error in condition: ${evalError.message}. (Resolved: ${resolvedConditionValue})`
+    )
+  }
+}
+
+/**
  * Handler for Condition blocks that evaluate expressions to determine execution paths.
  */
 export class ConditionBlockHandler implements BlockHandler {
@@ -102,35 +156,15 @@ export class ConditionBlockHandler implements BlockHandler {
         continue // Should ideally not happen if 'else' exists and has a connection
       }
 
-      // 2. Resolve references WITHIN the specific condition's value string
+      // 2. Evaluate the condition using the shared evaluation function
       const conditionValueString = String(condition.value || '')
-      let resolvedConditionValue = conditionValueString
       try {
-        // Use full resolution pipeline: variables -> block references -> env vars
-        const resolvedVars = this.resolver.resolveVariableReferences(conditionValueString, block)
-        const resolvedRefs = this.resolver.resolveBlockReferences(resolvedVars, context, block)
-        resolvedConditionValue = this.resolver.resolveEnvVariables(resolvedRefs)
-        logger.info(
-          `Resolved condition "${condition.title}" (${condition.id}): from "${conditionValueString}" to "${resolvedConditionValue}"`
+        const conditionMet = await evaluateConditionExpression(
+          conditionValueString,
+          context,
+          block,
+          this.resolver
         )
-      } catch (resolveError: any) {
-        logger.error(`Failed to resolve references in condition: ${resolveError.message}`, {
-          condition,
-          resolveError,
-        })
-        throw new Error(`Failed to resolve references in condition: ${resolveError.message}`)
-      }
-
-      // 3. Evaluate the RESOLVED condition string
-      try {
-        logger.info(`Evaluating resolved condition: "${resolvedConditionValue}"`, {
-          evalContext, // Log the context being used for evaluation
-        })
-        // IMPORTANT: The resolved value (e.g., "some string".length > 0) IS the code to run
-        const conditionMet = new Function(
-          'context',
-          `with(context) { return ${resolvedConditionValue} }`
-        )(evalContext)
         logger.info(`Condition "${condition.title}" (${condition.id}) met: ${conditionMet}`)
 
         // Find connection for this condition
@@ -143,17 +177,9 @@ export class ConditionBlockHandler implements BlockHandler {
           selectedCondition = condition
           break // Found the first matching condition
         }
-      } catch (evalError: any) {
-        logger.error(`Failed to evaluate condition: ${evalError.message}`, {
-          originalCondition: condition.value,
-          resolvedCondition: resolvedConditionValue,
-          evalContext,
-          evalError,
-        })
-        // Construct a more informative error message
-        throw new Error(
-          `Evaluation error in condition "${condition.title}": ${evalError.message}. (Resolved: ${resolvedConditionValue})`
-        )
+      } catch (error: any) {
+        logger.error(`Failed to evaluate condition "${condition.title}": ${error.message}`)
+        throw new Error(`Evaluation error in condition "${condition.title}": ${error.message}`)
       }
     }
 

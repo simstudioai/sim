@@ -924,6 +924,7 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
         options: [
           { label: 'For Loop (count)', id: 'for' },
           { label: 'For Each (collection)', id: 'forEach' },
+          { label: 'While (condition)', id: 'while' },
         ],
       },
       {
@@ -941,6 +942,14 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
         type: 'short-input',
         placeholder: 'Array or object to iterate over...',
         condition: { field: 'loopType', value: 'forEach' },
+      },
+      {
+        id: 'condition',
+        title: 'Condition',
+        type: 'code',
+        language: 'javascript',
+        placeholder: '<counter.value> < 10',
+        condition: { field: 'loopType', value: 'while' },
       },
       {
         id: 'maxConcurrency',
