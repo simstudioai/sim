@@ -2,7 +2,6 @@ import { env } from '@/lib/env'
 
 /**
  * Get the free tier limit
- * Default is defined in env.ts and will be applied automatically
  */
 export function getFreeTierLimit(): number {
   return env.FREE_TIER_COST_LIMIT
@@ -10,7 +9,6 @@ export function getFreeTierLimit(): number {
 
 /**
  * Get the pro tier limit
- * Default is defined in env.ts and will be applied automatically
  */
 export function getProTierLimit(): number {
   return env.PRO_TIER_COST_LIMIT
@@ -18,7 +16,6 @@ export function getProTierLimit(): number {
 
 /**
  * Get the team tier limit per seat
- * Default is defined in env.ts and will be applied automatically
  */
 export function getTeamTierLimitPerSeat(): number {
   return env.TEAM_TIER_COST_LIMIT
@@ -26,7 +23,6 @@ export function getTeamTierLimitPerSeat(): number {
 
 /**
  * Get the enterprise tier limit per seat
- * Default is defined in env.ts and will be applied automatically
  */
 export function getEnterpriseTierLimitPerSeat(): number {
   return env.ENTERPRISE_TIER_COST_LIMIT
