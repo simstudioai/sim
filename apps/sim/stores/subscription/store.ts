@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { getFreeTierLimit } from '@/lib/billing/subscriptions/utils'
+import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
 import { createLogger } from '@/lib/logs/console/logger'
 import type {
   BillingStatus,
@@ -16,7 +16,7 @@ const CACHE_DURATION = 30 * 1000
 
 const defaultUsage: UsageData = {
   current: 0,
-  limit: getFreeTierLimit(),
+  limit: DEFAULT_FREE_CREDITS,
   percentUsed: 0,
   isWarning: false,
   isExceeded: false,

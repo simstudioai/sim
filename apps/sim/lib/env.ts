@@ -41,16 +41,16 @@ export const env = createEnv({
     STRIPE_SECRET_KEY:                     z.string().min(1).optional(),           // Stripe secret key for payment processing
     STRIPE_WEBHOOK_SECRET:                 z.string().min(1).optional(),           // General Stripe webhook secret
     STRIPE_FREE_PRICE_ID:                  z.string().min(1).optional(),           // Stripe price ID for free tier
-    FREE_TIER_COST_LIMIT:                  z.number().optional().default(10),      // Cost limit for free tier users (in dollars)
+    FREE_TIER_COST_LIMIT:                  z.number().optional(),                  // Cost limit for free tier users
     FREE_STORAGE_LIMIT_GB:                 z.number().optional().default(5),       // Storage limit in GB for free tier users
     STRIPE_PRO_PRICE_ID:                   z.string().min(1).optional(),           // Stripe price ID for pro tier
-    PRO_TIER_COST_LIMIT:                   z.number().optional().default(20),      // Cost limit for pro tier users (in dollars)
+    PRO_TIER_COST_LIMIT:                   z.number().optional(),                  // Cost limit for pro tier users
     PRO_STORAGE_LIMIT_GB:                  z.number().optional().default(50),      // Storage limit in GB for pro tier users
     STRIPE_TEAM_PRICE_ID:                  z.string().min(1).optional(),           // Stripe price ID for team tier
-    TEAM_TIER_COST_LIMIT:                  z.number().optional().default(40),      // Cost limit per seat for team tier (in dollars)
+    TEAM_TIER_COST_LIMIT:                  z.number().optional(),                  // Cost limit for team tier users
     TEAM_STORAGE_LIMIT_GB:                 z.number().optional().default(500),     // Storage limit in GB for team tier organizations (pooled)
     STRIPE_ENTERPRISE_PRICE_ID:            z.string().min(1).optional(),           // Stripe price ID for enterprise tier
-    ENTERPRISE_TIER_COST_LIMIT:            z.number().optional().default(200),     // Cost limit per seat for enterprise tier (in dollars)
+    ENTERPRISE_TIER_COST_LIMIT:            z.number().optional(),                  // Cost limit for enterprise tier users
     ENTERPRISE_STORAGE_LIMIT_GB:           z.number().optional().default(500),     // Default storage limit in GB for enterprise tier (can be overridden per org)
     BILLING_ENABLED:                       z.boolean().optional(),                 // Enable billing enforcement and usage tracking
     OVERAGE_THRESHOLD_DOLLARS:             z.number().optional().default(50),      // Dollar threshold for incremental overage billing (default: $50)

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Alert, AlertDescription, AlertTitle, Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
-import { checkEnterprisePlan, getTeamTierLimitPerSeat } from '@/lib/billing/subscriptions/utils'
+import { DEFAULT_TEAM_TIER_COST_LIMIT } from '@/lib/billing/constants'
+import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   MemberInvitationCard,
@@ -293,7 +295,8 @@ export function TeamManagement() {
               <ul className='ml-4 list-disc space-y-2 text-muted-foreground text-xs'>
                 <li>
                   Your team is billed a minimum of $
-                  {(subscriptionData?.seats || 0) * getTeamTierLimitPerSeat()}
+                  {(subscriptionData?.seats || 0) *
+                    (env.TEAM_TIER_COST_LIMIT ?? DEFAULT_TEAM_TIER_COST_LIMIT)}
                   /month for {subscriptionData?.seats || 0} licensed seats
                 </li>
                 <li>All team member usage is pooled together from a shared limit</li>
@@ -411,7 +414,7 @@ export function TeamManagement() {
         open={isAddSeatDialogOpen}
         onOpenChange={setIsAddSeatDialogOpen}
         title='Add Team Seats'
-        description={`Each seat costs $${getTeamTierLimitPerSeat()}/month and provides $${getTeamTierLimitPerSeat()} in monthly inference credits. Adjust the number of licensed seats for your team.`}
+        description={`Each seat costs $${env.TEAM_TIER_COST_LIMIT ?? DEFAULT_TEAM_TIER_COST_LIMIT}/month and provides $${env.TEAM_TIER_COST_LIMIT ?? DEFAULT_TEAM_TIER_COST_LIMIT} in monthly inference credits. Adjust the number of licensed seats for your team.`}
         currentSeats={subscriptionData?.seats || 1}
         initialSeats={newSeatCount}
         isLoading={isUpdatingSeats}
