@@ -23,7 +23,7 @@ export function CopyPageButton({ content }: CopyPageButtonProps) {
   return (
     <button
       onClick={handleCopy}
-      className='flex items-center gap-1.5 rounded-lg border border-border/40 bg-background px-2.5 py-1.5 text-muted-foreground/60 text-sm shadow-sm transition-all hover:border-border hover:bg-accent/50 hover:text-muted-foreground'
+      className='flex items-center gap-1.5 rounded-lg border border-border/40 bg-background px-2.5 py-1.5 text-muted-foreground/60 text-sm transition-all hover:border-border hover:bg-accent/50 hover:text-muted-foreground'
       aria-label={copied ? 'Copied to clipboard' : 'Copy page content'}
     >
       {copied ? (

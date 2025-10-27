@@ -19,13 +19,13 @@ export function Navbar() {
       {/* Desktop: Single row layout */}
       <div className='hidden h-16 w-full items-center lg:flex'>
         <div
-          className='grid w-full grid-cols-[auto_1fr_auto] items-center'
+          className='relative flex w-full items-center justify-between'
           style={{
             paddingLeft: 'calc(var(--sidebar-offset) + 20px)',
-            paddingRight: 'calc(var(--toc-offset) + 20px)',
+            paddingRight: 'calc(var(--toc-offset) + 60px)',
           }}
         >
-          {/* Left cluster: translate by sidebar delta to align with sidebar edge */}
+          {/* Left cluster: logo */}
           <div className='flex items-center'>
             <Link href='/' className='flex min-w-[100px] items-center'>
               <Image
@@ -38,12 +38,12 @@ export function Navbar() {
             </Link>
           </div>
 
-          {/* Center cluster: search */}
-          <div className='flex flex-1 items-center justify-center pl-32'>
+          {/* Center cluster: search - absolutely positioned to center */}
+          <div className='-translate-x-1/2 absolute left-1/2 flex items-center justify-center'>
             <SearchTrigger />
           </div>
 
-          {/* Right cluster aligns with TOC edge using the same right gutter */}
+          {/* Right cluster aligns with TOC edge */}
           <div className='flex items-center gap-4'>
             <Link
               href='https://sim.ai'
