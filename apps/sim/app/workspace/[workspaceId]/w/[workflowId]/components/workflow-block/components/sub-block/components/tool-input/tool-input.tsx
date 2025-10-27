@@ -58,6 +58,7 @@ const logger = createLogger('ToolInput')
 interface ToolInputProps {
   blockId: string
   subBlockId: string
+  isConnecting: boolean
   isPreview?: boolean
   previewValue?: any
   disabled?: boolean
@@ -280,6 +281,7 @@ function CodeSyncWrapper({
   onChange,
   uiComponent,
   disabled,
+  isConnecting,
 }: {
   blockId: string
   paramId: string
@@ -287,13 +289,14 @@ function CodeSyncWrapper({
   onChange: (value: string) => void
   uiComponent: any
   disabled: boolean
+  isConnecting: boolean
 }) {
   return (
     <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
       <Code
         blockId={blockId}
         subBlockId={paramId}
-        isConnecting={false}
+        isConnecting={isConnecting}
         language={uiComponent.language}
         generationType={uiComponent.generationType}
         disabled={disabled}
@@ -313,6 +316,7 @@ function ComboboxSyncWrapper({
   onChange,
   uiComponent,
   disabled,
+  isConnecting,
 }: {
   blockId: string
   paramId: string
@@ -320,6 +324,7 @@ function ComboboxSyncWrapper({
   onChange: (value: string) => void
   uiComponent: any
   disabled: boolean
+  isConnecting: boolean
 }) {
   return (
     <GenericSyncWrapper blockId={blockId} paramId={paramId} value={value} onChange={onChange}>
@@ -328,7 +333,7 @@ function ComboboxSyncWrapper({
         subBlockId={paramId}
         options={uiComponent.options || []}
         placeholder={uiComponent.placeholder}
-        isConnecting={false}
+        isConnecting={isConnecting}
         config={{
           id: paramId,
           type: 'combobox' as const,
@@ -414,6 +419,7 @@ function ChannelSelectorSyncWrapper({
 export function ToolInput({
   blockId,
   subBlockId,
+  isConnecting,
   isPreview = false,
   previewValue,
   disabled = false,
@@ -984,7 +990,7 @@ export function ToolInput({
           subBlockId={uniqueSubBlockId}
           placeholder={param.description}
           password={isPasswordParameter(param.id)}
-          isConnecting={false}
+          isConnecting={isConnecting}
           config={{
             id: uniqueSubBlockId,
             type: 'short-input',
@@ -1031,7 +1037,7 @@ export function ToolInput({
             blockId={blockId}
             subBlockId={uniqueSubBlockId}
             placeholder={uiComponent.placeholder || param.description}
-            isConnecting={false}
+            isConnecting={isConnecting}
             config={{
               id: uniqueSubBlockId,
               type: 'long-input',
@@ -1049,7 +1055,7 @@ export function ToolInput({
             subBlockId={uniqueSubBlockId}
             placeholder={uiComponent.placeholder || param.description}
             password={uiComponent.password || isPasswordParameter(param.id)}
-            isConnecting={false}
+            isConnecting={isConnecting}
             config={{
               id: uniqueSubBlockId,
               type: 'short-input',
@@ -1138,6 +1144,7 @@ export function ToolInput({
             onChange={onChange}
             uiComponent={uiComponent}
             disabled={disabled}
+            isConnecting={isConnecting}
           />
         )
 
@@ -1162,6 +1169,7 @@ export function ToolInput({
             onChange={onChange}
             uiComponent={uiComponent}
             disabled={disabled}
+            isConnecting={isConnecting}
           />
         )
 
@@ -1208,7 +1216,7 @@ export function ToolInput({
             subBlockId={uniqueSubBlockId}
             placeholder={uiComponent.placeholder || param.description}
             password={uiComponent.password || isPasswordParameter(param.id)}
-            isConnecting={false}
+            isConnecting={isConnecting}
             config={{
               id: uniqueSubBlockId,
               type: 'short-input',
@@ -1750,7 +1758,7 @@ export function ToolInput({
                                     subBlockId={`${subBlockId}-tool-${toolIndex}-${param.id}`}
                                     placeholder={param.description}
                                     password={isPasswordParameter(param.id)}
-                                    isConnecting={false}
+                                    isConnecting={isConnecting}
                                     config={{
                                       id: `${subBlockId}-tool-${toolIndex}-${param.id}`,
                                       type: 'short-input',
