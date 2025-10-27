@@ -36,7 +36,9 @@
   /* Shift the sidebar slightly left from the content edge for extra breathing room */
   --sidebar-shift: 90px;
   --sidebar-offset: max(0px, calc(var(--edge-gutter) - var(--sidebar-shift)));
-  --toc-offset: var(--edge-gutter);
+  /* Shift TOC slightly right to match sidebar spacing for symmetry */
+  --toc-shift: 90px;
+  --toc-offset: max(0px, calc(var(--edge-gutter) - var(--toc-shift)));
   /* Sidebar and TOC have 20px internal padding - navbar accounts for this directly */
   /* Extra gap between sidebar/TOC and the main text content */
   --content-gap: 1.75rem;
@@ -107,8 +109,21 @@ aside#nd-sidebar {
   aside#nd-sidebar {
     left: var(--sidebar-offset) !important;
   }
-  [data-toc] {
-    margin-right: var(--toc-offset) !important;
+  /* TOC positioning - target all possible selectors */
+  [data-toc],
+  aside[data-toc],
+  div[data-toc],
+  .fd-toc,
+  #nd-toc,
+  nav[data-toc],
+  aside:has([role="complementary"]) {
+    right: var(--toc-offset) !important;
+  }
+
+  /* Alternative TOC container targeting */
+  [data-docs-page] > aside:last-child,
+  main ~ aside {
+    right: var(--toc-offset) !important;
   }
 }
 
