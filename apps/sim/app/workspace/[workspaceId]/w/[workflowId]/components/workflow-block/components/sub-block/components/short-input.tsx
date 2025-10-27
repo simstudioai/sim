@@ -287,7 +287,13 @@ export function ShortInput({
 
       // Update all state in a single batch
       Promise.resolve().then(() => {
-        setStoreValue(newValue)
+        // Update value through onChange if provided, otherwise use store
+        if (onChange) {
+          onChange(newValue)
+        } else if (!isPreview) {
+          setStoreValue(newValue)
+        }
+
         setCursorPosition(dropPosition + 1)
         setShowTags(true)
 
