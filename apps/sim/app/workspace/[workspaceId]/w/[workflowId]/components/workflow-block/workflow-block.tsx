@@ -1133,7 +1133,6 @@ export const WorkflowBlock = memo(
               {subBlockRows.map((row, rowIndex) => (
                 <div key={`row-${rowIndex}`} className='flex gap-4'>
                   {row.map((subBlock) => {
-                    // Generate stable key for this subblock to prevent unnecessary re-mounting
                     const stableKey = getSubBlockStableKey(subBlock, subBlockState)
 
                     return (
