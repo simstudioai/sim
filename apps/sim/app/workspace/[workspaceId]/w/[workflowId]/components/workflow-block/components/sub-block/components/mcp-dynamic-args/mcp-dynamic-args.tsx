@@ -470,7 +470,6 @@ export function McpDynamicArgs({
 
                 if (Number.isNaN(processedValue)) {
                   processedValue = ''
-                  return
                 }
               }
               updateParameter(paramName, processedValue)
