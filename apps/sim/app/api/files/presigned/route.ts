@@ -141,9 +141,21 @@ export async function POST(request: NextRequest) {
     }
 
     if (!isUsingCloudStorage()) {
-      throw new StorageConfigError(
-        'Direct uploads are only available when cloud storage is enabled'
+      logger.info(
+        `Local storage detected - presigned URL not available for ${fileName}, client will use API fallback`
       )
+      return NextResponse.json({
+        fileName,
+        presignedUrl: '', // Empty URL signals fallback to API upload
+        fileInfo: {
+          path: '',
+          key: '',
+          name: fileName,
+          size: fileSize,
+          type: contentType,
+        },
+        directUploadSupported: false,
+      })
     }
 
     const storageProvider = getStorageProvider()

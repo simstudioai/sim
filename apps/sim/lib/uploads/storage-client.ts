@@ -92,9 +92,34 @@ export async function uploadFile(
     return uploadToS3(file, fileName, contentType, configOrSize)
   }
 
-  throw new Error(
-    'No storage provider configured. Set Azure credentials (AZURE_CONNECTION_STRING or AZURE_ACCOUNT_NAME + AZURE_ACCOUNT_KEY) or configure AWS credentials for S3.'
-  )
+  logger.info(`Uploading file to local storage: ${fileName}`)
+  const { writeFile } = await import('fs/promises')
+  const { join } = await import('path')
+  const { v4: uuidv4 } = await import('uuid')
+  const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/setup.server')
+
+  const safeFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_').replace(/\.\./g, '')
+  const uniqueKey = `${uuidv4()}-${safeFileName}`
+  const filePath = join(UPLOAD_DIR_SERVER, uniqueKey)
+
+  try {
+    await writeFile(filePath, file)
+  } catch (error) {
+    logger.error(`Failed to write file to local storage: ${fileName}`, error)
+    throw new Error(
+      `Failed to write file to local storage: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
+  }
+
+  const fileSize = typeof configOrSize === 'number' ? configOrSize : size || file.length
+
+  return {
+    path: `/api/files/serve/${uniqueKey}`,
+    key: uniqueKey,
+    name: fileName,
+    size: fileSize,
+    type: contentType,
+  }
 }
 
 /**
@@ -144,9 +169,28 @@ export async function downloadFile(
     return downloadFromS3(key)
   }
 
-  throw new Error(
-    'No storage provider configured. Set Azure credentials (AZURE_CONNECTION_STRING or AZURE_ACCOUNT_NAME + AZURE_ACCOUNT_KEY) or configure AWS credentials for S3.'
-  )
+  logger.info(`Downloading file from local storage: ${key}`)
+  const { readFile } = await import('fs/promises')
+  const { join, resolve, sep } = await import('path')
+  const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/setup.server')
+
+  const safeKey = key.replace(/\.\./g, '').replace(/[/\\]/g, '')
+  const filePath = join(UPLOAD_DIR_SERVER, safeKey)
+
+  const resolvedPath = resolve(filePath)
+  const allowedDir = resolve(UPLOAD_DIR_SERVER)
+  if (!resolvedPath.startsWith(allowedDir + sep) && resolvedPath !== allowedDir) {
+    throw new Error('Invalid file path')
+  }
+
+  try {
+    return await readFile(filePath)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new Error(`File not found: ${key}`)
+    }
+    throw error
+  }
 }
 
 /**
@@ -166,9 +210,29 @@ export async function deleteFile(key: string): Promise<void> {
     return deleteFromS3(key)
   }
 
-  throw new Error(
-    'No storage provider configured. Set Azure credentials (AZURE_CONNECTION_STRING or AZURE_ACCOUNT_NAME + AZURE_ACCOUNT_KEY) or configure AWS credentials for S3.'
-  )
+  logger.info(`Deleting file from local storage: ${key}`)
+  const { unlink } = await import('fs/promises')
+  const { join, resolve, sep } = await import('path')
+  const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/setup.server')
+
+  const safeKey = key.replace(/\.\./g, '').replace(/[/\\]/g, '')
+  const filePath = join(UPLOAD_DIR_SERVER, safeKey)
+
+  const resolvedPath = resolve(filePath)
+  const allowedDir = resolve(UPLOAD_DIR_SERVER)
+  if (!resolvedPath.startsWith(allowedDir + sep) && resolvedPath !== allowedDir) {
+    throw new Error('Invalid file path')
+  }
+
+  try {
+    await unlink(filePath)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      logger.warn(`File not found during deletion: ${key}`)
+      return
+    }
+    throw error
+  }
 }
 
 /**
@@ -190,9 +254,8 @@ export async function getPresignedUrl(key: string, expiresIn = 3600): Promise<st
     return getS3PresignedUrl(key, expiresIn)
   }
 
-  throw new Error(
-    'No storage provider configured. Set Azure credentials (AZURE_CONNECTION_STRING or AZURE_ACCOUNT_NAME + AZURE_ACCOUNT_KEY) or configure AWS credentials for S3.'
-  )
+  logger.info(`Generating serve path for local storage: ${key}`)
+  return `/api/files/serve/${encodeURIComponent(key)}`
 }
 
 /**
