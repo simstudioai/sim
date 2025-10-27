@@ -432,8 +432,8 @@ IMPORTANT FORMATTING RULES:
 
       <div
         className={cn(
-          'group relative min-h-[100px] rounded-md border border-input bg-background font-mono text-sm transition-colors',
-          isConnecting && 'ring-2 ring-blue-500 ring-offset-2'
+          'group relative min-h-[100px] rounded-md bg-background font-mono text-sm transition-colors',
+          isConnecting ? 'ring-2 ring-blue-500' : 'border border-input'
         )}
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
