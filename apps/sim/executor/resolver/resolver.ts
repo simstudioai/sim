@@ -301,6 +301,19 @@ export class InputResolver {
           continue
         }
 
+        // Skip direct reference resolution for function block parameters
+        // Function blocks need special string formatting for JavaScript context
+        const isFunctionBlock = block.metadata?.id === 'function'
+
+        if (!isFunctionBlock) {
+          // Try to resolve as a direct block reference (preserves types)
+          const directRef = this.resolveDirectBlockReference(value, context, block)
+          if (directRef.resolved) {
+            result[key] = directRef.value
+            continue
+          }
+        }
+
         // Process string with potential interpolations and references
         result[key] = this.processStringValue(value, key, context, block)
       }
@@ -427,6 +440,101 @@ export class InputResolver {
     }
 
     return resolvedValue
+  }
+
+  /**
+   * Attempts to resolve a direct block reference and return its typed value.
+   * This handles cases like "<blockName.property>" where we want the actual typed value (number, boolean, etc.)
+   * rather than a string representation.
+   *
+   * Supports:
+   * - Block references: "<blockName.property>"
+   * - Variable references: "<variable.variableName>"
+   *
+   * @param value - The string value to check (e.g., "<inputform1.num>" or "<variable.myVar>")
+   * @param context - Current execution context
+   * @param currentBlock - Block that contains the reference
+   * @returns Object with { resolved: boolean, value: any } - resolved is true if this was a direct reference
+   */
+  private resolveDirectBlockReference(
+    value: string,
+    context: ExecutionContext,
+    currentBlock: SerializedBlock
+  ): { resolved: boolean; value: any } {
+    const trimmedValue = value.trim()
+
+    // Check if this is a direct reference (e.g., "<inputform1.num>" or "<variable.myVar>")
+    const directMatch = trimmedValue.match(/^<([^>]+)>$/)
+    if (!directMatch) {
+      return { resolved: false, value: undefined }
+    }
+
+    const inner = directMatch[1]
+    const parts = inner.split('.')
+
+    // Must have at least 2 parts (prefix.property)
+    if (parts.length < 2) {
+      return { resolved: false, value: undefined }
+    }
+
+    const prefix = parts[0]
+
+    // Handle variable references: <variable.variableName>
+    if (prefix === 'variable') {
+      const variableName = parts[1]
+      const variable = this.findVariableByName(variableName)
+      if (variable) {
+        // Get the typed value directly (number, boolean, etc.)
+        const typedValue = this.getTypedVariableValue(variable)
+        return { resolved: true, value: typedValue }
+      }
+      return { resolved: false, value: undefined }
+    }
+
+    // Skip loop and parallel - they have different handling
+    if (prefix === 'loop' || prefix === 'parallel') {
+      return { resolved: false, value: undefined }
+    }
+
+    const blockRef = parts[0]
+    const pathParts = parts.slice(1)
+
+    // Validate the block reference
+    const validation = this.validateBlockReference(blockRef, currentBlock.id)
+    if (!validation.isValid) {
+      return { resolved: false, value: undefined }
+    }
+
+    const sourceBlock = this.blockById.get(validation.resolvedBlockId!)
+    if (!sourceBlock || sourceBlock.enabled === false) {
+      return { resolved: false, value: undefined }
+    }
+
+    // Check if the block is in the active execution path and has executed
+    const isInActivePath = context.activeExecutionPath.has(sourceBlock.id)
+    if (!isInActivePath) {
+      return { resolved: false, value: undefined }
+    }
+
+    const blockState = context.blockStates.get(sourceBlock.id)
+    if (!blockState?.executed) {
+      return { resolved: false, value: undefined }
+    }
+
+    // Traverse the path to get the actual typed value
+    let result: any = blockState.output
+    for (const part of pathParts) {
+      if (result && typeof result === 'object') {
+        result = result[part]
+      } else {
+        return { resolved: false, value: undefined }
+      }
+    }
+
+    // Return the actual typed value if found (undefined is valid, null is valid)
+    return result !== undefined
+      ? { resolved: true, value: result }
+      : { resolved: false, value: undefined }
   }
 
   /**
@@ -791,8 +899,6 @@ export class InputResolver {
         }
       }
 
-      const blockType = currentBlock.metadata?.id
-
       let formattedValue: string
 
       if (currentBlock.metadata?.id === 'condition') {
@@ -903,6 +1009,13 @@ export class InputResolver {
 
     // Handle strings
     if (typeof value === 'string') {
+      // Try to resolve as a direct block reference (preserves types)
+      const directRef = this.resolveDirectBlockReference(value, context, currentBlock)
+      if (directRef.resolved) {
+        return directRef.value
+      }
+
+      // For non-direct references or if resolution failed, use string-based resolution
       // First resolve variable references
       const resolvedVars = this.resolveVariableReferences(value, currentBlock)
 
@@ -1692,6 +1805,39 @@ export class InputResolver {
     context: ExecutionContext,
     block: SerializedBlock
   ): any {
+    // Special handling for different block types
+    const blockType = block.metadata?.id
+
+    // For function blocks, code input doesn't need JSON parsing
+    if (blockType === 'function' && key === 'code') {
+      // First resolve variable references (interpolation)
+      const resolvedVars = this.resolveVariableReferences(value, block)
+
+      // Then resolve block references
+      const resolvedReferences = this.resolveBlockReferences(resolvedVars, context, block)
+
+      // Then resolve environment variables
+      return this.resolveEnvVariables(resolvedReferences)
+    }
+
+    // Check if this looks like JSON that we should parse before resolving references
+    // This prevents type loss when references are resolved via string replacement
+    const trimmedValue = value.trim()
+    const looksLikeJSON =
+      (trimmedValue.startsWith('{') && trimmedValue.endsWith('}')) ||
+      (trimmedValue.startsWith('[') && trimmedValue.endsWith(']'))
+
+    if (looksLikeJSON) {
+      // Try to parse JSON first
+      const parsed = this.tryParseJSON(value)
+
+      // If it successfully parsed to an object/array, resolve nested references
+      if (parsed !== value && typeof parsed === 'object' && parsed !== null) {
+        return this.processObjectValue(parsed, context, block)
+      }
+    }
+
+    // For non-JSON strings or failed JSON parsing, use the original approach
     // First resolve variable references (interpolation)
     const resolvedVars = this.resolveVariableReferences(value, block)
 
@@ -1701,21 +1847,10 @@ export class InputResolver {
     // Then resolve environment variables
     const resolvedEnv = this.resolveEnvVariables(resolvedReferences)
 
-    // Special handling for different block types
-    const blockType = block.metadata?.id
+    // Try to parse the result as JSON
+    const parsed = this.tryParseJSON(resolvedEnv)
 
-    // For function blocks, code input doesn't need JSON parsing
-    if (blockType === 'function' && key === 'code') {
-      return resolvedEnv
-    }
-
-    // For API blocks, handle body input specially
-    if (blockType === 'api' && key === 'body') {
-      return this.tryParseJSON(resolvedEnv)
-    }
-
-    // For other inputs, try to convert JSON strings to objects/arrays
-    return this.tryParseJSON(resolvedEnv)
+    return parsed
   }
 
   /**

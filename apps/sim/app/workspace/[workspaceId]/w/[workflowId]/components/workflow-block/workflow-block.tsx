@@ -434,7 +434,31 @@ export const WorkflowBlock = memo(
     )
 
     // Memoized SubBlock layout management - only recalculate when dependencies change
-    const subBlockRows = useMemo(() => {
+    // Helper function to generate stable keys for subblocks
+    // This prevents unnecessary re-mounting when subblock values change
+    const getSubBlockStableKey = useCallback(
+      (subBlock: SubBlockConfig, stateToUse: Record<string, any>): string => {
+        // For MCP dynamic args, create a stable key based on server and tool selection
+        // This ensures the component only re-mounts when server or tool changes, not on arg changes
+        if (subBlock.type === 'mcp-dynamic-args') {
+          const serverValue = stateToUse.server?.value || 'no-server'
+          const toolValue = stateToUse.tool?.value || 'no-tool'
+          return `${id}-${subBlock.id}-${serverValue}-${toolValue}`
+        }
+
+        // For MCP tool selector, key on server selection
+        if (subBlock.type === 'mcp-tool-selector') {
+          const serverValue = stateToUse.server?.value || 'no-server'
+          return `${id}-${subBlock.id}-${serverValue}`
+        }
+
+        // For all other subblocks, use a simple stable key based on block ID and subblock ID
+        return `${id}-${subBlock.id}`
+      },
+      [id]
+    )
+
+    const subBlockRowsData = useMemo(() => {
       const rows: SubBlockConfig[][] = []
       let currentRow: SubBlockConfig[] = []
       let currentRowWidth = 0
@@ -542,7 +566,8 @@ export const WorkflowBlock = memo(
         rows.push(currentRow)
       }
 
-      return rows
+      // Return both rows and state for stable key generation
+      return { rows, stateToUse }
     }, [
       config.subBlocks,
       id,
@@ -555,6 +580,10 @@ export const WorkflowBlock = memo(
       blockSubBlockValues,
       activeWorkflowId,
     ])
+
+    // Extract rows and state from the memoized value
+    const subBlockRows = subBlockRowsData.rows
+    const subBlockState = subBlockRowsData.stateToUse
 
     // Name editing handlers
     const handleNameClick = (e: React.MouseEvent) => {
@@ -1110,35 +1139,43 @@ export const WorkflowBlock = memo(
             >
               {subBlockRows.map((row, rowIndex) => (
                 <div key={`row-${rowIndex}`} className='flex gap-4'>
-                  {row.map((subBlock, blockIndex) => (
-                    <div
-                      key={`${id}-${rowIndex}-${blockIndex}`}
-                      className={cn('space-y-1', subBlock.layout === 'half' ? 'flex-1' : 'w-full')}
-                    >
-                      <SubBlock
-                        blockId={id}
-                        config={subBlock}
-                        isConnecting={isConnecting}
-                        isPreview={data.isPreview || currentWorkflow.isDiffMode}
-                        subBlockValues={
-                          data.subBlockValues ||
-                          (currentWorkflow.isDiffMode && currentBlock
-                            ? (currentBlock as any).subBlocks
-                            : undefined)
-                        }
-                        disabled={!userPermissions.canEdit}
-                        fieldDiffStatus={
-                          fieldDiff?.changed_fields?.includes(subBlock.id)
-                            ? 'changed'
-                            : fieldDiff?.unchanged_fields?.includes(subBlock.id)
-                              ? 'unchanged'
-                              : undefined
-                        }
-                        allowExpandInPreview={currentWorkflow.isDiffMode}
-                        isWide={displayIsWide}
-                      />
-                    </div>
-                  ))}
+                  {row.map((subBlock) => {
+                    // Generate stable key for this subblock to prevent unnecessary re-mounting
+                    const stableKey = getSubBlockStableKey(subBlock, subBlockState)
+
+                    return (
+                      <div
+                        key={stableKey}
+                        className={cn(
+                          'space-y-1',
+                          subBlock.layout === 'half' ? 'flex-1' : 'w-full'
+                        )}
+                      >
+                        <SubBlock
+                          blockId={id}
+                          config={subBlock}
+                          isConnecting={isConnecting}
+                          isPreview={data.isPreview || currentWorkflow.isDiffMode}
+                          subBlockValues={
+                            data.subBlockValues ||
+                            (currentWorkflow.isDiffMode && currentBlock
+                              ? (currentBlock as any).subBlocks
+                              : undefined)
+                          }
+                          disabled={!userPermissions.canEdit}
+                          fieldDiffStatus={
+                            fieldDiff?.changed_fields?.includes(subBlock.id)
+                              ? 'changed'
+                              : fieldDiff?.unchanged_fields?.includes(subBlock.id)
+                                ? 'unchanged'
+                                : undefined
+                          }
+                          allowExpandInPreview={currentWorkflow.isDiffMode}
+                          isWide={displayIsWide}
+                        />
+                      </div>
+                    )
+                  })}
                 </div>
               ))}
             </div>
