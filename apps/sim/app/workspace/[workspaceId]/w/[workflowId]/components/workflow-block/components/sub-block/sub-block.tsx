@@ -522,6 +522,7 @@ export const SubBlock = memo(
               disabled={isDisabled}
               isPreview={isPreview}
               previewValue={previewValue}
+              isConnecting={isConnecting}
             />
           )
         default:

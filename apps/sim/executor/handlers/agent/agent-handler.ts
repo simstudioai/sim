@@ -241,7 +241,7 @@ export class AgentBlockHandler implements BlockHandler {
   }
 
   private async createMcpTool(tool: ToolInput, context: ExecutionContext): Promise<any> {
-    const { serverId, toolName, params } = tool.params || {}
+    const { serverId, toolName, ...userProvidedParams } = tool.params || {}
 
     if (!serverId || !toolName) {
       logger.error('MCP tool missing required parameters:', { serverId, toolName })
@@ -294,11 +294,18 @@ export class AgentBlockHandler implements BlockHandler {
 
       const toolId = createMcpToolId(serverId, toolName)
 
+      const { filterSchemaForLLM } = await import('@/tools/params')
+      const filteredSchema = filterSchemaForLLM(
+        mcpTool.inputSchema || { type: 'object', properties: {} },
+        userProvidedParams
+      )
+
       return {
         id: toolId,
         name: toolName,
         description: mcpTool.description || `MCP tool ${toolName} from ${mcpTool.serverName}`,
-        parameters: mcpTool.inputSchema || { type: 'object', properties: {} },
+        parameters: filteredSchema,
+        params: userProvidedParams,
         usageControl: tool.usageControl || 'auto',
         executeFunction: async (callParams: Record<string, any>) => {
           logger.info(`Executing MCP tool ${toolName} on server ${serverId}`)
@@ -321,7 +328,7 @@ export class AgentBlockHandler implements BlockHandler {
             body: JSON.stringify({
               serverId,
               toolName,
-              arguments: { ...params, ...callParams },
+              arguments: callParams,
               workspaceId: context.workspaceId,
               workflowId: context.workflowId,
             }),

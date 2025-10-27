@@ -90,16 +90,38 @@ export const POST = withMcpAuth('read')(
           )
         }
 
-        // Parse array arguments based on tool schema
+        // Cast arguments to their expected types based on tool schema
         if (tool.inputSchema?.properties) {
           for (const [paramName, paramSchema] of Object.entries(tool.inputSchema.properties)) {
             const schema = paramSchema as any
+            const value = args[paramName]
+
+            if (value === undefined || value === null) {
+              continue
+            }
+
+            // Cast numbers
             if (
-              schema.type === 'array' &&
-              args[paramName] !== undefined &&
-              typeof args[paramName] === 'string'
+              (schema.type === 'number' || schema.type === 'integer') &&
+              typeof value === 'string'
             ) {
-              const stringValue = args[paramName].trim()
+              const numValue =
+                schema.type === 'integer' ? Number.parseInt(value) : Number.parseFloat(value)
+              if (!Number.isNaN(numValue)) {
+                args[paramName] = numValue
+              }
+            }
+            // Cast booleans
+            else if (schema.type === 'boolean' && typeof value === 'string') {
+              if (value.toLowerCase() === 'true') {
+                args[paramName] = true
+              } else if (value.toLowerCase() === 'false') {
+                args[paramName] = false
+              }
+            }
+            // Cast arrays
+            else if (schema.type === 'array' && typeof value === 'string') {
+              const stringValue = value.trim()
               if (stringValue) {
                 try {
                   // Try to parse as JSON first (handles ["item1", "item2"])
