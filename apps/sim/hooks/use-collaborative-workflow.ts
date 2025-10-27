@@ -340,8 +340,11 @@ export function useCollaborativeWorkflow() {
                 if (config.iterations !== undefined) {
                   workflowStore.updateLoopCount(payload.id, config.iterations)
                 }
+                // Handle both forEach items and while conditions
                 if (config.forEachItems !== undefined) {
                   workflowStore.updateLoopCollection(payload.id, config.forEachItems)
+                } else if (config.whileCondition !== undefined) {
+                  workflowStore.updateLoopCollection(payload.id, config.whileCondition)
                 }
               } else if (payload.type === 'parallel') {
                 const { config } = payload

@@ -797,7 +797,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
           // Update the appropriate field based on loop type
           const dataUpdate: any = { ...block.data }
           if (loopType === 'while') {
-            dataUpdate.condition = collection
+            dataUpdate.whileCondition = collection
           } else {
             dataUpdate.collection = collection
           }

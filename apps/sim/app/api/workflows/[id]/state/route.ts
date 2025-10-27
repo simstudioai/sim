@@ -78,8 +78,9 @@ const LoopSchema = z.object({
   id: z.string(),
   nodes: z.array(z.string()),
   iterations: z.number(),
-  loopType: z.enum(['for', 'forEach']),
+  loopType: z.enum(['for', 'forEach', 'while']),
   forEachItems: z.union([z.array(z.any()), z.record(z.any()), z.string()]).optional(),
+  whileCondition: z.string().optional(),
 })
 
 const ParallelSchema = z.object({

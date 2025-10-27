@@ -16,31 +16,35 @@ export function convertLoopBlockToLoop(
   const loopBlock = blocks[loopBlockId]
   if (!loopBlock || loopBlock.type !== 'loop') return undefined
 
-  // Parse collection if it's a string representation of an array/object
-  let forEachItems: any = loopBlock.data?.collection || ''
-  if (typeof forEachItems === 'string' && forEachItems.trim()) {
-    const trimmed = forEachItems.trim()
-    // Try to parse if it looks like JSON
-    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-      try {
-        forEachItems = JSON.parse(trimmed)
-      } catch {
-        // Keep as string if parsing fails - will be evaluated at runtime
-      }
-    }
-  }
+  const loopType = loopBlock.data?.loopType || 'for'
 
   const loop: Loop = {
     id: loopBlockId,
     nodes: findChildNodes(loopBlockId, blocks),
     iterations: loopBlock.data?.count || DEFAULT_LOOP_ITERATIONS,
-    loopType: loopBlock.data?.loopType || 'for',
-    forEachItems,
+    loopType,
   }
 
-  // Add while condition if present
-  if (loopBlock.data?.loopType === 'while' && loopBlock.data?.condition) {
-    loop.whileCondition = loopBlock.data.condition
+  // Set the appropriate field based on loop type
+  if (loopType === 'while') {
+    // For while loops, use whileCondition
+    loop.whileCondition = loopBlock.data?.whileCondition || ''
+  } else {
+    // For for/forEach loops, read from collection (block data) and map to forEachItems (loops store)
+    // Parse collection if it's a string representation of an array/object
+    let forEachItems: any = loopBlock.data?.collection || ''
+    if (typeof forEachItems === 'string' && forEachItems.trim()) {
+      const trimmed = forEachItems.trim()
+      // Try to parse if it looks like JSON
+      if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+        try {
+          forEachItems = JSON.parse(trimmed)
+        } catch {
+          // Keep as string if parsing fails - will be evaluated at runtime
+        }
+      }
+    }
+    loop.forEachItems = forEachItems
   }
 
   return loop

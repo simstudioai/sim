@@ -51,10 +51,10 @@ export interface BlockData {
   height?: number
 
   // Loop-specific properties
-  collection?: any // The items to iterate over in a loop
+  collection?: any // The items to iterate over in a forEach loop
   count?: number // Number of iterations for numeric loops
   loopType?: 'for' | 'forEach' | 'while' // Type of loop - must match Loop interface
-  condition?: string // While loop condition (JS expression)
+  whileCondition?: string // While loop condition (JS expression)
 
   // Parallel-specific properties
   parallelType?: 'collection' | 'count' // Type of parallel execution

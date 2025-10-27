@@ -882,8 +882,8 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
       loopType: {
         type: 'string',
         required: true,
-        enum: ['for', 'forEach'],
-        description: "Loop Type - 'for' runs N times, 'forEach' iterates over collection",
+        enum: ['for', 'forEach', 'while'],
+        description: "Loop Type - 'for' runs N times, 'forEach' iterates over collection, 'while' runs while condition is true",
       },
       iterations: {
         type: 'number',
@@ -898,6 +898,12 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
         required: false,
         description: "Collection to iterate over (for 'forEach' loopType)",
         example: '<previousblock.items>',
+      },
+      condition: {
+        type: 'string',
+        required: false,
+        description: "Condition to evaluate (for 'while' loopType)",
+        example: '<loop.currentIteration> < 10',
       },
       maxConcurrency: {
         type: 'number',
