@@ -250,7 +250,6 @@ export function FileUploads() {
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
   }
 
-  // Plan name mapping (same as usage indicator)
   const PLAN_NAMES = {
     enterprise: 'Enterprise',
     team: 'Team',
@@ -260,7 +259,6 @@ export function FileUploads() {
 
   const displayPlanName = PLAN_NAMES[planName as keyof typeof PLAN_NAMES] || 'Free'
 
-  // Gradient text style for paid plans
   const GRADIENT_TEXT_STYLES =
     'gradient-text bg-gradient-to-b from-gradient-primary via-gradient-secondary to-gradient-primary'
 
