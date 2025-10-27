@@ -140,6 +140,7 @@ Qdrantコレクション内で類似ベクトルを検索する
 | `vector` | array | はい | 検索対象のベクトル |
 | `limit` | number | いいえ | 返す結果の数 |
 | `filter` | object | いいえ | 検索に適用するフィルター |
+| `search_return_data` | string | いいえ | 検索から返すデータ |
 | `with_payload` | boolean | いいえ | レスポンスにペイロードを含める |
 | `with_vector` | boolean | いいえ | レスポンスにベクトルを含める |
 
@@ -162,6 +163,7 @@ QdrantコレクションからIDによってポイントを取得する
 | `apiKey` | string | いいえ | Qdrant APIキー（オプション） |
 | `collection` | string | はい | コレクション名 |
 | `ids` | array | はい | 取得するポイントIDの配列 |
+| `fetch_return_data` | string | いいえ | 取得から返すデータ |
 | `with_payload` | boolean | いいえ | レスポンスにペイロードを含める |
 | `with_vector` | boolean | いいえ | レスポンスにベクトルを含める |
 

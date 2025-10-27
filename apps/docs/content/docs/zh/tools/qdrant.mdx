@@ -138,8 +138,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `apiKey` | string | 否 | Qdrant API 密钥（可选）|
 | `collection` | string | 是 | 集合名称 |
 | `vector` | array | 是 | 要搜索的向量 |
-| `limit` | number | 否 | 返回结果的数量 |
-| `filter` | object | 否 | 应用于搜索的过滤器 |
+| `limit` | number | 否 | 要返回的结果数量 |
+| `filter` | object | 否 | 要应用于搜索的过滤器 |
+| `search_return_data` | string | 否 | 搜索中要返回的数据 |
 | `with_payload` | boolean | 否 | 在响应中包含有效负载 |
 | `with_vector` | boolean | 否 | 在响应中包含向量 |
 
@@ -162,6 +163,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 | `apiKey` | string | 否 | Qdrant API 密钥（可选）|
 | `collection` | string | 是 | 集合名称 |
 | `ids` | array | 是 | 要获取的点 ID 数组 |
+| `fetch_return_data` | string | 否 | 获取中要返回的数据 |
 | `with_payload` | boolean | 否 | 在响应中包含有效负载 |
 | `with_vector` | boolean | 否 | 在响应中包含向量 |
 

@@ -133,13 +133,14 @@ Buscar vectores similares en una colección de Qdrant
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | -------- | ----------- |
+| --------- | ---- | ----------- | ----------- |
 | `url` | string | Sí | URL base de Qdrant |
 | `apiKey` | string | No | Clave API de Qdrant \(opcional\) |
 | `collection` | string | Sí | Nombre de la colección |
-| `vector` | array | Sí | Vector a buscar |
+| `vector` | array | Sí | Vector para buscar |
 | `limit` | number | No | Número de resultados a devolver |
-| `filter` | object | No | Filtro a aplicar a la búsqueda |
+| `filter` | object | No | Filtro para aplicar a la búsqueda |
+| `search_return_data` | string | No | Datos a devolver de la búsqueda |
 | `with_payload` | boolean | No | Incluir payload en la respuesta |
 | `with_vector` | boolean | No | Incluir vector en la respuesta |
 
@@ -157,11 +158,12 @@ Obtener puntos por ID desde una colección de Qdrant
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | -------- | ----------- |
+| --------- | ---- | ----------- | ----------- |
 | `url` | string | Sí | URL base de Qdrant |
 | `apiKey` | string | No | Clave API de Qdrant \(opcional\) |
 | `collection` | string | Sí | Nombre de la colección |
-| `ids` | array | Sí | Array de IDs de puntos a obtener |
+| `ids` | array | Sí | Array de IDs de puntos para recuperar |
+| `fetch_return_data` | string | No | Datos a devolver de la recuperación |
 | `with_payload` | boolean | No | Incluir payload en la respuesta |
 | `with_vector` | boolean | No | Incluir vector en la respuesta |
 

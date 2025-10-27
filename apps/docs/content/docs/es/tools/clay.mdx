@@ -207,18 +207,18 @@ Poblar Clay con datos de un archivo JSON. Permite comunicación directa y notifi
 
 #### Entrada
 
-| Parámetro | Tipo | Requerido | Descripción |
-| --------- | ---- | -------- | ----------- |
-| `webhookURL` | string | Sí | La URL del webhook para poblar |
-| `data` | json | Sí | Los datos para poblar |
-| `authToken` | string | Sí | Token de autenticación para la autenticación del webhook de Clay |
+| Parámetro | Tipo | Obligatorio | Descripción |
+| --------- | ---- | ----------- | ----------- |
+| `webhookURL` | string | Sí | La URL del webhook a completar |
+| `data` | json | Sí | Los datos para completar |
+| `authToken` | string | No | Token de autenticación opcional para la autenticación del webhook de Clay \(la mayoría de los webhooks no requieren esto\) |
 
 #### Salida
 
 | Parámetro | Tipo | Descripción |
 | --------- | ---- | ----------- |
-| `success` | boolean | Estado de éxito de la operación |
-| `output` | json | Resultados de la operación de poblado de Clay incluyendo datos de respuesta del webhook de Clay |
+| `data` | json | Datos de respuesta del webhook de Clay |
+| `metadata` | object | Metadatos de respuesta del webhook |
 
 ## Notas
 

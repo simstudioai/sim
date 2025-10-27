@@ -207,18 +207,18 @@ Populate Clay with data from a JSON file. Enables direct communication and notif
 
 #### Input
 
-| Parameter | Type | Required | Description |
+| パラメータ | 型 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
-| `webhookURL` | string | Yes | The webhook URL to populate |
-| `data` | json | Yes | The data to populate |
-| `authToken` | string | Yes | Auth token for Clay webhook authentication |
+| `webhookURL` | string | はい | 設定するウェブフックURL |
+| `data` | json | はい | 設定するデータ |
+| `authToken` | string | いいえ | Clayウェブフック認証用のオプション認証トークン（ほとんどのウェブフックではこれは不要です） |
 
 #### Output
 
-| Parameter | Type | Description |
+| パラメータ | 型 | 説明 |
 | --------- | ---- | ----------- |
-| `success` | boolean | Operation success status |
-| `output` | json | Clay populate operation results including response data from Clay webhook |
+| `data` | json | Clayウェブフックからのレスポンスデータ |
+| `metadata` | object | ウェブフックレスポンスのメタデータ |
 
 ## Notes
 
