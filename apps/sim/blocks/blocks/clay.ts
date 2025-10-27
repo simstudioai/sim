@@ -35,10 +35,10 @@ Plain Text: Best for populating a table in free-form style.
     },
     {
       id: 'authToken',
-      title: 'Auth Token (Optional)',
+      title: 'Auth Token',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Enter your Clay webhook auth token (optional)',
+      placeholder: 'Enter your Clay webhook auth token',
       password: true,
       connectionDroppable: false,
       required: false,
