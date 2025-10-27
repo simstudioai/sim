@@ -17,7 +17,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { getTeamTierLimitPerSeat } from '@/lib/billing/subscriptions/utils'
+import { DEFAULT_TEAM_TIER_COST_LIMIT } from '@/lib/billing/constants'
+import { env } from '@/lib/env'
 
 interface TeamSeatsProps {
   open: boolean
@@ -54,7 +55,7 @@ export function TeamSeats({
     }
   }, [open, initialSeats])
 
-  const costPerSeat = getTeamTierLimitPerSeat()
+  const costPerSeat = env.TEAM_TIER_COST_LIMIT ?? DEFAULT_TEAM_TIER_COST_LIMIT
   const totalMonthlyCost = selectedSeats * costPerSeat
   const costChange = currentSeats ? (selectedSeats - currentSeats) * costPerSeat : 0
 

@@ -2,7 +2,9 @@ import { Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
-import { checkEnterprisePlan, getTeamTierLimitPerSeat } from '@/lib/billing/subscriptions/utils'
+import { DEFAULT_TEAM_TIER_COST_LIMIT } from '@/lib/billing/constants'
+import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
+import { env } from '@/lib/env'
 
 type Subscription = {
   id: string
@@ -100,7 +102,7 @@ export function TeamSeatsOverview({
             <span className='font-medium text-sm'>Seats</span>
             {!checkEnterprisePlan(subscriptionData) ? (
               <span className='text-muted-foreground text-xs'>
-                (${getTeamTierLimitPerSeat()}/month each)
+                (${env.TEAM_TIER_COST_LIMIT ?? DEFAULT_TEAM_TIER_COST_LIMIT}/month each)
               </span>
             ) : null}
           </div>
