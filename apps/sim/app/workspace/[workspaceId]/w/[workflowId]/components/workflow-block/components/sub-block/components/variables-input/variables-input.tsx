@@ -211,17 +211,10 @@ export function VariablesInput({
       {assignments && assignments.length > 0 ? (
         <div className='space-y-2'>
           {assignments.map((assignment) => {
-            const isUnconfigured = !assignment.variableName || assignment.variableName.trim() === ''
-
             return (
               <div
                 key={assignment.id}
-                className={cn(
-                  'group relative rounded-lg border bg-background p-3 transition-all',
-                  isUnconfigured
-                    ? 'border-amber-500/40 bg-amber-500/5'
-                    : 'border-border/60 hover:border-border'
-                )}
+                className='group relative rounded-lg border border-border/60 bg-background p-3 transition-all hover:border-border'
               >
                 {!isPreview && !disabled && (
                   <Button
@@ -248,10 +241,7 @@ export function VariablesInput({
                       disabled={isPreview || disabled}
                     >
                       <SelectTrigger
-                        className={cn(
-                          'h-9 bg-white dark:bg-background',
-                          isUnconfigured && 'border-amber-500/40'
-                        )}
+                        className='h-9 bg-white dark:bg-background'
                       >
                         <SelectValue placeholder='Select a variable...' />
                       </SelectTrigger>
