@@ -9,7 +9,7 @@ import { Image } from '@/components/ui/image'
 
 The Loop block is a container block in Sim that allows you to create iterative workflows by executing a group of blocks repeatedly. Loops enable iterative processing in your workflows.
 
-The Loop block supports two types of iteration:
+The Loop block supports four types of iteration:
 
 <Callout type="info">
   Loop blocks are container nodes that can hold other blocks inside them. The blocks inside a loop will execute multiple times based on your configuration.
@@ -27,7 +27,7 @@ The Loop block enables you to:
     <strong>Repeat operations</strong>: Execute blocks a fixed number of times
   </Step>
   <Step>
-    <strong>Sequential processing</strong>: Handle data transformation in ordered iterations
+    <strong>Loop on conditions</strong>: Continue executing while or until a condition is met
   </Step>
   <Step>
     <strong>Aggregate results</strong>: Collect outputs from all loop iterations
@@ -47,9 +47,9 @@ The Loop block executes contained blocks through sequential iteration:
 
 ### Loop Type
 
-Choose between two types of loops:
+Choose between four types of loops:
 
-<Tabs items={['For Loop', 'ForEach Loop']}>
+<Tabs items={['For Loop', 'ForEach Loop', 'While Loop', 'Do-While Loop']}>
   <Tab>
     **For Loop (Iterations)** - A numeric loop that executes a fixed number of times:
     
@@ -96,6 +96,54 @@ Choose between two types of loops:
     - Iteration 3: Process "orange"
     ```
   </Tab>
+  <Tab>
+    **While Loop (Condition-based)** - Continues executing while a condition evaluates to true:
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-3.png"
+        alt="While Loop with condition"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    Use this when you need to loop until a specific condition is met. The condition is checked **before** each iteration.
+    
+    ```
+    Example: While <variable.i> < 10
+    - Check condition → Execute if true
+    - Inside loop: Increment <variable.i>
+    - Inside loop: Variables assigns i = <variable.i> + 1
+    - Check condition → Execute if true
+    - Check condition → Exit if false
+    ```
+  </Tab>
+  <Tab>
+    **Do-While Loop (Condition-based)** - Executes at least once, then continues while a condition is true:
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-3.png"
+        alt="Do-While Loop with condition"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    Use this when you need to execute at least once, then loop until a condition is met. The condition is checked **after** each iteration.
+    
+    ```
+    Example: Do-while <variable.i> < 10
+    - Execute blocks
+    - Inside loop: Increment <variable.i>
+    - Inside loop: Variables assigns i = <variable.i> + 1
+    - Check condition → Continue if true
+    - Check condition → Exit if false
+    ```
+  </Tab>
 </Tabs>
 
 ## How to Use Loops
@@ -139,6 +187,19 @@ After a loop completes, you can access aggregated results:
   </ol>
 </div>
 
+### Counter with While Loop
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Process items with counter-based loop</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Initialize workflow variable: `i = 0`</li>
+    <li>While loop with condition: `<variable.i>` \< 10</li>
+    <li>Inside loop: Agent processes item at index `<variable.i>`</li>
+    <li>Inside loop: Variables increments `i = <variable.i> + 1`</li>
+    <li>Loop continues while i is less than 10</li>
+  </ol>
+</div>
+
 ## Advanced Features
 
 ### Limitations
@@ -162,13 +223,16 @@ After a loop completes, you can access aggregated results:
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
-        <strong>Loop Type</strong>: Choose between 'for' or 'forEach'
+        <strong>Loop Type</strong>: Choose between 'for', 'forEach', 'while', or 'doWhile'
       </li>
       <li>
         <strong>Iterations</strong>: Number of times to execute (for loops)
       </li>
       <li>
         <strong>Collection</strong>: Array or object to iterate over (forEach loops)
+      </li>
+      <li>
+        <strong>Condition</strong>: Boolean expression to evaluate (while/do-while loops)
       </li>
     </ul>
   </Tab>

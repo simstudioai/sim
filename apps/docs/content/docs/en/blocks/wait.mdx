@@ -1,0 +1,99 @@
+---
+title: Wait
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+
+The Wait block pauses your workflow for a specified amount of time before continuing to the next block. Use it to add delays between actions, respect API rate limits, or space out operations.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/wait.png"
+    alt="Wait Block"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+## Overview
+
+The Wait block enables you to:
+
+<Steps>
+  <Step>
+    <strong>Add time delays</strong>: Pause execution between workflow steps
+  </Step>
+  <Step>
+    <strong>Respect rate limits</strong>: Space out API calls to stay within limits
+  </Step>
+  <Step>
+    <strong>Schedule sequences</strong>: Create timed workflows with delays between actions
+  </Step>
+</Steps>
+
+## Configuration
+
+### Wait Amount
+
+Enter the duration to pause execution:
+- **Input**: Positive number
+- **Maximum**: 600 seconds (10 minutes) or 10 minutes
+
+### Unit
+
+Choose the time unit:
+- **Seconds**: For short, precise delays
+- **Minutes**: For longer pauses
+
+<Callout type="info">
+  Wait blocks can be cancelled by stopping the workflow. The maximum wait time is 10 minutes.
+</Callout>
+
+## Outputs
+
+- **`<wait.waitDuration>`**: The wait duration in milliseconds
+- **`<wait.status>`**: Status of the wait ('waiting', 'completed', or 'cancelled')
+
+## Example Use Cases
+
+### API Rate Limiting
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Stay within API rate limits</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>API block makes first request</li>
+    <li>Wait block pauses for 2 seconds</li>
+    <li>API block makes second request</li>
+    <li>Process continues without hitting rate limits</li>
+  </ol>
+</div>
+
+### Timed Notifications
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Send follow-up messages</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Function sends initial email</li>
+    <li>Wait block pauses for 5 minutes</li>
+    <li>Function sends follow-up email</li>
+  </ol>
+</div>
+
+### Processing Delays
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Wait for external system</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>API block triggers job in external system</li>
+    <li>Wait block pauses for 30 seconds</li>
+    <li>API block checks job completion status</li>
+  </ol>
+</div>
+
+## Best Practices
+
+- **Keep waits reasonable**: Use Wait for delays up to 10 minutes. For longer delays, consider scheduled workflows
+- **Monitor execution time**: Remember that waits extend total workflow duration
