@@ -182,7 +182,6 @@ describe('File Serve API Route', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toBe('image/png')
 
-    // Check that the downloadFile mock was called with the correct parameters
     expect(downloadFileMock).toHaveBeenCalledWith({
       key: '1234567890-image.png',
       context: 'general',

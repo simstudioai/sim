@@ -1,10 +1,3 @@
-/**
- * Unified Storage Service
- * Single source of truth for all file storage operations across the application
- * Inspired by the mailer service architecture - provides a consistent interface
- * regardless of the underlying storage provider (S3, Blob, or Local)
- */
-
 import { createLogger } from '@/lib/logs/console/logger'
 import { USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/core/setup'
 import { getStorageConfig, type StorageContext } from './config-resolver'
@@ -56,10 +49,8 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
 
   logger.info(`Uploading file to ${context} storage: ${fileName}`)
 
-  // Get the appropriate config for this context
   const config = getStorageConfig(context)
 
-  // Determine the key to use
   const keyToUse = customKey || fileName
 
   if (USE_BLOB_STORAGE) {
@@ -71,8 +62,6 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       connectionString: config.connectionString,
     }
 
-    // Blob storage always adds timestamp, but we can work around it by passing the full key
-    // If preserveKey is true, we assume the fileName/customKey already has the full path
     return uploadToBlob(file, keyToUse, contentType, blobConfig, file.length)
   }
 
@@ -83,18 +72,15 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       region: config.region!,
     }
 
-    // S3 client supports skipTimestampPrefix parameter
     return uploadToS3(file, keyToUse, contentType, s3Config, file.length, preserveKey)
   }
 
-  // Fallback to local file storage
   logger.info('Using local file storage')
   const { writeFile } = await import('fs/promises')
   const { join } = await import('path')
   const { v4: uuidv4 } = await import('uuid')
   const { UPLOAD_DIR_SERVER } = await import('./setup.server')
 
-  // For local storage, always use UUID prefix for uniqueness
   const safeKey = keyToUse.replace(/[^a-zA-Z0-9.-]/g, '_').replace(/\.\./g, '')
   const uniqueKey = `${uuidv4()}-${safeKey}`
   const filePath = join(UPLOAD_DIR_SERVER, uniqueKey)
@@ -149,7 +135,6 @@ export async function downloadFile(options: DownloadFileOptions): Promise<Buffer
     }
   }
 
-  // Use default storage-client for backward compatibility
   const { downloadFile: defaultDownload } = await import('./storage-client')
   return defaultDownload(key)
 }
@@ -186,14 +171,12 @@ export async function deleteFile(options: DeleteFileOptions): Promise<void> {
     }
   }
 
-  // Use default storage-client for backward compatibility
   const { deleteFile: defaultDelete } = await import('./storage-client')
   return defaultDelete(key)
 }
 
 /**
  * Generate a presigned URL for direct file upload
- * This replaces the complex logic in api/files/presigned/route.ts
  */
 export async function generatePresignedUploadUrl(
   options: GeneratePresignedUrlOptions
@@ -210,7 +193,6 @@ export async function generatePresignedUploadUrl(
 
   logger.info(`Generating presigned upload URL for ${context}: ${fileName}`)
 
-  // Add default metadata
   const allMetadata = {
     ...metadata,
     'original-filename': fileName,
@@ -219,7 +201,6 @@ export async function generatePresignedUploadUrl(
 
   const config = getStorageConfig(context)
 
-  // Generate timestamp and unique ID for the file key
   const timestamp = Date.now()
   const uniqueId = Math.random().toString(36).substring(2, 9)
   const safeFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_')
@@ -269,7 +250,6 @@ async function generateS3PresignedUrl(
     throw new Error('S3 configuration missing bucket or region')
   }
 
-  // Sanitize metadata keys for S3 (lowercase, replace spaces with hyphens)
   const sanitizedMetadata: Record<string, string> = {}
   for (const [key, value] of Object.entries(metadata)) {
     const sanitizedKey = key
@@ -323,7 +303,6 @@ async function generateBlobPresignedUrl(
   const containerClient = blobServiceClient.getContainerClient(config.containerName)
   const blobClient = containerClient.getBlockBlobClient(key)
 
-  // Generate SAS token
   const startsOn = new Date()
   const expiresOn = new Date(startsOn.getTime() + expirationSeconds * 1000)
 
@@ -435,7 +414,6 @@ export async function generatePresignedDownloadUrl(
     )
   }
 
-  // Local storage - return serve path
   return `/api/files/serve/${encodeURIComponent(key)}`
 }
 

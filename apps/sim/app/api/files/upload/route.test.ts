@@ -207,7 +207,6 @@ describe('File Upload Security Tests', () => {
       },
     }))
 
-    // Also mock the core storage-service module
     vi.doMock('@/lib/uploads/core/storage-service', () => ({
       uploadFile: vi.fn().mockResolvedValue({
         key: 'test-key',

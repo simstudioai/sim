@@ -137,7 +137,6 @@ describe('File Parse API Route', () => {
       storageProvider: 's3',
     })
 
-    // Set up error-throwing mock for downloadFile
     const downloadFileMock = vi.fn().mockRejectedValue(new Error('Access denied'))
 
     vi.doMock('@/lib/uploads/core/storage-service', () => ({
@@ -156,8 +155,6 @@ describe('File Parse API Route', () => {
     const response = await POST(req)
     const data = await response.json()
 
-    // The test succeeds if we get any valid response structure
-    // (The error handling in the parse route is complex and may catch errors differently)
     expect(data).toBeDefined()
     expect(typeof data).toBe('object')
   })

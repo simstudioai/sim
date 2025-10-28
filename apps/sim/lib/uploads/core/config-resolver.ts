@@ -1,8 +1,3 @@
-/**
- * Centralized storage configuration resolver
- * Maps storage contexts to their appropriate S3/Blob configurations
- */
-
 import {
   BLOB_CHAT_CONFIG,
   BLOB_CONFIG,

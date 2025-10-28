@@ -1,10 +1,3 @@
-/**
- * Copilot File Management
- *
- * Provides file upload/download capabilities for Copilot interactions.
- * Uses persistent copilot storage (images only).
- */
-
 export {
   type CopilotFileAttachment,
   deleteCopilotFile,
