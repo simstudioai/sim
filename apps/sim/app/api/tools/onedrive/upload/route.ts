@@ -46,12 +46,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = OneDriveUploadSchema.parse(body)
 
-    logger.info(`[${requestId}] Uploading file to OneDrive`, {
-      fileName: validatedData.fileName,
-      folderId: validatedData.folderId || 'root',
-      mimeType: validatedData.mimeType,
-    })
-
     let fileBuffer: Buffer
     let mimeType: string
 
@@ -62,7 +56,6 @@ export async function POST(request: NextRequest) {
 
     if (isExcelCreation) {
       // Create a blank Excel workbook
-      logger.info(`[${requestId}] Creating blank Excel workbook`)
 
       const workbook = XLSX.utils.book_new()
       const worksheet = XLSX.utils.aoa_to_sheet([[]])
@@ -72,8 +65,6 @@ export async function POST(request: NextRequest) {
       const xlsxBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
       fileBuffer = Buffer.from(xlsxBuffer)
       mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-
-      logger.info(`[${requestId}] Created blank Excel workbook (${fileBuffer.length} bytes)`)
     } else {
       // Handle regular file upload
       const rawFile = validatedData.file
@@ -117,8 +108,6 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         )
       }
-
-      logger.info(`[${requestId}] Downloading file from storage: ${userFile.key}`)
 
       try {
         fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
@@ -164,8 +153,6 @@ export async function POST(request: NextRequest) {
       uploadUrl = `${MICROSOFT_GRAPH_BASE}/me/drive/root:/${encodeURIComponent(fileName)}:/content`
     }
 
-    logger.info(`[${requestId}] Uploading to OneDrive: ${uploadUrl}`)
-
     const uploadResponse = await fetch(uploadUrl, {
       method: 'PUT',
       headers: {
@@ -177,11 +164,6 @@ export async function POST(request: NextRequest) {
 
     if (!uploadResponse.ok) {
       const errorText = await uploadResponse.text()
-      logger.error(`[${requestId}] OneDrive upload failed:`, {
-        status: uploadResponse.status,
-        statusText: uploadResponse.statusText,
-        error: errorText,
-      })
       return NextResponse.json(
         {
           success: false,
@@ -194,12 +176,6 @@ export async function POST(request: NextRequest) {
 
     const fileData = await uploadResponse.json()
 
-    logger.info(`[${requestId}] File uploaded successfully to OneDrive`, {
-      fileId: fileData.id,
-      fileName: fileData.name,
-      size: fileData.size,
-    })
-
     // If this is an Excel creation and values were provided, write them using the Excel API
     let excelWriteResult: any | undefined
     const shouldWriteExcelContent =
@@ -209,32 +185,21 @@ export async function POST(request: NextRequest) {
       try {
         // Create a workbook session to ensure reliability and persistence of changes
         let workbookSessionId: string | undefined
-        try {
-          const sessionResp = await fetch(
-            `${MICROSOFT_GRAPH_BASE}/me/drive/items/${encodeURIComponent(fileData.id)}/workbook/createSession`,
-            {
-              method: 'POST',
-              headers: {
-                Authorization: `Bearer ${validatedData.accessToken}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ persistChanges: true }),
-            }
-          )
-
-          if (sessionResp.ok) {
-            const sessionData = await sessionResp.json()
-            workbookSessionId = sessionData?.id
-            logger.info(`[${requestId}] Created Excel workbook session`)
-          } else {
-            const errText = await sessionResp.text()
-            logger.warn(`[${requestId}] Failed to create Excel session, proceeding without`, {
-              status: sessionResp.status,
-              error: errText,
-            })
+        const sessionResp = await fetch(
+          `${MICROSOFT_GRAPH_BASE}/me/drive/items/${encodeURIComponent(fileData.id)}/workbook/createSession`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${validatedData.accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ persistChanges: true }),
           }
-        } catch (sessionErr) {
-          logger.warn(`[${requestId}] Error creating Excel session, proceeding without`, sessionErr)
+        )
+
+        if (sessionResp.ok) {
+          const sessionData = await sessionResp.json()
+          workbookSessionId = sessionData?.id
         }
 
         // Determine the first worksheet name
@@ -255,7 +220,6 @@ export async function POST(request: NextRequest) {
             if (firstSheetName) {
               sheetName = firstSheetName
             }
-            logger.info(`[${requestId}] Resolved worksheet for write`, { sheetName })
           } else {
             const listErr = await listResp.text()
             logger.warn(`[${requestId}] Failed to list worksheets, using default Sheet1`, {
@@ -278,13 +242,19 @@ export async function POST(request: NextRequest) {
           typeof processedValues[0] === 'object' &&
           !Array.isArray(processedValues[0])
         ) {
-          const allKeys = new Set<string>()
+          // Collect keys in first-seen order for deterministic column layout
+          const headers: string[] = []
+          const seenKeys = new Set<string>()
           processedValues.forEach((obj: any) => {
             if (obj && typeof obj === 'object') {
-              Object.keys(obj).forEach((key) => allKeys.add(key))
+              Object.keys(obj).forEach((key) => {
+                if (!seenKeys.has(key)) {
+                  headers.push(key)
+                  seenKeys.add(key)
+                }
+              })
             }
           })
-          const headers = Array.from(allKeys)
           const rows = processedValues.map((obj: any) => {
             if (!obj || typeof obj !== 'object') {
               return Array(headers.length).fill('')
@@ -331,14 +301,6 @@ export async function POST(request: NextRequest) {
         const endRow = rowsCount > 0 ? rowsCount : 1
         const computedRangeAddress = `A1:${endColLetters}${endRow}`
 
-        logger.info(`[${requestId}] Computed Excel range`, {
-          sheetName,
-          startAddress: 'A1',
-          computedRangeAddress,
-          rowsCount,
-          colsCount,
-        })
-
         const url = new URL(
           `${MICROSOFT_GRAPH_BASE}/me/drive/items/${encodeURIComponent(
             fileData.id
@@ -346,21 +308,6 @@ export async function POST(request: NextRequest) {
             sheetName
           )}')/range(address='${encodeURIComponent(computedRangeAddress)}')`
         )
-
-        // Build matrix and computed range; omit any Google Sheets-specific options
-
-        // processedValues computed above
-
-        // Logging details before write
-        logger.info(`[${requestId}] Writing Excel content`, {
-          sheetName,
-          address: computedRangeAddress,
-          valuesRows: Array.isArray(processedValues) ? processedValues.length : 0,
-          valuesCols:
-            Array.isArray(processedValues) && processedValues[0]
-              ? (processedValues[0] as any[]).length
-              : 0,
-        })
 
         const excelWriteResponse = await fetch(url.toString(), {
           method: 'PATCH',
@@ -390,11 +337,6 @@ export async function POST(request: NextRequest) {
           // The Range PATCH returns a Range object; log address and values length
           const addr = writeData.address || writeData.addressLocal
           const v = writeData.values || []
-          logger.info(`[${requestId}] Excel content written successfully`, {
-            address: addr,
-            rows: Array.isArray(v) ? v.length : 0,
-            cols: Array.isArray(v) && v[0] ? v[0].length : 0,
-          })
           excelWriteResult = {
             success: true,
             updatedRange: addr,
