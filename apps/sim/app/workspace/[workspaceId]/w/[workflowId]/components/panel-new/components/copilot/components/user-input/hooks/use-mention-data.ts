@@ -345,24 +345,6 @@ export function useMentionData(props: UseMentionDataProps) {
     })
   }, [workflowId, workflowStoreBlocks, workflowBlocks.length])
 
-  /**
-   * Formats timestamp to human-readable format
-   * @param iso - ISO timestamp string
-   * @returns Formatted timestamp (MM-DD HH:MM)
-   */
-  const formatTimestamp = useCallback((iso: string) => {
-    try {
-      const d = new Date(iso)
-      const mm = String(d.getMonth() + 1).padStart(2, '0')
-      const dd = String(d.getDate()).padStart(2, '0')
-      const hh = String(d.getHours()).padStart(2, '0')
-      const min = String(d.getMinutes()).padStart(2, '0')
-      return `${mm}-${dd} ${hh}:${min}`
-    } catch {
-      return iso
-    }
-  }, [])
-
   return {
     // State
     pastChats,
@@ -388,6 +370,5 @@ export function useMentionData(props: UseMentionDataProps) {
     ensureTemplatesLoaded,
     ensureLogsLoaded,
     ensureWorkflowBlocksLoaded,
-    formatTimestamp,
   }
 }

@@ -19,7 +19,7 @@
   --sidebar-width: 232px;
   --triggers-height: 200px;
   --blocks-height: 200px;
-  --panel-width: 240px;
+  --panel-width: 244px;
 }
 
 .sidebar-container {
@@ -308,6 +308,19 @@
 
   .dark .sidebar-container {
     scrollbar-color: hsl(var(--muted-foreground) / 0.3) #272727;
+  }
+
+  /* Dark Mode Copilot Scrollbar - Match copilot background */
+  .copilot-scrollable {
+    scrollbar-gutter: stable;
+  }
+
+  .dark .copilot-scrollable::-webkit-scrollbar-track {
+    background: #232323;
+  }
+
+  .dark .copilot-scrollable {
+    scrollbar-color: hsl(var(--muted-foreground) / 0.3) #232323;
   }
 
   /* For Firefox */

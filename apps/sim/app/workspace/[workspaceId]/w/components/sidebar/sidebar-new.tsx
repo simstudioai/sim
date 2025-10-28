@@ -8,7 +8,6 @@ import {
   Button,
   ChevronDown,
   FolderPlus,
-  PanelLeft,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -125,7 +124,7 @@ export function SidebarNew() {
             </div>
             {/* Collapse/Expand */}
             <div className='flex items-center gap-[14px]'>
-              {/* TODO: Add sidebar collapse */}
+              {/* TODO: Add workspace dropdown */}
               <Button
                 variant='ghost-secondary'
                 type='button'
@@ -135,14 +134,14 @@ export function SidebarNew() {
                 <ChevronDown className='h-[8px] w-[12px]' />
               </Button>
               {/* TODO: Add panel toggle */}
-              <Button
+              {/* <Button
                 variant='ghost-secondary'
                 type='button'
                 aria-label='Toggle panel'
                 className='group p-0'
               >
                 <PanelLeft className='h-[17.5px] w-[17.5px]' />
-              </Button>
+              </Button> */}
             </div>
           </div>
 

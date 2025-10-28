@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Brain } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import clsx from 'clsx'
+import { ChevronUp } from 'lucide-react'
 
 /**
  * Timer update interval in milliseconds
@@ -13,6 +13,57 @@ const TIMER_UPDATE_INTERVAL = 100
  * Milliseconds threshold for displaying as seconds
  */
 const SECONDS_THRESHOLD = 1000
+
+/**
+ * ShimmerOverlayText component for thinking block
+ * Applies shimmer effect to the "Thought for X.Xs" text during streaming
+ */
+function ShimmerOverlayText({
+  label,
+  value,
+  active = false,
+}: {
+  label: string
+  value: string
+  active?: boolean
+}) {
+  return (
+    <span className='relative inline-block'>
+      <span style={{ color: '#B8B8B8' }}>{label}</span>
+      <span style={{ color: '#787878' }}>{value}</span>
+      {active ? (
+        <span
+          aria-hidden='true'
+          className='pointer-events-none absolute inset-0 select-none overflow-hidden'
+        >
+          <span
+            className='block text-transparent'
+            style={{
+              backgroundImage:
+                'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.85) 50%, rgba(255,255,255,0) 100%)',
+              backgroundSize: '200% 100%',
+              backgroundRepeat: 'no-repeat',
+              WebkitBackgroundClip: 'text',
+              backgroundClip: 'text',
+              animation: 'thinking-shimmer 1.4s ease-in-out infinite',
+              mixBlendMode: 'screen',
+            }}
+          >
+            {label}
+            {value}
+          </span>
+        </span>
+      ) : null}
+      <style>{`
+        @keyframes thinking-shimmer {
+          0% { background-position: 150% 0; }
+          50% { background-position: 0% 0; }
+          100% { background-position: -150% 0; }
+        }
+      `}</style>
+    </span>
+  )
+}
 
 /**
  * Props for the ThinkingBlock component
@@ -105,6 +156,8 @@ export function ThinkingBlock({
     return `${seconds}s`
   }
 
+  const hasContent = content && content.trim().length > 0
+
   return (
     <div className='mt-1 mb-0'>
       <button
@@ -116,28 +169,32 @@ export function ThinkingBlock({
             return next
           })
         }}
-        className={cn(
-          'mb-1 inline-flex items-center gap-1 text-[11px] text-gray-400 transition-colors hover:text-gray-500',
-          'font-normal italic'
-        )}
+        className='mb-1 inline-flex items-center gap-1 text-left font-[470] font-season text-[#B1B1B1] text-sm transition-colors hover:text-[#E6E6E6]'
         type='button'
+        disabled={!hasContent}
       >
-        <Brain className='h-3 w-3' />
-        <span>
-          Thought for {formatDuration(duration)}
-          {isExpanded ? ' (click to collapse)' : ''}
-        </span>
-        {isStreaming && (
-          <span className='inline-flex h-1 w-1 animate-pulse rounded-full bg-gray-400' />
+        <ShimmerOverlayText
+          label='Thought'
+          value={` for ${formatDuration(duration)}`}
+          active={isStreaming}
+        />
+        {hasContent && (
+          <ChevronUp
+            className={clsx('h-3 w-3 transition-transform', isExpanded && 'rotate-180')}
+            aria-hidden='true'
+          />
         )}
       </button>
 
       {isExpanded && (
-        <div className='ml-1 border-gray-200 border-l-2 pl-2 dark:border-gray-700'>
-          <pre className='whitespace-pre-wrap font-mono text-[11px] text-gray-400 dark:text-gray-500'>
+        <div className='ml-1 border-[#303030] border-l-2 pl-2'>
+          <pre
+            className='whitespace-pre-wrap font-[470] font-season text-[12px] leading-[1.15rem]'
+            style={{ color: '#B8B8B8' }}
+          >
             {content}
             {isStreaming && (
-              <span className='ml-1 inline-block h-2 w-1 animate-pulse bg-gray-400' />
+              <span className='ml-1 inline-block h-2 w-1 animate-pulse bg-[#B8B8B8]' />
             )}
           </pre>
         </div>

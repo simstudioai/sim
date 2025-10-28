@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import useDrivePicker from 'react-google-drive-picker'
+import { Button } from '@/components/emcn'
 import { GoogleDriveIcon } from '@/components/icons'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/base-tool'
 import { getClientTool } from '@/lib/copilot/tools/client/manager'
@@ -18,6 +18,194 @@ interface InlineToolCallProps {
   toolCallId?: string
   onStateChange?: (state: any) => void
   context?: Record<string, any>
+}
+
+/**
+ * Props for shimmer overlay text component.
+ */
+interface ShimmerOverlayTextProps {
+  /** The text content to display */
+  text: string
+  /** Whether the shimmer animation is active */
+  active?: boolean
+  /** Additional class names for the wrapper */
+  className?: string
+  /** Whether to use special gradient styling (for important actions) */
+  isSpecial?: boolean
+}
+
+/**
+ * Action verbs that appear at the start of tool display names.
+ * These will be highlighted in a lighter color for better visual hierarchy.
+ */
+const ACTION_VERBS = [
+  'Analyzing',
+  'Analyzed',
+  'Exploring',
+  'Explored',
+  'Fetching',
+  'Fetched',
+  'Retrieved',
+  'Retrieving',
+  'Reading',
+  'Read',
+  'Listing',
+  'Listed',
+  'Editing',
+  'Edited',
+  'Running',
+  'Designing',
+  'Designed',
+  'Summarizing',
+  'Summarized',
+  'Marking',
+  'Marked',
+  'Planning',
+  'Planned',
+  'Preparing',
+  'Failed',
+  'Aborted',
+  'Skipped',
+  'Review',
+  'Finding',
+  'Found',
+  'Evaluating',
+  'Evaluated',
+  'Finished',
+] as const
+
+/**
+ * Splits text into action verb and remainder for two-tone rendering.
+ * Returns [actionVerb, remainder] or [null, text] if no match.
+ */
+function splitActionVerb(text: string): [string | null, string] {
+  for (const verb of ACTION_VERBS) {
+    if (text.startsWith(`${verb} `)) {
+      return [verb, text.slice(verb.length)]
+    }
+    // Handle cases like "Review your workflow changes" where verb is the only word before "your"
+    if (text === verb || text.startsWith(verb)) {
+      // Check if it's followed by a space or is the whole text
+      const afterVerb = text.slice(verb.length)
+      if (afterVerb === '' || afterVerb.startsWith(' ')) {
+        return [verb, afterVerb]
+      }
+    }
+  }
+  return [null, text]
+}
+
+/**
+ * Renders text with a subtle white shimmer overlay when active, creating a skeleton-like
+ * loading effect that passes over the existing words without replacing them.
+ * For special tool calls, uses a gradient color. For normal tools, highlights action verbs
+ * in a lighter color with the rest in default gray.
+ */
+function ShimmerOverlayText({
+  text,
+  active = false,
+  className,
+  isSpecial = false,
+}: ShimmerOverlayTextProps) {
+  const [actionVerb, remainder] = splitActionVerb(text)
+
+  // Special tools: use gradient for entire text
+  if (isSpecial) {
+    const baseTextStyle = {
+      backgroundImage: 'linear-gradient(90deg, #B99FFD 0%, #D1BFFF 100%)',
+      WebkitBackgroundClip: 'text',
+      backgroundClip: 'text',
+      WebkitTextFillColor: 'transparent',
+    }
+
+    return (
+      <span className={`relative inline-block ${className || ''}`}>
+        <span style={baseTextStyle}>{text}</span>
+        {active ? (
+          <span
+            aria-hidden='true'
+            className='pointer-events-none absolute inset-0 select-none overflow-hidden'
+          >
+            <span
+              className='block text-transparent'
+              style={{
+                backgroundImage:
+                  'linear-gradient(90deg, rgba(142,76,251,0) 0%, rgba(255,255,255,0.6) 50%, rgba(142,76,251,0) 100%)',
+                backgroundSize: '200% 100%',
+                backgroundRepeat: 'no-repeat',
+                WebkitBackgroundClip: 'text',
+                backgroundClip: 'text',
+                animation: 'toolcall-shimmer 1.4s ease-in-out infinite',
+                mixBlendMode: 'screen',
+              }}
+            >
+              {text}
+            </span>
+          </span>
+        ) : null}
+        <style>{`
+          @keyframes toolcall-shimmer {
+            0% { background-position: 150% 0; }
+            50% { background-position: 0% 0; }
+            100% { background-position: -150% 0; }
+          }
+        `}</style>
+      </span>
+    )
+  }
+
+  // Normal tools: two-tone rendering with lighter action verb
+  return (
+    <span className={`relative inline-block ${className || ''}`}>
+      {actionVerb ? (
+        <>
+          <span style={{ color: '#B8B8B8' }}>{actionVerb}</span>
+          <span style={{ color: '#787878' }}>{remainder}</span>
+        </>
+      ) : (
+        <span>{text}</span>
+      )}
+      {active ? (
+        <span
+          aria-hidden='true'
+          className='pointer-events-none absolute inset-0 select-none overflow-hidden'
+        >
+          <span
+            className='block text-transparent'
+            style={{
+              backgroundImage:
+                'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.85) 50%, rgba(255,255,255,0) 100%)',
+              backgroundSize: '200% 100%',
+              backgroundRepeat: 'no-repeat',
+              WebkitBackgroundClip: 'text',
+              backgroundClip: 'text',
+              animation: 'toolcall-shimmer 1.4s ease-in-out infinite',
+              mixBlendMode: 'screen',
+            }}
+          >
+            {text}
+          </span>
+        </span>
+      ) : null}
+      <style>{`
+        @keyframes toolcall-shimmer {
+          0% { background-position: 150% 0; }
+          50% { background-position: 0% 0; }
+          100% { background-position: -150% 0; }
+        }
+      `}</style>
+    </span>
+  )
+}
+
+/**
+ * Determines if a tool call is "special" and should display with gradient styling.
+ * Only workflow operation tools (edit, build, run) get the purple gradient.
+ */
+function isSpecialToolCall(toolCall: CopilotToolCall): boolean {
+  const workflowOperationTools = ['edit_workflow', 'build_workflow', 'run_workflow']
+
+  return workflowOperationTools.includes(toolCall.name)
 }
 
 function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
@@ -147,7 +335,7 @@ function RunSkipButtons({
 
   if (toolCall.name === 'gdrive_request_access' && toolCall.state === 'pending') {
     return (
-      <div className='flex items-center gap-2'>
+      <div className='mt-[10px] flex gap-[6px]'>
         <Button
           onClick={async () => {
             const instance = getClientTool(toolCall.id)
@@ -182,8 +370,7 @@ function RunSkipButtons({
               },
             })
           }}
-          size='sm'
-          className='h-6 bg-gray-900 px-2 font-medium text-white text-xs hover:bg-gray-800 disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200'
+          variant='primary'
           title='Grant Google Drive access'
         >
           <GoogleDriveIcon className='mr-0.5 h-4 w-4' />
@@ -194,8 +381,7 @@ function RunSkipButtons({
             setButtonsHidden(true)
             await handleSkip(toolCall, setToolCallState, onStateChange)
           }}
-          size='sm'
-          className='h-6 bg-gray-200 px-2 font-medium text-gray-700 text-xs hover:bg-gray-300 disabled:opacity-50 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+          variant='default'
         >
           Skip
         </Button>
@@ -204,13 +390,8 @@ function RunSkipButtons({
   }
 
   return (
-    <div className='flex items-center gap-1.5'>
-      <Button
-        onClick={onRun}
-        disabled={isProcessing}
-        size='sm'
-        className='h-6 bg-gray-900 px-2 font-medium text-white text-xs hover:bg-gray-800 disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200'
-      >
+    <div className='mt-[12px] flex gap-[6px]'>
+      <Button onClick={onRun} disabled={isProcessing} variant='primary'>
         {isProcessing ? <Loader2 className='mr-1 h-3 w-3 animate-spin' /> : null}
         {acceptLabel}
       </Button>
@@ -220,8 +401,7 @@ function RunSkipButtons({
           await handleSkip(toolCall, setToolCallState, onStateChange)
         }}
         disabled={isProcessing}
-        size='sm'
-        className='h-6 bg-gray-200 px-2 font-medium text-gray-700 text-xs hover:bg-gray-300 disabled:opacity-50 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+        variant='default'
       >
         {rejectLabel}
       </Button>
@@ -241,6 +421,12 @@ export function InlineToolCall({
   )
   const toolCall = liveToolCall || toolCallProp
 
+  const isExpandablePending =
+    toolCall?.state === 'pending' &&
+    (toolCall.name === 'make_api_request' || toolCall.name === 'set_global_workflow_variables')
+
+  const [expanded, setExpanded] = useState(isExpandablePending)
+
   // Guard: nothing to render without a toolCall
   if (!toolCall) return null
 
@@ -252,18 +438,8 @@ export function InlineToolCall({
   } catch {
     return null
   }
-
-  const isExpandablePending =
-    toolCall.state === 'pending' &&
-    (toolCall.name === 'make_api_request' ||
-      toolCall.name === 'set_environment_variables' ||
-      toolCall.name === 'set_global_workflow_variables')
-
-  const [expanded, setExpanded] = useState(isExpandablePending)
   const isExpandableTool =
-    toolCall.name === 'make_api_request' ||
-    toolCall.name === 'set_environment_variables' ||
-    toolCall.name === 'set_global_workflow_variables'
+    toolCall.name === 'make_api_request' || toolCall.name === 'set_global_workflow_variables'
 
   const showButtons = shouldShowRunSkipButtons(toolCall)
   const showMoveToBackground =
@@ -279,10 +455,16 @@ export function InlineToolCall({
   const displayName = getDisplayName(toolCall)
   const params = (toolCall as any).parameters || (toolCall as any).input || toolCall.params || {}
 
+  const isLoadingState =
+    toolCall.state === ClientToolCallState.pending ||
+    toolCall.state === ClientToolCallState.executing
+
+  const isSpecial = isSpecialToolCall(toolCall)
+
   const Section = ({ title, children }: { title: string; children: any }) => (
     <Card className='mt-1.5'>
       <CardContent className='p-3'>
-        <div className='mb-1 font-medium text-[11px] text-muted-foreground uppercase tracking-wide'>
+        <div className='mb-1 font-medium font-season text-[#858585] text-[11px] uppercase tracking-wide dark:text-[#E0E0E0]'>
           {title}
         </div>
         {children}
@@ -295,24 +477,24 @@ export function InlineToolCall({
       const url = params.url || ''
       const method = (params.method || '').toUpperCase()
       return (
-        <div className='mt-0.5 w-full overflow-hidden rounded border border-muted bg-card'>
-          <div className='grid grid-cols-2 gap-0 border-muted/60 border-b bg-muted/40 px-2 py-1.5'>
-            <div className='font-medium text-[10px] text-muted-foreground uppercase tracking-wide'>
+        <div className='w-full overflow-hidden rounded border border-muted bg-card'>
+          <div className='grid grid-cols-2 gap-0 border-muted/60 border-b bg-muted/40 py-1.5'>
+            <div className='self-start px-2 font-medium font-season text-[#858585] text-[10px] uppercase tracking-wide dark:text-[#E0E0E0]'>
               Method
             </div>
-            <div className='font-medium text-[10px] text-muted-foreground uppercase tracking-wide'>
+            <div className='self-start px-2 font-medium font-season text-[#858585] text-[10px] uppercase tracking-wide dark:text-[#E0E0E0]'>
               Endpoint
             </div>
           </div>
-          <div className='grid grid-cols-[auto_1fr] items-center gap-2 px-2 py-2'>
-            <div>
-              <span className='inline-flex rounded bg-muted px-1.5 py-0.5 font-mono text-muted-foreground text-xs'>
+          <div className='grid grid-cols-[auto_1fr] gap-2 py-1.5'>
+            <div className='self-start px-2'>
+              <span className='inline-flex rounded bg-muted px-1.5 py-0.5 font-[470] font-mono text-[#707070] text-xs dark:text-[#E8E8E8]'>
                 {method || 'GET'}
               </span>
             </div>
-            <div className='min-w-0'>
+            <div className='min-w-0 self-start px-2'>
               <span
-                className='block overflow-x-auto whitespace-nowrap font-mono text-foreground text-xs'
+                className='block overflow-x-auto whitespace-nowrap font-[470] font-mono text-[#707070] text-xs dark:text-[#E8E8E8]'
                 title={url}
               >
                 {url || 'URL not provided'}
@@ -340,29 +522,28 @@ export function InlineToolCall({
       })
 
       return (
-        <div className='mt-0.5 w-full overflow-hidden rounded border border-muted bg-card'>
-          <div className='grid grid-cols-2 gap-0 border-muted/60 border-b bg-muted/40 px-2 py-1.5'>
-            <div className='font-medium text-[10px] text-muted-foreground uppercase tracking-wide'>
+        <div className='w-full overflow-hidden rounded border border-muted bg-card'>
+          <div className='grid grid-cols-[160px_1fr] gap-0 border-muted/60 border-b bg-muted/40 py-1.5'>
+            <div className='self-start px-2 font-medium font-season text-[#858585] text-[11px] uppercase tracking-wide dark:text-[#E0E0E0]'>
               Name
             </div>
-            <div className='font-medium text-[10px] text-muted-foreground uppercase tracking-wide'>
+            <div className='self-start px-2 font-medium font-season text-[#858585] text-[11px] uppercase tracking-wide dark:text-[#E0E0E0]'>
               Value
             </div>
           </div>
           {normalizedEntries.length === 0 ? (
-            <div className='px-2 py-2 text-muted-foreground text-xs'>No variables provided</div>
+            <div className='px-2 py-1.5 font-[470] font-season text-[#707070] text-xs dark:text-[#E8E8E8]'>
+              No variables provided
+            </div>
           ) : (
             <div className='divide-y divide-muted/60'>
               {normalizedEntries.map(([name, value]) => (
-                <div
-                  key={name}
-                  className='grid grid-cols-[auto_1fr] items-center gap-2 px-2 py-1.5'
-                >
-                  <div className='truncate font-medium text-amber-800 text-xs dark:text-amber-200'>
+                <div key={name} className='grid grid-cols-[160px_1fr] gap-0 py-1.5'>
+                  <div className='self-start px-2 font-medium font-season text-amber-800 text-xs dark:text-amber-200'>
                     {name}
                   </div>
-                  <div className='min-w-0'>
-                    <span className='block overflow-x-auto whitespace-nowrap font-mono text-amber-700 text-xs dark:text-amber-300'>
+                  <div className='min-w-0 self-start overflow-x-auto px-2'>
+                    <span className='whitespace-nowrap font-[470] font-mono text-amber-700 text-xs dark:text-amber-300'>
                       {value}
                     </span>
                   </div>
@@ -377,41 +558,45 @@ export function InlineToolCall({
     if (toolCall.name === 'set_global_workflow_variables') {
       const ops = Array.isArray(params.operations) ? (params.operations as any[]) : []
       return (
-        <div className='mt-0.5 w-full overflow-hidden rounded border border-muted bg-card'>
-          <div className='grid grid-cols-3 gap-0 border-muted/60 border-b bg-muted/40 px-2 py-1.5'>
-            <div className='font-medium text-[10px] text-muted-foreground uppercase tracking-wide'>
+        <div className='w-full overflow-hidden rounded border border-muted bg-card'>
+          <div className='grid grid-cols-3 gap-0 border-muted/60 border-b bg-muted/40 py-1.5'>
+            <div className='self-start px-2 font-medium font-season text-[#858585] text-[10px] uppercase tracking-wide dark:text-[#E0E0E0]'>
               Name
             </div>
-            <div className='font-medium text-[10px] text-muted-foreground uppercase tracking-wide'>
+            <div className='self-start px-2 font-medium font-season text-[#858585] text-[10px] uppercase tracking-wide dark:text-[#E0E0E0]'>
               Type
             </div>
-            <div className='font-medium text-[10px] text-muted-foreground uppercase tracking-wide'>
+            <div className='self-start px-2 font-medium font-season text-[#858585] text-[10px] uppercase tracking-wide dark:text-[#E0E0E0]'>
               Value
             </div>
           </div>
           {ops.length === 0 ? (
-            <div className='px-2 py-2 text-muted-foreground text-xs'>No operations provided</div>
+            <div className='px-2 py-2 font-[470] font-season text-[#707070] text-xs dark:text-[#E8E8E8]'>
+              No operations provided
+            </div>
           ) : (
             <div className='divide-y divide-amber-200 dark:divide-amber-800'>
               {ops.map((op, idx) => (
-                <div key={idx} className='grid grid-cols-3 items-center gap-0 px-2 py-1.5'>
-                  <div className='min-w-0'>
-                    <span className='truncate text-amber-800 text-xs dark:text-amber-200'>
+                <div key={idx} className='grid grid-cols-3 gap-0 py-1.5'>
+                  <div className='min-w-0 self-start px-2'>
+                    <span className='truncate font-season text-amber-800 text-xs dark:text-amber-200'>
                       {String(op.name || '')}
                     </span>
                   </div>
-                  <div>
-                    <span className='rounded border px-1 py-0.5 text-[10px] text-muted-foreground'>
+                  <div className='self-start px-2'>
+                    <span className='rounded border px-1 py-0.5 font-[470] font-season text-[#707070] text-[10px] dark:text-[#E8E8E8]'>
                       {String(op.type || '')}
                     </span>
                   </div>
-                  <div className='min-w-0'>
+                  <div className='min-w-0 self-start px-2'>
                     {op.value !== undefined ? (
-                      <span className='block overflow-x-auto whitespace-nowrap font-mono text-amber-700 text-xs dark:text-amber-300'>
+                      <span className='block overflow-x-auto whitespace-nowrap font-[470] font-mono text-amber-700 text-xs dark:text-amber-300'>
                         {String(op.value)}
                       </span>
                     ) : (
-                      <span className='text-muted-foreground text-xs'>—</span>
+                      <span className='font-[470] font-season text-[#707070] text-xs dark:text-[#E8E8E8]'>
+                        —
+                      </span>
                     )}
                   </div>
                 </div>
@@ -425,58 +610,43 @@ export function InlineToolCall({
     return null
   }
 
-  // Compute icon element from tool's display metadata (fallback to Loader2)
-  const renderDisplayIcon = () => {
-    try {
-      // Determine the icon component (prefer store, then registry, else Loader2)
-      const IconFromStore = (toolCall as any).display?.icon
-      let IconComp: any | undefined = IconFromStore
-      if (!IconComp) {
-        try {
-          const def = getRegisteredTools()[toolCall.name] as any
-          IconComp = def?.metadata?.displayNames?.[toolCall.state]?.icon
-        } catch {}
-      }
-      if (!IconComp) IconComp = Loader2
-
-      // Color by state
-      let colorClass = ''
-      const state = toolCall.state as any
-      if (state === (ClientToolCallState as any).aborted || state === 'aborted') {
-        colorClass = 'text-amber-500'
-      } else if (state === (ClientToolCallState as any).error || state === 'error') {
-        colorClass = 'text-red-500'
-      } else if (state === (ClientToolCallState as any).success || state === 'success') {
-        const isBuildOrEdit = toolCall.name === 'edit_workflow'
-        colorClass = isBuildOrEdit ? 'text-[var(--brand-primary-hover-hex)]' : 'text-green-600'
-      }
-
-      // Only Loader2 should spin
-      const spinClass = IconComp === Loader2 ? 'animate-spin' : ''
-
-      return <IconComp className={`h-3 w-3 ${spinClass} ${colorClass}`} />
-    } catch {
-      return <Loader2 className='h-3 w-3 animate-spin' />
-    }
+  // Special handling for set_environment_variables - always stacked, always expanded
+  if (toolCall.name === 'set_environment_variables' && toolCall.state === 'pending') {
+    return (
+      <div className='w-full'>
+        <ShimmerOverlayText
+          text={displayName}
+          active={isLoadingState}
+          isSpecial={isSpecial}
+          className='font-[470] font-season text-[#939393] text-sm dark:text-[#939393]'
+        />
+        <div className='mt-[8px]'>{renderPendingDetails()}</div>
+        {showButtons && <RunSkipButtons toolCall={toolCall} onStateChange={handleStateChange} />}
+      </div>
+    )
   }
 
   return (
-    <div className='flex w-full flex-col gap-1 py-1'>
+    <div className='w-full'>
       <div
-        className={`flex items-center justify-between gap-2 ${isExpandableTool ? 'cursor-pointer' : ''}`}
+        className={isExpandableTool ? 'cursor-pointer' : ''}
         onClick={() => {
           if (isExpandableTool) setExpanded((e) => !e)
         }}
       >
-        <div className='flex items-center gap-2 text-muted-foreground'>
-          <div className='flex-shrink-0'>{renderDisplayIcon()}</div>
-          <span className='text-sm'>{displayName}</span>
-        </div>
-        {showButtons ? (
-          <RunSkipButtons toolCall={toolCall} onStateChange={handleStateChange} />
-        ) : showMoveToBackground ? (
+        <ShimmerOverlayText
+          text={displayName}
+          active={isLoadingState}
+          isSpecial={isSpecial}
+          className='font-[470] font-season text-[#939393] text-sm dark:text-[#939393]'
+        />
+      </div>
+      {isExpandableTool && expanded && <div>{renderPendingDetails()}</div>}
+      {showButtons ? (
+        <RunSkipButtons toolCall={toolCall} onStateChange={handleStateChange} />
+      ) : showMoveToBackground ? (
+        <div className='mt-[8px]'>
           <Button
-            // Intentionally minimal wiring per requirements
             onClick={async () => {
               try {
                 const instance = getClientTool(toolCall.id)
@@ -491,15 +661,13 @@ export function InlineToolCall({
                 onStateChange?.('background')
               } catch {}
             }}
-            size='sm'
-            className='h-6 bg-blue-600 px-2 font-medium text-white text-xs hover:bg-blue-500 disabled:opacity-50 dark:bg-blue-400 dark:text-gray-900 dark:hover:bg-blue-300'
+            variant='primary'
             title='Move to Background'
           >
             Move to Background
           </Button>
-        ) : null}
-      </div>
-      {isExpandableTool && expanded && <div className='pr-1 pl-5'>{renderPendingDetails()}</div>}
+        </div>
+      ) : null}
     </div>
   )
 }

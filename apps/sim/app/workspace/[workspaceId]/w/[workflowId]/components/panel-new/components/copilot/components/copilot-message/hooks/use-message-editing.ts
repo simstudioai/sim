@@ -40,6 +40,11 @@ interface UseMessageEditingProps {
     fileAttachments?: any[]
     contexts?: any[]
   } | null>
+  /**
+   * When true, disables the internal document click-outside handler.
+   * Use when a parent component provides its own click-outside handling.
+   */
+  disableDocumentClickOutside?: boolean
 }
 
 /**
@@ -59,6 +64,7 @@ export function useMessageEditing(props: UseMessageEditingProps) {
     showCheckpointDiscardModal,
     setShowCheckpointDiscardModal,
     pendingEditRef,
+    disableDocumentClickOutside = false,
   } = props
 
   const [isEditMode, setIsEditMode] = useState(false)
@@ -203,38 +209,10 @@ export function useMessageEditing(props: UseMessageEditingProps) {
   )
 
   /**
-   * Handle click outside to exit edit mode
+   * Keyboard-only exit (Esc). Click-outside is optionally handled by parent.
    */
   useEffect(() => {
     if (!isEditMode) return
-
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement
-
-      if (editContainerRef.current?.contains(target)) {
-        return
-      }
-
-      const clickedMessageBox = target.closest('[data-message-box]') as HTMLElement
-      if (clickedMessageBox) {
-        const clickedMessageId = clickedMessageBox.getAttribute('data-message-id')
-        if (clickedMessageId && clickedMessageId !== message.id) {
-          handleCancelEdit()
-        }
-        return
-      }
-
-      if (target.closest('textarea') || target.closest('input[type="text"]')) {
-        handleCancelEdit()
-        return
-      }
-
-      if (target.children.length > 0 || target.tagName !== 'DIV') {
-        return
-      }
-
-      handleCancelEdit()
-    }
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -242,17 +220,35 @@ export function useMessageEditing(props: UseMessageEditingProps) {
       }
     }
 
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isEditMode, handleCancelEdit])
+
+  /**
+   * Optional document-level click-outside handler (disabled when parent manages it).
+   */
+  useEffect(() => {
+    if (!isEditMode || disableDocumentClickOutside) return
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (editContainerRef.current?.contains(target)) {
+        return
+      }
+      handleCancelEdit()
+    }
+
     const timeoutId = setTimeout(() => {
       document.addEventListener('click', handleClickOutside, true)
-      document.addEventListener('keydown', handleKeyDown)
     }, CLICK_OUTSIDE_DELAY)
 
     return () => {
       clearTimeout(timeoutId)
       document.removeEventListener('click', handleClickOutside, true)
-      document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isEditMode, message.id, handleCancelEdit])
+  }, [isEditMode, disableDocumentClickOutside, handleCancelEdit])
 
   return {
     // State

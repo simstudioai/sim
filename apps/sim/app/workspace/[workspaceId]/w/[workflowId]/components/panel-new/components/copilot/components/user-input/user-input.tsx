@@ -8,17 +8,16 @@ import {
   useImperativeHandle,
   useState,
 } from 'react'
-import { ArrowUp, AtSign, Image, Loader2, X } from 'lucide-react'
+import { ArrowUp, AtSign, Image, Loader2, Square } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { Badge, Button } from '@/components/emcn'
-import { Button as ShadCNButton, Textarea } from '@/components/ui'
+import { Textarea } from '@/components/ui'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { useCopilotStore } from '@/stores/panel-new/copilot/store'
 import type { ChatContext } from '@/stores/panel-new/copilot/types'
-import { ContextUsagePill } from '../context-usage-pill/context-usage-pill'
 import {
   AttachedFilesDisplay,
   ContextPills,
@@ -34,10 +33,13 @@ import {
   NEAR_TOP_THRESHOLD,
 } from './constants'
 import {
+  useContextManagement,
   useFileAttachments,
   useMentionData,
+  useMentionInsertHandlers,
   useMentionKeyboard,
   useMentionMenu,
+  useMentionTokens,
   useModelSelection,
   useTextareaAutoResize,
 } from './hooks'
@@ -108,9 +110,9 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     // Internal state
     const [internalMessage, setInternalMessage] = useState('')
-    const [selectedContexts, setSelectedContexts] = useState<ChatContext[]>([])
     const [isNearTop, setIsNearTop] = useState(false)
     const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null)
+    const [inputContainerRef, setInputContainerRef] = useState<HTMLDivElement | null>(null)
 
     // Controlled vs uncontrolled message state
     const message = controlledValue !== undefined ? controlledValue : internalMessage
@@ -122,34 +124,32 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       placeholder || (mode === 'ask' ? 'Ask about your workflow' : 'Plan, search, build anything')
 
     // Custom hooks - order matters for ref sharing
+    // Context management (manages selectedContexts state)
+    const contextManagement = useContextManagement({ message })
+
+    // Mention menu
     const mentionMenu = useMentionMenu({
       message,
-      selectedContexts,
-      onContextSelect: (context: ChatContext) => {
-        setSelectedContexts((prev) => {
-          // Avoid duplicates
-          const exists = prev.some((c) => {
-            if (c.kind !== context.kind) return false
-            if (c.kind === 'past_chat' && 'chatId' in context && 'chatId' in c) {
-              return c.chatId === (context as any).chatId
-            }
-            if (c.kind === 'workflow' && 'workflowId' in context && 'workflowId' in c) {
-              return c.workflowId === (context as any).workflowId
-            }
-            return c.label === context.label
-          })
-          if (exists) return prev
-          return [...prev, context]
-        })
-      },
+      selectedContexts: contextManagement.selectedContexts,
+      onContextSelect: contextManagement.addContext,
       onMessageChange: setMessage,
+    })
+
+    // Mention token utilities
+    const mentionTokensWithContext = useMentionTokens({
+      message,
+      selectedContexts: contextManagement.selectedContexts,
+      mentionMenu,
+      setMessage,
+      setSelectedContexts: contextManagement.setSelectedContexts,
     })
 
     const { overlayRef } = useTextareaAutoResize({
       message,
       panelWidth,
-      selectedContexts,
+      selectedContexts: contextManagement.selectedContexts,
       textareaRef: mentionMenu.textareaRef,
+      containerRef: inputContainerRef,
     })
 
     const mentionData = useMentionData({
@@ -165,151 +165,19 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     const modelSelection = useModelSelection()
 
-    // Insert mention handlers for keyboard hook
-    const insertPastChatMention = useCallback(
-      (chat: { id: string; title: string | null }) => {
-        const label = chat.title || 'Untitled Chat'
-        mentionMenu.replaceActiveMentionWith(label)
-        setSelectedContexts((prev) => {
-          if (prev.some((c) => c.kind === 'past_chat' && (c as any).chatId === chat.id)) return prev
-          return [...prev, { kind: 'past_chat', chatId: chat.id, label } as ChatContext]
-        })
-        mentionMenu.setShowMentionMenu(false)
-        mentionMenu.setOpenSubmenuFor(null)
-      },
-      [mentionMenu]
-    )
-
-    const insertWorkflowMention = useCallback(
-      (wf: { id: string; name: string }) => {
-        const label = wf.name || 'Untitled Workflow'
-        const token = `@${label}`
-        if (!mentionMenu.replaceActiveMentionWith(label)) mentionMenu.insertAtCursor(`${token} `)
-        setSelectedContexts((prev) => {
-          if (prev.some((c) => c.kind === 'workflow' && (c as any).workflowId === wf.id))
-            return prev
-          return [...prev, { kind: 'workflow', workflowId: wf.id, label } as ChatContext]
-        })
-        mentionMenu.setShowMentionMenu(false)
-        mentionMenu.setOpenSubmenuFor(null)
-      },
-      [mentionMenu]
-    )
-
-    const insertKnowledgeMention = useCallback(
-      (kb: { id: string; name: string }) => {
-        const label = kb.name || 'Untitled'
-        mentionMenu.replaceActiveMentionWith(label)
-        setSelectedContexts((prev) => {
-          if (prev.some((c) => c.kind === 'knowledge' && (c as any).knowledgeId === kb.id))
-            return prev
-          return [...prev, { kind: 'knowledge', knowledgeId: kb.id, label } as any]
-        })
-        mentionMenu.setShowMentionMenu(false)
-        mentionMenu.setOpenSubmenuFor(null)
-      },
-      [mentionMenu]
-    )
-
-    const insertBlockMention = useCallback(
-      (blk: { id: string; name: string }) => {
-        const label = blk.name || blk.id
-        mentionMenu.replaceActiveMentionWith(label)
-        setSelectedContexts((prev) => {
-          if (prev.some((c) => c.kind === 'blocks' && (c as any).blockId === blk.id)) return prev
-          return [...prev, { kind: 'blocks', blockId: blk.id, label } as any]
-        })
-        mentionMenu.setShowMentionMenu(false)
-        mentionMenu.setOpenSubmenuFor(null)
-      },
-      [mentionMenu]
-    )
-
-    const insertWorkflowBlockMention = useCallback(
-      (blk: { id: string; name: string }) => {
-        const label = blk.name
-        const token = `@${label}`
-        if (!mentionMenu.replaceActiveMentionWith(label)) mentionMenu.insertAtCursor(`${token} `)
-        setSelectedContexts((prev) => {
-          if (
-            prev.some(
-              (c) =>
-                c.kind === 'workflow_block' &&
-                (c as any).workflowId === workflowId &&
-                (c as any).blockId === blk.id
-            )
-          )
-            return prev
-          return [
-            ...prev,
-            {
-              kind: 'workflow_block',
-              workflowId: workflowId as string,
-              blockId: blk.id,
-              label,
-            } as any,
-          ]
-        })
-        mentionMenu.setShowMentionMenu(false)
-        mentionMenu.setOpenSubmenuFor(null)
-      },
-      [mentionMenu, workflowId]
-    )
-
-    const insertTemplateMention = useCallback(
-      (tpl: { id: string; name: string }) => {
-        const label = tpl.name || 'Untitled Template'
-        mentionMenu.replaceActiveMentionWith(label)
-        setSelectedContexts((prev) => {
-          if (prev.some((c) => c.kind === 'templates' && (c as any).templateId === tpl.id))
-            return prev
-          return [...prev, { kind: 'templates', templateId: tpl.id, label } as any]
-        })
-        mentionMenu.setShowMentionMenu(false)
-        mentionMenu.setOpenSubmenuFor(null)
-      },
-      [mentionMenu]
-    )
-
-    const insertLogMention = useCallback(
-      (log: { id: string; executionId?: string; workflowName: string }) => {
-        const label = log.workflowName
-        mentionMenu.replaceActiveMentionWith(label)
-        setSelectedContexts((prev) => {
-          if (prev.some((c) => c.kind === 'logs' && c.label === label)) return prev
-          return [...prev, { kind: 'logs', executionId: log.executionId, label }]
-        })
-        mentionMenu.setShowMentionMenu(false)
-        mentionMenu.setOpenSubmenuFor(null)
-      },
-      [mentionMenu]
-    )
-
-    const insertDocsMention = useCallback(() => {
-      const label = 'Docs'
-      if (!mentionMenu.replaceActiveMentionWith(label)) mentionMenu.insertAtCursor(`@${label} `)
-      setSelectedContexts((prev) => {
-        if (prev.some((c) => c.kind === 'docs')) return prev
-        return [...prev, { kind: 'docs', label } as any]
-      })
-      mentionMenu.setShowMentionMenu(false)
-      mentionMenu.setOpenSubmenuFor(null)
-    }, [mentionMenu])
+    // Insert mention handlers
+    const insertHandlers = useMentionInsertHandlers({
+      mentionMenu,
+      workflowId: workflowId || null,
+      selectedContexts: contextManagement.selectedContexts,
+      onContextAdd: contextManagement.addContext,
+    })
 
     // Keyboard navigation hook
     const mentionKeyboard = useMentionKeyboard({
       mentionMenu,
       mentionData,
-      insertHandlers: {
-        insertPastChatMention,
-        insertWorkflowMention,
-        insertKnowledgeMention,
-        insertBlockMention,
-        insertWorkflowBlockMention,
-        insertTemplateMention,
-        insertLogMention,
-        insertDocsMention,
-      },
+      insertHandlers,
     })
 
     // Expose focus method to parent
@@ -338,21 +206,6 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [workflowId])
-
-    // Sync scroll between textarea and overlay
-    useEffect(() => {
-      const textarea = mentionMenu.textareaRef.current
-      const overlay = overlayRef.current
-
-      if (!textarea || !overlay) return
-
-      const handleScroll = () => {
-        overlay.scrollTop = textarea.scrollTop
-      }
-
-      textarea.addEventListener('scroll', handleScroll)
-      return () => textarea.removeEventListener('scroll', handleScroll)
-    }, [mentionMenu.textareaRef, overlayRef])
 
     // Detect if input is near top of screen
     useEffect(() => {
@@ -389,20 +242,6 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         setIsNearTop(rect.top < NEAR_TOP_THRESHOLD)
       }
     }, [mentionMenu.showMentionMenu, containerRef])
-
-    // Keep selected contexts in sync with inline @label tokens
-    useEffect(() => {
-      if (!message) {
-        setSelectedContexts([])
-        return
-      }
-
-      const presentLabels = new Set<string>()
-      const ranges = computeMentionRanges()
-      for (const r of ranges) presentLabels.add(r.label)
-
-      setSelectedContexts((prev) => prev.filter((c) => !!c.label && presentLabels.has(c.label)))
-    }, [message])
 
     // Manage aggregated mode and preload mention data when query is active
     useEffect(() => {
@@ -585,7 +424,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           size: f.size,
         }))
 
-      onSubmit(trimmedMessage, fileAttachmentsForApi, selectedContexts as any)
+      onSubmit(trimmedMessage, fileAttachmentsForApi, contextManagement.selectedContexts as any)
 
       if (clearOnSubmit) {
         fileAttachments.attachedFiles.forEach((f) => {
@@ -596,7 +435,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
         setMessage('')
         fileAttachments.clearAttachedFiles()
-        setSelectedContexts([])
+        contextManagement.clearContexts()
         mentionMenu.setOpenSubmenuFor(null)
       }
       mentionMenu.setShowMentionMenu(false)
@@ -606,7 +445,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       isLoading,
       fileAttachments,
       onSubmit,
-      selectedContexts,
+      contextManagement,
       clearOnSubmit,
       setMessage,
       mentionMenu,
@@ -617,57 +456,6 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         onAbort()
       }
     }, [onAbort, isLoading])
-
-    // Utility functions for mention tokens - must be defined before handleKeyDown
-    const computeMentionRanges = useCallback(() => {
-      const ranges: Array<{ start: number; end: number; label: string }> = []
-      if (!message || selectedContexts.length === 0) return ranges
-
-      const labels = selectedContexts.map((c) => c.label).filter(Boolean)
-      if (labels.length === 0) return ranges
-
-      for (const label of labels) {
-        const token = `@${label}`
-        let fromIndex = 0
-        while (fromIndex <= message.length) {
-          const idx = message.indexOf(token, fromIndex)
-          if (idx === -1) break
-          ranges.push({ start: idx, end: idx + token.length, label })
-          fromIndex = idx + token.length
-        }
-      }
-
-      ranges.sort((a, b) => a.start - b.start)
-      return ranges
-    }, [message, selectedContexts])
-
-    const findRangeContaining = useCallback(
-      (pos: number) => {
-        const ranges = computeMentionRanges()
-        return ranges.find((r) => pos > r.start && pos < r.end)
-      },
-      [computeMentionRanges]
-    )
-
-    const deleteRange = useCallback(
-      (range: { start: number; end: number; label: string }) => {
-        const before = message.slice(0, range.start)
-        const after = message.slice(range.end)
-        const next = `${before}${after}`.replace(/\s{2,}/g, ' ')
-        setMessage(next)
-
-        setSelectedContexts((prev) => prev.filter((c) => c.label !== range.label))
-
-        requestAnimationFrame(() => {
-          const textarea = mentionMenu.textareaRef.current
-          if (textarea) {
-            textarea.setSelectionRange(range.start, range.start)
-            textarea.focus()
-          }
-        })
-      },
-      [message, setMessage, mentionMenu.textareaRef]
-    )
 
     const handleKeyDown = useCallback(
       (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -706,26 +494,24 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           const selEnd = textarea?.selectionEnd ?? selStart
           const selectionLength = Math.abs(selEnd - selStart)
 
-          if (e.key === 'Backspace') {
-            const ranges = computeMentionRanges()
-            const target =
-              selectionLength > 0
-                ? ranges.find((r) => !(selEnd <= r.start || selStart >= r.end))
-                : ranges.find((r) => selStart > r.start && selStart <= r.end)
-            if (target) {
-              e.preventDefault()
-              deleteRange(target)
-              return
-            }
-          }
+          if (e.key === 'Backspace' || e.key === 'Delete') {
+            if (selectionLength > 0) {
+              // Multi-character selection: Clean up contexts for any overlapping mentions
+              // but let the default behavior handle the actual text deletion
+              mentionTokensWithContext.removeContextsInSelection(selStart, selEnd)
+            } else {
+              // Single character delete - check if cursor is inside/at a mention token
+              const ranges = mentionTokensWithContext.computeMentionRanges()
+              const target =
+                e.key === 'Backspace'
+                  ? ranges.find((r) => selStart > r.start && selStart <= r.end)
+                  : ranges.find((r) => selStart >= r.start && selStart < r.end)
 
-          if (e.key === 'Delete') {
-            const ranges = computeMentionRanges()
-            const target = ranges.find((r) => selStart >= r.start && selStart < r.end)
-            if (target) {
-              e.preventDefault()
-              deleteRange(target)
-              return
+              if (target) {
+                e.preventDefault()
+                mentionTokensWithContext.deleteRange(target)
+                return
+              }
             }
           }
 
@@ -733,20 +519,20 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             if (textarea) {
               if (e.key === 'ArrowLeft') {
                 const nextPos = Math.max(0, selStart - 1)
-                const r = findRangeContaining(nextPos)
+                const r = mentionTokensWithContext.findRangeContaining(nextPos)
                 if (r) {
                   e.preventDefault()
                   const target = r.start
-                  requestAnimationFrame(() => textarea.setSelectionRange(target, target))
+                  setTimeout(() => textarea.setSelectionRange(target, target), 0)
                   return
                 }
               } else if (e.key === 'ArrowRight') {
                 const nextPos = Math.min(message.length, selStart + 1)
-                const r = findRangeContaining(nextPos)
+                const r = mentionTokensWithContext.findRangeContaining(nextPos)
                 if (r) {
                   e.preventDefault()
                   const target = r.end
-                  requestAnimationFrame(() => textarea.setSelectionRange(target, target))
+                  setTimeout(() => textarea.setSelectionRange(target, target), 0)
                   return
                 }
               }
@@ -755,29 +541,22 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
           // Prevent typing inside token
           if (e.key.length === 1 || e.key === 'Space') {
-            const blocked = selectionLength === 0 && !!findRangeContaining(selStart)
+            const blocked =
+              selectionLength === 0 && !!mentionTokensWithContext.findRangeContaining(selStart)
             if (blocked) {
               e.preventDefault()
-              const r = findRangeContaining(selStart)
+              const r = mentionTokensWithContext.findRangeContaining(selStart)
               if (r && textarea) {
-                requestAnimationFrame(() => {
+                setTimeout(() => {
                   textarea.setSelectionRange(r.end, r.end)
-                })
+                }, 0)
               }
               return
             }
           }
         }
       },
-      [
-        mentionMenu,
-        mentionKeyboard,
-        handleSubmit,
-        message.length,
-        computeMentionRanges,
-        deleteRange,
-        findRangeContaining,
-      ]
+      [mentionMenu, mentionKeyboard, handleSubmit, message.length, mentionTokensWithContext]
     )
 
     const handleInputChange = useCallback(
@@ -810,14 +589,14 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       const textarea = mentionMenu.textareaRef.current
       if (!textarea) return
       const pos = textarea.selectionStart ?? 0
-      const r = findRangeContaining(pos)
+      const r = mentionTokensWithContext.findRangeContaining(pos)
       if (r) {
         const snapPos = pos - r.start < r.end - pos ? r.start : r.end
-        requestAnimationFrame(() => {
+        setTimeout(() => {
           textarea.setSelectionRange(snapPos, snapPos)
-        })
+        }, 0)
       }
-    }, [mentionMenu.textareaRef, findRangeContaining])
+    }, [mentionMenu.textareaRef, mentionTokensWithContext])
 
     const handleOpenMentionMenuWithAt = useCallback(() => {
       if (disabled || isLoading) return
@@ -852,49 +631,78 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
 
     // Render overlay content with highlighted mentions
     const renderOverlayContent = useCallback(() => {
+      const contexts = contextManagement.selectedContexts
+
+      // Handle empty message
+      if (!message) {
+        return <span>{'\u00A0'}</span>
+      }
+
+      // If no contexts, render the message directly with proper newline handling
+      if (contexts.length === 0) {
+        // Add a zero-width space at the end if message ends with newline
+        // This ensures the newline is rendered and height is calculated correctly
+        const displayText = message.endsWith('\n') ? `${message}\u200B` : message
+        return <span>{displayText}</span>
+      }
+
       const elements: React.ReactNode[] = []
-      const contexts = selectedContexts
-      if (contexts.length === 0 || !message) return message
-
       const labels = contexts.map((c) => c.label).filter(Boolean)
-      const pattern = new RegExp(
-        `@(${labels.map((l) => l!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`,
-        'g'
-      )
+
+      // Build ranges for all mentions to highlight them including spaces
+      const ranges = mentionTokensWithContext.computeMentionRanges()
+
+      if (ranges.length === 0) {
+        const displayText = message.endsWith('\n') ? `${message}\u200B` : message
+        return <span>{displayText}</span>
+      }
+
       let lastIndex = 0
-      let match: RegExpExecArray | null
+      for (let i = 0; i < ranges.length; i++) {
+        const range = ranges[i]
 
-      while ((match = pattern.exec(message)) !== null) {
-        const i = match.index
-        const before = message.slice(lastIndex, i)
-        if (before) elements.push(before)
+        // Add text before mention
+        if (range.start > lastIndex) {
+          const before = message.slice(lastIndex, range.start)
+          elements.push(<span key={`text-${i}-${lastIndex}-${range.start}`}>{before}</span>)
+        }
 
-        const mentionText = match[0]
+        // Add highlighted mention (including spaces)
+        // Use index + start + end to ensure unique keys even with duplicate contexts
+        const mentionText = message.slice(range.start, range.end)
         elements.push(
           <span
-            key={`${mentionText}-${i}-${lastIndex}`}
-            style={{
-              backgroundColor:
-                'color-mix(in srgb, var(--brand-primary-hover-hex) 14%, transparent)',
-              borderRadius: '6px',
-            }}
+            key={`mention-${i}-${range.start}-${range.end}`}
+            className='rounded-[6px] bg-[rgba(142,76,251,0.65)]'
           >
             {mentionText}
           </span>
         )
-        lastIndex = i + mentionText.length
+        lastIndex = range.end
       }
 
       const tail = message.slice(lastIndex)
-      if (tail) elements.push(tail)
-      return elements
-    }, [message, selectedContexts])
+      if (tail) {
+        // Add a zero-width space at the end if tail ends with newline
+        const displayTail = tail.endsWith('\n') ? `${tail}\u200B` : tail
+        elements.push(<span key={`tail-${lastIndex}`}>{displayTail}</span>)
+      }
+
+      // Ensure there's always something to render for height calculation
+      return elements.length > 0 ? elements : <span>{'\u00A0'}</span>
+    }, [message, contextManagement.selectedContexts, mentionTokensWithContext])
 
     return (
-      <div ref={setContainerRef} className={cn('relative flex-none', className)}>
+      <div
+        ref={setContainerRef}
+        data-user-input
+        className={cn('relative w-full flex-none [max-width:var(--panel-max-width)]', className)}
+        style={{ '--panel-max-width': `${panelWidth - 17}px` } as React.CSSProperties}
+      >
         <div
+          ref={setInputContainerRef}
           className={cn(
-            'relative rounded-[4px] border border-[#3D3D3D] bg-[#282828] px-[8px] py-[6px] transition-colors dark:bg-[#353535]',
+            'relative rounded-[4px] border border-[#3D3D3D] bg-[#282828] px-[6px] py-[6px] transition-colors dark:bg-[#353535]',
             fileAttachments.isDragging &&
               'border-[var(--brand-primary-hover-hex)] bg-purple-50/50 dark:border-[var(--brand-primary-hover-hex)] dark:bg-purple-950/20'
           )}
@@ -903,8 +711,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           onDragOver={fileAttachments.handleDragOver}
           onDrop={fileAttachments.handleDrop}
         >
-          {/* Top Row: @ Button + Context Usage Pill */}
-          <div className='mb-[6px] flex items-center justify-between'>
+          {/* Top Row: @ Button + Context Pills + Context Usage Pill */}
+          <div className='mb-[6px] flex flex-wrap items-center gap-[6px]'>
             <Badge
               variant='outline'
               onClick={handleOpenMentionMenuWithAt}
@@ -917,13 +725,21 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               <AtSign className='h-3 w-3' strokeWidth={1.75} />
             </Badge>
 
-            {/* Context Usage Pill */}
-            {!hideContextUsage && contextUsage && contextUsage.percentage > 0 && (
-              <ContextUsagePill
-                percentage={contextUsage.percentage}
-                onCreateNewChat={createNewChat}
-              />
-            )}
+            {/* Selected Context Pills */}
+            <ContextPills
+              contexts={contextManagement.selectedContexts}
+              onRemoveContext={contextManagement.removeContext}
+            />
+
+            {/* Context Usage Pill - pushes to the right */}
+            {/* {!hideContextUsage && contextUsage && contextUsage.percentage > 0 && (
+              <div className='ml-auto'>
+                <ContextUsagePill
+                  percentage={contextUsage.percentage}
+                  onCreateNewChat={createNewChat}
+                />
+              </div>
+            )} */}
           </div>
 
           {/* Attached Files Display */}
@@ -935,25 +751,15 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
             getFileIconType={fileAttachments.getFileIconType}
           />
 
-          {/* Selected Context Pills */}
-          <ContextPills
-            contexts={selectedContexts}
-            onRemoveContext={(label) => {
-              setSelectedContexts((prev) => prev.filter((c) => c.label !== label))
-            }}
-          />
-
           {/* Textarea Field with overlay */}
-          <div className='relative'>
-            {/* Highlight overlay */}
+          <div className='relative mb-[6px]'>
+            {/* Highlight overlay - must have identical flow as textarea */}
             <div
               ref={overlayRef}
-              className='pointer-events-none absolute inset-0 z-[1] max-h-[120px] overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words px-[2px] py-1 [&::-webkit-scrollbar]:hidden'
-              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              className='pointer-events-none absolute top-0 left-0 z-[1] m-0 box-border h-auto max-h-[120px] min-h-[48px] w-full resize-none overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-0 bg-transparent px-[2px] py-1 font-medium font-sans text-[#0D0D0D] text-sm leading-[1.25rem] outline-none [-ms-overflow-style:none] [scrollbar-width:none] [text-rendering:optimizeLegibility] dark:text-gray-100 [&::-webkit-scrollbar]:hidden'
+              aria-hidden='true'
             >
-              <pre className='m-0 whitespace-pre-wrap break-words font-sans text-foreground text-sm leading-[1.25rem]'>
-                {renderOverlayContent()}
-              </pre>
+              {renderOverlayContent()}
             </div>
 
             <Textarea
@@ -961,24 +767,20 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               value={message}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
+              onCut={mentionTokensWithContext.handleCut}
               onSelect={handleSelectAdjust}
               onMouseUp={handleSelectAdjust}
               onScroll={(e) => {
-                if (overlayRef.current) {
-                  overlayRef.current.scrollTop = e.currentTarget.scrollTop
-                  overlayRef.current.scrollLeft = e.currentTarget.scrollLeft
+                const overlay = overlayRef.current
+                if (overlay) {
+                  overlay.scrollTop = e.currentTarget.scrollTop
+                  overlay.scrollLeft = e.currentTarget.scrollLeft
                 }
               }}
               placeholder={fileAttachments.isDragging ? 'Drop files here...' : effectivePlaceholder}
               disabled={disabled}
-              rows={1}
-              className='relative z-[2] mb-[6px] min-h-[32px] w-full resize-none overflow-y-auto overflow-x-hidden break-words border-0 bg-transparent px-[2px] py-1 font-sans text-sm text-transparent leading-[1.25rem] caret-foreground focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-scrollbar]:hidden'
-              style={{
-                height: 'auto',
-                wordBreak: 'break-word',
-                scrollbarWidth: 'none',
-                msOverflowStyle: 'none',
-              }}
+              rows={2}
+              className='relative z-[2] m-0 box-border h-auto min-h-[48px] w-full resize-none overflow-y-auto overflow-x-hidden break-words border-0 bg-transparent px-[2px] py-1 font-medium font-sans text-sm text-transparent leading-[1.25rem] caret-foreground outline-none [-ms-overflow-style:none] [scrollbar-width:none] [text-rendering:auto] focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-scrollbar]:hidden'
             />
 
             {/* Mention Menu Portal */}
@@ -988,27 +790,12 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                 <MentionMenuPortal
                   mentionMenu={mentionMenu}
                   mentionData={mentionData}
-                  selectedContexts={selectedContexts}
-                  onContextSelect={(context) => {
-                    setSelectedContexts((prev) => {
-                      const exists = prev.some((c) => c.label === context.label)
-                      if (exists) return prev
-                      return [...prev, context]
-                    })
-                  }}
+                  selectedContexts={contextManagement.selectedContexts}
+                  onContextSelect={contextManagement.addContext}
                   onMessageChange={setMessage}
                   message={message}
                   workflowId={workflowId}
-                  insertHandlers={{
-                    insertPastChatMention,
-                    insertWorkflowMention,
-                    insertKnowledgeMention,
-                    insertBlockMention,
-                    insertWorkflowBlockMention,
-                    insertTemplateMention,
-                    insertLogMention,
-                    insertDocsMention,
-                  }}
+                  insertHandlers={insertHandlers}
                 />,
                 document.body
               )}
@@ -1051,19 +838,23 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
               </Badge>
 
               {showAbortButton ? (
-                <ShadCNButton
+                <Button
+                  variant='primary'
                   onClick={handleAbort}
                   disabled={isAborting}
-                  size='icon'
-                  className='h-6 w-6 rounded-full bg-red-500 text-white transition-all duration-200 hover:bg-red-600'
+                  className={cn(
+                    'h-[22px] w-[22px] rounded-full p-0',
+                    !isAborting &&
+                      'ring-2 ring-[#8E4CFB]/60 ring-offset-[#282828] ring-offset-[1.25px] dark:ring-offset-[#353535]'
+                  )}
                   title='Stop generation'
                 >
                   {isAborting ? (
-                    <Loader2 className='h-3 w-3 animate-spin' />
+                    <Loader2 className='h-3.5 w-3.5 animate-spin' />
                   ) : (
-                    <X className='h-3 w-3' />
+                    <Square className='h-3.5 w-3.5' fill='currentColor' />
                   )}
-                </ShadCNButton>
+                </Button>
               ) : (
                 <Button
                   variant='primary'
@@ -1072,7 +863,7 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
                   className={cn(
                     'h-[22px] w-[22px] rounded-full p-0',
                     canSubmit &&
-                      'ring-2 ring-[#8E4CFB] ring-offset-2 ring-offset-[#282828] dark:ring-offset-[#353535]'
+                      'ring-2 ring-[#8E4CFB]/60 ring-offset-[#282828] ring-offset-[1.25px] dark:ring-offset-[#353535]'
                   )}
                 >
                   {isLoading ? (

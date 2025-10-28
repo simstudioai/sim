@@ -1,15 +1,15 @@
 'use client'
 
+import type { MouseEvent as ReactMouseEvent } from 'react'
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { ArrowDown, History, Pencil, Plus, Trash2 } from 'lucide-react'
+import { History, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Button as EmcnButton } from '@/components/emcn'
-import { Button } from '@/components/ui/button'
+// Button import removed; no longer used after removing jump-to-bottom
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   CheckpointPanel,
@@ -56,6 +56,8 @@ interface CopilotRef {
  */
 export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref) => {
   const userInputRef = useRef<UserInputRef>(null)
+  const copilotContainerRef = useRef<HTMLDivElement>(null)
+  const cancelEditCallbackRef = useRef<(() => void) | null>(null)
   const [showCheckpoints] = useState(false)
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
   const [isEditingMessage, setIsEditingMessage] = useState(false)
@@ -116,10 +118,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
   })
 
   // Handle scroll management
-  const { scrollAreaRef, showScrollButton, scrollToBottom } = useScrollManagement(
-    messages,
-    isSendingMessage
-  )
+  const { scrollAreaRef, scrollToBottom } = useScrollManagement(messages, isSendingMessage)
 
   // Handle chat history grouping
   const { groupedChats, handleHistoryDropdownOpen: handleHistoryDropdownOpenHook } = useChatHistory(
@@ -161,6 +160,37 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
       }
     }
   }, [isSendingMessage, abortMessage])
+
+  /**
+   * Container-level click capture to cancel edit mode when clicking outside the current edit area
+   */
+  const handleCopilotClickCapture = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      if (!isEditingMessage) return
+      const target = event.target as HTMLElement
+      // Allow interactions with Radix portals (dropdowns, tooltips, dialogs, popovers, mention menu)
+      if (
+        target.closest('[data-radix-dropdown-menu-content]') ||
+        target.closest('[data-radix-popover-content]') ||
+        target.closest('[data-radix-dialog-content]') ||
+        target.closest('[data-radix-tooltip-content]') ||
+        target.closest('[data-radix-popper-content-wrapper]') ||
+        target.closest('.mention-menu-portal') ||
+        target.closest('[role="dialog"]') ||
+        target.closest('[role="menu"]')
+      ) {
+        return
+      }
+      const editContainer = copilotContainerRef.current?.querySelector(
+        `[data-edit-container][data-message-id="${editingMessageId}"]`
+      ) as HTMLElement | null
+      if (editContainer?.contains(target)) {
+        return
+      }
+      cancelEditCallbackRef.current?.()
+    },
+    [isEditingMessage, editingMessageId]
+  )
 
   /**
    * Handles creating a new chat session
@@ -244,11 +274,15 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
    * @param messageId - ID of the message being edited
    * @param isEditing - Whether edit mode is active
    */
-  const handleEditModeChange = useCallback((messageId: string, isEditing: boolean) => {
-    setEditingMessageId(isEditing ? messageId : null)
-    setIsEditingMessage(isEditing)
-    logger.info('Edit mode changed', { messageId, isEditing, willDimMessages: isEditing })
-  }, [])
+  const handleEditModeChange = useCallback(
+    (messageId: string, isEditing: boolean, cancelCallback?: () => void) => {
+      setEditingMessageId(isEditing ? messageId : null)
+      setIsEditingMessage(isEditing)
+      cancelEditCallbackRef.current = isEditing ? cancelCallback || null : null
+      logger.info('Edit mode changed', { messageId, isEditing, willDimMessages: isEditing })
+    },
+    []
+  )
 
   /**
    * Handles checkpoint revert mode changes
@@ -308,7 +342,11 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
 
   return (
     <>
-      <div className='flex h-full flex-col overflow-hidden bg-[#232323] dark:bg-[#232323]'>
+      <div
+        ref={copilotContainerRef}
+        onClickCapture={handleCopilotClickCapture}
+        className='flex h-full flex-col overflow-hidden bg-[#232323] dark:bg-[#232323]'
+      >
         {/* Header */}
         <div className='flex flex-shrink-0 items-center justify-between rounded-[4px] bg-[#2A2A2A] px-[12px] py-[8px] dark:bg-[#2A2A2A]'>
           <h2 className='font-medium text-[#FFFFFF] text-[14px] dark:text-[#FFFFFF]'>Copilot</h2>
@@ -464,8 +502,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
               <CheckpointPanel />
             ) : messages.length === 0 && !isSendingMessage && !isEditingMessage ? (
               /* Welcome state with input at top */
-              <div className='flex flex-1 flex-col overflow-hidden'>
-                <div className='flex-shrink-0 px-[12px] pt-[12px]'>
+              <div className='flex flex-1 flex-col overflow-hidden p-[8px]'>
+                <div className='flex-shrink-0'>
                   <UserInput
                     ref={userInputRef}
                     onSubmit={handleSubmit}
@@ -480,87 +518,77 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                     panelWidth={panelWidth}
                   />
                 </div>
-                <div className='flex-shrink-0'>
+                <div className='flex-shrink-0 pt-[8px]'>
                   <Welcome onQuestionClick={handleSubmit} mode={mode === 'ask' ? 'ask' : 'agent'} />
                 </div>
               </div>
             ) : (
               /* Normal messages view */
-              <div className='relative flex-1 overflow-hidden'>
-                <ScrollArea ref={scrollAreaRef} className='h-full' hideScrollbar={true}>
-                  <div className='w-full max-w-full space-y-2 overflow-hidden'>
-                    {messages.map((message, index) => {
-                      // Determine if this message should be dimmed
-                      let isDimmed = false
+              <div className='relative flex flex-1 flex-col overflow-hidden'>
+                <div className='relative flex-1 overflow-hidden'>
+                  <div
+                    ref={scrollAreaRef}
+                    className='copilot-scrollable h-full overflow-y-auto overflow-x-hidden px-[8px]'
+                  >
+                    <div className='w-full max-w-full space-y-4 overflow-hidden py-[8px] pb-10'>
+                      {messages.map((message, index) => {
+                        // Determine if this message should be dimmed
+                        let isDimmed = false
 
-                      // Dim messages after the one being edited
-                      if (editingMessageId) {
-                        const editingIndex = messages.findIndex((m) => m.id === editingMessageId)
-                        isDimmed = editingIndex !== -1 && index > editingIndex
-                      }
+                        // Dim messages after the one being edited
+                        if (editingMessageId) {
+                          const editingIndex = messages.findIndex((m) => m.id === editingMessageId)
+                          isDimmed = editingIndex !== -1 && index > editingIndex
+                        }
 
-                      // Also dim messages after the one showing restore confirmation
-                      if (!isDimmed && revertingMessageId) {
-                        const revertingIndex = messages.findIndex(
-                          (m) => m.id === revertingMessageId
+                        // Also dim messages after the one showing restore confirmation
+                        if (!isDimmed && revertingMessageId) {
+                          const revertingIndex = messages.findIndex(
+                            (m) => m.id === revertingMessageId
+                          )
+                          isDimmed = revertingIndex !== -1 && index > revertingIndex
+                        }
+
+                        // Get checkpoint count for this message to force re-render when it changes
+                        const checkpointCount = messageCheckpoints[message.id]?.length || 0
+
+                        return (
+                          <CopilotMessage
+                            key={message.id}
+                            message={message}
+                            isStreaming={
+                              isSendingMessage && message.id === messages[messages.length - 1]?.id
+                            }
+                            panelWidth={panelWidth}
+                            isDimmed={isDimmed}
+                            checkpointCount={checkpointCount}
+                            onEditModeChange={(isEditing, cancelCallback) =>
+                              handleEditModeChange(message.id, isEditing, cancelCallback)
+                            }
+                            onRevertModeChange={(isReverting) =>
+                              handleRevertModeChange(message.id, isReverting)
+                            }
+                          />
                         )
-                        isDimmed = revertingIndex !== -1 && index > revertingIndex
-                      }
-
-                      // Get checkpoint count for this message to force re-render when it changes
-                      const checkpointCount = messageCheckpoints[message.id]?.length || 0
-
-                      return (
-                        <CopilotMessage
-                          key={message.id}
-                          message={message}
-                          isStreaming={
-                            isSendingMessage && message.id === messages[messages.length - 1]?.id
-                          }
-                          panelWidth={panelWidth}
-                          isDimmed={isDimmed}
-                          checkpointCount={checkpointCount}
-                          onEditModeChange={(isEditing) =>
-                            handleEditModeChange(message.id, isEditing)
-                          }
-                          onRevertModeChange={(isReverting) =>
-                            handleRevertModeChange(message.id, isReverting)
-                          }
-                        />
-                      )
-                    })}
+                      })}
+                    </div>
                   </div>
-                </ScrollArea>
 
-                {/* Scroll to bottom button */}
-                {showScrollButton && (
-                  <div className='-translate-x-1/2 absolute bottom-4 left-1/2 z-10'>
-                    <Button
-                      onClick={scrollToBottom}
-                      size='sm'
-                      variant='outline'
-                      className='flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1 shadow-lg transition-all hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700'
-                    >
-                      <ArrowDown className='h-3.5 w-3.5 text-gray-700 dark:text-gray-300' />
-                      <span className='sr-only'>Scroll to bottom</span>
-                    </Button>
-                  </div>
-                )}
-
-                {/* Todo list from plan tool */}
-                {showPlanTodos && (
-                  <TodoList
-                    todos={planTodos}
-                    collapsed={todosCollapsed}
-                    onClose={() => {
-                      const store = useCopilotStore.getState()
-                      store.setPlanTodos([])
-                    }}
-                  />
-                )}
+                  {/* Todo list from plan tool */}
+                  {showPlanTodos && (
+                    <TodoList
+                      todos={planTodos}
+                      collapsed={todosCollapsed}
+                      onClose={() => {
+                        const store = useCopilotStore.getState()
+                        store.setPlanTodos([])
+                      }}
+                    />
+                  )}
+                </div>
 
                 {/* Input area with integrated mode selector */}
-                <div className='pt-2'>
+                <div className='flex-shrink-0 px-[8px] pb-[8px]'>
                   <UserInput
                     ref={userInputRef}
                     onSubmit={handleSubmit}

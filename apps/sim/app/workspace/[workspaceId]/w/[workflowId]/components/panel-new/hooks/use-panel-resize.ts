@@ -4,7 +4,7 @@ import { usePanelStore } from '@/stores/panel-new/store'
 /**
  * Constants for panel sizing
  */
-const MIN_WIDTH = 236
+const MIN_WIDTH = 244
 const MAX_WIDTH = 400
 
 /**

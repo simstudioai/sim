@@ -1,28 +1,18 @@
 'use client'
 
-import {
-  Blocks,
-  BookOpen,
-  Bot,
-  Box,
-  Info,
-  LibraryBig,
-  Shapes,
-  SquareChevronRight,
-  Workflow,
-  X,
-} from 'lucide-react'
+import { X } from 'lucide-react'
+import { Badge } from '@/components/emcn'
 import type { ChatContext } from '@/stores/panel-new/copilot/types'
 
 interface ContextPillsProps {
   /** Selected contexts to display as pills */
   contexts: ChatContext[]
   /** Callback when a context pill is removed */
-  onRemoveContext: (label: string) => void
+  onRemoveContext: (context: ChatContext) => void
 }
 
 /**
- * Displays selected contexts as dismissible pills with appropriate icons.
+ * Displays selected contexts as dismissible pills matching the @ badge style.
  * Filters out current_workflow contexts as they are always implied.
  *
  * @param props - Component props
@@ -36,44 +26,26 @@ export function ContextPills({ contexts, onRemoveContext }: ContextPillsProps) {
   }
 
   return (
-    <div className='mb-2 flex flex-wrap gap-1.5'>
+    <>
       {visibleContexts.map((ctx, idx) => (
-        <span
+        <Badge
           key={`selctx-${idx}-${ctx.label}`}
-          className='inline-flex items-center gap-1 rounded-full bg-[color-mix(in_srgb,var(--brand-primary-hover-hex)_14%,transparent)] px-1.5 py-0.5 text-[11px] text-foreground'
+          variant='outline'
+          className='inline-flex items-center gap-1 rounded-[6px] px-2 py-[4.5px] text-xs leading-[12px]'
           title={ctx.label}
         >
-          {ctx.kind === 'past_chat' ? (
-            <Bot className='h-3 w-3 text-muted-foreground' />
-          ) : ctx.kind === 'workflow' ? (
-            <Workflow className='h-3 w-3 text-muted-foreground' />
-          ) : ctx.kind === 'blocks' ? (
-            <Blocks className='h-3 w-3 text-muted-foreground' />
-          ) : ctx.kind === 'workflow_block' ? (
-            <Box className='h-3 w-3 text-muted-foreground' />
-          ) : ctx.kind === 'knowledge' ? (
-            <LibraryBig className='h-3 w-3 text-muted-foreground' />
-          ) : ctx.kind === 'templates' ? (
-            <Shapes className='h-3 w-3 text-muted-foreground' />
-          ) : ctx.kind === 'docs' ? (
-            <BookOpen className='h-3 w-3 text-muted-foreground' />
-          ) : ctx.kind === 'logs' ? (
-            <SquareChevronRight className='h-3 w-3 text-muted-foreground' />
-          ) : (
-            <Info className='h-3 w-3 text-muted-foreground' />
-          )}
-          <span className='max-w-[140px] truncate'>{ctx.label}</span>
+          <span className='max-w-[140px] truncate leading-[12px]'>{ctx.label}</span>
           <button
             type='button'
-            onClick={() => onRemoveContext(ctx.label || '')}
+            onClick={() => onRemoveContext(ctx)}
             className='text-muted-foreground transition-colors hover:text-foreground'
             title='Remove context'
             aria-label='Remove context'
           >
-            <X className='h-3 w-3' />
+            <X className='h-3 w-3' strokeWidth={1.75} />
           </button>
-        </span>
+        </Badge>
       ))}
-    </div>
+    </>
   )
 }

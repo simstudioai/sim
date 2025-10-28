@@ -32,8 +32,8 @@ export function Welcome({ onQuestionClick, mode = 'ask' }: WelcomeProps) {
     mode === 'agent'
       ? [
           {
-            title: 'Build random',
-            question: 'Generate a random workflow',
+            title: 'Build',
+            question: 'Help me build a workflow',
           },
           {
             title: 'Debug',
@@ -54,13 +54,13 @@ export function Welcome({ onQuestionClick, mode = 'ask' }: WelcomeProps) {
             question: 'What tools are available?',
           },
           {
-            title: 'Get started',
+            title: 'Create workflow',
             question: 'How do I create a workflow?',
           },
         ]
 
   return (
-    <div className='flex w-full flex-col items-center px-[12px] pt-[12px]'>
+    <div className='flex w-full flex-col items-center'>
       {/* Unified capability cards */}
       <div className='flex w-full flex-col items-center gap-[8px]'>
         {capabilities.map(({ title, question }, idx) => (

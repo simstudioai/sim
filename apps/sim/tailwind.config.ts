@@ -66,8 +66,8 @@ export default {
         },
       },
       fontWeight: {
-        base: '430',
-        medium: '460',
+        base: '450',
+        medium: '480',
         semibold: '550',
       },
       borderRadius: {

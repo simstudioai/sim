@@ -1,26 +1,10 @@
 'use client'
 
 import { type FC, memo, useMemo, useState } from 'react'
-import {
-  Blocks,
-  BookOpen,
-  Bot,
-  Box,
-  Check,
-  Clipboard,
-  CornerDownLeft,
-  Info,
-  LibraryBig,
-  RotateCcw,
-  Shapes,
-  SquareChevronRight,
-  ThumbsDown,
-  ThumbsUp,
-  Workflow,
-  X,
-} from 'lucide-react'
-import { InlineToolCall } from '@/lib/copilot/inline-tool-call'
+import { Check, Copy, CornerDownLeft, RotateCcw, Square, ThumbsDown, ThumbsUp } from 'lucide-react'
+import { Button } from '@/components/emcn/components/button'
 import { createLogger } from '@/lib/logs/console/logger'
+import { InlineToolCall } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/copilot/components'
 import {
   FileAttachmentDisplay,
   SmoothStreamingText,
@@ -41,11 +25,6 @@ import {
 const logger = createLogger('CopilotMessage')
 
 /**
- * Maximum number of visible context chips before showing "more" button
- */
-const MAX_VISIBLE_CONTEXTS = 4
-
-/**
  * Props for the CopilotMessage component
  */
 interface CopilotMessageProps {
@@ -60,7 +39,7 @@ interface CopilotMessageProps {
   /** Number of checkpoints for this message */
   checkpointCount?: number
   /** Callback when edit mode changes */
-  onEditModeChange?: (isEditing: boolean) => void
+  onEditModeChange?: (isEditing: boolean, cancelCallback?: () => void) => void
   /** Callback when revert mode changes */
   onRevertModeChange?: (isReverting: boolean) => void
 }
@@ -108,7 +87,6 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
     }, [isUser, messages, message.id])
 
     // UI state
-    const [showAllContexts, setShowAllContexts] = useState(false)
     const [isHoveringMessage, setIsHoveringMessage] = useState(false)
 
     // Success timers hook
@@ -167,7 +145,10 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
       messages,
       isLastUserMessage,
       hasCheckpoints,
-      onEditModeChange,
+      onEditModeChange: (isEditing) => {
+        onEditModeChange?.(isEditing, handleCancelEdit)
+      },
+      disableDocumentClickOutside: true,
       showCheckpointDiscardModal,
       setShowCheckpointDiscardModal,
       pendingEditRef,
@@ -208,7 +189,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
           return (
             <div
               key={`text-${index}-${block.timestamp || index}`}
-              className={`w-full max-w-full overflow-hidden transition-opacity duration-200 ease-in-out ${
+              className={`w-full max-w-full overflow-hidden pl-[2px] transition-opacity duration-200 ease-in-out ${
                 cleanBlockContent.length > 0 ? 'opacity-100' : 'opacity-70'
               } ${shouldUseSmoothing ? 'translate-y-0 transition-transform duration-100 ease-out' : ''}`}
             >
@@ -255,10 +236,15 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
     if (isUser) {
       return (
         <div
-          className={`w-full max-w-full overflow-hidden py-0.5 transition-opacity duration-200 ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
+          className={`w-full max-w-full overflow-hidden transition-opacity duration-200 ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
         >
           {isEditMode ? (
-            <div ref={editContainerRef} className='relative w-full'>
+            <div
+              ref={editContainerRef}
+              data-edit-container
+              data-message-id={message.id}
+              className='relative w-full'
+            >
               <UserInput
                 ref={userInputRef}
                 onSubmit={handleSubmitEdit}
@@ -313,81 +299,6 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 </div>
               )}
 
-              {/* Context chips displayed above the message box */}
-              {(Array.isArray((message as any).contexts) && (message as any).contexts.length > 0) ||
-              (Array.isArray(message.contentBlocks) &&
-                (message.contentBlocks as any[]).some((b: any) => b?.type === 'contexts')) ? (
-                <div className='mb-1.5 flex flex-wrap gap-1.5'>
-                  {(() => {
-                    const direct = Array.isArray((message as any).contexts)
-                      ? ((message as any).contexts as any[])
-                      : []
-                    const block = Array.isArray(message.contentBlocks)
-                      ? (message.contentBlocks as any[]).find((b: any) => b?.type === 'contexts')
-                      : null
-                    const fromBlock = Array.isArray((block as any)?.contexts)
-                      ? ((block as any).contexts as any[])
-                      : []
-                    const allContexts = (direct.length > 0 ? direct : fromBlock).filter(
-                      (c: any) => c?.kind !== 'current_workflow'
-                    )
-                    const visible = showAllContexts
-                      ? allContexts
-                      : allContexts.slice(0, MAX_VISIBLE_CONTEXTS)
-                    return (
-                      <>
-                        {visible.map((ctx: any, idx: number) => (
-                          <span
-                            key={`ctx-${idx}-${ctx?.label || ctx?.kind}`}
-                            className='inline-flex items-center gap-1 rounded-full bg-[color-mix(in_srgb,var(--brand-primary-hover-hex)_14%,transparent)] px-1.5 py-0.5 text-[11px] text-foreground'
-                            title={ctx?.label || ctx?.kind}
-                          >
-                            {ctx?.kind === 'past_chat' ? (
-                              <Bot className='h-3 w-3 text-muted-foreground' />
-                            ) : ctx?.kind === 'workflow' || ctx?.kind === 'current_workflow' ? (
-                              <Workflow className='h-3 w-3 text-muted-foreground' />
-                            ) : ctx?.kind === 'blocks' ? (
-                              <Blocks className='h-3 w-3 text-muted-foreground' />
-                            ) : ctx?.kind === 'workflow_block' ? (
-                              <Box className='h-3 w-3 text-muted-foreground' />
-                            ) : ctx?.kind === 'knowledge' ? (
-                              <LibraryBig className='h-3 w-3 text-muted-foreground' />
-                            ) : ctx?.kind === 'templates' ? (
-                              <Shapes className='h-3 w-3 text-muted-foreground' />
-                            ) : ctx?.kind === 'docs' ? (
-                              <BookOpen className='h-3 w-3 text-muted-foreground' />
-                            ) : ctx?.kind === 'logs' ? (
-                              <SquareChevronRight className='h-3 w-3 text-muted-foreground' />
-                            ) : (
-                              <Info className='h-3 w-3 text-muted-foreground' />
-                            )}
-                            <span className='max-w-[140px] truncate'>
-                              {ctx?.label || ctx?.kind}
-                            </span>
-                          </span>
-                        ))}
-                        {allContexts.length > MAX_VISIBLE_CONTEXTS && (
-                          <button
-                            type='button'
-                            onClick={() => setShowAllContexts((v: boolean) => !v)}
-                            className='inline-flex items-center gap-1 rounded-full bg-[color-mix(in_srgb,var(--brand-primary-hover-hex)_10%,transparent)] px-1.5 py-0.5 text-[11px] text-foreground hover:bg-[color-mix(in_srgb,var(--brand-primary-hover-hex)_14%,transparent)]'
-                            title={
-                              showAllContexts
-                                ? 'Show less'
-                                : `Show ${allContexts.length - MAX_VISIBLE_CONTEXTS} more`
-                            }
-                          >
-                            {showAllContexts
-                              ? 'Show less'
-                              : `+${allContexts.length - MAX_VISIBLE_CONTEXTS} more`}
-                          </button>
-                        )}
-                      </>
-                    )
-                  })()}
-                </div>
-              ) : null}
-
               {/* Message box - styled like input, clickable to edit */}
               <div
                 data-message-box
@@ -395,11 +306,11 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                 onClick={handleMessageClick}
                 onMouseEnter={() => setIsHoveringMessage(true)}
                 onMouseLeave={() => setIsHoveringMessage(false)}
-                className='group relative cursor-text rounded-[8px] border border-[#E5E5E5] bg-[#FFFFFF] px-3 py-1.5 shadow-xs transition-all duration-200 hover:border-[#D0D0D0] dark:border-[#414141] dark:bg-[var(--surface-elevated)] dark:hover:border-[#525252]'
+                className='group relative cursor-pointer rounded-[4px] border border-[#3D3D3D] bg-[#282828] px-[6px] py-[6px] transition-all duration-200 hover:border-[#4A4A4A] hover:bg-[#353535] dark:border-[#3D3D3D] dark:bg-[#353535] dark:hover:border-[#454545] dark:hover:bg-[#3D3D3D]'
               >
                 <div
                   ref={messageContentRef}
-                  className={`relative whitespace-pre-wrap break-words py-1 pl-[2px] font-sans text-foreground text-sm leading-[1.25rem] ${isSendingMessage && isLastUserMessage ? 'pr-10' : 'pr-2'} ${!isExpanded && needsExpansion ? 'max-h-[60px] overflow-hidden' : 'overflow-visible'}`}
+                  className={`relative whitespace-pre-wrap break-words px-[2px] py-1 font-medium font-sans text-[#0D0D0D] text-sm leading-[1.25rem] dark:text-gray-100 ${isSendingMessage && isLastUserMessage ? 'pr-7' : ''} ${!isExpanded && needsExpansion ? 'max-h-[60px] overflow-hidden' : 'overflow-visible'}`}
                 >
                   {(() => {
                     const text = message.content || ''
@@ -426,7 +337,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                       nodes.push(
                         <span
                           key={`mention-${i}-${lastIndex}`}
-                          className='rounded-[6px] bg-[color-mix(in_srgb,var(--brand-primary-hover-hex)_14%,transparent)] px-1'
+                          className='rounded-[6px] bg-[rgba(142,76,251,0.65)]'
                         >
                           {mention}
                         </span>
@@ -437,26 +348,27 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
                     if (tail) nodes.push(tail)
                     return nodes
                   })()}
-
-                  {/* Gradient fade when truncated */}
-                  {!isExpanded && needsExpansion && (
-                    <div className='absolute right-0 bottom-0 left-0 h-8 bg-gradient-to-t from-[#FFFFFF] to-transparent dark:from-[var(--surface-elevated)]' />
-                  )}
                 </div>
+
+                {/* Gradient fade when truncated - applies to entire message box */}
+                {!isExpanded && needsExpansion && (
+                  <div className='pointer-events-none absolute right-0 bottom-0 left-0 h-6 bg-gradient-to-t from-0% from-[#282828] via-40% via-[#282828]/70 to-100% to-transparent group-hover:from-[#353535] group-hover:via-[#353535]/70 dark:from-[#353535] dark:via-[#353535]/70 dark:group-hover:from-[#3D3D3D] dark:group-hover:via-[#3D3D3D]/70' />
+                )}
 
                 {/* Abort button when hovering and response is generating (only on last user message) */}
                 {isSendingMessage && isHoveringMessage && isLastUserMessage && (
-                  <div className='absolute right-2 bottom-2'>
-                    <button
+                  <div className='pointer-events-auto absolute right-[6px] bottom-[6px]'>
+                    <Button
                       onClick={(e) => {
                         e.stopPropagation()
                         abortMessage()
                       }}
-                      className='flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-white transition-all duration-200 hover:bg-red-600'
+                      variant='primary'
+                      className='h-[22px] w-[22px] rounded-full p-0 ring-2 ring-[#8E4CFB]/60 ring-offset-[#282828] ring-offset-[1.25px] dark:ring-offset-[#353535]'
                       title='Stop generation'
                     >
-                      <X className='h-3 w-3' />
-                    </button>
+                      <Square className='h-3.5 w-3.5' fill='currentColor' />
+                    </Button>
                   </div>
                 )}
 
@@ -514,7 +426,7 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
     if (isAssistant) {
       return (
         <div
-          className={`w-full max-w-full overflow-hidden py-0.5 pl-[2px] transition-opacity duration-200 ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
+          className={`w-full max-w-full overflow-hidden pl-[2px] transition-opacity duration-200 ${isDimmed ? 'opacity-40' : 'opacity-100'}`}
         >
           <div className='max-w-full space-y-1.5 transition-all duration-200 ease-in-out'>
             {/* Content blocks in chronological order */}
@@ -534,40 +446,43 @@ const CopilotMessage: FC<CopilotMessageProps> = memo(
 
             {/* Action buttons for completed messages */}
             {!isStreaming && cleanTextContent && (
-              <div className='flex items-center gap-2'>
-                <button
+              <div className='flex items-center gap-[8px] pt-[8px]'>
+                <Button
                   onClick={handleCopyContent}
-                  className='text-muted-foreground transition-colors hover:bg-muted'
+                  variant='ghost'
                   title='Copy'
+                  className='!h-[14px] !w-[14px] !p-0'
                 >
                   {showCopySuccess ? (
-                    <Check className='h-3 w-3' strokeWidth={2} />
+                    <Check className='h-[14px] w-[14px]' strokeWidth={2} />
                   ) : (
-                    <Clipboard className='h-3 w-3' strokeWidth={2} />
+                    <Copy className='h-[14px] w-[14px]' strokeWidth={2} />
                   )}
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleUpvote}
-                  className='text-muted-foreground transition-colors hover:bg-muted'
+                  variant='ghost'
                   title='Upvote'
+                  className='!h-[14px] !w-[14px] !p-0'
                 >
                   {showUpvoteSuccess ? (
-                    <Check className='h-3 w-3' strokeWidth={2} />
+                    <Check className='h-[14px] w-[14px]' strokeWidth={2} />
                   ) : (
-                    <ThumbsUp className='h-3 w-3' strokeWidth={2} />
+                    <ThumbsUp className='h-[14px] w-[14px]' strokeWidth={2} />
                   )}
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleDownvote}
-                  className='text-muted-foreground transition-colors hover:bg-muted'
+                  variant='ghost'
                   title='Downvote'
+                  className='!h-[14px] !w-[14px] !p-0'
                 >
                   {showDownvoteSuccess ? (
-                    <Check className='h-3 w-3' strokeWidth={2} />
+                    <Check className='h-[14px] w-[14px]' strokeWidth={2} />
                   ) : (
-                    <ThumbsDown className='h-3 w-3' strokeWidth={2} />
+                    <ThumbsDown className='h-[14px] w-[14px]' strokeWidth={2} />
                   )}
-                </button>
+                </Button>
               </div>
             )}
 

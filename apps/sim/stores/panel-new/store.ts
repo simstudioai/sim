@@ -5,8 +5,7 @@ import type { PanelState, PanelTab } from './types'
 /**
  * Panel width constraints
  */
-const DEFAULT_PANEL_WIDTH = 240
-const MIN_PANEL_WIDTH = 236
+const MIN_PANEL_WIDTH = 244
 const MAX_PANEL_WIDTH = 400
 
 /**
@@ -17,7 +16,7 @@ const DEFAULT_TAB: PanelTab = 'copilot'
 export const usePanelStore = create<PanelState>()(
   persist(
     (set) => ({
-      panelWidth: DEFAULT_PANEL_WIDTH,
+      panelWidth: MIN_PANEL_WIDTH,
       setPanelWidth: (width) => {
         const clampedWidth = Math.max(MIN_PANEL_WIDTH, Math.min(MAX_PANEL_WIDTH, width))
         set({ panelWidth: clampedWidth })
