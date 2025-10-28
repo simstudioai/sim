@@ -11,9 +11,8 @@ export function Navbar() {
     <nav
       className='sticky top-0 z-50 border-border/50 border-b'
       style={{
-        backgroundColor: 'hsla(0, 0%, 7.04%, 0.92)',
-        backdropFilter: 'blur(25px) saturate(180%) brightness(0.6)',
-        WebkitBackdropFilter: 'blur(25px) saturate(180%) brightness(0.6)',
+        backdropFilter: 'blur(25px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(25px) saturate(180%)',
       }}
     >
       {/* Desktop: Single row layout */}
