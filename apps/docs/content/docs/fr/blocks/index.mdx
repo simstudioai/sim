@@ -16,7 +16,7 @@ Les blocs sont les composants de construction que vous connectez pour créer des
 
 ## Types de blocs principaux
 
-Sim propose sept types de blocs principaux qui gèrent les fonctions essentielles des flux de travail d'IA :
+Sim fournit des types de blocs essentiels qui gèrent les fonctions principales des flux de travail IA :
 
 ### Blocs de traitement
 - **[Agent](/blocks/agent)** - Dialoguez avec des modèles d'IA (OpenAI, Anthropic, Google, modèles locaux)
@@ -28,8 +28,12 @@ Sim propose sept types de blocs principaux qui gèrent les fonctions essentielle
 - **[Router](/blocks/router)** - Utilisez l'IA pour acheminer intelligemment les requêtes vers différents chemins
 - **[Evaluator](/blocks/evaluator)** - Notez et évaluez la qualité du contenu à l'aide de l'IA
 
+### Blocs de flux de contrôle
+- **[Variables](/blocks/variables)** - Définir et gérer des variables à portée de flux de travail
+- **[Wait](/blocks/wait)** - Mettre en pause l'exécution du flux de travail pendant un délai spécifié
+
 ### Blocs de sortie
-- **[Response](/blocks/response)** - Formatez et renvoyez les résultats finaux de votre flux de travail
+- **[Response](/blocks/response)** - Formater et renvoyer les résultats finaux de votre flux de travail
 
 ## Comment fonctionnent les blocs
 
@@ -37,7 +41,7 @@ Chaque bloc comporte trois composants principaux :
 
 **Entrées** : données entrant dans le bloc depuis d'autres blocs ou saisies utilisateur
 **Configuration** : paramètres qui contrôlent le comportement du bloc
-**Sorties** : données que le bloc produit pour être utilisées par d'autres blocs
+**Sorties** : données produites par le bloc pour être utilisées par d'autres blocs
 
 <Steps>
   <Step>
@@ -53,11 +57,11 @@ Chaque bloc comporte trois composants principaux :
 
 ## Connexion des blocs
 
-Vous créez des flux de travail en connectant des blocs entre eux. La sortie d'un bloc devient l'entrée d'un autre :
+Vous créez des flux de travail en connectant les blocs entre eux. La sortie d'un bloc devient l'entrée d'un autre :
 
-- **Glisser pour connecter** : Faites glisser d'un port de sortie vers un port d'entrée
-- **Connexions multiples** : Une sortie peut se connecter à plusieurs entrées
-- **Chemins de ramification** : Certains blocs peuvent acheminer vers différents chemins selon les conditions
+- **Glisser pour connecter** : faites glisser d'un port de sortie vers un port d'entrée
+- **Connexions multiples** : une sortie peut se connecter à plusieurs entrées
+- **Chemins de branchement** : certains blocs peuvent acheminer vers différents chemins selon les conditions
 
 <div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg">
   <Video src="connections.mp4" width={700} height={450} />
@@ -72,8 +76,8 @@ Connectez les blocs en chaîne où chaque bloc traite la sortie du précédent :
 User Input → Agent → Function → Response
 ```
 
-### Ramification conditionnelle
-Utilisez des blocs de Condition ou de Routeur pour créer différents chemins :
+### Branchement conditionnel
+Utilisez des blocs Condition ou Router pour créer différents chemins :
 
 ```
 User Input → Router → Agent A (for questions)
@@ -81,7 +85,7 @@ User Input → Router → Agent A (for questions)
 ```
 
 ### Contrôle qualité
-Utilisez des blocs Évaluateur pour évaluer et filtrer les sorties :
+Utilisez des blocs Evaluator pour évaluer et filtrer les sorties :
 
 ```
 Agent → Evaluator → Condition → Response (if good)
@@ -101,7 +105,7 @@ Chaque type de bloc possède des options de configuration spécifiques :
 - Sélection du modèle (OpenAI, Anthropic, Google, local)
 - Clés API et authentification
 - Température et autres paramètres du modèle
-- Prompts système et instructions
+- Instructions et prompts système
 
 **Blocs logiques** (Condition, Fonction) :
 - Expressions ou code personnalisés
@@ -109,7 +113,7 @@ Chaque type de bloc possède des options de configuration spécifiques :
 - Paramètres d'environnement d'exécution
 
 **Blocs d'intégration** (API, Réponse) :
-- Configuration des points de terminaison
+- Configuration du point de terminaison
 - En-têtes et authentification
 - Formatage des requêtes/réponses
 
@@ -124,6 +128,12 @@ Chaque type de bloc possède des options de configuration spécifiques :
     Intégrez des services externes et des API
   </Card>
   <Card title="Bloc Condition" href="/blocks/condition">
-    Créez une logique de ramification basée sur l'évaluation des données
+    Créez une logique de branchement basée sur l'évaluation des données
+  </Card>
+  <Card title="Bloc Variables" href="/blocks/variables">
+    Définissez et gérez des variables à portée de workflow
+  </Card>
+  <Card title="Bloc Attente" href="/blocks/wait">
+    Mettez en pause l'exécution du workflow pour des délais spécifiés
   </Card>
 </Cards>

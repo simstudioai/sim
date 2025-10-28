@@ -1,0 +1,99 @@
+---
+title: Attente
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+
+Le bloc Attente met en pause votre flux de travail pendant une durée spécifiée avant de continuer vers le bloc suivant. Utilisez-le pour ajouter des délais entre les actions, respecter les limites de taux des API ou espacer les opérations.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/wait.png"
+    alt="Bloc d'attente"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+## Aperçu
+
+Le bloc Attente vous permet de :
+
+<Steps>
+  <Step>
+    <strong>Ajouter des délais</strong> : mettre en pause l'exécution entre les étapes du flux de travail
+  </Step>
+  <Step>
+    <strong>Respecter les limites de taux</strong> : espacer les appels API pour rester dans les limites
+  </Step>
+  <Step>
+    <strong>Planifier des séquences</strong> : créer des flux de travail chronométrés avec des délais entre les actions
+  </Step>
+</Steps>
+
+## Configuration
+
+### Durée d'attente
+
+Saisissez la durée de mise en pause de l'exécution :
+- **Entrée** : nombre positif
+- **Maximum** : 600 secondes (10 minutes) ou 10 minutes
+
+### Unité
+
+Choisissez l'unité de temps :
+- **Secondes** : pour des délais courts et précis
+- **Minutes** : pour des pauses plus longues
+
+<Callout type="info">
+  Les blocs d'attente peuvent être annulés en arrêtant le flux de travail. La durée d'attente maximale est de 10 minutes.
+</Callout>
+
+## Sorties
+
+- **`<wait.waitDuration>`** : la durée d'attente en millisecondes
+- **`<wait.status>`** : statut de l'attente ('waiting', 'completed', ou 'cancelled')
+
+## Exemples de cas d'utilisation
+
+### Limitation du taux d'API
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scénario : rester dans les limites de taux d'API</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Le bloc API effectue la première requête</li>
+    <li>Le bloc Attente fait une pause de 2 secondes</li>
+    <li>Le bloc API effectue la deuxième requête</li>
+    <li>Le processus continue sans atteindre les limites de taux</li>
+  </ol>
+</div>
+
+### Notifications chronométrées
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scénario : envoyer des messages de suivi</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>La fonction envoie l'email initial</li>
+    <li>Le bloc Attente fait une pause de 5 minutes</li>
+    <li>La fonction envoie l'email de suivi</li>
+  </ol>
+</div>
+
+### Retards de traitement
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scénario : Attente d'un système externe</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Le bloc API déclenche une tâche dans un système externe</li>
+    <li>Le bloc d'attente fait une pause de 30 secondes</li>
+    <li>Le bloc API vérifie l'état d'achèvement de la tâche</li>
+  </ol>
+</div>
+
+## Bonnes pratiques
+
+- **Gardez des temps d'attente raisonnables** : utilisez l'attente pour des délais jusqu'à 10 minutes. Pour des délais plus longs, envisagez des workflows programmés
+- **Surveillez le temps d'exécution** : n'oubliez pas que les attentes prolongent la durée totale du workflow

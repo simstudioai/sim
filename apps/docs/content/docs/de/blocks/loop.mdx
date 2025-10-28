@@ -9,7 +9,7 @@ import { Image } from '@/components/ui/image'
 
 Der Loop-Block ist ein Container-Block in Sim, der es ermöglicht, iterative Workflows zu erstellen, indem eine Gruppe von Blöcken wiederholt ausgeführt wird. Loops ermöglichen iterative Verarbeitung in deinen Workflows.
 
-Der Loop-Block unterstützt zwei Arten der Iteration:
+Der Schleifenblock unterstützt vier Arten der Iteration:
 
 <Callout type="info">
   Loop-Blöcke sind Container-Knoten, die andere Blöcke enthalten können. Die Blöcke innerhalb einer Schleife werden basierend auf deiner Konfiguration mehrfach ausgeführt.
@@ -27,10 +27,10 @@ Der Loop-Block ermöglicht dir:
     <strong>Operationen wiederholen</strong>: Blöcke eine festgelegte Anzahl von Malen ausführen
   </Step>
   <Step>
-    <strong>Sequentielle Verarbeitung</strong>: Datentransformation in geordneten Iterationen durchführen
+    <strong>Auf Bedingungen basierte Schleifen</strong>: Ausführung fortsetzen, während oder bis eine Bedingung erfüllt ist
   </Step>
   <Step>
-    <strong>Ergebnisse aggregieren</strong>: Ausgaben aus allen Schleifeniterationen sammeln
+    <strong>Ergebnisse aggregieren</strong>: Ausgaben aus allen Schleifendurchläufen sammeln
   </Step>
 </Steps>
 
@@ -47,23 +47,23 @@ Der Loop-Block führt enthaltene Blöcke durch sequentielle Iteration aus:
 
 ### Schleifentyp
 
-Wähle zwischen zwei Arten von Schleifen:
+Wähle zwischen vier Arten von Schleifen:
 
-<Tabs items={['For Loop', 'ForEach Loop']}>
+<Tabs items={['For-Schleife', 'ForEach-Schleife', 'While-Schleife', 'Do-While-Schleife']}>
   <Tab>
-    **For Loop (Iterationen)** - Eine numerische Schleife, die eine feste Anzahl von Malen ausgeführt wird:
+    **For-Schleife (Iterationen)** - Eine numerische Schleife, die eine festgelegte Anzahl von Malen ausgeführt wird:
     
     <div className="flex justify-center">
       <Image
         src="/static/blocks/loop-1.png"
-        alt="For Loop mit Iterationen"
+        alt="For-Schleife mit Iterationen"
         width={500}
         height={400}
         className="my-6"
       />
     </div>
     
-    Verwende diese Option, wenn du eine Operation eine bestimmte Anzahl von Malen wiederholen musst.
+    Verwende diese, wenn du eine Operation eine bestimmte Anzahl von Malen wiederholen musst.
     
 
     ```
@@ -100,6 +100,58 @@ Wähle zwischen zwei Arten von Schleifen:
     ```
 
   </Tab>
+  <Tab>
+    **While-Schleife (Bedingungsbasiert)** - Wird weiter ausgeführt, solange eine Bedingung als wahr ausgewertet wird:
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-3.png"
+        alt="While-Schleife mit Bedingung"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    Verwende diese, wenn du eine Schleife benötigst, die läuft, bis eine bestimmte Bedingung erfüllt ist. Die Bedingung wird **vor** jeder Iteration überprüft.
+    
+
+    ```
+    Example: While <variable.i> < 10
+    - Check condition → Execute if true
+    - Inside loop: Increment <variable.i>
+    - Inside loop: Variables assigns i = <variable.i> + 1
+    - Check condition → Execute if true
+    - Check condition → Exit if false
+    ```
+
+  </Tab>
+  <Tab>
+    **Do-While-Schleife (Bedingungsbasiert)** - Wird mindestens einmal ausgeführt und dann fortgesetzt, solange eine Bedingung wahr ist:
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-3.png"
+        alt="Do-While-Schleife mit Bedingung"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    Verwende diese, wenn du mindestens eine Ausführung benötigst und dann eine Schleife, bis eine Bedingung erfüllt ist. Die Bedingung wird **nach** jeder Iteration überprüft.
+    
+
+    ```
+    Example: Do-while <variable.i> < 10
+    - Execute blocks
+    - Inside loop: Increment <variable.i>
+    - Inside loop: Variables assigns i = <variable.i> + 1
+    - Check condition → Continue if true
+    - Check condition → Exit if false
+    ```
+
+  </Tab>
 </Tabs>
 
 ## Wie man Schleifen verwendet
@@ -113,9 +165,9 @@ Wähle zwischen zwei Arten von Schleifen:
 
 ### Auf Ergebnisse zugreifen
 
-Nach Abschluss einer Schleife kannst du auf aggregierte Ergebnisse zugreifen:
+Nach Abschluss einer Schleife können Sie auf die aggregierten Ergebnisse zugreifen:
 
-- **`<loop.results>`**: Array von Ergebnissen aus allen Schleifendurchläufen
+- **`<loop.results>`**: Array mit Ergebnissen aller Schleifendurchläufe
 
 ## Beispielanwendungsfälle
 
@@ -143,17 +195,30 @@ Nach Abschluss einer Schleife kannst du auf aggregierte Ergebnisse zugreifen:
   </ol>
 </div>
 
+### Zähler mit While-Schleife
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Szenario: Elemente mit zählerbasierter Schleife verarbeiten</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Workflow-Variable initialisieren: `i = 0`</li>
+    <li>While-Schleife mit Bedingung: `<variable.i>` \< 10</li>
+    <li>Innerhalb der Schleife: Agent verarbeitet Element am Index `<variable.i>`</li>
+    <li>Innerhalb der Schleife: Variable erhöht `i = <variable.i> + 1`</li>
+    <li>Schleife wird fortgesetzt, solange i kleiner als 10 ist</li>
+  </ol>
+</div>
+
 ## Erweiterte Funktionen
 
 ### Einschränkungen
 
 <Callout type="warning">
   Container-Blöcke (Schleifen und Parallele) können nicht ineinander verschachtelt werden. Das bedeutet:
-  - Du kannst keinen Schleifenblock in einen anderen Schleifenblock platzieren
-  - Du kannst keinen Parallelblock in einen Schleifenblock platzieren
-  - Du kannst keinen Container-Block in einen anderen Container-Block platzieren
+  - Sie können keinen Schleifenblock in einen anderen Schleifenblock platzieren
+  - Sie können keinen Parallelblock in einen Schleifenblock platzieren
+  - Sie können keinen Container-Block in einen anderen Container-Block platzieren
   
-  Wenn du mehrdimensionale Iterationen benötigst, erwäge eine Umstrukturierung deines Workflows, um sequentielle Schleifen zu verwenden oder Daten in Stufen zu verarbeiten.
+  Wenn Sie mehrdimensionale Iterationen benötigen, sollten Sie Ihren Workflow umstrukturieren, um sequentielle Schleifen zu verwenden oder Daten in Stufen zu verarbeiten.
 </Callout>
 
 <Callout type="info">
@@ -162,17 +227,20 @@ Nach Abschluss einer Schleife kannst du auf aggregierte Ergebnisse zugreifen:
 
 ## Eingaben und Ausgaben
 
-<Tabs items={['Konfiguration', 'Variablen', 'Ergebnisse']}>
+<Tabs items={['Configuration', 'Variables', 'Results']}>
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
-        <strong>Schleifentyp</strong>: Wählen Sie zwischen 'for' oder 'forEach'
+        <strong>Schleifentyp</strong>: Wählen Sie zwischen 'for', 'forEach', 'while' oder 'doWhile'
       </li>
       <li>
         <strong>Iterationen</strong>: Anzahl der Ausführungen (für for-Schleifen)
       </li>
       <li>
-        <strong>Sammlung</strong>: Array oder Objekt zum Durchlaufen (für forEach-Schleifen)
+        <strong>Sammlung</strong>: Array oder Objekt zum Durchlaufen (forEach-Schleifen)
+      </li>
+      <li>
+        <strong>Bedingung</strong>: Boolescher Ausdruck zur Auswertung (while/do-while-Schleifen)
       </li>
     </ul>
   </Tab>
@@ -204,8 +272,8 @@ Nach Abschluss einer Schleife kannst du auf aggregierte Ergebnisse zugreifen:
   </Tab>
 </Tabs>
 
-## Best Practices
+## Bewährte Praktiken
 
-- **Setzen Sie vernünftige Grenzen**: Halten Sie die Anzahl der Iterationen in einem vernünftigen Rahmen, um lange Ausführungszeiten zu vermeiden
-- **Verwenden Sie ForEach für Sammlungen**: Verwenden Sie ForEach statt For-Schleifen, wenn Sie Arrays oder Objekte verarbeiten
-- **Behandeln Sie Fehler angemessen**: Erwägen Sie, Fehlerbehandlung innerhalb von Schleifen einzubauen, um robuste Workflows zu gewährleisten
+- **Vernünftige Grenzen setzen**: Halten Sie die Anzahl der Iterationen in einem vernünftigen Rahmen, um lange Ausführungszeiten zu vermeiden
+- **ForEach für Sammlungen verwenden**: Verwenden Sie ForEach statt For-Schleifen, wenn Sie Arrays oder Objekte verarbeiten
+- **Fehler elegant behandeln**: Erwägen Sie, Fehlerbehandlung innerhalb von Schleifen einzubauen, um robuste Workflows zu gewährleisten

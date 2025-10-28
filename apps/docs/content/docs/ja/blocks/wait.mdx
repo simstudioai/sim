@@ -1,0 +1,99 @@
+---
+title: 待機
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+
+待機ブロックは、次のブロックに進む前に指定された時間だけワークフローを一時停止します。アクション間に遅延を追加したり、APIレート制限を尊重したり、操作の間隔を空けたりするために使用します。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/wait.png"
+    alt="待機ブロック"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+## 概要
+
+待機ブロックでは以下のことが可能です：
+
+<Steps>
+  <Step>
+    <strong>時間遅延の追加</strong>：ワークフローステップ間で実行を一時停止する
+  </Step>
+  <Step>
+    <strong>レート制限の尊重</strong>：制限内に収まるようにAPI呼び出しの間隔を空ける
+  </Step>
+  <Step>
+    <strong>シーケンスのスケジュール</strong>：アクション間に遅延を持つタイムドワークフローを作成する
+  </Step>
+</Steps>
+
+## 設定
+
+### 待機時間
+
+実行を一時停止する時間を入力します：
+- **入力**：正の数値
+- **最大値**：600秒（10分）または10分
+
+### 単位
+
+時間単位を選択します：
+- **秒**：短く正確な遅延のため
+- **分**：より長い一時停止のため
+
+<Callout type="info">
+  待機ブロックはワークフローを停止することでキャンセルできます。最大待機時間は10分です。
+</Callout>
+
+## 出力
+
+- **`<wait.waitDuration>`**: ミリ秒単位の待機時間
+- **`<wait.status>`**: 待機のステータス（'waiting'、'completed'、または'cancelled'）
+
+## 使用例
+
+### APIレート制限
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">シナリオ：APIレート制限内に収める</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>APIブロックが最初のリクエストを行う</li>
+    <li>待機ブロックが2秒間一時停止する</li>
+    <li>APIブロックが2番目のリクエストを行う</li>
+    <li>レート制限に達することなくプロセスが続行される</li>
+  </ol>
+</div>
+
+### タイムド通知
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">シナリオ：フォローアップメッセージを送信する</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>関数が初期メールを送信する</li>
+    <li>待機ブロックが5分間一時停止する</li>
+    <li>関数がフォローアップメールを送信する</li>
+  </ol>
+</div>
+
+### 処理の遅延
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">シナリオ：外部システムを待機</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>APIブロックが外部システムでジョブをトリガー</li>
+    <li>待機ブロックが30秒間一時停止</li>
+    <li>APIブロックがジョブの完了状態を確認</li>
+  </ol>
+</div>
+
+## ベストプラクティス
+
+- **待機時間を適切に保つ**：最大10分までの遅延には待機を使用。より長い遅延にはスケジュールされたワークフローを検討
+- **実行時間を監視する**：待機によってワークフローの合計所要時間が延長されることに注意
