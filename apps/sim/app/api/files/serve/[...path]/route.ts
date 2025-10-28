@@ -6,7 +6,6 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/core/config-resolver'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
-import '@/lib/uploads/setup.server'
 import {
   createErrorResponse,
   createFileResponse,
