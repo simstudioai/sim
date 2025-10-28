@@ -51,7 +51,7 @@ In Sim, the OneDrive integration enables your agents to directly interact with y
 
 ## Usage Instructions
 
-Integrate OneDrive into the workflow. Can create, upload, and list files.
+Integrate OneDrive into the workflow. Can create text and Excel files, upload files, and list files.
 
 
 
@@ -68,6 +68,7 @@ Upload a file to OneDrive
 | `fileName` | string | Yes | The name of the file to upload |
 | `file` | file | No | The file to upload \(binary\) |
 | `content` | string | No | The text content to upload \(if no file is provided\) |
+| `mimeType` | string | No | The MIME type of the file to create \(e.g., text/plain for .txt, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet for .xlsx\) |
 | `folderSelector` | string | No | Select the folder to upload the file to |
 | `manualFolderId` | string | No | Manually entered folder ID \(advanced mode\) |
 

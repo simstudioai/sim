@@ -8,7 +8,8 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
   name: 'OneDrive',
   description: 'Create, upload, and list files',
   authMode: AuthMode.OAuth,
-  longDescription: 'Integrate OneDrive into the workflow. Can create, upload, and list files.',
+  longDescription:
+    'Integrate OneDrive into the workflow. Can create text and Excel files, upload files, and list files.',
   docsLink: 'https://docs.sim.ai/tools/onedrive',
   category: 'tools',
   bgColor: '#E0E0E0',
@@ -51,9 +52,44 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       title: 'File Name',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Name of the file (e.g., document.txt)',
+      placeholder: 'Name of the file',
       condition: { field: 'operation', value: ['create_file', 'upload'] },
       required: true,
+    },
+    // File Type selector for create_file operation
+    {
+      id: 'mimeType',
+      title: 'File Type',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'Text File (.txt)', id: 'text/plain' },
+        {
+          label: 'Excel File (.xlsx)',
+          id: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        },
+      ],
+      placeholder: 'Select file type',
+      condition: { field: 'operation', value: 'create_file' },
+      required: true,
+    },
+    // Excel values input when creating an .xlsx file
+    {
+      id: 'values',
+      title: 'Values',
+      type: 'long-input',
+      layout: 'full',
+      placeholder:
+        'Enter values as JSON array of arrays (e.g., [["A1","B1"],["A2","B2"]]) or an array of objects',
+      condition: {
+        field: 'operation',
+        value: 'create_file',
+        and: {
+          field: 'mimeType',
+          value: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        },
+      },
+      required: false,
     },
     // File upload (basic mode)
     {
@@ -86,7 +122,14 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
       type: 'long-input',
       layout: 'full',
       placeholder: 'Text content for the file',
-      condition: { field: 'operation', value: 'create_file' },
+      condition: {
+        field: 'operation',
+        value: 'create_file',
+        and: {
+          field: 'mimeType',
+          value: 'text/plain',
+        },
+      },
       required: true,
     },
 
@@ -234,14 +277,22 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
         }
       },
       params: (params) => {
-        const { credential, folderSelector, manualFolderId, mimeType, ...rest } = params
+        const { credential, folderSelector, manualFolderId, mimeType, values, ...rest } = params
 
         // Use folderSelector if provided, otherwise use manualFolderId
         const effectiveFolderId = (folderSelector || manualFolderId || '').trim()
 
+        let parsedValues
+        try {
+          parsedValues = values ? JSON.parse(values as string) : undefined
+        } catch (error) {
+          throw new Error('Invalid JSON format for values')
+        }
+
         return {
           credential,
           ...rest,
+          values: parsedValues,
           folderId: effectiveFolderId || undefined,
           pageSize: rest.pageSize ? Number.parseInt(rest.pageSize as string, 10) : undefined,
           mimeType: mimeType,
@@ -257,6 +308,8 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
     file: { type: 'json', description: 'File to upload (UserFile object)' },
     fileReference: { type: 'json', description: 'File reference from previous block' },
     content: { type: 'string', description: 'Text content to upload' },
+    mimeType: { type: 'string', description: 'MIME type of file to create' },
+    values: { type: 'string', description: 'Cell values for new Excel as JSON' },
     // Get Content operation inputs
     // fileId: { type: 'string', required: false },
     // List operation inputs

@@ -43,6 +43,15 @@ export interface OneDriveListResponse extends ToolResponse {
 export interface OneDriveUploadResponse extends ToolResponse {
   output: {
     file: OneDriveFile
+    excelWriteResult?: {
+      success: boolean
+      updatedRange?: string
+      updatedRows?: number
+      updatedColumns?: number
+      updatedCells?: number
+      error?: string
+      details?: string
+    }
   }
 }
 
@@ -60,6 +69,8 @@ export interface OneDriveToolParams {
   pageSize?: number
   pageToken?: string
   exportMimeType?: string
+  // Optional Excel write parameters (used when creating an .xlsx without file content)
+  values?: (string | number | boolean | null)[][]
 }
 
 export type OneDriveResponse = OneDriveUploadResponse | OneDriveListResponse
