@@ -52,9 +52,7 @@
 
 /* Light mode navbar and search styling */
 :root:not(.dark) nav {
-  background-color: hsla(0, 0%, 96%, 0.92) !important;
-  backdrop-filter: blur(25px) saturate(180%) brightness(1.05) !important;
-  -webkit-backdrop-filter: blur(25px) saturate(180%) brightness(1.05) !important;
+  background-color: hsla(0, 0%, 96%, 0.85) !important;
 }
 
 :root:not(.dark) nav button[type="button"] {
@@ -66,6 +64,13 @@
 
 :root:not(.dark) nav button[type="button"] kbd {
   color: rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Dark mode navbar and search styling */
+:root.dark nav {
+  background-color: hsla(0, 0%, 7.04%, 0.92) !important;
+  backdrop-filter: blur(25px) saturate(180%) brightness(0.6) !important;
+  -webkit-backdrop-filter: blur(25px) saturate(180%) brightness(0.6) !important;
 }
 
 /* ============================================

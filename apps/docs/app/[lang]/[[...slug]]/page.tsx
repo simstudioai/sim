@@ -9,8 +9,6 @@ import { CodeBlock } from '@/components/ui/code-block'
 import { CopyPageButton } from '@/components/ui/copy-page-button'
 import { source } from '@/lib/source'
 
-export const dynamic = 'force-dynamic'
-
 export default async function Page(props: { params: Promise<{ slug?: string[]; lang: string }> }) {
   const params = await props.params
   const page = source.getPage(params.slug, params.lang)
