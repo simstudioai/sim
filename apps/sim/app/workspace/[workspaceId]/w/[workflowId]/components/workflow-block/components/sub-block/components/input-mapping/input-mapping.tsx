@@ -14,7 +14,7 @@ interface InputFormatField {
 }
 
 interface InputTriggerBlock {
-  type: 'input_trigger'
+  type: 'input_trigger' | 'start_trigger'
   subBlocks?: {
     inputFormat?: { value?: InputFormatField[] }
   }
@@ -33,8 +33,9 @@ interface StarterBlockLegacy {
 }
 
 function isInputTriggerBlock(value: unknown): value is InputTriggerBlock {
+  const type = (value as { type?: unknown }).type
   return (
-    !!value && typeof value === 'object' && (value as { type?: unknown }).type === 'input_trigger'
+    !!value && typeof value === 'object' && (type === 'input_trigger' || type === 'start_trigger')
   )
 }
 
@@ -74,7 +75,7 @@ export function InputMapping({
 
   // Fetch child workflow state via registry API endpoint, using cached metadata when possible
   // Here we rely on live store; the serializer/executor will resolve at runtime too.
-  // We only need the inputFormat from an Input Trigger in the selected child workflow state.
+  // We only need the inputFormat from a Start or Input Trigger in the selected child workflow state.
   const [childInputFields, setChildInputFields] = useState<Array<{ name: string; type?: string }>>(
     []
   )
@@ -97,7 +98,7 @@ export function InputMapping({
         }
         const { data } = await res.json()
         const blocks = (data?.state?.blocks as Record<string, unknown>) || {}
-        // Prefer new input_trigger
+        // Prefer start_trigger or input_trigger
         const triggerEntry = Object.entries(blocks).find(([, b]) => isInputTriggerBlock(b))
         if (triggerEntry && isInputTriggerBlock(triggerEntry[1])) {
           const inputFormat = triggerEntry[1].subBlocks?.inputFormat?.value

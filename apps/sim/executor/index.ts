@@ -783,17 +783,21 @@ export class Executor {
       if (!initBlock) {
         if (this.isChildExecution) {
           const inputTriggerBlocks = this.actualWorkflow.blocks.filter(
-            (block) => block.metadata?.id === 'input_trigger'
+            (block) =>
+              block.metadata?.id === 'input_trigger' || block.metadata?.id === 'start_trigger'
           )
           if (inputTriggerBlocks.length === 1) {
             initBlock = inputTriggerBlocks[0]
           } else if (inputTriggerBlocks.length > 1) {
-            throw new Error('Child workflow has multiple Input Trigger blocks. Keep only one.')
+            throw new Error(
+              'Child workflow has multiple trigger blocks. Keep only one Start block.'
+            )
           }
         } else {
           // Parent workflows can use any trigger block (dedicated or trigger-mode)
           const triggerBlocks = this.actualWorkflow.blocks.filter(
             (block) =>
+              block.metadata?.id === 'start_trigger' ||
               block.metadata?.id === 'input_trigger' ||
               block.metadata?.id === 'api_trigger' ||
               block.metadata?.id === 'chat_trigger' ||
