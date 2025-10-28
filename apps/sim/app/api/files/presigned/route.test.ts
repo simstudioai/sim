@@ -177,7 +177,7 @@ describe('/api/files/presigned', () => {
       expect(response.status).toBe(200)
       expect(data.presignedUrl).toBe('https://example.com/presigned-url')
       expect(data.fileInfo).toMatchObject({
-        path: 'https://example.com/presigned-url', // path is the presigned URL
+        path: expect.stringMatching(/\/api\/files\/serve\/s3\/.+\?context=general$/), // general uploads use serve path
         key: expect.stringMatching(/.*test.document\.txt$/),
         name: 'test document.txt',
         size: 1024,

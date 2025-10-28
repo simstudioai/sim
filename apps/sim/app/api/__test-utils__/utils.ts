@@ -869,7 +869,7 @@ export function createStorageProviderMocks(options: StorageProviderMockOptions =
     return Promise.resolve({
       url: presignedUrl,
       key,
-      fields: uploadHeaders,
+      uploadHeaders: uploadHeaders,
     })
   })
 
@@ -909,6 +909,13 @@ export function createStorageProviderMocks(options: StorageProviderMockOptions =
       generatePresignedUploadUrl: generatePresignedUploadUrlMock,
       generatePresignedDownloadUrl: generatePresignedDownloadUrlMock,
     },
+  }))
+
+  vi.doMock('@/lib/uploads/core/setup', () => ({
+    USE_S3_STORAGE: provider === 's3',
+    USE_BLOB_STORAGE: provider === 'blob',
+    USE_LOCAL_STORAGE: provider === 'local',
+    getStorageProvider: vi.fn().mockReturnValue(provider),
   }))
 
   if (provider === 's3') {
