@@ -72,41 +72,6 @@ export const CareersConfirmationEmail = ({
               schedule an initial conversation.
             </Text>
 
-            <Section
-              style={{
-                marginTop: '24px',
-                marginBottom: '24px',
-                padding: '20px',
-                backgroundColor: '#f9f9f9',
-                borderRadius: '8px',
-                border: '1px solid #e5e5e5',
-              }}
-            >
-              <Text
-                style={{
-                  margin: '0 0 12px 0',
-                  fontSize: '16px',
-                  fontWeight: 'bold',
-                  color: '#333333',
-                }}
-              >
-                What Happens Next?
-              </Text>
-              <ul
-                style={{
-                  margin: '0',
-                  padding: '0 0 0 20px',
-                  fontSize: '14px',
-                  color: '#333333',
-                  lineHeight: '1.8',
-                }}
-              >
-                <li>Our team will review your application</li>
-                <li>If you're a good fit, we'll reach out to schedule an interview</li>
-                <li>We'll keep you updated throughout the process</li>
-              </ul>
-            </Section>
-
             <Text style={baseStyles.paragraph}>
               In the meantime, feel free to explore our{' '}
               <a
