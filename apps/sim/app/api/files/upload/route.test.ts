@@ -67,9 +67,9 @@ describe('File Upload API Route', () => {
     expect(data).toHaveProperty('size')
     expect(data).toHaveProperty('type', 'text/plain')
 
-    // Verify the upload function was called (we're mocking at the uploadFile level)
-    const { uploadFile } = await import('@/lib/uploads')
-    expect(uploadFile).toHaveBeenCalled()
+    // Verify the upload function was called (we're mocking at the StorageService level)
+    const { StorageService } = await import('@/lib/uploads')
+    expect(StorageService.uploadFile).toHaveBeenCalled()
   })
 
   it('should upload a file to S3 when in S3 mode', async () => {
@@ -99,7 +99,7 @@ describe('File Upload API Route', () => {
     expect(data).toHaveProperty('type', 'text/plain')
 
     const uploads = await import('@/lib/uploads')
-    expect(uploads.uploadFile).toHaveBeenCalled()
+    expect(uploads.StorageService.uploadFile).toHaveBeenCalled()
   })
 
   it('should handle multiple file uploads', async () => {
@@ -154,7 +154,10 @@ describe('File Upload API Route', () => {
     })
 
     vi.doMock('@/lib/uploads', () => ({
-      uploadFile: vi.fn().mockRejectedValue(new Error('Upload failed')),
+      StorageService: {
+        uploadFile: vi.fn().mockRejectedValue(new Error('Upload failed')),
+        hasCloudStorage: vi.fn().mockReturnValue(true),
+      },
       isUsingCloudStorage: vi.fn().mockReturnValue(true),
     }))
 
@@ -200,10 +203,13 @@ describe('File Upload Security Tests', () => {
 
     vi.doMock('@/lib/uploads', () => ({
       isUsingCloudStorage: vi.fn().mockReturnValue(false),
-      uploadFile: vi.fn().mockResolvedValue({
-        key: 'test-key',
-        path: '/test/path',
-      }),
+      StorageService: {
+        uploadFile: vi.fn().mockResolvedValue({
+          key: 'test-key',
+          path: '/test/path',
+        }),
+        hasCloudStorage: vi.fn().mockReturnValue(false),
+      },
     }))
 
     vi.doMock('@/lib/uploads/setup.server', () => ({}))

@@ -81,11 +81,23 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
         throw new Error('Missing required parameter: filePath')
       }
 
-      logger.info('Tool body determined filePath:', determinedFilePath)
+      // Extract context from file object(s) if available
+      let context: string | undefined
+      if (params.file) {
+        // Single file or array of files
+        const fileObj = Array.isArray(params.file) ? params.file[0] : params.file
+        context = fileObj?.context
+      } else if (params.files && Array.isArray(params.files) && params.files.length > 0) {
+        // Legacy files array
+        context = params.files[0]?.context
+      }
+
+      logger.info('Tool body determined filePath:', determinedFilePath, 'context:', context)
       return {
         filePath: determinedFilePath,
         fileType: determinedFileType,
         workspaceId: params.workspaceId || params._context?.workspaceId,
+        context, // Pass context to API route
       }
     },
   },

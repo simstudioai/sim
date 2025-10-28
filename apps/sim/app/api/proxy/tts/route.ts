@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { validateAlphanumericId } from '@/lib/security/input-validation'
-import { uploadFile } from '@/lib/uploads/storage-client'
+import { StorageService } from '@/lib/uploads'
 import { getBaseUrl } from '@/lib/urls/utils'
 
 const logger = createLogger('ProxyTTSAPI')
@@ -65,7 +65,13 @@ export async function POST(request: NextRequest) {
     const audioBuffer = Buffer.from(await audioBlob.arrayBuffer())
     const timestamp = Date.now()
     const fileName = `elevenlabs-tts-${timestamp}.mp3`
-    const fileInfo = await uploadFile(audioBuffer, fileName, 'audio/mpeg')
+
+    const fileInfo = await StorageService.uploadFile({
+      file: audioBuffer,
+      fileName,
+      contentType: 'audio/mpeg',
+      context: 'general',
+    })
 
     const audioUrl = `${getBaseUrl()}${fileInfo.path}`
 

@@ -1,7 +1,7 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import type { CustomBlobConfig } from '@/lib/uploads/blob/blob-client'
-import type { CustomS3Config } from '@/lib/uploads/s3/s3-client'
-import { USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/setup'
+import { USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/core/setup'
+import type { CustomBlobConfig } from '@/lib/uploads/providers/blob/blob-client'
+import type { CustomS3Config } from '@/lib/uploads/providers/s3/s3-client'
 
 const logger = createLogger('StorageClient')
 
@@ -66,7 +66,7 @@ export async function uploadFile(
 ): Promise<FileInfo> {
   if (USE_BLOB_STORAGE) {
     logger.info(`Uploading file to Azure Blob Storage: ${fileName}`)
-    const { uploadToBlob } = await import('@/lib/uploads/blob/blob-client')
+    const { uploadToBlob } = await import('@/lib/uploads/providers/blob/blob-client')
     if (typeof configOrSize === 'object') {
       const blobConfig: CustomBlobConfig = {
         containerName: configOrSize.containerName!,
@@ -81,7 +81,7 @@ export async function uploadFile(
 
   if (USE_S3_STORAGE) {
     logger.info(`Uploading file to S3: ${fileName}`)
-    const { uploadToS3 } = await import('@/lib/uploads/s3/s3-client')
+    const { uploadToS3 } = await import('@/lib/uploads/providers/s3/s3-client')
     if (typeof configOrSize === 'object') {
       const s3Config: CustomS3Config = {
         bucket: configOrSize.bucket!,
@@ -96,7 +96,7 @@ export async function uploadFile(
   const { writeFile } = await import('fs/promises')
   const { join } = await import('path')
   const { v4: uuidv4 } = await import('uuid')
-  const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/setup.server')
+  const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/core/setup.server')
 
   const safeFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_').replace(/\.\./g, '')
   const uniqueKey = `${uuidv4()}-${safeFileName}`
@@ -143,7 +143,7 @@ export async function downloadFile(
 ): Promise<Buffer> {
   if (USE_BLOB_STORAGE) {
     logger.info(`Downloading file from Azure Blob Storage: ${key}`)
-    const { downloadFromBlob } = await import('@/lib/uploads/blob/blob-client')
+    const { downloadFromBlob } = await import('@/lib/uploads/providers/blob/blob-client')
     if (customConfig) {
       const blobConfig: CustomBlobConfig = {
         containerName: customConfig.containerName!,
@@ -158,7 +158,7 @@ export async function downloadFile(
 
   if (USE_S3_STORAGE) {
     logger.info(`Downloading file from S3: ${key}`)
-    const { downloadFromS3 } = await import('@/lib/uploads/s3/s3-client')
+    const { downloadFromS3 } = await import('@/lib/uploads/providers/s3/s3-client')
     if (customConfig) {
       const s3Config: CustomS3Config = {
         bucket: customConfig.bucket!,
@@ -172,7 +172,7 @@ export async function downloadFile(
   logger.info(`Downloading file from local storage: ${key}`)
   const { readFile } = await import('fs/promises')
   const { join, resolve, sep } = await import('path')
-  const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/setup.server')
+  const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/core/setup.server')
 
   const safeKey = key.replace(/\.\./g, '').replace(/[/\\]/g, '')
   const filePath = join(UPLOAD_DIR_SERVER, safeKey)
@@ -200,20 +200,20 @@ export async function downloadFile(
 export async function deleteFile(key: string): Promise<void> {
   if (USE_BLOB_STORAGE) {
     logger.info(`Deleting file from Azure Blob Storage: ${key}`)
-    const { deleteFromBlob } = await import('@/lib/uploads/blob/blob-client')
+    const { deleteFromBlob } = await import('@/lib/uploads/providers/blob/blob-client')
     return deleteFromBlob(key)
   }
 
   if (USE_S3_STORAGE) {
     logger.info(`Deleting file from S3: ${key}`)
-    const { deleteFromS3 } = await import('@/lib/uploads/s3/s3-client')
+    const { deleteFromS3 } = await import('@/lib/uploads/providers/s3/s3-client')
     return deleteFromS3(key)
   }
 
   logger.info(`Deleting file from local storage: ${key}`)
   const { unlink } = await import('fs/promises')
   const { join, resolve, sep } = await import('path')
-  const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/setup.server')
+  const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/core/setup.server')
 
   const safeKey = key.replace(/\.\./g, '').replace(/[/\\]/g, '')
   const filePath = join(UPLOAD_DIR_SERVER, safeKey)
@@ -244,13 +244,17 @@ export async function deleteFile(key: string): Promise<void> {
 export async function getPresignedUrl(key: string, expiresIn = 3600): Promise<string> {
   if (USE_BLOB_STORAGE) {
     logger.info(`Generating presigned URL for Azure Blob Storage: ${key}`)
-    const { getPresignedUrl: getBlobPresignedUrl } = await import('@/lib/uploads/blob/blob-client')
+    const { getPresignedUrl: getBlobPresignedUrl } = await import(
+      '@/lib/uploads/providers/blob/blob-client'
+    )
     return getBlobPresignedUrl(key, expiresIn)
   }
 
   if (USE_S3_STORAGE) {
     logger.info(`Generating presigned URL for S3: ${key}`)
-    const { getPresignedUrl: getS3PresignedUrl } = await import('@/lib/uploads/s3/s3-client')
+    const { getPresignedUrl: getS3PresignedUrl } = await import(
+      '@/lib/uploads/providers/s3/s3-client'
+    )
     return getS3PresignedUrl(key, expiresIn)
   }
 
@@ -273,7 +277,7 @@ export async function getPresignedUrlWithConfig(
   if (USE_BLOB_STORAGE) {
     logger.info(`Generating presigned URL for Azure Blob Storage with custom config: ${key}`)
     const { getPresignedUrlWithConfig: getBlobPresignedUrlWithConfig } = await import(
-      '@/lib/uploads/blob/blob-client'
+      '@/lib/uploads/providers/blob/blob-client'
     )
     // Convert CustomStorageConfig to CustomBlobConfig
     const blobConfig: CustomBlobConfig = {
@@ -288,7 +292,7 @@ export async function getPresignedUrlWithConfig(
   if (USE_S3_STORAGE) {
     logger.info(`Generating presigned URL for S3 with custom config: ${key}`)
     const { getPresignedUrlWithConfig: getS3PresignedUrlWithConfig } = await import(
-      '@/lib/uploads/s3/s3-client'
+      '@/lib/uploads/providers/s3/s3-client'
     )
     // Convert CustomStorageConfig to CustomS3Config
     const s3Config: CustomS3Config = {

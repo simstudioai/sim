@@ -1,7 +1,7 @@
 import type { Logger } from '@/lib/logs/console/logger'
-import { extractStorageKey } from '@/lib/uploads/file-utils'
-import { downloadFile } from '@/lib/uploads/storage-client'
-import { downloadExecutionFile, isExecutionFile } from '@/lib/workflows/execution-files'
+import { type StorageContext, StorageService } from '@/lib/uploads'
+import { downloadExecutionFile, isExecutionFile } from '@/lib/uploads/contexts/execution'
+import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
 import type { UserFile } from '@/executor/types'
 
 /**
@@ -75,6 +75,34 @@ export function processFilesToUserFiles(
 }
 
 /**
+ * Infer storage context from file key pattern
+ * @param key - File storage key
+ * @returns Inferred storage context
+ */
+function inferContextFromKey(key: string): StorageContext {
+  // KB files always start with 'kb/' prefix
+  if (key.startsWith('kb/')) {
+    return 'knowledge-base'
+  }
+
+  // Execution files: three or more UUID segments
+  // Pattern: {uuid}/{uuid}/{uuid}/{filename}
+  const segments = key.split('/')
+  if (segments.length >= 4 && segments[0].match(/^[a-f0-9-]{36}$/)) {
+    return 'execution'
+  }
+
+  // Workspace files: UUID-like ID followed by timestamp pattern
+  // Pattern: {uuid}/{timestamp}-{random}-{filename}
+  if (key.match(/^[a-f0-9-]{36}\/\d+-[a-z0-9]+-/)) {
+    return 'workspace'
+  }
+
+  // Default to general for all other patterns
+  return 'general'
+}
+
+/**
  * Downloads a file from storage (execution or regular)
  * @param userFile - UserFile object
  * @param requestId - Request ID for logging
@@ -92,8 +120,16 @@ export async function downloadFileFromStorage(
     logger.info(`[${requestId}] Downloading from execution storage: ${userFile.key}`)
     buffer = await downloadExecutionFile(userFile)
   } else if (userFile.key) {
-    logger.info(`[${requestId}] Downloading from regular storage: ${userFile.key}`)
-    buffer = await downloadFile(userFile.key)
+    // Use explicit context from file if available, otherwise infer from key pattern (fallback)
+    const context = (userFile.context as StorageContext) || inferContextFromKey(userFile.key)
+    logger.info(
+      `[${requestId}] Downloading from ${context} storage (${userFile.context ? 'explicit' : 'inferred'}): ${userFile.key}`
+    )
+
+    buffer = await StorageService.downloadFile({
+      key: userFile.key,
+      context,
+    })
   } else {
     throw new Error('File has no key - cannot download')
   }

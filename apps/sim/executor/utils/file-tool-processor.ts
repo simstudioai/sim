@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { uploadExecutionFile } from '@/lib/workflows/execution-files'
+import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
 import type { ExecutionContext, UserFile } from '@/executor/types'
 import type { ToolConfig, ToolFileData } from '@/tools/types'
 

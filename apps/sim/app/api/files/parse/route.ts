@@ -7,14 +7,27 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
 import { createLogger } from '@/lib/logs/console/logger'
 import { validateExternalUrl } from '@/lib/security/input-validation'
-import { downloadFile, isUsingCloudStorage } from '@/lib/uploads'
-import { extractStorageKey } from '@/lib/uploads/file-utils'
-import { UPLOAD_DIR_SERVER } from '@/lib/uploads/setup.server'
+import { isUsingCloudStorage, type StorageContext, StorageService } from '@/lib/uploads'
+import { UPLOAD_DIR_SERVER } from '@/lib/uploads/core/setup.server'
+import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
 import '@/lib/uploads/setup.server'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('FilesParseAPI')
+
+/**
+ * Infer storage context from file key pattern
+ */
+function inferContextFromKey(key: string): StorageContext {
+  if (key.startsWith('kb/')) return 'knowledge-base'
+
+  const segments = key.split('/')
+  if (segments.length >= 4 && segments[0].match(/^[a-f0-9-]{36}$/)) return 'execution'
+  if (key.match(/^[a-f0-9-]{36}\/\d+-[a-z0-9]+-/)) return 'workspace'
+
+  return 'general'
+}
 
 const MAX_DOWNLOAD_SIZE_BYTES = 100 * 1024 * 1024 // 100 MB
 const DOWNLOAD_TIMEOUT_MS = 30000 // 30 seconds
@@ -70,7 +83,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const requestData = await request.json()
-    const { filePath, fileType, workspaceId } = requestData
+    const { filePath, fileType, workspaceId, context } = requestData
 
     if (!filePath || (typeof filePath === 'string' && filePath.trim() === '')) {
       return NextResponse.json({ success: false, error: 'No file path provided' }, { status: 400 })
@@ -90,7 +103,7 @@ export async function POST(request: NextRequest) {
           continue
         }
 
-        const result = await parseFileSingle(path, fileType, workspaceId)
+        const result = await parseFileSingle(path, fileType, workspaceId, context)
         if (result.metadata) {
           result.metadata.processingTime = Date.now() - startTime
         }
@@ -118,7 +131,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const result = await parseFileSingle(filePath, fileType, workspaceId)
+    const result = await parseFileSingle(filePath, fileType, workspaceId, context)
 
     if (result.metadata) {
       result.metadata.processingTime = Date.now() - startTime
@@ -157,7 +170,8 @@ export async function POST(request: NextRequest) {
 async function parseFileSingle(
   filePath: string,
   fileType?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  context?: string
 ): Promise<ParseResult> {
   logger.info('Parsing file:', filePath)
 
@@ -186,7 +200,7 @@ async function parseFileSingle(
   const isBlobPath = filePath.includes('/api/files/serve/blob/')
 
   if (isS3Path || isBlobPath || isUsingCloudStorage()) {
-    return handleCloudFile(filePath, fileType)
+    return handleCloudFile(filePath, fileType, context)
   }
 
   return handleLocalFile(filePath, fileType)
@@ -252,7 +266,7 @@ async function handleExternalUrl(
     // If workspaceId provided, check if file already exists in workspace
     if (workspaceId) {
       const { fileExistsInWorkspace, listWorkspaceFiles } = await import(
-        '@/lib/uploads/workspace-files'
+        '@/lib/uploads/contexts/workspace'
       )
       const exists = await fileExistsInWorkspace(workspaceId, filename)
 
@@ -265,7 +279,7 @@ async function handleExternalUrl(
         if (existingFile) {
           // Parse from workspace storage instead of re-downloading
           const storageFilePath = `/api/files/serve/${existingFile.key}`
-          return handleCloudFile(storageFilePath, fileType)
+          return handleCloudFile(storageFilePath, fileType, 'workspace')
         }
       }
     }
@@ -294,7 +308,7 @@ async function handleExternalUrl(
     if (workspaceId) {
       try {
         const { getSession } = await import('@/lib/auth')
-        const { uploadWorkspaceFile } = await import('@/lib/uploads/workspace-files')
+        const { uploadWorkspaceFile } = await import('@/lib/uploads/contexts/workspace')
 
         const session = await getSession()
         if (session?.user?.id) {
@@ -332,14 +346,22 @@ async function handleExternalUrl(
 /**
  * Handle file stored in cloud storage
  */
-async function handleCloudFile(filePath: string, fileType?: string): Promise<ParseResult> {
+async function handleCloudFile(
+  filePath: string,
+  fileType?: string,
+  explicitContext?: string
+): Promise<ParseResult> {
   try {
     const cloudKey = extractStorageKey(filePath)
 
     logger.info('Extracted cloud key:', cloudKey)
 
-    const fileBuffer = await downloadFile(cloudKey)
-    logger.info(`Downloaded file from cloud storage: ${cloudKey}, size: ${fileBuffer.length} bytes`)
+    // Use explicit context if provided, otherwise infer from key pattern (KB, workspace, execution, or general)
+    const context = (explicitContext as StorageContext) || inferContextFromKey(cloudKey)
+    const fileBuffer = await StorageService.downloadFile({ key: cloudKey, context })
+    logger.info(
+      `Downloaded file from ${context} storage (${explicitContext ? 'explicit' : 'inferred'}): ${cloudKey}, size: ${fileBuffer.length} bytes`
+    )
 
     const filename = cloudKey.split('/').pop() || cloudKey
     const extension = path.extname(filename).toLowerCase().substring(1)

@@ -1,12 +1,7 @@
-import { existsSync } from 'fs'
-import { unlink } from 'fs/promises'
-import { join } from 'path'
 import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
-import { deleteFile, isUsingCloudStorage } from '@/lib/uploads'
-import { UPLOAD_DIR } from '@/lib/uploads/setup'
-import '@/lib/uploads/setup.server'
-
+import type { StorageContext } from '@/lib/uploads/core/config-resolver'
+import { deleteFile } from '@/lib/uploads/core/storage-service'
 import {
   createErrorResponse,
   createOptionsResponse,
@@ -30,23 +25,35 @@ const logger = createLogger('FilesDeleteAPI')
 export async function POST(request: NextRequest) {
   try {
     const requestData = await request.json()
-    const { filePath } = requestData
+    const { filePath, context } = requestData
 
-    logger.info('File delete request received:', { filePath })
+    logger.info('File delete request received:', { filePath, context })
 
     if (!filePath) {
       throw new InvalidRequestError('No file path provided')
     }
 
     try {
-      // Use appropriate handler based on path and environment
-      const result =
-        isCloudPath(filePath) || isUsingCloudStorage()
-          ? await handleCloudFileDelete(filePath)
-          : await handleLocalFileDelete(filePath)
+      // Extract storage key from path
+      const key = extractStorageKey(filePath)
 
-      // Return success response
-      return createSuccessResponse(result)
+      // Determine storage context (default to 'general' if not provided)
+      const storageContext: StorageContext = context || inferContextFromKey(key)
+
+      logger.info(`Deleting file with key: ${key}, context: ${storageContext}`)
+
+      // Delete using unified storage service
+      await deleteFile({
+        key,
+        context: storageContext,
+      })
+
+      logger.info(`File successfully deleted: ${key}`)
+
+      return createSuccessResponse({
+        success: true,
+        message: 'File deleted successfully',
+      })
     } catch (error) {
       logger.error('Error deleting file:', error)
       return createErrorResponse(
@@ -60,63 +67,9 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Handle cloud file deletion (S3 or Azure Blob)
+ * Extract storage key from file path (works for S3, Blob, and local paths)
  */
-async function handleCloudFileDelete(filePath: string) {
-  // Extract the key from the path (works for both S3 and Blob paths)
-  const key = extractCloudKey(filePath)
-  logger.info(`Deleting file from cloud storage: ${key}`)
-
-  try {
-    // Delete from cloud storage using abstraction layer
-    await deleteFile(key)
-    logger.info(`File successfully deleted from cloud storage: ${key}`)
-
-    return {
-      success: true as const,
-      message: 'File deleted successfully from cloud storage',
-    }
-  } catch (error) {
-    logger.error('Error deleting file from cloud storage:', error)
-    throw error
-  }
-}
-
-/**
- * Handle local file deletion
- */
-async function handleLocalFileDelete(filePath: string) {
-  const filename = extractFilename(filePath)
-  const fullPath = join(UPLOAD_DIR, filename)
-
-  logger.info(`Deleting local file: ${fullPath}`)
-
-  if (!existsSync(fullPath)) {
-    logger.info(`File not found, but that's okay: ${fullPath}`)
-    return {
-      success: true as const,
-      message: "File not found, but that's okay",
-    }
-  }
-
-  try {
-    await unlink(fullPath)
-    logger.info(`File successfully deleted: ${fullPath}`)
-
-    return {
-      success: true as const,
-      message: 'File deleted successfully',
-    }
-  } catch (error) {
-    logger.error('Error deleting local file:', error)
-    throw error
-  }
-}
-
-/**
- * Extract cloud storage key from file path (works for both S3 and Blob)
- */
-function extractCloudKey(filePath: string): string {
+function extractStorageKey(filePath: string): string {
   if (isS3Path(filePath)) {
     return extractS3Key(filePath)
   }
@@ -125,13 +78,57 @@ function extractCloudKey(filePath: string): string {
     return extractBlobKey(filePath)
   }
 
-  // Backwards-compatibility: allow generic paths like "/api/files/serve/<key>"
+  // Handle "/api/files/serve/<key>" paths
   if (filePath.startsWith('/api/files/serve/')) {
     return decodeURIComponent(filePath.substring('/api/files/serve/'.length))
   }
 
-  // As a last resort assume the incoming string is already a raw key.
+  // For local files, extract filename
+  if (!isCloudPath(filePath)) {
+    return extractFilename(filePath)
+  }
+
+  // As a last resort, assume the incoming string is already a raw key
   return filePath
+}
+
+/**
+ * Infer storage context from file key structure
+ *
+ * Key patterns:
+ * - KB: kb/{uuid}-{filename}
+ * - Workspace: {workspaceId}/{timestamp}-{random}-{filename}
+ * - Execution: {workspaceId}/{workflowId}/{executionId}/{filename}
+ * - Copilot: {timestamp}-{random}-{filename} (ambiguous - prefer explicit context)
+ * - Chat: Uses execution context (same pattern as execution files)
+ * - General: {timestamp}-{random}-{filename} (fallback for ambiguous patterns)
+ */
+function inferContextFromKey(key: string): StorageContext {
+  // KB files always start with 'kb/' prefix
+  if (key.startsWith('kb/')) {
+    return 'knowledge-base'
+  }
+
+  // Execution files: three or more UUID segments (workspace/workflow/execution/...)
+  // Pattern: {uuid}/{uuid}/{uuid}/{filename}
+  const segments = key.split('/')
+  if (segments.length >= 4 && segments[0].match(/^[a-f0-9-]{36}$/)) {
+    return 'execution'
+  }
+
+  // Workspace files: UUID-like ID followed by timestamp pattern
+  // Pattern: {uuid}/{timestamp}-{random}-{filename}
+  if (key.match(/^[a-f0-9-]{36}\/\d+-[a-z0-9]+-/)) {
+    return 'workspace'
+  }
+
+  // Copilot/General files: timestamp-random-filename (no path segments)
+  // Pattern: {timestamp}-{random}-{filename}
+  if (key.match(/^\d+-[a-z0-9]+-/)) {
+    return 'general'
+  }
+
+  return 'general'
 }
 
 /**

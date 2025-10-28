@@ -59,15 +59,11 @@ describe('File Delete API Route', () => {
     })
 
     vi.doMock('@/lib/uploads', () => ({
-      deleteFile: vi.fn().mockResolvedValue(undefined),
+      StorageService: {
+        deleteFile: vi.fn().mockResolvedValue(undefined),
+        hasCloudStorage: vi.fn().mockReturnValue(true),
+      },
       isUsingCloudStorage: vi.fn().mockReturnValue(true),
-      uploadFile: vi.fn().mockResolvedValue({
-        path: '/api/files/serve/test-key',
-        key: 'test-key',
-        name: 'test.txt',
-        size: 100,
-        type: 'text/plain',
-      }),
     }))
 
     const req = createMockRequest('POST', {
@@ -84,7 +80,10 @@ describe('File Delete API Route', () => {
     expect(data).toHaveProperty('message', 'File deleted successfully from cloud storage')
 
     const uploads = await import('@/lib/uploads')
-    expect(uploads.deleteFile).toHaveBeenCalledWith('1234567890-test-file.txt')
+    expect(uploads.StorageService.deleteFile).toHaveBeenCalledWith({
+      key: '1234567890-test-file.txt',
+      context: 'general',
+    })
   })
 
   it('should handle Azure Blob file deletion successfully', async () => {
@@ -94,15 +93,11 @@ describe('File Delete API Route', () => {
     })
 
     vi.doMock('@/lib/uploads', () => ({
-      deleteFile: vi.fn().mockResolvedValue(undefined),
+      StorageService: {
+        deleteFile: vi.fn().mockResolvedValue(undefined),
+        hasCloudStorage: vi.fn().mockReturnValue(true),
+      },
       isUsingCloudStorage: vi.fn().mockReturnValue(true),
-      uploadFile: vi.fn().mockResolvedValue({
-        path: '/api/files/serve/test-key',
-        key: 'test-key',
-        name: 'test.txt',
-        size: 100,
-        type: 'text/plain',
-      }),
     }))
 
     const req = createMockRequest('POST', {
@@ -119,7 +114,10 @@ describe('File Delete API Route', () => {
     expect(data).toHaveProperty('message', 'File deleted successfully from cloud storage')
 
     const uploads = await import('@/lib/uploads')
-    expect(uploads.deleteFile).toHaveBeenCalledWith('1234567890-test-document.pdf')
+    expect(uploads.StorageService.deleteFile).toHaveBeenCalledWith({
+      key: '1234567890-test-document.pdf',
+      context: 'general',
+    })
   })
 
   it('should handle missing file path', async () => {

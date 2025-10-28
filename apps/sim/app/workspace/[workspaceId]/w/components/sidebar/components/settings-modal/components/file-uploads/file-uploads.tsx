@@ -14,8 +14,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getFileExtension } from '@/lib/uploads/file-utils'
-import type { WorkspaceFileRecord } from '@/lib/uploads/workspace-files'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { cn } from '@/lib/utils'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissions } from '@/hooks/use-user-permissions'

@@ -7,7 +7,7 @@ import { db } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console/logger'
-import type { ExecutionFileMetadata } from './execution-files'
+import type { ExecutionFileMetadata } from './execution-file-helpers'
 
 const logger = createLogger('ExecutionFilesServer')
 
