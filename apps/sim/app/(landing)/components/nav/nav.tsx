@@ -20,7 +20,7 @@ interface NavProps {
 }
 
 export default function Nav({ hideAuthButtons = false, variant = 'landing' }: NavProps = {}) {
-  const [githubStars, setGithubStars] = useState('16.3k')
+  const [githubStars, setGithubStars] = useState('17.4k')
   const [isHovered, setIsHovered] = useState(false)
   const [isLoginHovered, setIsLoginHovered] = useState(false)
   const router = useRouter()
@@ -113,7 +113,7 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
       itemType='https://schema.org/SiteNavigationElement'
     >
       <div className='flex items-center gap-[34px]'>
-        <Link href='/' aria-label={`${brand.name} home`} itemProp='url'>
+        <Link href='/?from=nav' aria-label={`${brand.name} home`} itemProp='url'>
           <span itemProp='name' className='sr-only'>
             {brand.name} Home
           </span>
