@@ -442,36 +442,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             deploymentStatuses: {},
           }
         } else {
-          // If no state in DB, create a default Start block
-          const starterId = crypto.randomUUID()
+          // If no state in DB, use empty state (Start block was created during workflow creation)
           workflowState = {
-            blocks: {
-              [starterId]: {
-                id: starterId,
-                type: 'start_trigger',
-                name: 'Start',
-                position: { x: 200, y: 300 },
-                enabled: true,
-                horizontalHandles: true,
-                isWide: false,
-                advancedMode: false,
-                triggerMode: false,
-                height: 0,
-                subBlocks: {
-                  inputFormat: {
-                    id: 'inputFormat',
-                    type: 'input-format',
-                    value: [],
-                  },
-                },
-                outputs: {
-                  input: { type: 'string', description: 'Primary user input or message' },
-                  conversationId: { type: 'string', description: 'Conversation thread identifier' },
-                  files: { type: 'files', description: 'User uploaded files' },
-                },
-                data: {},
-              },
-            },
+            blocks: {},
             edges: [],
             loops: {},
             parallels: {},
@@ -481,7 +454,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             lastSaved: Date.now(),
           }
 
-          logger.info(`Created default Start block for empty workflow ${id}`)
+          logger.info(`Workflow ${id} has no state yet - will load from DB or show empty canvas`)
         }
 
         if (workflowData?.isDeployed || workflowData?.deployedAt) {
@@ -591,16 +564,76 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
           // Initialize subblock values to ensure they're available for sync
           if (!options.marketplaceId) {
-            // For non-marketplace workflows, initialize empty subblock values
-            const subblockValues: Record<string, Record<string, any>> = {}
+            // For non-marketplace workflows, create a default Start block
+            const starterId = crypto.randomUUID()
+            const defaultStartBlock = {
+              id: starterId,
+              type: 'start_trigger',
+              name: 'Start',
+              position: { x: 200, y: 300 },
+              enabled: true,
+              horizontalHandles: true,
+              isWide: false,
+              advancedMode: false,
+              triggerMode: false,
+              height: 0,
+              subBlocks: {
+                inputFormat: {
+                  id: 'inputFormat',
+                  type: 'input-format',
+                  value: [],
+                },
+              },
+              outputs: {
+                input: { type: 'string', description: 'Primary user input or message' },
+                conversationId: { type: 'string', description: 'Conversation thread identifier' },
+                files: { type: 'files', description: 'User uploaded files' },
+              },
+              data: {},
+            }
 
-            // Update the subblock store with the initial values
+            // Initialize subblock values
             useSubBlockStore.setState((state) => ({
               workflowValues: {
                 ...state.workflowValues,
-                [serverWorkflowId]: subblockValues,
+                [serverWorkflowId]: {
+                  [starterId]: {
+                    inputFormat: [],
+                  },
+                },
               },
             }))
+
+            // Persist the default Start block to database immediately
+
+            ;(async () => {
+              try {
+                logger.info(`Persisting default Start block for new workflow ${serverWorkflowId}`)
+                const response = await fetch(`/api/workflows/${serverWorkflowId}/state`, {
+                  method: 'PUT',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    blocks: {
+                      [starterId]: defaultStartBlock,
+                    },
+                    edges: [],
+                    loops: {},
+                    parallels: {},
+                    lastSaved: Date.now(),
+                  }),
+                })
+
+                if (!response.ok) {
+                  logger.error('Failed to persist default Start block:', await response.text())
+                } else {
+                  logger.info('Successfully persisted default Start block')
+                }
+              } catch (error) {
+                logger.error('Error persisting default Start block:', error)
+              }
+            })()
           }
 
           // Don't set as active workflow here - let the navigation/URL change handle that
