@@ -16,6 +16,8 @@ import {
   ResponseBlockHandler,
   RouterBlockHandler,
   TriggerBlockHandler,
+  VariablesBlockHandler,
+  WaitBlockHandler,
   WorkflowBlockHandler,
 } from '@/executor/handlers'
 import { LoopManager } from '@/executor/loops/loops'
@@ -213,6 +215,8 @@ export class Executor {
       new ParallelBlockHandler(this.resolver, this.pathTracker),
       new ResponseBlockHandler(),
       new WorkflowBlockHandler(),
+      new VariablesBlockHandler(),
+      new WaitBlockHandler(),
       new GenericBlockHandler(),
     ]
 
@@ -1972,10 +1976,11 @@ export class Executor {
                       ? forEachItems.length
                       : Object.keys(forEachItems).length
                   }
-                } else {
-                  // For regular loops, use the iterations count
+                } else if (loop.loopType === 'for') {
+                  // For 'for' loops, use the iterations count
                   iterationTotal = loop.iterations || 5
                 }
+                // For while/doWhile loops, don't set iterationTotal (no max)
                 iterationType = 'loop'
               }
             }
@@ -2099,10 +2104,11 @@ export class Executor {
                     ? forEachItems.length
                     : Object.keys(forEachItems).length
                 }
-              } else {
-                // For regular loops, use the iterations count
+              } else if (loop.loopType === 'for') {
+                // For 'for' loops, use the iterations count
                 iterationTotal = loop.iterations || 5
               }
+              // For while/doWhile loops, don't set iterationTotal (no max)
               iterationType = 'loop'
             }
           }
@@ -2226,10 +2232,11 @@ export class Executor {
                     ? forEachItems.length
                     : Object.keys(forEachItems).length
                 }
-              } else {
-                // For regular loops, use the iterations count
+              } else if (loop.loopType === 'for') {
+                // For 'for' loops, use the iterations count
                 iterationTotal = loop.iterations || 5
               }
+              // For while/doWhile loops, don't set iterationTotal (no max)
               iterationType = 'loop'
             }
           }

@@ -1396,6 +1396,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       const caret = e.target.selectionStart ?? newValue.length
       const active = getActiveMentionQueryAtPosition(caret, newValue)
       if (active) {
+        // Sync workflow blocks when user types @
+        ensureWorkflowBlocksLoaded()
         setShowMentionMenu(true)
         setInAggregated(false)
         if (openSubmenuFor) {
@@ -1827,6 +1829,8 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
       const pos = textarea.selectionStart ?? message.length
       const needsSpaceBefore = pos > 0 && !/\s/.test(message.charAt(pos - 1))
       insertAtCursor(needsSpaceBefore ? ' @' : '@')
+      // Sync workflow blocks when user clicks @ button
+      ensureWorkflowBlocksLoaded()
       // Open the menu at top level
       setShowMentionMenu(true)
       setOpenSubmenuFor(null)
@@ -1904,58 +1908,33 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
     >([])
     const [isLoadingWorkflowBlocks, setIsLoadingWorkflowBlocks] = useState(false)
 
-    // Sync workflow blocks from store whenever they change
-    useEffect(() => {
-      const syncWorkflowBlocks = async () => {
-        if (!workflowId || !workflowStoreBlocks || Object.keys(workflowStoreBlocks).length === 0) {
-          setWorkflowBlocks([])
-          logger.debug('No workflow blocks to sync', {
-            workflowId,
-            hasBlocks: !!workflowStoreBlocks,
-            blockCount: Object.keys(workflowStoreBlocks || {}).length,
-          })
-          return
-        }
-
-        try {
-          // Map to display with block registry icons/colors
-          const { registry: blockRegistry } = await import('@/blocks/registry')
-          const mapped = Object.values(workflowStoreBlocks).map((b: any) => {
-            const reg = (blockRegistry as any)[b.type]
-            return {
-              id: b.id,
-              name: b.name || b.id,
-              type: b.type,
-              iconComponent: reg?.icon,
-              bgColor: reg?.bgColor || '#6B7280',
-            }
-          })
-          setWorkflowBlocks(mapped)
-          logger.debug('Synced workflow blocks for mention menu', {
-            count: mapped.length,
-            blocks: mapped.map((b) => b.name),
-          })
-        } catch (error) {
-          logger.debug('Failed to sync workflow blocks:', error)
-        }
+    // Sync workflow blocks only when user opens the mention menu
+    const ensureWorkflowBlocksLoaded = async () => {
+      if (!workflowId || !workflowStoreBlocks || Object.keys(workflowStoreBlocks).length === 0) {
+        setWorkflowBlocks([])
+        return
       }
 
-      syncWorkflowBlocks()
-    }, [workflowStoreBlocks, workflowId])
-
-    const ensureWorkflowBlocksLoaded = async () => {
-      // Since blocks are now synced from store via useEffect, this can be a no-op
-      // or just ensure the blocks are loaded in the store
-      if (!workflowId) return
-
-      // Debug: Log current state
-      logger.debug('ensureWorkflowBlocksLoaded called', {
-        workflowId,
-        storeBlocksCount: Object.keys(workflowStoreBlocks || {}).length,
-        workflowBlocksCount: workflowBlocks.length,
-      })
-
-      // Blocks will be automatically synced from the store
+      try {
+        setIsLoadingWorkflowBlocks(true)
+        // Map to display with block registry icons/colors
+        const { registry: blockRegistry } = await import('@/blocks/registry')
+        const mapped = Object.values(workflowStoreBlocks).map((b: any) => {
+          const reg = (blockRegistry as any)[b.type]
+          return {
+            id: b.id,
+            name: b.name || b.id,
+            type: b.type,
+            iconComponent: reg?.icon,
+            bgColor: reg?.bgColor || '#6B7280',
+          }
+        })
+        setWorkflowBlocks(mapped)
+      } catch (error) {
+        logger.error('Failed to sync workflow blocks:', error)
+      } finally {
+        setIsLoadingWorkflowBlocks(false)
+      }
     }
 
     const insertWorkflowBlockMention = (blk: { id: string; name: string }) => {

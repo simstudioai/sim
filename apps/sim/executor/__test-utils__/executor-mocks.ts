@@ -48,6 +48,8 @@ export const setupHandlerMocks = () => {
     LoopBlockHandler: createMockHandler('loop'),
     ParallelBlockHandler: createMockHandler('parallel'),
     WorkflowBlockHandler: createMockHandler('workflow'),
+    VariablesBlockHandler: createMockHandler('variables'),
+    WaitBlockHandler: createMockHandler('wait'),
     GenericBlockHandler: createMockHandler('generic'),
     ResponseBlockHandler: createMockHandler('response'),
   }))

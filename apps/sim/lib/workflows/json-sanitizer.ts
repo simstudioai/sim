@@ -309,6 +309,7 @@ export function sanitizeForCopilot(state: WorkflowState): CopilotWorkflowState {
       if (block.data?.loopType) loopInputs.loopType = block.data.loopType
       if (block.data?.count !== undefined) loopInputs.iterations = block.data.count
       if (block.data?.collection !== undefined) loopInputs.collection = block.data.collection
+      if (block.data?.whileCondition !== undefined) loopInputs.condition = block.data.whileCondition
       if (block.data?.parallelType) loopInputs.parallelType = block.data.parallelType
       inputs = loopInputs
     } else {

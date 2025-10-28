@@ -229,10 +229,18 @@ describe('PathTracker', () => {
     })
 
     describe('loop blocks', () => {
-      it('should only activate loop-start connections', () => {
+      it('should activate loop-start connections when loop is not completed', () => {
         pathTracker.updateExecutionPaths(['loop1'], mockContext)
 
         expect(mockContext.activeExecutionPath.has('block1')).toBe(true)
+        expect(mockContext.activeExecutionPath.has('block2')).toBe(false)
+      })
+
+      it('should not activate loop-start connections when loop is completed', () => {
+        mockContext.completedLoops.add('loop1')
+        pathTracker.updateExecutionPaths(['loop1'], mockContext)
+
+        expect(mockContext.activeExecutionPath.has('block1')).toBe(false)
         expect(mockContext.activeExecutionPath.has('block2')).toBe(false)
       })
     })

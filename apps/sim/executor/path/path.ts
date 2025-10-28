@@ -286,13 +286,18 @@ export class PathTracker {
    * Update paths for loop blocks
    */
   private updateLoopPaths(block: SerializedBlock, context: ExecutionContext): void {
+    // Don't activate loop-start connections if the loop has completed
+    // (e.g., while loop condition is false)
+    if (context.completedLoops.has(block.id)) {
+      return
+    }
+
     const outgoingConnections = this.getOutgoingConnections(block.id)
 
     for (const conn of outgoingConnections) {
       // Only activate loop-start connections
       if (conn.sourceHandle === 'loop-start-source') {
         context.activeExecutionPath.add(conn.target)
-        logger.info(`Loop ${block.id} activated start path to: ${conn.target}`)
       }
       // loop-end-source connections will be activated by the loop manager
     }

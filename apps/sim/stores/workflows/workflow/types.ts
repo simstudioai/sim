@@ -16,8 +16,9 @@ export function isValidSubflowType(type: string): type is SubflowType {
 export interface LoopConfig {
   nodes: string[]
   iterations: number
-  loopType: 'for' | 'forEach'
+  loopType: 'for' | 'forEach' | 'while' | 'doWhile'
   forEachItems?: any[] | Record<string, any> | string
+  whileCondition?: string // JS expression that evaluates to boolean
 }
 
 export interface ParallelConfig {
@@ -50,9 +51,10 @@ export interface BlockData {
   height?: number
 
   // Loop-specific properties
-  collection?: any // The items to iterate over in a loop
+  collection?: any // The items to iterate over in a forEach loop
   count?: number // Number of iterations for numeric loops
-  loopType?: 'for' | 'forEach' // Type of loop - must match Loop interface
+  loopType?: 'for' | 'forEach' | 'while' | 'doWhile' // Type of loop - must match Loop interface
+  whileCondition?: string // While/DoWhile loop condition (JS expression)
 
   // Parallel-specific properties
   parallelType?: 'collection' | 'count' // Type of parallel execution
@@ -121,8 +123,9 @@ export interface Loop {
   id: string
   nodes: string[]
   iterations: number
-  loopType: 'for' | 'forEach'
+  loopType: 'for' | 'forEach' | 'while' | 'doWhile'
   forEachItems?: any[] | Record<string, any> | string // Items or expression
+  whileCondition?: string // JS expression that evaluates to boolean
 }
 
 export interface Parallel {
@@ -194,7 +197,7 @@ export interface WorkflowActions {
   updateBlockLayoutMetrics: (id: string, dimensions: { width: number; height: number }) => void
   triggerUpdate: () => void
   updateLoopCount: (loopId: string, count: number) => void
-  updateLoopType: (loopId: string, loopType: 'for' | 'forEach') => void
+  updateLoopType: (loopId: string, loopType: 'for' | 'forEach' | 'while' | 'doWhile') => void
   updateLoopCollection: (loopId: string, collection: string) => void
   updateParallelCount: (parallelId: string, count: number) => void
   updateParallelCollection: (parallelId: string, collection: string) => void

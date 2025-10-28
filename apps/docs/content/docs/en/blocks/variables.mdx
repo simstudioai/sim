@@ -1,0 +1,123 @@
+---
+title: Variables
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+
+The Variables block updates workflow variables during execution. Variables must first be initialized in your workflow's Variables section, then you can use this block to update their values as your workflow runs.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/variables.png"
+    alt="Variables Block"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+<Callout>
+  Access variables anywhere in your workflow using `<variable.variableName>` syntax.
+</Callout>
+
+## Overview
+
+The Variables block enables you to:
+
+<Steps>
+  <Step>
+    <strong>Update workflow variables</strong>: Change variable values during execution
+  </Step>
+  <Step>
+    <strong>Store dynamic data</strong>: Capture block outputs into variables
+  </Step>
+  <Step>
+    <strong>Maintain state</strong>: Track counters, flags, and intermediate results
+  </Step>
+</Steps>
+
+## How to Use Variables
+
+### 1. Initialize in Workflow Variables
+
+First, create your variables in the workflow's Variables section (accessible from the workflow settings):
+
+```
+customerEmail = ""
+retryCount = 0
+currentStatus = "pending"
+```
+
+### 2. Update with Variables Block
+
+Use the Variables block to update these values during execution:
+
+```
+customerEmail = <api.email>
+retryCount = <variable.retryCount> + 1
+currentStatus = "processing"
+```
+
+### 3. Access Anywhere
+
+Reference variables in any block:
+
+```
+Agent prompt: "Send email to <variable.customerEmail>"
+Condition: <variable.retryCount> < 5
+API body: {"status": "<variable.currentStatus>"}
+```
+
+## Example Use Cases
+
+### Loop Counter and State
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Track progress through loop iterations</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Initialize in workflow: `itemsProcessed = 0`, `lastResult = ""`</li>
+    <li>Loop iterates over items</li>
+    <li>Inside loop: Agent processes current item</li>
+    <li>Inside loop: Variables updates `itemsProcessed = <variable.itemsProcessed> + 1`</li>
+    <li>Inside loop: Variables updates `lastResult = <agent.content>`</li>
+    <li>Next iteration: Access `<variable.lastResult>` to compare with current result</li>
+  </ol>
+</div>
+
+### Retry Logic
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Track API retry attempts</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Initialize in workflow: `retryCount = 0`</li>
+    <li>API block attempts request</li>
+    <li>If failed, Variables increments: `retryCount = <variable.retryCount> + 1`</li>
+    <li>Condition checks if `<variable.retryCount>` \< 3 to retry or fail</li>
+  </ol>
+</div>
+
+### Dynamic Configuration
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Scenario: Store user context for workflow</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Initialize in workflow: `userId = ""`, `userTier = ""`</li>
+    <li>API fetches user profile</li>
+    <li>Variables stores: `userId = <api.id>`, `userTier = <api.tier>`</li>
+    <li>Agent personalizes response using `<variable.userTier>`</li>
+    <li>API uses `<variable.userId>` for logging</li>
+  </ol>
+</div>
+
+## Outputs
+
+- **`<variables.assignments>`**: JSON object with all variable assignments from this block
+
+## Best Practices
+
+- **Initialize in workflow settings**: Always create variables in the workflow Variables section before using them
+- **Update dynamically**: Use Variables blocks to update values based on block outputs or calculations
+- **Use in loops**: Perfect for tracking state across iterations
+- **Name descriptively**: Use clear names like `currentIndex`, `totalProcessed`, or `lastError`

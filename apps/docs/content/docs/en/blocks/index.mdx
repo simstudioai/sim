@@ -16,7 +16,7 @@ Blocks are the building components you connect together to create AI workflows. 
 
 ## Core Block Types
 
-Sim provides seven core block types that handle the essential functions of AI workflows:
+Sim provides essential block types that handle the core functions of AI workflows:
 
 ### Processing Blocks
 - **[Agent](/blocks/agent)** - Chat with AI models (OpenAI, Anthropic, Google, local models)
@@ -27,6 +27,10 @@ Sim provides seven core block types that handle the essential functions of AI wo
 - **[Condition](/blocks/condition)** - Branch workflow paths based on boolean expressions
 - **[Router](/blocks/router)** - Use AI to intelligently route requests to different paths
 - **[Evaluator](/blocks/evaluator)** - Score and assess content quality using AI
+
+### Control Flow Blocks
+- **[Variables](/blocks/variables)** - Set and manage workflow-scoped variables
+- **[Wait](/blocks/wait)** - Pause workflow execution for a specified time delay
 
 ### Output Blocks
 - **[Response](/blocks/response)** - Format and return final results from your workflow
@@ -122,5 +126,11 @@ Each block type has specific configuration options:
   </Card>
   <Card title="Condition Block" href="/blocks/condition">
     Create branching logic based on data evaluation
+  </Card>
+  <Card title="Variables Block" href="/blocks/variables">
+    Set and manage workflow-scoped variables
+  </Card>
+  <Card title="Wait Block" href="/blocks/wait">
+    Pause workflow execution for specified time delays
   </Card>
 </Cards>
