@@ -245,8 +245,6 @@ async function generateS3PresignedUrl(
     throw new Error('S3 configuration missing bucket or region')
   }
 
-  // Sanitize the originalname metadata value specifically
-  // S3 metadata keys should be left as-is (camelCase), only sanitize filename values
   const sanitizedMetadata: Record<string, string> = {}
   for (const [key, value] of Object.entries(metadata)) {
     if (key === 'originalname') {
