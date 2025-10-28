@@ -56,6 +56,9 @@ type LayoutProps = {
 export default async function Layout({ children, params }: LayoutProps) {
   const { lang } = await params
 
+  const pageTree =
+    source.pageTree?.[lang as keyof typeof source.pageTree] ?? source.pageTree?.en ?? undefined
+
   const structuredData = {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
@@ -99,7 +102,7 @@ export default async function Layout({ children, params }: LayoutProps) {
         <RootProvider i18n={provider(lang)}>
           <Navbar />
           <DocsLayout
-            tree={source.pageTree[lang]}
+            tree={pageTree}
             themeSwitch={{
               enabled: false,
             }}
