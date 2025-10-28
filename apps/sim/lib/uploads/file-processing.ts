@@ -1,8 +1,7 @@
 import type { Logger } from '@/lib/logs/console/logger'
 import { extractStorageKey } from '@/lib/uploads/file-utils'
 import { downloadFile } from '@/lib/uploads/storage-client'
-import { downloadExecutionFile } from '@/lib/workflows/execution-files'
-import { isExecutionFile } from '@/lib/workflows/execution-files/execution-files'
+import { downloadExecutionFile, isExecutionFile } from '@/lib/workflows/execution-files'
 import type { UserFile } from '@/executor/types'
 
 /**
