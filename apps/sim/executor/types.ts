@@ -14,10 +14,6 @@ export interface UserFile {
   key: string
   uploadedAt: string
   expiresAt: string
-  /**
-   * Storage context for this file (execution, workspace, knowledge-base, chat, copilot, general, profile-pictures)
-   * Used to determine which storage bucket/container to use for operations
-   */
   context?: string
 }
 

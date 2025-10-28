@@ -1,8 +1,3 @@
-/**
- * Server-only execution file metadata management
- * This file contains database operations and should only be imported by server-side code
- */
-
 import { db } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
@@ -26,7 +21,6 @@ export async function getExecutionFiles(executionId: string): Promise<ExecutionF
       return []
     }
 
-    // Get files from the dedicated files column
     return (log[0].files as ExecutionFileMetadata[]) || []
   } catch (error) {
     logger.error(`Failed to retrieve file metadata for execution ${executionId}:`, error)
@@ -64,13 +58,10 @@ export async function addExecutionFile(
   fileMetadata: ExecutionFileMetadata
 ): Promise<void> {
   try {
-    // Get existing files
     const existingFiles = await getExecutionFiles(executionId)
 
-    // Add new file
     const updatedFiles = [...existingFiles, fileMetadata]
 
-    // Store updated files
     await storeExecutionFiles(executionId, updatedFiles)
 
     logger.info(`Added file ${fileMetadata.name} to execution ${executionId}`)
@@ -87,11 +78,10 @@ export async function getExpiredFiles(): Promise<ExecutionFileMetadata[]> {
   try {
     const now = new Date().toISOString()
 
-    // Query all execution logs that have files
     const logs = await db
       .select()
       .from(workflowExecutionLogs)
-      .where(eq(workflowExecutionLogs.level, 'info')) // Only get successful executions
+      .where(eq(workflowExecutionLogs.level, 'info'))
 
     const expiredFiles: ExecutionFileMetadata[] = []
 
@@ -118,7 +108,6 @@ export async function cleanupExpiredFileMetadata(): Promise<number> {
     const now = new Date().toISOString()
     let cleanedCount = 0
 
-    // Get all execution logs
     const logs = await db.select().from(workflowExecutionLogs)
 
     for (const log of logs) {
@@ -127,7 +116,6 @@ export async function cleanupExpiredFileMetadata(): Promise<number> {
         const nonExpiredFiles = files.filter((file) => file.expiresAt >= now)
 
         if (nonExpiredFiles.length !== files.length) {
-          // Some files expired, update the files column
           await db
             .update(workflowExecutionLogs)
             .set({ files: nonExpiredFiles.length > 0 ? nonExpiredFiles : null })

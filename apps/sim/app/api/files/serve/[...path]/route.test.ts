@@ -118,15 +118,23 @@ describe('File Serve API Route', () => {
   })
 
   it('should serve cloud file by downloading and proxying', async () => {
+    const downloadFileMock = vi.fn().mockResolvedValue(Buffer.from('test cloud file content'))
+
     vi.doMock('@/lib/uploads', () => ({
       StorageService: {
-        downloadFile: vi.fn().mockResolvedValue(Buffer.from('test cloud file content')),
+        downloadFile: downloadFileMock,
         generatePresignedDownloadUrl: vi
           .fn()
           .mockResolvedValue('https://example-s3.com/presigned-url'),
         hasCloudStorage: vi.fn().mockReturnValue(true),
       },
       isUsingCloudStorage: vi.fn().mockReturnValue(true),
+    }))
+
+    // Also mock the core storage-service module (which is what the route actually imports)
+    vi.doMock('@/lib/uploads/core/storage-service', () => ({
+      downloadFile: downloadFileMock,
+      hasCloudStorage: vi.fn().mockReturnValue(true),
     }))
 
     vi.doMock('@/lib/uploads/setup', () => ({
@@ -175,8 +183,8 @@ describe('File Serve API Route', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toBe('image/png')
 
-    const uploads = await import('@/lib/uploads')
-    expect(uploads.StorageService.downloadFile).toHaveBeenCalledWith({
+    // Check that the downloadFile mock was called with the correct parameters
+    expect(downloadFileMock).toHaveBeenCalledWith({
       key: '1234567890-image.png',
       context: 'general',
     })

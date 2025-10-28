@@ -34,15 +34,12 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // Extract storage key from path
       const key = extractStorageKey(filePath)
 
-      // Determine storage context (default to 'general' if not provided)
       const storageContext: StorageContext = context || inferContextFromKey(key)
 
       logger.info(`Deleting file with key: ${key}, context: ${storageContext}`)
 
-      // Delete using unified storage service
       await deleteFile({
         key,
         context: storageContext,

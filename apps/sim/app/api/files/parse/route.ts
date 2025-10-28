@@ -10,7 +10,7 @@ import { validateExternalUrl } from '@/lib/security/input-validation'
 import { isUsingCloudStorage, type StorageContext, StorageService } from '@/lib/uploads'
 import { UPLOAD_DIR_SERVER } from '@/lib/uploads/core/setup.server'
 import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
-import '@/lib/uploads/setup.server'
+import '@/lib/uploads/core/setup.server'
 
 export const dynamic = 'force-dynamic'
 

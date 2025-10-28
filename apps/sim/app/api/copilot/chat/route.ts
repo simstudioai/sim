@@ -223,7 +223,6 @@ export async function POST(req: NextRequest) {
         // This is a message with file attachments - rebuild with content array
         const content: any[] = [{ type: 'text', text: msg.content }]
 
-        // Process file attachments for historical messages using unified CopilotFiles
         const processedHistoricalAttachments = await CopilotFiles.processCopilotAttachments(
           msg.fileAttachments,
           tracker.requestId

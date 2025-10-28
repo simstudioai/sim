@@ -109,7 +109,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if cloud storage is available
     if (!hasCloudStorage()) {
       logger.info(
         `Local storage detected - batch presigned URLs not available, client will use API fallback`

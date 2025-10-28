@@ -834,24 +834,81 @@ export function createStorageProviderMocks(options: StorageProviderMockOptions =
     uploadHeaders = {},
   } = options
 
-  // Ensure UUID is mocked
   mockUuid('mock-uuid-1234')
   mockCryptoUuid('mock-uuid-1234-5678')
 
-  // Base upload utilities
+  const uploadFileMock = vi.fn().mockResolvedValue({
+    path: '/api/files/serve/test-key.txt',
+    key: 'test-key.txt',
+    name: 'test.txt',
+    size: 100,
+    type: 'text/plain',
+  })
+  const downloadFileMock = vi.fn().mockResolvedValue(Buffer.from('test content'))
+  const deleteFileMock = vi.fn().mockResolvedValue(undefined)
+  const hasCloudStorageMock = vi.fn().mockReturnValue(isCloudEnabled)
+
+  const generatePresignedUploadUrlMock = vi.fn().mockImplementation((params: any) => {
+    const { fileName, context } = params
+    const timestamp = Date.now()
+    const random = Math.random().toString(36).substring(2, 9)
+
+    let key = ''
+    if (context === 'knowledge-base') {
+      key = `kb/${timestamp}-${random}-${fileName}`
+    } else if (context === 'chat') {
+      key = `chat/${timestamp}-${random}-${fileName}`
+    } else if (context === 'copilot') {
+      key = `copilot/${timestamp}-${random}-${fileName}`
+    } else if (context === 'workspace') {
+      key = `workspace/${timestamp}-${random}-${fileName}`
+    } else {
+      key = `${timestamp}-${random}-${fileName}`
+    }
+
+    return Promise.resolve({
+      url: presignedUrl,
+      key,
+      fields: uploadHeaders,
+    })
+  })
+
+  const generatePresignedDownloadUrlMock = vi.fn().mockResolvedValue(presignedUrl)
+
   vi.doMock('@/lib/uploads', () => ({
     getStorageProvider: vi.fn().mockReturnValue(provider),
     isUsingCloudStorage: vi.fn().mockReturnValue(isCloudEnabled),
-    uploadFile: vi.fn().mockResolvedValue({
-      path: '/api/files/serve/test-key.txt',
-      key: 'test-key.txt',
-      name: 'test.txt',
-      size: 100,
-      type: 'text/plain',
-    }),
-    downloadFile: vi.fn().mockResolvedValue(Buffer.from('test content')),
-    deleteFile: vi.fn().mockResolvedValue(undefined),
+    StorageService: {
+      uploadFile: uploadFileMock,
+      downloadFile: downloadFileMock,
+      deleteFile: deleteFileMock,
+      hasCloudStorage: hasCloudStorageMock,
+      generatePresignedUploadUrl: generatePresignedUploadUrlMock,
+      generatePresignedDownloadUrl: generatePresignedDownloadUrlMock,
+    },
+    uploadFile: uploadFileMock,
+    downloadFile: downloadFileMock,
+    deleteFile: deleteFileMock,
     getPresignedUrl: vi.fn().mockResolvedValue(presignedUrl),
+    hasCloudStorage: hasCloudStorageMock,
+    generatePresignedDownloadUrl: generatePresignedDownloadUrlMock,
+  }))
+
+  vi.doMock('@/lib/uploads/core/storage-service', () => ({
+    uploadFile: uploadFileMock,
+    downloadFile: downloadFileMock,
+    deleteFile: deleteFileMock,
+    hasCloudStorage: hasCloudStorageMock,
+    generatePresignedUploadUrl: generatePresignedUploadUrlMock,
+    generatePresignedDownloadUrl: generatePresignedDownloadUrlMock,
+    StorageService: {
+      uploadFile: uploadFileMock,
+      downloadFile: downloadFileMock,
+      deleteFile: deleteFileMock,
+      hasCloudStorage: hasCloudStorageMock,
+      generatePresignedUploadUrl: generatePresignedUploadUrlMock,
+      generatePresignedDownloadUrl: generatePresignedDownloadUrlMock,
+    },
   }))
 
   if (provider === 's3') {
@@ -1304,19 +1361,38 @@ export function setupFileApiMocks(
       isCloudEnabled: cloudEnabled,
     })
   } else {
+    const uploadFileMock = vi.fn().mockResolvedValue({
+      path: '/api/files/serve/test-key.txt',
+      key: 'test-key.txt',
+      name: 'test.txt',
+      size: 100,
+      type: 'text/plain',
+    })
+    const downloadFileMock = vi.fn().mockResolvedValue(Buffer.from('test content'))
+    const deleteFileMock = vi.fn().mockResolvedValue(undefined)
+    const hasCloudStorageMock = vi.fn().mockReturnValue(cloudEnabled)
+
     vi.doMock('@/lib/uploads', () => ({
       getStorageProvider: vi.fn().mockReturnValue('local'),
       isUsingCloudStorage: vi.fn().mockReturnValue(cloudEnabled),
-      uploadFile: vi.fn().mockResolvedValue({
-        path: '/api/files/serve/test-key.txt',
-        key: 'test-key.txt',
-        name: 'test.txt',
-        size: 100,
-        type: 'text/plain',
-      }),
-      downloadFile: vi.fn().mockResolvedValue(Buffer.from('test content')),
-      deleteFile: vi.fn().mockResolvedValue(undefined),
+      StorageService: {
+        uploadFile: uploadFileMock,
+        downloadFile: downloadFileMock,
+        deleteFile: deleteFileMock,
+        hasCloudStorage: hasCloudStorageMock,
+        generatePresignedUploadUrl: vi.fn().mockResolvedValue({
+          presignedUrl: 'https://example.com/presigned-url',
+          key: 'test-key.txt',
+        }),
+        generatePresignedDownloadUrl: vi
+          .fn()
+          .mockResolvedValue('https://example.com/presigned-url'),
+      },
+      uploadFile: uploadFileMock,
+      downloadFile: downloadFileMock,
+      deleteFile: deleteFileMock,
       getPresignedUrl: vi.fn().mockResolvedValue('https://example.com/presigned-url'),
+      hasCloudStorage: hasCloudStorageMock,
     }))
   }
 
@@ -1409,13 +1485,21 @@ export function mockUploadUtils(
     uploadError = false,
   } = options
 
+  const uploadFileMock = vi.fn().mockImplementation(() => {
+    if (uploadError) {
+      return Promise.reject(new Error('Upload failed'))
+    }
+    return Promise.resolve(uploadResult)
+  })
+
   vi.doMock('@/lib/uploads', () => ({
-    uploadFile: vi.fn().mockImplementation(() => {
-      if (uploadError) {
-        return Promise.reject(new Error('Upload failed'))
-      }
-      return Promise.resolve(uploadResult)
-    }),
+    StorageService: {
+      uploadFile: uploadFileMock,
+      downloadFile: vi.fn().mockResolvedValue(Buffer.from('test content')),
+      deleteFile: vi.fn().mockResolvedValue(undefined),
+      hasCloudStorage: vi.fn().mockReturnValue(isCloudStorage),
+    },
+    uploadFile: uploadFileMock,
     isUsingCloudStorage: vi.fn().mockReturnValue(isCloudStorage),
   }))
 

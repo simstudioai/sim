@@ -1,16 +1,3 @@
-/**
- * Copilot File Manager
- *
- * Manages file uploads and downloads for Copilot interactions.
- * Copilot files use the 'copilot' context for persistent storage.
- *
- * Key characteristics:
- * - Image files only (JPEG, PNG, GIF, WebP, SVG)
- * - Requires authenticated user session
- * - Persistent storage (no expiry)
- * - Dedicated copilot storage bucket/container
- */
-
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   deleteFile,
@@ -80,17 +67,14 @@ export async function generateCopilotUploadUrl(
     fileSize,
   })
 
-  // Validate user authentication
   if (!userId?.trim()) {
     throw new Error('Authenticated user session is required for copilot uploads')
   }
 
-  // Validate file type - only images allowed
   if (!isImageFileType(contentType)) {
     throw new Error('Only image files (JPEG, PNG, GIF, WebP, SVG) are allowed for copilot uploads')
   }
 
-  // Generate presigned URL using unified storage service with copilot context
   const presignedUrlResponse = await generatePresignedUploadUrl({
     fileName,
     contentType,
@@ -122,7 +106,6 @@ export async function downloadCopilotFile(key: string): Promise<Buffer> {
   logger.info(`Downloading copilot file: ${key}`)
 
   try {
-    // Use unified storage service with explicit copilot context
     const fileBuffer = await downloadFile({
       key,
       context: 'copilot',
@@ -159,19 +142,16 @@ export async function processCopilotAttachments(
 
   for (const attachment of attachments) {
     try {
-      // Check if file type is supported
       if (!isSupportedFileType(attachment.media_type)) {
         logger.warn(`[${requestId}] Unsupported file type: ${attachment.media_type}`)
         continue
       }
 
-      // Download file using unified storage service with copilot context
       const buffer = await downloadCopilotFile(attachment.key)
 
       results.push({ buffer, attachment })
     } catch (error) {
       logger.error(`[${requestId}] Failed to process file ${attachment.filename}:`, error)
-      // Continue processing other files
     }
   }
 

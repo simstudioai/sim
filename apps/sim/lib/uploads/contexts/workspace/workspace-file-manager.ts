@@ -59,27 +59,23 @@ export async function uploadWorkspaceFile(
 ): Promise<UserFile> {
   logger.info(`Uploading workspace file: ${fileName} for workspace ${workspaceId}`)
 
-  // Check for duplicates
   const exists = await fileExistsInWorkspace(workspaceId, fileName)
   if (exists) {
     throw new Error(`A file named "${fileName}" already exists in this workspace`)
   }
 
-  // Check storage quota
   const quotaCheck = await checkStorageQuota(userId, fileBuffer.length)
 
   if (!quotaCheck.allowed) {
     throw new Error(quotaCheck.error || 'Storage limit exceeded')
   }
 
-  // Generate workspace-scoped storage key
   const storageKey = generateWorkspaceFileKey(workspaceId, fileName)
   const fileId = `wf_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
 
   try {
     logger.info(`Generated storage key: ${storageKey}`)
 
-    // Upload using unified storage service with workspace context
     const uploadResult = await uploadFile({
       file: fileBuffer,
       fileName: storageKey, // Use the full storageKey as fileName
@@ -91,7 +87,6 @@ export async function uploadWorkspaceFile(
 
     logger.info(`Upload returned key: ${uploadResult.key}`)
 
-    // Store metadata in database - use the EXACT key from upload result
     await db.insert(workspaceFile).values({
       id: fileId,
       workspaceId,
@@ -105,15 +100,12 @@ export async function uploadWorkspaceFile(
 
     logger.info(`Successfully uploaded workspace file: ${fileName} with key: ${uploadResult.key}`)
 
-    // Increment storage usage tracking
     try {
       await incrementStorageUsage(userId, fileBuffer.length)
     } catch (storageError) {
       logger.error(`Failed to update storage tracking:`, storageError)
-      // Continue - don't fail upload if tracking fails
     }
 
-    // Generate presigned URL (valid for 24 hours for initial access)
     let presignedUrl: string | undefined
 
     if (hasCloudStorage()) {
@@ -128,7 +120,6 @@ export async function uploadWorkspaceFile(
       }
     }
 
-    // Return UserFile format (no expiry for workspace files)
     return {
       id: fileId,
       name: fileName,
@@ -180,14 +171,12 @@ export async function listWorkspaceFiles(workspaceId: string): Promise<Workspace
       .where(eq(workspaceFile.workspaceId, workspaceId))
       .orderBy(workspaceFile.uploadedAt)
 
-    // Add full serve path for each file (don't generate presigned URLs here)
     const { getServePathPrefix } = await import('@/lib/uploads')
     const pathPrefix = getServePathPrefix()
 
     return files.map((file) => ({
       ...file,
       path: `${pathPrefix}${encodeURIComponent(file.key)}`,
-      // url will be generated on-demand during execution for external APIs
     }))
   } catch (error) {
     logger.error(`Failed to list workspace files for ${workspaceId}:`, error)
@@ -211,7 +200,6 @@ export async function getWorkspaceFile(
 
     if (files.length === 0) return null
 
-    // Add full serve path
     const { getServePathPrefix } = await import('@/lib/uploads')
     const pathPrefix = getServePathPrefix()
 
@@ -255,29 +243,24 @@ export async function deleteWorkspaceFile(workspaceId: string, fileId: string): 
   logger.info(`Deleting workspace file: ${fileId}`)
 
   try {
-    // Get file record first
     const fileRecord = await getWorkspaceFile(workspaceId, fileId)
     if (!fileRecord) {
       throw new Error('File not found')
     }
 
-    // Delete from storage
     await deleteFile({
       key: fileRecord.key,
       context: 'workspace',
     })
 
-    // Delete from database
     await db
       .delete(workspaceFile)
       .where(and(eq(workspaceFile.id, fileId), eq(workspaceFile.workspaceId, workspaceId)))
 
-    // Decrement storage usage tracking
     try {
       await decrementStorageUsage(fileRecord.uploadedBy, fileRecord.size)
     } catch (storageError) {
       logger.error(`Failed to update storage tracking:`, storageError)
-      // Continue - don't fail deletion if tracking fails
     }
 
     logger.info(`Successfully deleted workspace file: ${fileRecord.name}`)

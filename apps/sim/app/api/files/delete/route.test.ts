@@ -58,14 +58,6 @@ describe('File Delete API Route', () => {
       storageProvider: 's3',
     })
 
-    vi.doMock('@/lib/uploads', () => ({
-      StorageService: {
-        deleteFile: vi.fn().mockResolvedValue(undefined),
-        hasCloudStorage: vi.fn().mockReturnValue(true),
-      },
-      isUsingCloudStorage: vi.fn().mockReturnValue(true),
-    }))
-
     const req = createMockRequest('POST', {
       filePath: '/api/files/serve/s3/1234567890-test-file.txt',
     })
@@ -77,10 +69,11 @@ describe('File Delete API Route', () => {
 
     expect(response.status).toBe(200)
     expect(data).toHaveProperty('success', true)
-    expect(data).toHaveProperty('message', 'File deleted successfully from cloud storage')
+    expect(data).toHaveProperty('message', 'File deleted successfully')
 
-    const uploads = await import('@/lib/uploads')
-    expect(uploads.StorageService.deleteFile).toHaveBeenCalledWith({
+    // Check the core storage-service mock (which is what the route actually imports)
+    const storageService = await import('@/lib/uploads/core/storage-service')
+    expect(storageService.deleteFile).toHaveBeenCalledWith({
       key: '1234567890-test-file.txt',
       context: 'general',
     })
@@ -91,14 +84,6 @@ describe('File Delete API Route', () => {
       cloudEnabled: true,
       storageProvider: 'blob',
     })
-
-    vi.doMock('@/lib/uploads', () => ({
-      StorageService: {
-        deleteFile: vi.fn().mockResolvedValue(undefined),
-        hasCloudStorage: vi.fn().mockReturnValue(true),
-      },
-      isUsingCloudStorage: vi.fn().mockReturnValue(true),
-    }))
 
     const req = createMockRequest('POST', {
       filePath: '/api/files/serve/blob/1234567890-test-document.pdf',
@@ -111,10 +96,11 @@ describe('File Delete API Route', () => {
 
     expect(response.status).toBe(200)
     expect(data).toHaveProperty('success', true)
-    expect(data).toHaveProperty('message', 'File deleted successfully from cloud storage')
+    expect(data).toHaveProperty('message', 'File deleted successfully')
 
-    const uploads = await import('@/lib/uploads')
-    expect(uploads.StorageService.deleteFile).toHaveBeenCalledWith({
+    // Check the core storage-service mock (which is what the route actually imports)
+    const storageService = await import('@/lib/uploads/core/storage-service')
+    expect(storageService.deleteFile).toHaveBeenCalledWith({
       key: '1234567890-test-document.pdf',
       context: 'general',
     })

@@ -1,8 +1,3 @@
-/**
- * Execution file management system for binary data transfer between blocks
- * This handles file storage, retrieval, and cleanup for workflow executions
- */
-
 import type { UserFile } from '@/executor/types'
 
 /**

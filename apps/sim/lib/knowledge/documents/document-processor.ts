@@ -170,7 +170,6 @@ async function handleFileForOCR(fileUrl: string, filename: string, mimeType: str
   const buffer = await downloadFileWithTimeout(fileUrl)
 
   try {
-    // Upload to knowledge-base context
     const cloudResult = await StorageService.uploadFile({
       file: buffer,
       fileName: filename,
@@ -178,7 +177,6 @@ async function handleFileForOCR(fileUrl: string, filename: string, mimeType: str
       context: 'knowledge-base',
     })
 
-    // Generate 15-minute presigned URL for OCR processing
     const httpsUrl = await StorageService.generatePresignedDownloadUrl(
       cloudResult.key,
       'knowledge-base',

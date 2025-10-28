@@ -1,9 +1,3 @@
-/**
- * Specialized storage client for workflow execution files
- * Uses dedicated S3 bucket: sim-execution-files
- * Directory structure: workspace_id/workflow_id/execution_id/filename
- */
-
 import { createLogger } from '@/lib/logs/console/logger'
 import {
   deleteFile,
@@ -40,17 +34,14 @@ export async function uploadExecutionFile(
     bufferSize: fileBuffer.length,
   })
 
-  // Generate execution-scoped storage key
   const storageKey = generateExecutionFileKey(context, fileName)
   const fileId = generateFileId()
 
   logger.info(`Generated storage key: "${storageKey}" for file: ${fileName}`)
 
-  // Use 10-minute expiration for async executions, 5 minutes for sync
   const urlExpirationSeconds = isAsync ? 10 * 60 : 5 * 60
 
   try {
-    // Upload using unified storage service with execution context
     const fileInfo = await uploadFile({
       file: fileBuffer,
       fileName: storageKey,
@@ -64,7 +55,6 @@ export async function uploadExecutionFile(
     logger.info(`Original storage key was: "${storageKey}"`)
     logger.info(`Keys match: ${fileInfo.key === storageKey}`)
 
-    // Generate presigned URL for execution (5 or 10 minutes)
     let directUrl: string | undefined
     try {
       logger.info(

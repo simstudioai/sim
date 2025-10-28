@@ -86,10 +86,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Evaluate user id from session for copilot uploads
     const sessionUserId = session.user.id
 
-    // Check if cloud storage is available
     if (!hasCloudStorage()) {
       logger.info(
         `Local storage detected - presigned URL not available for ${fileName}, client will use API fallback`
@@ -108,13 +106,11 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Generate presigned URL - delegate to CopilotFiles for copilot context
     logger.info(`Generating ${uploadType} presigned URL for ${fileName}`)
 
     let presignedUrlResponse
 
     if (uploadType === 'copilot') {
-      // Use CopilotFiles manager which encapsulates copilot-specific validation and rules
       try {
         presignedUrlResponse = await CopilotFiles.generateCopilotUploadUrl({
           fileName,
@@ -129,14 +125,12 @@ export async function POST(request: NextRequest) {
         )
       }
     } else {
-      // Validate profile picture requirements
       if (uploadType === 'profile-pictures') {
         if (!sessionUserId?.trim()) {
           throw new ValidationError(
             'Authenticated user session is required for profile picture uploads'
           )
         }
-        // Only allow image uploads for profile pictures
         if (!CopilotFiles.isImageFileType(contentType)) {
           throw new ValidationError(
             'Only image files (JPEG, PNG, GIF, WebP, SVG) are allowed for profile picture uploads'
@@ -144,7 +138,6 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Use unified storage service for other contexts
       presignedUrlResponse = await generatePresignedUploadUrl({
         fileName,
         contentType,

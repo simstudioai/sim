@@ -9,6 +9,5 @@ export {
   type ChatExecutionContext,
   type ChatFile,
   processChatFiles,
-  type UserFile,
   uploadChatFile,
 } from './chat-file-manager'
