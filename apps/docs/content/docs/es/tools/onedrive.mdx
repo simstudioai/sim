@@ -50,7 +50,7 @@ En Sim, la integración con OneDrive permite a tus agentes interactuar directame
 
 ## Instrucciones de uso
 
-Integra OneDrive en el flujo de trabajo. Puede crear, subir y listar archivos. Requiere OAuth.
+Integra OneDrive en el flujo de trabajo. Puede crear archivos de texto y Excel, subir archivos y listar archivos.
 
 ## Herramientas
 
@@ -61,12 +61,13 @@ Subir un archivo a OneDrive
 #### Entrada
 
 | Parámetro | Tipo | Obligatorio | Descripción |
-| --------- | ---- | ----------- | ----------- |
+| --------- | ---- | -------- | ----------- |
 | `fileName` | string | Sí | El nombre del archivo a subir |
 | `file` | file | No | El archivo a subir \(binario\) |
 | `content` | string | No | El contenido de texto a subir \(si no se proporciona un archivo\) |
+| `mimeType` | string | No | El tipo MIME del archivo a crear \(p. ej., text/plain para .txt, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet para .xlsx\) |
 | `folderSelector` | string | No | Seleccionar la carpeta donde subir el archivo |
-| `manualFolderId` | string | No | ID de carpeta ingresado manualmente \(modo avanzado\) |
+| `manualFolderId` | string | No | ID de carpeta introducido manualmente \(modo avanzado\) |
 
 #### Salida
 

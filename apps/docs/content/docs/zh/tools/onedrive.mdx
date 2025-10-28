@@ -50,7 +50,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## 使用说明
 
-将 OneDrive 集成到工作流程中。可以创建、上传和列出文件。需要 OAuth。
+将 OneDrive 集成到工作流程中。可以创建文本和 Excel 文件、上传文件以及列出文件。
 
 ## 工具
 
@@ -62,9 +62,10 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 | 参数 | 类型 | 必需 | 描述 |
 | --------- | ---- | -------- | ----------- |
-| `fileName` | string | 是 | 要上传文件的名称 |
+| `fileName` | string | 是 | 要上传的文件名称 |
 | `file` | file | 否 | 要上传的文件 \(二进制\) |
 | `content` | string | 否 | 要上传的文本内容 \(如果未提供文件\) |
+| `mimeType` | string | 否 | 要创建文件的 MIME 类型 \(例如，.txt 的 text/plain，.xlsx 的 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\) |
 | `folderSelector` | string | 否 | 选择上传文件的文件夹 |
 | `manualFolderId` | string | 否 | 手动输入的文件夹 ID \(高级模式\) |
 

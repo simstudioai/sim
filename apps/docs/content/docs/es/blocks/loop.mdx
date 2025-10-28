@@ -9,7 +9,7 @@ import { Image } from '@/components/ui/image'
 
 El bloque Loop es un bloque contenedor en Sim que permite crear flujos de trabajo iterativos ejecutando un grupo de bloques repetidamente. Los bucles permiten el procesamiento iterativo en tus flujos de trabajo.
 
-El bloque Loop admite dos tipos de iteración:
+El bloque Loop admite cuatro tipos de iteración:
 
 <Callout type="info">
   Los bloques Loop son nodos contenedores que pueden albergar otros bloques dentro de ellos. Los bloques dentro de un bucle se ejecutarán múltiples veces según tu configuración.
@@ -27,7 +27,7 @@ El bloque Loop te permite:
     <strong>Repetir operaciones</strong>: Ejecutar bloques un número fijo de veces
   </Step>
   <Step>
-    <strong>Procesamiento secuencial</strong>: Manejar transformación de datos en iteraciones ordenadas
+    <strong>Bucles con condiciones</strong>: Continuar ejecutando mientras o hasta que se cumpla una condición
   </Step>
   <Step>
     <strong>Agregar resultados</strong>: Recopilar salidas de todas las iteraciones del bucle
@@ -47,11 +47,11 @@ El bloque Loop ejecuta los bloques contenidos a través de iteración secuencial
 
 ### Tipo de bucle
 
-Elige entre dos tipos de bucles:
+Elige entre cuatro tipos de bucles:
 
-<Tabs items={['For Loop', 'ForEach Loop']}>
+<Tabs items={['For Loop', 'ForEach Loop', 'While Loop', 'Do-While Loop']}>
   <Tab>
-    **For Loop (Iteraciones)** - Un bucle numérico que se ejecuta un número fijo de veces:
+    **Bucle For (Iteraciones)** - Un bucle numérico que se ejecuta un número fijo de veces:
     
     <div className="flex justify-center">
       <Image
@@ -100,13 +100,65 @@ Elige entre dos tipos de bucles:
     ```
 
   </Tab>
+  <Tab>
+    **Bucle While (Basado en condición)** - Continúa ejecutándose mientras una condición se evalúe como verdadera:
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-3.png"
+        alt="Bucle While con condición"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    Úsalo cuando necesites hacer un bucle hasta que se cumpla una condición específica. La condición se comprueba **antes** de cada iteración.
+    
+
+    ```
+    Example: While <variable.i> < 10
+    - Check condition → Execute if true
+    - Inside loop: Increment <variable.i>
+    - Inside loop: Variables assigns i = <variable.i> + 1
+    - Check condition → Execute if true
+    - Check condition → Exit if false
+    ```
+
+  </Tab>
+  <Tab>
+    **Bucle Do-While (Basado en condición)** - Se ejecuta al menos una vez, luego continúa mientras una condición sea verdadera:
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-3.png"
+        alt="Bucle Do-While con condición"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    Úsalo cuando necesites ejecutar al menos una vez, luego hacer un bucle hasta que se cumpla una condición. La condición se comprueba **después** de cada iteración.
+    
+
+    ```
+    Example: Do-while <variable.i> < 10
+    - Execute blocks
+    - Inside loop: Increment <variable.i>
+    - Inside loop: Variables assigns i = <variable.i> + 1
+    - Check condition → Continue if true
+    - Check condition → Exit if false
+    ```
+
+  </Tab>
 </Tabs>
 
 ## Cómo usar los bucles
 
-### Creación de un bucle
+### Creando un bucle
 
-1. Arrastra un bloque de bucle desde la barra de herramientas a tu lienzo
+1. Arrastra un bloque Loop desde la barra de herramientas a tu lienzo
 2. Configura el tipo de bucle y los parámetros
 3. Arrastra otros bloques dentro del contenedor del bucle
 4. Conecta los bloques según sea necesario
@@ -136,10 +188,23 @@ Después de que un bucle se completa, puedes acceder a los resultados agregados:
 <div className="mb-4 rounded-md border p-4">
   <h4 className="font-medium">Escenario: Generar múltiples variaciones</h4>
   <ol className="list-decimal pl-5 text-sm">
-    <li>Configurar el bucle For para 5 iteraciones</li>
+    <li>Configurar bucle For para 5 iteraciones</li>
     <li>Dentro del bucle: El agente genera una variación de contenido</li>
     <li>Dentro del bucle: El evaluador puntúa el contenido</li>
     <li>Después del bucle: La función selecciona la mejor variación</li>
+  </ol>
+</div>
+
+### Contador con bucle While
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Escenario: Procesar elementos con bucle basado en contador</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Inicializar variable de flujo de trabajo: `i = 0`</li>
+    <li>Bucle While con condición: `<variable.i>` \< 10</li>
+    <li>Dentro del bucle: El agente procesa el elemento en el índice `<variable.i>`</li>
+    <li>Dentro del bucle: La variable incrementa `i = <variable.i> + 1`</li>
+    <li>El bucle continúa mientras i sea menor que 10</li>
   </ol>
 </div>
 
@@ -148,7 +213,7 @@ Después de que un bucle se completa, puedes acceder a los resultados agregados:
 ### Limitaciones
 
 <Callout type="warning">
-  Los bloques contenedores (Bucles y Paralelos) no pueden anidarse unos dentro de otros. Esto significa:
+  Los bloques contenedores (Bucles y Paralelos) no pueden anidarse dentro de otros. Esto significa:
   - No puedes colocar un bloque de Bucle dentro de otro bloque de Bucle
   - No puedes colocar un bloque Paralelo dentro de un bloque de Bucle
   - No puedes colocar ningún bloque contenedor dentro de otro bloque contenedor
@@ -157,7 +222,7 @@ Después de que un bucle se completa, puedes acceder a los resultados agregados:
 </Callout>
 
 <Callout type="info">
-  Los bucles se ejecutan secuencialmente, no en paralelo. Si necesitas ejecución concurrente, utiliza el bloque Paralelo en su lugar.
+  Los bucles se ejecutan secuencialmente, no en paralelo. Si necesitas ejecución concurrente, usa el bloque Paralelo en su lugar.
 </Callout>
 
 ## Entradas y salidas
@@ -166,13 +231,16 @@ Después de que un bucle se completa, puedes acceder a los resultados agregados:
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
-        <strong>Tipo de bucle</strong>: Elige entre 'for' o 'forEach'
+        <strong>Tipo de bucle</strong>: Elige entre 'for', 'forEach', 'while', o 'doWhile'
       </li>
       <li>
         <strong>Iteraciones</strong>: Número de veces a ejecutar (bucles for)
       </li>
       <li>
         <strong>Colección</strong>: Array u objeto sobre el que iterar (bucles forEach)
+      </li>
+      <li>
+        <strong>Condición</strong>: Expresión booleana a evaluar (bucles while/do-while)
       </li>
     </ul>
   </Tab>
@@ -192,7 +260,7 @@ Después de que un bucle se completa, puedes acceder a los resultados agregados:
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
-        <strong>loop.results</strong>: Array con todos los resultados de las iteraciones
+        <strong>loop.results</strong>: Array de todos los resultados de iteración
       </li>
       <li>
         <strong>Estructura</strong>: Los resultados mantienen el orden de iteración
@@ -206,6 +274,6 @@ Después de que un bucle se completa, puedes acceder a los resultados agregados:
 
 ## Mejores prácticas
 
-- **Establece límites razonables**: Mantén un número razonable de iteraciones para evitar tiempos de ejecución largos
+- **Establece límites razonables**: Mantén el número de iteraciones razonable para evitar tiempos de ejecución largos
 - **Usa ForEach para colecciones**: Cuando proceses arrays u objetos, usa bucles ForEach en lugar de bucles For
 - **Maneja los errores con elegancia**: Considera añadir manejo de errores dentro de los bucles para flujos de trabajo robustos
