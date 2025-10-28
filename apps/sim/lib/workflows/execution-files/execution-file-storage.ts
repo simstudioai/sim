@@ -23,6 +23,7 @@ import {
   USE_BLOB_STORAGE,
   USE_S3_STORAGE,
 } from '@/lib/uploads/setup'
+import { deleteFile, downloadFile } from '@/lib/uploads/storage-client'
 import type { UserFile } from '@/executor/types'
 import type { ExecutionContext } from './execution-files'
 import { generateExecutionFileKey, generateFileId, getFileExpirationDate } from './execution-files'
@@ -124,7 +125,37 @@ export async function uploadExecutionFile(
         logger.warn(`Failed to generate Blob presigned URL for ${fileName}:`, error)
       }
     } else {
-      throw new Error('No cloud storage configured for execution files')
+      // Fallback to local file storage - consistent with storage-client
+      logger.info('Using local file storage for execution file')
+      const { writeFile } = await import('fs/promises')
+      const { join } = await import('path')
+      const { v4: uuidv4 } = await import('uuid')
+      const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/setup.server')
+
+      // Convert forward slashes in storageKey to underscores and add UUID prefix
+      const safeKey = storageKey.replace(/[^a-zA-Z0-9.-]/g, '_').replace(/\.\./g, '')
+      const uniqueKey = `${uuidv4()}-${safeKey}`
+      const filePath = join(UPLOAD_DIR_SERVER, uniqueKey)
+
+      try {
+        await writeFile(filePath, fileBuffer)
+      } catch (error) {
+        logger.error(`Failed to write file to local storage: ${fileName}`, error)
+        throw new Error(
+          `Failed to write file to local storage: ${error instanceof Error ? error.message : 'Unknown error'}`
+        )
+      }
+
+      fileInfo = {
+        path: `/api/files/serve/${uniqueKey}`,
+        key: uniqueKey,
+        name: fileName,
+        size: fileBuffer.length,
+        type: contentType,
+      }
+
+      // For local storage, use the serve path as the URL
+      directUrl = fileInfo.path
     }
 
     const userFile: UserFile = {
@@ -170,7 +201,8 @@ export async function downloadExecutionFile(userFile: UserFile): Promise<Buffer>
         containerName: BLOB_EXECUTION_FILES_CONFIG.containerName,
       })
     } else {
-      throw new Error('No cloud storage configured for execution files')
+      // Use storage-client for local file storage
+      fileBuffer = await downloadFile(userFile.key)
     }
 
     logger.info(
@@ -217,7 +249,9 @@ export async function generateExecutionFileDownloadUrl(userFile: UserFile): Prom
         5 * 60 // 5 minutes
       )
     } else {
-      throw new Error('No cloud storage configured for execution files')
+      // Fallback to local file storage - return serve path
+      logger.info('Generating local serve path for execution file')
+      downloadUrl = `/api/files/serve/${encodeURIComponent(userFile.key)}`
     }
 
     logger.info(`Generated download URL for execution file: ${userFile.name}`)
@@ -250,7 +284,8 @@ export async function deleteExecutionFile(userFile: UserFile): Promise<void> {
         containerName: BLOB_EXECUTION_FILES_CONFIG.containerName,
       })
     } else {
-      throw new Error('No cloud storage configured for execution files')
+      // Use storage-client for local file storage
+      await deleteFile(userFile.key)
     }
 
     logger.info(`Successfully deleted execution file: ${userFile.name}`)

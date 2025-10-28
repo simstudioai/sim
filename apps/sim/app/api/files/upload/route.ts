@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
 
       // Priority 1: Execution-scoped storage (temporary, 5 min expiry)
       if (workflowId && executionId) {
-        const { uploadExecutionFile } = await import('@/lib/workflows/execution-file-storage')
+        const { uploadExecutionFile } = await import('@/lib/workflows/execution-files')
         const userFile = await uploadExecutionFile(
           {
             workspaceId: workspaceId || '',

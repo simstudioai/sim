@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { uploadExecutionFile } from '@/lib/workflows/execution-file-storage'
+import { uploadExecutionFile } from '@/lib/workflows/execution-files'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('WebhookAttachmentProcessor')

@@ -1,7 +1,9 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
-import { generateExecutionFileDownloadUrl } from '@/lib/workflows/execution-file-storage'
-import { getExecutionFiles } from '@/lib/workflows/execution-files-server'
+import {
+  generateExecutionFileDownloadUrl,
+  getExecutionFiles,
+} from '@/lib/workflows/execution-files'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('ExecutionFileDownloadAPI')

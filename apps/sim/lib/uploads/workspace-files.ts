@@ -75,7 +75,7 @@ export async function uploadWorkspaceFile(
 
     logger.info(`Generated storage key: ${storageKey}`)
 
-    // Upload to storage with skipTimestampPrefix to use exact key
+    // Upload to storage using direct S3/Blob clients for custom config with skipTimestampPrefix
     const { USE_S3_STORAGE, USE_BLOB_STORAGE, S3_CONFIG, BLOB_CONFIG } = await import(
       '@/lib/uploads/setup'
     )
@@ -110,11 +110,37 @@ export async function uploadWorkspaceFile(
         fileBuffer.length
       )
     } else {
-      throw new Error('No storage provider configured')
+      // Fallback to local file storage - reuse storage-client logic
+      logger.info('Using local file storage for workspace file')
+      const { writeFile } = await import('fs/promises')
+      const { join } = await import('path')
+      const { v4: uuidv4 } = await import('uuid')
+      const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/setup.server')
+
+      // Convert forward slashes in storageKey to underscores for local filesystem
+      const safeKey = storageKey.replace(/[^a-zA-Z0-9.-]/g, '_').replace(/\.\./g, '')
+      const uniqueKey = `${uuidv4()}-${safeKey}`
+      const filePath = join(UPLOAD_DIR_SERVER, uniqueKey)
+
+      try {
+        await writeFile(filePath, fileBuffer)
+      } catch (error) {
+        logger.error(`Failed to write file to local storage: ${fileName}`, error)
+        throw new Error(
+          `Failed to write file to local storage: ${error instanceof Error ? error.message : 'Unknown error'}`
+        )
+      }
+
+      uploadResult = {
+        path: `/api/files/serve/${uniqueKey}`,
+        key: uniqueKey,
+        name: fileName,
+        size: fileBuffer.length,
+        type: contentType,
+      }
     }
 
-    logger.info(`S3/Blob upload returned key: ${uploadResult.key}`)
-    logger.info(`Keys match: ${uploadResult.key === storageKey}`)
+    logger.info(`Upload returned key: ${uploadResult.key}`)
 
     // Store metadata in database - use the EXACT key from upload result
     await db.insert(workspaceFile).values({
@@ -139,13 +165,15 @@ export async function uploadWorkspaceFile(
     }
 
     // Generate presigned URL (valid for 24 hours for initial access)
-    const { getPresignedUrl } = await import('@/lib/uploads')
+    const { getPresignedUrl, isUsingCloudStorage } = await import('@/lib/uploads')
     let presignedUrl: string | undefined
 
-    try {
-      presignedUrl = await getPresignedUrl(uploadResult.key, 24 * 60 * 60) // 24 hours
-    } catch (error) {
-      logger.warn(`Failed to generate presigned URL for ${fileName}:`, error)
+    if (isUsingCloudStorage()) {
+      try {
+        presignedUrl = await getPresignedUrl(uploadResult.key, 24 * 60 * 60) // 24 hours
+      } catch (error) {
+        logger.warn(`Failed to generate presigned URL for ${fileName}:`, error)
+      }
     }
 
     // Return UserFile format (no expiry for workspace files)
