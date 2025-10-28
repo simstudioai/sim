@@ -86,7 +86,9 @@ export function VariablesInput({
     return currentWorkflowVariables.filter((variable) => !otherSelectedIds.has(variable.id))
   }
 
-  const allVariablesAssigned = getAvailableVariablesFor('new').length === 0
+  const hasNoWorkflowVariables = currentWorkflowVariables.length === 0
+  const allVariablesAssigned =
+    !hasNoWorkflowVariables && getAvailableVariablesFor('new').length === 0
 
   const addAssignment = () => {
     if (isPreview || disabled) return
@@ -338,7 +340,7 @@ export function VariablesInput({
                               e.target.selectionStart ?? undefined
                             )
                           }
-                          placeholder={`Enter ${assignment.type} value or use <block.output>`}
+                          placeholder={`${assignment.type} value`}
                           disabled={isPreview || disabled}
                           className={cn(
                             'h-9 bg-white text-transparent caret-foreground dark:bg-background',
@@ -391,10 +393,14 @@ export function VariablesInput({
           variant='outline'
           size='sm'
           className='w-full border-dashed'
-          disabled={allVariablesAssigned}
+          disabled={hasNoWorkflowVariables || allVariablesAssigned}
         >
-          <Plus className='mr-2 h-4 w-4' />
-          {allVariablesAssigned ? 'All Variables Assigned' : 'Add Variable Assignment'}
+          {!hasNoWorkflowVariables && <Plus className='mr-2 h-4 w-4' />}
+          {hasNoWorkflowVariables
+            ? 'No variables found'
+            : allVariablesAssigned
+              ? 'All Variables Assigned'
+              : 'Add Variable Assignment'}
         </Button>
       )}
     </div>
