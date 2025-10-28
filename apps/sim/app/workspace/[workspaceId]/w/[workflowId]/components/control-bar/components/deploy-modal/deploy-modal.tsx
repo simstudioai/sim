@@ -17,6 +17,7 @@ import { getEnv } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/db-helpers'
+import { resolveStartCandidates, StartBlockPath } from '@/lib/workflows/triggers'
 import {
   DeployForm,
   DeploymentInfo,
@@ -120,13 +121,17 @@ export function DeployModal({
     let inputFormatExample = ''
     try {
       const blocks = Object.values(useWorkflowStore.getState().blocks)
+      const candidates = resolveStartCandidates(useWorkflowStore.getState().blocks, {
+        execution: 'api',
+      })
 
-      // Check for start_trigger first, then API trigger, then legacy starter
-      const startTriggerBlock = blocks.find((block) => block.type === 'start_trigger')
-      const apiTriggerBlock = blocks.find((block) => block.type === 'api_trigger')
-      const starterBlock = blocks.find((block) => block.type === 'starter')
+      const targetCandidate =
+        candidates.find((candidate) => candidate.path === StartBlockPath.UNIFIED) ||
+        candidates.find((candidate) => candidate.path === StartBlockPath.SPLIT_API) ||
+        candidates.find((candidate) => candidate.path === StartBlockPath.SPLIT_INPUT) ||
+        candidates.find((candidate) => candidate.path === StartBlockPath.LEGACY_STARTER)
 
-      const targetBlock = startTriggerBlock || apiTriggerBlock || starterBlock
+      const targetBlock = targetCandidate?.block
 
       if (targetBlock) {
         const inputFormat = useSubBlockStore.getState().getValue(targetBlock.id, 'inputFormat')

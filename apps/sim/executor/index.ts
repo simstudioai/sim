@@ -34,6 +34,12 @@ import type {
   StreamingExecution,
 } from '@/executor/types'
 import { streamingResponseFormatProcessor } from '@/executor/utils'
+import {
+  buildResolutionFromBlock,
+  buildStartBlockOutput,
+  type ExecutorStartResolution,
+  resolveExecutorStartBlock,
+} from '@/executor/utils/start-block'
 import { VirtualBlockUtils } from '@/executor/utils/virtual-blocks'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { useExecutionStore } from '@/stores/execution/store'
@@ -774,183 +780,37 @@ export class Executor {
 
     // Determine which block to initialize as the starting point
     let initBlock: SerializedBlock | undefined
-    if (startBlockId) {
-      // Starting from a specific block (webhook trigger, schedule trigger, or new trigger blocks)
-      initBlock = this.actualWorkflow.blocks.find((block) => block.id === startBlockId)
-    } else {
-      // Default to starter block (legacy) or find any trigger block
-      initBlock = this.actualWorkflow.blocks.find(
-        (block) => block.metadata?.id === BlockType.STARTER
-      )
+    let startResolution: ExecutorStartResolution | null = null
 
-      // If no starter block, look for appropriate trigger block based on context
-      if (!initBlock) {
-        if (this.isChildExecution) {
-          const inputTriggerBlocks = this.actualWorkflow.blocks.filter(
-            (block) =>
-              block.metadata?.id === 'input_trigger' || block.metadata?.id === 'start_trigger'
-          )
-          if (inputTriggerBlocks.length === 1) {
-            initBlock = inputTriggerBlocks[0]
-          } else if (inputTriggerBlocks.length > 1) {
-            throw new Error(
-              'Child workflow has multiple trigger blocks. Keep only one Start block.'
-            )
-          }
-        } else {
-          // Parent workflows can use any trigger block (dedicated or trigger-mode)
-          const triggerBlocks = this.actualWorkflow.blocks.filter(
-            (block) =>
-              block.metadata?.id === 'start_trigger' ||
-              block.metadata?.id === 'input_trigger' ||
-              block.metadata?.id === 'api_trigger' ||
-              block.metadata?.id === 'chat_trigger' ||
-              block.metadata?.category === 'triggers' ||
-              block.config?.params?.triggerMode === true
-          )
-          if (triggerBlocks.length > 0) {
-            initBlock = triggerBlocks[0]
-          }
-        }
+    if (startBlockId) {
+      initBlock = this.actualWorkflow.blocks.find((block) => block.id === startBlockId)
+      if (initBlock) {
+        startResolution = buildResolutionFromBlock(initBlock)
+      }
+    } else {
+      const executionKind = this.getExecutionKindHint()
+      startResolution = resolveExecutorStartBlock(this.actualWorkflow.blocks, {
+        execution: executionKind,
+        isChildWorkflow: this.isChildExecution,
+      })
+
+      if (startResolution) {
+        initBlock = startResolution.block
+      } else {
+        initBlock = this.resolveFallbackStartBlock()
       }
     }
 
     if (initBlock) {
-      // Initialize the starting block with the workflow input
       try {
-        // Get inputFormat from either old location (config.params) or new location (metadata.subBlocks)
-        const blockParams = initBlock.config.params
-        let inputFormat = blockParams?.inputFormat
+        const resolution = startResolution ?? buildResolutionFromBlock(initBlock)
 
-        // For new trigger blocks (api_trigger, etc), inputFormat is in metadata.subBlocks
-        const metadataWithSubBlocks = initBlock.metadata as any
-        if (!inputFormat && metadataWithSubBlocks?.subBlocks?.inputFormat?.value) {
-          inputFormat = metadataWithSubBlocks.subBlocks.inputFormat.value
-        }
-
-        // If input format is defined, structure the input according to the schema
-        if (inputFormat && Array.isArray(inputFormat) && inputFormat.length > 0) {
-          // Create structured input based on input format
-          const structuredInput: Record<string, any> = {}
-
-          // Process each field in the input format
-          for (const field of inputFormat) {
-            if (field.name && field.type) {
-              // Get the field value from workflow input if available
-              // First try to access via input.field, then directly from field
-              // This handles both input formats: { input: { field: value } } and { field: value }
-              let inputValue =
-                this.workflowInput?.input?.[field.name] !== undefined
-                  ? this.workflowInput.input[field.name] // Try to get from input.field
-                  : this.workflowInput?.[field.name] // Fallback to direct field access
-
-              // Only use test values for manual editor runs, not for deployed executions (API/webhook/schedule/chat)
-              const isDeployedExecution = this.contextExtensions?.isDeployedContext === true
-              if (inputValue === undefined || inputValue === null) {
-                if (!isDeployedExecution && Object.hasOwn(field, 'value')) {
-                  inputValue = (field as any).value
-                }
-              }
-
-              let typedValue = inputValue
-              if (inputValue !== undefined && inputValue !== null) {
-                if (field.type === 'string' && typeof inputValue !== 'string') {
-                  typedValue = String(inputValue)
-                } else if (field.type === 'number' && typeof inputValue !== 'number') {
-                  const num = Number(inputValue)
-                  typedValue = Number.isNaN(num) ? inputValue : num
-                } else if (field.type === 'boolean' && typeof inputValue !== 'boolean') {
-                  typedValue =
-                    inputValue === 'true' ||
-                    inputValue === true ||
-                    inputValue === 1 ||
-                    inputValue === '1'
-                } else if (
-                  (field.type === 'object' || field.type === 'array') &&
-                  typeof inputValue === 'string'
-                ) {
-                  try {
-                    typedValue = JSON.parse(inputValue)
-                  } catch (e) {
-                    logger.warn(`Failed to parse ${field.type} input for field ${field.name}:`, e)
-                  }
-                }
-              }
-
-              // Add the field to structured input
-              structuredInput[field.name] = typedValue
-            }
-          }
-
-          // Check if we managed to process any fields - if not, use the raw input
-          const hasProcessedFields = Object.keys(structuredInput).length > 0
-
-          // If no fields matched the input format, extract the raw input to use instead
-          const rawInputData =
-            this.workflowInput?.input !== undefined
-              ? this.workflowInput.input // Use the input value
-              : this.workflowInput // Fallback to direct input
-
-          // Use the structured input if we processed fields, otherwise use raw input
-          const finalInput = hasProcessedFields ? structuredInput : rawInputData
-
-          // Initialize the starting block with structured input
-          let blockOutput: any
-
-          // For Start/API/Input triggers, normalize primitives and mirror objects under input
-          const isStartTrigger = initBlock.metadata?.id === 'start_trigger'
-          if (isStartTrigger) {
-            // Start trigger: pass through entire workflowInput payload + set reserved fields
-            blockOutput = {}
-
-            // First, spread the entire workflowInput (all fields from API payload)
-            if (this.workflowInput && typeof this.workflowInput === 'object') {
-              for (const [key, value] of Object.entries(this.workflowInput)) {
-                if (key !== 'onUploadError') {
-                  blockOutput[key] = value
-                }
-              }
-            }
-
-            // Then ensure reserved fields are always set correctly for chat compatibility
-            if (!blockOutput.input) {
-              blockOutput.input = ''
-            }
-            if (!blockOutput.conversationId) {
-              blockOutput.conversationId = ''
-            }
-          } else if (
-            initBlock.metadata?.id === 'api_trigger' ||
-            initBlock.metadata?.id === 'input_trigger'
-          ) {
-            const isObject =
-              finalInput !== null && typeof finalInput === 'object' && !Array.isArray(finalInput)
-            if (isObject) {
-              blockOutput = { ...finalInput }
-              // Provide a mirrored input object for <api.input> / <inputTrigger.input> legacy references
-              blockOutput.input = { ...finalInput }
-            } else {
-              // Primitive input: only expose under input
-              blockOutput = { input: finalInput }
-            }
-
-            // Add files if present (for all trigger types)
-            if (this.workflowInput?.files && Array.isArray(this.workflowInput.files)) {
-              blockOutput.files = this.workflowInput.files
-            }
-          } else {
-            // For legacy starter blocks, keep the old behavior
-            blockOutput = {
-              input: finalInput,
-              conversationId: this.workflowInput?.conversationId, // Add conversationId to root
-              ...finalInput, // Add input fields directly at top level
-            }
-
-            // Add files if present (for all trigger types)
-            if (this.workflowInput?.files && Array.isArray(this.workflowInput.files)) {
-              blockOutput.files = this.workflowInput.files
-            }
-          }
+        if (resolution) {
+          const blockOutput = buildStartBlockOutput({
+            resolution,
+            workflowInput: this.workflowInput,
+            isDeployedExecution: this.contextExtensions?.isDeployedContext === true,
+          })
 
           context.blockStates.set(initBlock.id, {
             output: blockOutput,
@@ -958,139 +818,14 @@ export class Executor {
             executionTime: 0,
           })
 
-          // Create a block log for the starter block if it has files
-          // This ensures files are captured in trace spans and execution logs
           this.createStartedBlockWithFilesLog(initBlock, blockOutput, context)
         } else {
-          // Handle triggers without inputFormat
-          let starterOutput: any
-
-          // Handle different trigger types
-          if (initBlock.metadata?.id === 'start_trigger') {
-            // Start trigger without inputFormat: pass through entire payload + ensure reserved fields
-            starterOutput = {}
-
-            // Pass through entire workflowInput
-            if (this.workflowInput && typeof this.workflowInput === 'object') {
-              for (const [key, value] of Object.entries(this.workflowInput)) {
-                if (key !== 'onUploadError') {
-                  starterOutput[key] = value
-                }
-              }
-            }
-
-            // Ensure reserved fields are always set
-            if (!starterOutput.input) {
-              starterOutput.input = ''
-            }
-            if (!starterOutput.conversationId) {
-              starterOutput.conversationId = ''
-            }
-          } else if (initBlock.metadata?.id === 'chat_trigger') {
-            // Chat trigger: extract input, conversationId, and files
-            starterOutput = {
-              input: this.workflowInput?.input || '',
-              conversationId: this.workflowInput?.conversationId || '',
-            }
-
-            if (this.workflowInput?.files && Array.isArray(this.workflowInput.files)) {
-              starterOutput.files = this.workflowInput.files
-            }
-          } else if (
-            initBlock.metadata?.id === 'api_trigger' ||
-            initBlock.metadata?.id === 'input_trigger'
-          ) {
-            // API/Input trigger without inputFormat: normalize primitives and mirror objects under input
-            const rawCandidate =
-              this.workflowInput?.input !== undefined
-                ? this.workflowInput.input
-                : this.workflowInput
-            const isObject =
-              rawCandidate !== null &&
-              typeof rawCandidate === 'object' &&
-              !Array.isArray(rawCandidate)
-            if (isObject) {
-              starterOutput = {
-                ...(rawCandidate as Record<string, any>),
-                input: { ...(rawCandidate as Record<string, any>) },
-              }
-            } else {
-              starterOutput = { input: rawCandidate }
-            }
-          } else {
-            // Legacy starter block handling
-            if (this.workflowInput && typeof this.workflowInput === 'object') {
-              // Check if this is a chat workflow input (has both input and conversationId)
-              if (
-                Object.hasOwn(this.workflowInput, 'input') &&
-                Object.hasOwn(this.workflowInput, 'conversationId')
-              ) {
-                // Chat workflow: extract input, conversationId, and files to root level
-                starterOutput = {
-                  input: this.workflowInput.input,
-                  conversationId: this.workflowInput.conversationId,
-                }
-
-                // Add files if present
-                if (this.workflowInput.files && Array.isArray(this.workflowInput.files)) {
-                  starterOutput.files = this.workflowInput.files
-                }
-              } else {
-                // API workflow: spread the raw data directly (no wrapping)
-                starterOutput = { ...this.workflowInput }
-              }
-            } else {
-              // Fallback for primitive input values
-              starterOutput = {
-                input: this.workflowInput,
-              }
-            }
-          }
-
-          context.blockStates.set(initBlock.id, {
-            output: starterOutput,
-            executed: true,
-            executionTime: 0,
-          })
-
-          // Create a block log for the starter block if it has files
-          // This ensures files are captured in trace spans and execution logs
-          if (starterOutput.files) {
-            this.createStartedBlockWithFilesLog(initBlock, starterOutput, context)
-          }
+          this.initializeLegacyTriggerBlock(initBlock, context)
         }
-      } catch (e) {
-        logger.warn('Error processing starter block input format:', e)
+      } catch (error) {
+        logger.warn('Error processing starter block input format:', error)
 
-        // Error handler fallback - use appropriate structure
-        let blockOutput: any
-        if (this.workflowInput && typeof this.workflowInput === 'object') {
-          // Check if this is a chat workflow input (has both input and conversationId)
-          if (
-            Object.hasOwn(this.workflowInput, 'input') &&
-            Object.hasOwn(this.workflowInput, 'conversationId')
-          ) {
-            // Chat workflow: extract input, conversationId, and files to root level
-            blockOutput = {
-              input: this.workflowInput.input,
-              conversationId: this.workflowInput.conversationId,
-            }
-
-            // Add files if present
-            if (this.workflowInput.files && Array.isArray(this.workflowInput.files)) {
-              blockOutput.files = this.workflowInput.files
-            }
-          } else {
-            // API workflow: spread the raw data directly (no wrapping)
-            blockOutput = { ...this.workflowInput }
-          }
-        } else {
-          // Primitive input
-          blockOutput = {
-            input: this.workflowInput,
-          }
-        }
-
+        const blockOutput = this.buildFallbackTriggerOutput(initBlock)
         context.blockStates.set(initBlock.id, {
           output: blockOutput,
           executed: true,
@@ -1098,22 +833,224 @@ export class Executor {
         })
         this.createStartedBlockWithFilesLog(initBlock, blockOutput, context)
       }
-      // Ensure the starting block is in the active execution path
+
       context.activeExecutionPath.add(initBlock.id)
-      // Mark the starting block as executed
       context.executedBlocks.add(initBlock.id)
-
-      // Add all blocks connected to the starting block to the active execution path
-      const connectedToStartBlock = this.actualWorkflow.connections
-        .filter((conn) => conn.source === initBlock.id)
-        .map((conn) => conn.target)
-
-      connectedToStartBlock.forEach((blockId) => {
-        context.activeExecutionPath.add(blockId)
-      })
+      this.addConnectedBlocksToActivePath(initBlock.id, context)
     }
 
     return context
+  }
+
+  private getExecutionKindHint(): 'chat' | 'manual' | 'api' {
+    const triggerType = this.contextExtensions?.workflowTriggerType
+    if (triggerType === 'chat') {
+      return 'chat'
+    }
+    if (triggerType === 'api') {
+      return 'api'
+    }
+    if (this.contextExtensions?.stream === true) {
+      return 'chat'
+    }
+    if (this.contextExtensions?.isDeployedContext === true) {
+      return 'api'
+    }
+    return 'manual'
+  }
+
+  private resolveFallbackStartBlock(): SerializedBlock | undefined {
+    if (this.isChildExecution) {
+      return undefined
+    }
+
+    const excluded = new Set([
+      'start_trigger',
+      'input_trigger',
+      'api_trigger',
+      'chat_trigger',
+      'starter',
+    ])
+
+    const triggerBlocks = this.actualWorkflow.blocks.filter(
+      (block) =>
+        block.metadata?.category === 'triggers' || block.config?.params?.triggerMode === true
+    )
+
+    return (
+      triggerBlocks.find((block) => !excluded.has(block.metadata?.id ?? '')) || triggerBlocks[0]
+    )
+  }
+
+  private initializeLegacyTriggerBlock(
+    initBlock: SerializedBlock,
+    context: ExecutionContext
+  ): void {
+    const blockParams = initBlock.config.params
+    let inputFormat = blockParams?.inputFormat
+    const metadataWithSubBlocks = initBlock.metadata as {
+      subBlocks?: Record<string, { value?: unknown }>
+    } | null
+
+    if (!inputFormat && metadataWithSubBlocks?.subBlocks?.inputFormat?.value) {
+      inputFormat = metadataWithSubBlocks.subBlocks.inputFormat.value
+    }
+
+    if (inputFormat && Array.isArray(inputFormat) && inputFormat.length > 0) {
+      const structuredInput: Record<string, unknown> = {}
+      const isDeployedExecution = this.contextExtensions?.isDeployedContext === true
+
+      for (const field of inputFormat) {
+        if (field?.name && field.type) {
+          let inputValue =
+            this.workflowInput?.input?.[field.name] !== undefined
+              ? this.workflowInput.input[field.name]
+              : this.workflowInput?.[field.name]
+
+          if ((inputValue === undefined || inputValue === null) && !isDeployedExecution) {
+            if (Object.hasOwn(field, 'value')) {
+              inputValue = (field as any).value
+            }
+          }
+
+          let typedValue = inputValue
+          if (inputValue !== undefined && inputValue !== null) {
+            if (field.type === 'string' && typeof inputValue !== 'string') {
+              typedValue = String(inputValue)
+            } else if (field.type === 'number' && typeof inputValue !== 'number') {
+              const num = Number(inputValue)
+              typedValue = Number.isNaN(num) ? inputValue : num
+            } else if (field.type === 'boolean' && typeof inputValue !== 'boolean') {
+              typedValue =
+                inputValue === 'true' ||
+                inputValue === true ||
+                inputValue === 1 ||
+                inputValue === '1'
+            } else if (
+              (field.type === 'object' || field.type === 'array') &&
+              typeof inputValue === 'string'
+            ) {
+              try {
+                typedValue = JSON.parse(inputValue)
+              } catch (error) {
+                logger.warn(`Failed to parse ${field.type} input for field ${field.name}:`, error)
+              }
+            }
+          }
+
+          structuredInput[field.name] = typedValue
+        }
+      }
+
+      const hasProcessedFields = Object.keys(structuredInput).length > 0
+      const rawInputData =
+        this.workflowInput?.input !== undefined ? this.workflowInput.input : this.workflowInput
+      const finalInput = hasProcessedFields ? structuredInput : rawInputData
+
+      let blockOutput: NormalizedBlockOutput
+      if (hasProcessedFields) {
+        blockOutput = {
+          ...(structuredInput as Record<string, unknown>),
+          input: structuredInput,
+          conversationId: this.workflowInput?.conversationId,
+        }
+      } else if (
+        finalInput !== null &&
+        typeof finalInput === 'object' &&
+        !Array.isArray(finalInput)
+      ) {
+        blockOutput = {
+          ...(finalInput as Record<string, unknown>),
+          input: finalInput,
+          conversationId: this.workflowInput?.conversationId,
+        }
+      } else {
+        blockOutput = {
+          input: finalInput,
+          conversationId: this.workflowInput?.conversationId,
+        }
+      }
+
+      if (this.workflowInput?.files && Array.isArray(this.workflowInput.files)) {
+        blockOutput.files = this.workflowInput.files
+      }
+
+      context.blockStates.set(initBlock.id, {
+        output: blockOutput,
+        executed: true,
+        executionTime: 0,
+      })
+      this.createStartedBlockWithFilesLog(initBlock, blockOutput, context)
+      return
+    }
+
+    let starterOutput: NormalizedBlockOutput
+
+    if (this.workflowInput && typeof this.workflowInput === 'object') {
+      if (
+        Object.hasOwn(this.workflowInput, 'input') &&
+        Object.hasOwn(this.workflowInput, 'conversationId')
+      ) {
+        starterOutput = {
+          input: this.workflowInput.input,
+          conversationId: this.workflowInput.conversationId,
+        }
+
+        if (this.workflowInput.files && Array.isArray(this.workflowInput.files)) {
+          starterOutput.files = this.workflowInput.files
+        }
+      } else {
+        starterOutput = { ...this.workflowInput }
+      }
+    } else {
+      starterOutput = {
+        input: this.workflowInput,
+      }
+    }
+
+    context.blockStates.set(initBlock.id, {
+      output: starterOutput,
+      executed: true,
+      executionTime: 0,
+    })
+
+    if (starterOutput.files) {
+      this.createStartedBlockWithFilesLog(initBlock, starterOutput, context)
+    }
+  }
+
+  private buildFallbackTriggerOutput(_: SerializedBlock): NormalizedBlockOutput {
+    if (this.workflowInput && typeof this.workflowInput === 'object') {
+      if (
+        Object.hasOwn(this.workflowInput, 'input') &&
+        Object.hasOwn(this.workflowInput, 'conversationId')
+      ) {
+        const output: NormalizedBlockOutput = {
+          input: this.workflowInput.input,
+          conversationId: this.workflowInput.conversationId,
+        }
+
+        if (this.workflowInput.files && Array.isArray(this.workflowInput.files)) {
+          output.files = this.workflowInput.files
+        }
+
+        return output
+      }
+
+      return { ...(this.workflowInput as Record<string, unknown>) } as NormalizedBlockOutput
+    }
+
+    return { input: this.workflowInput } as NormalizedBlockOutput
+  }
+
+  private addConnectedBlocksToActivePath(sourceBlockId: string, context: ExecutionContext): void {
+    const connectedToSource = this.actualWorkflow.connections
+      .filter((conn) => conn.source === sourceBlockId)
+      .map((conn) => conn.target)
+
+    connectedToSource.forEach((blockId) => {
+      context.activeExecutionPath.add(blockId)
+    })
   }
 
   /**

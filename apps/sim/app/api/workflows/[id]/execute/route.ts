@@ -14,7 +14,7 @@ import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { decryptSecret, generateRequestId } from '@/lib/utils'
 import { loadDeployedWorkflowState } from '@/lib/workflows/db-helpers'
-import { TriggerUtils } from '@/lib/workflows/triggers'
+import { StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers'
 import {
   createHttpResponseFromBlock,
   updateWorkflowRunCounts,
@@ -313,10 +313,9 @@ export async function executeWorkflow(
       throw new Error(errorMsg)
     }
 
-    const startBlockId = startBlock.blockId
-    const triggerBlock = startBlock.block
+    const { blockId: startBlockId, block: triggerBlock, path: startPath } = startBlock
 
-    if (triggerBlock.type !== 'starter') {
+    if (startPath !== StartBlockPath.LEGACY_STARTER) {
       const outgoingConnections = serializedWorkflow.connections.filter(
         (conn) => conn.source === startBlockId
       )

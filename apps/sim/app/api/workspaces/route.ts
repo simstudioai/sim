@@ -4,6 +4,8 @@ import { and, desc, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
+import { saveWorkflowToNormalizedTables } from '@/lib/workflows/db-helpers'
+import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 
 const logger = createLogger('Workspaces')
 
@@ -137,6 +139,13 @@ async function createWorkspace(userId: string, name: string) {
         `Created workspace ${workspaceId} with initial workflow ${workflowId} for user ${userId}`
       )
     })
+
+    const { workflowState } = buildDefaultWorkflowArtifacts()
+    const seedResult = await saveWorkflowToNormalizedTables(workflowId, workflowState)
+
+    if (!seedResult.success) {
+      throw new Error(seedResult.error || 'Failed to seed default workflow state')
+    }
   } catch (error) {
     logger.error(`Failed to create workspace ${workspaceId} with initial workflow:`, error)
     throw error

@@ -16,6 +16,185 @@ export const TRIGGER_TYPES = {
 
 export type TriggerType = (typeof TRIGGER_TYPES)[keyof typeof TRIGGER_TYPES]
 
+export enum StartBlockPath {
+  UNIFIED = 'unified_start',
+  LEGACY_STARTER = 'legacy_starter',
+  SPLIT_INPUT = 'legacy_input_trigger',
+  SPLIT_API = 'legacy_api_trigger',
+  SPLIT_CHAT = 'legacy_chat_trigger',
+  SPLIT_MANUAL = 'legacy_manual_trigger',
+}
+
+type StartExecutionKind = 'chat' | 'manual' | 'api'
+
+const EXECUTION_PRIORITIES: Record<StartExecutionKind, StartBlockPath[]> = {
+  chat: [StartBlockPath.UNIFIED, StartBlockPath.SPLIT_CHAT, StartBlockPath.LEGACY_STARTER],
+  manual: [
+    StartBlockPath.UNIFIED,
+    StartBlockPath.SPLIT_API,
+    StartBlockPath.SPLIT_INPUT,
+    StartBlockPath.SPLIT_MANUAL,
+    StartBlockPath.LEGACY_STARTER,
+  ],
+  api: [
+    StartBlockPath.UNIFIED,
+    StartBlockPath.SPLIT_API,
+    StartBlockPath.SPLIT_INPUT,
+    StartBlockPath.LEGACY_STARTER,
+  ],
+}
+
+const CHILD_PRIORITIES: StartBlockPath[] = [
+  StartBlockPath.UNIFIED,
+  StartBlockPath.SPLIT_INPUT,
+  StartBlockPath.LEGACY_STARTER,
+]
+
+const START_CONFLICT_TYPES: TriggerType[] = [
+  TRIGGER_TYPES.START,
+  TRIGGER_TYPES.API,
+  TRIGGER_TYPES.INPUT,
+  TRIGGER_TYPES.MANUAL,
+  TRIGGER_TYPES.CHAT,
+]
+
+type BlockWithType = { type: string; subBlocks?: Record<string, unknown> | undefined }
+
+export interface StartBlockCandidate<T extends BlockWithType> {
+  blockId: string
+  block: T
+  path: StartBlockPath
+}
+
+export function classifyStartBlockType(type: string): StartBlockPath | null {
+  switch (type) {
+    case TRIGGER_TYPES.START:
+      return StartBlockPath.UNIFIED
+    case TRIGGER_TYPES.STARTER:
+      return StartBlockPath.LEGACY_STARTER
+    case TRIGGER_TYPES.INPUT:
+      return StartBlockPath.SPLIT_INPUT
+    case TRIGGER_TYPES.API:
+      return StartBlockPath.SPLIT_API
+    case TRIGGER_TYPES.CHAT:
+      return StartBlockPath.SPLIT_CHAT
+    case TRIGGER_TYPES.MANUAL:
+      return StartBlockPath.SPLIT_MANUAL
+    default:
+      return null
+  }
+}
+
+export function classifyStartBlock<T extends BlockWithType>(block: T): StartBlockPath | null {
+  return classifyStartBlockType(block.type)
+}
+
+export function isLegacyStartPath(path: StartBlockPath): boolean {
+  return path !== StartBlockPath.UNIFIED
+}
+
+function toEntries<T extends BlockWithType>(blocks: Record<string, T> | T[]): Array<[string, T]> {
+  if (Array.isArray(blocks)) {
+    return blocks.map((block, index) => {
+      const potentialId = (block as { id?: unknown }).id
+      const inferredId = typeof potentialId === 'string' ? potentialId : `${index}`
+      return [inferredId, block]
+    })
+  }
+  return Object.entries(blocks)
+}
+
+type ResolveStartOptions = {
+  execution: StartExecutionKind
+  isChildWorkflow?: boolean
+  allowLegacyStarter?: boolean
+}
+
+function supportsExecution(path: StartBlockPath, execution: StartExecutionKind): boolean {
+  if (path === StartBlockPath.UNIFIED || path === StartBlockPath.LEGACY_STARTER) {
+    return true
+  }
+
+  if (execution === 'chat') {
+    return path === StartBlockPath.SPLIT_CHAT
+  }
+
+  if (execution === 'api') {
+    return path === StartBlockPath.SPLIT_API || path === StartBlockPath.SPLIT_INPUT
+  }
+
+  return (
+    path === StartBlockPath.SPLIT_API ||
+    path === StartBlockPath.SPLIT_INPUT ||
+    path === StartBlockPath.SPLIT_MANUAL
+  )
+}
+
+export function resolveStartCandidates<T extends BlockWithType>(
+  blocks: Record<string, T> | T[],
+  options: ResolveStartOptions
+): StartBlockCandidate<T>[] {
+  const entries = toEntries(blocks)
+  if (entries.length === 0) return []
+
+  const priorities = options.isChildWorkflow
+    ? CHILD_PRIORITIES
+    : EXECUTION_PRIORITIES[options.execution]
+
+  const candidates: StartBlockCandidate<T>[] = []
+
+  for (const [blockId, block] of entries) {
+    const path = classifyStartBlock(block)
+    if (!path) continue
+
+    if (options.isChildWorkflow) {
+      if (!CHILD_PRIORITIES.includes(path)) {
+        continue
+      }
+    } else if (!supportsExecution(path, options.execution)) {
+      continue
+    }
+
+    if (path === StartBlockPath.LEGACY_STARTER && options.allowLegacyStarter === false) {
+      continue
+    }
+
+    candidates.push({ blockId, block, path })
+  }
+
+  candidates.sort((a, b) => {
+    const order = options.isChildWorkflow ? CHILD_PRIORITIES : priorities
+    const aIdx = order.indexOf(a.path)
+    const bIdx = order.indexOf(b.path)
+    if (aIdx === -1 && bIdx === -1) return 0
+    if (aIdx === -1) return 1
+    if (bIdx === -1) return -1
+    return aIdx - bIdx
+  })
+
+  return candidates
+}
+
+type SubBlockWithValue = { value?: unknown }
+
+function readSubBlockValue(subBlocks: Record<string, unknown> | undefined, key: string): unknown {
+  const raw = subBlocks?.[key]
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    return (raw as SubBlockWithValue).value
+  }
+  return undefined
+}
+
+export function getLegacyStarterMode(block: {
+  subBlocks?: Record<string, unknown>
+}): 'manual' | 'api' | 'chat' | null {
+  const modeValue = readSubBlockValue(block.subBlocks, 'startWorkflow')
+  if (modeValue === 'chat') return 'chat'
+  if (modeValue === 'api' || modeValue === 'run') return 'api'
+  if (modeValue === undefined || modeValue === 'manual') return 'manual'
+  return null
+}
+
 /**
  * Mapping from reference alias (used in inline refs like <api.*>, <chat.*>, etc.)
  * to concrete trigger block type identifiers used across the system.
@@ -189,25 +368,18 @@ export class TriggerUtils {
     blocks: Record<string, T>,
     executionType: 'chat' | 'manual' | 'api',
     isChildWorkflow = false
-  ): { blockId: string; block: T } | null {
-    const entries = Object.entries(blocks)
+  ): (StartBlockCandidate<T> & { block: T }) | null {
+    const candidates = resolveStartCandidates(blocks, {
+      execution: executionType,
+      isChildWorkflow,
+    })
 
-    // Look for new trigger blocks first
-    const triggers = TriggerUtils.findTriggersByType(blocks, executionType, isChildWorkflow)
-    if (triggers.length > 0) {
-      const blockId = entries.find(([, b]) => b === triggers[0])?.[0]
-      if (blockId) {
-        return { blockId, block: triggers[0] }
-      }
+    if (candidates.length === 0) {
+      return null
     }
 
-    // Legacy fallback: look for starter block
-    const starterEntry = entries.find(([, block]) => block.type === TRIGGER_TYPES.STARTER)
-    if (starterEntry) {
-      return { blockId: starterEntry[0], block: starterEntry[1] }
-    }
-
-    return null
+    const [primary] = candidates
+    return primary
   }
 
   /**
@@ -286,15 +458,7 @@ export class TriggerUtils {
 
     // Start trigger cannot coexist with other single-instance trigger types
     if (triggerType === TRIGGER_TYPES.START) {
-      return blockArray.some((block) =>
-        [
-          TRIGGER_TYPES.START,
-          TRIGGER_TYPES.API,
-          TRIGGER_TYPES.INPUT,
-          TRIGGER_TYPES.MANUAL,
-          TRIGGER_TYPES.CHAT,
-        ].includes(block.type as TriggerType)
-      )
+      return blockArray.some((block) => START_CONFLICT_TYPES.includes(block.type as TriggerType))
     }
 
     // Only one Input trigger allowed
