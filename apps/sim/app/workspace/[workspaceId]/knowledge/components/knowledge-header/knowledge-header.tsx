@@ -10,6 +10,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { WorkspaceSelector } from '@/app/workspace/[workspaceId]/knowledge/components'
+import {
+  commandListClass,
+  dropdownContentClass,
+  filterButtonClass,
+} from '@/app/workspace/[workspaceId]/knowledge/components/shared'
 
 interface BreadcrumbItem {
   label: string
@@ -24,8 +29,7 @@ const HEADER_STYLES = {
   link: 'group flex items-center gap-2 font-medium text-sm transition-colors hover:text-muted-foreground',
   label: 'font-medium text-sm',
   separator: 'text-muted-foreground',
-  // Always reserve consistent space for actions area
-  actionsContainer: 'flex h-8 items-center justify-center gap-2',
+  actionsContainer: 'flex items-center gap-2',
 } as const
 
 interface KnowledgeHeaderOptions {
@@ -66,42 +70,52 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
         })}
       </div>
 
-      {/* Actions Area - always reserve consistent space */}
-      <div className={HEADER_STYLES.actionsContainer}>
-        {/* Workspace Selector */}
-        {options?.knowledgeBaseId && (
-          <WorkspaceSelector
-            knowledgeBaseId={options.knowledgeBaseId}
-            currentWorkspaceId={options.currentWorkspaceId || null}
-            onWorkspaceChange={options.onWorkspaceChange}
-          />
-        )}
+      {/* Actions Area */}
+      {options && (
+        <div className={HEADER_STYLES.actionsContainer}>
+          {/* Workspace Selector */}
+          {options.knowledgeBaseId && (
+            <WorkspaceSelector
+              knowledgeBaseId={options.knowledgeBaseId}
+              currentWorkspaceId={options.currentWorkspaceId || null}
+              onWorkspaceChange={options.onWorkspaceChange}
+            />
+          )}
 
-        {/* Actions Menu */}
-        {options?.onDeleteKnowledgeBase && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant='ghost'
-                size='sm'
-                className='h-8 w-8 p-0'
-                aria-label='Knowledge base actions menu'
+          {/* Actions Menu */}
+          {options.onDeleteKnowledgeBase && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  className={filterButtonClass}
+                  aria-label='Knowledge base actions menu'
+                >
+                  <MoreHorizontal className='h-4 w-4' />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align='end'
+                side='bottom'
+                avoidCollisions={false}
+                sideOffset={4}
+                className={dropdownContentClass}
               >
-                <MoreHorizontal className='h-4 w-4' />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align='end'>
-              <DropdownMenuItem
-                onClick={options.onDeleteKnowledgeBase}
-                className='text-red-600 focus:text-red-600'
-              >
-                <Trash2 className='mr-2 h-4 w-4' />
-                Delete Knowledge Base
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </div>
+                <div className={`${commandListClass} py-1`}>
+                  <DropdownMenuItem
+                    onClick={options.onDeleteKnowledgeBase}
+                    className='flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 font-[380] text-red-600 text-sm hover:bg-secondary/50 focus:bg-secondary/50 focus:text-red-600'
+                  >
+                    <Trash2 className='h-4 w-4' />
+                    Delete Knowledge Base
+                  </DropdownMenuItem>
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+      )}
     </div>
   )
 }

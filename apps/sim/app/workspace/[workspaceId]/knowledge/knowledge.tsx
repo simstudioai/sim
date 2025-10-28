@@ -1,8 +1,16 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { LibraryBig, Plus } from 'lucide-react'
+import { Check, ChevronDown, LibraryBig, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   BaseOverview,
@@ -13,6 +21,18 @@ import {
   PrimaryButton,
   SearchInput,
 } from '@/app/workspace/[workspaceId]/knowledge/components'
+import {
+  commandListClass,
+  dropdownContentClass,
+  filterButtonClass,
+  SORT_OPTIONS,
+  type SortOption,
+  type SortOrder,
+} from '@/app/workspace/[workspaceId]/knowledge/components/shared'
+import {
+  filterKnowledgeBases,
+  sortKnowledgeBases,
+} from '@/app/workspace/[workspaceId]/knowledge/utils/sort'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useKnowledgeBasesList } from '@/hooks/use-knowledge'
 import type { KnowledgeBaseData } from '@/stores/knowledge/store'
@@ -31,6 +51,18 @@ export function Knowledge() {
 
   const [searchQuery, setSearchQuery] = useState('')
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [sortBy, setSortBy] = useState<SortOption>('updatedAt')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
+
+  const currentSortValue = `${sortBy}-${sortOrder}`
+  const currentSortLabel =
+    SORT_OPTIONS.find((opt) => opt.value === currentSortValue)?.label || 'Last Updated'
+
+  const handleSortChange = (value: string) => {
+    const [field, order] = value.split('-') as [SortOption, SortOrder]
+    setSortBy(field)
+    setSortOrder(order)
+  }
 
   const handleKnowledgeBaseCreated = (newKnowledgeBase: KnowledgeBaseData) => {
     addKnowledgeBase(newKnowledgeBase)
@@ -40,20 +72,18 @@ export function Knowledge() {
     refreshList()
   }
 
-  const filteredKnowledgeBases = useMemo(() => {
-    if (!searchQuery.trim()) return knowledgeBases
-
-    const query = searchQuery.toLowerCase()
-    return knowledgeBases.filter(
-      (kb) => kb.name.toLowerCase().includes(query) || kb.description?.toLowerCase().includes(query)
-    )
-  }, [knowledgeBases, searchQuery])
+  const filteredAndSortedKnowledgeBases = useMemo(() => {
+    const filtered = filterKnowledgeBases(knowledgeBases, searchQuery)
+    return sortKnowledgeBases(filtered, sortBy, sortOrder)
+  }, [knowledgeBases, searchQuery, sortBy, sortOrder])
 
   const formatKnowledgeBaseForDisplay = (kb: KnowledgeBaseWithDocCount) => ({
     id: kb.id,
     title: kb.name,
     docCount: kb.docCount || 0,
     description: kb.description || 'No description provided',
+    createdAt: kb.createdAt,
+    updatedAt: kb.updatedAt,
   })
 
   const breadcrumbs = [{ id: 'knowledge', label: 'Knowledge' }]
@@ -77,22 +107,59 @@ export function Knowledge() {
                     placeholder='Search knowledge bases...'
                   />
 
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <PrimaryButton
-                        onClick={() => setIsCreateModalOpen(true)}
-                        disabled={userPermissions.canEdit !== true}
+                  <div className='flex items-center gap-2'>
+                    {/* Sort Dropdown */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant='outline' size='sm' className={filterButtonClass}>
+                          {currentSortLabel}
+                          <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align='end'
+                        side='bottom'
+                        avoidCollisions={false}
+                        sideOffset={4}
+                        className={dropdownContentClass}
                       >
-                        <Plus className='h-3.5 w-3.5' />
-                        <span>Create</span>
-                      </PrimaryButton>
-                    </TooltipTrigger>
-                    {userPermissions.canEdit !== true && (
-                      <TooltipContent>
-                        Write permission required to create knowledge bases
-                      </TooltipContent>
-                    )}
-                  </Tooltip>
+                        <div className={`${commandListClass} py-1`}>
+                          {SORT_OPTIONS.map((option, index) => (
+                            <div key={option.value}>
+                              <DropdownMenuItem
+                                onSelect={() => handleSortChange(option.value)}
+                                className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
+                              >
+                                <span>{option.label}</span>
+                                {currentSortValue === option.value && (
+                                  <Check className='h-4 w-4 text-muted-foreground' />
+                                )}
+                              </DropdownMenuItem>
+                              {index === 0 && <DropdownMenuSeparator />}
+                            </div>
+                          ))}
+                        </div>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    {/* Create Button */}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <PrimaryButton
+                          onClick={() => setIsCreateModalOpen(true)}
+                          disabled={userPermissions.canEdit !== true}
+                        >
+                          <Plus className='h-3.5 w-3.5' />
+                          <span>Create</span>
+                        </PrimaryButton>
+                      </TooltipTrigger>
+                      {userPermissions.canEdit !== true && (
+                        <TooltipContent>
+                          Write permission required to create knowledge bases
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  </div>
                 </div>
 
                 {/* Error State */}
@@ -113,7 +180,7 @@ export function Knowledge() {
                   <KnowledgeBaseCardSkeletonGrid count={8} />
                 ) : (
                   <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
-                    {filteredKnowledgeBases.length === 0 ? (
+                    {filteredAndSortedKnowledgeBases.length === 0 ? (
                       knowledgeBases.length === 0 ? (
                         <EmptyStateCard
                           title='Create your first knowledge base'
@@ -142,7 +209,7 @@ export function Knowledge() {
                         </div>
                       )
                     ) : (
-                      filteredKnowledgeBases.map((kb) => {
+                      filteredAndSortedKnowledgeBases.map((kb) => {
                         const displayData = formatKnowledgeBaseForDisplay(
                           kb as KnowledgeBaseWithDocCount
                         )
@@ -153,6 +220,8 @@ export function Knowledge() {
                             title={displayData.title}
                             docCount={displayData.docCount}
                             description={displayData.description}
+                            createdAt={displayData.createdAt}
+                            updatedAt={displayData.updatedAt}
                           />
                         )
                       })
