@@ -10,6 +10,7 @@ export const TRIGGER_TYPES = {
   API: 'api_trigger',
   WEBHOOK: 'webhook',
   SCHEDULE: 'schedule',
+  START: 'start_trigger',
   STARTER: 'starter', // Legacy
 } as const
 
@@ -20,10 +21,10 @@ export type TriggerType = (typeof TRIGGER_TYPES)[keyof typeof TRIGGER_TYPES]
  * to concrete trigger block type identifiers used across the system.
  */
 export const TRIGGER_REFERENCE_ALIAS_MAP = {
-  start: TRIGGER_TYPES.STARTER,
+  start: TRIGGER_TYPES.START,
   api: TRIGGER_TYPES.API,
   chat: TRIGGER_TYPES.CHAT,
-  manual: TRIGGER_TYPES.INPUT,
+  manual: TRIGGER_TYPES.START,
 } as const
 
 export type TriggerReferenceAlias = keyof typeof TRIGGER_REFERENCE_ALIAS_MAP
@@ -66,7 +67,7 @@ export class TriggerUtils {
    * Check if a block is a chat-compatible trigger
    */
   static isChatTrigger(block: { type: string; subBlocks?: any }): boolean {
-    if (block.type === TRIGGER_TYPES.CHAT) {
+    if (block.type === TRIGGER_TYPES.CHAT || block.type === TRIGGER_TYPES.START) {
       return true
     }
 
@@ -82,7 +83,11 @@ export class TriggerUtils {
    * Check if a block is a manual-compatible trigger
    */
   static isManualTrigger(block: { type: string; subBlocks?: any }): boolean {
-    if (block.type === TRIGGER_TYPES.INPUT || block.type === TRIGGER_TYPES.MANUAL) {
+    if (
+      block.type === TRIGGER_TYPES.INPUT ||
+      block.type === TRIGGER_TYPES.MANUAL ||
+      block.type === TRIGGER_TYPES.START
+    ) {
       return true
     }
 
@@ -103,11 +108,11 @@ export class TriggerUtils {
    */
   static isApiTrigger(block: { type: string; subBlocks?: any }, isChildWorkflow = false): boolean {
     if (isChildWorkflow) {
-      // Child workflows (workflow-in-workflow) only work with input_trigger
-      return block.type === TRIGGER_TYPES.INPUT
+      // Child workflows (workflow-in-workflow) support legacy input trigger and new start block
+      return block.type === TRIGGER_TYPES.INPUT || block.type === TRIGGER_TYPES.START
     }
-    // Direct API calls only work with api_trigger
-    if (block.type === TRIGGER_TYPES.API) {
+    // Direct API calls work with api_trigger and the new start block
+    if (block.type === TRIGGER_TYPES.API || block.type === TRIGGER_TYPES.START) {
       return true
     }
 
@@ -144,6 +149,8 @@ export class TriggerUtils {
         return 'Manual'
       case TRIGGER_TYPES.API:
         return 'API'
+      case TRIGGER_TYPES.START:
+        return 'Start'
       case TRIGGER_TYPES.WEBHOOK:
         return 'Webhook'
       case TRIGGER_TYPES.SCHEDULE:
@@ -227,7 +234,8 @@ export class TriggerUtils {
       triggerType === TRIGGER_TYPES.API ||
       triggerType === TRIGGER_TYPES.INPUT ||
       triggerType === TRIGGER_TYPES.MANUAL ||
-      triggerType === TRIGGER_TYPES.CHAT
+      triggerType === TRIGGER_TYPES.CHAT ||
+      triggerType === TRIGGER_TYPES.START
     )
   }
 
@@ -255,7 +263,8 @@ export class TriggerUtils {
         triggerType === TRIGGER_TYPES.CHAT ||
         triggerType === TRIGGER_TYPES.INPUT ||
         triggerType === TRIGGER_TYPES.MANUAL ||
-        triggerType === TRIGGER_TYPES.API
+        triggerType === TRIGGER_TYPES.API ||
+        triggerType === TRIGGER_TYPES.START
       ) {
         return true
       }
@@ -267,11 +276,25 @@ export class TriggerUtils {
           block.type === TRIGGER_TYPES.CHAT ||
           block.type === TRIGGER_TYPES.INPUT ||
           block.type === TRIGGER_TYPES.MANUAL ||
-          block.type === TRIGGER_TYPES.API
+          block.type === TRIGGER_TYPES.API ||
+          block.type === TRIGGER_TYPES.START
       )
       if (hasModernTriggers) {
         return true
       }
+    }
+
+    // Start trigger cannot coexist with other single-instance trigger types
+    if (triggerType === TRIGGER_TYPES.START) {
+      return blockArray.some((block) =>
+        [
+          TRIGGER_TYPES.START,
+          TRIGGER_TYPES.API,
+          TRIGGER_TYPES.INPUT,
+          TRIGGER_TYPES.MANUAL,
+          TRIGGER_TYPES.CHAT,
+        ].includes(block.type as TriggerType)
+      )
     }
 
     // Only one Input trigger allowed

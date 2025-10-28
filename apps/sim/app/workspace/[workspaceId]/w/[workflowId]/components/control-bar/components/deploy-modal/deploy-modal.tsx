@@ -121,12 +121,12 @@ export function DeployModal({
     try {
       const blocks = Object.values(useWorkflowStore.getState().blocks)
 
-      // Check for API trigger block first (takes precedence)
+      // Check for start_trigger first, then API trigger, then legacy starter
+      const startTriggerBlock = blocks.find((block) => block.type === 'start_trigger')
       const apiTriggerBlock = blocks.find((block) => block.type === 'api_trigger')
-      // Fall back to legacy starter block
       const starterBlock = blocks.find((block) => block.type === 'starter')
 
-      const targetBlock = apiTriggerBlock || starterBlock
+      const targetBlock = startTriggerBlock || apiTriggerBlock || starterBlock
 
       if (targetBlock) {
         const inputFormat = useSubBlockStore.getState().getValue(targetBlock.id, 'inputFormat')

@@ -836,8 +836,10 @@ export class Executor {
                   ? this.workflowInput.input[field.name] // Try to get from input.field
                   : this.workflowInput?.[field.name] // Fallback to direct field access
 
+              // Only use test values for manual editor runs, not for deployed executions (API/webhook/schedule/chat)
+              const isDeployedExecution = this.contextExtensions?.isDeployedContext === true
               if (inputValue === undefined || inputValue === null) {
-                if (Object.hasOwn(field, 'value')) {
+                if (!isDeployedExecution && Object.hasOwn(field, 'value')) {
                   inputValue = (field as any).value
                 }
               }
@@ -887,8 +889,29 @@ export class Executor {
           // Initialize the starting block with structured input
           let blockOutput: any
 
-          // For API/Input triggers, normalize primitives and mirror objects under input
-          if (
+          // For Start/API/Input triggers, normalize primitives and mirror objects under input
+          const isStartTrigger = initBlock.metadata?.id === 'start_trigger'
+          if (isStartTrigger) {
+            // Start trigger: pass through entire workflowInput payload + set reserved fields
+            blockOutput = {}
+
+            // First, spread the entire workflowInput (all fields from API payload)
+            if (this.workflowInput && typeof this.workflowInput === 'object') {
+              for (const [key, value] of Object.entries(this.workflowInput)) {
+                if (key !== 'onUploadError') {
+                  blockOutput[key] = value
+                }
+              }
+            }
+
+            // Then ensure reserved fields are always set correctly for chat compatibility
+            if (!blockOutput.input) {
+              blockOutput.input = ''
+            }
+            if (!blockOutput.conversationId) {
+              blockOutput.conversationId = ''
+            }
+          } else if (
             initBlock.metadata?.id === 'api_trigger' ||
             initBlock.metadata?.id === 'input_trigger'
           ) {
@@ -896,11 +919,16 @@ export class Executor {
               finalInput !== null && typeof finalInput === 'object' && !Array.isArray(finalInput)
             if (isObject) {
               blockOutput = { ...finalInput }
-              // Provide a mirrored input object for universal <start.input> references
+              // Provide a mirrored input object for <api.input> / <inputTrigger.input> legacy references
               blockOutput.input = { ...finalInput }
             } else {
               // Primitive input: only expose under input
               blockOutput = { input: finalInput }
+            }
+
+            // Add files if present (for all trigger types)
+            if (this.workflowInput?.files && Array.isArray(this.workflowInput.files)) {
+              blockOutput.files = this.workflowInput.files
             }
           } else {
             // For legacy starter blocks, keep the old behavior
@@ -909,11 +937,11 @@ export class Executor {
               conversationId: this.workflowInput?.conversationId, // Add conversationId to root
               ...finalInput, // Add input fields directly at top level
             }
-          }
 
-          // Add files if present (for all trigger types)
-          if (this.workflowInput?.files && Array.isArray(this.workflowInput.files)) {
-            blockOutput.files = this.workflowInput.files
+            // Add files if present (for all trigger types)
+            if (this.workflowInput?.files && Array.isArray(this.workflowInput.files)) {
+              blockOutput.files = this.workflowInput.files
+            }
           }
 
           context.blockStates.set(initBlock.id, {
@@ -930,7 +958,27 @@ export class Executor {
           let starterOutput: any
 
           // Handle different trigger types
-          if (initBlock.metadata?.id === 'chat_trigger') {
+          if (initBlock.metadata?.id === 'start_trigger') {
+            // Start trigger without inputFormat: pass through entire payload + ensure reserved fields
+            starterOutput = {}
+
+            // Pass through entire workflowInput
+            if (this.workflowInput && typeof this.workflowInput === 'object') {
+              for (const [key, value] of Object.entries(this.workflowInput)) {
+                if (key !== 'onUploadError') {
+                  starterOutput[key] = value
+                }
+              }
+            }
+
+            // Ensure reserved fields are always set
+            if (!starterOutput.input) {
+              starterOutput.input = ''
+            }
+            if (!starterOutput.conversationId) {
+              starterOutput.conversationId = ''
+            }
+          } else if (initBlock.metadata?.id === 'chat_trigger') {
             // Chat trigger: extract input, conversationId, and files
             starterOutput = {
               input: this.workflowInput?.input || '',
