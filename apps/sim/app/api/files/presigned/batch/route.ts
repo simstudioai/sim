@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
             size: files[index].fileSize,
             type: files[index].contentType,
           },
-          fields: urlResponse.fields,
+          uploadHeaders: urlResponse.uploadHeaders,
           directUploadSupported: true,
         }
       }),

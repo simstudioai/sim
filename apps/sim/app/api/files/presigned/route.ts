@@ -167,7 +167,7 @@ export async function POST(request: NextRequest) {
         size: fileSize,
         type: contentType,
       },
-      fields: presignedUrlResponse.fields,
+      uploadHeaders: presignedUrlResponse.uploadHeaders,
       directUploadSupported: true,
     })
   } catch (error) {

@@ -38,7 +38,7 @@ export interface GeneratePresignedUrlOptions {
 export interface PresignedUrlResponse {
   url: string
   key: string
-  fields?: Record<string, string>
+  uploadHeaders?: Record<string, string>
 }
 
 /**
@@ -195,8 +195,10 @@ export async function generatePresignedUploadUrl(
 
   const allMetadata = {
     ...metadata,
-    'original-filename': fileName,
-    ...(userId && { 'user-id': userId }),
+    originalname: fileName,
+    uploadedat: new Date().toISOString(),
+    purpose: context,
+    ...(userId && { userid: userId }),
   }
 
   const config = getStorageConfig(context)
@@ -218,14 +220,7 @@ export async function generatePresignedUploadUrl(
   }
 
   if (USE_BLOB_STORAGE) {
-    return generateBlobPresignedUrl(
-      key,
-      contentType,
-      fileSize,
-      allMetadata,
-      config,
-      expirationSeconds
-    )
+    return generateBlobPresignedUrl(key, contentType, allMetadata, config, expirationSeconds)
   }
 
   throw new Error('Cloud storage not configured. Cannot generate presigned URL for local storage.')
@@ -242,7 +237,7 @@ async function generateS3PresignedUrl(
   config: { bucket?: string; region?: string },
   expirationSeconds: number
 ): Promise<PresignedUrlResponse> {
-  const { getS3Client } = await import('../providers/s3/s3-client')
+  const { getS3Client, sanitizeFilenameForMetadata } = await import('../providers/s3/s3-client')
   const { PutObjectCommand } = await import('@aws-sdk/client-s3')
   const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
 
@@ -250,13 +245,15 @@ async function generateS3PresignedUrl(
     throw new Error('S3 configuration missing bucket or region')
   }
 
+  // Sanitize the originalname metadata value specifically
+  // S3 metadata keys should be left as-is (camelCase), only sanitize filename values
   const sanitizedMetadata: Record<string, string> = {}
   for (const [key, value] of Object.entries(metadata)) {
-    const sanitizedKey = key
-      .toLowerCase()
-      .replace(/\s+/g, '-')
-      .replace(/[^a-z0-9-]/g, '')
-    sanitizedMetadata[sanitizedKey] = value
+    if (key === 'originalname') {
+      sanitizedMetadata[key] = sanitizeFilenameForMetadata(value)
+    } else {
+      sanitizedMetadata[key] = value
+    }
   }
 
   const command = new PutObjectCommand({
@@ -281,7 +278,6 @@ async function generateS3PresignedUrl(
 async function generateBlobPresignedUrl(
   key: string,
   contentType: string,
-  fileSize: number,
   metadata: Record<string, string>,
   config: {
     containerName?: string
@@ -317,7 +313,7 @@ async function generateBlobPresignedUrl(
       {
         containerName: config.containerName,
         blobName: key,
-        permissions: BlobSASPermissions.parse('cw'), // create, write
+        permissions: BlobSASPermissions.parse('w'), // write permission for upload
         startsOn,
         expiresOn,
       },
@@ -330,12 +326,12 @@ async function generateBlobPresignedUrl(
   return {
     url: `${blobClient.url}?${sasToken}`,
     key,
-    fields: {
+    uploadHeaders: {
       'x-ms-blob-type': 'BlockBlob',
       'x-ms-blob-content-type': contentType,
       ...Object.entries(metadata).reduce(
         (acc, [k, v]) => {
-          acc[`x-ms-meta-${k}`] = v
+          acc[`x-ms-meta-${k}`] = encodeURIComponent(v)
           return acc
         },
         {} as Record<string, string>
