@@ -231,59 +231,25 @@ export async function POST(request: NextRequest) {
           logger.warn(`[${requestId}] Error listing worksheets, using default Sheet1`, listError)
         }
 
-        // Always start at A1 on resolved first sheet
-        const address = 'A1'
-
-        // Normalize values to rectangular shape and compute dimensions
         let processedValues: any = validatedData.values || []
+
         if (
           Array.isArray(processedValues) &&
           processedValues.length > 0 &&
           typeof processedValues[0] === 'object' &&
           !Array.isArray(processedValues[0])
         ) {
-          // Collect keys in first-seen order for deterministic column layout
-          const headers: string[] = []
-          const seenKeys = new Set<string>()
-          processedValues.forEach((obj: any) => {
-            if (obj && typeof obj === 'object') {
-              Object.keys(obj).forEach((key) => {
-                if (!seenKeys.has(key)) {
-                  headers.push(key)
-                  seenKeys.add(key)
-                }
-              })
-            }
-          })
-          const rows = processedValues.map((obj: any) => {
-            if (!obj || typeof obj !== 'object') {
-              return Array(headers.length).fill('')
-            }
-            return headers.map((key) => {
-              const value = obj[key]
-              if (value !== null && typeof value === 'object') {
-                return JSON.stringify(value)
-              }
-              return value === undefined ? '' : value
-            })
-          })
-          processedValues = [headers, ...rows]
+          const ws = XLSX.utils.json_to_sheet(processedValues)
+          processedValues = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
         }
-        const rowsCount = Array.isArray(processedValues) ? processedValues.length : 0
-        const colsCount = Array.isArray(processedValues)
-          ? processedValues.reduce((max: number, row: any) => {
-              const len = Array.isArray(row) ? row.length : 0
-              return len > max ? len : max
-            }, 0)
-          : 0
-        // Pad rows to equal length
-        if (Array.isArray(processedValues)) {
-          processedValues = processedValues.map((row: any) => {
-            const r = Array.isArray(row) ? [...row] : []
-            while (r.length < colsCount) r.push('')
-            return r
-          })
-        }
+
+        const rowsCount = processedValues.length
+        const colsCount = Math.max(...processedValues.map((row: any[]) => row.length), 0)
+        processedValues = processedValues.map((row: any[]) => {
+          const paddedRow = [...row]
+          while (paddedRow.length < colsCount) paddedRow.push('')
+          return paddedRow
+        })
 
         // Compute concise end range from A1 and matrix size (no network round-trip)
         const indexToColLetters = (index: number): string => {
