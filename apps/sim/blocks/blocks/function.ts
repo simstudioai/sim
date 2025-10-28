@@ -26,6 +26,7 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
       layout: 'full',
       title: 'Remote Code Execution',
       description: 'Python/Javascript code run in a sandbox environment. Slower execution times.',
+      requiresFeature: 'NEXT_PUBLIC_E2B_ENABLED',
     },
     {
       id: 'language',
@@ -37,6 +38,7 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
       ],
       placeholder: 'Select language',
       value: () => CodeLanguage.JavaScript,
+      requiresFeature: 'NEXT_PUBLIC_E2B_ENABLED',
       condition: {
         field: 'remoteExecution',
         value: true,

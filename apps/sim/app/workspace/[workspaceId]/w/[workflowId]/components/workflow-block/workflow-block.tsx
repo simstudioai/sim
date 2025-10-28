@@ -1,91 +1,69 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { BookOpen, Code, Info, RectangleHorizontal, RectangleVertical, Zap } from 'lucide-react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Handle, type NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { type NodeProps, useUpdateNodeInternals } from 'reactflow'
 import { Card } from '@/components/ui/card'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { getEnv, isTruthy } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console/logger'
-import { parseCronToHumanReadable } from '@/lib/schedules/utils'
-import { cn, validateName } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import { type DiffStatus, hasDiffStatus } from '@/lib/workflows/diff/types'
 import { TRIGGER_TYPES } from '@/lib/workflows/triggers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useCurrentWorkflow } from '../../hooks'
+import { BlockHandles, BlockHeader } from './components'
 import { ActionBar } from './components/action-bar/action-bar'
 import { ConnectionBlocks } from './components/connection-blocks/connection-blocks'
 import { useSubBlockValue } from './components/sub-block/hooks/use-sub-block-value'
 import { SubBlock } from './components/sub-block/sub-block'
+import { useBlockProperties } from './hooks/use-block-properties'
+import { useBlockResize } from './hooks/use-block-resize'
+import { useChildDeployment } from './hooks/use-child-deployment'
+import { useScheduleInfo } from './hooks/use-schedule-info'
+import { useSubblockLayout } from './hooks/use-subblock-layout'
+import type { WorkflowBlockProps } from './types'
+import { getSubBlockStableKey } from './utils'
 
-const logger = createLogger('WorkflowBlock')
-
-interface WorkflowBlockProps {
-  type: string
-  config: BlockConfig
-  name: string
-  isActive?: boolean
-  isPending?: boolean
-  isPreview?: boolean
-  subBlockValues?: Record<string, any>
-  blockState?: any // Block state data passed in preview mode
-}
-
-// Combine both interfaces into a single component - wrapped in memo for performance
+/**
+ * WorkflowBlock is the main component for rendering workflow blocks in the canvas
+ * It handles block rendering, state management, and user interactions
+ */
 export const WorkflowBlock = memo(
   function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     const { type, config, name, isActive: dataIsActive, isPending } = data
 
-    // State management
-    const [isConnecting, setIsConnecting] = useState(false)
-
-    const [isEditing, setIsEditing] = useState(false)
-    const [editedName, setEditedName] = useState('')
-    const [isLoadingScheduleInfo, setIsLoadingScheduleInfo] = useState(false)
-    const [scheduleInfo, setScheduleInfo] = useState<{
-      scheduleTiming: string
-      nextRunAt: string | null
-      lastRanAt: string | null
-      timezone: string
-      status?: string
-      isDisabled?: boolean
-      id?: string
-    } | null>(null)
-    const [webhookInfo, setWebhookInfo] = useState<{
-      webhookPath: string
-      provider: string
-    } | null>(null)
+    // Get active workflow ID
+    const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
 
     // Refs
     const blockRef = useRef<HTMLDivElement>(null)
     const contentRef = useRef<HTMLDivElement>(null)
-    const nameInputRef = useRef<HTMLInputElement>(null)
     const updateNodeInternals = useUpdateNodeInternals()
 
-    // Use the clean abstraction for current workflow state
+    // State
+    const [isConnecting, setIsConnecting] = useState(false)
+
+    // Get current workflow state
     const currentWorkflow = useCurrentWorkflow()
     const currentBlock = currentWorkflow.getBlockById(id)
 
-    // In preview mode, use the blockState provided; otherwise use current workflow state
+    // Get workflow ID from URL params
+    const params = useParams()
+    const currentWorkflowId = params.workflowId as string
+
+    // Determine if block is enabled
     const isEnabled = data.isPreview
       ? (data.blockState?.enabled ?? true)
       : (currentBlock?.enabled ?? true)
 
-    // Get diff status from the block itself (set by diff engine)
+    // Get diff status
     const diffStatus: DiffStatus =
       currentWorkflow.isDiffMode && currentBlock && hasDiffStatus(currentBlock)
         ? currentBlock.is_diff
         : undefined
 
-    // Optimized: Single diff store subscription for all diff-related data
+    // Get diff-related data
     const { diffAnalysis, isShowingDiff, fieldDiff } = useWorkflowDiffStore(
       useCallback(
         (state) => ({
@@ -98,99 +76,24 @@ export const WorkflowBlock = memo(
     )
     const isDeletedBlock = !isShowingDiff && diffAnalysis?.deleted_blocks?.includes(id)
 
-    // Removed debug logging for performance
-    // Optimized: Single store subscription for all block properties
+    // Get block properties using custom hook
     const {
-      storeHorizontalHandles,
-      storeIsWide,
-      storeBlockHeight,
-      storeBlockLayout,
-      storeBlockAdvancedMode,
-      storeBlockTriggerMode,
-    } = useWorkflowStore(
-      useCallback(
-        (state) => {
-          const block = state.blocks[id]
-          return {
-            storeHorizontalHandles: block?.horizontalHandles ?? true,
-            storeIsWide: block?.isWide ?? false,
-            storeBlockHeight: block?.height ?? 0,
-            storeBlockLayout: block?.layout,
-            storeBlockAdvancedMode: block?.advancedMode ?? false,
-            storeBlockTriggerMode: block?.triggerMode ?? false,
-          }
-        },
-        [id]
-      )
+      horizontalHandles,
+      blockHeight,
+      blockWidth,
+      displayIsWide,
+      displayAdvancedMode,
+      displayTriggerMode,
+      setDiffIsWide,
+      setDiffAdvancedMode,
+      setDiffTriggerMode,
+    } = useBlockProperties(
+      id,
+      currentWorkflow.isDiffMode,
+      data.isPreview ?? false,
+      data.blockState,
+      currentWorkflow.blocks
     )
-
-    // Get block properties from currentWorkflow when in diff mode, otherwise from workflow store
-    const horizontalHandles = data.isPreview
-      ? (data.blockState?.horizontalHandles ?? true) // In preview mode, use blockState and default to horizontal
-      : currentWorkflow.isDiffMode
-        ? (currentWorkflow.blocks[id]?.horizontalHandles ?? true)
-        : storeHorizontalHandles
-
-    const isWide = currentWorkflow.isDiffMode
-      ? (currentWorkflow.blocks[id]?.isWide ?? false)
-      : storeIsWide
-
-    const blockHeight = currentWorkflow.isDiffMode
-      ? (currentWorkflow.blocks[id]?.height ?? 0)
-      : storeBlockHeight
-
-    const blockWidth = currentWorkflow.isDiffMode
-      ? (currentWorkflow.blocks[id]?.layout?.measuredWidth ?? 0)
-      : (storeBlockLayout?.measuredWidth ?? 0)
-
-    // Get per-block webhook status by checking if webhook is configured
-    const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
-
-    // Optimized: Single SubBlockStore subscription for webhook info
-    const blockWebhookStatus = useSubBlockStore(
-      useCallback(
-        (state) => {
-          const blockValues = state.workflowValues[activeWorkflowId || '']?.[id]
-          return !!(blockValues?.webhookProvider && blockValues?.webhookPath)
-        },
-        [activeWorkflowId, id]
-      )
-    )
-
-    const blockAdvancedMode = currentWorkflow.isDiffMode
-      ? (currentWorkflow.blocks[id]?.advancedMode ?? false)
-      : storeBlockAdvancedMode
-
-    // Get triggerMode from currentWorkflow blocks when in diff mode, otherwise from workflow store
-    const blockTriggerMode = currentWorkflow.isDiffMode
-      ? (currentWorkflow.blocks[id]?.triggerMode ?? false)
-      : storeBlockTriggerMode
-
-    // Local UI state for diff mode controls
-    const [diffIsWide, setDiffIsWide] = useState<boolean>(isWide)
-    const [diffAdvancedMode, setDiffAdvancedMode] = useState<boolean>(blockAdvancedMode)
-    const [diffTriggerMode, setDiffTriggerMode] = useState<boolean>(blockTriggerMode)
-
-    useEffect(() => {
-      if (currentWorkflow.isDiffMode) {
-        setDiffIsWide(isWide)
-        setDiffAdvancedMode(blockAdvancedMode)
-        setDiffTriggerMode(blockTriggerMode)
-      }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentWorkflow.isDiffMode, id])
-
-    const displayIsWide = currentWorkflow.isDiffMode ? diffIsWide : isWide
-    const displayAdvancedMode = currentWorkflow.isDiffMode
-      ? diffAdvancedMode
-      : data.isPreview
-        ? (data.blockState?.advancedMode ?? false)
-        : blockAdvancedMode
-    const displayTriggerMode = currentWorkflow.isDiffMode
-      ? diffTriggerMode
-      : data.isPreview
-        ? (data.blockState?.triggerMode ?? false)
-        : blockTriggerMode
 
     // Collaborative workflow actions
     const {
@@ -217,211 +120,55 @@ export const WorkflowBlock = memo(
       }
     }, [id, collaborativeSetSubblockValue])
 
-    // Workflow store actions
-    const updateBlockLayoutMetrics = useWorkflowStore((state) => state.updateBlockLayoutMetrics)
-
-    // Execution store
+    // Execution state
     const isActiveBlock = useExecutionStore((state) => state.activeBlockIds.has(id))
     const isActive = dataIsActive || isActiveBlock
 
-    // Get the current workflow ID from URL params instead of global state
-    // This prevents race conditions when switching workflows rapidly
-    const params = useParams()
-    const currentWorkflowId = params.workflowId as string
+    // Block type checks
+    const isStarterBlock = type === 'starter'
+    const isWebhookTriggerBlock = type === 'webhook' || type === 'generic_webhook'
 
-    const isStarterBlock = type === TRIGGER_TYPES.STARTER
-    const isWebhookTriggerBlock =
-      type === TRIGGER_TYPES.WEBHOOK || type === TRIGGER_TYPES.GENERIC_WEBHOOK
-
-    const reactivateSchedule = async (scheduleId: string) => {
-      try {
-        const response = await fetch(`/api/schedules/${scheduleId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ action: 'reactivate' }),
-        })
-
-        if (response.ok) {
-          // Use the current workflow ID from params instead of global state
-          if (currentWorkflowId) {
-            fetchScheduleInfo(currentWorkflowId)
-          }
-        } else {
-          logger.error('Failed to reactivate schedule')
-        }
-      } catch (error) {
-        logger.error('Error reactivating schedule:', error)
-      }
-    }
-
-    const disableSchedule = async (scheduleId: string) => {
-      try {
-        const response = await fetch(`/api/schedules/${scheduleId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ action: 'disable' }),
-        })
-
-        if (response.ok) {
-          // Refresh schedule info to show updated status
-          if (currentWorkflowId) {
-            fetchScheduleInfo(currentWorkflowId)
-          }
-        } else {
-          logger.error('Failed to disable schedule')
-        }
-      } catch (error) {
-        logger.error('Error disabling schedule:', error)
-      }
-    }
-
-    const fetchScheduleInfo = useCallback(
-      async (workflowId: string) => {
-        if (!workflowId) return
-
-        try {
-          setIsLoadingScheduleInfo(true)
-
-          const params = new URLSearchParams({
-            workflowId,
-            mode: 'schedule',
-            blockId: id,
-          })
-
-          const response = await fetch(`/api/schedules?${params}`, {
-            cache: 'no-store',
-            headers: { 'Cache-Control': 'no-cache' },
-          })
-
-          if (!response.ok) {
-            setScheduleInfo(null)
-            return
-          }
-
-          const data = await response.json()
-
-          if (!data.schedule) {
-            setScheduleInfo(null)
-            return
-          }
-
-          const schedule = data.schedule
-          const scheduleTimezone = schedule.timezone || 'UTC'
-
-          setScheduleInfo({
-            scheduleTiming: schedule.cronExpression
-              ? parseCronToHumanReadable(schedule.cronExpression, scheduleTimezone)
-              : 'Unknown schedule',
-            nextRunAt: schedule.nextRunAt,
-            lastRanAt: schedule.lastRanAt,
-            timezone: scheduleTimezone,
-            status: schedule.status,
-            isDisabled: schedule.status === 'disabled',
-            id: schedule.id,
-          })
-        } catch (error) {
-          logger.error('Error fetching schedule info:', error)
-          setScheduleInfo(null)
-        } finally {
-          setIsLoadingScheduleInfo(false)
-        }
-      },
-      [id]
+    // Get webhook status
+    const blockWebhookStatus = useSubBlockStore(
+      useCallback(
+        (state) => {
+          const blockValues = state.workflowValues[activeWorkflowId || '']?.[id]
+          return !!(blockValues?.webhookProvider && blockValues?.webhookPath)
+        },
+        [activeWorkflowId, id]
+      )
     )
 
-    useEffect(() => {
-      if (type === 'schedule' && currentWorkflowId) {
-        fetchScheduleInfo(currentWorkflowId)
-      } else {
-        setScheduleInfo(null)
-        setIsLoadingScheduleInfo(false) // Reset loading state when not a schedule block
+    // Use schedule info hook
+    const {
+      scheduleInfo,
+      isLoading: isLoadingScheduleInfo,
+      reactivateSchedule,
+      disableSchedule,
+    } = useScheduleInfo(id, type, currentWorkflowId)
+
+    // Get child workflow deployment info
+    const isWorkflowSelector = type === 'workflow' || type === 'workflow_input'
+    const [workflowIdFromStore] = useSubBlockValue<string>(id, 'workflowId')
+
+    let childWorkflowId: string | undefined
+    if (!data.isPreview) {
+      const val = workflowIdFromStore
+      if (typeof val === 'string' && val.trim().length > 0) {
+        childWorkflowId = val
       }
+    } else if (data.isPreview && data.subBlockValues?.workflowId?.value) {
+      const val = data.subBlockValues.workflowId.value
+      if (typeof val === 'string' && val.trim().length > 0) childWorkflowId = val
+    }
 
-      // Listen for schedule updates from the schedule-save component
-      const handleScheduleUpdate = (event: CustomEvent) => {
-        // Check if the update is for this workflow and block
-        if (event.detail?.workflowId === currentWorkflowId && event.detail?.blockId === id) {
-          logger.debug('Schedule update event received, refetching schedule info')
-          if (type === 'schedule') {
-            fetchScheduleInfo(currentWorkflowId)
-          }
-        }
-      }
+    const {
+      activeVersion: childActiveVersion,
+      isDeployed: childIsDeployed,
+      isLoading: isLoadingChildVersion,
+    } = useChildDeployment(childWorkflowId)
 
-      window.addEventListener('schedule-updated', handleScheduleUpdate as EventListener)
-
-      // Cleanup function to reset loading state and remove listener
-      return () => {
-        setIsLoadingScheduleInfo(false)
-        window.removeEventListener('schedule-updated', handleScheduleUpdate as EventListener)
-      }
-    }, [type, currentWorkflowId, id, fetchScheduleInfo])
-
-    // Get webhook information for the tooltip
-    useEffect(() => {
-      if (!blockWebhookStatus) {
-        setWebhookInfo(null)
-      }
-    }, [blockWebhookStatus])
-
-    // Update node internals when handles change
-    useEffect(() => {
-      updateNodeInternals(id)
-    }, [id, horizontalHandles, updateNodeInternals])
-
-    // Memoized debounce function to avoid recreating on every render
-    const debounce = useCallback((func: (...args: any[]) => void, wait: number) => {
-      let timeout: NodeJS.Timeout
-      return (...args: any[]) => {
-        clearTimeout(timeout)
-        timeout = setTimeout(() => func(...args), wait)
-      }
-    }, [])
-
-    // Add effect to observe size changes with debounced updates
-    useEffect(() => {
-      if (!contentRef.current) return
-
-      let rafId: number
-      const debouncedUpdate = debounce((dimensions: { width: number; height: number }) => {
-        if (dimensions.height !== blockHeight || dimensions.width !== blockWidth) {
-          updateBlockLayoutMetrics(id, dimensions)
-          updateNodeInternals(id)
-        }
-      }, 100)
-
-      const resizeObserver = new ResizeObserver((entries) => {
-        // Cancel any pending animation frame
-        if (rafId) {
-          cancelAnimationFrame(rafId)
-        }
-
-        // Schedule the update on the next animation frame
-        rafId = requestAnimationFrame(() => {
-          for (const entry of entries) {
-            const rect = entry.target.getBoundingClientRect()
-            const height = entry.borderBoxSize[0]?.blockSize ?? rect.height
-            const width = entry.borderBoxSize[0]?.inlineSize ?? rect.width
-            debouncedUpdate({ width, height })
-          }
-        })
-      })
-
-      resizeObserver.observe(contentRef.current)
-
-      return () => {
-        resizeObserver.disconnect()
-        if (rafId) {
-          cancelAnimationFrame(rafId)
-        }
-      }
-    }, [id, blockHeight, blockWidth, updateBlockLayoutMetrics, updateNodeInternals, debounce])
-
-    // Subscribe to this block's subblock values to track changes for conditional rendering
+    // Subscribe to block's subblock values
     const blockSubBlockValues = useSubBlockStore(
       useCallback(
         (state) => {
@@ -432,294 +179,89 @@ export const WorkflowBlock = memo(
       )
     )
 
-    const getSubBlockStableKey = useCallback(
-      (subBlock: SubBlockConfig, stateToUse: Record<string, any>): string => {
-        if (subBlock.type === 'mcp-dynamic-args') {
-          const serverValue = stateToUse.server?.value || 'no-server'
-          const toolValue = stateToUse.tool?.value || 'no-tool'
-          return `${id}-${subBlock.id}-${serverValue}-${toolValue}`
-        }
-
-        if (subBlock.type === 'mcp-tool-selector') {
-          const serverValue = stateToUse.server?.value || 'no-server'
-          return `${id}-${subBlock.id}-${serverValue}`
-        }
-
-        return `${id}-${subBlock.id}`
-      },
-      [id]
-    )
-
-    const subBlockRowsData = useMemo(() => {
-      const rows: SubBlockConfig[][] = []
-      let currentRow: SubBlockConfig[] = []
-      let currentRowWidth = 0
-
-      // Get the appropriate state for conditional evaluation
-      let stateToUse: Record<string, any> = {}
-
-      if (data.isPreview && data.subBlockValues) {
-        // In preview mode, use the preview values
-        stateToUse = data.subBlockValues
-      } else if (currentWorkflow.isDiffMode && currentBlock) {
-        // In diff mode, use the diff workflow's subblock values
-        stateToUse = currentBlock.subBlocks || {}
-      } else {
-        stateToUse = Object.entries(blockSubBlockValues).reduce(
-          (acc, [key, value]) => {
-            acc[key] = { value }
-            return acc
-          },
-          {} as Record<string, any>
-        )
-      }
-
-      const effectiveAdvanced = displayAdvancedMode
-      const effectiveTrigger = displayTriggerMode
-      const e2bClientEnabled = isTruthy(getEnv('NEXT_PUBLIC_E2B_ENABLED'))
-
-      // Filter visible blocks and those that meet their conditions
-      const visibleSubBlocks = config.subBlocks.filter((block) => {
-        if (block.hidden) return false
-
-        // Filter out E2B-related blocks if E2B is not enabled on the client
-        if (!e2bClientEnabled && (block.id === 'remoteExecution' || block.id === 'language')) {
-          return false
-        }
-
-        // Determine if this is a pure trigger block (category: 'triggers')
-        // Pure trigger blocks should always show their trigger-mode subblocks
-        const isPureTriggerBlock = config.category === 'triggers'
-
-        // When in trigger mode, filter out non-trigger subblocks
-        if (effectiveTrigger) {
-          // For pure trigger blocks (category: 'triggers'), allow subblocks with mode='trigger' or no mode
-          // For tool blocks with trigger capability, only allow subblocks with mode='trigger'
-          const isValidTriggerSubblock = isPureTriggerBlock
-            ? block.mode === 'trigger' || !block.mode
-            : block.mode === 'trigger'
-
-          if (!isValidTriggerSubblock) {
-            return false
-          }
-          // Continue to condition check below - don't return here!
-        } else {
-          // When NOT in trigger mode, hide trigger-specific subblocks
-          // EXCEPT for pure trigger blocks which should always show their trigger-mode subblocks
-          if (block.mode === 'trigger' && !isPureTriggerBlock) {
-            return false
-          }
-        }
-
-        // Handle basic/advanced modes
-        if (block.mode === 'basic' && effectiveAdvanced) return false
-        if (block.mode === 'advanced' && !effectiveAdvanced) return false
-
-        // If there's no condition, the block should be shown
-        if (!block.condition) return true
-
-        // If condition is a function, call it to get the actual condition object
-        const actualCondition =
-          typeof block.condition === 'function' ? block.condition() : block.condition
-
-        // Get the values of the fields this block depends on from the appropriate state
-        const fieldValue = stateToUse[actualCondition.field]?.value
-        const andFieldValue = actualCondition.and
-          ? stateToUse[actualCondition.and.field]?.value
-          : undefined
-
-        // Check if the condition value is an array
-        const isValueMatch = Array.isArray(actualCondition.value)
-          ? fieldValue != null &&
-            (actualCondition.not
-              ? !actualCondition.value.includes(fieldValue as string | number | boolean)
-              : actualCondition.value.includes(fieldValue as string | number | boolean))
-          : actualCondition.not
-            ? fieldValue !== actualCondition.value
-            : fieldValue === actualCondition.value
-
-        // Check both conditions if 'and' is present
-        const isAndValueMatch =
-          !actualCondition.and ||
-          (Array.isArray(actualCondition.and.value)
-            ? andFieldValue != null &&
-              (actualCondition.and.not
-                ? !actualCondition.and.value.includes(andFieldValue as string | number | boolean)
-                : actualCondition.and.value.includes(andFieldValue as string | number | boolean))
-            : actualCondition.and.not
-              ? andFieldValue !== actualCondition.and.value
-              : andFieldValue === actualCondition.and.value)
-
-        return isValueMatch && isAndValueMatch
-      })
-
-      visibleSubBlocks.forEach((block) => {
-        const blockWidth = block.layout === 'half' ? 0.5 : 1
-        if (currentRowWidth + blockWidth > 1) {
-          if (currentRow.length > 0) {
-            rows.push([...currentRow])
-          }
-          currentRow = [block]
-          currentRowWidth = blockWidth
-        } else {
-          currentRow.push(block)
-          currentRowWidth += blockWidth
-        }
-      })
-
-      if (currentRow.length > 0) {
-        rows.push(currentRow)
-      }
-
-      // Return both rows and state for stable key generation
-      return { rows, stateToUse }
-    }, [
-      config.subBlocks,
+    // Get subblock layout using custom hook
+    const { rows: subBlockRows, stateToUse: subBlockState } = useSubblockLayout(
+      config,
       id,
       displayAdvancedMode,
       displayTriggerMode,
-      data.isPreview,
-      data.subBlockValues,
+      data.isPreview ?? false,
       currentWorkflow.isDiffMode,
+      data.subBlockValues,
       currentBlock,
-      blockSubBlockValues,
       activeWorkflowId,
-    ])
+      blockSubBlockValues
+    )
 
-    // Extract rows and state from the memoized value
-    const subBlockRows = subBlockRowsData.rows
-    const subBlockState = subBlockRowsData.stateToUse
+    // Handle block resize
+    useBlockResize(id, contentRef as React.RefObject<HTMLDivElement>, blockHeight, blockWidth)
 
-    // Name editing handlers
-    const handleNameClick = (e: React.MouseEvent) => {
-      e.stopPropagation() // Prevent drag handler from interfering
-      setEditedName(name)
-      setIsEditing(true)
-    }
-
-    // Auto-focus the input when edit mode is activated
+    // Update node internals when handles change
     useEffect(() => {
-      if (isEditing && nameInputRef.current) {
-        nameInputRef.current.focus()
-      }
-    }, [isEditing])
+      updateNodeInternals(id)
+    }, [id, horizontalHandles, updateNodeInternals])
 
-    // Handle node name change with validation
-    const handleNodeNameChange = (newName: string) => {
-      const validatedName = validateName(newName)
-      setEditedName(validatedName.slice(0, 18))
-    }
+    // User permissions
+    const userPermissions = useUserPermissionsContext()
 
-    const handleNameSubmit = () => {
-      const trimmedName = editedName.trim().slice(0, 18)
-      if (trimmedName && trimmedName !== name) {
-        collaborativeUpdateBlockName(id, trimmedName)
-      }
-      setIsEditing(false)
-    }
-
-    const handleNameKeyDown = (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') {
-        handleNameSubmit()
-      } else if (e.key === 'Escape') {
-        setIsEditing(false)
-      }
-    }
-
-    // Check webhook indicator
-    const showWebhookIndicator = (isStarterBlock || isWebhookTriggerBlock) && blockWebhookStatus
-
-    const getProviderName = (providerId: string): string => {
-      const providers: Record<string, string> = {
-        whatsapp: 'WhatsApp',
-        github: 'GitHub',
-        discord: 'Discord',
-        stripe: 'Stripe',
-        generic: 'General',
-        slack: 'Slack',
-        airtable: 'Airtable',
-        gmail: 'Gmail',
-      }
-      return providers[providerId] || 'Webhook'
-    }
-
+    // Badge conditions
     const shouldShowScheduleBadge =
       type === 'schedule' && !isLoadingScheduleInfo && scheduleInfo !== null
-    const userPermissions = useUserPermissionsContext()
-    const registryDeploymentStatuses = useWorkflowRegistry((state) => state.deploymentStatuses)
-    const [childActiveVersion, setChildActiveVersion] = useState<number | null>(null)
-    const [childIsDeployed, setChildIsDeployed] = useState<boolean>(false)
-    const [isLoadingChildVersion, setIsLoadingChildVersion] = useState(false)
+    const showWebhookIndicator = (isStarterBlock || isWebhookTriggerBlock) && blockWebhookStatus
 
-    // Use the store directly for real-time updates when workflow dropdown changes
-    const [workflowIdFromStore] = useSubBlockValue<string>(id, 'workflowId')
+    // Get webhook info from store
+    const webhookProvider = blockSubBlockValues?.webhookProvider?.value as string | undefined
+    const webhookPath = blockSubBlockValues?.webhookPath as string | undefined
 
-    // Determine if this is a workflow block (child workflow selector) and fetch child status
-    const isWorkflowSelector = type === 'workflow' || type === 'workflow_input'
-    let childWorkflowId: string | undefined
-    if (!data.isPreview) {
-      // Use store value for real-time updates
-      const val = workflowIdFromStore
-      if (typeof val === 'string' && val.trim().length > 0) {
-        childWorkflowId = val
+    // Handler functions
+    const handleToggleAdvancedMode = useCallback(() => {
+      if (currentWorkflow.isDiffMode) {
+        setDiffAdvancedMode((prev) => !prev)
+      } else if (userPermissions.canEdit) {
+        collaborativeToggleBlockAdvancedMode(id)
       }
-    } else if (data.isPreview && data.subBlockValues?.workflowId?.value) {
-      const val = data.subBlockValues.workflowId.value
-      if (typeof val === 'string' && val.trim().length > 0) childWorkflowId = val
-    }
+    }, [
+      currentWorkflow.isDiffMode,
+      userPermissions.canEdit,
+      id,
+      collaborativeToggleBlockAdvancedMode,
+      setDiffAdvancedMode,
+    ])
 
-    const childDeployment = childWorkflowId ? registryDeploymentStatuses[childWorkflowId] : null
+    const handleToggleTriggerMode = useCallback(() => {
+      if (currentWorkflow.isDiffMode) {
+        setDiffTriggerMode((prev) => !prev)
+      } else if (userPermissions.canEdit) {
+        collaborativeToggleBlockTriggerMode(id)
+      }
+    }, [
+      currentWorkflow.isDiffMode,
+      userPermissions.canEdit,
+      id,
+      collaborativeToggleBlockTriggerMode,
+      setDiffTriggerMode,
+    ])
 
-    // Fetch active deployment version for the selected child workflow
-    useEffect(() => {
-      let cancelled = false
-      const fetchActiveVersion = async (wfId: string) => {
-        try {
-          setIsLoadingChildVersion(true)
-          const res = await fetch(`/api/workflows/${wfId}/deployments`, {
-            cache: 'no-store',
-            headers: { 'Cache-Control': 'no-cache' },
-          })
-          if (!res.ok) {
-            if (!cancelled) {
-              setChildActiveVersion(null)
-              setChildIsDeployed(false)
-            }
-            return
-          }
-          const json = await res.json()
-          const versions = Array.isArray(json?.data?.versions)
-            ? json.data.versions
-            : Array.isArray(json?.versions)
-              ? json.versions
-              : []
-          const active = versions.find((v: any) => v.isActive)
-          if (!cancelled) {
-            const v = active ? Number(active.version) : null
-            setChildActiveVersion(v)
-            setChildIsDeployed(v != null)
-          }
-        } catch {
-          if (!cancelled) {
-            setChildActiveVersion(null)
-            setChildIsDeployed(false)
-          }
-        } finally {
-          if (!cancelled) setIsLoadingChildVersion(false)
-        }
+    const handleToggleWide = useCallback(() => {
+      if (currentWorkflow.isDiffMode) {
+        setDiffIsWide((prev) => !prev)
+      } else if (userPermissions.canEdit) {
+        collaborativeToggleBlockWide(id)
       }
+    }, [
+      currentWorkflow.isDiffMode,
+      userPermissions.canEdit,
+      id,
+      collaborativeToggleBlockWide,
+      setDiffIsWide,
+    ])
 
-      // Always fetch when childWorkflowId changes
-      if (childWorkflowId) {
-        void fetchActiveVersion(childWorkflowId)
-      } else {
-        setChildActiveVersion(null)
-        setChildIsDeployed(false)
-      }
-      return () => {
-        cancelled = true
-      }
-    }, [childWorkflowId])
+    const handleUpdateName = useCallback(
+      (newName: string) => {
+        collaborativeUpdateBlockName(id, newName)
+      },
+      [id, collaborativeUpdateBlockName]
+    )
 
     return (
       <div className='group relative'>
@@ -732,24 +274,24 @@ export const WorkflowBlock = memo(
             !isEnabled && 'shadow-sm',
             isActive && 'animate-pulse-ring ring-2 ring-blue-500',
             isPending && 'ring-2 ring-amber-500',
-            // Diff highlighting
             diffStatus === 'new' && 'bg-green-50/50 ring-2 ring-green-500 dark:bg-green-900/10',
             diffStatus === 'edited' &&
               'bg-orange-50/50 ring-2 ring-orange-500 dark:bg-orange-900/10',
-            // Deleted block highlighting (in original workflow)
             isDeletedBlock && 'bg-red-50/50 ring-2 ring-red-500 dark:bg-red-900/10',
             'z-[20]'
           )}
         >
-          {/* Show debug indicator for pending blocks */}
+          {/* Pending indicator */}
           {isPending && (
             <div className='-top-6 -translate-x-1/2 absolute left-1/2 z-10 transform rounded-t-md bg-amber-500 px-2 py-0.5 text-white text-xs'>
               Next Step
             </div>
           )}
 
+          {/* Action Bar */}
           <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
-          {/* Connection Blocks - Don't show for trigger blocks, starter blocks, or blocks in trigger mode */}
+
+          {/* Connection Blocks */}
           {config.category !== 'triggers' && type !== 'starter' && !displayTriggerMode && (
             <ConnectionBlocks
               blockId={id}
@@ -759,335 +301,46 @@ export const WorkflowBlock = memo(
             />
           )}
 
-          {/* Input Handle - Don't show for trigger blocks, starter blocks, or blocks in trigger mode */}
-          {config.category !== 'triggers' && type !== 'starter' && !displayTriggerMode && (
-            <Handle
-              type='target'
-              position={horizontalHandles ? Position.Left : Position.Top}
-              id='target'
-              className={cn(
-                horizontalHandles ? '!w-[7px] !h-5' : '!w-5 !h-[7px]',
-                '!bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none',
-                '!z-[30]',
-                'group-hover:!shadow-[0_0_0_3px_rgba(156,163,175,0.15)]',
-                horizontalHandles
-                  ? 'hover:!w-[10px] hover:!left-[-10px] hover:!rounded-l-full hover:!rounded-r-none'
-                  : 'hover:!h-[10px] hover:!top-[-10px] hover:!rounded-t-full hover:!rounded-b-none',
-                '!cursor-crosshair',
-                'transition-[colors] duration-150',
-                horizontalHandles ? '!left-[-7px]' : '!top-[-7px]'
-              )}
-              style={{
-                ...(horizontalHandles
-                  ? { top: '50%', transform: 'translateY(-50%)' }
-                  : { left: '50%', transform: 'translateX(-50%)' }),
-              }}
-              data-nodeid={id}
-              data-handleid='target'
-              isConnectableStart={false}
-              isConnectableEnd={true}
-              isValidConnection={(connection) => connection.source !== id}
-            />
-          )}
+          {/* Connection Handles */}
+          <BlockHandles
+            blockId={id}
+            blockType={type}
+            blockCategory={config.category}
+            horizontalHandles={horizontalHandles}
+            displayTriggerMode={displayTriggerMode}
+          />
 
           {/* Block Header */}
-          <div
-            className={cn(
-              'workflow-drag-handle flex cursor-grab items-center justify-between p-3 [&:active]:cursor-grabbing',
-              subBlockRows.length > 0 && 'border-b'
-            )}
-            onMouseDown={(e) => {
-              e.stopPropagation()
-            }}
-          >
-            <div className='flex min-w-0 flex-1 items-center gap-3'>
-              <div
-                className='flex h-7 w-7 flex-shrink-0 items-center justify-center rounded'
-                style={{ backgroundColor: isEnabled ? config.bgColor : 'gray' }}
-              >
-                <config.icon className='h-5 w-5 text-white' />
-              </div>
-              <div className='min-w-0'>
-                {isEditing ? (
-                  <input
-                    ref={nameInputRef}
-                    type='text'
-                    value={editedName}
-                    onChange={(e) => handleNodeNameChange(e.target.value)}
-                    onBlur={handleNameSubmit}
-                    onKeyDown={handleNameKeyDown}
-                    className='border-none bg-transparent p-0 font-medium text-md outline-none'
-                    maxLength={18}
-                  />
-                ) : (
-                  <span
-                    className={cn(
-                      'inline-block cursor-text font-medium text-md hover:text-muted-foreground',
-                      !isEnabled && 'text-muted-foreground'
-                    )}
-                    onClick={handleNameClick}
-                    title={name}
-                    style={{
-                      maxWidth: !isEnabled ? (displayIsWide ? '200px' : '140px') : '180px',
-                    }}
-                  >
-                    {name}
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className='flex flex-shrink-0 items-center gap-2'>
-              {isWorkflowSelector && childWorkflowId && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className='relative mr-1 flex items-center justify-center'>
-                      <div
-                        className={cn(
-                          'h-2.5 w-2.5 rounded-full',
-                          childIsDeployed ? 'bg-green-500' : 'bg-red-500'
-                        )}
-                      />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side='top' className='px-3 py-2'>
-                    <span className='text-sm'>
-                      {childIsDeployed
-                        ? isLoadingChildVersion
-                          ? 'Deployed'
-                          : childActiveVersion != null
-                            ? `Deployed (v${childActiveVersion})`
-                            : 'Deployed'
-                        : 'Not Deployed'}
-                    </span>
-                  </TooltipContent>
-                </Tooltip>
-              )}
-              {!isEnabled && (
-                <Badge variant='secondary' className='bg-gray-100 text-gray-500 hover:bg-gray-100'>
-                  Disabled
-                </Badge>
-              )}
-              {/* Webhook indicator badge - displayed for starter blocks with active webhooks */}
-              {showWebhookIndicator && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Badge
-                      variant='outline'
-                      className='flex items-center gap-1 border-green-200 bg-green-50 font-normal text-green-600 text-xs hover:bg-green-50 dark:bg-green-900/20 dark:text-green-400'
-                    >
-                      <div className='relative mr-0.5 flex items-center justify-center'>
-                        <div className='absolute h-3 w-3 rounded-full bg-green-500/20' />
-                        <div className='relative h-2 w-2 rounded-full bg-green-500' />
-                      </div>
-                      Webhook
-                    </Badge>
-                  </TooltipTrigger>
-                  <TooltipContent side='top' className='max-w-[300px] p-4'>
-                    {webhookInfo ? (
-                      <>
-                        <p className='text-sm'>{getProviderName(webhookInfo.provider)} Webhook</p>
-                        <p className='mt-1 text-muted-foreground text-xs'>
-                          Path: {webhookInfo.webhookPath}
-                        </p>
-                      </>
-                    ) : (
-                      <p className='text-muted-foreground text-sm'>
-                        This workflow is triggered by a webhook.
-                      </p>
-                    )}
-                  </TooltipContent>
-                </Tooltip>
-              )}
-              {config.subBlocks.some(
-                (block) => block.mode === 'basic' || block.mode === 'advanced'
-              ) && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      onClick={() => {
-                        if (currentWorkflow.isDiffMode) {
-                          setDiffAdvancedMode((prev) => !prev)
-                        } else if (userPermissions.canEdit) {
-                          collaborativeToggleBlockAdvancedMode(id)
-                        }
-                      }}
-                      className={cn(
-                        'h-7 p-1 text-gray-500',
-                        displayAdvancedMode && 'text-[var(--brand-primary-hex)]',
-                        !userPermissions.canEdit &&
-                          !currentWorkflow.isDiffMode &&
-                          'cursor-not-allowed opacity-50'
-                      )}
-                      disabled={!userPermissions.canEdit && !currentWorkflow.isDiffMode}
-                    >
-                      <Code className='h-5 w-5' />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side='top'>
-                    {!userPermissions.canEdit && !currentWorkflow.isDiffMode
-                      ? userPermissions.isOfflineMode
-                        ? 'Connection lost - please refresh'
-                        : 'Read-only mode'
-                      : displayAdvancedMode
-                        ? 'Switch to Basic Mode'
-                        : 'Switch to Advanced Mode'}
-                  </TooltipContent>
-                </Tooltip>
-              )}
-              {/* Trigger Mode Button - Show for hybrid blocks that support triggers (not pure trigger blocks) */}
-              {config.triggers?.enabled && config.category !== 'triggers' && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      onClick={() => {
-                        if (currentWorkflow.isDiffMode) {
-                          setDiffTriggerMode((prev) => !prev)
-                        } else if (userPermissions.canEdit) {
-                          // Toggle trigger mode using collaborative function
-                          collaborativeToggleBlockTriggerMode(id)
-                        }
-                      }}
-                      className={cn(
-                        'h-7 p-1 text-gray-500',
-                        displayTriggerMode && 'text-[#22C55E]',
-                        !userPermissions.canEdit &&
-                          !currentWorkflow.isDiffMode &&
-                          'cursor-not-allowed opacity-50'
-                      )}
-                      disabled={!userPermissions.canEdit && !currentWorkflow.isDiffMode}
-                    >
-                      <Zap className='h-5 w-5' />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side='top'>
-                    {!userPermissions.canEdit && !currentWorkflow.isDiffMode
-                      ? userPermissions.isOfflineMode
-                        ? 'Connection lost - please refresh'
-                        : 'Read-only mode'
-                      : displayTriggerMode
-                        ? 'Switch to Action Mode'
-                        : 'Switch to Trigger Mode'}
-                  </TooltipContent>
-                </Tooltip>
-              )}
-              {config.docsLink ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      className='h-7 p-1 text-gray-500'
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        window.open(config.docsLink, '_target', 'noopener,noreferrer')
-                      }}
-                    >
-                      <BookOpen className='h-5 w-5' />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side='top'>See Docs</TooltipContent>
-                </Tooltip>
-              ) : (
-                config.longDescription && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant='ghost' size='sm' className='h-7 p-1 text-gray-500'>
-                        <Info className='h-5 w-5' />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side='top' className='max-w-[300px] p-4'>
-                      <div className='space-y-3'>
-                        <div>
-                          <p className='mb-1 font-medium text-sm'>Description</p>
-                          <p className='text-muted-foreground text-sm'>{config.longDescription}</p>
-                        </div>
-                        {config.outputs && Object.keys(config.outputs).length > 0 && (
-                          <div>
-                            <p className='mb-1 font-medium text-sm'>Output</p>
-                            <div className='text-sm'>
-                              {Object.entries(config.outputs).map(([key, value]) => (
-                                <div key={key} className='mb-1'>
-                                  <span className='text-muted-foreground'>{key}</span>{' '}
-                                  {typeof value === 'object' &&
-                                  value !== null &&
-                                  'type' in value ? (
-                                    // New format: { type: 'string', description: '...' }
-                                    <span className='text-green-500'>{value.type}</span>
-                                  ) : typeof value === 'object' && value !== null ? (
-                                    // Legacy complex object format
-                                    <div className='mt-1 pl-3'>
-                                      {Object.entries(value).map(([typeKey, typeValue]) => (
-                                        <div key={typeKey} className='flex items-start'>
-                                          <span className='font-medium text-blue-500'>
-                                            {typeKey}:
-                                          </span>
-                                          <span className='ml-1 text-green-500'>
-                                            {typeValue as string}
-                                          </span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ) : (
-                                    // Old format: just a string
-                                    <span className='text-green-500'>{value as string}</span>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                )
-              )}
-              {subBlockRows.length > 0 && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      onClick={() => {
-                        if (currentWorkflow.isDiffMode) {
-                          setDiffIsWide((prev) => !prev)
-                        } else if (userPermissions.canEdit) {
-                          collaborativeToggleBlockWide(id)
-                        }
-                      }}
-                      className={cn(
-                        'h-7 p-1 text-gray-500',
-                        !userPermissions.canEdit &&
-                          !currentWorkflow.isDiffMode &&
-                          'cursor-not-allowed opacity-50'
-                      )}
-                      disabled={!userPermissions.canEdit && !currentWorkflow.isDiffMode}
-                    >
-                      {displayIsWide ? (
-                        <RectangleHorizontal className='h-5 w-5' />
-                      ) : (
-                        <RectangleVertical className='h-5 w-5' />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side='top'>
-                    {!userPermissions.canEdit && !currentWorkflow.isDiffMode
-                      ? userPermissions.isOfflineMode
-                        ? 'Connection lost - please refresh'
-                        : 'Read-only mode'
-                      : displayIsWide
-                        ? 'Narrow Block'
-                        : 'Expand Block'}
-                  </TooltipContent>
-                </Tooltip>
-              )}
-            </div>
-          </div>
+          <BlockHeader
+            blockId={id}
+            config={config}
+            name={name}
+            isEnabled={isEnabled}
+            displayIsWide={displayIsWide}
+            displayAdvancedMode={displayAdvancedMode}
+            displayTriggerMode={displayTriggerMode}
+            isDiffMode={currentWorkflow.isDiffMode}
+            hasSubBlocks={subBlockRows.length > 0}
+            canEdit={userPermissions.canEdit}
+            isOfflineMode={userPermissions.isOfflineMode ?? false}
+            shouldShowScheduleBadge={shouldShowScheduleBadge}
+            scheduleInfo={scheduleInfo}
+            showWebhookIndicator={showWebhookIndicator}
+            webhookProvider={webhookProvider}
+            webhookPath={webhookPath}
+            childWorkflowId={isWorkflowSelector ? childWorkflowId : undefined}
+            childIsDeployed={childIsDeployed}
+            childActiveVersion={childActiveVersion}
+            isLoadingChildVersion={isLoadingChildVersion}
+            onUpdateName={handleUpdateName}
+            onReactivateSchedule={reactivateSchedule}
+            onDisableSchedule={disableSchedule}
+            onToggleAdvancedMode={handleToggleAdvancedMode}
+            onToggleTriggerMode={handleToggleTriggerMode}
+            onToggleWide={handleToggleWide}
+          />
 
-          {/* Block Content - Only render if there are subblocks */}
+          {/* Block Content */}
           {subBlockRows.length > 0 && (
             <div
               ref={contentRef}
@@ -1099,7 +352,7 @@ export const WorkflowBlock = memo(
               {subBlockRows.map((row, rowIndex) => (
                 <div key={`row-${rowIndex}`} className='flex gap-4'>
                   {row.map((subBlock) => {
-                    const stableKey = getSubBlockStableKey(subBlock, subBlockState)
+                    const stableKey = getSubBlockStableKey(id, subBlock, subBlockState)
 
                     return (
                       <div
@@ -1138,88 +391,12 @@ export const WorkflowBlock = memo(
               ))}
             </div>
           )}
-
-          {/* Output Handle */}
-          {type !== 'condition' && type !== 'response' && (
-            <>
-              <Handle
-                type='source'
-                position={horizontalHandles ? Position.Right : Position.Bottom}
-                id='source'
-                className={cn(
-                  horizontalHandles ? '!w-[7px] !h-5' : '!w-5 !h-[7px]',
-                  '!bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none',
-                  '!z-[30]',
-                  'group-hover:!shadow-[0_0_0_3px_rgba(156,163,175,0.15)]',
-                  horizontalHandles
-                    ? 'hover:!w-[10px] hover:!right-[-10px] hover:!rounded-r-full hover:!rounded-l-none'
-                    : 'hover:!h-[10px] hover:!bottom-[-10px] hover:!rounded-b-full hover:!rounded-t-none',
-                  '!cursor-crosshair',
-                  'transition-[colors] duration-150',
-                  horizontalHandles ? '!right-[-7px]' : '!bottom-[-7px]'
-                )}
-                style={{
-                  ...(horizontalHandles
-                    ? { top: '50%', transform: 'translateY(-50%)' }
-                    : { left: '50%', transform: 'translateX(-50%)' }),
-                }}
-                data-nodeid={id}
-                data-handleid='source'
-                isConnectableStart={true}
-                isConnectableEnd={false}
-                isValidConnection={(connection) => connection.target !== id}
-              />
-
-              {/* Error Handle - Don't show for trigger blocks, starter blocks, or blocks in trigger mode */}
-              {config.category !== 'triggers' && type !== 'starter' && !displayTriggerMode && (
-                <Handle
-                  type='source'
-                  position={horizontalHandles ? Position.Right : Position.Bottom}
-                  id='error'
-                  className={cn(
-                    horizontalHandles ? '!w-[7px] !h-5' : '!w-5 !h-[7px]',
-                    '!bg-red-400 dark:!bg-red-500 !rounded-[2px] !border-none',
-                    '!z-[30]',
-                    'group-hover:!shadow-[0_0_0_3px_rgba(248,113,113,0.15)]',
-                    horizontalHandles
-                      ? 'hover:!w-[10px] hover:!right-[-10px] hover:!rounded-r-full hover:!rounded-l-none'
-                      : 'hover:!h-[10px] hover:!bottom-[-10px] hover:!rounded-b-full hover:!rounded-t-none',
-                    '!cursor-crosshair',
-                    'transition-[colors] duration-150'
-                  )}
-                  style={{
-                    position: 'absolute',
-                    ...(horizontalHandles
-                      ? {
-                          right: '-8px',
-                          top: 'auto',
-                          bottom: '30px',
-                          transform: 'translateY(0)',
-                        }
-                      : {
-                          bottom: '-7px',
-                          left: 'auto',
-                          right: '30px',
-                          transform: 'translateX(0)',
-                        }),
-                  }}
-                  data-nodeid={id}
-                  data-handleid='error'
-                  isConnectableStart={true}
-                  isConnectableEnd={false}
-                  isValidConnection={(connection) => connection.target !== id}
-                />
-              )}
-            </>
-          )}
         </Card>
       </div>
     )
   },
   (prevProps, nextProps) => {
     // Custom comparison function to prevent unnecessary re-renders
-    // Only re-render if these specific props change
-    // Return TRUE to skip re-render, FALSE to re-render
     const shouldSkipRender =
       prevProps.id === nextProps.id &&
       prevProps.data.type === nextProps.data.type &&
@@ -1232,7 +409,6 @@ export const WorkflowBlock = memo(
       prevProps.data.blockState === nextProps.data.blockState &&
       prevProps.selected === nextProps.selected &&
       prevProps.dragging === nextProps.dragging &&
-      // Position changes should trigger re-render
       prevProps.xPos === nextProps.xPos &&
       prevProps.yPos === nextProps.yPos
 
