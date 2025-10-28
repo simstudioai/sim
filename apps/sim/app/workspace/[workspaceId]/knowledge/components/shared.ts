@@ -1,13 +1,11 @@
-// Shared styling constants for knowledge components
 export const filterButtonClass =
   'w-full justify-between rounded-[10px] border-[#E5E5E5] bg-[#FFFFFF] font-normal text-sm dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
 
 export const dropdownContentClass =
-  'w-[200px] rounded-lg border-[#E5E5E5] bg-[#FFFFFF] p-0 shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
+  'w-[220px] rounded-lg border-[#E5E5E5] bg-[#FFFFFF] p-0 shadow-xs dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
 
 export const commandListClass = 'overflow-y-auto overflow-x-hidden'
 
-// Sort configuration
 export type SortOption = 'name' | 'createdAt' | 'updatedAt' | 'docCount'
 export type SortOrder = 'asc' | 'desc'
 
