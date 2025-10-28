@@ -1,7 +1,7 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { VariableManager } from '@/lib/variables/variable-manager'
 import { extractReferencePrefixes, SYSTEM_REFERENCE_PREFIXES } from '@/lib/workflows/references'
-import { TRIGGER_REFERENCE_ALIAS_MAP } from '@/lib/workflows/triggers'
+import { TRIGGER_REFERENCE_ALIAS_MAP, TRIGGER_TYPES } from '@/lib/workflows/triggers'
 import { getBlock } from '@/blocks/index'
 import type { LoopManager } from '@/executor/loops/loops'
 import type { ExecutionContext } from '@/executor/types'
@@ -497,9 +497,41 @@ export class InputResolver {
       const triggerType =
         TRIGGER_REFERENCE_ALIAS_MAP[blockRefLower as keyof typeof TRIGGER_REFERENCE_ALIAS_MAP]
       if (triggerType) {
-        const triggerBlock = this.workflow.blocks.find(
-          (block) => block.metadata?.id === triggerType
-        )
+        const candidateTypes: string[] = []
+        const pushCandidate = (candidate?: string) => {
+          if (candidate && !candidateTypes.includes(candidate)) {
+            candidateTypes.push(candidate)
+          }
+        }
+
+        pushCandidate(triggerType)
+
+        if (blockRefLower === 'start' || blockRefLower === 'manual') {
+          pushCandidate(TRIGGER_TYPES.START)
+          pushCandidate(TRIGGER_TYPES.STARTER)
+          pushCandidate(TRIGGER_TYPES.INPUT)
+          pushCandidate(TRIGGER_TYPES.MANUAL)
+          pushCandidate(TRIGGER_TYPES.API)
+          pushCandidate(TRIGGER_TYPES.CHAT)
+        } else if (blockRefLower === 'api') {
+          pushCandidate(TRIGGER_TYPES.API)
+          pushCandidate(TRIGGER_TYPES.START)
+          pushCandidate(TRIGGER_TYPES.INPUT)
+          pushCandidate(TRIGGER_TYPES.STARTER)
+        } else if (blockRefLower === 'chat') {
+          pushCandidate(TRIGGER_TYPES.CHAT)
+          pushCandidate(TRIGGER_TYPES.START)
+          pushCandidate(TRIGGER_TYPES.STARTER)
+        }
+
+        let triggerBlock: SerializedBlock | undefined
+        for (const candidateType of candidateTypes) {
+          triggerBlock = this.workflow.blocks.find((block) => block.metadata?.id === candidateType)
+          if (triggerBlock) {
+            break
+          }
+        }
+
         if (triggerBlock) {
           const blockState = context.blockStates.get(triggerBlock.id)
           if (blockState) {

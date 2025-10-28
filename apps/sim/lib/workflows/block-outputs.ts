@@ -1,3 +1,4 @@
+import { classifyStartBlockType, StartBlockPath } from '@/lib/workflows/triggers'
 import { getBlock } from '@/blocks'
 import type { BlockConfig } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
@@ -61,7 +62,9 @@ export function getBlockOutputs(
 
   let outputs = { ...(blockConfig.outputs || {}) }
 
-  if (blockType === 'start_trigger') {
+  const startPath = classifyStartBlockType(blockType)
+
+  if (startPath === StartBlockPath.UNIFIED) {
     outputs = {
       input: { type: 'string', description: 'Primary user input or message' },
       conversationId: { type: 'string', description: 'Conversation thread identifier' },
@@ -83,7 +86,7 @@ export function getBlockOutputs(
   }
 
   // Special handling for starter block (legacy)
-  if (blockType === 'starter') {
+  if (startPath === StartBlockPath.LEGACY_STARTER) {
     const startWorkflowValue = subBlocks?.startWorkflow?.value
 
     if (startWorkflowValue === 'chat') {
