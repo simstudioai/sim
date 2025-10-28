@@ -289,7 +289,6 @@ export class PathTracker {
     // Loop blocks manage their own connections (loop-start-source and loop-end-source)
     // The loop handler decides which connections to activate based on conditions
     // Don't auto-activate anything here
-    logger.info(`Loop ${block.id} - Skipping auto-activation, handler manages connections`)
   }
 
   /**

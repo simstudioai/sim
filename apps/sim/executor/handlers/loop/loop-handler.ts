@@ -93,10 +93,6 @@ export class LoopBlockHandler implements BlockHandler {
         currentIteration, // 1-based iteration number
       }
       context.loopItems.set(block.id, loopContext)
-      logger.info(
-        `${loop.loopType === 'doWhile' ? 'Do-While' : 'While'} loop ${block.id} - Set loop context for iteration ${currentIteration}:`,
-        loopContext
-      )
 
       // Evaluate the condition to determine if we should continue
       if (!loop.whileCondition || loop.whileCondition.trim() === '') {
@@ -109,9 +105,6 @@ export class LoopBlockHandler implements BlockHandler {
       // For while loops, always evaluate the condition
       if (loop.loopType === 'doWhile' && currentIteration === 1) {
         shouldContinueLoop = true
-        logger.info(
-          `Do-While loop ${block.id} - Skipping condition check for first iteration`
-        )
       } else {
         // Evaluate the condition at the start of each iteration
         try {
@@ -124,11 +117,7 @@ export class LoopBlockHandler implements BlockHandler {
             block,
             this.resolver
           )
-          logger.info(
-            `${loop.loopType === 'doWhile' ? 'Do-While' : 'While'} loop ${block.id} - Condition evaluated to: ${shouldContinueLoop} (iteration ${currentIteration})`
-          )
         } catch (error: any) {
-          logger.error(`Failed to evaluate ${loop.loopType} loop condition:`, error)
           throw new Error(
             `Failed to evaluate ${loop.loopType} loop condition for "${block.id}": ${error.message}`
           )
@@ -137,9 +126,6 @@ export class LoopBlockHandler implements BlockHandler {
 
       // Use a safety limit to prevent infinite loops
       maxIterations = loop.iterations || 1000
-      logger.info(
-        `${loop.loopType === 'doWhile' ? 'Do-While' : 'While'} loop ${block.id} - Condition: ${shouldContinueLoop}, Max iterations (safety): ${maxIterations}`
-      )
     } else {
       maxIterations = loop.iterations || DEFAULT_MAX_ITERATIONS
       logger.info(`For loop ${block.id} - Max iterations: ${maxIterations}`)
@@ -151,10 +137,6 @@ export class LoopBlockHandler implements BlockHandler {
 
     // For while and doWhile loops, check if the condition is false
     if ((loop.loopType === 'while' || loop.loopType === 'doWhile') && !shouldContinueLoop) {
-      logger.info(
-        `${loop.loopType === 'doWhile' ? 'Do-While' : 'While'} loop ${block.id} condition is false, exiting loop after ${currentIteration} iteration(s)`
-      )
-      
       // Mark the loop as completed
       context.completedLoops.add(block.id)
       
@@ -166,7 +148,6 @@ export class LoopBlockHandler implements BlockHandler {
       
       for (const conn of loopStartConnections) {
         context.activeExecutionPath.delete(conn.target)
-        logger.info(`Deactivated loop start path to ${conn.target} (condition false)`)
       }
       
       // Activate the loop-end connections (blocks after the loop)
@@ -177,7 +158,6 @@ export class LoopBlockHandler implements BlockHandler {
 
       for (const conn of loopEndConnections) {
         context.activeExecutionPath.add(conn.target)
-        logger.info(`Activated post-loop path from ${block.id} to ${conn.target}`)
       }
 
       return {
@@ -254,7 +234,6 @@ export class LoopBlockHandler implements BlockHandler {
       
       // Increment the counter for the next iteration
       context.loopIterations.set(block.id, currentIteration + 1)
-      logger.info(`${loop.loopType} loop ${block.id} - Incremented counter to ${currentIteration + 1} and reset child blocks`)
     } else {
       // For for/forEach loops, keep the counter value - it will be managed by the loop manager
       context.loopIterations.set(block.id, currentIteration)

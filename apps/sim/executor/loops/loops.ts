@@ -140,18 +140,14 @@ export class LoopManager {
             // Just reset the loop block itself so it can re-evaluate the condition
             context.executedBlocks.delete(loopId)
             context.blockStates.delete(loopId)
-            logger.info(`${loop.loopType} loop ${loopId} - Reset loop block only, will check condition before activating children`)
           } else {
             // For for/forEach loops, increment and reset everything as usual
             context.loopIterations.set(loopId, currentIteration + 1)
-            logger.info(`Loop ${loopId} - Incremented counter to ${currentIteration + 1}`)
 
             this.resetLoopBlocks(loopId, loop, context)
 
             context.executedBlocks.delete(loopId)
             context.blockStates.delete(loopId)
-
-            logger.info(`Loop ${loopId} - Reset for iteration ${currentIteration + 1}`)
           }
         }
       }
