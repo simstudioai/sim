@@ -75,7 +75,7 @@ export async function uploadExecutionFile(
       name: fileName,
       size: fileBuffer.length,
       type: contentType,
-      url: directUrl || `/api/files/serve/${fileInfo.key}`, // Use presigned URL (5 or 10 min), fallback to serve path
+      url: directUrl || `/api/files/serve/${encodeURIComponent(fileInfo.key)}?context=execution`, // Use presigned URL (5 or 10 min), fallback to serve path
       key: fileInfo.key, // Use the actual uploaded key from S3/Blob
       uploadedAt: new Date().toISOString(),
       expiresAt: getFileExpirationDate(),

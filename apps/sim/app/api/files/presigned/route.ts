@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { CopilotFiles } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/core/config-resolver'
+import { USE_BLOB_STORAGE } from '@/lib/uploads/core/setup'
 import { generatePresignedUploadUrl, hasCloudStorage } from '@/lib/uploads/core/storage-service'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 import { createErrorResponse } from '@/app/api/files/utils'
@@ -148,11 +149,19 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // Construct the serve path for later downloads
+    // For chat and profile-pictures, we could use direct cloud URLs,
+    // but for knowledge-base and others, use the serve API endpoint with context parameter
+    const finalPath =
+      uploadType === 'chat' || uploadType === 'profile-pictures'
+        ? presignedUrlResponse.url.split('?')[0] // Cloud URL without query params
+        : `/api/files/serve/${USE_BLOB_STORAGE ? 'blob' : 's3'}/${encodeURIComponent(presignedUrlResponse.key)}?context=${uploadType}`
+
     return NextResponse.json({
       fileName,
       presignedUrl: presignedUrlResponse.url,
       fileInfo: {
-        path: presignedUrlResponse.url,
+        path: finalPath,
         key: presignedUrlResponse.key,
         name: fileName,
         size: fileSize,

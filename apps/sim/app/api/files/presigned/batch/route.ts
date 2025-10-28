@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { StorageContext } from '@/lib/uploads/core/config-resolver'
+import { USE_BLOB_STORAGE } from '@/lib/uploads/core/setup'
 import {
   generateBatchPresignedUploadUrls,
   hasCloudStorage,
@@ -59,7 +60,9 @@ export async function POST(request: NextRequest) {
           ? 'chat'
           : uploadTypeParam === 'copilot'
             ? 'copilot'
-            : 'general'
+            : uploadTypeParam === 'profile-pictures'
+              ? 'profile-pictures'
+              : 'general'
 
     const MAX_FILE_SIZE = 100 * 1024 * 1024
     for (const file of files) {
@@ -150,20 +153,32 @@ export async function POST(request: NextRequest) {
       `Generated ${files.length} presigned URLs in ${duration}ms (avg ${Math.round(duration / files.length)}ms per file)`
     )
 
+    const storagePrefix = USE_BLOB_STORAGE ? 'blob' : 's3'
+
     return NextResponse.json({
-      files: presignedUrls.map((urlResponse, index) => ({
-        fileName: files[index].fileName,
-        presignedUrl: urlResponse.url,
-        fileInfo: {
-          path: urlResponse.url,
-          key: urlResponse.key,
-          name: files[index].fileName,
-          size: files[index].fileSize,
-          type: files[index].contentType,
-        },
-        fields: urlResponse.fields,
-        directUploadSupported: true,
-      })),
+      files: presignedUrls.map((urlResponse, index) => {
+        // Construct the serve path for later downloads
+        // For chat and profile-pictures, use direct cloud URLs,
+        // but for knowledge-base and others, use the serve API endpoint with context parameter
+        const finalPath =
+          uploadType === 'chat' || uploadType === 'profile-pictures'
+            ? urlResponse.url.split('?')[0] // Cloud URL without query params
+            : `/api/files/serve/${storagePrefix}/${encodeURIComponent(urlResponse.key)}?context=${uploadType}`
+
+        return {
+          fileName: files[index].fileName,
+          presignedUrl: urlResponse.url,
+          fileInfo: {
+            path: finalPath,
+            key: urlResponse.key,
+            name: files[index].fileName,
+            size: files[index].fileSize,
+            type: files[index].contentType,
+          },
+          fields: urlResponse.fields,
+          directUploadSupported: true,
+        }
+      }),
       directUploadSupported: true,
     })
   } catch (error) {

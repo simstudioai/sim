@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
         )
       }
     } else {
-      const downloadUrl = `${getBaseUrl()}/api/files/serve/${key}`
+      const downloadUrl = `${getBaseUrl()}/api/files/serve/${encodeURIComponent(key)}?context=${storageContext}`
 
       logger.info(`Using local storage path for file: ${key}`)
 

@@ -176,7 +176,7 @@ export async function listWorkspaceFiles(workspaceId: string): Promise<Workspace
 
     return files.map((file) => ({
       ...file,
-      path: `${pathPrefix}${encodeURIComponent(file.key)}`,
+      path: `${pathPrefix}${encodeURIComponent(file.key)}?context=workspace`,
     }))
   } catch (error) {
     logger.error(`Failed to list workspace files for ${workspaceId}:`, error)
@@ -205,7 +205,7 @@ export async function getWorkspaceFile(
 
     return {
       ...files[0],
-      path: `${pathPrefix}${encodeURIComponent(files[0].key)}`,
+      path: `${pathPrefix}${encodeURIComponent(files[0].key)}?context=workspace`,
     }
   } catch (error) {
     logger.error(`Failed to get workspace file ${fileId}:`, error)
