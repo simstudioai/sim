@@ -16,7 +16,7 @@ Los bloques son los componentes de construcción que conectas para crear flujos 
 
 ## Tipos de bloques principales
 
-Sim proporciona siete tipos de bloques principales que manejan las funciones esenciales de los flujos de trabajo de IA:
+Sim proporciona tipos de bloques esenciales que manejan las funciones principales de los flujos de trabajo de IA:
 
 ### Bloques de procesamiento
 - **[Agente](/blocks/agent)** - Chatea con modelos de IA (OpenAI, Anthropic, Google, modelos locales)
@@ -28,14 +28,18 @@ Sim proporciona siete tipos de bloques principales que manejan las funciones ese
 - **[Enrutador](/blocks/router)** - Usa IA para dirigir inteligentemente las solicitudes a diferentes caminos
 - **[Evaluador](/blocks/evaluator)** - Puntúa y evalúa la calidad del contenido usando IA
 
+### Bloques de flujo de control
+- **[Variables](/blocks/variables)** - Establecer y gestionar variables con alcance de flujo de trabajo
+- **[Espera](/blocks/wait)** - Pausar la ejecución del flujo de trabajo durante un tiempo específico
+
 ### Bloques de salida
-- **[Respuesta](/blocks/response)** - Formatea y devuelve resultados finales de tu flujo de trabajo
+- **[Respuesta](/blocks/response)** - Formatear y devolver resultados finales desde tu flujo de trabajo
 
 ## Cómo funcionan los bloques
 
 Cada bloque tiene tres componentes principales:
 
-**Entradas**: Datos que llegan al bloque desde otros bloques o entrada del usuario
+**Entradas**: Datos que ingresan al bloque desde otros bloques o entrada del usuario
 **Configuración**: Ajustes que controlan cómo se comporta el bloque
 **Salidas**: Datos que el bloque produce para que otros bloques los utilicen
 
@@ -55,9 +59,9 @@ Cada bloque tiene tres componentes principales:
 
 Creas flujos de trabajo conectando bloques entre sí. La salida de un bloque se convierte en la entrada de otro:
 
-- **Arrastra para conectar**: Arrastra desde un puerto de salida a un puerto de entrada
-- **Conexiones múltiples**: Una salida puede conectarse a múltiples entradas
-- **Rutas ramificadas**: Algunos bloques pueden dirigir a diferentes rutas según las condiciones
+- **Arrastrar para conectar**: Arrastra desde un puerto de salida a un puerto de entrada
+- **Múltiples conexiones**: Una salida puede conectarse a múltiples entradas
+- **Rutas ramificadas**: Algunos bloques pueden dirigirse a diferentes rutas según las condiciones
 
 <div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg">
   <Video src="connections.mp4" width={700} height={450} />
@@ -110,7 +114,7 @@ Cada tipo de bloque tiene opciones de configuración específicas:
 
 **Bloques de integración** (API, Respuesta):
 - Configuración de endpoint
-- Cabeceras y autenticación
+- Encabezados y autenticación
 - Formato de solicitud/respuesta
 
 <Cards>
@@ -121,9 +125,15 @@ Cada tipo de bloque tiene opciones de configuración específicas:
     Ejecuta código personalizado para procesar y transformar datos
   </Card>
   <Card title="Bloque de API" href="/blocks/api">
-    Intégrate con servicios externos y APIs
+    Integra con servicios externos y APIs
   </Card>
   <Card title="Bloque de condición" href="/blocks/condition">
     Crea lógica de ramificación basada en evaluación de datos
+  </Card>
+  <Card title="Bloque de variables" href="/blocks/variables">
+    Establece y gestiona variables con alcance de flujo de trabajo
+  </Card>
+  <Card title="Bloque de espera" href="/blocks/wait">
+    Pausa la ejecución del flujo de trabajo durante retrasos de tiempo específicos
   </Card>
 </Cards>

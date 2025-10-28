@@ -1,0 +1,99 @@
+---
+title: Warten
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+
+Der Warten-Block pausiert deinen Workflow für eine bestimmte Zeit, bevor er mit dem nächsten Block fortfährt. Verwende ihn, um Verzögerungen zwischen Aktionen einzufügen, API-Ratenbegrenzungen einzuhalten oder Operationen zeitlich zu verteilen.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/wait.png"
+    alt="Warten-Block"
+    width={500}
+    height={350}
+    className="my-6"
+  />
+</div>
+
+## Übersicht
+
+Mit dem Warten-Block kannst du:
+
+<Steps>
+  <Step>
+    <strong>Zeitverzögerungen hinzufügen</strong>: Ausführung zwischen Workflow-Schritten pausieren
+  </Step>
+  <Step>
+    <strong>Ratenbegrenzungen einhalten</strong>: API-Aufrufe zeitlich verteilen, um innerhalb der Limits zu bleiben
+  </Step>
+  <Step>
+    <strong>Sequenzen planen</strong>: Zeitgesteuerte Workflows mit Verzögerungen zwischen Aktionen erstellen
+  </Step>
+</Steps>
+
+## Konfiguration
+
+### Wartezeit
+
+Gib die Dauer der Ausführungspause ein:
+- **Eingabe**: Positive Zahl
+- **Maximum**: 600 Sekunden (10 Minuten) oder 10 Minuten
+
+### Einheit
+
+Wähle die Zeiteinheit:
+- **Sekunden**: Für kurze, präzise Verzögerungen
+- **Minuten**: Für längere Pausen
+
+<Callout type="info">
+  Warten-Blöcke können durch Stoppen des Workflows abgebrochen werden. Die maximale Wartezeit beträgt 10 Minuten.
+</Callout>
+
+## Ausgaben
+
+- **`<wait.waitDuration>`**: Die Wartezeit in Millisekunden
+- **`<wait.status>`**: Status des Wartens ('waiting', 'completed' oder 'cancelled')
+
+## Beispielanwendungsfälle
+
+### API-Ratenbegrenzung
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Szenario: Innerhalb der API-Ratenbegrenzungen bleiben</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>API-Block macht erste Anfrage</li>
+    <li>Warten-Block pausiert für 2 Sekunden</li>
+    <li>API-Block macht zweite Anfrage</li>
+    <li>Prozess läuft weiter, ohne Ratenbegrenzungen zu überschreiten</li>
+  </ol>
+</div>
+
+### Zeitgesteuerte Benachrichtigungen
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Szenario: Folgenachrichten senden</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>Funktion sendet erste E-Mail</li>
+    <li>Warten-Block pausiert für 5 Minuten</li>
+    <li>Funktion sendet Folge-E-Mail</li>
+  </ol>
+</div>
+
+### Verarbeitungsverzögerungen
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">Szenario: Warten auf externes System</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>API-Block löst Job im externen System aus</li>
+    <li>Warte-Block pausiert für 30 Sekunden</li>
+    <li>API-Block prüft den Abschlussstatus des Jobs</li>
+  </ol>
+</div>
+
+## Bewährte Praktiken
+
+- **Halte Wartezeiten angemessen**: Verwende Warten für Verzögerungen bis zu 10 Minuten. Für längere Verzögerungen solltest du geplante Workflows in Betracht ziehen
+- **Überwache die Ausführungszeit**: Denke daran, dass Wartezeiten die Gesamtdauer des Workflows verlängern
