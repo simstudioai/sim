@@ -4,11 +4,6 @@
 export const MAX_BLOCK_NAME_LENGTH = 18
 
 /**
- * Debounce delay for resize updates (in milliseconds)
- */
-export const RESIZE_DEBOUNCE_DELAY = 100
-
-/**
  * Webhook provider display names
  */
 export const WEBHOOK_PROVIDERS: Record<string, string> = {

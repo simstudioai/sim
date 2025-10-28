@@ -95,7 +95,7 @@ export function useMentionInsertHandlers({
    */
   const insertPastChatMention = useCallback(
     (chat: { id: string; title: string | null }) => {
-      const label = chat.title || 'Untitled Chat'
+      const label = chat.title || 'New Chat'
       const context = { kind: 'past_chat', chatId: chat.id, label } as ChatContext
 
       // Prevent duplicate insertion

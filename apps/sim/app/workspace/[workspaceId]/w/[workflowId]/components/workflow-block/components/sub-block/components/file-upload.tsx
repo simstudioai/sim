@@ -33,7 +33,6 @@ interface FileUploadProps {
   isPreview?: boolean
   previewValue?: any | null
   disabled?: boolean
-  isWide?: boolean
 }
 
 interface UploadedFile {
@@ -59,7 +58,6 @@ export function FileUpload({
   isPreview = false,
   previewValue,
   disabled = false,
-  isWide = false,
 }: FileUploadProps) {
   // State management - handle both single file and array of files
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
@@ -662,7 +660,7 @@ export function FileUpload({
                   <ChevronDown className='absolute right-3 h-4 w-4 shrink-0 opacity-50' />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className={isWide ? 'w-[420px] p-0' : 'w-[320px] p-0'} align='start'>
+              <PopoverContent className='w-[320px] p-0' align='start'>
                 <Command>
                   <CommandInput
                     placeholder='Search files...'
@@ -738,7 +736,7 @@ export function FileUpload({
                 <ChevronDown className='absolute right-3 h-4 w-4 shrink-0 opacity-50' />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className={isWide ? 'w-[420px] p-0' : 'w-[320px] p-0'} align='start'>
+            <PopoverContent className='w-[320px] p-0' align='start'>
               <Command>
                 <CommandInput
                   placeholder='Search files...'

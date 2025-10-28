@@ -80,7 +80,6 @@ export const DiffControls = memo(function DiffControls() {
               enabled: block.enabled !== undefined ? block.enabled : true,
               horizontalHandles:
                 block.horizontalHandles !== undefined ? block.horizontalHandles : true,
-              isWide: block.isWide !== undefined ? block.isWide : false,
               height: block.height !== undefined ? block.height : 90,
               subBlocks: block.subBlocks || {},
               outputs: block.outputs || {},

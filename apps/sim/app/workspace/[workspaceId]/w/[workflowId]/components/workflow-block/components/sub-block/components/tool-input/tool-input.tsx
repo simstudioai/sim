@@ -44,7 +44,6 @@ import { useMcpTools } from '@/hooks/use-mcp-tools'
 import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import {
   formatParameterLabel,
   getToolParametersConfig,
@@ -433,7 +432,6 @@ export function ToolInput({
   const [searchQuery, setSearchQuery] = useState('')
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
-  const isWide = useWorkflowStore((state) => state.blocks[blockId]?.isWide)
   const customTools = useCustomToolsStore((state) => state.getAllTools())
   const subBlockStore = useSubBlockStore()
 
@@ -611,17 +609,7 @@ export function ToolInput({
     }
 
     // Add tool to selection
-    if (isWide) {
-      setStoreValue([
-        ...selectedTools.map((tool, index) => ({
-          ...tool,
-          isExpanded: Math.floor(selectedTools.length / 2) === Math.floor(index / 2),
-        })),
-        newTool,
-      ])
-    } else {
-      setStoreValue([...selectedTools.map((tool) => ({ ...tool, isExpanded: false })), newTool])
-    }
+    setStoreValue([...selectedTools.map((tool) => ({ ...tool, isExpanded: false })), newTool])
 
     setOpen(false)
   }
@@ -643,17 +631,7 @@ export function ToolInput({
     }
 
     // Add tool to selection
-    if (isWide) {
-      setStoreValue([
-        ...selectedTools.map((tool, index) => ({
-          ...tool,
-          isExpanded: Math.floor(selectedTools.length / 2) === Math.floor(index / 2),
-        })),
-        newTool,
-      ])
-    } else {
-      setStoreValue([...selectedTools.map((tool) => ({ ...tool, isExpanded: false })), newTool])
-    }
+    setStoreValue([...selectedTools.map((tool) => ({ ...tool, isExpanded: false })), newTool])
   }
 
   const handleEditCustomTool = (toolIndex: number) => {
@@ -859,23 +837,13 @@ export function ToolInput({
   }
 
   const handleMcpToolSelect = (newTool: StoredTool, closePopover = true) => {
-    if (isWide) {
-      setStoreValue([
-        ...selectedTools.map((tool, index) => ({
-          ...tool,
-          isExpanded: Math.floor(selectedTools.length / 2) === Math.floor(index / 2),
-        })),
-        newTool,
-      ])
-    } else {
-      setStoreValue([
-        ...selectedTools.map((tool) => ({
-          ...tool,
-          isExpanded: false,
-        })),
-        newTool,
-      ])
-    }
+    setStoreValue([
+      ...selectedTools.map((tool) => ({
+        ...tool,
+        isExpanded: false,
+      })),
+      newTool,
+    ])
 
     if (closePopover) {
       setOpen(false)
@@ -1313,25 +1281,13 @@ export function ToolInput({
                                 usageControl: 'auto',
                               }
 
-                              if (isWide) {
-                                setStoreValue([
-                                  ...selectedTools.map((tool, index) => ({
-                                    ...tool,
-                                    isExpanded:
-                                      Math.floor(selectedTools.length / 2) ===
-                                      Math.floor(index / 2),
-                                  })),
-                                  newTool,
-                                ])
-                              } else {
-                                setStoreValue([
-                                  ...selectedTools.map((tool) => ({
-                                    ...tool,
-                                    isExpanded: false,
-                                  })),
-                                  newTool,
-                                ])
-                              }
+                              setStoreValue([
+                                ...selectedTools.map((tool) => ({
+                                  ...tool,
+                                  isExpanded: false,
+                                })),
+                                newTool,
+                              ])
                               setOpen(false)
                             }}
                             className='flex cursor-pointer items-center gap-2'
@@ -1463,7 +1419,7 @@ export function ToolInput({
                 key={`${tool.toolId}-${toolIndex}`}
                 className={cn(
                   'group relative flex flex-col transition-all duration-200 ease-in-out',
-                  isWide ? 'w-[calc(50%-0.25rem)]' : 'w-full',
+                  'w-full',
                   draggedIndex === toolIndex ? 'scale-95 opacity-40' : '',
                   dragOverIndex === toolIndex && draggedIndex !== toolIndex && draggedIndex !== null
                     ? 'translate-y-1 transform'
@@ -1879,25 +1835,13 @@ export function ToolInput({
                                   usageControl: 'auto',
                                 }
 
-                                if (isWide) {
-                                  setStoreValue([
-                                    ...selectedTools.map((tool, index) => ({
-                                      ...tool,
-                                      isExpanded:
-                                        Math.floor(selectedTools.length / 2) ===
-                                        Math.floor(index / 2),
-                                    })),
-                                    newTool,
-                                  ])
-                                } else {
-                                  setStoreValue([
-                                    ...selectedTools.map((tool) => ({
-                                      ...tool,
-                                      isExpanded: false,
-                                    })),
-                                    newTool,
-                                  ])
-                                }
+                                setStoreValue([
+                                  ...selectedTools.map((tool) => ({
+                                    ...tool,
+                                    isExpanded: false,
+                                  })),
+                                  newTool,
+                                ])
                                 setOpen(false)
                               }}
                               className='flex cursor-pointer items-center gap-2'

@@ -253,7 +253,6 @@ async function handleBlockOperationTx(
           outputs: payload.outputs || {},
           enabled: payload.enabled ?? true,
           horizontalHandles: payload.horizontalHandles ?? true,
-          isWide: payload.isWide ?? false,
           advancedMode: payload.advancedMode ?? false,
           triggerMode: payload.triggerMode ?? false,
           height: payload.height || 0,
@@ -607,28 +606,6 @@ async function handleBlockOperationTx(
       break
     }
 
-    case 'update-wide': {
-      if (!payload.id || payload.isWide === undefined) {
-        throw new Error('Missing required fields for update wide operation')
-      }
-
-      const updateResult = await tx
-        .update(workflowBlocks)
-        .set({
-          isWide: payload.isWide,
-          updatedAt: new Date(),
-        })
-        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
-        .returning({ id: workflowBlocks.id })
-
-      if (updateResult.length === 0) {
-        throw new Error(`Block ${payload.id} not found in workflow ${workflowId}`)
-      }
-
-      logger.debug(`Updated block wide state: ${payload.id} -> ${payload.isWide}`)
-      break
-    }
-
     case 'update-advanced-mode': {
       if (!payload.id || payload.advancedMode === undefined) {
         throw new Error('Missing required fields for update advanced mode operation')
@@ -729,7 +706,6 @@ async function handleBlockOperationTx(
           outputs: payload.outputs || {},
           enabled: payload.enabled ?? true,
           horizontalHandles: payload.horizontalHandles ?? true,
-          isWide: payload.isWide ?? false,
           advancedMode: payload.advancedMode ?? false,
           triggerMode: payload.triggerMode ?? false,
           height: payload.height || 0,

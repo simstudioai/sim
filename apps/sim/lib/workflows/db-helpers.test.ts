@@ -25,7 +25,6 @@ const mockWorkflowBlocks = {
   positionY: 'positionY',
   enabled: 'enabled',
   horizontalHandles: 'horizontalHandles',
-  isWide: 'isWide',
   height: 'height',
   subBlocks: 'subBlocks',
   outputs: 'outputs',
@@ -100,7 +99,6 @@ const mockBlocksFromDb = [
     positionY: 100,
     enabled: true,
     horizontalHandles: true,
-    isWide: false,
     advancedMode: false,
     triggerMode: false,
     height: 150,
@@ -119,7 +117,6 @@ const mockBlocksFromDb = [
     positionY: 100,
     enabled: true,
     horizontalHandles: true,
-    isWide: true,
     height: 200,
     subBlocks: {},
     outputs: {},
@@ -175,7 +172,6 @@ const mockWorkflowState: WorkflowState = {
       outputs: { result: { type: 'string' } },
       enabled: true,
       horizontalHandles: true,
-      isWide: false,
       height: 150,
       data: { width: 350 },
     },
@@ -188,7 +184,6 @@ const mockWorkflowState: WorkflowState = {
       outputs: {},
       enabled: true,
       horizontalHandles: true,
-      isWide: true,
       height: 200,
       data: { parentId: 'loop-1', extent: 'parent' },
     },
@@ -273,7 +268,6 @@ describe('Database Helpers', () => {
         position: { x: 100, y: 100 },
         enabled: true,
         horizontalHandles: true,
-        isWide: false,
         height: 150,
         subBlocks: { input: { id: 'input', type: 'short-input' as const, value: 'test' } },
         outputs: { result: { type: 'string' } },
@@ -387,7 +381,6 @@ describe('Database Helpers', () => {
           positionY: 0,
           enabled: true,
           horizontalHandles: true,
-          isWide: false,
           height: 0,
           subBlocks: {},
           outputs: {},
@@ -569,7 +562,6 @@ describe('Database Helpers', () => {
         positionY: '100',
         enabled: true,
         horizontalHandles: true,
-        isWide: false,
         height: '150',
         parentId: null,
         extent: null,
@@ -780,19 +772,18 @@ describe('Database Helpers', () => {
     })
   })
 
-  describe('advancedMode persistence comparison with isWide', () => {
-    it('should load advancedMode property exactly like isWide from database', async () => {
+  describe('advancedMode persistence', () => {
+    it('should load advancedMode property from database', async () => {
       const testBlocks = [
         {
-          id: 'block-advanced-wide',
+          id: 'block-advanced',
           workflowId: mockWorkflowId,
           type: 'agent',
-          name: 'Advanced Wide Block',
+          name: 'Advanced Block',
           positionX: 100,
           positionY: 100,
           enabled: true,
           horizontalHandles: true,
-          isWide: true,
           advancedMode: true,
           height: 200,
           subBlocks: {},
@@ -802,35 +793,16 @@ describe('Database Helpers', () => {
           extent: null,
         },
         {
-          id: 'block-basic-narrow',
+          id: 'block-basic',
           workflowId: mockWorkflowId,
           type: 'agent',
-          name: 'Basic Narrow Block',
+          name: 'Basic Block',
           positionX: 200,
           positionY: 100,
           enabled: true,
           horizontalHandles: true,
-          isWide: false,
           advancedMode: false,
           height: 150,
-          subBlocks: {},
-          outputs: {},
-          data: {},
-          parentId: null,
-          extent: null,
-        },
-        {
-          id: 'block-advanced-narrow',
-          workflowId: mockWorkflowId,
-          type: 'agent',
-          name: 'Advanced Narrow Block',
-          positionX: 300,
-          positionY: 100,
-          enabled: true,
-          horizontalHandles: true,
-          isWide: false,
-          advancedMode: true,
-          height: 180,
           subBlocks: {},
           outputs: {},
           data: {},
@@ -858,18 +830,12 @@ describe('Database Helpers', () => {
 
       expect(result).toBeDefined()
 
-      // Test all combinations of isWide and advancedMode
-      const advancedWideBlock = result?.blocks['block-advanced-wide']
-      expect(advancedWideBlock?.isWide).toBe(true)
-      expect(advancedWideBlock?.advancedMode).toBe(true)
+      // Test advancedMode persistence
+      const advancedBlock = result?.blocks['block-advanced']
+      expect(advancedBlock?.advancedMode).toBe(true)
 
-      const basicNarrowBlock = result?.blocks['block-basic-narrow']
-      expect(basicNarrowBlock?.isWide).toBe(false)
-      expect(basicNarrowBlock?.advancedMode).toBe(false)
-
-      const advancedNarrowBlock = result?.blocks['block-advanced-narrow']
-      expect(advancedNarrowBlock?.isWide).toBe(false)
-      expect(advancedNarrowBlock?.advancedMode).toBe(true)
+      const basicBlock = result?.blocks['block-basic']
+      expect(basicBlock?.advancedMode).toBe(false)
     })
 
     it('should handle default values for boolean fields consistently', async () => {
@@ -883,7 +849,6 @@ describe('Database Helpers', () => {
           positionY: 100,
           enabled: true,
           horizontalHandles: true,
-          isWide: false, // Database default
           advancedMode: false, // Database default
           triggerMode: false, // Database default
           height: 150,
@@ -914,7 +879,6 @@ describe('Database Helpers', () => {
 
       // All boolean fields should have their database default values
       const defaultsBlock = result?.blocks['block-with-defaults']
-      expect(defaultsBlock?.isWide).toBe(false)
       expect(defaultsBlock?.advancedMode).toBe(false)
       expect(defaultsBlock?.triggerMode).toBe(false)
     })
@@ -938,7 +902,6 @@ describe('Database Helpers', () => {
         positionY: 100,
         enabled: true,
         horizontalHandles: true,
-        isWide: true,
         advancedMode: true, // User sets this to advanced mode
         height: 200,
         subBlocks: {
@@ -965,7 +928,6 @@ describe('Database Helpers', () => {
         positionY: 100,
         enabled: true,
         horizontalHandles: true,
-        isWide: true,
         advancedMode: true, // Should be copied from original
         height: 200,
         subBlocks: {
@@ -1065,7 +1027,6 @@ describe('Database Helpers', () => {
         positionY: 100,
         enabled: true,
         horizontalHandles: true,
-        isWide: false,
         advancedMode: false, // Basic mode
         height: 150,
         subBlocks: { model: { id: 'model', type: 'select', value: 'gpt-4o' } },
@@ -1084,7 +1045,6 @@ describe('Database Helpers', () => {
         positionY: 100,
         enabled: true,
         horizontalHandles: true,
-        isWide: true,
         advancedMode: true, // Advanced mode
         height: 200,
         subBlocks: {
@@ -1119,8 +1079,6 @@ describe('Database Helpers', () => {
       expect(loadedState?.blocks['agent-advanced'].advancedMode).toBe(true)
 
       // Verify other properties are also preserved correctly
-      expect(loadedState?.blocks['agent-basic'].isWide).toBe(false)
-      expect(loadedState?.blocks['agent-advanced'].isWide).toBe(true)
     })
 
     it('should preserve advancedMode during workflow state round-trip', async () => {
@@ -1139,7 +1097,6 @@ describe('Database Helpers', () => {
             outputs: {},
             enabled: true,
             horizontalHandles: true,
-            isWide: true,
             advancedMode: true,
             height: 200,
             data: {},
@@ -1191,7 +1148,6 @@ describe('Database Helpers', () => {
                   positionY: 100,
                   enabled: true,
                   horizontalHandles: true,
-                  isWide: true,
                   advancedMode: true, // This should be preserved
                   height: 200,
                   subBlocks: {
@@ -1214,7 +1170,6 @@ describe('Database Helpers', () => {
       const loadedState = await dbHelpers.loadWorkflowFromNormalizedTables(mockWorkflowId)
       expect(loadedState).toBeDefined()
       expect(loadedState?.blocks['block-1'].advancedMode).toBe(true)
-      expect(loadedState?.blocks['block-1'].isWide).toBe(true)
     })
   })
 })

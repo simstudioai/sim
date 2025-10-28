@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { BookOpen, Code, Info, RectangleHorizontal, RectangleVertical, Zap } from 'lucide-react'
+import { BookOpen, Info } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -14,11 +14,7 @@ interface BlockHeaderProps {
   config: BlockConfig
   name: string
   isEnabled: boolean
-  displayIsWide: boolean
-  displayAdvancedMode: boolean
-  displayTriggerMode: boolean
   isDiffMode: boolean
-  hasSubBlocks: boolean
   canEdit: boolean
   isOfflineMode: boolean
   shouldShowScheduleBadge: boolean
@@ -33,9 +29,6 @@ interface BlockHeaderProps {
   onUpdateName: (name: string) => void
   onReactivateSchedule: (scheduleId: string) => void
   onDisableSchedule: (scheduleId: string) => void
-  onToggleAdvancedMode: () => void
-  onToggleTriggerMode: () => void
-  onToggleWide: () => void
 }
 
 /**
@@ -46,11 +39,7 @@ export function BlockHeader({
   config,
   name,
   isEnabled,
-  displayIsWide,
-  displayAdvancedMode,
-  displayTriggerMode,
   isDiffMode,
-  hasSubBlocks,
   canEdit,
   isOfflineMode,
   shouldShowScheduleBadge,
@@ -65,9 +54,6 @@ export function BlockHeader({
   onUpdateName,
   onReactivateSchedule,
   onDisableSchedule,
-  onToggleAdvancedMode,
-  onToggleTriggerMode,
-  onToggleWide,
 }: BlockHeaderProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState('')
@@ -106,16 +92,11 @@ export function BlockHeader({
     }
   }
 
-  const hasAdvancedMode = config.subBlocks.some((block) => block.mode)
-  const hasTriggerMode = config.triggers?.enabled && config.category !== 'triggers'
   const isReadOnly = !canEdit && !isDiffMode
 
   return (
     <div
-      className={cn(
-        'workflow-drag-handle flex cursor-grab items-center justify-between p-3 [&:active]:cursor-grabbing',
-        hasSubBlocks && 'border-b'
-      )}
+      className='workflow-drag-handle flex cursor-grab items-center justify-between p-3 [&:active]:cursor-grabbing'
       onMouseDown={(e) => {
         e.stopPropagation()
       }}
@@ -148,7 +129,7 @@ export function BlockHeader({
               onClick={handleNameClick}
               title={name}
               style={{
-                maxWidth: !isEnabled ? (displayIsWide ? '200px' : '140px') : '180px',
+                maxWidth: !isEnabled ? '140px' : '180px',
               }}
             >
               {name}
@@ -275,66 +256,6 @@ export function BlockHeader({
 
         {/* Controls */}
         <>
-          {/* Advanced Mode Toggle */}
-          {hasAdvancedMode && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  onClick={onToggleAdvancedMode}
-                  className={cn(
-                    'h-7 p-1 text-gray-500',
-                    displayAdvancedMode && 'text-[var(--brand-primary-hex)]',
-                    isReadOnly && 'cursor-not-allowed opacity-50'
-                  )}
-                  disabled={isReadOnly}
-                >
-                  <Code className='h-5 w-5' />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side='top'>
-                {isReadOnly
-                  ? isOfflineMode
-                    ? 'Connection lost - please refresh'
-                    : 'Read-only mode'
-                  : displayAdvancedMode
-                    ? 'Switch to Basic Mode'
-                    : 'Switch to Advanced Mode'}
-              </TooltipContent>
-            </Tooltip>
-          )}
-
-          {/* Trigger Mode Toggle */}
-          {hasTriggerMode && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  onClick={onToggleTriggerMode}
-                  className={cn(
-                    'h-7 p-1 text-gray-500',
-                    displayTriggerMode && 'text-[#22C55E]',
-                    isReadOnly && 'cursor-not-allowed opacity-50'
-                  )}
-                  disabled={isReadOnly}
-                >
-                  <Zap className='h-5 w-5' />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side='top'>
-                {isReadOnly
-                  ? isOfflineMode
-                    ? 'Connection lost - please refresh'
-                    : 'Read-only mode'
-                  : displayTriggerMode
-                    ? 'Switch to Action Mode'
-                    : 'Switch to Trigger Mode'}
-              </TooltipContent>
-            </Tooltip>
-          )}
-
           {/* Documentation Button */}
           {config.docsLink ? (
             <Tooltip>
@@ -399,39 +320,6 @@ export function BlockHeader({
                 </TooltipContent>
               </Tooltip>
             )
-          )}
-
-          {/* Wide Mode Toggle */}
-          {hasSubBlocks && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  onClick={onToggleWide}
-                  className={cn(
-                    'h-7 p-1 text-gray-500',
-                    isReadOnly && 'cursor-not-allowed opacity-50'
-                  )}
-                  disabled={isReadOnly}
-                >
-                  {displayIsWide ? (
-                    <RectangleHorizontal className='h-5 w-5' />
-                  ) : (
-                    <RectangleVertical className='h-5 w-5' />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side='top'>
-                {isReadOnly
-                  ? isOfflineMode
-                    ? 'Connection lost - please refresh'
-                    : 'Read-only mode'
-                  : displayIsWide
-                    ? 'Narrow Block'
-                    : 'Expand Block'}
-              </TooltipContent>
-            </Tooltip>
           )}
         </>
       </div>

@@ -3,7 +3,6 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 import type { BlockMetrics, BoundingBox, GraphNode } from './types'
 
 export const DEFAULT_BLOCK_WIDTH = 350
-export const DEFAULT_BLOCK_WIDTH_WIDE = 480
 export const DEFAULT_BLOCK_HEIGHT = 100
 export const DEFAULT_CONTAINER_WIDTH = 500
 export const DEFAULT_CONTAINER_HEIGHT = 300
@@ -49,7 +48,7 @@ function getContainerMetrics(block: BlockState): BlockMetrics {
 }
 
 function getRegularBlockMetrics(block: BlockState): BlockMetrics {
-  const minWidth = block.isWide ? DEFAULT_BLOCK_WIDTH_WIDE : DEFAULT_BLOCK_WIDTH
+  const minWidth = DEFAULT_BLOCK_WIDTH
   const minHeight = DEFAULT_BLOCK_HEIGHT
   const measuredH = block.layout?.measuredHeight ?? block.height
   const measuredW = block.layout?.measuredWidth

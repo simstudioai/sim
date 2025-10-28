@@ -3,8 +3,7 @@
 import type { MouseEvent as ReactMouseEvent } from 'react'
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { History, Pencil, Plus, Trash2 } from 'lucide-react'
-import { Button as EmcnButton } from '@/components/emcn'
-// Button import removed; no longer used after removing jump-to-bottom
+import { Button } from '@/components/emcn'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -345,20 +344,22 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
       <div
         ref={copilotContainerRef}
         onClickCapture={handleCopilotClickCapture}
-        className='flex h-full flex-col overflow-hidden bg-[#232323] dark:bg-[#232323]'
+        className='flex h-full flex-col overflow-hidden'
       >
         {/* Header */}
         <div className='flex flex-shrink-0 items-center justify-between rounded-[4px] bg-[#2A2A2A] px-[12px] py-[8px] dark:bg-[#2A2A2A]'>
-          <h2 className='font-medium text-[#FFFFFF] text-[14px] dark:text-[#FFFFFF]'>Copilot</h2>
+          <h2 className='font-medium text-[#FFFFFF] text-[14px] dark:text-[#FFFFFF]'>
+            {currentChat?.title || 'New Chat'}
+          </h2>
           <div className='flex items-center gap-[8px]'>
-            <EmcnButton variant='ghost' className='p-0' onClick={handleStartNewChat}>
+            <Button variant='ghost' className='p-0' onClick={handleStartNewChat}>
               <Plus className='h-[14px] w-[14px]' />
-            </EmcnButton>
+            </Button>
             <DropdownMenu open={isHistoryDropdownOpen} onOpenChange={handleHistoryDropdownOpen}>
               <DropdownMenuTrigger asChild>
-                <EmcnButton variant='ghost' className='p-0'>
+                <Button variant='ghost' className='p-0'>
                   <History className='h-[14px] w-[14px]' />
-                </EmcnButton>
+                </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align='end'
@@ -403,7 +404,7 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                                   onKeyDown={async (e) => {
                                     if (e.key === 'Enter') {
                                       e.preventDefault()
-                                      const newTitle = editingChatTitle.trim() || 'Untitled Chat'
+                                      const newTitle = editingChatTitle.trim() || 'New Chat'
 
                                       const updatedChats = chats.map((c) =>
                                         c.id === chat.id ? { ...c, title: newTitle } : c
@@ -443,14 +444,14 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
                                     className='min-w-0 cursor-pointer truncate text-sm'
                                     style={{ maxWidth: 'calc(100% - 60px)' }}
                                   >
-                                    {chat.title || 'Untitled Chat'}
+                                    {chat.title || 'New Chat'}
                                   </span>
                                   <div className='ml-auto flex flex-shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation()
                                         setEditingChatId(chat.id)
-                                        setEditingChatTitle(chat.title || 'Untitled Chat')
+                                        setEditingChatTitle(chat.title || 'New Chat')
                                       }}
                                       className='flex h-5 w-5 items-center justify-center rounded hover:bg-muted'
                                       aria-label='Edit chat title'

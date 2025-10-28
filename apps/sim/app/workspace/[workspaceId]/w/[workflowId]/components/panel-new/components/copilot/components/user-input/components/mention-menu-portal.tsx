@@ -146,7 +146,7 @@ export function MentionMenuPortal({
                   ) : (
                     mentionData.pastChats
                       .filter((c) =>
-                        (c.title || 'Untitled Chat')
+                        (c.title || 'New Chat')
                           .toLowerCase()
                           .includes(getSubmenuQuery().toLowerCase())
                       )
@@ -169,7 +169,7 @@ export function MentionMenuPortal({
                           <div className='flex h-4 w-4 flex-shrink-0 items-center justify-center'>
                             <Bot className='h-3.5 w-3.5 text-muted-foreground' strokeWidth={1.5} />
                           </div>
-                          <span className='truncate'>{chat.title || 'Untitled Chat'}</span>
+                          <span className='truncate'>{chat.title || 'New Chat'}</span>
                         </div>
                       ))
                   )}
@@ -460,7 +460,7 @@ export function MentionMenuPortal({
                     .filter((t) => (t.name || 'Untitled Template').toLowerCase().includes(q))
                     .map((t) => ({ type: 'Templates', id: t.id, value: t })),
                   ...mentionData.pastChats
-                    .filter((c) => (c.title || 'Untitled Chat').toLowerCase().includes(q))
+                    .filter((c) => (c.title || 'New Chat').toLowerCase().includes(q))
                     .map((c) => ({ type: 'Chats', id: c.id, value: c })),
                   ...mentionData.logsList
                     .filter((l) =>
@@ -507,7 +507,7 @@ export function MentionMenuPortal({
                                 strokeWidth={1.5}
                               />
                               <span className='truncate'>
-                                {(item.value as any).title || 'Untitled Chat'}
+                                {(item.value as any).title || 'New Chat'}
                               </span>
                             </>
                           )}

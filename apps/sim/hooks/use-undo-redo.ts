@@ -433,7 +433,6 @@ export function useUndoRedo() {
           {
             enabled: blockSnapshot.enabled,
             horizontalHandles: blockSnapshot.horizontalHandles,
-            isWide: blockSnapshot.isWide,
             advancedMode: blockSnapshot.advancedMode,
             triggerMode: blockSnapshot.triggerMode,
             height: blockSnapshot.height,
@@ -483,7 +482,6 @@ export function useUndoRedo() {
                 {
                   enabled: snap.enabled,
                   horizontalHandles: snap.horizontalHandles,
-                  isWide: snap.isWide,
                   advancedMode: snap.advancedMode,
                   triggerMode: snap.triggerMode,
                   height: snap.height,
@@ -823,7 +821,6 @@ export function useUndoRedo() {
           {
             enabled: snap.enabled,
             horizontalHandles: snap.horizontalHandles,
-            isWide: snap.isWide,
             advancedMode: snap.advancedMode,
             triggerMode: snap.triggerMode,
             height: snap.height,
@@ -871,7 +868,6 @@ export function useUndoRedo() {
                 {
                   enabled: snapNested.enabled,
                   horizontalHandles: snapNested.horizontalHandles,
-                  isWide: snapNested.isWide,
                   advancedMode: snapNested.advancedMode,
                   triggerMode: snapNested.triggerMode,
                   height: snapNested.height,
@@ -1096,7 +1092,6 @@ export function useUndoRedo() {
           {
             enabled: duplicatedBlockSnapshot.enabled,
             horizontalHandles: duplicatedBlockSnapshot.horizontalHandles,
-            isWide: duplicatedBlockSnapshot.isWide,
             advancedMode: duplicatedBlockSnapshot.advancedMode,
             triggerMode: duplicatedBlockSnapshot.triggerMode,
             height: duplicatedBlockSnapshot.height,

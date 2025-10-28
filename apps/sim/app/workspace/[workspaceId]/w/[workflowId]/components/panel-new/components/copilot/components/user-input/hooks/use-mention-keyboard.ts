@@ -161,7 +161,7 @@ export function useMentionKeyboard({
               .filter((t) => (t.name || 'Untitled Template').toLowerCase().includes(mainQ))
               .map((t) => ({ type: 'Templates' as const, value: t })),
             ...pastChats
-              .filter((c) => (c.title || 'Untitled Chat').toLowerCase().includes(mainQ))
+              .filter((c) => (c.title || 'New Chat').toLowerCase().includes(mainQ))
               .map((c) => ({ type: 'Chats' as const, value: c })),
             ...logsList
               .filter((l) => (l.workflowName || 'Untitled Workflow').toLowerCase().includes(mainQ))
@@ -172,9 +172,7 @@ export function useMentionKeyboard({
       // Handle submenu navigation
       if (openSubmenuFor === 'Chats') {
         const q = getSubmenuQuery().toLowerCase()
-        const filtered = pastChats.filter((c) =>
-          (c.title || 'Untitled Chat').toLowerCase().includes(q)
-        )
+        const filtered = pastChats.filter((c) => (c.title || 'New Chat').toLowerCase().includes(q))
         setSubmenuActiveIndex((prev) => {
           const last = Math.max(0, filtered.length - 1)
           if (filtered.length === 0) return 0
@@ -511,7 +509,7 @@ export function useMentionKeyboard({
             .filter((t) => (t.name || 'Untitled Template').toLowerCase().includes(mainQ))
             .map((t) => ({ type: 'Templates', value: t })),
           ...pastChats
-            .filter((c) => (c.title || 'Untitled Chat').toLowerCase().includes(mainQ))
+            .filter((c) => (c.title || 'New Chat').toLowerCase().includes(mainQ))
             .map((c) => ({ type: 'Chats', value: c })),
           ...logsList
             .filter((l) => (l.workflowName || 'Untitled Workflow').toLowerCase().includes(mainQ))
@@ -538,9 +536,7 @@ export function useMentionKeyboard({
         void ensurePastChatsLoaded()
       } else if (openSubmenuFor === 'Chats') {
         const q = getSubmenuQuery().toLowerCase()
-        const filtered = pastChats.filter((c) =>
-          (c.title || 'Untitled Chat').toLowerCase().includes(q)
-        )
+        const filtered = pastChats.filter((c) => (c.title || 'New Chat').toLowerCase().includes(q))
         if (filtered.length > 0) {
           const chosen = filtered[Math.max(0, Math.min(submenuActiveIndex, filtered.length - 1))]
           insertPastChatMention(chosen)

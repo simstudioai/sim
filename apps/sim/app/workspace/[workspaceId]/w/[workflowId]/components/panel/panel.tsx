@@ -474,8 +474,7 @@ export function Panel() {
                                         onKeyDown={async (e) => {
                                           if (e.key === 'Enter') {
                                             e.preventDefault()
-                                            const newTitle =
-                                              editingChatTitle.trim() || 'Untitled Chat'
+                                            const newTitle = editingChatTitle.trim() || 'New Chat'
 
                                             // Update optimistically in store first
                                             const updatedChats = chats.map((c) =>
@@ -521,14 +520,14 @@ export function Panel() {
                                           className='min-w-0 cursor-pointer truncate text-sm'
                                           style={{ maxWidth: 'calc(100% - 60px)' }}
                                         >
-                                          {chat.title || 'Untitled Chat'}
+                                          {chat.title || 'New Chat'}
                                         </span>
                                         <div className='ml-auto flex flex-shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
                                           <button
                                             onClick={(e) => {
                                               e.stopPropagation()
                                               setEditingChatId(chat.id)
-                                              setEditingChatTitle(chat.title || 'Untitled Chat')
+                                              setEditingChatTitle(chat.title || 'New Chat')
                                             }}
                                             className='flex h-5 w-5 items-center justify-center rounded hover:bg-muted'
                                           >

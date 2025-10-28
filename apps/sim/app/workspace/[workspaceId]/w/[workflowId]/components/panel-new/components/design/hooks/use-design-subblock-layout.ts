@@ -5,33 +5,31 @@ import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /**
- * Custom hook for computing subblock layout rows
+ * Custom hook for computing subblock layout rows in the design panel.
+ * Determines which subblocks should be visible based on mode, conditions, and feature flags.
  *
- * @param config - The block configuration
- * @param blockId - The ID of the block
- * @param displayAdvancedMode - Whether advanced mode is enabled
- * @param displayTriggerMode - Whether trigger mode is enabled
- * @param isPreview - Whether the block is in preview mode
- * @param isDiffMode - Whether the workflow is in diff mode
- * @param previewSubBlockValues - SubBlock values in preview mode
- * @param currentBlock - Current block in diff mode
+ * @param config - The block configuration containing subblock definitions
+ * @param blockId - The ID of the current block being edited
+ * @param displayAdvancedMode - Whether advanced mode is enabled for this block
+ * @param displayTriggerMode - Whether trigger mode is enabled for this block
  * @param activeWorkflowId - The active workflow ID
- * @param blockSubBlockValues - Current subblock values
+ * @param blockSubBlockValues - Current subblock values from the store
  * @returns Object containing rows array and stateToUse for stable key generation
  */
-export function useSubblockLayout(
+export function useDesignSubblockLayout(
   config: BlockConfig,
   blockId: string,
   displayAdvancedMode: boolean,
   displayTriggerMode: boolean,
-  isPreview: boolean,
-  isDiffMode: boolean,
-  previewSubBlockValues: Record<string, any> | undefined,
-  currentBlock: any,
   activeWorkflowId: string | null,
   blockSubBlockValues: Record<string, any>
 ) {
   return useMemo(() => {
+    // Guard against missing config or block selection
+    if (!config || !Array.isArray((config as any).subBlocks) || !blockId) {
+      return { rows: [] as SubBlockConfig[][], stateToUse: {} }
+    }
+
     const rows: SubBlockConfig[][] = []
     let currentRow: SubBlockConfig[] = []
     let currentRowWidth = 0
@@ -39,20 +37,13 @@ export function useSubblockLayout(
     // Get the appropriate state for conditional evaluation
     let stateToUse: Record<string, any> = {}
 
-    if (isPreview && previewSubBlockValues) {
-      stateToUse = previewSubBlockValues
-    } else if (isDiffMode && currentBlock) {
-      stateToUse = currentBlock.subBlocks || {}
-    } else {
-      const blocks = useWorkflowStore.getState().blocks
-      const mergedState = mergeSubblockState(blocks, activeWorkflowId || undefined, blockId)[
-        blockId
-      ]
-      stateToUse = mergedState?.subBlocks || {}
-    }
+    const blocks = useWorkflowStore.getState().blocks || {}
+    const mergedMap = mergeSubblockState(blocks, activeWorkflowId || undefined, blockId)
+    const mergedState = mergedMap ? mergedMap[blockId] : undefined
+    stateToUse = mergedState?.subBlocks || {}
 
     // Filter visible blocks and those that meet their conditions
-    const visibleSubBlocks = config.subBlocks.filter((block) => {
+    const visibleSubBlocks = (config.subBlocks || []).filter((block) => {
       if (block.hidden) return false
 
       // Check required feature if specified - declarative feature gating
@@ -114,6 +105,7 @@ export function useSubblockLayout(
       return isValueMatch && isAndValueMatch
     })
 
+    // Arrange subblocks into rows based on layout (full/half width)
     visibleSubBlocks.forEach((block) => {
       const blockWidth = block.layout === 'half' ? 0.5 : 1
       if (currentRowWidth + blockWidth > 1) {
@@ -140,10 +132,6 @@ export function useSubblockLayout(
     blockId,
     displayAdvancedMode,
     displayTriggerMode,
-    isPreview,
-    previewSubBlockValues,
-    isDiffMode,
-    currentBlock,
     blockSubBlockValues,
     activeWorkflowId,
   ])

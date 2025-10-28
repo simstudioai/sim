@@ -30,7 +30,6 @@ interface ComboBoxProps {
   placeholder?: string
   isConnecting: boolean
   config: SubBlockConfig
-  isWide?: boolean
 }
 
 export function ComboBox({
@@ -45,7 +44,6 @@ export function ComboBox({
   placeholder = 'Type or select an option...',
   isConnecting,
   config,
-  isWide = false,
 }: ComboBoxProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -459,7 +457,7 @@ export function ComboBox({
         <div
           className={cn(
             'absolute top-full left-0 z-[100] mt-1 w-full overflow-visible',
-            isWide ? 'min-w-[350px]' : 'min-w-[286px]'
+            'min-w-[286px]'
           )}
         >
           <div className='allow-scroll fade-in-0 zoom-in-95 animate-in rounded-md border bg-popover text-popover-foreground shadow-lg'>
