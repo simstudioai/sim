@@ -240,9 +240,7 @@ export function VariablesInput({
                       }}
                       disabled={isPreview || disabled}
                     >
-                      <SelectTrigger
-                        className='h-9 bg-white dark:bg-background'
-                      >
+                      <SelectTrigger className='h-9 bg-white dark:bg-background'>
                         <SelectValue placeholder='Select a variable...' />
                       </SelectTrigger>
                       <SelectContent>
