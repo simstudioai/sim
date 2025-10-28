@@ -131,7 +131,6 @@ describe('File Serve API Route', () => {
       isUsingCloudStorage: vi.fn().mockReturnValue(true),
     }))
 
-    // Also mock the core storage-service module (which is what the route actually imports)
     vi.doMock('@/lib/uploads/core/storage-service', () => ({
       downloadFile: downloadFileMock,
       hasCloudStorage: vi.fn().mockReturnValue(true),

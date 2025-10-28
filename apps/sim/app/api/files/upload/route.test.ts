@@ -151,7 +151,6 @@ describe('File Upload API Route', () => {
       storageProvider: 's3',
     })
 
-    // Mock the core storage-service to throw an error
     vi.doMock('@/lib/uploads/core/storage-service', () => ({
       uploadFile: vi.fn().mockRejectedValue(new Error('Upload failed')),
       hasCloudStorage: vi.fn().mockReturnValue(true),

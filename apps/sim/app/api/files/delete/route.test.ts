@@ -71,7 +71,6 @@ describe('File Delete API Route', () => {
     expect(data).toHaveProperty('success', true)
     expect(data).toHaveProperty('message', 'File deleted successfully')
 
-    // Check the core storage-service mock (which is what the route actually imports)
     const storageService = await import('@/lib/uploads/core/storage-service')
     expect(storageService.deleteFile).toHaveBeenCalledWith({
       key: '1234567890-test-file.txt',
@@ -98,7 +97,6 @@ describe('File Delete API Route', () => {
     expect(data).toHaveProperty('success', true)
     expect(data).toHaveProperty('message', 'File deleted successfully')
 
-    // Check the core storage-service mock (which is what the route actually imports)
     const storageService = await import('@/lib/uploads/core/storage-service')
     expect(storageService.deleteFile).toHaveBeenCalledWith({
       key: '1234567890-test-document.pdf',

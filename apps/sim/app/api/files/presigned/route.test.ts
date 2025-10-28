@@ -305,7 +305,6 @@ describe('/api/files/presigned', () => {
         storageProvider: 's3',
       })
 
-      // Mock generatePresignedUploadUrl to throw an error
       vi.doMock('@/lib/uploads/core/storage-service', () => ({
         hasCloudStorage: vi.fn().mockReturnValue(true),
         generatePresignedUploadUrl: vi
@@ -338,7 +337,6 @@ describe('/api/files/presigned', () => {
         storageProvider: 's3',
       })
 
-      // Mock generatePresignedUploadUrl to throw an error
       vi.doMock('@/lib/uploads/core/storage-service', () => ({
         hasCloudStorage: vi.fn().mockReturnValue(true),
         generatePresignedUploadUrl: vi.fn().mockRejectedValue(new Error('S3 service unavailable')),
@@ -369,7 +367,6 @@ describe('/api/files/presigned', () => {
         storageProvider: 'blob',
       })
 
-      // Mock generatePresignedUploadUrl to throw an error
       vi.doMock('@/lib/uploads/core/storage-service', () => ({
         hasCloudStorage: vi.fn().mockReturnValue(true),
         generatePresignedUploadUrl: vi
