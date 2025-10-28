@@ -50,7 +50,7 @@ Simでは、OneDrive統合によりエージェントがクラウドストレー
 
 ## 使用方法
 
-OneDriveをワークフローに統合します。ファイルの作成、アップロード、一覧表示が可能です。OAuthが必要です。
+OneDriveをワークフローに統合します。テキストファイルやExcelファイルの作成、ファイルのアップロード、ファイルの一覧表示が可能です。
 
 ## ツール
 
@@ -60,11 +60,12 @@ OneDriveにファイルをアップロードする
 
 #### 入力
 
-| パラメータ | 型 | 必須 | 説明 |
+| パラメータ | 種類 | 必須 | 説明 |
 | --------- | ---- | -------- | ----------- |
 | `fileName` | string | はい | アップロードするファイルの名前 |
 | `file` | file | いいえ | アップロードするファイル（バイナリ） |
-| `content` | string | いいえ | アップロードするテキストコンテンツ（ファイルが提供されていない場合） |
+| `content` | string | いいえ | アップロードするテキスト内容（ファイルが提供されていない場合） |
+| `mimeType` | string | いいえ | 作成するファイルのMIMEタイプ（例：.txtの場合はtext/plain、.xlsxの場合はapplication/vnd.openxmlformats-officedocument.spreadsheetml.sheet） |
 | `folderSelector` | string | いいえ | ファイルをアップロードするフォルダを選択 |
 | `manualFolderId` | string | いいえ | 手動で入力したフォルダID（高度なモード） |
 

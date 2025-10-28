@@ -9,7 +9,7 @@ import { Image } from '@/components/ui/image'
 
 ループブロックはSimの中のコンテナブロックで、ブロックのグループを繰り返し実行することで反復的なワークフローを作成できます。ループを使用することで、ワークフロー内で反復処理が可能になります。
 
-ループブロックは2種類の反復をサポートしています：
+ループブロックは4種類の反復処理をサポートしています：
 
 <Callout type="info">
   ループブロックは他のブロックを内部に保持できるコンテナノードです。ループ内のブロックは設定に基づいて複数回実行されます。
@@ -21,13 +21,13 @@ import { Image } from '@/components/ui/image'
 
 <Steps>
   <Step>
-    <strong>コレクションの反復処理</strong>：配列やオブジェクトを一項目ずつ処理する
+    <strong>コレクションの反復処理</strong>：配列やオブジェクトを1アイテムずつ処理する
   </Step>
   <Step>
     <strong>操作の繰り返し</strong>：ブロックを固定回数実行する
   </Step>
   <Step>
-    <strong>順次処理</strong>：順序付けられた反復でデータ変換を処理する
+    <strong>条件付きループ</strong>：条件が満たされている間、または満たされるまで実行を継続する
   </Step>
   <Step>
     <strong>結果の集約</strong>：すべてのループ反復からの出力を収集する
@@ -47,16 +47,16 @@ import { Image } from '@/components/ui/image'
 
 ### ループタイプ
 
-2種類のループから選択できます：
+4種類のループから選択できます：
 
-<Tabs items={['For Loop', 'ForEach Loop']}>
+<Tabs items={['For ループ', 'ForEach ループ', 'While ループ', 'Do-While ループ']}>
   <Tab>
-    **Forループ（反復回数）** - 固定回数実行する数値ループ：
+    **For ループ（反復回数）** - 固定回数実行する数値ループ：
     
     <div className="flex justify-center">
       <Image
         src="/static/blocks/loop-1.png"
-        alt="反復回数を指定するForループ"
+        alt="反復回数を使用したFor ループ"
         width={500}
         height={400}
         className="my-6"
@@ -100,6 +100,58 @@ import { Image } from '@/components/ui/image'
     ```
 
   </Tab>
+  <Tab>
+    **While ループ（条件ベース）** - 条件がtrueと評価される間、実行を継続します：
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-3.png"
+        alt="条件付きWhile ループ"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    特定の条件が満たされるまでループする必要がある場合に使用します。条件は各反復の**前に**チェックされます。
+    
+
+    ```
+    Example: While <variable.i> < 10
+    - Check condition → Execute if true
+    - Inside loop: Increment <variable.i>
+    - Inside loop: Variables assigns i = <variable.i> + 1
+    - Check condition → Execute if true
+    - Check condition → Exit if false
+    ```
+
+  </Tab>
+  <Tab>
+    **Do-While ループ（条件ベース）** - 少なくとも1回実行し、その後条件がtrueの間継続します：
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-3.png"
+        alt="条件付きDo-While ループ"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    少なくとも1回実行し、その後条件が満たされるまでループする必要がある場合に使用します。条件は各反復の**後に**チェックされます。
+    
+
+    ```
+    Example: Do-while <variable.i> < 10
+    - Execute blocks
+    - Inside loop: Increment <variable.i>
+    - Inside loop: Variables assigns i = <variable.i> + 1
+    - Check condition → Continue if true
+    - Check condition → Exit if false
+    ```
+
+  </Tab>
 </Tabs>
 
 ## ループの使い方
@@ -107,13 +159,13 @@ import { Image } from '@/components/ui/image'
 ### ループの作成
 
 1. ツールバーからループブロックをキャンバスにドラッグします
-2. ループタイプとパラメータを設定します
-3. ループコンテナ内に他のブロックをドラッグします
+2. ループの種類とパラメータを設定します
+3. 他のブロックをループコンテナ内にドラッグします
 4. 必要に応じてブロックを接続します
 
 ### 結果へのアクセス
 
-ループが完了すると、集計された結果にアクセスできます：
+ループが完了した後、集計された結果にアクセスできます：
 
 - **`<loop.results>`**: すべてのループ反復からの結果の配列
 
@@ -143,12 +195,25 @@ import { Image } from '@/components/ui/image'
   </ol>
 </div>
 
+### Whileループによるカウンター
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">シナリオ：カウンターベースのループでアイテムを処理する</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>ワークフロー変数を初期化：`i = 0`</li>
+    <li>条件付きWhileループ：`<variable.i>` \< 10</li>
+    <li>ループ内：エージェントがインデックス `<variable.i>` のアイテムを処理</li>
+    <li>ループ内：変数がインクリメント `i = <variable.i> + 1`</li>
+    <li>iが10未満である限りループは継続</li>
+  </ol>
+</div>
+
 ## 高度な機能
 
 ### 制限事項
 
 <Callout type="warning">
-  コンテナブロック（ループと並列処理）は互いに入れ子にすることができません。つまり：
+  コンテナブロック（ループと並列）は互いに入れ子にすることができません。つまり：
   - ループブロック内に別のループブロックを配置できません
   - ループブロック内に並列ブロックを配置できません
   - どのコンテナブロック内にも別のコンテナブロックを配置できません
@@ -157,22 +222,25 @@ import { Image } from '@/components/ui/image'
 </Callout>
 
 <Callout type="info">
-  ループは並列ではなく、順次実行されます。並行実行が必要な場合は、代わりにParallelブロックを使用してください。
+  ループは並列ではなく、順次実行されます。同時実行が必要な場合は、代わりに並列ブロックを使用してください。
 </Callout>
 
 ## 入力と出力
 
-<Tabs items={['設定', '変数', '結果']}>
+<Tabs items={['Configuration', 'Variables', 'Results']}>
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
-        <strong>ループタイプ</strong>: 'for'または'forEach'から選択
+        <strong>ループタイプ</strong>: 'for'、'forEach'、'while'、または'doWhile'から選択
       </li>
       <li>
         <strong>繰り返し回数</strong>: 実行する回数（forループ）
       </li>
       <li>
         <strong>コレクション</strong>: 反復処理する配列またはオブジェクト（forEachループ）
+      </li>
+      <li>
+        <strong>条件</strong>: 評価するブール式（while/do-whileループ）
       </li>
     </ul>
   </Tab>
@@ -206,6 +274,6 @@ import { Image } from '@/components/ui/image'
 
 ## ベストプラクティス
 
-- **適切な制限を設定する**: 実行時間が長くならないよう、繰り返し回数を適切に保つ
-- **コレクションにはForEachを使用する**: 配列やオブジェクトを処理する場合は、Forループの代わりにForEachを使用する
+- **適切な制限を設定する**: 長い実行時間を避けるため、繰り返し回数を適切に保つ
+- **コレクションにはForEachを使用する**: 配列やオブジェクトを処理する場合、Forループの代わりにForEachを使用する
 - **エラーを適切に処理する**: 堅牢なワークフローのために、ループ内にエラー処理を追加することを検討する

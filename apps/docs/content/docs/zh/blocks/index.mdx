@@ -16,7 +16,7 @@ import { Video } from '@/components/ui/video'
 
 ## 核心模块类型
 
-Sim 提供了七种核心模块类型，用于处理 AI 工作流的基本功能：
+Sim 提供了处理 AI 工作流核心功能的基本模块类型：
 
 ### 处理模块
 - **[Agent](/blocks/agent)** - 与 AI 模型（OpenAI、Anthropic、Google、本地模型）聊天
@@ -28,16 +28,20 @@ Sim 提供了七种核心模块类型，用于处理 AI 工作流的基本功能
 - **[Router](/blocks/router)** - 使用 AI 智能路由请求到不同路径
 - **[Evaluator](/blocks/evaluator)** - 使用 AI 评分并评估内容质量
 
-### 输出模块
-- **[Response](/blocks/response)** - 格式化并返回工作流的最终结果
+### 控制流模块
+- **[变量](/blocks/variables)** - 设置和管理工作流范围内的变量
+- **[等待](/blocks/wait)** - 暂停工作流执行指定的时间延迟
 
-## 模块如何工作
+### 输出模块
+- **[响应](/blocks/response)** - 格式化并返回工作流的最终结果
+
+## 模块的工作原理
 
 每个模块有三个主要组成部分：
 
 **输入**：从其他模块或用户输入接收的数据
 **配置**：控制模块行为的设置
-**输出**：模块为其他模块使用而生成的数据
+**输出**：模块为其他模块生成的数据
 
 <Steps>
   <Step>
@@ -66,14 +70,14 @@ Sim 提供了七种核心模块类型，用于处理 AI 工作流的基本功能
 ## 常见模式
 
 ### 顺序处理
-将模块按链式连接，每个模块处理前一个模块的输出：
+将模块连接成链，每个模块处理前一个模块的输出：
 
 ```
 User Input → Agent → Function → Response
 ```
 
 ### 条件分支
-使用条件模块或路由模块创建不同的路径：
+使用条件或路由模块创建不同的路径：
 
 ```
 User Input → Router → Agent A (for questions)
@@ -81,7 +85,7 @@ User Input → Router → Agent A (for questions)
 ```
 
 ### 质量控制
-使用评估模块评估和过滤输出：
+使用评估模块评估和筛选输出：
 
 ```
 Agent → Evaluator → Condition → Response (if good)
@@ -97,33 +101,39 @@ Agent → Evaluator → Condition → Response (if good)
 - 错误处理行为
 - 执行超时设置
 
-**AI 模块**（代理、路由、评估）：
+**AI 模块**（Agent、Router、Evaluator）：
 - 模型选择（OpenAI、Anthropic、Google、本地）
-- API 密钥和认证
+- API 密钥和身份验证
 - 温度及其他模型参数
 - 系统提示和指令
 
-**逻辑模块**（条件、函数）：
+**逻辑模块**（Condition、Function）：
 - 自定义表达式或代码
 - 变量引用
 - 执行环境设置
 
-**集成模块**（API、响应）：
+**集成模块**（API、Response）：
 - 端点配置
-- 请求头和认证
+- 请求头和身份验证
 - 请求/响应格式化
 
 <Cards>
-  <Card title="代理模块" href="/blocks/agent">
+  <Card title="Agent 模块" href="/blocks/agent">
     连接 AI 模型并创建智能响应
   </Card>
-  <Card title="函数模块" href="/blocks/function">
+  <Card title="Function 模块" href="/blocks/function">
     运行自定义代码以处理和转换数据
   </Card>
   <Card title="API 模块" href="/blocks/api">
     与外部服务和 API 集成
   </Card>
-  <Card title="条件模块" href="/blocks/condition">
+  <Card title="Condition 模块" href="/blocks/condition">
     基于数据评估创建分支逻辑
+  </Card>
+  <Card title="Variables 模块" href="/blocks/variables">
+    设置和管理工作流范围的变量
+  </Card>
+  <Card title="Wait 模块" href="/blocks/wait">
+    暂停工作流执行指定的时间延迟
   </Card>
 </Cards>

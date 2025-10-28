@@ -50,7 +50,7 @@ Dans Sim, l'intégration OneDrive permet à vos agents d'interagir directement a
 
 ## Instructions d'utilisation
 
-Intégrez OneDrive dans le flux de travail. Permet de créer, téléverser et lister des fichiers. Nécessite OAuth.
+Intégrer OneDrive dans le flux de travail. Peut créer des fichiers texte et Excel, télécharger des fichiers et lister des fichiers.
 
 ## Outils
 
@@ -65,7 +65,8 @@ Télécharger un fichier vers OneDrive
 | `fileName` | string | Oui | Le nom du fichier à télécharger |
 | `file` | file | Non | Le fichier à télécharger \(binaire\) |
 | `content` | string | Non | Le contenu textuel à télécharger \(si aucun fichier n'est fourni\) |
-| `folderSelector` | string | Non | Sélectionner le dossier dans lequel télécharger le fichier |
+| `mimeType` | string | Non | Le type MIME du fichier à créer \(par exemple, text/plain pour .txt, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet pour .xlsx\) |
+| `folderSelector` | string | Non | Sélectionner le dossier où télécharger le fichier |
 | `manualFolderId` | string | Non | ID de dossier saisi manuellement \(mode avancé\) |
 
 #### Sortie
