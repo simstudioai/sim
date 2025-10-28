@@ -442,9 +442,36 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             deploymentStatuses: {},
           }
         } else {
-          // If no state in DB, use empty state - server should have created start block
+          // If no state in DB, create a default Start block
+          const starterId = crypto.randomUUID()
           workflowState = {
-            blocks: {},
+            blocks: {
+              [starterId]: {
+                id: starterId,
+                type: 'start_trigger',
+                name: 'Start',
+                position: { x: 200, y: 300 },
+                enabled: true,
+                horizontalHandles: true,
+                isWide: false,
+                advancedMode: false,
+                triggerMode: false,
+                height: 0,
+                subBlocks: {
+                  inputFormat: {
+                    id: 'inputFormat',
+                    type: 'input-format',
+                    value: [],
+                  },
+                },
+                outputs: {
+                  input: { type: 'string', description: 'Primary user input or message' },
+                  conversationId: { type: 'string', description: 'Conversation thread identifier' },
+                  files: { type: 'files', description: 'User uploaded files' },
+                },
+                data: {},
+              },
+            },
             edges: [],
             loops: {},
             parallels: {},
@@ -454,9 +481,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             lastSaved: Date.now(),
           }
 
-          logger.warn(
-            `Workflow ${id} has no state in DB - this should not happen with server-side start block creation`
-          )
+          logger.info(`Created default Start block for empty workflow ${id}`)
         }
 
         if (workflowData?.isDeployed || workflowData?.deployedAt) {
