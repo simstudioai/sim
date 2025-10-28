@@ -46,7 +46,7 @@ export class VariablesBlockHandler implements BlockHandler {
               ([_, v]) => v.name === assignment.variableName
             )
 
-        if (existingEntry && existingEntry[1]) {
+        if (existingEntry?.[1]) {
           // Update existing variable value
           const [id, variable] = existingEntry
           context.workflowVariables[id] = {
@@ -68,8 +68,15 @@ export class VariablesBlockHandler implements BlockHandler {
         })),
       })
 
-      // Return empty object - variables are accessed via <variable.name>, not block outputs
-      return {}
+      // Return assignments as a JSON object mapping variable names to values
+      const assignmentsOutput: Record<string, any> = {}
+      for (const assignment of assignments) {
+        assignmentsOutput[assignment.variableName] = assignment.value
+      }
+
+      return {
+        assignments: assignmentsOutput,
+      }
     } catch (error: any) {
       logger.error('Variables block execution failed:', error)
       throw new Error(`Variables block execution failed: ${error.message}`)
@@ -87,7 +94,7 @@ export class VariablesBlockHandler implements BlockHandler {
     }
 
     for (const assignment of assignmentsInput) {
-      if (assignment?.variableName && assignment?.variableName.trim()) {
+      if (assignment?.variableName?.trim()) {
         const name = assignment.variableName.trim()
         const type = assignment.type || 'string'
         const value = this.parseValueByType(assignment.value, type)
@@ -118,7 +125,7 @@ export class VariablesBlockHandler implements BlockHandler {
     if (type === 'string' || type === 'plain') {
       return typeof value === 'string' ? value : String(value)
     }
-    
+
     if (type === 'number') {
       if (typeof value === 'number') return value
       if (typeof value === 'string') {
@@ -127,7 +134,7 @@ export class VariablesBlockHandler implements BlockHandler {
       }
       return 0
     }
-    
+
     if (type === 'boolean') {
       if (typeof value === 'boolean') return value
       if (typeof value === 'string') {
@@ -135,7 +142,7 @@ export class VariablesBlockHandler implements BlockHandler {
       }
       return Boolean(value)
     }
-    
+
     if (type === 'object' || type === 'array') {
       if (typeof value === 'object' && value !== null) {
         return value
@@ -149,9 +156,8 @@ export class VariablesBlockHandler implements BlockHandler {
       }
       return type === 'array' ? [] : {}
     }
-    
+
     // Default: return value as-is
     return value
   }
 }
-

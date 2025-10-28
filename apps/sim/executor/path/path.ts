@@ -286,9 +286,21 @@ export class PathTracker {
    * Update paths for loop blocks
    */
   private updateLoopPaths(block: SerializedBlock, context: ExecutionContext): void {
-    // Loop blocks manage their own connections (loop-start-source and loop-end-source)
-    // The loop handler decides which connections to activate based on conditions
-    // Don't auto-activate anything here
+    // Don't activate loop-start connections if the loop has completed
+    // (e.g., while loop condition is false)
+    if (context.completedLoops.has(block.id)) {
+      return
+    }
+
+    const outgoingConnections = this.getOutgoingConnections(block.id)
+
+    for (const conn of outgoingConnections) {
+      // Only activate loop-start connections
+      if (conn.sourceHandle === 'loop-start-source') {
+        context.activeExecutionPath.add(conn.target)
+      }
+      // loop-end-source connections will be activated by the loop manager
+    }
   }
 
   /**
@@ -359,15 +371,6 @@ export class PathTracker {
       if (isExternalConnection && !allLoopsCompleted) {
         return false
       }
-    }
-
-    // Loop/parallel blocks manage their own start/end connections
-    // Don't auto-activate them - let the handlers decide
-    if (conn.sourceHandle === 'loop-start-source' || 
-        conn.sourceHandle === 'loop-end-source' ||
-        conn.sourceHandle === 'parallel-start-source' ||
-        conn.sourceHandle === 'parallel-end-source') {
-      return false
     }
 
     // Handle error connections

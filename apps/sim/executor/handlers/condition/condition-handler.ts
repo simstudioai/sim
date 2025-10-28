@@ -16,10 +16,11 @@ export async function evaluateConditionExpression(
   conditionExpression: string,
   context: ExecutionContext,
   block: SerializedBlock,
-  resolver: InputResolver
+  resolver: InputResolver,
+  providedEvalContext?: Record<string, any>
 ): Promise<boolean> {
-  // Build evaluation context
-  const evalContext = {
+  // Build evaluation context - use provided context or just loop context
+  const evalContext = providedEvalContext || {
     // Add loop context if applicable
     ...(context.loopItems.get(block.id) || {}),
   }
@@ -163,7 +164,8 @@ export class ConditionBlockHandler implements BlockHandler {
           conditionValueString,
           context,
           block,
-          this.resolver
+          this.resolver,
+          evalContext
         )
         logger.info(`Condition "${condition.title}" (${condition.id}) met: ${conditionMet}`)
 

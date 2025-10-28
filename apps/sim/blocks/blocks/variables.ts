@@ -24,11 +24,12 @@ export const VariablesBlock: BlockConfig = {
       title: 'Variable Assignments',
       type: 'variables-input',
       layout: 'full',
-      description: 'Select workflow variables and update their values during execution. Access them anywhere using <variable.variableName> syntax.',
+      description:
+        'Select workflow variables and update their values during execution. Access them anywhere using <variable.variableName> syntax.',
       required: false,
     },
   ],
-  tools: { 
+  tools: {
     access: [],
   },
   inputs: {
@@ -38,7 +39,9 @@ export const VariablesBlock: BlockConfig = {
     },
   },
   outputs: {
-    // Dynamic outputs based on defined variables - accessible as <blockId.variableName>
+    assignments: {
+      type: 'json',
+      description: 'JSON object mapping variable names to their assigned values',
+    },
   },
 }
-

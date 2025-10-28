@@ -52,7 +52,7 @@ export class LoopBlockHandler implements BlockHandler {
     let maxIterations: number
     let forEachItems: any[] | Record<string, any> | null = null
     let shouldContinueLoop = true
-    
+
     if (loop.loopType === 'forEach') {
       if (
         !loop.forEachItems ||
@@ -124,8 +124,8 @@ export class LoopBlockHandler implements BlockHandler {
         }
       }
 
-      // Use a safety limit to prevent infinite loops
-      maxIterations = loop.iterations || 1000
+      // No max iterations for while/doWhile - rely on condition and workflow timeout
+      maxIterations = Number.MAX_SAFE_INTEGER
     } else {
       maxIterations = loop.iterations || DEFAULT_MAX_ITERATIONS
       logger.info(`For loop ${block.id} - Max iterations: ${maxIterations}`)
@@ -139,17 +139,17 @@ export class LoopBlockHandler implements BlockHandler {
     if ((loop.loopType === 'while' || loop.loopType === 'doWhile') && !shouldContinueLoop) {
       // Mark the loop as completed
       context.completedLoops.add(block.id)
-      
+
       // Remove any activated loop-start paths since we're not continuing
       const loopStartConnections =
         context.workflow?.connections.filter(
           (conn) => conn.source === block.id && conn.sourceHandle === 'loop-start-source'
         ) || []
-      
+
       for (const conn of loopStartConnections) {
         context.activeExecutionPath.delete(conn.target)
       }
-      
+
       // Activate the loop-end connections (blocks after the loop)
       const loopEndConnections =
         context.workflow?.connections.filter(
@@ -170,7 +170,11 @@ export class LoopBlockHandler implements BlockHandler {
       } as Record<string, any>
     }
 
-    if (currentIteration > maxIterations) {
+    // Only check max iterations for for/forEach loops (while/doWhile have no limit)
+    if (
+      (loop.loopType === 'for' || loop.loopType === 'forEach') &&
+      currentIteration > maxIterations
+    ) {
       logger.info(`Loop ${block.id} has reached maximum iterations (${maxIterations})`)
 
       return {
@@ -231,7 +235,7 @@ export class LoopBlockHandler implements BlockHandler {
         context.decisions.router.delete(nodeId)
         context.decisions.condition.delete(nodeId)
       }
-      
+
       // Increment the counter for the next iteration
       context.loopIterations.set(block.id, currentIteration + 1)
     } else {

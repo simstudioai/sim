@@ -12,29 +12,29 @@ const logger = createLogger('WaitBlockHandler')
  */
 const sleep = async (ms: number, checkCancelled?: () => boolean): Promise<boolean> => {
   const isClientSide = typeof window !== 'undefined'
-  
+
   // Server-side: simple sleep without polling
   if (!isClientSide) {
-    await new Promise(resolve => setTimeout(resolve, ms))
+    await new Promise((resolve) => setTimeout(resolve, ms))
     return true
   }
-  
+
   // Client-side: check for cancellation every 100ms
   const chunkMs = 100
   let elapsed = 0
-  
+
   while (elapsed < ms) {
     // Check if execution was cancelled
-    if (checkCancelled && checkCancelled()) {
+    if (checkCancelled?.()) {
       return false // Sleep was interrupted
     }
-    
+
     // Sleep for a chunk or remaining time, whichever is smaller
     const sleepTime = Math.min(chunkMs, ms - elapsed)
-    await new Promise(resolve => setTimeout(resolve, sleepTime))
+    await new Promise((resolve) => setTimeout(resolve, sleepTime))
     elapsed += sleepTime
   }
-  
+
   return true // Sleep completed normally
 }
 
@@ -54,38 +54,38 @@ export class WaitBlockHandler implements BlockHandler {
     logger.info(`Executing Wait block: ${block.id}`, { inputs })
 
     // Parse the wait duration
-    const timeValue = parseInt(inputs.timeValue || '10', 10)
+    const timeValue = Number.parseInt(inputs.timeValue || '10', 10)
     const timeUnit = inputs.timeUnit || 'seconds'
-    
+
     // Validate time value
-    if (isNaN(timeValue) || timeValue <= 0) {
+    if (Number.isNaN(timeValue) || timeValue <= 0) {
       throw new Error('Wait amount must be a positive number')
     }
-    
+
     // Calculate wait time in milliseconds
     let waitMs = timeValue * 1000 // Default to seconds
     if (timeUnit === 'minutes') {
       waitMs = timeValue * 60 * 1000
     }
-    
+
     // Enforce 10-minute maximum (600,000 ms)
     const maxWaitMs = 10 * 60 * 1000
     if (waitMs > maxWaitMs) {
       const maxDisplay = timeUnit === 'minutes' ? '10 minutes' : '600 seconds'
       throw new Error(`Wait time exceeds maximum of ${maxDisplay}`)
     }
-    
+
     logger.info(`Waiting for ${waitMs}ms (${timeValue} ${timeUnit})`)
-    
+
     // Actually sleep for the specified duration
     // The executor updates context.isCancelled when cancel() is called
     const checkCancelled = () => {
       // Check if execution was marked as cancelled in the context
       return (context as any).isCancelled === true
     }
-    
+
     const completed = await sleep(waitMs, checkCancelled)
-    
+
     if (!completed) {
       logger.info('Wait was interrupted by cancellation')
       return {
@@ -93,7 +93,7 @@ export class WaitBlockHandler implements BlockHandler {
         status: 'cancelled',
       }
     }
-    
+
     logger.info('Wait completed successfully')
     return {
       waitDuration: waitMs,
@@ -101,4 +101,3 @@ export class WaitBlockHandler implements BlockHandler {
     }
   }
 }
-

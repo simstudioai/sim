@@ -585,16 +585,16 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     )
 
     let loopBlockGroup: BlockTagGroup | null = null
-    
+
     // Check if blockId IS a loop block (for editing loop config like while condition)
     const isLoopBlock = blocks[blockId]?.type === 'loop'
     const currentLoop = isLoopBlock ? loops[blockId] : null
-    
+
     // Check if blockId is INSIDE a loop
     const containingLoop = Object.entries(loops).find(([_, loop]) => loop.nodes.includes(blockId))
-    
+
     let containingLoopBlockId: string | null = null
-    
+
     // Prioritize current loop if editing the loop block itself
     if (currentLoop && isLoopBlock) {
       containingLoopBlockId = blockId

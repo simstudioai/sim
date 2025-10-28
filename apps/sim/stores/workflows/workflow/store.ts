@@ -793,7 +793,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
           if (!block || block.type !== 'loop') return state
 
           const loopType = block.data?.loopType || 'for'
-          
+
           // Update the appropriate field based on loop type
           const dataUpdate: any = { ...block.data }
           if (loopType === 'while' || loopType === 'doWhile') {

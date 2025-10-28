@@ -82,14 +82,18 @@ export class LoopManager {
             }
           }
         } else if (loop.loopType === 'while' || loop.loopType === 'doWhile') {
-          // For while and doWhile loops, use the safety limit
-          maxIterations = loop.iterations || 1000
+          // For while and doWhile loops, no max iteration limit
+          // They rely on the condition to stop (and workflow timeout as safety)
+          maxIterations = Number.MAX_SAFE_INTEGER
         }
 
         logger.info(`Loop ${loopId} - Current: ${currentIteration}, Max: ${maxIterations}`)
 
-        // Check if we've completed all iterations
-        if (currentIteration >= maxIterations) {
+        // Check if we've completed all iterations (only for for/forEach loops)
+        if (
+          currentIteration >= maxIterations &&
+          (loop.loopType === 'for' || loop.loopType === 'forEach')
+        ) {
           hasLoopReachedMaxIterations = true
           logger.info(`Loop ${loopId} has completed all ${maxIterations} iterations`)
 

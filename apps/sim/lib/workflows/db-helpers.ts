@@ -178,8 +178,8 @@ export async function loadWorkflowFromNormalizedTables(
           iterations:
             typeof (config as Loop).iterations === 'number' ? (config as Loop).iterations : 1,
           loopType:
-            (config as Loop).loopType === 'for' || 
-            (config as Loop).loopType === 'forEach' || 
+            (config as Loop).loopType === 'for' ||
+            (config as Loop).loopType === 'forEach' ||
             (config as Loop).loopType === 'while' ||
             (config as Loop).loopType === 'doWhile'
               ? (config as Loop).loopType

@@ -883,7 +883,8 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
         type: 'string',
         required: true,
         enum: ['for', 'forEach', 'while', 'doWhile'],
-        description: "Loop Type - 'for' runs N times, 'forEach' iterates over collection, 'while' runs while condition is true, 'doWhile' runs at least once then checks condition",
+        description:
+          "Loop Type - 'for' runs N times, 'forEach' iterates over collection, 'while' runs while condition is true, 'doWhile' runs at least once then checks condition",
       },
       iterations: {
         type: 'number',

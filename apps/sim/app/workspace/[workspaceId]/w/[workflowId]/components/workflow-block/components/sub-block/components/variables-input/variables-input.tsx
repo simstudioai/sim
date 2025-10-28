@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react'
 import { Plus, Trash } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { formatDisplayText } from '@/components/ui/formatted-text'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -11,14 +13,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { formatDisplayText } from '@/components/ui/formatted-text'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useVariablesStore } from '@/stores/panel/variables/store'
-import { useParams } from 'next/navigation'
 import type { Variable } from '@/stores/panel/variables/types'
 
 interface VariableAssignment {
@@ -59,7 +59,7 @@ export function VariablesInput({
   const [storeValue, setStoreValue] = useSubBlockValue<VariableAssignment[]>(blockId, subBlockId)
   const { variables: workflowVariables } = useVariablesStore()
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
-  
+
   const [showTags, setShowTags] = useState(false)
   const [cursorPosition, setCursorPosition] = useState(0)
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null)
@@ -67,7 +67,7 @@ export function VariablesInput({
   const valueInputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement>>({})
   const overlayRefs = useRef<Record<string, HTMLDivElement>>({})
   const [dragHighlight, setDragHighlight] = useState<Record<string, boolean>>({})
-  
+
   const currentWorkflowVariables = Object.values(workflowVariables).filter(
     (v: Variable) => v.workflowId === workflowId
   )
@@ -82,7 +82,7 @@ export function VariablesInput({
         .map((a) => a.variableId)
         .filter((id): id is string => !!id)
     )
-    
+
     return currentWorkflowVariables.filter((variable) => !otherSelectedIds.has(variable.id))
   }
 
@@ -105,9 +105,7 @@ export function VariablesInput({
 
   const updateAssignment = (id: string, updates: Partial<VariableAssignment>) => {
     if (isPreview || disabled) return
-    setStoreValue(
-      (assignments || []).map((a) => (a.id === id ? { ...a, ...updates } : a))
-    )
+    setStoreValue((assignments || []).map((a) => (a.id === id ? { ...a, ...updates } : a)))
   }
 
   const handleVariableSelect = (assignmentId: string, variableId: string) => {
@@ -129,15 +127,13 @@ export function VariablesInput({
     if (!assignment) return
 
     const currentValue = assignment.value || ''
-    
+
     const textBeforeCursor = currentValue.slice(0, cursorPosition)
     const lastOpenBracket = textBeforeCursor.lastIndexOf('<')
-    
-    const newValue = 
-      currentValue.slice(0, lastOpenBracket) + 
-      tag + 
-      currentValue.slice(cursorPosition)
-    
+
+    const newValue =
+      currentValue.slice(0, lastOpenBracket) + tag + currentValue.slice(cursorPosition)
+
     updateAssignment(activeFieldId, { value: newValue })
     setShowTags(false)
 
@@ -157,14 +153,14 @@ export function VariablesInput({
     selectionStart?: number
   ) => {
     updateAssignment(assignmentId, { value: newValue })
-    
+
     if (selectionStart !== undefined) {
       setCursorPosition(selectionStart)
       setActiveFieldId(assignmentId)
-      
+
       const shouldShowTags = checkTagTrigger(newValue, selectionStart)
       setShowTags(shouldShowTags.show)
-      
+
       if (shouldShowTags.show) {
         const textBeforeCursor = newValue.slice(0, selectionStart)
         const lastOpenBracket = textBeforeCursor.lastIndexOf('<')
@@ -179,12 +175,12 @@ export function VariablesInput({
   const handleDrop = (e: React.DragEvent, assignmentId: string) => {
     e.preventDefault()
     setDragHighlight((prev) => ({ ...prev, [assignmentId]: false }))
-    
+
     const tag = e.dataTransfer.getData('text/plain')
-    if (tag && tag.startsWith('<')) {
+    if (tag?.startsWith('<')) {
       const assignment = assignments.find((a) => a.id === assignmentId)
       if (!assignment) return
-      
+
       const currentValue = assignment.value || ''
       updateAssignment(assignmentId, { value: currentValue + tag })
     }
@@ -202,7 +198,7 @@ export function VariablesInput({
 
   if (isPreview && (!assignments || assignments.length === 0)) {
     return (
-      <div className='flex items-center justify-center rounded-md border border-dashed border-border/40 bg-muted/20 p-4 text-center text-muted-foreground text-sm'>
+      <div className='flex items-center justify-center rounded-md border border-border/40 border-dashed bg-muted/20 p-4 text-center text-muted-foreground text-sm'>
         No variable assignments defined
       </div>
     )
@@ -214,7 +210,7 @@ export function VariablesInput({
         <div className='space-y-2'>
           {assignments.map((assignment) => {
             const isUnconfigured = !assignment.variableName || assignment.variableName.trim() === ''
-            
+
             return (
               <div
                 key={assignment.id}
@@ -238,7 +234,7 @@ export function VariablesInput({
 
                 <div className='space-y-3'>
                   <div className='space-y-1.5'>
-                    <Label className='text-xs text-muted-foreground'>Variable</Label>
+                    <Label className='text-muted-foreground text-xs'>Variable</Label>
                     <Select
                       value={assignment.variableId || assignment.variableName || ''}
                       onValueChange={(value) => {
@@ -290,7 +286,7 @@ export function VariablesInput({
                   </div>
 
                   <div className='space-y-1.5'>
-                    <Label className='text-xs text-muted-foreground'>Type</Label>
+                    <Label className='text-muted-foreground text-xs'>Type</Label>
                     <Input
                       value={assignment.type || 'string'}
                       disabled={true}
@@ -299,7 +295,7 @@ export function VariablesInput({
                   </div>
 
                   <div className='relative space-y-1.5'>
-                    <Label className='text-xs text-muted-foreground'>Value</Label>
+                    <Label className='text-muted-foreground text-xs'>Value</Label>
                     {assignment.type === 'object' || assignment.type === 'array' ? (
                       <Textarea
                         ref={(el) => {
@@ -314,7 +310,9 @@ export function VariablesInput({
                           )
                         }
                         placeholder={
-                          assignment.type === 'object' ? '{\n  "key": "value"\n}' : '[\n  1, 2, 3\n]'
+                          assignment.type === 'object'
+                            ? '{\n  "key": "value"\n}'
+                            : '[\n  1, 2, 3\n]'
                         }
                         disabled={isPreview || disabled}
                         className={cn(
@@ -366,7 +364,7 @@ export function VariablesInput({
                         </div>
                       </div>
                     )}
-                    
+
                     {showTags && activeFieldId === assignment.id && (
                       <TagDropdown
                         visible={showTags}
@@ -402,4 +400,3 @@ export function VariablesInput({
     </div>
   )
 }
-

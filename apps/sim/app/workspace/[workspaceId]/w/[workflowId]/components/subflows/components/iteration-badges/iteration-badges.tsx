@@ -46,7 +46,12 @@ interface IterationBadgesProps {
 
 const CONFIG = {
   loop: {
-    typeLabels: { for: 'For Loop', forEach: 'For Each', while: 'While Loop', doWhile: 'Do While Loop' },
+    typeLabels: {
+      for: 'For Loop',
+      forEach: 'For Each',
+      while: 'While Loop',
+      doWhile: 'Do While Loop',
+    },
     typeKey: 'loopType' as const,
     storeKey: 'loops' as const,
     maxIterations: 100,
@@ -79,18 +84,20 @@ export function IterationBadges({ nodeId, data, iterationType }: IterationBadges
   // Determine current type and values
   const currentType = (data?.[config.typeKey] ||
     (iterationType === 'loop' ? 'for' : 'count')) as any
-  
+
   // Determine if we're in count mode, collection mode, or condition mode
   const isCountMode =
     (iterationType === 'loop' && currentType === 'for') ||
     (iterationType === 'parallel' && currentType === 'count')
-  const isConditionMode = iterationType === 'loop' && (currentType === 'while' || currentType === 'doWhile')
-  
+  const isConditionMode =
+    iterationType === 'loop' && (currentType === 'while' || currentType === 'doWhile')
+
   const configIterations = (nodeConfig as any)?.[config.configKeys.iterations] ?? data?.count ?? 5
   const configCollection = (nodeConfig as any)?.[config.configKeys.items] ?? data?.collection ?? ''
-  const configCondition = iterationType === 'loop' 
-    ? ((nodeConfig as any)?.['whileCondition'] ?? (data as any)?.whileCondition ?? '')
-    : ''
+  const configCondition =
+    iterationType === 'loop'
+      ? ((nodeConfig as any)?.whileCondition ?? (data as any)?.whileCondition ?? '')
+      : ''
 
   const iterations = configIterations
   const collectionString =
@@ -321,7 +328,8 @@ export function IterationBadges({ nodeId, data, iterationType }: IterationBadges
                     />
                   </div>
                   <div className='mt-2 text-[10px] text-muted-foreground'>
-                    JavaScript expression that evaluates to true/false. Type "{'<'}" to reference blocks.
+                    JavaScript expression that evaluates to true/false. Type "{'<'}" to reference
+                    blocks.
                   </div>
                   {showTagDropdown && (
                     <TagDropdown
