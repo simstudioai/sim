@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Bug,
   ChevronLeft,
@@ -47,6 +47,7 @@ import {
   getKeyboardShortcutText,
   useKeyboardShortcuts,
 } from '@/app/workspace/[workspaceId]/w/hooks/use-keyboard-shortcuts'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useFolderStore } from '@/stores/folders/store'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import { usePanelStore } from '@/stores/panel/store'
@@ -265,6 +266,17 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     activeWorkflowId ? state.workflowValues[activeWorkflowId] : null
   )
 
+  const statusCheckTrigger = useMemo(() => {
+    return JSON.stringify({
+      blocks: Object.keys(currentBlocks || {}).length,
+      edges: currentEdges?.length || 0,
+      subBlocks: Object.keys(subBlockValues || {}).length,
+      timestamp: Date.now(),
+    })
+  }, [currentBlocks, currentEdges, subBlockValues])
+
+  const debouncedStatusCheckTrigger = useDebounce(statusCheckTrigger, 500)
+
   useEffect(() => {
     // Avoid off-by-one false positives: wait until operation queue is idle
     const { operations, isProcessing } = useOperationQueueStore.getState()
@@ -299,16 +311,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     }
 
     checkForChanges()
-  }, [
-    activeWorkflowId,
-    deployedState,
-    currentBlocks,
-    currentEdges,
-    subBlockValues,
-    isLoadingDeployedState,
-    useOperationQueueStore.getState().isProcessing,
-    useOperationQueueStore.getState().operations.length,
-  ])
+  }, [activeWorkflowId, deployedState, debouncedStatusCheckTrigger, isLoadingDeployedState])
 
   useEffect(() => {
     if (session?.user?.id && !isRegistryLoading) {

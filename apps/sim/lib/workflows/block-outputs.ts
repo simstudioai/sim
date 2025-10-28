@@ -2,6 +2,41 @@ import { getBlock } from '@/blocks'
 import type { BlockConfig } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
 
+type InputFormatField = { name?: string; type?: string | undefined | null }
+
+function normalizeInputFormatValue(inputFormatValue: any): InputFormatField[] {
+  if (
+    inputFormatValue === null ||
+    inputFormatValue === undefined ||
+    (Array.isArray(inputFormatValue) && inputFormatValue.length === 0)
+  ) {
+    return []
+  }
+
+  if (!Array.isArray(inputFormatValue)) {
+    return []
+  }
+
+  return inputFormatValue.filter((field) => field && typeof field === 'object')
+}
+
+function applyInputFormatFields(
+  inputFormat: InputFormatField[],
+  outputs: Record<string, any>
+): Record<string, any> {
+  for (const field of inputFormat) {
+    const fieldName = field?.name?.trim()
+    if (!fieldName) continue
+
+    outputs[fieldName] = {
+      type: (field?.type || 'any') as any,
+      description: `Field from input format`,
+    }
+  }
+
+  return outputs
+}
+
 /**
  * Get the effective outputs for a block, including dynamic outputs from inputFormat
  * and trigger outputs for blocks in trigger mode
@@ -14,7 +49,6 @@ export function getBlockOutputs(
   const blockConfig = getBlock(blockType)
   if (!blockConfig) return {}
 
-  // If block is in trigger mode, use trigger outputs instead of block outputs
   if (triggerMode && blockConfig.triggers?.enabled) {
     const triggerId = subBlocks?.triggerId?.value || blockConfig.triggers?.available?.[0]
     if (triggerId) {
@@ -25,8 +59,28 @@ export function getBlockOutputs(
     }
   }
 
-  // Start with the static outputs defined in the config
   let outputs = { ...(blockConfig.outputs || {}) }
+
+  if (blockType === 'start_trigger') {
+    outputs = {
+      input: { type: 'string', description: 'Primary user input or message' },
+      conversationId: { type: 'string', description: 'Conversation thread identifier' },
+      files: { type: 'files', description: 'User uploaded files' },
+    }
+
+    const normalizedInputFormat = normalizeInputFormatValue(subBlocks?.inputFormat?.value)
+    for (const field of normalizedInputFormat) {
+      const fieldName = field?.name?.trim()
+      if (!fieldName) continue
+
+      outputs[fieldName] = {
+        type: (field?.type || 'any') as any,
+        description: `Field from input format`,
+      }
+    }
+
+    return outputs
+  }
 
   // Special handling for starter block (legacy)
   if (blockType === 'starter') {
@@ -46,70 +100,37 @@ export function getBlockOutputs(
       startWorkflowValue === 'manual'
     ) {
       // API/manual mode - use inputFormat fields only
-      let inputFormatValue = subBlocks?.inputFormat?.value
+      const normalizedInputFormat = normalizeInputFormatValue(subBlocks?.inputFormat?.value)
       outputs = {}
-
-      if (
-        inputFormatValue !== null &&
-        inputFormatValue !== undefined &&
-        !Array.isArray(inputFormatValue)
-      ) {
-        inputFormatValue = []
-      }
-
-      if (Array.isArray(inputFormatValue)) {
-        inputFormatValue.forEach((field: { name?: string; type?: string }) => {
-          if (field?.name && field.name.trim() !== '') {
-            outputs[field.name] = {
-              type: (field.type || 'any') as any,
-              description: `Field from input format`,
-            }
-          }
-        })
-      }
-
-      return outputs
+      return applyInputFormatFields(normalizedInputFormat, outputs)
     }
   }
 
   // For blocks with inputFormat, add dynamic outputs
   if (hasInputFormat(blockConfig) && subBlocks?.inputFormat?.value) {
-    let inputFormatValue = subBlocks.inputFormat.value
+    const normalizedInputFormat = normalizeInputFormatValue(subBlocks.inputFormat.value)
 
-    // Sanitize inputFormat - ensure it's an array
-    if (
-      inputFormatValue !== null &&
-      inputFormatValue !== undefined &&
-      !Array.isArray(inputFormatValue)
-    ) {
-      // Invalid format, default to empty array
-      inputFormatValue = []
-    }
-
-    if (Array.isArray(inputFormatValue)) {
-      // For API, Input triggers, and Generic Webhook, use inputFormat fields
+    if (!Array.isArray(subBlocks.inputFormat.value)) {
+      if (blockType === 'api_trigger' || blockType === 'input_trigger') {
+        outputs = {}
+      }
+    } else {
       if (
         blockType === 'api_trigger' ||
         blockType === 'input_trigger' ||
         blockType === 'generic_webhook'
       ) {
-        // For generic_webhook, only clear outputs if inputFormat has fields
-        // Otherwise keep the default outputs (pass-through body)
-        if (inputFormatValue.length > 0 || blockType !== 'generic_webhook') {
-          outputs = {} // Clear all default outputs
+        if (normalizedInputFormat.length > 0 || blockType !== 'generic_webhook') {
+          outputs = {}
         }
-
-        // Add each field from inputFormat as an output at root level
-        inputFormatValue.forEach((field: { name?: string; type?: string }) => {
-          if (field?.name && field.name.trim() !== '') {
-            outputs[field.name] = {
-              type: (field.type || 'any') as any,
-              description: `Field from input format`,
-            }
-          }
-        })
+        outputs = applyInputFormatFields(normalizedInputFormat, outputs)
       }
-    } else if (blockType === 'api_trigger' || blockType === 'input_trigger') {
+    }
+
+    if (
+      !Array.isArray(subBlocks.inputFormat.value) &&
+      (blockType === 'api_trigger' || blockType === 'input_trigger')
+    ) {
       // If no inputFormat defined, API/Input trigger has no outputs
       outputs = {}
     }
@@ -141,6 +162,15 @@ export function getBlockOutputPaths(
   function collectPaths(obj: Record<string, any>, prefix = ''): void {
     for (const [key, value] of Object.entries(obj)) {
       const path = prefix ? `${prefix}.${key}` : key
+
+      // For start_trigger, skip reserved fields at root level (they're always present but hidden from dropdown)
+      if (
+        blockType === 'start_trigger' &&
+        !prefix &&
+        ['input', 'conversationId', 'files'].includes(key)
+      ) {
+        continue
+      }
 
       // If value has 'type' property, it's a leaf node (output definition)
       if (value && typeof value === 'object' && 'type' in value) {

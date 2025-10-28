@@ -857,14 +857,18 @@ export function useWorkflowExecution() {
           selectedBlockId = blockEntry[0]
 
           // Extract test values from the API trigger's inputFormat
-          if (selectedTrigger.type === 'api_trigger' || selectedTrigger.type === 'starter') {
+          if (
+            selectedTrigger.type === 'api_trigger' ||
+            selectedTrigger.type === 'start_trigger' ||
+            selectedTrigger.type === 'starter'
+          ) {
             const inputFormatValue = selectedTrigger.subBlocks?.inputFormat?.value
             const testInput = extractTestValuesFromInputFormat(inputFormatValue)
 
             // Use the test input as workflow input
             if (Object.keys(testInput).length > 0) {
               finalWorkflowInput = testInput
-              logger.info('Using API trigger test values for manual run:', testInput)
+              logger.info('Using trigger test values for manual run:', testInput)
             }
           }
         }
@@ -884,15 +888,18 @@ export function useWorkflowExecution() {
         if (blockEntry) {
           selectedBlockId = blockEntry[0]
 
-          // Extract test values from input trigger's inputFormat if it's an input_trigger
-          if (selectedTrigger.type === 'input_trigger') {
+          // Extract test values from input trigger's inputFormat if it's an input_trigger or start_trigger
+          if (
+            selectedTrigger.type === 'input_trigger' ||
+            selectedTrigger.type === 'start_trigger'
+          ) {
             const inputFormatValue = selectedTrigger.subBlocks?.inputFormat?.value
             const testInput = extractTestValuesFromInputFormat(inputFormatValue)
 
             // Use the test input as workflow input
             if (Object.keys(testInput).length > 0) {
               finalWorkflowInput = testInput
-              logger.info('Using Input trigger test values for manual run:', testInput)
+              logger.info('Using trigger test values for manual run:', testInput)
             }
           }
         }
