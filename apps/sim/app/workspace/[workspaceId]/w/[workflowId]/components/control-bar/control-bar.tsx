@@ -266,14 +266,36 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     activeWorkflowId ? state.workflowValues[activeWorkflowId] : null
   )
 
+  const [blockStructureVersion, setBlockStructureVersion] = useState(0)
+  const [edgeStructureVersion, setEdgeStructureVersion] = useState(0)
+  const [subBlockStructureVersion, setSubBlockStructureVersion] = useState(0)
+
+  useEffect(() => {
+    setBlockStructureVersion((version) => version + 1)
+  }, [currentBlocks])
+
+  useEffect(() => {
+    setEdgeStructureVersion((version) => version + 1)
+  }, [currentEdges])
+
+  useEffect(() => {
+    setSubBlockStructureVersion((version) => version + 1)
+  }, [subBlockValues])
+
+  useEffect(() => {
+    setBlockStructureVersion(0)
+    setEdgeStructureVersion(0)
+    setSubBlockStructureVersion(0)
+  }, [activeWorkflowId])
+
   const statusCheckTrigger = useMemo(() => {
     return JSON.stringify({
-      blocks: Object.keys(currentBlocks || {}).length,
-      edges: currentEdges?.length || 0,
-      subBlocks: Object.keys(subBlockValues || {}).length,
-      timestamp: Date.now(),
+      lastSaved: lastSaved ?? 0,
+      blockVersion: blockStructureVersion,
+      edgeVersion: edgeStructureVersion,
+      subBlockVersion: subBlockStructureVersion,
     })
-  }, [currentBlocks, currentEdges, subBlockValues])
+  }, [lastSaved, blockStructureVersion, edgeStructureVersion, subBlockStructureVersion])
 
   const debouncedStatusCheckTrigger = useDebounce(statusCheckTrigger, 500)
 
