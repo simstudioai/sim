@@ -882,8 +882,8 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
       loopType: {
         type: 'string',
         required: true,
-        enum: ['for', 'forEach', 'while'],
-        description: "Loop Type - 'for' runs N times, 'forEach' iterates over collection, 'while' runs while condition is true",
+        enum: ['for', 'forEach', 'while', 'doWhile'],
+        description: "Loop Type - 'for' runs N times, 'forEach' iterates over collection, 'while' runs while condition is true, 'doWhile' runs at least once then checks condition",
       },
       iterations: {
         type: 'number',
@@ -902,7 +902,7 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
       condition: {
         type: 'string',
         required: false,
-        description: "Condition to evaluate (for 'while' loopType)",
+        description: "Condition to evaluate (for 'while' and 'doWhile' loopType)",
         example: '<loop.currentIteration> < 10',
       },
       maxConcurrency: {
@@ -931,6 +931,7 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
           { label: 'For Loop (count)', id: 'for' },
           { label: 'For Each (collection)', id: 'forEach' },
           { label: 'While (condition)', id: 'while' },
+          { label: 'Do While (condition)', id: 'doWhile' },
         ],
       },
       {
@@ -955,7 +956,7 @@ const SPECIAL_BLOCKS_METADATA: Record<string, any> = {
         type: 'code',
         language: 'javascript',
         placeholder: '<counter.value> < 10',
-        condition: { field: 'loopType', value: 'while' },
+        condition: { field: 'loopType', value: ['while', 'doWhile'] },
       },
       {
         id: 'maxConcurrency',

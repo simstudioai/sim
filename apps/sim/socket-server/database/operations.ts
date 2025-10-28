@@ -299,7 +299,7 @@ async function handleBlockOperationTx(
                   iterations: payload.data?.count || DEFAULT_LOOP_ITERATIONS,
                   loopType: payload.data?.loopType || 'for',
                   // Set the appropriate field based on loop type
-                  ...(payload.data?.loopType === 'while'
+                  ...(payload.data?.loopType === 'while' || payload.data?.loopType === 'doWhile'
                     ? { whileCondition: payload.data?.whileCondition || '' }
                     : { forEachItems: payload.data?.collection || '' }),
                 }
@@ -725,7 +725,7 @@ async function handleBlockOperationTx(
                   iterations: payload.data?.count || DEFAULT_LOOP_ITERATIONS,
                   loopType: payload.data?.loopType || 'for',
                   // Set the appropriate field based on loop type
-                  ...(payload.data?.loopType === 'while'
+                  ...(payload.data?.loopType === 'while' || payload.data?.loopType === 'doWhile'
                     ? { whileCondition: payload.data?.whileCondition || '' }
                     : { forEachItems: payload.data?.collection || '' }),
                 }
@@ -871,8 +871,8 @@ async function handleSubflowOperationTx(
         }
 
         // Add the appropriate field based on loop type
-        if (payload.config.loopType === 'while') {
-          // For while loops, use whileCondition
+        if (payload.config.loopType === 'while' || payload.config.loopType === 'doWhile') {
+          // For while and doWhile loops, use whileCondition
           blockData.whileCondition = payload.config.whileCondition || ''
         } else {
           // For for/forEach loops, use collection (block data) which maps to forEachItems (loops store)

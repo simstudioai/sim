@@ -1264,7 +1264,7 @@ export function useCollaborativeWorkflow() {
   )
 
   const collaborativeUpdateLoopType = useCallback(
-    (loopId: string, loopType: 'for' | 'forEach' | 'while') => {
+    (loopId: string, loopType: 'for' | 'forEach' | 'while' | 'doWhile') => {
       const currentBlock = workflowStore.blocks[loopId]
       if (!currentBlock || currentBlock.type !== 'loop') return
 
@@ -1274,7 +1274,7 @@ export function useCollaborativeWorkflow() {
 
       const currentIterations = currentBlock.data?.count || 5
       const currentCollection = currentBlock.data?.collection || ''
-      const currentCondition = currentBlock.data?.condition || ''
+      const currentCondition = currentBlock.data?.whileCondition || ''
 
       const config: any = {
         id: loopId,
@@ -1286,7 +1286,7 @@ export function useCollaborativeWorkflow() {
       // Include the appropriate field based on loop type
       if (loopType === 'forEach') {
         config.forEachItems = currentCollection
-      } else if (loopType === 'while') {
+      } else if (loopType === 'while' || loopType === 'doWhile') {
         config.whileCondition = currentCondition
       }
 

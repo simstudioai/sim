@@ -13,7 +13,7 @@ import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
 
 type IterationType = 'loop' | 'parallel'
-type LoopType = 'for' | 'forEach'
+type LoopType = 'for' | 'forEach' | 'while' | 'doWhile'
 type ParallelType = 'count' | 'collection'
 
 interface IterationNodeData {
@@ -46,7 +46,7 @@ interface IterationBadgesProps {
 
 const CONFIG = {
   loop: {
-    typeLabels: { for: 'For Loop', forEach: 'For Each', while: 'While' },
+    typeLabels: { for: 'For Loop', forEach: 'For Each', while: 'While Loop', doWhile: 'Do While Loop' },
     typeKey: 'loopType' as const,
     storeKey: 'loops' as const,
     maxIterations: 100,
@@ -84,7 +84,7 @@ export function IterationBadges({ nodeId, data, iterationType }: IterationBadges
   const isCountMode =
     (iterationType === 'loop' && currentType === 'for') ||
     (iterationType === 'parallel' && currentType === 'count')
-  const isConditionMode = iterationType === 'loop' && currentType === 'while'
+  const isConditionMode = iterationType === 'loop' && (currentType === 'while' || currentType === 'doWhile')
   
   const configIterations = (nodeConfig as any)?.[config.configKeys.iterations] ?? data?.count ?? 5
   const configCollection = (nodeConfig as any)?.[config.configKeys.items] ?? data?.collection ?? ''

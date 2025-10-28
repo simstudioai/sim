@@ -764,7 +764,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
           }
         }),
 
-      updateLoopType: (loopId: string, loopType: 'for' | 'forEach' | 'while') =>
+      updateLoopType: (loopId: string, loopType: 'for' | 'forEach' | 'while' | 'doWhile') =>
         set((state) => {
           const block = state.blocks[loopId]
           if (!block || block.type !== 'loop') return state
@@ -796,7 +796,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
           
           // Update the appropriate field based on loop type
           const dataUpdate: any = { ...block.data }
-          if (loopType === 'while') {
+          if (loopType === 'while' || loopType === 'doWhile') {
             dataUpdate.whileCondition = collection
           } else {
             dataUpdate.collection = collection
