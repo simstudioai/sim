@@ -448,6 +448,8 @@ function applyOperationsToWorkflowState(
                 block.data.count = params.inputs.iterations
               if (params.inputs.collection !== undefined)
                 block.data.collection = params.inputs.collection
+              if (params.inputs.condition !== undefined)
+                block.data.whileCondition = params.inputs.condition
             } else if (block.type === 'parallel') {
               block.data = block.data || {}
               if (params.inputs.parallelType !== undefined)
@@ -510,6 +512,7 @@ function applyOperationsToWorkflowState(
               if (params.inputs?.loopType) block.data.loopType = params.inputs.loopType
               if (params.inputs?.iterations) block.data.count = params.inputs.iterations
               if (params.inputs?.collection) block.data.collection = params.inputs.collection
+              if (params.inputs?.condition) block.data.whileCondition = params.inputs.condition
             } else if (block.type === 'parallel') {
               block.data = block.data || {}
               if (params.inputs?.parallelType) block.data.parallelType = params.inputs.parallelType

@@ -332,7 +332,7 @@ describe('ConditionBlockHandler', () => {
     mockResolver.resolveEnvVariables.mockReturnValue('context.nonExistentProperty.doSomething()')
 
     await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
-      /^Evaluation error in condition "if": Cannot read properties of undefined \(reading 'doSomething'\)\. \(Resolved: context\.nonExistentProperty\.doSomething\(\)\)$/
+      /^Evaluation error in condition "if": Evaluation error in condition: Cannot read properties of undefined \(reading 'doSomething'\)\. \(Resolved: context\.nonExistentProperty\.doSomething\(\)\)$/
     )
   })
 

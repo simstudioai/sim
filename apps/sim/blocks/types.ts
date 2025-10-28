@@ -70,6 +70,7 @@ export type SubBlockType =
   | 'response-format' // Response structure format
   | 'file-upload' // File uploader
   | 'input-mapping' // Map parent variables to child workflow input schema
+  | 'variables-input' // Variable assignments for updating workflow variables
 
 export type SubBlockLayout = 'full' | 'half'
 

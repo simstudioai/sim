@@ -81,12 +81,19 @@ export class LoopManager {
               )
             }
           }
+        } else if (loop.loopType === 'while' || loop.loopType === 'doWhile') {
+          // For while and doWhile loops, no max iteration limit
+          // They rely on the condition to stop (and workflow timeout as safety)
+          maxIterations = Number.MAX_SAFE_INTEGER
         }
 
         logger.info(`Loop ${loopId} - Current: ${currentIteration}, Max: ${maxIterations}`)
 
-        // Check if we've completed all iterations
-        if (currentIteration >= maxIterations) {
+        // Check if we've completed all iterations (only for for/forEach loops)
+        if (
+          currentIteration >= maxIterations &&
+          (loop.loopType === 'for' || loop.loopType === 'forEach')
+        ) {
           hasLoopReachedMaxIterations = true
           logger.info(`Loop ${loopId} has completed all ${maxIterations} iterations`)
 
@@ -131,15 +138,21 @@ export class LoopManager {
 
           logger.info(`Loop ${loopId} - Completed and activated end connections`)
         } else {
-          context.loopIterations.set(loopId, currentIteration + 1)
-          logger.info(`Loop ${loopId} - Incremented counter to ${currentIteration + 1}`)
+          // For while/doWhile loops, DON'T reset yet - let the loop handler check the condition first
+          // The loop handler will decide whether to continue or exit based on the condition
+          if (loop.loopType === 'while' || loop.loopType === 'doWhile') {
+            // Just reset the loop block itself so it can re-evaluate the condition
+            context.executedBlocks.delete(loopId)
+            context.blockStates.delete(loopId)
+          } else {
+            // For for/forEach loops, increment and reset everything as usual
+            context.loopIterations.set(loopId, currentIteration + 1)
 
-          this.resetLoopBlocks(loopId, loop, context)
+            this.resetLoopBlocks(loopId, loop, context)
 
-          context.executedBlocks.delete(loopId)
-          context.blockStates.delete(loopId)
-
-          logger.info(`Loop ${loopId} - Reset for iteration ${currentIteration + 1}`)
+            context.executedBlocks.delete(loopId)
+            context.blockStates.delete(loopId)
+          }
         }
       }
     }
