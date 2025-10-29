@@ -5,7 +5,7 @@ import { BookOpen, Settings } from 'lucide-react'
 import { Button } from '@/components/emcn'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/sub-block'
+import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/design/components/sub-block/sub-block'
 import { getSubBlockStableKey } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { getBlock } from '@/blocks/registry'
@@ -128,9 +128,9 @@ export function Design() {
             No configuration available for this block
           </div>
         ) : (
-          <div className='space-y-4 p-4'>
+          <div className=''>
             {subBlockRows.map((row, rowIndex) => (
-              <div key={`row-${rowIndex}`} className='flex gap-4'>
+              <div key={`row-${rowIndex}`} className='flex'>
                 {row.map((subBlock) => {
                   const stableKey = getSubBlockStableKey(
                     currentBlockId || '',
@@ -141,7 +141,7 @@ export function Design() {
                   return (
                     <div
                       key={stableKey}
-                      className={cn('space-y-1', subBlock.layout === 'half' ? 'flex-1' : 'w-full')}
+                      className={cn(subBlock.layout === 'half' ? 'flex-1' : 'w-full')}
                     >
                       <SubBlock
                         blockId={currentBlockId}

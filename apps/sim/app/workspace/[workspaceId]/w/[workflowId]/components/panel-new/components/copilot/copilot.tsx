@@ -11,7 +11,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { createLogger } from '@/lib/logs/console/logger'
 import {
-  CheckpointPanel,
   CopilotMessage,
   TodoList,
   UserInput,
@@ -57,7 +56,6 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
   const userInputRef = useRef<UserInputRef>(null)
   const copilotContainerRef = useRef<HTMLDivElement>(null)
   const cancelEditCallbackRef = useRef<(() => void) | null>(null)
-  const [showCheckpoints] = useState(false)
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
   const [isEditingMessage, setIsEditingMessage] = useState(false)
   const [revertingMessageId, setRevertingMessageId] = useState<string | null>(null)
@@ -498,10 +496,8 @@ export const Copilot = forwardRef<CopilotRef, CopilotProps>(({ panelWidth }, ref
           </div>
         ) : (
           <>
-            {/* Messages area or Checkpoint Panel */}
-            {showCheckpoints ? (
-              <CheckpointPanel />
-            ) : messages.length === 0 && !isSendingMessage && !isEditingMessage ? (
+            {/* Messages area */}
+            {messages.length === 0 && !isSendingMessage && !isEditingMessage ? (
               /* Welcome state with input at top */
               <div className='flex flex-1 flex-col overflow-hidden p-[8px]'>
                 <div className='flex-shrink-0'>

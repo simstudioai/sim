@@ -176,7 +176,7 @@ export function SidebarNew() {
                         <ArrowDown className='h-[14px] w-[14px]' />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>
+                    <TooltipContent className='py-[2.5px]'>
                       <p>{isImporting ? 'Importing workflow...' : 'Import from JSON'}</p>
                     </TooltipContent>
                   </Tooltip>
@@ -191,7 +191,7 @@ export function SidebarNew() {
                         <FolderPlus className='h-[14px] w-[14px]' />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>
+                    <TooltipContent className='py-[2.5px]'>
                       <p>{isCreatingFolder ? 'Creating folder...' : 'Create folder'}</p>
                     </TooltipContent>
                   </Tooltip>
@@ -206,7 +206,7 @@ export function SidebarNew() {
                         <Plus className='h-[14px] w-[14px]' />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>
+                    <TooltipContent className='py-[2.5px]'>
                       <p>{isCreatingWorkflow ? 'Creating workflow...' : 'Create workflow'}</p>
                     </TooltipContent>
                   </Tooltip>

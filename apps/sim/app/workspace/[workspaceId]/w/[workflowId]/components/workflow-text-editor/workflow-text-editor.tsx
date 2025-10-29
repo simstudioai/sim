@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
-import { CodeEditor } from '../workflow-block/components/sub-block/components/tool-input/components/code-editor/code-editor'
+import { CodeEditor } from '../panel-new/components/design/components/sub-block/components/tool-input/components/code-editor/code-editor'
 
 const logger = createLogger('WorkflowTextEditor')
 
