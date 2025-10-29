@@ -24,7 +24,12 @@ export async function POST(req: NextRequest) {
 
     const { isExceeded, currentUsage, limit } = await checkServerSideUsageLimits(userId)
 
-    logger.info('[API VALIDATION] Usage limit validated', { userId, currentUsage, limit, isExceeded })
+    logger.info('[API VALIDATION] Usage limit validated', {
+      userId,
+      currentUsage,
+      limit,
+      isExceeded,
+    })
 
     if (isExceeded) {
       logger.info('[API VALIDATION] Usage exceeded', { userId, currentUsage, limit })
