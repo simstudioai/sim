@@ -167,14 +167,6 @@ async function executeWebhookJobInternal(
     const workspaceId = wfRows[0]?.workspaceId || undefined
     const workflowVariables = (wfRows[0]?.variables as Record<string, any>) || {}
 
-    if (Object.keys(workflowVariables).length > 0) {
-      logger.debug(
-        `[${requestId}] Loaded ${Object.keys(workflowVariables).length} workflow variables for: ${payload.workflowId}`
-      )
-    } else {
-      logger.debug(`[${requestId}] No workflow variables found for: ${payload.workflowId}`)
-    }
-
     const { personalEncrypted, workspaceEncrypted } = await getPersonalAndWorkspaceEnv(
       payload.userId,
       workspaceId
