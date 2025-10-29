@@ -2157,16 +2157,16 @@ export class Executor {
 
       if (context.onBlockComplete && !isNonStreamTriggerBlock) {
         try {
-          // Attach execution time to output for the callback
-          const outputWithTiming = {
-            ...output,
+          // Pass output and execution time separately via a wrapper object
+          const callbackData = {
+            output,
             executionTime: Math.round(executionTime),
           }
           await context.onBlockComplete(
             blockId,
             block.metadata?.name || 'Unnamed Block',
             block.metadata?.id || 'unknown',
-            outputWithTiming
+            callbackData
           )
         } catch (callbackError: any) {
           logger.error('Error in onBlockComplete callback:', callbackError)

@@ -244,7 +244,7 @@ export async function POST(
             })
           }
           
-          const onBlockComplete = async (blockId: string, blockName: string, blockType: string, output: any) => {
+          const onBlockComplete = async (blockId: string, blockName: string, blockType: string, callbackData: any) => {
             logger.info(`[${requestId}] ✓ onBlockComplete called:`, { blockId, blockName, blockType })
             sendEvent({
               type: 'block:completed',
@@ -255,8 +255,8 @@ export async function POST(
                 blockId,
                 blockName,
                 blockType,
-                output,
-                durationMs: output.executionTime || 0,
+                output: callbackData.output, // Use clean output without executionTime
+                durationMs: callbackData.executionTime || 0,
               },
             })
           }
