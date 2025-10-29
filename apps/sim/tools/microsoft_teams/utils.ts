@@ -4,6 +4,28 @@ import type { ToolFileData } from '@/tools/types'
 
 const logger = createLogger('MicrosoftTeamsUtils')
 
+interface ParsedMention {
+  name: string
+  fullTag: string
+  startIndex: number
+  endIndex: number
+}
+
+interface TeamMember {
+  id: string
+  displayName: string
+  userIdentityType?: string
+}
+
+export interface MentionEntity {
+  type: 'mention'
+  mentioned: {
+    id: string
+    name: string
+  }
+  text: string
+}
+
 /**
  * Transform raw attachment data from Microsoft Graph API
  */
@@ -97,5 +119,163 @@ export async function fetchHostedContentsForChannelMessage(params: {
   } catch (error) {
     logger.error('Error fetching/uploading hostedContents for channel message:', error)
     return []
+  }
+}
+
+function parseMentions(content: string): ParsedMention[] {
+  const mentions: ParsedMention[] = []
+  const mentionRegex = /<at>([^<]+)<\/at>/gi
+  let match: RegExpExecArray | null
+
+  while ((match = mentionRegex.exec(content)) !== null) {
+    const name = match[1].trim()
+    if (name) {
+      mentions.push({
+        name,
+        fullTag: match[0],
+        startIndex: match.index,
+        endIndex: match.index + match[0].length,
+      })
+    }
+  }
+
+  return mentions
+}
+
+async function fetchChatMembers(chatId: string, accessToken: string): Promise<TeamMember[]> {
+  const response = await fetch(
+    `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(chatId)}/members`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    }
+  )
+
+  if (!response.ok) {
+    return []
+  }
+
+  const data = await response.json()
+  return (data.value || []).map((member: TeamMember) => ({
+    id: member.id,
+    displayName: member.displayName || '',
+    userIdentityType: member.userIdentityType,
+  }))
+}
+
+async function fetchChannelMembers(
+  teamId: string,
+  channelId: string,
+  accessToken: string
+): Promise<TeamMember[]> {
+  const response = await fetch(
+    `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(teamId)}/channels/${encodeURIComponent(channelId)}/members`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    }
+  )
+
+  if (!response.ok) {
+    return []
+  }
+
+  const data = await response.json()
+  return (data.value || []).map((member: TeamMember) => ({
+    id: member.id,
+    displayName: member.displayName || '',
+    userIdentityType: member.userIdentityType,
+  }))
+}
+
+function findMemberByName(members: TeamMember[], name: string): TeamMember | undefined {
+  const normalizedName = name.trim().toLowerCase()
+  return members.find((member) => member.displayName.toLowerCase() === normalizedName)
+}
+
+export async function resolveMentionsForChat(
+  content: string,
+  chatId: string,
+  accessToken: string
+): Promise<{ entities: MentionEntity[]; hasMentions: boolean }> {
+  const parsedMentions = parseMentions(content)
+
+  if (parsedMentions.length === 0) {
+    return { entities: [], hasMentions: false }
+  }
+
+  const members = await fetchChatMembers(chatId, accessToken)
+  const entities: MentionEntity[] = []
+  const resolvedNames = new Set<string>()
+
+  for (const mention of parsedMentions) {
+    if (resolvedNames.has(mention.fullTag)) {
+      continue
+    }
+
+    const member = findMemberByName(members, mention.name)
+
+    if (member) {
+      entities.push({
+        type: 'mention',
+        mentioned: {
+          id: member.id,
+          name: member.displayName,
+        },
+        text: mention.fullTag,
+      })
+      resolvedNames.add(mention.fullTag)
+    }
+  }
+
+  return {
+    entities,
+    hasMentions: entities.length > 0,
+  }
+}
+
+export async function resolveMentionsForChannel(
+  content: string,
+  teamId: string,
+  channelId: string,
+  accessToken: string
+): Promise<{ entities: MentionEntity[]; hasMentions: boolean }> {
+  const parsedMentions = parseMentions(content)
+
+  if (parsedMentions.length === 0) {
+    return { entities: [], hasMentions: false }
+  }
+
+  const members = await fetchChannelMembers(teamId, channelId, accessToken)
+  const entities: MentionEntity[] = []
+  const resolvedNames = new Set<string>()
+
+  for (const mention of parsedMentions) {
+    if (resolvedNames.has(mention.fullTag)) {
+      continue
+    }
+
+    const member = findMemberByName(members, mention.name)
+
+    if (member) {
+      entities.push({
+        type: 'mention',
+        mentioned: {
+          id: member.id,
+          name: member.displayName,
+        },
+        text: mention.fullTag,
+      })
+      resolvedNames.add(mention.fullTag)
+    }
+  }
+
+  return {
+    entities,
+    hasMentions: entities.length > 0,
   }
 }
