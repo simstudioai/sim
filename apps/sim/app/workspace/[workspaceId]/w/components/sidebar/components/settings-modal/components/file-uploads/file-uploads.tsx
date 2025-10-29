@@ -199,18 +199,36 @@ export function FileUploads() {
     try {
       setDeletingFileId(file.id)
 
+      const previousFiles = files
+      const previousStorageInfo = storageInfo
+
+      setFiles((prev) => prev.filter((f) => f.id !== file.id))
+
+      if (storageInfo) {
+        const newUsedBytes = Math.max(0, storageInfo.usedBytes - file.size)
+        const newPercentUsed = (newUsedBytes / storageInfo.limitBytes) * 100
+        setStorageInfo({
+          ...storageInfo,
+          usedBytes: newUsedBytes,
+          percentUsed: newPercentUsed,
+        })
+      }
+
       const response = await fetch(`/api/workspaces/${workspaceId}/files/${file.id}`, {
         method: 'DELETE',
       })
 
       const data = await response.json()
 
-      if (data.success) {
-        await loadFiles()
-        await loadStorageInfo()
+      if (!data.success) {
+        setFiles(previousFiles)
+        setStorageInfo(previousStorageInfo)
+        logger.error('Failed to delete file:', data.error)
       }
     } catch (error) {
       logger.error('Error deleting file:', error)
+      await loadFiles()
+      await loadStorageInfo()
     } finally {
       setDeletingFileId(null)
     }
