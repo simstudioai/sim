@@ -221,7 +221,7 @@ describe('File Parse API Route', () => {
     }))
 
     const req = createMockRequest('POST', {
-      filePath: '/api/files/serve/nonexistent.txt',
+      filePath: 'nonexistent.txt',
     })
 
     const { POST } = await import('@/app/api/files/parse/route')

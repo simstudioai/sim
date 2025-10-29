@@ -77,7 +77,8 @@ function extractStorageKey(filePath: string): string {
 
   // Handle "/api/files/serve/<key>" paths
   if (filePath.startsWith('/api/files/serve/')) {
-    return decodeURIComponent(filePath.substring('/api/files/serve/'.length))
+    const pathWithoutQuery = filePath.split('?')[0]
+    return decodeURIComponent(pathWithoutQuery.substring('/api/files/serve/'.length))
   }
 
   // For local files, extract filename
