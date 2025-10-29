@@ -31,6 +31,7 @@ export interface ExecuteWorkflowCoreOptions {
   executionId: string
   selectedOutputs?: string[]
   workspaceId?: string
+  startBlockId?: string // Optional: start from specific block (for webhooks/schedules)
   // Callbacks for SSE streaming (optional)
   onBlockStart?: (blockId: string, blockName: string, blockType: string) => Promise<void>
   onBlockComplete?: (blockId: string, blockName: string, blockType: string, output: any) => Promise<void>
@@ -213,7 +214,7 @@ export async function executeWorkflowCore(
 
     loggingSession.setupExecutor(executorInstance)
 
-    const result = (await executorInstance.execute(workflowId)) as ExecutionResult
+    const result = (await executorInstance.execute(workflowId, options.startBlockId)) as ExecutionResult
 
     // Build trace spans for logging
     const { traceSpans, totalDuration } = buildTraceSpans(result)

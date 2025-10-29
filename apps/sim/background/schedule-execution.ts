@@ -18,11 +18,12 @@ import {
 } from '@/lib/schedules/utils'
 import { decryptSecret } from '@/lib/utils'
 import { blockExistsInDeployment, loadDeployedWorkflowState } from '@/lib/workflows/db-helpers'
-import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
+import { getWorkflowById, updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 import { RateLimiter } from '@/services/queue'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
+import { executeWorkflowCore } from '@/lib/workflows/execution-core'
 
 const logger = createLogger('TriggerScheduleExecution')
 
@@ -339,42 +340,23 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
             variables: variables || {},
           })
 
-          const executor = new Executor({
-            workflow: serializedWorkflow,
-            currentBlockStates: processedBlockStates,
-            envVarValues: decryptedEnvVars,
-            workflowInput: input,
-            workflowVariables,
-            contextExtensions: {
-              executionId,
-              workspaceId: workflowRecord.workspaceId || '',
-              isDeployedContext: true,
-            },
+          // Use core execution function
+          const executionResult = await executeWorkflowCore({
+            requestId,
+            workflowId: payload.workflowId,
+            userId: actorUserId,
+            workflow: { ...workflowRecord, workspaceId: workflowRecord.workspaceId },
+            input,
+            triggerType: 'schedule',
+            loggingSession,
+            executionId,
+            workspaceId: workflowRecord.workspaceId || '',
+            startBlockId: payload.blockId || undefined,
           })
-
-          loggingSession.setupExecutor(executor)
-
-          const result = await executor.execute(payload.workflowId, payload.blockId || undefined)
-
-          const executionResult =
-            'stream' in result && 'execution' in result ? result.execution : result
 
           logger.info(`[${requestId}] Workflow execution completed: ${payload.workflowId}`, {
             success: executionResult.success,
             executionTime: executionResult.metadata?.duration,
-          })
-
-          if (executionResult.success) {
-            await updateWorkflowRunCounts(payload.workflowId)
-          }
-
-          const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
-
-          await loggingSession.safeComplete({
-            endedAt: new Date().toISOString(),
-            totalDurationMs: totalDuration || 0,
-            finalOutput: executionResult.output || {},
-            traceSpans: (traceSpans || []) as any,
           })
 
           return { success: executionResult.success, blocks, executionResult }

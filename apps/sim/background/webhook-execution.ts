@@ -257,49 +257,29 @@ async function executeWebhookJobInternal(
       if (airtableInput) {
         logger.info(`[${requestId}] Executing workflow with Airtable changes`)
 
-        // Create executor and execute (same as standard webhook flow)
-        const executor = new Executor({
-          workflow: serializedWorkflow,
-          currentBlockStates: processedBlockStates,
-          envVarValues: decryptedEnvVars,
-          workflowInput: airtableInput,
-          workflowVariables,
-          contextExtensions: {
-            executionId,
-            workspaceId: workspaceId || '',
-            isDeployedContext: !payload.testMode,
-          },
+        // Get workflow for core execution
+        const workflow = await getWorkflowById(payload.workflowId)
+        if (!workflow) {
+          throw new Error(`Workflow ${payload.workflowId} not found`)
+        }
+
+        // Use core execution function
+        const executionResult = await executeWorkflowCore({
+          requestId,
+          workflowId: payload.workflowId,
+          userId: payload.userId,
+          workflow: { ...workflow, workspaceId },
+          input: airtableInput,
+          triggerType: 'webhook',
+          loggingSession,
+          executionId,
+          workspaceId,
+          startBlockId: payload.blockId,
         })
-
-        // Set up logging on the executor
-        loggingSession.setupExecutor(executor)
-
-        // Execute the workflow
-        const result = await executor.execute(payload.workflowId, payload.blockId)
-
-        // Check if we got a StreamingExecution result
-        const executionResult =
-          'stream' in result && 'execution' in result ? result.execution : result
 
         logger.info(`[${requestId}] Airtable webhook execution completed`, {
           success: executionResult.success,
           workflowId: payload.workflowId,
-        })
-
-        // Update workflow run counts on success
-        if (executionResult.success) {
-          await updateWorkflowRunCounts(payload.workflowId)
-        }
-
-        // Build trace spans and complete logging session
-        const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
-
-        await loggingSession.safeComplete({
-          endedAt: new Date().toISOString(),
-          totalDurationMs: totalDuration || 0,
-          finalOutput: executionResult.output || {},
-          traceSpans: traceSpans as any,
-          workflowInput: airtableInput,
         })
 
         return {
@@ -447,51 +427,32 @@ async function executeWebhookJobInternal(
       }
     }
 
-    // Create executor and execute
-    const executor = new Executor({
-      workflow: serializedWorkflow,
-      currentBlockStates: processedBlockStates,
-      envVarValues: decryptedEnvVars,
-      workflowInput: input || {},
-      workflowVariables,
-      contextExtensions: {
-        executionId,
-        workspaceId: workspaceId || '',
-        isDeployedContext: !payload.testMode,
-      },
-    })
-
-    // Set up logging on the executor
-    loggingSession.setupExecutor(executor)
-
     logger.info(`[${requestId}] Executing workflow for ${payload.provider} webhook`)
 
-    // Execute the workflow
-    const result = await executor.execute(payload.workflowId, payload.blockId)
+    // Get workflow for core execution
+    const workflow = await getWorkflowById(payload.workflowId)
+    if (!workflow) {
+      throw new Error(`Workflow ${payload.workflowId} not found`)
+    }
 
-    // Check if we got a StreamingExecution result
-    const executionResult = 'stream' in result && 'execution' in result ? result.execution : result
+    // Use core execution function
+    const executionResult = await executeWorkflowCore({
+      requestId,
+      workflowId: payload.workflowId,
+      userId: payload.userId,
+      workflow: { ...workflow, workspaceId },
+      input: input || {},
+      triggerType: 'webhook',
+      loggingSession,
+      executionId,
+      workspaceId,
+      startBlockId: payload.blockId,
+    })
 
     logger.info(`[${requestId}] Webhook execution completed`, {
       success: executionResult.success,
       workflowId: payload.workflowId,
       provider: payload.provider,
-    })
-
-    // Update workflow run counts on success
-    if (executionResult.success) {
-      await updateWorkflowRunCounts(payload.workflowId)
-    }
-
-    // Build trace spans and complete logging session
-    const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
-
-    await loggingSession.safeComplete({
-      endedAt: new Date().toISOString(),
-      totalDurationMs: totalDuration || 0,
-      finalOutput: executionResult.output || {},
-      traceSpans: traceSpans as any,
-      workflowInput: input,
     })
 
     return {
