@@ -3,7 +3,6 @@ import { getBaseUrl } from '@/lib/urls/utils'
 import { generateRouterPrompt } from '@/blocks/blocks/router'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/consts'
-import type { PathTracker } from '@/executor/path/path'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { calculateCost, getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
@@ -15,9 +14,9 @@ const logger = createLogger('RouterBlockHandler')
  */
 export class RouterBlockHandler implements BlockHandler {
   /**
-   * @param pathTracker - Utility for tracking execution paths
+   * PathTracker is optional - only used by old BFS executor
    */
-  constructor(private pathTracker: PathTracker) {}
+  constructor(private pathTracker?: any) {}
 
   canHandle(block: SerializedBlock): boolean {
     return block.metadata?.id === BlockType.ROUTER

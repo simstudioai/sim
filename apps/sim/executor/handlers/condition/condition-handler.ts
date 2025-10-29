@@ -1,8 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/consts'
-import type { PathTracker } from '@/executor/path/path'
-import type { InputResolver } from '@/executor/resolver/resolver'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -16,7 +14,7 @@ export async function evaluateConditionExpression(
   conditionExpression: string,
   context: ExecutionContext,
   block: SerializedBlock,
-  resolver: InputResolver,
+  resolver: any,
   providedEvalContext?: Record<string, any>
 ): Promise<boolean> {
   // Build evaluation context - use provided context or just loop context
@@ -68,12 +66,12 @@ export async function evaluateConditionExpression(
  */
 export class ConditionBlockHandler implements BlockHandler {
   /**
-   * @param pathTracker - Utility for tracking execution paths
-   * @param resolver - Utility for resolving inputs
+   * PathTracker and resolver are optional - only used by old BFS executor
+   * DAG executor handles paths differently
    */
   constructor(
-    private pathTracker: PathTracker,
-    private resolver: InputResolver
+    private pathTracker?: any,
+    private resolver?: any
   ) {}
 
   canHandle(block: SerializedBlock): boolean {

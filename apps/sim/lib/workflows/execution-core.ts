@@ -10,7 +10,7 @@ import { decryptSecret } from '@/lib/utils'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { loadDeployedWorkflowState, loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
-import { Executor } from '@/executor'
+import { Executor } from '@/executor' // Now exports DAGExecutor
 import type { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
