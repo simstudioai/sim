@@ -8,26 +8,26 @@ import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
-import { decryptSecret, SSE_HEADERS, generateRequestId } from '@/lib/utils'
+import { SSE_HEADERS, generateRequestId, decryptSecret } from '@/lib/utils'
 import { loadDeployedWorkflowState, loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import { Executor } from '@/executor'
-import type { ExecutionResult, StreamingExecution, BlockLog } from '@/executor/types'
+import type { ExecutionResult, StreamingExecution } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
-import type { TriggerType } from '@/services/queue'
 import {
   type ExecutionEvent,
   encodeSSEEvent,
 } from '@/lib/workflows/execution-events'
+import { executeWorkflowCore } from '@/lib/workflows/execution-core'
+
+const EnvVarsSchema = z.record(z.string())
 
 const logger = createLogger('WorkflowExecuteAPI')
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-const EnvVarsSchema = z.record(z.string())
 
 class UsageLimitError extends Error {
   statusCode: number
@@ -38,8 +38,8 @@ class UsageLimitError extends Error {
 }
 
 /**
- * Execute workflow directly without SSE (for background jobs, webhooks, schedules)
- * Exported for use by background jobs
+ * Execute workflow without SSE - returns JSON response
+ * Used by background jobs, webhooks, schedules, and API calls
  */
 export async function executeWorkflow(options: {
   requestId: string
@@ -52,173 +52,9 @@ export async function executeWorkflow(options: {
   executionId: string
   selectedOutputs?: string[]
 }): Promise<NextResponse> {
-  const { requestId, workflowId, userId, workflow, input, triggerType, loggingSession, executionId, selectedOutputs } = options
-  
-  let processedInput = input || {}
-  
   try {
-    const startTime = new Date()
-
-    // Load workflow state based on trigger type
-    let blocks, edges, loops, parallels
-    
-    if (triggerType === 'manual') {
-      const draftData = await loadWorkflowFromNormalizedTables(workflowId)
-      if (!draftData) {
-        throw new Error('Workflow not found or not yet saved')
-      }
-      blocks = draftData.blocks
-      edges = draftData.edges
-      loops = draftData.loops
-      parallels = draftData.parallels
-    } else {
-      const deployedData = await loadDeployedWorkflowState(workflowId)
-      blocks = deployedData.blocks
-      edges = deployedData.edges
-      loops = deployedData.loops
-      parallels = deployedData.parallels
-    }
-
-    // Merge block states
-    const mergedStates = mergeSubblockState(blocks)
-
-    // Get and decrypt environment variables
-    const { personalEncrypted, workspaceEncrypted } = await getPersonalAndWorkspaceEnv(
-      userId,
-      workflow.workspaceId || undefined
-    )
-    const variables = EnvVarsSchema.parse({ ...personalEncrypted, ...workspaceEncrypted })
-
-    await loggingSession.safeStart({
-      userId,
-      workspaceId: workflow.workspaceId,
-      variables,
-    })
-
-    // Process block states with env var substitution
-    const currentBlockStates = await Object.entries(mergedStates).reduce(
-      async (accPromise, [id, block]) => {
-        const acc = await accPromise
-        acc[id] = await Object.entries(block.subBlocks).reduce(
-          async (subAccPromise, [key, subBlock]) => {
-            const subAcc = await subAccPromise
-            let value = subBlock.value
-
-            if (typeof value === 'string' && value.includes('{{') && value.includes('}}')) {
-              const matches = value.match(/{{([^}]+)}}/g)
-              if (matches) {
-                for (const match of matches) {
-                  const varName = match.slice(2, -2)
-                  const encryptedValue = variables[varName]
-                  if (encryptedValue) {
-                    const { decrypted } = await decryptSecret(encryptedValue)
-                    value = (value as string).replace(match, decrypted)
-                  }
-                }
-              }
-            }
-
-            subAcc[key] = value
-            return subAcc
-          },
-          Promise.resolve({} as Record<string, any>)
-        )
-        return acc
-      },
-      Promise.resolve({} as Record<string, Record<string, any>>)
-    )
-
-    // Decrypt all env vars
-    const decryptedEnvVars: Record<string, string> = {}
-    for (const [key, encryptedValue] of Object.entries(variables)) {
-      const { decrypted } = await decryptSecret(encryptedValue)
-      decryptedEnvVars[key] = decrypted
-    }
-
-    // Process response format
-    const processedBlockStates = Object.entries(currentBlockStates).reduce(
-      (acc, [blockId, blockState]) => {
-        if (blockState.responseFormat && typeof blockState.responseFormat === 'string') {
-          const responseFormatValue = blockState.responseFormat.trim()
-          if (responseFormatValue && !responseFormatValue.startsWith('<')) {
-            try {
-              acc[blockId] = {
-                ...blockState,
-                responseFormat: JSON.parse(responseFormatValue),
-              }
-            } catch {
-              acc[blockId] = {
-                ...blockState,
-                responseFormat: undefined,
-              }
-            }
-          } else {
-            acc[blockId] = blockState
-          }
-        } else {
-          acc[blockId] = blockState
-        }
-        return acc
-      },
-      {} as Record<string, Record<string, any>>
-    )
-
-    const workflowVariables = (workflow.variables as Record<string, any>) || {}
-
-    // Serialize workflow
-    const serializedWorkflow = new Serializer().serializeWorkflow(
-      mergedStates,
-      edges,
-      loops,
-      parallels,
-      true
-    )
-
-    processedInput = input || {}
-
-    // Create and execute workflow
-    const contextExtensions: any = {
-      stream: false,
-      selectedOutputs,
-      executionId,
-      workspaceId: workflow.workspaceId,
-      isDeployedContext: triggerType !== 'manual',
-    }
-
-    const executorInstance = new Executor({
-      workflow: serializedWorkflow,
-      currentBlockStates: processedBlockStates,
-      envVarValues: decryptedEnvVars,
-      workflowInput: processedInput,
-      workflowVariables,
-      contextExtensions,
-    })
-    
-    loggingSession.setupExecutor(executorInstance)
-    
-    const result = await executorInstance.execute(workflowId) as ExecutionResult
-
-    // Build trace spans for logging
-    const { traceSpans, totalDuration } = buildTraceSpans(result)
-
-    // Update workflow run counts
-    if (result.success) {
-      await updateWorkflowRunCounts(workflowId)
-    }
-
-    // Complete logging session
-    await loggingSession.safeComplete({
-      endedAt: new Date().toISOString(),
-      totalDurationMs: totalDuration || 0,
-      finalOutput: result.output || {},
-      traceSpans: traceSpans || [],
-      workflowInput: processedInput,
-    })
-
-    logger.info(`[${requestId}] Workflow execution completed`, {
-      success: result.success,
-      duration: result.metadata?.duration,
-    })
+    // Use the core execution function
+    const result = await executeWorkflowCore(options)
 
     // Filter out logs and internal metadata for API responses
     const filteredResult = {
@@ -236,16 +72,6 @@ export async function executeWorkflow(options: {
 
     return NextResponse.json(filteredResult)
   } catch (error: any) {
-    logger.error(`[${requestId}] Execution failed:`, error)
-    
-    await loggingSession.safeComplete({
-      endedAt: new Date().toISOString(),
-      totalDurationMs: 0,
-      finalOutput: {},
-      traceSpans: [],
-      workflowInput: processedInput,
-    })
-    
     return NextResponse.json(
       { error: error.message || 'Execution failed', success: false },
       { status: 500 }
@@ -373,11 +199,9 @@ export async function POST(
     // SSE PATH: Stream execution events for client builder UI
     logger.info(`[${requestId}] Using SSE execution (streaming response)`)
     const encoder = new TextEncoder()
-    let executorInstance: Executor | null = null
 
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
-        let processedInput = input || {}
         let isStreamClosed = false
         
         const sendEvent = (event: ExecutionEvent) => {
@@ -408,166 +232,20 @@ export async function POST(
             },
           })
 
-        // Load workflow state from database
-        // For manual runs, use draft state from normalized tables
-        // For API/webhook/schedule runs, use deployed state
-        let blocks, edges, loops, parallels
-        
-        if (triggerType === 'manual') {
-          // Load draft state from normalized tables
-          const draftData = await loadWorkflowFromNormalizedTables(workflowId)
-          
-          if (!draftData) {
-            throw new Error('Workflow not found or not yet saved. Please save the workflow first.')
-          }
-          
-          blocks = draftData.blocks
-          edges = draftData.edges
-          loops = draftData.loops
-          parallels = draftData.parallels
-          
-          logger.info(`[${requestId}] Using draft workflow state from normalized tables`)
-        } else {
-          // Use deployed state for API/webhook/schedule executions
-          const deployedData = await loadDeployedWorkflowState(workflowId)
-          blocks = deployedData.blocks
-          edges = deployedData.edges
-          loops = deployedData.loops
-          parallels = deployedData.parallels
-          
-          logger.info(`[${requestId}] Using deployed workflow state`)
-        }
-
-        // Merge block states
-        const mergedStates = mergeSubblockState(blocks)
-
-        // Get environment variables with decryption
-        const { personalEncrypted, workspaceEncrypted } = await getPersonalAndWorkspaceEnv(
-          userId,
-          workflow.workspaceId || undefined
-        )
-        const variables = EnvVarsSchema.parse({ ...personalEncrypted, ...workspaceEncrypted })
-
-        // Start logging session
-        await loggingSession.safeStart({
-          userId,
-          workspaceId: workflow.workspaceId,
-          variables,
-        })
-
-        // Process block states with env var substitution
-        const currentBlockStates = await Object.entries(mergedStates).reduce(
-          async (accPromise, [id, block]) => {
-            const acc = await accPromise
-            acc[id] = await Object.entries(block.subBlocks).reduce(
-              async (subAccPromise, [key, subBlock]) => {
-                const subAcc = await subAccPromise
-                let value = subBlock.value
-
-                // Decrypt environment variables in block values
-                if (typeof value === 'string' && value.includes('{{') && value.includes('}}')) {
-                  const matches = value.match(/{{([^}]+)}}/g)
-                  if (matches) {
-                    for (const match of matches) {
-                      const varName = match.slice(2, -2)
-                      const encryptedValue = variables[varName]
-                      if (encryptedValue) {
-                        const { decrypted } = await decryptSecret(encryptedValue)
-                        value = (value as string).replace(match, decrypted)
-                      }
-                    }
-                  }
-                }
-
-                subAcc[key] = value
-                return subAcc
-              },
-              Promise.resolve({} as Record<string, any>)
-            )
-            return acc
-          },
-          Promise.resolve({} as Record<string, Record<string, any>>)
-        )
-
-        // Decrypt all env vars
-        const decryptedEnvVars: Record<string, string> = {}
-        for (const [key, encryptedValue] of Object.entries(variables)) {
-          const { decrypted } = await decryptSecret(encryptedValue)
-          decryptedEnvVars[key] = decrypted
-        }
-
-        // Process block states (handle response format parsing)
-        const processedBlockStates = Object.entries(currentBlockStates).reduce(
-          (acc, [blockId, blockState]) => {
-            if (blockState.responseFormat && typeof blockState.responseFormat === 'string') {
-              const responseFormatValue = blockState.responseFormat.trim()
-              if (responseFormatValue && !responseFormatValue.startsWith('<')) {
-                try {
-                  acc[blockId] = {
-                    ...blockState,
-                    responseFormat: JSON.parse(responseFormatValue),
-                  }
-                } catch {
-                  acc[blockId] = {
-                    ...blockState,
-                    responseFormat: undefined,
-                  }
-                }
-              } else {
-                acc[blockId] = blockState
-              }
-            } else {
-              acc[blockId] = blockState
-            }
-            return acc
-          },
-          {} as Record<string, Record<string, any>>
-        )
-
-        // Get workflow variables
-        const workflowVariables = (workflow.variables as Record<string, any>) || {}
-
-        // Serialize workflow
-        const serializedWorkflow = new Serializer().serializeWorkflow(
-          mergedStates,
-          edges,
-          loops,
-          parallels,
-          true
-        )
-
-        // Update processedInput
-        processedInput = input || {}
-
-        // Create executor with SSE callbacks
-        const contextExtensions: any = {
-          stream: true,
-          selectedOutputs,
-          executionId,
-          workspaceId: workflow.workspaceId,
-          isDeployedContext: false, // Set to false for client-initiated executions
-          
-          // Callback when a block starts
-          onBlockStart: async (blockId: string, blockName: string, blockType: string) => {
+          // SSE Callbacks
+          const onBlockStart = async (blockId: string, blockName: string, blockType: string) => {
             logger.info(`[${requestId}] 🔷 onBlockStart called:`, { blockId, blockName, blockType })
             sendEvent({
               type: 'block:started',
               timestamp: new Date().toISOString(),
               executionId,
               workflowId,
-              data: {
-                blockId,
-                blockName,
-                blockType,
-              },
+              data: { blockId, blockName, blockType },
             })
-          },
+          }
           
-          // Callback when a block completes
-          onBlockComplete: async (blockId: string, output: any) => {
-            const block = serializedWorkflow.blocks.find((b: any) => b.id === blockId)
-            logger.info(`[${requestId}] ✓ onBlockComplete called:`, { blockId })
-            
+          const onBlockComplete = async (blockId: string, blockName: string, blockType: string, output: any) => {
+            logger.info(`[${requestId}] ✓ onBlockComplete called:`, { blockId, blockName, blockType })
             sendEvent({
               type: 'block:completed',
               timestamp: new Date().toISOString(),
@@ -575,16 +253,15 @@ export async function POST(
               workflowId,
               data: {
                 blockId,
-                blockName: block?.metadata?.name || '',
-                blockType: block?.metadata?.id || '',
+                blockName,
+                blockType,
                 output,
                 durationMs: output.executionTime || 0,
               },
             })
-          },
+          }
           
-          // Callback for streaming content
-          onStream: async (streamingExec: StreamingExecution) => {
+          const onStream = async (streamingExec: StreamingExecution) => {
             const blockId = (streamingExec.execution as any).blockId
             const reader = streamingExec.stream.getReader()
             const decoder = new TextDecoder()
@@ -618,116 +295,69 @@ export async function POST(
                 reader.releaseLock()
               } catch {}
             }
-          },
-        }
+          }
 
-        // Create and execute workflow
-        executorInstance = new Executor({
-          workflow: serializedWorkflow,
-          currentBlockStates: processedBlockStates,
-          envVarValues: decryptedEnvVars,
-          workflowInput: processedInput,
-          workflowVariables,
-          contextExtensions,
-        })
-        
-        // Setup logging session with executor
-        loggingSession.setupExecutor(executorInstance)
-        
-        // Execute workflow (no startBlockId, let executor determine the start block)
-        const result = await executorInstance.execute(workflowId) as ExecutionResult
-
-        // Check if execution was cancelled
-        if (result.error === 'Workflow execution was cancelled') {
-          logger.info(`[${requestId}] Workflow execution was cancelled`)
-          
-          // Build trace spans for billing (still bill for cancelled executions)
-          const { traceSpans, totalDuration } = buildTraceSpans(result)
-          
-          // Complete logging session with cancelled status
-          await loggingSession.safeComplete({
-            endedAt: new Date().toISOString(),
-            totalDurationMs: totalDuration || 0,
-            finalOutput: result.output || {},
-            traceSpans: traceSpans || [],
-            workflowInput: processedInput,
+          // Execute using core function with SSE callbacks
+          const result = await executeWorkflowCore({
+            requestId,
+            workflowId,
+            userId,
+            workflow,
+            input,
+            triggerType,
+            loggingSession,
+            executionId,
+            selectedOutputs,
+            onBlockStart,
+            onBlockComplete,
+            onStream,
           })
 
-          // Send cancellation event
+          // Check if execution was cancelled
+          if (result.error === 'Workflow execution was cancelled') {
+            logger.info(`[${requestId}] Workflow execution was cancelled`)
+            sendEvent({
+              type: 'execution:cancelled',
+              timestamp: new Date().toISOString(),
+              executionId,
+              workflowId,
+              data: {
+                duration: result.metadata?.duration || 0,
+              },
+            })
+            return // Exit early
+          }
+
+          // Send execution completed event
           sendEvent({
-            type: 'execution:cancelled',
+            type: 'execution:completed',
             timestamp: new Date().toISOString(),
             executionId,
             workflowId,
             data: {
+              success: result.success,
+              output: result.output,
               duration: result.metadata?.duration || 0,
+              startTime: result.metadata?.startTime || startTime.toISOString(),
+              endTime: result.metadata?.endTime || new Date().toISOString(),
             },
           })
+
+        } catch (error: any) {
+          logger.error(`[${requestId}] SSE execution failed:`, error)
           
-          return // Exit early for cancelled execution
-        }
-
-        logger.info(`[${requestId}] Workflow execution completed`, {
-          success: result.success,
-          duration: result.metadata?.duration,
-        })
-
-        // Build trace spans for logging
-        const { traceSpans, totalDuration } = buildTraceSpans(result)
-
-        // Update workflow run counts
-        if (result.success) {
-          await updateWorkflowRunCounts(workflowId)
-        }
-
-        // Complete logging session
-        await loggingSession.safeComplete({
-          endedAt: new Date().toISOString(),
-          totalDurationMs: totalDuration || 0,
-          finalOutput: result.output || {},
-          traceSpans: traceSpans || [],
-          workflowInput: processedInput,
-        })
-
-        // Send execution completed event
-        sendEvent({
-          type: 'execution:completed',
-          timestamp: new Date().toISOString(),
-          executionId,
-          workflowId,
-          data: {
-            success: result.success,
-            output: result.output,
-            duration: result.metadata?.duration || 0,
-            startTime: result.metadata?.startTime || startTime.toISOString(),
-            endTime: result.metadata?.endTime || new Date().toISOString(),
-          },
-        })
-
-      } catch (error: any) {
-        logger.error(`[${requestId}] Workflow execution failed:`, error)
-        
-        // Complete logging session with error
-        await loggingSession.safeComplete({
-          endedAt: new Date().toISOString(),
-          totalDurationMs: 0,
-          finalOutput: {},
-          traceSpans: [],
-          workflowInput: processedInput,
-        })
-        
-        // Send error event
-        sendEvent({
-          type: 'execution:error',
-          timestamp: new Date().toISOString(),
-          executionId,
-          workflowId,
-          data: {
-            error: error.message || 'Unknown error',
-            duration: 0,
-          },
-        })
-      } finally {
+          // Send error event
+          sendEvent({
+            type: 'execution:error',
+            timestamp: new Date().toISOString(),
+            executionId,
+            workflowId,
+            data: {
+              error: error.message || 'Unknown error',
+              duration: 0,
+            },
+          })
+        } finally {
           // Close the stream
           try {
             // Send final [DONE] marker
@@ -739,12 +369,9 @@ export async function POST(
         }
       },
       cancel() {
-        logger.info(`[${requestId}] Client aborted SSE stream, cancelling executor`)
-        
-        // Cancel the executor if it exists
-        if (executorInstance) {
-          executorInstance.cancel()
-        }
+        logger.info(`[${requestId}] Client aborted SSE stream`)
+        // Note: Stream is automatically closed by browser
+        // The core function will complete but won't send more events
       },
     })
 

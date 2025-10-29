@@ -924,6 +924,8 @@ export function useWorkflowExecution() {
             },
 
             onBlockCompleted: (data) => {
+              logger.info('onBlockCompleted received:', { data })
+              
               activeBlocksSet.delete(data.blockId)
               // Create a new Set to trigger React re-render
               setActiveBlocks(new Set(activeBlocksSet))
@@ -939,8 +941,8 @@ export function useWorkflowExecution() {
                 workflowId: activeWorkflowId,
                 blockId: data.blockId,
                 executionId: executionId || uuidv4(),
-                blockName: data.blockName,
-                blockType: data.blockType,
+                blockName: data.blockName || 'Unknown Block',
+                blockType: data.blockType || 'unknown',
               })
 
               // Call onBlockComplete callback if provided

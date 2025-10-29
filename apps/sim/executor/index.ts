@@ -154,7 +154,7 @@ export class Executor {
             edges?: Array<{ source: string; target: string }>
             onStream?: (streamingExecution: StreamingExecution) => Promise<void>
             onBlockStart?: (blockId: string, blockName: string, blockType: string) => Promise<void>
-            onBlockComplete?: (blockId: string, output: any) => Promise<void>
+            onBlockComplete?: (blockId: string, blockName: string, blockType: string, output: any) => Promise<void>
             executionId?: string
             workspaceId?: string
             isChildExecution?: boolean
@@ -2157,7 +2157,17 @@ export class Executor {
 
       if (context.onBlockComplete && !isNonStreamTriggerBlock) {
         try {
-          await context.onBlockComplete(blockId, output)
+          // Attach execution time to output for the callback
+          const outputWithTiming = {
+            ...output,
+            executionTime: Math.round(executionTime),
+          }
+          await context.onBlockComplete(
+            blockId,
+            block.metadata?.name || 'Unnamed Block',
+            block.metadata?.id || 'unknown',
+            outputWithTiming
+          )
         } catch (callbackError: any) {
           logger.error('Error in onBlockComplete callback:', callbackError)
         }
