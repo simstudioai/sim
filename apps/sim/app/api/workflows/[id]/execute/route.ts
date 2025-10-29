@@ -220,7 +220,21 @@ export async function executeWorkflow(options: {
       duration: result.metadata?.duration,
     })
 
-    return NextResponse.json(result)
+    // Filter out logs and internal metadata for API responses
+    const filteredResult = {
+      success: result.success,
+      output: result.output,
+      error: result.error,
+      metadata: result.metadata
+        ? {
+            duration: result.metadata.duration,
+            startTime: result.metadata.startTime,
+            endTime: result.metadata.endTime,
+          }
+        : undefined,
+    }
+
+    return NextResponse.json(filteredResult)
   } catch (error: any) {
     logger.error(`[${requestId}] Execution failed:`, error)
     
