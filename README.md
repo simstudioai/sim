@@ -14,6 +14,18 @@
 </p>
 
 <p align="center">
+  <!-- Keep these links. Translations will automatically update with the README. -->
+  <a href="https://zdoc.app/de/simstudioai/sim">Deutsch</a> | 
+  <a href="https://zdoc.app/es/simstudioai/sim">Español</a> | 
+  <a href="https://zdoc.app/fr/simstudioai/sim">français</a> | 
+  <a href="https://zdoc.app/ja/simstudioai/sim">日本語</a> | 
+  <a href="https://zdoc.app/ko/simstudioai/sim">한국어</a> | 
+  <a href="https://zdoc.app/pt/simstudioai/sim">Português</a> | 
+  <a href="https://zdoc.app/ru/simstudioai/sim">Русский</a> | 
+  <a href="https://zdoc.app/zh/simstudioai/sim">中文</a>
+</p>
+
+<p align="center">
   <img src="apps/sim/public/static/demo.gif" alt="Sim Demo" width="800"/>
 </p>
 
