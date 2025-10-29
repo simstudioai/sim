@@ -68,15 +68,13 @@ export class VariablesBlockHandler implements BlockHandler {
         })),
       })
 
-      // Return assignments as a JSON object mapping variable names to values
-      const assignmentsOutput: Record<string, any> = {}
+      // Return variable values directly at the root for easy access
+      const output: Record<string, any> = {}
       for (const assignment of assignments) {
-        assignmentsOutput[assignment.variableName] = assignment.value
+        output[assignment.variableName] = assignment.value
       }
 
-      return {
-        assignments: assignmentsOutput,
-      }
+      return output
     } catch (error: any) {
       logger.error('Variables block execution failed:', error)
       throw new Error(`Variables block execution failed: ${error.message}`)
@@ -97,7 +95,7 @@ export class VariablesBlockHandler implements BlockHandler {
       if (assignment?.variableName?.trim()) {
         const name = assignment.variableName.trim()
         const type = assignment.type || 'string'
-        const value = this.parseValueByType(assignment.value, type)
+        const value = this.parseValueByType(assignment.value, type, name)
 
         result.push({
           variableId: assignment.variableId,
@@ -111,9 +109,9 @@ export class VariablesBlockHandler implements BlockHandler {
     return result
   }
 
-  private parseValueByType(value: any, type: string): any {
-    // Handle null/undefined early
-    if (value === null || value === undefined) {
+  private parseValueByType(value: any, type: string, variableName?: string): any {
+    // Handle null/undefined - allow empty values
+    if (value === null || value === undefined || value === '') {
       if (type === 'number') return 0
       if (type === 'boolean') return false
       if (type === 'array') return []
@@ -129,29 +127,69 @@ export class VariablesBlockHandler implements BlockHandler {
     if (type === 'number') {
       if (typeof value === 'number') return value
       if (typeof value === 'string') {
-        const num = Number(value)
-        return Number.isNaN(num) ? 0 : num
+        const trimmed = value.trim()
+        if (trimmed === '') return 0
+        const num = Number(trimmed)
+        if (Number.isNaN(num)) {
+          throw new Error(
+            `Invalid number value for variable "${variableName || 'unknown'}": "${value}". Expected a valid number.`
+          )
+        }
+        return num
       }
-      return 0
+      throw new Error(
+        `Invalid type for variable "${variableName || 'unknown'}": expected number, got ${typeof value}`
+      )
     }
 
     if (type === 'boolean') {
       if (typeof value === 'boolean') return value
       if (typeof value === 'string') {
-        return value.toLowerCase() === 'true'
+        const lower = value.toLowerCase().trim()
+        if (lower === 'true') return true
+        if (lower === 'false') return false
+        throw new Error(
+          `Invalid boolean value for variable "${variableName || 'unknown'}": "${value}". Expected "true" or "false".`
+        )
       }
       return Boolean(value)
     }
 
     if (type === 'object' || type === 'array') {
       if (typeof value === 'object' && value !== null) {
+        // Validate that arrays are actually arrays
+        if (type === 'array' && !Array.isArray(value)) {
+          throw new Error(
+            `Invalid array value for variable "${variableName || 'unknown'}": expected an array, got an object`
+          )
+        }
+        // Validate that objects are not arrays
+        if (type === 'object' && Array.isArray(value)) {
+          throw new Error(
+            `Invalid object value for variable "${variableName || 'unknown'}": expected an object, got an array`
+          )
+        }
         return value
       }
       if (typeof value === 'string' && value.trim()) {
         try {
-          return JSON.parse(value)
-        } catch {
-          return type === 'array' ? [] : {}
+          const parsed = JSON.parse(value)
+          // Validate parsed type matches expected type
+          if (type === 'array' && !Array.isArray(parsed)) {
+            throw new Error(
+              `Invalid array value for variable "${variableName || 'unknown'}": parsed value is not an array`
+            )
+          }
+          if (type === 'object' && (Array.isArray(parsed) || typeof parsed !== 'object')) {
+            throw new Error(
+              `Invalid object value for variable "${variableName || 'unknown'}": parsed value is not an object`
+            )
+          }
+          return parsed
+        } catch (error: any) {
+          throw new Error(
+            `Invalid JSON for variable "${variableName || 'unknown'}": ${error.message}`
+          )
         }
       }
       return type === 'array' ? [] : {}

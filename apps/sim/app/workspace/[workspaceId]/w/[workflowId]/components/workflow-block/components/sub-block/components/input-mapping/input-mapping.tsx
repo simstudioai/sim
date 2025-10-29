@@ -6,7 +6,6 @@ import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface InputFormatField {
   name: string
@@ -57,24 +56,20 @@ interface InputMappingProps {
   isPreview?: boolean
   previewValue?: any
   disabled?: boolean
+  isConnecting?: boolean
 }
 
-// Simple mapping UI: for each field in child Input Trigger's inputFormat, render an input with TagDropdown support
 export function InputMapping({
   blockId,
   subBlockId,
   isPreview = false,
   previewValue,
   disabled = false,
+  isConnecting = false,
 }: InputMappingProps) {
   const [mapping, setMapping] = useSubBlockValue(blockId, subBlockId)
   const [selectedWorkflowId] = useSubBlockValue(blockId, 'workflowId')
 
-  const { workflows } = useWorkflowRegistry.getState()
-
-  // Fetch child workflow state via registry API endpoint, using cached metadata when possible
-  // Here we rely on live store; the serializer/executor will resolve at runtime too.
-  // We only need the inputFormat from an Input Trigger in the selected child workflow state.
   const [childInputFields, setChildInputFields] = useState<Array<{ name: string; type?: string }>>(
     []
   )
@@ -97,7 +92,6 @@ export function InputMapping({
         }
         const { data } = await res.json()
         const blocks = (data?.state?.blocks as Record<string, unknown>) || {}
-        // Prefer new input_trigger
         const triggerEntry = Object.entries(blocks).find(([, b]) => isInputTriggerBlock(b))
         if (triggerEntry && isInputTriggerBlock(triggerEntry[1])) {
           const inputFormat = triggerEntry[1].subBlocks?.inputFormat?.value
@@ -110,7 +104,6 @@ export function InputMapping({
           }
         }
 
-        // Fallback: legacy starter block inputFormat (subBlocks or config.params)
         const starterEntry = Object.entries(blocks).find(([, b]) => isStarterBlock(b))
         if (starterEntry && isStarterBlock(starterEntry[1])) {
           const starter = starterEntry[1]
@@ -217,6 +210,7 @@ export function InputMapping({
             subBlockId={subBlockId}
             disabled={isPreview || disabled}
             accessiblePrefixes={accessiblePrefixes}
+            isConnecting={isConnecting}
           />
         )
       })}
@@ -224,7 +218,6 @@ export function InputMapping({
   )
 }
 
-// Individual field component with TagDropdown support
 function InputMappingField({
   fieldName,
   fieldType,
@@ -234,6 +227,7 @@ function InputMappingField({
   subBlockId,
   disabled,
   accessiblePrefixes,
+  isConnecting,
 }: {
   fieldName: string
   fieldType?: string
@@ -243,9 +237,12 @@ function InputMappingField({
   subBlockId: string
   disabled: boolean
   accessiblePrefixes: Set<string> | undefined
+  isConnecting?: boolean
 }) {
   const [showTags, setShowTags] = useState(false)
   const [cursorPosition, setCursorPosition] = useState(0)
+  const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
+  const [dragHighlight, setDragHighlight] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
 
@@ -261,12 +258,10 @@ function InputMappingField({
     onChange(newValue)
     setCursorPosition(newCursorPosition)
 
-    // Check for tag trigger
     const tagTrigger = checkTagTrigger(newValue, newCursorPosition)
     setShowTags(tagTrigger.show)
   }
 
-  // Sync scroll position between input and overlay
   const handleScroll = (e: React.UIEvent<HTMLInputElement>) => {
     if (overlayRef.current) {
       overlayRef.current.scrollLeft = e.currentTarget.scrollLeft
@@ -281,6 +276,47 @@ function InputMappingField({
 
   const handleTagSelect = (newValue: string) => {
     onChange(newValue)
+    setShowTags(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragHighlight(false)
+    const input = inputRef.current
+    input?.focus()
+
+    if (input) {
+      const dropPosition = input.selectionStart ?? value.length
+      const newValue = `${value.slice(0, dropPosition)}<${value.slice(dropPosition)}`
+      onChange(newValue)
+      setCursorPosition(dropPosition + 1)
+      setShowTags(true)
+
+      try {
+        const data = JSON.parse(e.dataTransfer.getData('application/json'))
+        if (data?.connectionData?.sourceBlockId) {
+          setActiveSourceBlockId(data.connectionData.sourceBlockId)
+        }
+      } catch {}
+
+      setTimeout(() => {
+        if (input && typeof input.selectionStart === 'number') {
+          input.selectionStart = dropPosition + 1
+          input.selectionEnd = dropPosition + 1
+        }
+      }, 0)
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+    setDragHighlight(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragHighlight(false)
   }
 
   return (
@@ -298,7 +334,9 @@ function InputMappingField({
           ref={inputRef}
           className={cn(
             'allow-scroll h-9 w-full overflow-auto text-transparent caret-foreground placeholder:text-muted-foreground/50',
-            'border border-input bg-white transition-colors duration-200 dark:border-input/60 dark:bg-background'
+            'border border-input bg-white transition-colors duration-200 dark:border-input/60 dark:bg-background',
+            dragHighlight && 'ring-2 ring-blue-500 ring-offset-2',
+            isConnecting && 'ring-2 ring-blue-500 ring-offset-2'
           )}
           type='text'
           value={value}
@@ -311,6 +349,9 @@ function InputMappingField({
           }}
           onScroll={handleScroll}
           onKeyDown={handleKeyDown}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
           autoComplete='off'
           style={{ overflowX: 'auto' }}
           disabled={disabled}
@@ -335,11 +376,12 @@ function InputMappingField({
           visible={showTags}
           onSelect={handleTagSelect}
           blockId={blockId}
-          activeSourceBlockId={null}
+          activeSourceBlockId={activeSourceBlockId}
           inputValue={value}
           cursorPosition={cursorPosition}
           onClose={() => {
             setShowTags(false)
+            setActiveSourceBlockId(null)
           }}
         />
       </div>
