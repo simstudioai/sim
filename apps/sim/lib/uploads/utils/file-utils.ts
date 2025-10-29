@@ -146,16 +146,19 @@ export function getMimeTypeFromExtension(extension: string): string {
 /**
  * Extract storage key from a file path
  * Handles various path formats: /api/files/serve/xyz, /api/files/serve/s3/xyz, etc.
+ * Strips query parameters from the path before extracting the key.
  */
 export function extractStorageKey(filePath: string): string {
-  if (filePath.includes('/api/files/serve/s3/')) {
-    return decodeURIComponent(filePath.split('/api/files/serve/s3/')[1])
+  const pathWithoutQuery = filePath.split('?')[0]
+
+  if (pathWithoutQuery.includes('/api/files/serve/s3/')) {
+    return decodeURIComponent(pathWithoutQuery.split('/api/files/serve/s3/')[1])
   }
-  if (filePath.includes('/api/files/serve/blob/')) {
-    return decodeURIComponent(filePath.split('/api/files/serve/blob/')[1])
+  if (pathWithoutQuery.includes('/api/files/serve/blob/')) {
+    return decodeURIComponent(pathWithoutQuery.split('/api/files/serve/blob/')[1])
   }
-  if (filePath.startsWith('/api/files/serve/')) {
-    return decodeURIComponent(filePath.substring('/api/files/serve/'.length))
+  if (pathWithoutQuery.startsWith('/api/files/serve/')) {
+    return decodeURIComponent(pathWithoutQuery.substring('/api/files/serve/'.length))
   }
-  return filePath
+  return pathWithoutQuery
 }

@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const requestData = await request.json()
-    const { filePath, fileType, workspaceId, context } = requestData
+    const { filePath, fileType, workspaceId } = requestData
 
     if (!filePath || (typeof filePath === 'string' && filePath.trim() === '')) {
       return NextResponse.json({ success: false, error: 'No file path provided' }, { status: 400 })
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
           continue
         }
 
-        const result = await parseFileSingle(path, fileType, workspaceId, context)
+        const result = await parseFileSingle(path, fileType, workspaceId)
         if (result.metadata) {
           result.metadata.processingTime = Date.now() - startTime
         }
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const result = await parseFileSingle(filePath, fileType, workspaceId, context)
+    const result = await parseFileSingle(filePath, fileType, workspaceId)
 
     if (result.metadata) {
       result.metadata.processingTime = Date.now() - startTime
@@ -170,8 +170,7 @@ export async function POST(request: NextRequest) {
 async function parseFileSingle(
   filePath: string,
   fileType?: string,
-  workspaceId?: string,
-  context?: string
+  workspaceId?: string
 ): Promise<ParseResult> {
   logger.info('Parsing file:', filePath)
 
@@ -192,15 +191,16 @@ async function parseFileSingle(
     }
   }
 
+  if (filePath.includes('/api/files/serve/')) {
+    return handleCloudFile(filePath, fileType)
+  }
+
   if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
     return handleExternalUrl(filePath, fileType, workspaceId)
   }
 
-  const isS3Path = filePath.includes('/api/files/serve/s3/')
-  const isBlobPath = filePath.includes('/api/files/serve/blob/')
-
-  if (isS3Path || isBlobPath || isUsingCloudStorage()) {
-    return handleCloudFile(filePath, fileType, context)
+  if (isUsingCloudStorage()) {
+    return handleCloudFile(filePath, fileType)
   }
 
   return handleLocalFile(filePath, fileType)
@@ -256,15 +256,41 @@ async function handleExternalUrl(
       }
     }
 
-    // Extract filename from URL
     const urlPath = new URL(url).pathname
     const filename = urlPath.split('/').pop() || 'download'
     const extension = path.extname(filename).toLowerCase().substring(1)
 
     logger.info(`Extracted filename: ${filename}, workspaceId: ${workspaceId}`)
 
-    // If workspaceId provided, check if file already exists in workspace
-    if (workspaceId) {
+    const {
+      S3_EXECUTION_FILES_CONFIG,
+      BLOB_EXECUTION_FILES_CONFIG,
+      USE_S3_STORAGE,
+      USE_BLOB_STORAGE,
+    } = await import('@/lib/uploads/core/setup')
+
+    let isExecutionFile = false
+    try {
+      const parsedUrl = new URL(url)
+
+      if (USE_S3_STORAGE && S3_EXECUTION_FILES_CONFIG.bucket) {
+        const bucketInHost = parsedUrl.hostname.startsWith(S3_EXECUTION_FILES_CONFIG.bucket)
+        const bucketInPath = parsedUrl.pathname.startsWith(`/${S3_EXECUTION_FILES_CONFIG.bucket}/`)
+        isExecutionFile = bucketInHost || bucketInPath
+      } else if (USE_BLOB_STORAGE && BLOB_EXECUTION_FILES_CONFIG.containerName) {
+        isExecutionFile = url.includes(`/${BLOB_EXECUTION_FILES_CONFIG.containerName}/`)
+      }
+    } catch (error) {
+      logger.warn('Failed to parse URL for execution file check:', error)
+      isExecutionFile = false
+    }
+
+    // Only apply workspace deduplication if:
+    // 1. WorkspaceId is provided
+    // 2. URL is NOT from execution files bucket/container
+    const shouldCheckWorkspace = workspaceId && !isExecutionFile
+
+    if (shouldCheckWorkspace) {
       const { fileExistsInWorkspace, listWorkspaceFiles } = await import(
         '@/lib/uploads/contexts/workspace'
       )
@@ -272,12 +298,10 @@ async function handleExternalUrl(
 
       if (exists) {
         logger.info(`File ${filename} already exists in workspace, using existing file`)
-        // Get existing file and parse from storage
         const workspaceFiles = await listWorkspaceFiles(workspaceId)
         const existingFile = workspaceFiles.find((f) => f.name === filename)
 
         if (existingFile) {
-          // Parse from workspace storage instead of re-downloading
           const storageFilePath = `/api/files/serve/${existingFile.key}`
           return handleCloudFile(storageFilePath, fileType, 'workspace')
         }
@@ -304,8 +328,7 @@ async function handleExternalUrl(
 
     logger.info(`Downloaded file from URL: ${url}, size: ${buffer.length} bytes`)
 
-    // If workspaceId provided, save to workspace storage
-    if (workspaceId) {
+    if (shouldCheckWorkspace) {
       try {
         const { getSession } = await import('@/lib/auth')
         const { uploadWorkspaceFile } = await import('@/lib/uploads/contexts/workspace')
@@ -317,7 +340,6 @@ async function handleExternalUrl(
           logger.info(`Saved URL file to workspace storage: ${filename}`)
         }
       } catch (saveError) {
-        // Log but don't fail - continue with parsing even if save fails
         logger.warn(`Failed to save URL file to workspace:`, saveError)
       }
     }
@@ -356,7 +378,6 @@ async function handleCloudFile(
 
     logger.info('Extracted cloud key:', cloudKey)
 
-    // Use explicit context if provided, otherwise infer from key pattern (KB, workspace, execution, or general)
     const context = (explicitContext as StorageContext) || inferContextFromKey(cloudKey)
     const fileBuffer = await StorageService.downloadFile({ key: cloudKey, context })
     logger.info(
@@ -379,13 +400,11 @@ async function handleCloudFile(
   } catch (error) {
     logger.error(`Error handling cloud file ${filePath}:`, error)
 
-    // For download/access errors, throw to trigger 500 response
     const errorMessage = (error as Error).message
     if (errorMessage.includes('Access denied') || errorMessage.includes('Forbidden')) {
       throw new Error(`Error accessing file from cloud storage: ${errorMessage}`)
     }
 
-    // For other errors (parsing, processing), return success:false and an error message
     return {
       success: false,
       error: `Error accessing file from cloud storage: ${errorMessage}`,

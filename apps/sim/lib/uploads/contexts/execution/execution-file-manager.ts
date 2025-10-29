@@ -56,6 +56,7 @@ export async function uploadExecutionFile(
     logger.info(`Keys match: ${fileInfo.key === storageKey}`)
 
     let directUrl: string | undefined
+
     try {
       logger.info(
         `Generating presigned URL with key: "${fileInfo.key}" (expiration: ${urlExpirationSeconds / 60} minutes)`
@@ -65,7 +66,7 @@ export async function uploadExecutionFile(
         'execution',
         urlExpirationSeconds
       )
-      logger.info(`Generated presigned URL: ${directUrl}`)
+      logger.info(`Generated presigned URL for execution file`)
     } catch (error) {
       logger.warn(`Failed to generate presigned URL for ${fileName}:`, error)
     }
@@ -75,11 +76,11 @@ export async function uploadExecutionFile(
       name: fileName,
       size: fileBuffer.length,
       type: contentType,
-      url: directUrl || `/api/files/serve/${encodeURIComponent(fileInfo.key)}?context=execution`, // Use presigned URL (5 or 10 min), fallback to serve path
-      key: fileInfo.key, // Use the actual uploaded key from S3/Blob
+      url: directUrl || `/api/files/serve/${fileInfo.key}`, // Use presigned URL (5 or 10 min), fallback to serve path
+      key: fileInfo.key,
       uploadedAt: new Date().toISOString(),
       expiresAt: getFileExpirationDate(),
-      context: 'execution',
+      context: 'execution', // Preserve context in file object
     }
 
     logger.info(`Successfully uploaded execution file: ${fileName} (${fileBuffer.length} bytes)`)
