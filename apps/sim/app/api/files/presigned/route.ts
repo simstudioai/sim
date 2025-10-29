@@ -149,13 +149,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Construct the serve path for later downloads
-    // For chat and profile-pictures, we could use direct cloud URLs,
-    // but for knowledge-base and others, use the serve API endpoint with context parameter
-    const finalPath =
-      uploadType === 'chat' || uploadType === 'profile-pictures'
-        ? presignedUrlResponse.url.split('?')[0] // Cloud URL without query params
-        : `/api/files/serve/${USE_BLOB_STORAGE ? 'blob' : 's3'}/${encodeURIComponent(presignedUrlResponse.key)}?context=${uploadType}`
+    const finalPath = `/api/files/serve/${USE_BLOB_STORAGE ? 'blob' : 's3'}/${encodeURIComponent(presignedUrlResponse.key)}?context=${uploadType}`
 
     return NextResponse.json({
       fileName,

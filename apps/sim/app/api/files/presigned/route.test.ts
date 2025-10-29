@@ -236,7 +236,7 @@ describe('/api/files/presigned', () => {
 
       expect(response.status).toBe(200)
       expect(data.fileInfo.key).toMatch(/^chat\/.*chat-logo\.png$/)
-      expect(data.fileInfo.path).toBe('https://example.com/presigned-url') // path is the presigned URL
+      expect(data.fileInfo.path).toMatch(/\/api\/files\/serve\/s3\/.+\?context=chat$/)
       expect(data.presignedUrl).toBeTruthy()
       expect(data.directUploadSupported).toBe(true)
     })
@@ -295,6 +295,7 @@ describe('/api/files/presigned', () => {
 
       expect(response.status).toBe(200)
       expect(data.fileInfo.key).toMatch(/^chat\/.*chat-logo\.png$/)
+      expect(data.fileInfo.path).toMatch(/\/api\/files\/serve\/blob\/.+\?context=chat$/)
       expect(data.presignedUrl).toBeTruthy()
       expect(data.directUploadSupported).toBe(true)
     })
