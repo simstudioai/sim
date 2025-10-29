@@ -29,17 +29,13 @@ export class VariablesBlockHandler implements BlockHandler {
     })
 
     try {
-      // Initialize workflowVariables if not present
       if (!context.workflowVariables) {
         context.workflowVariables = {}
       }
 
-      // Parse variable assignments from the custom input
       const assignments = this.parseAssignments(inputs.variables)
 
-      // Update context.workflowVariables with new values
       for (const assignment of assignments) {
-        // Find the variable by ID or name
         const existingEntry = assignment.variableId
           ? [assignment.variableId, context.workflowVariables[assignment.variableId]]
           : Object.entries(context.workflowVariables).find(
@@ -47,7 +43,6 @@ export class VariablesBlockHandler implements BlockHandler {
             )
 
         if (existingEntry?.[1]) {
-          // Update existing variable value
           const [id, variable] = existingEntry
           context.workflowVariables[id] = {
             ...variable,
@@ -68,7 +63,6 @@ export class VariablesBlockHandler implements BlockHandler {
         })),
       })
 
-      // Return variable values directly at the root for easy access
       const output: Record<string, any> = {}
       for (const assignment of assignments) {
         output[assignment.variableName] = assignment.value
@@ -110,7 +104,6 @@ export class VariablesBlockHandler implements BlockHandler {
   }
 
   private parseValueByType(value: any, type: string, variableName?: string): any {
-    // Handle null/undefined - allow empty values
     if (value === null || value === undefined || value === '') {
       if (type === 'number') return 0
       if (type === 'boolean') return false
@@ -119,7 +112,6 @@ export class VariablesBlockHandler implements BlockHandler {
       return ''
     }
 
-    // Handle plain and string types (plain is for backward compatibility)
     if (type === 'string' || type === 'plain') {
       return typeof value === 'string' ? value : String(value)
     }
@@ -157,13 +149,11 @@ export class VariablesBlockHandler implements BlockHandler {
 
     if (type === 'object' || type === 'array') {
       if (typeof value === 'object' && value !== null) {
-        // Validate that arrays are actually arrays
         if (type === 'array' && !Array.isArray(value)) {
           throw new Error(
             `Invalid array value for variable "${variableName || 'unknown'}": expected an array, got an object`
           )
         }
-        // Validate that objects are not arrays
         if (type === 'object' && Array.isArray(value)) {
           throw new Error(
             `Invalid object value for variable "${variableName || 'unknown'}": expected an object, got an array`
@@ -174,7 +164,6 @@ export class VariablesBlockHandler implements BlockHandler {
       if (typeof value === 'string' && value.trim()) {
         try {
           const parsed = JSON.parse(value)
-          // Validate parsed type matches expected type
           if (type === 'array' && !Array.isArray(parsed)) {
             throw new Error(
               `Invalid array value for variable "${variableName || 'unknown'}": parsed value is not an array`
@@ -195,7 +184,6 @@ export class VariablesBlockHandler implements BlockHandler {
       return type === 'array' ? [] : {}
     }
 
-    // Default: return value as-is
     return value
   }
 }
