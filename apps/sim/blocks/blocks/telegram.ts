@@ -1,6 +1,7 @@
 import { TelegramIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { getTriggerSubBlocks } from '@/blocks/utils/get-trigger-subblocks'
 import type { TelegramResponse } from '@/tools/telegram/types'
 
 export const TelegramBlock: BlockConfig<TelegramResponse> = {
@@ -163,15 +164,8 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
       required: true,
       condition: { field: 'operation', value: 'telegram_delete_message' },
     },
-    // TRIGGER MODE: Trigger configuration (only shown when trigger mode is active)
-    {
-      id: 'triggerConfig',
-      title: 'Trigger Configuration',
-      type: 'trigger-config',
-      layout: 'full',
-      triggerProvider: 'telegram',
-      availableTriggers: ['telegram_webhook'],
-    },
+    // TRIGGER MODE: Trigger configuration
+    ...getTriggerSubBlocks('telegram_webhook'),
   ],
   tools: {
     access: [

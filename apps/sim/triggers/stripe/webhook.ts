@@ -52,7 +52,7 @@ export const stripeWebhookTrigger: TriggerConfig = {
     'Go to your Stripe Dashboard at https://dashboard.stripe.com/',
     'Navigate to Developers > Webhooks',
     'Click "Add endpoint"',
-    'Paste the Webhook URL (from above) into the "Endpoint URL" field',
+    'Paste the Webhook URL into the "Endpoint URL" field',
     'Select the events you want to listen to (e.g., charge.succeeded)',
     'Click "Add endpoint"',
     'Stripe will send a test event to verify your webhook endpoint',

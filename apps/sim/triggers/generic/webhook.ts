@@ -37,7 +37,7 @@ export const genericWebhookTrigger: TriggerConfig = {
   outputs: {},
 
   instructions: [
-    'Copy the webhook URL provided above and use it in your external service or API.',
+    'Copy the webhook URL and use it in your external service or API.',
     'Configure your service to send webhooks to this URL.',
     'The webhook will receive any HTTP method (GET, POST, PUT, DELETE, etc.).',
     'All request data (headers, body, query parameters) will be available in your workflow.',

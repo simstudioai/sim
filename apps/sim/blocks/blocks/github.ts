@@ -1,6 +1,7 @@
 import { GithubIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { getTriggerSubBlocks } from '@/blocks/utils/get-trigger-subblocks'
 import type { GitHubResponse } from '@/tools/github/types'
 
 export const GitHubBlock: BlockConfig<GitHubResponse> = {
@@ -89,15 +90,8 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       password: true,
       required: true,
     },
-    // TRIGGER MODE: Trigger configuration (only shown when trigger mode is active)
-    {
-      id: 'triggerConfig',
-      title: 'Trigger Configuration',
-      type: 'trigger-config',
-      layout: 'full',
-      triggerProvider: 'github',
-      availableTriggers: ['github_webhook'],
-    },
+    // TRIGGER MODE: Trigger configuration
+    ...getTriggerSubBlocks('github_webhook'),
     {
       id: 'commentType',
       title: 'Comment Type',

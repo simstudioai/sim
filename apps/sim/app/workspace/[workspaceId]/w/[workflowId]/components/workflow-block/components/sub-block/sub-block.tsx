@@ -8,8 +8,10 @@ import {
   ChannelSelectorInput,
   CheckboxList,
   Code,
+  CollapsibleJson,
   ComboBox,
   ConditionInput,
+  CopyableText,
   CredentialSelector,
   DocumentSelector,
   Dropdown,
@@ -25,6 +27,7 @@ import {
   McpDynamicArgs,
   McpServerSelector,
   McpToolSelector,
+  MultiSelectDropdown,
   ProjectSelectorInput,
   ResponseFormat,
   ScheduleConfig,
@@ -32,9 +35,9 @@ import {
   SliderInput,
   Switch,
   Table,
+  Text,
   TimeInput,
   ToolInput,
-  TriggerConfig,
   VariablesInput,
   WebhookConfig,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components'
@@ -333,27 +336,6 @@ export const SubBlock = memo(
             />
           )
         }
-        case 'trigger-config': {
-          // For trigger config, we need to construct the value from multiple subblock values
-          const triggerValue =
-            isPreview && subBlockValues
-              ? {
-                  triggerId: subBlockValues.triggerId?.value,
-                  triggerPath: subBlockValues.triggerPath?.value,
-                  triggerConfig: subBlockValues.triggerConfig?.value,
-                }
-              : previewValue
-          return (
-            <TriggerConfig
-              blockId={blockId}
-              isConnecting={isConnecting}
-              isPreview={isPreview}
-              value={triggerValue}
-              disabled={isDisabled}
-              availableTriggers={config.availableTriggers}
-            />
-          )
-        }
         case 'schedule-config':
           return (
             <ScheduleConfig
@@ -538,6 +520,56 @@ export const SubBlock = memo(
               isPreview={isPreview}
               previewValue={previewValue}
               isConnecting={isConnecting}
+            />
+          )
+        case 'multi-select-dropdown':
+          return (
+            <MultiSelectDropdown
+              blockId={blockId}
+              subBlockId={config.id}
+              options={config.options}
+              placeholder={config.placeholder}
+              disabled={isDisabled}
+              isPreview={isPreview}
+              previewValue={previewValue}
+              config={config}
+            />
+          )
+        case 'text':
+          return (
+            <Text
+              blockId={blockId}
+              subBlockId={config.id}
+              content={
+                typeof config.value === 'function'
+                  ? config.value(subBlockValues || {})
+                  : (config.defaultValue as string) || ''
+              }
+            />
+          )
+        case 'copyable-text':
+          return (
+            <CopyableText
+              blockId={blockId}
+              subBlockId={config.id}
+              content={
+                typeof config.value === 'function'
+                  ? config.value(subBlockValues || {})
+                  : (config.defaultValue as string) || ''
+              }
+              placeholder={config.placeholder}
+              isPreview={isPreview}
+              useWebhookUrl={config.useWebhookUrl}
+              webhookTriggerId={config.webhookTriggerId}
+            />
+          )
+        case 'collapsible-json':
+          return (
+            <CollapsibleJson
+              blockId={blockId}
+              subBlockId={config.id}
+              data={config.defaultValue}
+              description={config.description}
             />
           )
         default:

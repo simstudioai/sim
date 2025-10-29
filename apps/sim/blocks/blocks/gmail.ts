@@ -1,6 +1,7 @@
 import { GmailIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { getTriggerSubBlocks } from '@/blocks/utils/get-trigger-subblocks'
 import type { GmailToolResponse } from '@/tools/gmail/types'
 
 export const GmailBlock: BlockConfig<GmailToolResponse> = {
@@ -197,15 +198,8 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       placeholder: 'Maximum number of results (default: 10)',
       condition: { field: 'operation', value: ['search_gmail', 'read_gmail'] },
     },
-    // TRIGGER MODE: Trigger configuration (only shown when trigger mode is active)
-    {
-      id: 'triggerConfig',
-      title: 'Trigger Configuration',
-      type: 'trigger-config',
-      layout: 'full',
-      triggerProvider: 'gmail',
-      availableTriggers: ['gmail_poller'],
-    },
+    // TRIGGER MODE: Trigger configuration
+    ...getTriggerSubBlocks('gmail_poller'),
   ],
   tools: {
     access: ['gmail_send', 'gmail_draft', 'gmail_read', 'gmail_search'],

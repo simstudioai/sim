@@ -53,7 +53,6 @@ export type SubBlockType =
   | 'time-input' // Time input
   | 'oauth-input' // OAuth credential selector
   | 'webhook-config' // Webhook configuration
-  | 'trigger-config' // Trigger configuration
   | 'schedule-config' // Schedule status and information
   | 'file-selector' // File selector for Google Drive, etc.
   | 'project-selector' // Project selector for Jira, Discord, etc.
@@ -71,6 +70,10 @@ export type SubBlockType =
   | 'file-upload' // File uploader
   | 'input-mapping' // Map parent variables to child workflow input schema
   | 'variables-input' // Variable assignments for updating workflow variables
+  | 'multi-select-dropdown' // Multi-select dropdown with dynamic option loading
+  | 'text' // Read-only text display
+  | 'copyable-text' // Read-only text with copy button (for URLs, tokens, etc.)
+  | 'collapsible-json' // Collapsible JSON preview with Notice-style UI
 
 export type SubBlockLayout = 'full' | 'half'
 
@@ -120,7 +123,7 @@ export interface SubBlockConfig {
   title?: string
   type: SubBlockType
   layout?: SubBlockLayout
-  mode?: 'basic' | 'advanced' | 'both' // Default is 'both' if not specified
+  mode?: 'basic' | 'advanced' | 'both' | 'trigger' // Default is 'both' if not specified. 'trigger' means only shown in trigger mode
   canonicalParamId?: string
   required?: boolean
   defaultValue?: string | number | boolean | Record<string, unknown> | Array<unknown>
@@ -199,12 +202,13 @@ export interface SubBlockConfig {
     placeholder?: string // Custom placeholder for the prompt input
     maintainHistory?: boolean // Whether to maintain conversation history
   }
-  // Trigger-specific configuration
-  availableTriggers?: string[] // List of trigger IDs available for this subblock
-  triggerProvider?: string // Which provider's triggers to show
   // Declarative dependency hints for cross-field clearing or invalidation
   // Example: dependsOn: ['credential'] means this field should be cleared when credential changes
   dependsOn?: string[]
+  // Copyable-text specific: Use webhook URL from webhook management hook
+  useWebhookUrl?: boolean
+  // Webhook management: The trigger ID to use for webhook management
+  webhookTriggerId?: string
 }
 
 export interface BlockConfig<T extends ToolResponse = ToolResponse> {

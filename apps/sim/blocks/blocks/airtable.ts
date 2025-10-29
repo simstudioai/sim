@@ -1,6 +1,7 @@
 import { AirtableIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { getTriggerSubBlocks } from '@/blocks/utils/get-trigger-subblocks'
 import type { AirtableResponse } from '@/tools/airtable/types'
 
 export const AirtableBlock: BlockConfig<AirtableResponse> = {
@@ -101,14 +102,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       required: true,
     },
     // TRIGGER MODE: Trigger configuration (only shown when trigger mode is active)
-    {
-      id: 'triggerConfig',
-      title: 'Trigger Configuration',
-      type: 'trigger-config',
-      layout: 'full',
-      triggerProvider: 'airtable',
-      availableTriggers: ['airtable_webhook'],
-    },
+    ...getTriggerSubBlocks('airtable_webhook'),
   ],
   tools: {
     access: [

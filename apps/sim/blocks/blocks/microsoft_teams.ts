@@ -1,6 +1,7 @@
 import { MicrosoftTeamsIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
+import { getTriggerSubBlocks } from '@/blocks/utils/get-trigger-subblocks'
 import type { MicrosoftTeamsResponse } from '@/tools/microsoft_teams/types'
 
 export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
@@ -164,14 +165,8 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       mode: 'advanced',
       required: false,
     },
-    {
-      id: 'triggerConfig',
-      title: 'Trigger Configuration',
-      type: 'trigger-config',
-      layout: 'full',
-      triggerProvider: 'microsoftteams',
-      availableTriggers: ['microsoftteams_webhook', 'microsoftteams_chat_subscription'],
-    },
+    // TRIGGER MODE: Trigger configuration (supports multiple trigger types)
+    ...getTriggerSubBlocks(['microsoftteams_webhook', 'microsoftteams_chat_subscription']),
   ],
   tools: {
     access: [
