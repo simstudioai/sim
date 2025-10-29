@@ -1,7 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getPresignedUrl, isUsingCloudStorage, uploadFile } from '@/lib/uploads'
-import '@/lib/uploads/setup.server'
+import '@/lib/uploads/core/setup.server'
 import { getSession } from '@/lib/auth'
 import {
   createErrorResponse,
@@ -59,7 +58,8 @@ export async function POST(request: NextRequest) {
     const executionId = formData.get('executionId') as string | null
     const workspaceId = formData.get('workspaceId') as string | null
 
-    const usingCloudStorage = isUsingCloudStorage()
+    const storageService = await import('@/lib/uploads/core/storage-service')
+    const usingCloudStorage = storageService.hasCloudStorage()
     logger.info(`Using storage mode: ${usingCloudStorage ? 'Cloud' : 'Local'} for file upload`)
 
     if (workflowId && executionId) {
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
 
       // Priority 1: Execution-scoped storage (temporary, 5 min expiry)
       if (workflowId && executionId) {
-        const { uploadExecutionFile } = await import('@/lib/workflows/execution-file-storage')
+        const { uploadExecutionFile } = await import('@/lib/uploads/contexts/execution')
         const userFile = await uploadExecutionFile(
           {
             workspaceId: workspaceId || '',
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
       // Priority 2: Workspace-scoped storage (persistent, no expiry)
       if (workspaceId) {
         try {
-          const { uploadWorkspaceFile } = await import('@/lib/uploads/workspace-files')
+          const { uploadWorkspaceFile } = await import('@/lib/uploads/contexts/workspace')
           const userFile = await uploadWorkspaceFile(
             workspaceId,
             session.user.id,
@@ -145,32 +145,42 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        logger.info(`Uploading file: ${originalName}`)
-        const result = await uploadFile(buffer, originalName, file.type, file.size)
+        logger.info(`Uploading file (general context): ${originalName}`)
 
-        let presignedUrl: string | undefined
-        if (usingCloudStorage) {
+        const storageService = await import('@/lib/uploads/core/storage-service')
+        const fileInfo = await storageService.uploadFile({
+          file: buffer,
+          fileName: originalName,
+          contentType: file.type,
+          context: 'general',
+        })
+
+        let downloadUrl: string | undefined
+        if (storageService.hasCloudStorage()) {
           try {
-            presignedUrl = await getPresignedUrl(result.key, 24 * 60 * 60) // 24 hours
+            downloadUrl = await storageService.generatePresignedDownloadUrl(
+              fileInfo.key,
+              'general',
+              24 * 60 * 60 // 24 hours
+            )
           } catch (error) {
             logger.warn(`Failed to generate presigned URL for ${originalName}:`, error)
           }
         }
 
-        const servePath = result.path
-
         const uploadResult = {
           name: originalName,
-          size: file.size,
+          size: buffer.length,
           type: file.type,
-          key: result.key,
-          path: servePath,
-          url: presignedUrl || servePath,
+          key: fileInfo.key,
+          path: fileInfo.path,
+          url: downloadUrl || fileInfo.path,
           uploadedAt: new Date().toISOString(),
           expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
+          context: 'general',
         }
 
-        logger.info(`Successfully uploaded: ${result.key}`)
+        logger.info(`Successfully uploaded: ${fileInfo.key}`)
         uploadResults.push(uploadResult)
       } catch (error) {
         logger.error(`Error uploading ${originalName}:`, error)

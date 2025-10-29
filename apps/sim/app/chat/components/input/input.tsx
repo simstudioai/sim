@@ -357,6 +357,7 @@ export const ChatInput: React.FC<{
                 ref={fileInputRef}
                 type='file'
                 multiple
+                accept='.pdf,.csv,.doc,.docx,.txt,.md,.xlsx,.xls,.html,.htm,.pptx,.ppt,.json,.xml,.rtf,image/*'
                 onChange={(e) => {
                   handleFileSelect(e.target.files)
                   if (fileInputRef.current) {

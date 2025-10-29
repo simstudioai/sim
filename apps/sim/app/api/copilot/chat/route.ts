@@ -17,9 +17,8 @@ import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { SIM_AGENT_API_URL_DEFAULT, SIM_AGENT_VERSION } from '@/lib/sim-agent/constants'
 import { generateChatTitle } from '@/lib/sim-agent/utils'
-import { createFileContent, isSupportedFileType } from '@/lib/uploads/file-utils'
-import { S3_COPILOT_CONFIG } from '@/lib/uploads/setup'
-import { downloadFile, getStorageProvider } from '@/lib/uploads/storage-client'
+import { CopilotFiles } from '@/lib/uploads'
+import { createFileContent } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('CopilotChatAPI')
 
@@ -202,45 +201,15 @@ export async function POST(req: NextRequest) {
     // Process file attachments if present
     const processedFileContents: any[] = []
     if (fileAttachments && fileAttachments.length > 0) {
-      for (const attachment of fileAttachments) {
-        try {
-          // Check if file type is supported
-          if (!isSupportedFileType(attachment.media_type)) {
-            logger.warn(`[${tracker.requestId}] Unsupported file type: ${attachment.media_type}`)
-            continue
-          }
+      const processedAttachments = await CopilotFiles.processCopilotAttachments(
+        fileAttachments,
+        tracker.requestId
+      )
 
-          const storageProvider = getStorageProvider()
-          let fileBuffer: Buffer
-
-          if (storageProvider === 's3') {
-            fileBuffer = await downloadFile(attachment.key, {
-              bucket: S3_COPILOT_CONFIG.bucket,
-              region: S3_COPILOT_CONFIG.region,
-            })
-          } else if (storageProvider === 'blob') {
-            const { BLOB_COPILOT_CONFIG } = await import('@/lib/uploads/setup')
-            fileBuffer = await downloadFile(attachment.key, {
-              containerName: BLOB_COPILOT_CONFIG.containerName,
-              accountName: BLOB_COPILOT_CONFIG.accountName,
-              accountKey: BLOB_COPILOT_CONFIG.accountKey,
-              connectionString: BLOB_COPILOT_CONFIG.connectionString,
-            })
-          } else {
-            fileBuffer = await downloadFile(attachment.key)
-          }
-
-          // Convert to format
-          const fileContent = createFileContent(fileBuffer, attachment.media_type)
-          if (fileContent) {
-            processedFileContents.push(fileContent)
-          }
-        } catch (error) {
-          logger.error(
-            `[${tracker.requestId}] Failed to process file ${attachment.filename}:`,
-            error
-          )
-          // Continue processing other files
+      for (const { buffer, attachment } of processedAttachments) {
+        const fileContent = createFileContent(buffer, attachment.media_type)
+        if (fileContent) {
+          processedFileContents.push(fileContent)
         }
       }
     }
@@ -254,39 +223,15 @@ export async function POST(req: NextRequest) {
         // This is a message with file attachments - rebuild with content array
         const content: any[] = [{ type: 'text', text: msg.content }]
 
-        // Process file attachments for historical messages
-        for (const attachment of msg.fileAttachments) {
-          try {
-            if (isSupportedFileType(attachment.media_type)) {
-              const storageProvider = getStorageProvider()
-              let fileBuffer: Buffer
+        const processedHistoricalAttachments = await CopilotFiles.processCopilotAttachments(
+          msg.fileAttachments,
+          tracker.requestId
+        )
 
-              if (storageProvider === 's3') {
-                fileBuffer = await downloadFile(attachment.key, {
-                  bucket: S3_COPILOT_CONFIG.bucket,
-                  region: S3_COPILOT_CONFIG.region,
-                })
-              } else if (storageProvider === 'blob') {
-                const { BLOB_COPILOT_CONFIG } = await import('@/lib/uploads/setup')
-                fileBuffer = await downloadFile(attachment.key, {
-                  containerName: BLOB_COPILOT_CONFIG.containerName,
-                  accountName: BLOB_COPILOT_CONFIG.accountName,
-                  accountKey: BLOB_COPILOT_CONFIG.accountKey,
-                  connectionString: BLOB_COPILOT_CONFIG.connectionString,
-                })
-              } else {
-                fileBuffer = await downloadFile(attachment.key)
-              }
-              const fileContent = createFileContent(fileBuffer, attachment.media_type)
-              if (fileContent) {
-                content.push(fileContent)
-              }
-            }
-          } catch (error) {
-            logger.error(
-              `[${tracker.requestId}] Failed to process historical file ${attachment.filename}:`,
-              error
-            )
+        for (const { buffer, attachment } of processedHistoricalAttachments) {
+          const fileContent = createFileContent(buffer, attachment.media_type)
+          if (fileContent) {
+            content.push(fileContent)
           }
         }
 

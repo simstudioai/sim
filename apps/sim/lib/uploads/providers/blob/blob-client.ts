@@ -6,7 +6,7 @@ import {
   StorageSharedKeyCredential,
 } from '@azure/storage-blob'
 import { createLogger } from '@/lib/logs/console/logger'
-import { BLOB_CONFIG } from '@/lib/uploads/setup'
+import { BLOB_CONFIG } from '@/lib/uploads/core/setup'
 
 const logger = createLogger('BlobClient')
 

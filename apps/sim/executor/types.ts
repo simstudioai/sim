@@ -14,6 +14,7 @@ export interface UserFile {
   key: string
   uploadedAt: string
   expiresAt: string
+  context?: string
 }
 
 /**

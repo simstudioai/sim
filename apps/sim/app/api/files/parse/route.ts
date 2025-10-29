@@ -7,14 +7,27 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
 import { createLogger } from '@/lib/logs/console/logger'
 import { validateExternalUrl } from '@/lib/security/input-validation'
-import { downloadFile, isUsingCloudStorage } from '@/lib/uploads'
-import { extractStorageKey } from '@/lib/uploads/file-utils'
-import { UPLOAD_DIR_SERVER } from '@/lib/uploads/setup.server'
-import '@/lib/uploads/setup.server'
+import { isUsingCloudStorage, type StorageContext, StorageService } from '@/lib/uploads'
+import { UPLOAD_DIR_SERVER } from '@/lib/uploads/core/setup.server'
+import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
+import '@/lib/uploads/core/setup.server'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('FilesParseAPI')
+
+/**
+ * Infer storage context from file key pattern
+ */
+function inferContextFromKey(key: string): StorageContext {
+  if (key.startsWith('kb/')) return 'knowledge-base'
+
+  const segments = key.split('/')
+  if (segments.length >= 4 && segments[0].match(/^[a-f0-9-]{36}$/)) return 'execution'
+  if (key.match(/^[a-f0-9-]{36}\/\d+-[a-z0-9]+-/)) return 'workspace'
+
+  return 'general'
+}
 
 const MAX_DOWNLOAD_SIZE_BYTES = 100 * 1024 * 1024 // 100 MB
 const DOWNLOAD_TIMEOUT_MS = 30000 // 30 seconds
@@ -178,14 +191,15 @@ async function parseFileSingle(
     }
   }
 
+  if (filePath.includes('/api/files/serve/')) {
+    return handleCloudFile(filePath, fileType)
+  }
+
   if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
     return handleExternalUrl(filePath, fileType, workspaceId)
   }
 
-  const isS3Path = filePath.includes('/api/files/serve/s3/')
-  const isBlobPath = filePath.includes('/api/files/serve/blob/')
-
-  if (isS3Path || isBlobPath || isUsingCloudStorage()) {
+  if (isUsingCloudStorage()) {
     return handleCloudFile(filePath, fileType)
   }
 
@@ -242,30 +256,54 @@ async function handleExternalUrl(
       }
     }
 
-    // Extract filename from URL
     const urlPath = new URL(url).pathname
     const filename = urlPath.split('/').pop() || 'download'
     const extension = path.extname(filename).toLowerCase().substring(1)
 
     logger.info(`Extracted filename: ${filename}, workspaceId: ${workspaceId}`)
 
-    // If workspaceId provided, check if file already exists in workspace
-    if (workspaceId) {
+    const {
+      S3_EXECUTION_FILES_CONFIG,
+      BLOB_EXECUTION_FILES_CONFIG,
+      USE_S3_STORAGE,
+      USE_BLOB_STORAGE,
+    } = await import('@/lib/uploads/core/setup')
+
+    let isExecutionFile = false
+    try {
+      const parsedUrl = new URL(url)
+
+      if (USE_S3_STORAGE && S3_EXECUTION_FILES_CONFIG.bucket) {
+        const bucketInHost = parsedUrl.hostname.startsWith(S3_EXECUTION_FILES_CONFIG.bucket)
+        const bucketInPath = parsedUrl.pathname.startsWith(`/${S3_EXECUTION_FILES_CONFIG.bucket}/`)
+        isExecutionFile = bucketInHost || bucketInPath
+      } else if (USE_BLOB_STORAGE && BLOB_EXECUTION_FILES_CONFIG.containerName) {
+        isExecutionFile = url.includes(`/${BLOB_EXECUTION_FILES_CONFIG.containerName}/`)
+      }
+    } catch (error) {
+      logger.warn('Failed to parse URL for execution file check:', error)
+      isExecutionFile = false
+    }
+
+    // Only apply workspace deduplication if:
+    // 1. WorkspaceId is provided
+    // 2. URL is NOT from execution files bucket/container
+    const shouldCheckWorkspace = workspaceId && !isExecutionFile
+
+    if (shouldCheckWorkspace) {
       const { fileExistsInWorkspace, listWorkspaceFiles } = await import(
-        '@/lib/uploads/workspace-files'
+        '@/lib/uploads/contexts/workspace'
       )
       const exists = await fileExistsInWorkspace(workspaceId, filename)
 
       if (exists) {
         logger.info(`File ${filename} already exists in workspace, using existing file`)
-        // Get existing file and parse from storage
         const workspaceFiles = await listWorkspaceFiles(workspaceId)
         const existingFile = workspaceFiles.find((f) => f.name === filename)
 
         if (existingFile) {
-          // Parse from workspace storage instead of re-downloading
           const storageFilePath = `/api/files/serve/${existingFile.key}`
-          return handleCloudFile(storageFilePath, fileType)
+          return handleCloudFile(storageFilePath, fileType, 'workspace')
         }
       }
     }
@@ -290,11 +328,10 @@ async function handleExternalUrl(
 
     logger.info(`Downloaded file from URL: ${url}, size: ${buffer.length} bytes`)
 
-    // If workspaceId provided, save to workspace storage
-    if (workspaceId) {
+    if (shouldCheckWorkspace) {
       try {
         const { getSession } = await import('@/lib/auth')
-        const { uploadWorkspaceFile } = await import('@/lib/uploads/workspace-files')
+        const { uploadWorkspaceFile } = await import('@/lib/uploads/contexts/workspace')
 
         const session = await getSession()
         if (session?.user?.id) {
@@ -303,7 +340,6 @@ async function handleExternalUrl(
           logger.info(`Saved URL file to workspace storage: ${filename}`)
         }
       } catch (saveError) {
-        // Log but don't fail - continue with parsing even if save fails
         logger.warn(`Failed to save URL file to workspace:`, saveError)
       }
     }
@@ -332,14 +368,21 @@ async function handleExternalUrl(
 /**
  * Handle file stored in cloud storage
  */
-async function handleCloudFile(filePath: string, fileType?: string): Promise<ParseResult> {
+async function handleCloudFile(
+  filePath: string,
+  fileType?: string,
+  explicitContext?: string
+): Promise<ParseResult> {
   try {
     const cloudKey = extractStorageKey(filePath)
 
     logger.info('Extracted cloud key:', cloudKey)
 
-    const fileBuffer = await downloadFile(cloudKey)
-    logger.info(`Downloaded file from cloud storage: ${cloudKey}, size: ${fileBuffer.length} bytes`)
+    const context = (explicitContext as StorageContext) || inferContextFromKey(cloudKey)
+    const fileBuffer = await StorageService.downloadFile({ key: cloudKey, context })
+    logger.info(
+      `Downloaded file from ${context} storage (${explicitContext ? 'explicit' : 'inferred'}): ${cloudKey}, size: ${fileBuffer.length} bytes`
+    )
 
     const filename = cloudKey.split('/').pop() || cloudKey
     const extension = path.extname(filename).toLowerCase().substring(1)
@@ -357,13 +400,11 @@ async function handleCloudFile(filePath: string, fileType?: string): Promise<Par
   } catch (error) {
     logger.error(`Error handling cloud file ${filePath}:`, error)
 
-    // For download/access errors, throw to trigger 500 response
     const errorMessage = (error as Error).message
     if (errorMessage.includes('Access denied') || errorMessage.includes('Forbidden')) {
       throw new Error(`Error accessing file from cloud storage: ${errorMessage}`)
     }
 
-    // For other errors (parsing, processing), return success:false and an error message
     return {
       success: false,
       error: `Error accessing file from cloud storage: ${errorMessage}`,

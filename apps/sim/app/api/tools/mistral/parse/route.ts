@@ -2,14 +2,27 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getPresignedUrl } from '@/lib/uploads'
-import { extractStorageKey } from '@/lib/uploads/file-utils'
+import { type StorageContext, StorageService } from '@/lib/uploads'
+import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { generateRequestId } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('MistralParseAPI')
+
+/**
+ * Infer storage context from file key pattern
+ */
+function inferContextFromKey(key: string): StorageContext {
+  if (key.startsWith('kb/')) return 'knowledge-base'
+
+  const segments = key.split('/')
+  if (segments.length >= 4 && segments[0].match(/^[a-f0-9-]{36}$/)) return 'execution'
+  if (key.match(/^[a-f0-9-]{36}\/\d+-[a-z0-9]+-/)) return 'workspace'
+
+  return 'general'
+}
 
 const MistralParseSchema = z.object({
   apiKey: z.string().min(1, 'API key is required'),
@@ -52,9 +65,13 @@ export async function POST(request: NextRequest) {
     if (validatedData.filePath?.includes('/api/files/serve/')) {
       try {
         const storageKey = extractStorageKey(validatedData.filePath)
+
+        // Infer context from key pattern
+        const context = inferContextFromKey(storageKey)
+
         // Generate 5-minute presigned URL for external API access
-        fileUrl = await getPresignedUrl(storageKey, 5 * 60)
-        logger.info(`[${requestId}] Generated presigned URL for workspace file`)
+        fileUrl = await StorageService.generatePresignedDownloadUrl(storageKey, context, 5 * 60)
+        logger.info(`[${requestId}] Generated presigned URL for ${context} file`)
       } catch (error) {
         logger.error(`[${requestId}] Failed to generate presigned URL:`, error)
         return NextResponse.json(

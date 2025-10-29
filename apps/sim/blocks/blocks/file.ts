@@ -45,7 +45,8 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
       title: 'Process Files',
       type: 'file-upload' as SubBlockType,
       layout: 'full' as SubBlockLayout,
-      acceptedTypes: '.pdf,.csv,.doc,.docx,.txt,.md,.xlsx,.xls,.html,.htm,.pptx,.ppt',
+      acceptedTypes:
+        '.pdf,.csv,.doc,.docx,.txt,.md,.xlsx,.xls,.html,.htm,.pptx,.ppt,.json,.xml,.rtf',
       multiple: true,
       condition: {
         field: 'inputMethod',

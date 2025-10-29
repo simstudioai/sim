@@ -1,9 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getPresignedUrlWithConfig, USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads'
-import { BLOB_CONFIG, S3_CONFIG } from '@/lib/uploads/setup'
-import { getWorkspaceFile } from '@/lib/uploads/workspace-files'
+import { StorageService } from '@/lib/uploads'
+import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { generateRequestId } from '@/lib/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
@@ -43,32 +42,12 @@ export async function POST(
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
     }
 
-    // Generate 5-minute presigned URL (same pattern as execution files)
-    let downloadUrl: string
-
-    if (USE_S3_STORAGE) {
-      downloadUrl = await getPresignedUrlWithConfig(
-        fileRecord.key,
-        {
-          bucket: S3_CONFIG.bucket,
-          region: S3_CONFIG.region,
-        },
-        5 * 60 // 5 minutes
-      )
-    } else if (USE_BLOB_STORAGE) {
-      downloadUrl = await getPresignedUrlWithConfig(
-        fileRecord.key,
-        {
-          accountName: BLOB_CONFIG.accountName,
-          accountKey: BLOB_CONFIG.accountKey,
-          connectionString: BLOB_CONFIG.connectionString,
-          containerName: BLOB_CONFIG.containerName,
-        },
-        5 * 60 // 5 minutes
-      )
-    } else {
-      throw new Error('No cloud storage configured')
-    }
+    // Generate 5-minute presigned URL using unified storage service
+    const downloadUrl = await StorageService.generatePresignedDownloadUrl(
+      fileRecord.key,
+      'workspace',
+      5 * 60 // 5 minutes
+    )
 
     logger.info(`[${requestId}] Generated download URL for workspace file: ${fileRecord.name}`)
 

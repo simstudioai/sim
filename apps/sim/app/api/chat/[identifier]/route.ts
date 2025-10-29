@@ -3,10 +3,10 @@ import { chat, workflow, workspace } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
+import { ChatFiles } from '@/lib/uploads'
 import { generateRequestId } from '@/lib/utils'
 import {
   addCorsHeaders,
-  processChatFiles,
   setChatAuthCookie,
   validateAuthToken,
   validateChatAuth,
@@ -154,7 +154,7 @@ export async function POST(
           executionId,
         }
 
-        const uploadedFiles = await processChatFiles(files, executionContext, requestId)
+        const uploadedFiles = await ChatFiles.processChatFiles(files, executionContext, requestId)
 
         if (uploadedFiles.length > 0) {
           workflowInput.files = uploadedFiles

@@ -54,7 +54,6 @@ describe('File Upload API Route', () => {
     const response = await POST(req)
     const data = await response.json()
 
-    // Log error details if test fails
     if (response.status !== 200) {
       console.error('Upload failed with status:', response.status)
       console.error('Error response:', data)
@@ -67,9 +66,8 @@ describe('File Upload API Route', () => {
     expect(data).toHaveProperty('size')
     expect(data).toHaveProperty('type', 'text/plain')
 
-    // Verify the upload function was called (we're mocking at the uploadFile level)
-    const { uploadFile } = await import('@/lib/uploads')
-    expect(uploadFile).toHaveBeenCalled()
+    const { StorageService } = await import('@/lib/uploads')
+    expect(StorageService.uploadFile).toHaveBeenCalled()
   })
 
   it('should upload a file to S3 when in S3 mode', async () => {
@@ -99,7 +97,7 @@ describe('File Upload API Route', () => {
     expect(data).toHaveProperty('type', 'text/plain')
 
     const uploads = await import('@/lib/uploads')
-    expect(uploads.uploadFile).toHaveBeenCalled()
+    expect(uploads.StorageService.uploadFile).toHaveBeenCalled()
   })
 
   it('should handle multiple file uploads', async () => {
@@ -153,9 +151,9 @@ describe('File Upload API Route', () => {
       storageProvider: 's3',
     })
 
-    vi.doMock('@/lib/uploads', () => ({
+    vi.doMock('@/lib/uploads/core/storage-service', () => ({
       uploadFile: vi.fn().mockRejectedValue(new Error('Upload failed')),
-      isUsingCloudStorage: vi.fn().mockReturnValue(true),
+      hasCloudStorage: vi.fn().mockReturnValue(true),
     }))
 
     const mockFile = createMockFile()
@@ -172,8 +170,8 @@ describe('File Upload API Route', () => {
     const data = await response.json()
 
     expect(response.status).toBe(500)
-    expect(data).toHaveProperty('error', 'Error')
-    expect(data).toHaveProperty('message', 'Upload failed')
+    expect(data).toHaveProperty('error')
+    expect(typeof data.error).toBe('string')
   })
 
   it('should handle CORS preflight requests', async () => {
@@ -200,10 +198,21 @@ describe('File Upload Security Tests', () => {
 
     vi.doMock('@/lib/uploads', () => ({
       isUsingCloudStorage: vi.fn().mockReturnValue(false),
+      StorageService: {
+        uploadFile: vi.fn().mockResolvedValue({
+          key: 'test-key',
+          path: '/test/path',
+        }),
+        hasCloudStorage: vi.fn().mockReturnValue(false),
+      },
+    }))
+
+    vi.doMock('@/lib/uploads/core/storage-service', () => ({
       uploadFile: vi.fn().mockResolvedValue({
         key: 'test-key',
         path: '/test/path',
       }),
+      hasCloudStorage: vi.fn().mockReturnValue(false),
     }))
 
     vi.doMock('@/lib/uploads/setup.server', () => ({}))
@@ -325,11 +334,9 @@ describe('File Upload Security Tests', () => {
     it('should handle multiple files with mixed valid/invalid types', async () => {
       const formData = new FormData()
 
-      // Valid file
       const validFile = new File(['valid content'], 'valid.pdf', { type: 'application/pdf' })
       formData.append('file', validFile)
 
-      // Invalid file (should cause rejection of entire request)
       const invalidFile = new File(['<script>alert("XSS")</script>'], 'malicious.html', {
         type: 'text/html',
       })

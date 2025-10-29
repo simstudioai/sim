@@ -305,7 +305,9 @@ export function Account(_props: AccountProps) {
                         alt={name || 'User'}
                         width={48}
                         height={48}
-                        className='h-full w-full object-cover'
+                        className={`h-full w-full object-cover transition-opacity duration-300 ${
+                          isUploadingProfilePicture ? 'opacity-50' : 'opacity-100'
+                        }`}
                       />
                     ) : (
                       <AgentIcon className='h-6 w-6 text-white' />
@@ -313,7 +315,13 @@ export function Account(_props: AccountProps) {
                   })()}
 
                   {/* Upload overlay */}
-                  <div className='absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100'>
+                  <div
+                    className={`absolute inset-0 flex items-center justify-center rounded-full bg-black/50 transition-opacity ${
+                      isUploadingProfilePicture
+                        ? 'opacity-100'
+                        : 'opacity-0 group-hover:opacity-100'
+                    }`}
+                  >
                     {isUploadingProfilePicture ? (
                       <div className='h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent' />
                     ) : (

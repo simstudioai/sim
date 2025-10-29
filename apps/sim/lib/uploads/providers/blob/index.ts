@@ -8,4 +8,4 @@ export {
   getPresignedUrlWithConfig,
   sanitizeFilenameForMetadata,
   uploadToBlob,
-} from '@/lib/uploads/blob/blob-client'
+} from '@/lib/uploads/providers/blob/blob-client'

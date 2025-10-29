@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
-import { listWorkspaceFiles, uploadWorkspaceFile } from '@/lib/uploads/workspace-files'
+import { listWorkspaceFiles, uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { generateRequestId } from '@/lib/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
