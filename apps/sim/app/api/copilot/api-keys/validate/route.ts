@@ -1,7 +1,5 @@
-import { db } from '@sim/db'
-import { userStats } from '@sim/db/schema'
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { checkInternalApiKey } from '@/lib/copilot/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 
@@ -24,30 +22,13 @@ export async function POST(req: NextRequest) {
 
     logger.info('[API VALIDATION] Validating usage limit', { userId })
 
-    const usage = await db
-      .select({
-        currentPeriodCost: userStats.currentPeriodCost,
-        totalCost: userStats.totalCost,
-        currentUsageLimit: userStats.currentUsageLimit,
-      })
-      .from(userStats)
-      .where(eq(userStats.userId, userId))
-      .limit(1)
+    const { isExceeded, currentUsage, limit } = await checkServerSideUsageLimits(userId)
 
-    logger.info('[API VALIDATION] Usage limit validated', { userId, usage })
+    logger.info('[API VALIDATION] Usage limit validated', { userId, currentUsage, limit, isExceeded })
 
-    if (usage.length > 0) {
-      const currentUsage = Number.parseFloat(
-        (usage[0].currentPeriodCost?.toString() as string) ||
-          (usage[0].totalCost as unknown as string) ||
-          '0'
-      )
-      const limit = Number.parseFloat((usage[0].currentUsageLimit as unknown as string) || '0')
-
-      if (!Number.isNaN(limit) && limit > 0 && currentUsage >= limit) {
-        logger.info('[API VALIDATION] Usage exceeded', { userId, currentUsage, limit })
-        return new NextResponse(null, { status: 402 })
-      }
+    if (isExceeded) {
+      logger.info('[API VALIDATION] Usage exceeded', { userId, currentUsage, limit })
+      return new NextResponse(null, { status: 402 })
     }
 
     return new NextResponse(null, { status: 200 })
