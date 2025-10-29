@@ -66,12 +66,12 @@ export function useExecutionStream() {
     abortControllerRef.current = abortController
 
     try {
-      const response = await fetch(`/api/workflows/${workflowId}/execute-stream`, {
+      const response = await fetch(`/api/workflows/${workflowId}/execute`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, stream: true }),
         signal: abortController.signal,
       })
 

@@ -4,11 +4,9 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import { resolveStartCandidates, StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers'
-import type { BlockOutput } from '@/blocks/types'
 import { Executor } from '@/executor'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { Serializer, WorkflowValidationError } from '@/serializer'
-import type { SerializedWorkflow } from '@/serializer/types'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
@@ -20,27 +18,6 @@ import { useCurrentWorkflow } from './use-current-workflow'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 
 const logger = createLogger('useWorkflowExecution')
-
-// Feature flag to toggle between client-side and server-side execution
-const USE_SERVER_SIDE_EXECUTOR = true
-
-// Interface for executor options
-interface ExecutorOptions {
-  workflow: SerializedWorkflow
-  currentBlockStates?: Record<string, BlockOutput>
-  envVarValues?: Record<string, string>
-  workflowInput?: any
-  workflowVariables?: Record<string, any>
-  contextExtensions?: {
-    stream?: boolean
-    selectedOutputs?: string[]
-    edges?: Array<{ source: string; target: string }>
-    onStream?: (streamingExecution: StreamingExecution) => Promise<void>
-    onBlockComplete?: (blockId: string, output: any) => Promise<void>
-    executionId?: string
-    workspaceId?: string
-  }
-}
 
 // Debug state validation result
 interface DebugValidationResult {
@@ -914,11 +891,10 @@ export function useWorkflowExecution() {
       startBlockId,
       isExecutingFromChat,
       hasWorkflowInput: !!workflowInput,
-      useServerSide: USE_SERVER_SIDE_EXECUTOR,
     })
 
-    // SERVER-SIDE EXECUTION PATH
-    if (USE_SERVER_SIDE_EXECUTOR && activeWorkflowId) {
+    // SERVER-SIDE EXECUTION (always)
+    if (activeWorkflowId) {
       logger.info('Using server-side executor')
       
       let executionResult: ExecutionResult = {
@@ -1063,36 +1039,8 @@ export function useWorkflowExecution() {
       }
     }
 
-    // CLIENT-SIDE EXECUTION PATH (Legacy)
-    logger.info('Using client-side executor (legacy)')
-    
-    // Create executor options with the final workflow input
-    const executorOptions: ExecutorOptions = {
-      workflow,
-      currentBlockStates,
-      envVarValues,
-      workflowInput: finalWorkflowInput,
-      workflowVariables,
-      contextExtensions: {
-        stream: isExecutingFromChat,
-        selectedOutputs,
-        edges: workflow.connections.map((conn) => ({
-          source: conn.source,
-          target: conn.target,
-        })),
-        onStream,
-        onBlockComplete,
-        executionId,
-        workspaceId,
-      },
-    }
-
-    // Create executor and store in global state
-    const newExecutor = new Executor(executorOptions)
-    setExecutor(newExecutor)
-
-    // Execute workflow with the determined start block
-    return newExecutor.execute(activeWorkflowId || '', startBlockId)
+    // Fallback: should never reach here since USE_SERVER_SIDE_EXECUTOR is always true
+    throw new Error('Server-side execution is required')
   }
 
   const handleExecutionError = (error: unknown, options?: { executionId?: string }) => {
