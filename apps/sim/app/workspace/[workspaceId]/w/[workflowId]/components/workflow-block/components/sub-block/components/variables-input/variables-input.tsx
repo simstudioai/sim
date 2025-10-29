@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react'
 import { Plus, Trash } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatDisplayText } from '@/components/ui/formatted-text'
 import { Input } from '@/components/ui/input'
@@ -177,19 +176,39 @@ export function VariablesInput({
   const handleDrop = (e: React.DragEvent, assignmentId: string) => {
     e.preventDefault()
     setDragHighlight((prev) => ({ ...prev, [assignmentId]: false }))
+    const input = valueInputRefs.current[assignmentId]
+    input?.focus()
 
-    const tag = e.dataTransfer.getData('text/plain')
-    if (tag?.startsWith('<')) {
+    if (input) {
       const assignment = assignments.find((a) => a.id === assignmentId)
-      if (!assignment) return
+      const currentValue = assignment?.value || ''
+      const dropPosition = (input as any).selectionStart ?? currentValue.length
+      const newValue = `${currentValue.slice(0, dropPosition)}<${currentValue.slice(dropPosition)}`
+      updateAssignment(assignmentId, { value: newValue })
+      setActiveFieldId(assignmentId)
+      setCursorPosition(dropPosition + 1)
+      setShowTags(true)
 
-      const currentValue = assignment.value || ''
-      updateAssignment(assignmentId, { value: currentValue + tag })
+      try {
+        const data = JSON.parse(e.dataTransfer.getData('application/json'))
+        if (data?.connectionData?.sourceBlockId) {
+          setActiveSourceBlockId(data.connectionData.sourceBlockId)
+        }
+      } catch {}
+
+      setTimeout(() => {
+        const el = valueInputRefs.current[assignmentId]
+        if (el && typeof (el as any).selectionStart === 'number') {
+          ;(el as any).selectionStart = dropPosition + 1
+          ;(el as any).selectionEnd = dropPosition + 1
+        }
+      }, 0)
     }
   }
 
   const handleDragOver = (e: React.DragEvent, assignmentId: string) => {
     e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
     setDragHighlight((prev) => ({ ...prev, [assignmentId]: true }))
   }
 
@@ -200,8 +219,48 @@ export function VariablesInput({
 
   if (isPreview && (!assignments || assignments.length === 0)) {
     return (
-      <div className='flex items-center justify-center rounded-md border border-border/40 border-dashed bg-muted/20 p-4 text-center text-muted-foreground text-sm'>
-        No variable assignments defined
+      <div className='flex flex-col items-center justify-center rounded-md border border-border/40 border-dashed bg-muted/20 py-8 text-center'>
+        <svg
+          className='mb-3 h-10 w-10 text-muted-foreground/40'
+          fill='none'
+          viewBox='0 0 24 24'
+          stroke='currentColor'
+        >
+          <path
+            strokeLinecap='round'
+            strokeLinejoin='round'
+            strokeWidth={1.5}
+            d='M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'
+          />
+        </svg>
+        <p className='mb-1 font-medium text-foreground text-sm'>No variable assignments defined</p>
+        <p className='text-muted-foreground text-xs'>
+          Add variables in the Variables panel to get started
+        </p>
+      </div>
+    )
+  }
+
+  if (!isPreview && hasNoWorkflowVariables && assignments.length === 0) {
+    return (
+      <div className='flex flex-col items-center justify-center rounded-lg border border-border/50 bg-muted/30 p-8 text-center'>
+        <svg
+          className='mb-3 h-10 w-10 text-muted-foreground/60'
+          fill='none'
+          viewBox='0 0 24 24'
+          stroke='currentColor'
+        >
+          <path
+            strokeLinecap='round'
+            strokeLinejoin='round'
+            strokeWidth={1.5}
+            d='M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'
+          />
+        </svg>
+        <p className='font-medium text-muted-foreground text-sm'>No variables found</p>
+        <p className='mt-1 text-muted-foreground/80 text-xs'>
+          Add variables in the Variables panel to get started
+        </p>
       </div>
     )
   }
@@ -214,22 +273,29 @@ export function VariablesInput({
             return (
               <div
                 key={assignment.id}
-                className='group relative rounded-lg border border-border/60 bg-background p-3 transition-all hover:border-border'
+                className='group relative rounded-lg border border-border/50 bg-background/50 p-3 transition-all hover:border-border hover:bg-background'
               >
                 {!isPreview && !disabled && (
                   <Button
                     variant='ghost'
                     size='icon'
-                    className='absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100'
+                    className='absolute top-2 right-2 h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100'
                     onClick={() => removeAssignment(assignment.id)}
                   >
-                    <Trash className='h-3.5 w-3.5' />
+                    <Trash className='h-3.5 w-3.5 text-muted-foreground hover:text-destructive' />
                   </Button>
                 )}
 
                 <div className='space-y-3'>
                   <div className='space-y-1.5'>
-                    <Label className='text-muted-foreground text-xs'>Variable</Label>
+                    <div className='flex items-center justify-between pr-8'>
+                      <Label className='text-xs'>Variable</Label>
+                      {assignment.variableName && (
+                        <span className='rounded-md bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground'>
+                          {assignment.type}
+                        </span>
+                      )}
+                    </div>
                     <Select
                       value={assignment.variableId || assignment.variableName || ''}
                       onValueChange={(value) => {
@@ -240,7 +306,7 @@ export function VariablesInput({
                       }}
                       disabled={isPreview || disabled}
                     >
-                      <SelectTrigger className='h-9 bg-white dark:bg-background'>
+                      <SelectTrigger className='h-9 border border-input bg-white dark:border-input/60 dark:bg-background'>
                         <SelectValue placeholder='Select a variable...' />
                       </SelectTrigger>
                       <SelectContent>
@@ -249,12 +315,7 @@ export function VariablesInput({
                           return availableVars.length > 0 ? (
                             availableVars.map((variable) => (
                               <SelectItem key={variable.id} value={variable.id}>
-                                <div className='flex items-center gap-2'>
-                                  <span>{variable.name}</span>
-                                  <Badge variant='outline' className='text-[10px]'>
-                                    {variable.type}
-                                  </Badge>
-                                </div>
+                                {variable.name}
                               </SelectItem>
                             ))
                           ) : (
@@ -276,16 +337,7 @@ export function VariablesInput({
                   </div>
 
                   <div className='space-y-1.5'>
-                    <Label className='text-muted-foreground text-xs'>Type</Label>
-                    <Input
-                      value={assignment.type || 'string'}
-                      disabled={true}
-                      className='h-9 bg-muted/50 text-muted-foreground'
-                    />
-                  </div>
-
-                  <div className='relative space-y-1.5'>
-                    <Label className='text-muted-foreground text-xs'>Value</Label>
+                    <Label className='text-xs'>Value</Label>
                     {assignment.type === 'object' || assignment.type === 'array' ? (
                       <Textarea
                         ref={(el) => {
@@ -306,7 +358,7 @@ export function VariablesInput({
                         }
                         disabled={isPreview || disabled}
                         className={cn(
-                          'min-h-[120px] border border-input bg-white font-mono text-sm dark:bg-background',
+                          'min-h-[120px] border border-input bg-white font-mono text-sm placeholder:text-muted-foreground/50 dark:border-input/60 dark:bg-background',
                           dragHighlight[assignment.id] && 'ring-2 ring-blue-500 ring-offset-2',
                           isConnecting && 'ring-2 ring-blue-500 ring-offset-2'
                         )}
@@ -331,7 +383,7 @@ export function VariablesInput({
                           placeholder={`${assignment.type} value`}
                           disabled={isPreview || disabled}
                           className={cn(
-                            'h-9 bg-white text-transparent caret-foreground dark:bg-background',
+                            'h-9 border border-input bg-white text-transparent caret-foreground placeholder:text-muted-foreground/50 dark:border-input/60 dark:bg-background',
                             dragHighlight[assignment.id] && 'ring-2 ring-blue-500 ring-offset-2',
                             isConnecting && 'ring-2 ring-blue-500 ring-offset-2'
                           )}
@@ -375,20 +427,15 @@ export function VariablesInput({
         </div>
       ) : null}
 
-      {!isPreview && !disabled && (
+      {!isPreview && !disabled && !hasNoWorkflowVariables && (
         <Button
           onClick={addAssignment}
           variant='outline'
-          size='sm'
-          className='w-full border-dashed'
-          disabled={hasNoWorkflowVariables || allVariablesAssigned}
+          className='h-9 w-full border-dashed'
+          disabled={allVariablesAssigned}
         >
-          {!hasNoWorkflowVariables && <Plus className='mr-2 h-4 w-4' />}
-          {hasNoWorkflowVariables
-            ? 'No variables found'
-            : allVariablesAssigned
-              ? 'All Variables Assigned'
-              : 'Add Variable Assignment'}
+          <Plus className='mr-2 h-4 w-4' />
+          {allVariablesAssigned ? 'All Variables Assigned' : 'Add Variable Assignment'}
         </Button>
       )}
     </div>

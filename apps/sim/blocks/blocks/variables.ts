@@ -39,9 +39,7 @@ export const VariablesBlock: BlockConfig = {
     },
   },
   outputs: {
-    assignments: {
-      type: 'json',
-      description: 'JSON object mapping variable names to their assigned values',
-    },
+    // Dynamic outputs - each assigned variable will be available as a top-level output
+    // For example, if you assign variable1=5, you can reference it as <variables_block.variable1>
   },
 }
