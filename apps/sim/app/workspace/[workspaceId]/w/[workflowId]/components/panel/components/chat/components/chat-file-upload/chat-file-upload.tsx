@@ -27,7 +27,7 @@ interface ChatFileUploadProps {
 export function ChatFileUpload({
   files,
   onFilesChange,
-  maxFiles = 5,
+  maxFiles = 15,
   maxSize = 10,
   acceptedTypes = ['*'],
   disabled = false,

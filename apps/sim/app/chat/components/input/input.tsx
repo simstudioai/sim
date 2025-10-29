@@ -105,7 +105,7 @@ export const ChatInput: React.FC<{
 
     const newFiles: AttachedFile[] = []
     const maxSize = 10 * 1024 * 1024 // 10MB limit
-    const maxFiles = 5
+    const maxFiles = 15
 
     for (let i = 0; i < selectedFiles.length; i++) {
       if (attachedFiles.length + newFiles.length >= maxFiles) break
@@ -340,7 +340,7 @@ export const ChatInput: React.FC<{
                     <button
                       type='button'
                       onClick={() => fileInputRef.current?.click()}
-                      disabled={isStreaming || attachedFiles.length >= 5}
+                      disabled={isStreaming || attachedFiles.length >= 15}
                       className='flex items-center justify-center rounded-full p-1.5 text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 md:p-2'
                     >
                       <Paperclip size={16} className='md:h-5 md:w-5' />
