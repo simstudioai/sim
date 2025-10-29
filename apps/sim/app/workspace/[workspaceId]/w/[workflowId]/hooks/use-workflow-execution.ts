@@ -17,8 +17,12 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { useCurrentWorkflow } from './use-current-workflow'
+import { useExecutionStream } from '@/hooks/use-execution-stream'
 
 const logger = createLogger('useWorkflowExecution')
+
+// Feature flag to toggle between client-side and server-side execution
+const USE_SERVER_SIDE_EXECUTOR = true
 
 // Interface for executor options
 interface ExecutorOptions {
@@ -97,7 +101,7 @@ function extractExecutionResult(error: unknown): ExecutionResult | null {
 export function useWorkflowExecution() {
   const currentWorkflow = useCurrentWorkflow()
   const { activeWorkflowId, workflows } = useWorkflowRegistry()
-  const { toggleConsole } = useConsoleStore()
+  const { toggleConsole, addConsole } = useConsoleStore()
   const { getAllVariables, loadWorkspaceEnvironment } = useEnvironmentStore()
   const { getVariablesByWorkflowId, variables } = useVariablesStore()
   const {
@@ -114,6 +118,7 @@ export function useWorkflowExecution() {
     setActiveBlocks,
   } = useExecutionStore()
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null)
+  const executionStream = useExecutionStream()
 
   /**
    * Validates debug state before performing debug operations
@@ -909,8 +914,158 @@ export function useWorkflowExecution() {
       startBlockId,
       isExecutingFromChat,
       hasWorkflowInput: !!workflowInput,
+      useServerSide: USE_SERVER_SIDE_EXECUTOR,
     })
 
+    // SERVER-SIDE EXECUTION PATH
+    if (USE_SERVER_SIDE_EXECUTOR && activeWorkflowId) {
+      logger.info('Using server-side executor')
+      
+      let executionResult: ExecutionResult = {
+        success: false,
+        output: {},
+        logs: [],
+      }
+
+      const activeBlocksSet = new Set<string>()
+      const streamedContent = new Map<string, string>()
+
+      try {
+        await executionStream.execute({
+          workflowId: activeWorkflowId,
+          input: finalWorkflowInput,
+          selectedOutputs,
+          triggerType: overrideTriggerType || 'manual',
+          callbacks: {
+            onExecutionStarted: (data) => {
+              logger.info('Server execution started:', data)
+            },
+
+            onBlockStarted: (data) => {
+              activeBlocksSet.add(data.blockId)
+              // Create a new Set to trigger React re-render
+              setActiveBlocks(new Set(activeBlocksSet))
+            },
+
+            onBlockCompleted: (data) => {
+              activeBlocksSet.delete(data.blockId)
+              // Create a new Set to trigger React re-render
+              setActiveBlocks(new Set(activeBlocksSet))
+
+              // Add to console
+              addConsole({
+                input: {},
+                output: data.output,
+                success: true,
+                durationMs: data.durationMs,
+                startedAt: new Date(Date.now() - data.durationMs).toISOString(),
+                endedAt: new Date().toISOString(),
+                workflowId: activeWorkflowId,
+                blockId: data.blockId,
+                executionId: executionId || uuidv4(),
+                blockName: data.blockName,
+                blockType: data.blockType,
+              })
+
+              // Call onBlockComplete callback if provided
+              if (onBlockComplete) {
+                onBlockComplete(data.blockId, data.output).catch((error) => {
+                  logger.error('Error in onBlockComplete callback:', error)
+                })
+              }
+            },
+
+            onBlockError: (data) => {
+              activeBlocksSet.delete(data.blockId)
+              // Create a new Set to trigger React re-render
+              setActiveBlocks(new Set(activeBlocksSet))
+
+              // Add error to console
+              addConsole({
+                input: {},
+                output: {},
+                success: false,
+                error: data.error,
+                durationMs: data.durationMs,
+                startedAt: new Date(Date.now() - data.durationMs).toISOString(),
+                endedAt: new Date().toISOString(),
+                workflowId: activeWorkflowId,
+                blockId: data.blockId,
+                executionId: executionId || uuidv4(),
+                blockName: data.blockName,
+                blockType: data.blockType,
+              })
+            },
+
+            onStreamChunk: (data) => {
+              const existing = streamedContent.get(data.blockId) || ''
+              streamedContent.set(data.blockId, existing + data.chunk)
+              
+              // Call onStream callback if provided (create a fake StreamingExecution)
+              if (onStream && isExecutingFromChat) {
+                const stream = new ReadableStream({
+                  start(controller) {
+                    controller.enqueue(new TextEncoder().encode(data.chunk))
+                    controller.close()
+                  },
+                })
+                
+                const streamingExec: StreamingExecution = {
+                  stream,
+                  execution: {
+                    success: true,
+                    output: { content: existing + data.chunk },
+                    blockId: data.blockId,
+                  } as any,
+                }
+                
+                onStream(streamingExec).catch((error) => {
+                  logger.error('Error in onStream callback:', error)
+                })
+              }
+            },
+
+            onStreamDone: (data) => {
+              logger.info('Stream done for block:', data.blockId)
+            },
+
+            onExecutionCompleted: (data) => {
+              executionResult = {
+                success: data.success,
+                output: data.output,
+                metadata: {
+                  duration: data.duration,
+                  startTime: data.startTime,
+                  endTime: data.endTime,
+                },
+                logs: [],
+              }
+            },
+
+            onExecutionError: (data) => {
+              executionResult = {
+                success: false,
+                output: {},
+                error: data.error,
+                metadata: {
+                  duration: data.duration,
+                },
+                logs: [],
+              }
+            },
+          },
+        })
+
+        return executionResult
+      } catch (error) {
+        logger.error('Server-side execution failed:', error)
+        throw error
+      }
+    }
+
+    // CLIENT-SIDE EXECUTION PATH (Legacy)
+    logger.info('Using client-side executor (legacy)')
+    
     // Create executor options with the final workflow input
     const executorOptions: ExecutorOptions = {
       workflow,

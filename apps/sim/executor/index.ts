@@ -153,6 +153,7 @@ export class Executor {
             selectedOutputs?: string[]
             edges?: Array<{ source: string; target: string }>
             onStream?: (streamingExecution: StreamingExecution) => Promise<void>
+            onBlockStart?: (blockId: string, blockName: string, blockType: string) => Promise<void>
             onBlockComplete?: (blockId: string, output: any) => Promise<void>
             executionId?: string
             workspaceId?: string
@@ -759,6 +760,7 @@ export class Executor {
       selectedOutputs: this.contextExtensions.selectedOutputs || [],
       edges: this.contextExtensions.edges || [],
       onStream: this.contextExtensions.onStream,
+      onBlockStart: this.contextExtensions.onBlockStart,
       onBlockComplete: this.contextExtensions.onBlockComplete,
     }
 
@@ -1836,6 +1838,27 @@ export class Executor {
         inputSize: Object.keys(inputs).length,
         startTime: new Date().toISOString(),
       })
+
+      // Notify that block execution is starting
+      logger.debug('Checking onBlockStart callback:', {
+        hasCallback: !!context.onBlockStart,
+        blockId,
+        blockName: block.metadata?.name,
+      })
+      
+      if (context.onBlockStart) {
+        try {
+          await context.onBlockStart(
+            blockId,
+            block.metadata?.name || 'Unnamed Block',
+            block.metadata?.id || 'unknown'
+          )
+        } catch (callbackError: any) {
+          logger.error('Error in onBlockStart callback:', callbackError)
+        }
+      } else {
+        logger.warn('No onBlockStart callback available in context')
+      }
 
       // Find the appropriate handler
       const handler = this.blockHandlers.find((h) => h.canHandle(block))
