@@ -115,6 +115,13 @@ export class ExecutionEngine {
       return
     }
 
+    const loopId = node.metadata.loopId
+    if (loopId && !this.state.getLoopScope(loopId)) {
+      logger.debug('Initializing loop scope before first execution', { loopId, nodeId })
+      const scope = this.subflowManager.initializeLoopScope(loopId, this.context)
+      this.state.setLoopScope(loopId, scope)
+    }
+
     logger.debug('Launching node execution', { nodeId })
 
     try {
@@ -177,9 +184,10 @@ export class ExecutionEngine {
 
     logger.debug('Handling loop iteration', { loopId, nodeId: node.id })
 
-    let scope = this.state.getLoopScope(loopId)
+    const scope = this.state.getLoopScope(loopId)
     if (!scope) {
-      scope = this.subflowManager.initializeLoopScope(loopId, this.context)
+      logger.error('Loop scope not found - should have been initialized before execution', { loopId })
+      return
     }
 
     const result = this.subflowManager.handleLoopIteration(loopId, node.id, output, this.context)

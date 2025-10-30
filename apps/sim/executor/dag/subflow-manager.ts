@@ -42,6 +42,14 @@ export class SubflowManager {
       const items = this.resolveForEachItems(loopConfig.forEachItems, context)
       scope.items = items
       scope.maxIterations = items.length
+      scope.item = items[0]
+      
+      logger.debug('Initialized forEach loop', {
+        loopId,
+        itemsCount: items.length,
+        firstItem: items[0],
+        forEachItemsRaw: loopConfig.forEachItems,
+      })
     }
 
     this.state.setLoopScope(loopId, scope)
@@ -155,7 +163,17 @@ export class SubflowManager {
       return false
     }
 
-    return scope.iteration < scope.maxIterations - 1
+    const shouldContinue = (scope.iteration + 1) < scope.maxIterations
+    
+    logger.debug('Evaluating loop continue', {
+      loopId,
+      loopType,
+      currentIteration: scope.iteration,
+      maxIterations: scope.maxIterations,
+      shouldContinue,
+    })
+
+    return shouldContinue
   }
 
   evaluateWhileCondition(condition: string, scope: LoopScope, context: ExecutionContext): boolean {
@@ -222,14 +240,21 @@ export class SubflowManager {
   }
 
   private resolveForEachItems(items: any, context: ExecutionContext): any[] {
-    const resolved = this.resolver.resolveInputs({ items }, '', context).items
-
-    if (Array.isArray(resolved)) {
-      return resolved
+    if (Array.isArray(items)) {
+      return items
     }
 
-    if (typeof resolved === 'object' && resolved !== null) {
-      return Object.entries(resolved)
+    if (typeof items === 'object' && items !== null) {
+      return Object.entries(items)
+    }
+
+    if (typeof items === 'string') {
+      if (items.startsWith('<') && items.endsWith('>')) {
+        return this.resolver.resolveSingleReference(items, '', context) || []
+      }
+
+      const normalized = items.replace(/'/g, '"')
+      return JSON.parse(normalized)
     }
 
     return []

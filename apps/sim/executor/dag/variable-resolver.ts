@@ -136,10 +136,11 @@ export class VariableResolver {
     switch (property) {
       case 'iteration':
         return scope.iteration
-      case 'item':
-        return scope.item
       case 'index':
         return scope.iteration
+      case 'item':
+      case 'currentItem':
+        return scope.item
       default:
         return undefined
     }
@@ -216,13 +217,24 @@ export class VariableResolver {
     const referenceRegex = /<([^>]+)>/g
     result = result.replace(referenceRegex, (match) => {
       const resolved = this.resolveReference(match, currentNodeId, context)
-      return resolved !== undefined ? String(resolved) : match
+      if (resolved === undefined) {
+        return match
+      }
+      
+      if (typeof resolved === 'string') {
+        return JSON.stringify(resolved)
+      }
+      
+      if (typeof resolved === 'number' || typeof resolved === 'boolean') {
+        return String(resolved)
+      }
+      
+      return JSON.stringify(resolved)
     })
 
     const envRegex = /\{\{([^}]+)\}\}/g
     result = result.replace(envRegex, (match) => {
-      const resolved = this.resolveEnvVariable(match, context)
-      return resolved
+      return this.resolveEnvVariable(match, context)
     })
 
     return result
