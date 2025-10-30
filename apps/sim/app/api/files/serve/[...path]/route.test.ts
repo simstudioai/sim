@@ -16,6 +16,19 @@ describe('File Serve API Route', () => {
       withUploadUtils: true,
     })
 
+    // Mock checkHybridAuth
+    vi.doMock('@/lib/auth/hybrid', () => ({
+      checkHybridAuth: vi.fn().mockResolvedValue({
+        success: true,
+        userId: 'test-user-id',
+      }),
+    }))
+
+    // Mock verifyFileAccess
+    vi.doMock('@/app/api/files/authorization', () => ({
+      verifyFileAccess: vi.fn().mockResolvedValue(true),
+    }))
+
     vi.doMock('fs', () => ({
       existsSync: vi.fn().mockReturnValue(true),
     }))
@@ -45,8 +58,7 @@ describe('File Serve API Route', () => {
       getContentType: vi.fn().mockReturnValue('text/plain'),
       isS3Path: vi.fn().mockReturnValue(false),
       isBlobPath: vi.fn().mockReturnValue(false),
-      extractS3Key: vi.fn().mockImplementation((path) => path.split('/').pop()),
-      extractBlobKey: vi.fn().mockImplementation((path) => path.split('/').pop()),
+      extractStorageKey: vi.fn().mockImplementation((path) => path.split('/').pop()),
       extractFilename: vi.fn().mockImplementation((path) => path.split('/').pop()),
       findLocalFile: vi.fn().mockReturnValue('/test/uploads/test-file.txt'),
     }))
@@ -99,10 +111,20 @@ describe('File Serve API Route', () => {
       getContentType: vi.fn().mockReturnValue('text/plain'),
       isS3Path: vi.fn().mockReturnValue(false),
       isBlobPath: vi.fn().mockReturnValue(false),
-      extractS3Key: vi.fn().mockImplementation((path) => path.split('/').pop()),
-      extractBlobKey: vi.fn().mockImplementation((path) => path.split('/').pop()),
+      extractStorageKey: vi.fn().mockImplementation((path) => path.split('/').pop()),
       extractFilename: vi.fn().mockImplementation((path) => path.split('/').pop()),
       findLocalFile: vi.fn().mockReturnValue('/test/uploads/nested/path/file.txt'),
+    }))
+
+    vi.doMock('@/lib/auth/hybrid', () => ({
+      checkHybridAuth: vi.fn().mockResolvedValue({
+        success: true,
+        userId: 'test-user-id',
+      }),
+    }))
+
+    vi.doMock('@/app/api/files/authorization', () => ({
+      verifyFileAccess: vi.fn().mockResolvedValue(true),
     }))
 
     const req = new NextRequest('http://localhost:3000/api/files/serve/nested/path/file.txt')
@@ -142,6 +164,17 @@ describe('File Serve API Route', () => {
       USE_BLOB_STORAGE: false,
     }))
 
+    vi.doMock('@/lib/auth/hybrid', () => ({
+      checkHybridAuth: vi.fn().mockResolvedValue({
+        success: true,
+        userId: 'test-user-id',
+      }),
+    }))
+
+    vi.doMock('@/app/api/files/authorization', () => ({
+      verifyFileAccess: vi.fn().mockResolvedValue(true),
+    }))
+
     vi.doMock('@/app/api/files/utils', () => ({
       FileNotFoundError: class FileNotFoundError extends Error {
         constructor(message: string) {
@@ -167,8 +200,7 @@ describe('File Serve API Route', () => {
       getContentType: vi.fn().mockReturnValue('image/png'),
       isS3Path: vi.fn().mockReturnValue(false),
       isBlobPath: vi.fn().mockReturnValue(false),
-      extractS3Key: vi.fn().mockImplementation((path) => path.split('/').pop()),
-      extractBlobKey: vi.fn().mockImplementation((path) => path.split('/').pop()),
+      extractStorageKey: vi.fn().mockImplementation((path) => path.split('/').pop()),
       extractFilename: vi.fn().mockImplementation((path) => path.split('/').pop()),
       findLocalFile: vi.fn().mockReturnValue('/test/uploads/test-file.txt'),
     }))
@@ -197,6 +229,17 @@ describe('File Serve API Route', () => {
       readFile: vi.fn().mockRejectedValue(new Error('ENOENT: no such file or directory')),
     }))
 
+    vi.doMock('@/lib/auth/hybrid', () => ({
+      checkHybridAuth: vi.fn().mockResolvedValue({
+        success: true,
+        userId: 'test-user-id',
+      }),
+    }))
+
+    vi.doMock('@/app/api/files/authorization', () => ({
+      verifyFileAccess: vi.fn().mockResolvedValue(false), // File not found = no access
+    }))
+
     vi.doMock('@/app/api/files/utils', () => ({
       FileNotFoundError: class FileNotFoundError extends Error {
         constructor(message: string) {
@@ -214,8 +257,7 @@ describe('File Serve API Route', () => {
       getContentType: vi.fn().mockReturnValue('text/plain'),
       isS3Path: vi.fn().mockReturnValue(false),
       isBlobPath: vi.fn().mockReturnValue(false),
-      extractS3Key: vi.fn(),
-      extractBlobKey: vi.fn(),
+      extractStorageKey: vi.fn(),
       extractFilename: vi.fn(),
       findLocalFile: vi.fn().mockReturnValue(null),
     }))
@@ -246,7 +288,24 @@ describe('File Serve API Route', () => {
 
     for (const test of contentTypeTests) {
       it(`should serve ${test.ext} file with correct content type`, async () => {
+        vi.doMock('@/lib/auth/hybrid', () => ({
+          checkHybridAuth: vi.fn().mockResolvedValue({
+            success: true,
+            userId: 'test-user-id',
+          }),
+        }))
+
+        vi.doMock('@/app/api/files/authorization', () => ({
+          verifyFileAccess: vi.fn().mockResolvedValue(true),
+        }))
+
         vi.doMock('@/app/api/files/utils', () => ({
+          FileNotFoundError: class FileNotFoundError extends Error {
+            constructor(message: string) {
+              super(message)
+              this.name = 'FileNotFoundError'
+            }
+          },
           getContentType: () => test.contentType,
           findLocalFile: () => `/test/uploads/file.${test.ext}`,
           createFileResponse: (obj: { buffer: Buffer; contentType: string; filename: string }) =>

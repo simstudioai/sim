@@ -14,11 +14,8 @@ import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console/logger'
-import {
-  ACCEPT_ATTRIBUTE,
-  ACCEPTED_FILE_TYPES,
-  MAX_FILE_SIZE,
-} from '@/lib/uploads/utils/validation'
+import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
+import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 import type { KnowledgeBaseData } from '@/stores/knowledge/store'
@@ -84,9 +81,9 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
   const dropZoneRef = useRef<HTMLDivElement>(null)
 
   const { uploadFiles, isUploading, uploadProgress, uploadError, clearError } = useKnowledgeUpload({
+    workspaceId,
     onUploadComplete: (uploadedFiles) => {
       logger.info(`Successfully uploaded ${uploadedFiles.length} files`)
-      // Files uploaded and document records created - processing will continue in background
     },
   })
 
@@ -97,7 +94,6 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
     onOpenChange(open)
   }
 
-  // Cleanup file preview URLs when component unmounts to prevent memory leaks
   useEffect(() => {
     return () => {
       files.forEach((file) => {
@@ -126,19 +122,15 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
     mode: 'onSubmit',
   })
 
-  // Watch the name field to enable/disable the submit button
   const nameValue = watch('name')
 
-  // Reset state when modal opens/closes
   useEffect(() => {
     if (open) {
-      // Reset states when modal opens
       setSubmitStatus(null)
       setFileError(null)
       setFiles([])
       setIsDragging(false)
       setDragCounter(0)
-      // Reset form to default values
       reset({
         name: '',
         description: '',
@@ -159,23 +151,13 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
       let hasError = false
 
       for (const file of Array.from(fileList)) {
-        // Check file size
-        if (file.size > MAX_FILE_SIZE) {
-          setFileError(`File ${file.name} is too large. Maximum size is 100MB per file.`)
+        const validationError = validateKnowledgeBaseFile(file)
+        if (validationError) {
+          setFileError(validationError)
           hasError = true
           continue
         }
 
-        // Check file type
-        if (!ACCEPTED_FILE_TYPES.includes(file.type)) {
-          setFileError(
-            `File ${file.name} has an unsupported format. Please use PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSON, YAML, or YML.`
-          )
-          hasError = true
-          continue
-        }
-
-        // Create file with preview (using file icon since these aren't images)
         const fileWithPreview = Object.assign(file, {
           preview: URL.createObjectURL(file),
         }) as FileWithPreview
@@ -190,7 +172,6 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
       logger.error('Error processing files:', error)
       setFileError('An error occurred while processing files. Please try again.')
     } finally {
-      // Reset the input
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
@@ -203,7 +184,6 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
     }
   }
 
-  // Handle drag events
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -231,7 +211,6 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    // Add visual feedback for valid drop zone
     e.dataTransfer.dropEffect = 'copy'
   }
 
@@ -248,7 +227,6 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
 
   const removeFile = (index: number) => {
     setFiles((prev) => {
-      // Revoke the URL to avoid memory leaks
       URL.revokeObjectURL(prev[index].preview)
       return prev.filter((_, i) => i !== index)
     })
@@ -259,20 +237,11 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
     return <IconComponent className='h-10 w-8' />
   }
 
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 B'
-    const k = 1024
-    const sizes = ['B', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return `${Number.parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`
-  }
-
   const onSubmit = async (data: FormValues) => {
     setIsSubmitting(true)
     setSubmitStatus(null)
 
     try {
-      // First create the knowledge base
       const knowledgeBasePayload = {
         name: data.name,
         description: data.description || undefined,
@@ -371,19 +340,20 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
               className='scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/25 scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'
             >
               <div className='flex min-h-full flex-col py-4'>
-                {submitStatus && submitStatus.type === 'error' && (
-                  <Alert variant='destructive' className='mb-6'>
-                    <AlertCircle className='h-4 w-4' />
-                    <AlertTitle>Error</AlertTitle>
-                    <AlertDescription>{submitStatus.message}</AlertDescription>
-                  </Alert>
-                )}
-
+                {/* Show upload error first, then submit error only if no upload error */}
                 {uploadError && (
                   <Alert variant='destructive' className='mb-6'>
                     <AlertCircle className='h-4 w-4' />
                     <AlertTitle>Upload Error</AlertTitle>
                     <AlertDescription>{uploadError.message}</AlertDescription>
+                  </Alert>
+                )}
+
+                {submitStatus && submitStatus.type === 'error' && !uploadError && (
+                  <Alert variant='destructive' className='mb-6'>
+                    <AlertCircle className='h-4 w-4' />
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>{submitStatus.message}</AlertDescription>
                   </Alert>
                 )}
 

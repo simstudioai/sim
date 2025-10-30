@@ -1,29 +1,13 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/core/setup'
-import type { CustomBlobConfig } from '@/lib/uploads/providers/blob/blob-client'
-import type { CustomS3Config } from '@/lib/uploads/providers/s3/s3-client'
+import type { CustomBlobConfig } from '@/lib/uploads/providers/blob/types'
+import type { CustomS3Config } from '@/lib/uploads/providers/s3/types'
+import { USE_BLOB_STORAGE, USE_S3_STORAGE } from '../config'
+import type { FileInfo, StorageConfig } from '../shared/types'
+import { sanitizeFileKey } from '../utils/file-utils'
 
 const logger = createLogger('StorageClient')
 
-// Client-safe type definitions
-export type FileInfo = {
-  path: string
-  key: string
-  name: string
-  size: number
-  type: string
-}
-
-export type CustomStorageConfig = {
-  // S3 config
-  bucket?: string
-  region?: string
-  // Blob config
-  containerName?: string
-  accountName?: string
-  accountKey?: string
-  connectionString?: string
-}
+export type { FileInfo, StorageConfig } from '../shared/types'
 
 /**
  * Upload a file to the configured storage provider
@@ -53,7 +37,7 @@ export async function uploadFile(
   file: Buffer,
   fileName: string,
   contentType: string,
-  customConfig: CustomStorageConfig,
+  customConfig: StorageConfig,
   size?: number
 ): Promise<FileInfo>
 
@@ -61,12 +45,11 @@ export async function uploadFile(
   file: Buffer,
   fileName: string,
   contentType: string,
-  configOrSize?: CustomStorageConfig | number,
+  configOrSize?: StorageConfig | number,
   size?: number
 ): Promise<FileInfo> {
   if (USE_BLOB_STORAGE) {
-    logger.info(`Uploading file to Azure Blob Storage: ${fileName}`)
-    const { uploadToBlob } = await import('@/lib/uploads/providers/blob/blob-client')
+    const { uploadToBlob } = await import('@/lib/uploads/providers/blob/client')
     if (typeof configOrSize === 'object') {
       const blobConfig: CustomBlobConfig = {
         containerName: configOrSize.containerName!,
@@ -80,8 +63,7 @@ export async function uploadFile(
   }
 
   if (USE_S3_STORAGE) {
-    logger.info(`Uploading file to S3: ${fileName}`)
-    const { uploadToS3 } = await import('@/lib/uploads/providers/s3/s3-client')
+    const { uploadToS3 } = await import('@/lib/uploads/providers/s3/client')
     if (typeof configOrSize === 'object') {
       const s3Config: CustomS3Config = {
         bucket: configOrSize.bucket!,
@@ -92,13 +74,12 @@ export async function uploadFile(
     return uploadToS3(file, fileName, contentType, configOrSize)
   }
 
-  logger.info(`Uploading file to local storage: ${fileName}`)
   const { writeFile } = await import('fs/promises')
   const { join } = await import('path')
   const { v4: uuidv4 } = await import('uuid')
   const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/core/setup.server')
 
-  const safeFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_').replace(/\.\./g, '')
+  const safeFileName = sanitizeFileKey(fileName)
   const uniqueKey = `${uuidv4()}-${safeFileName}`
   const filePath = join(UPLOAD_DIR_SERVER, uniqueKey)
 
@@ -106,9 +87,7 @@ export async function uploadFile(
     await writeFile(filePath, file)
   } catch (error) {
     logger.error(`Failed to write file to local storage: ${fileName}`, error)
-    throw new Error(
-      `Failed to write file to local storage: ${error instanceof Error ? error.message : 'Unknown error'}`
-    )
+    throw error
   }
 
   const fileSize = typeof configOrSize === 'number' ? configOrSize : size || file.length
@@ -135,15 +114,11 @@ export async function downloadFile(key: string): Promise<Buffer>
  * @param customConfig Custom storage configuration
  * @returns File buffer
  */
-export async function downloadFile(key: string, customConfig: CustomStorageConfig): Promise<Buffer>
+export async function downloadFile(key: string, customConfig: StorageConfig): Promise<Buffer>
 
-export async function downloadFile(
-  key: string,
-  customConfig?: CustomStorageConfig
-): Promise<Buffer> {
+export async function downloadFile(key: string, customConfig?: StorageConfig): Promise<Buffer> {
   if (USE_BLOB_STORAGE) {
-    logger.info(`Downloading file from Azure Blob Storage: ${key}`)
-    const { downloadFromBlob } = await import('@/lib/uploads/providers/blob/blob-client')
+    const { downloadFromBlob } = await import('@/lib/uploads/providers/blob/client')
     if (customConfig) {
       const blobConfig: CustomBlobConfig = {
         containerName: customConfig.containerName!,
@@ -157,8 +132,7 @@ export async function downloadFile(
   }
 
   if (USE_S3_STORAGE) {
-    logger.info(`Downloading file from S3: ${key}`)
-    const { downloadFromS3 } = await import('@/lib/uploads/providers/s3/s3-client')
+    const { downloadFromS3 } = await import('@/lib/uploads/providers/s3/client')
     if (customConfig) {
       const s3Config: CustomS3Config = {
         bucket: customConfig.bucket!,
@@ -169,7 +143,6 @@ export async function downloadFile(
     return downloadFromS3(key)
   }
 
-  logger.info(`Downloading file from local storage: ${key}`)
   const { readFile } = await import('fs/promises')
   const { join, resolve, sep } = await import('path')
   const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/core/setup.server')
@@ -199,18 +172,15 @@ export async function downloadFile(
  */
 export async function deleteFile(key: string): Promise<void> {
   if (USE_BLOB_STORAGE) {
-    logger.info(`Deleting file from Azure Blob Storage: ${key}`)
-    const { deleteFromBlob } = await import('@/lib/uploads/providers/blob/blob-client')
+    const { deleteFromBlob } = await import('@/lib/uploads/providers/blob/client')
     return deleteFromBlob(key)
   }
 
   if (USE_S3_STORAGE) {
-    logger.info(`Deleting file from S3: ${key}`)
-    const { deleteFromS3 } = await import('@/lib/uploads/providers/s3/s3-client')
+    const { deleteFromS3 } = await import('@/lib/uploads/providers/s3/client')
     return deleteFromS3(key)
   }
 
-  logger.info(`Deleting file from local storage: ${key}`)
   const { unlink } = await import('fs/promises')
   const { join, resolve, sep } = await import('path')
   const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/core/setup.server')
@@ -227,12 +197,14 @@ export async function deleteFile(key: string): Promise<void> {
   try {
     await unlink(filePath)
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      logger.warn(`File not found during deletion: ${key}`)
-      return
+    // File deletion is idempotent - if file doesn't exist, that's fine
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw error
     }
-    throw error
   }
+
+  const { deleteFileMetadata } = await import('../server/metadata')
+  await deleteFileMetadata(key)
 }
 
 /**
@@ -245,17 +217,87 @@ export function getStorageProvider(): 'blob' | 's3' | 'local' {
 }
 
 /**
- * Check if we're using cloud storage (either S3 or Blob)
- */
-export function isUsingCloudStorage(): boolean {
-  return USE_BLOB_STORAGE || USE_S3_STORAGE
-}
-
-/**
  * Get the appropriate serve path prefix based on storage provider
  */
 export function getServePathPrefix(): string {
   if (USE_BLOB_STORAGE) return '/api/files/serve/blob/'
   if (USE_S3_STORAGE) return '/api/files/serve/s3/'
   return '/api/files/serve/'
+}
+
+/**
+ * Get file metadata from storage provider
+ * @param key File key/name
+ * @param customConfig Optional custom storage configuration
+ * @returns File metadata object with userId, workspaceId, originalName, uploadedAt, etc.
+ */
+export async function getFileMetadata(
+  key: string,
+  customConfig?: StorageConfig
+): Promise<Record<string, string>> {
+  const { getFileMetadataByKey } = await import('../server/metadata')
+  const metadataRecord = await getFileMetadataByKey(key)
+
+  if (metadataRecord) {
+    return {
+      userId: metadataRecord.userId,
+      workspaceId: metadataRecord.workspaceId || '',
+      originalName: metadataRecord.originalName,
+      uploadedAt: metadataRecord.uploadedAt.toISOString(),
+      purpose: metadataRecord.context,
+    }
+  }
+
+  if (USE_BLOB_STORAGE) {
+    const { getBlobServiceClient } = await import('@/lib/uploads/providers/blob/client')
+    const { BLOB_CONFIG } = await import('../config')
+
+    let blobServiceClient = await getBlobServiceClient()
+    let containerName = BLOB_CONFIG.containerName
+
+    if (customConfig) {
+      const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
+      if (customConfig.connectionString) {
+        blobServiceClient = BlobServiceClient.fromConnectionString(customConfig.connectionString)
+      } else if (customConfig.accountName && customConfig.accountKey) {
+        const credential = new StorageSharedKeyCredential(
+          customConfig.accountName,
+          customConfig.accountKey
+        )
+        blobServiceClient = new BlobServiceClient(
+          `https://${customConfig.accountName}.blob.core.windows.net`,
+          credential
+        )
+      }
+      containerName = customConfig.containerName || containerName
+    }
+
+    const containerClient = blobServiceClient.getContainerClient(containerName)
+    const blockBlobClient = containerClient.getBlockBlobClient(key)
+    const properties = await blockBlobClient.getProperties()
+    return properties.metadata || {}
+  }
+
+  if (USE_S3_STORAGE) {
+    const { getS3Client } = await import('@/lib/uploads/providers/s3/client')
+    const { HeadObjectCommand } = await import('@aws-sdk/client-s3')
+    const { S3_CONFIG } = await import('../config')
+
+    const s3Client = getS3Client()
+    const bucket = customConfig?.bucket || S3_CONFIG.bucket
+
+    if (!bucket) {
+      throw new Error('S3 bucket not configured')
+    }
+
+    const command = new HeadObjectCommand({
+      Bucket: bucket,
+      Key: key,
+    })
+
+    const response = await s3Client.send(command)
+    return response.Metadata || {}
+  }
+
+  return {}
 }

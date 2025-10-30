@@ -52,6 +52,7 @@ export interface ProcessingOptions {
 export interface UseKnowledgeUploadOptions {
   onUploadComplete?: (uploadedFiles: UploadedFile[]) => void
   onError?: (error: UploadError) => void
+  workspaceId?: string
 }
 
 class KnowledgeUploadError extends Error {
@@ -355,23 +356,14 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
       try {
-        presignedData = presignedOverride ?? (await getPresignedData(file, timeoutMs, controller))
-
-        if (presignedData.directUploadSupported) {
-          if (file.size > UPLOAD_CONFIG.LARGE_FILE_THRESHOLD) {
-            return await uploadFileInChunks(file, presignedData, timeoutMs, fileIndex)
-          }
-          return await uploadFileDirectly(file, presignedData, timeoutMs, controller, fileIndex)
+        // For large files (>50MB), use multipart upload (server-orchestrated)
+        if (file.size > UPLOAD_CONFIG.LARGE_FILE_THRESHOLD) {
+          presignedData = presignedOverride ?? (await getPresignedData(file, timeoutMs, controller))
+          return await uploadFileInChunks(file, presignedData, timeoutMs, fileIndex)
         }
 
-        if (file.size > UPLOAD_CONFIG.DIRECT_UPLOAD_THRESHOLD) {
-          throw new DirectUploadError(
-            `File ${file.name} is too large (${(file.size / 1024 / 1024).toFixed(2)}MB) for upload. Cloud storage must be configured for files over 4MB.`,
-            { fileSize: file.size, limit: UPLOAD_CONFIG.DIRECT_UPLOAD_THRESHOLD }
-          )
-        }
-
-        logger.warn(`Using API upload fallback for ${file.name} - cloud storage not configured`)
+        // For all other files, use server-side upload (no presigned URLs)
+        logger.info(`Using server-side upload for ${file.name}`)
         return await uploadFileThroughAPI(file, timeoutMs)
       } finally {
         clearTimeout(timeoutId)
@@ -720,7 +712,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
   }
 
   /**
-   * Fallback upload through API
+   * Fallback upload through API (server-side)
    */
   const uploadFileThroughAPI = async (file: File, timeoutMs: number): Promise<UploadedFile> => {
     const controller = new AbortController()
@@ -729,6 +721,12 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
     try {
       const formData = new FormData()
       formData.append('file', file)
+      formData.append('context', 'knowledge-base')
+
+      // Add workspaceId if available
+      if (options.workspaceId) {
+        formData.append('workspaceId', options.workspaceId)
+      }
 
       const uploadResponse = await fetch('/api/files/upload', {
         method: 'POST',
@@ -752,8 +750,11 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
 
       const uploadResult = await uploadResponse.json()
 
+      // Handle both response formats (fileInfo.path for new format, path for legacy)
+      const filePath = uploadResult.fileInfo?.path || uploadResult.path
+
       // Validate upload result structure
-      if (!uploadResult.path) {
+      if (!filePath) {
         throw new DirectUploadError(
           `Invalid upload response for ${file.name}: missing file path`,
           uploadResult
@@ -762,9 +763,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
 
       return createUploadedFile(
         file.name,
-        uploadResult.path.startsWith('http')
-          ? uploadResult.path
-          : `${window.location.origin}${uploadResult.path}`,
+        filePath.startsWith('http') ? filePath : `${window.location.origin}${filePath}`,
         file.size,
         file.type,
         file

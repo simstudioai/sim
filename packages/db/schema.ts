@@ -751,6 +751,29 @@ export const workspaceFile = pgTable(
   })
 )
 
+export const workspaceFiles = pgTable(
+  'workspace_files',
+  {
+    id: text('id').primaryKey(),
+    key: text('key').notNull().unique(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    context: text('context').notNull(), // 'workspace', 'copilot', 'chat', 'knowledge-base', 'profile-pictures', 'general', 'execution'
+    originalName: text('original_name').notNull(),
+    contentType: text('content_type').notNull(),
+    size: integer('size').notNull(),
+    uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    keyIdx: index('workspace_files_key_idx').on(table.key),
+    userIdIdx: index('workspace_files_user_id_idx').on(table.userId),
+    workspaceIdIdx: index('workspace_files_workspace_id_idx').on(table.workspaceId),
+    contextIdx: index('workspace_files_context_idx').on(table.context),
+  })
+)
+
 export const permissionTypeEnum = pgEnum('permission_type', ['admin', 'write', 'read'])
 
 export const workspaceInvitationStatusEnum = pgEnum('workspace_invitation_status', [

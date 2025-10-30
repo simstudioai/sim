@@ -4,6 +4,7 @@ import { parseBuffer, parseFile } from '@/lib/file-parsers'
 import { retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { StorageService } from '@/lib/uploads'
+import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 import { mistralParserTool } from '@/tools/mistral/parser'
 
 const logger = createLogger('DocumentProcessor')
@@ -170,11 +171,18 @@ async function handleFileForOCR(fileUrl: string, filename: string, mimeType: str
   const buffer = await downloadFileWithTimeout(fileUrl)
 
   try {
+    const metadata: Record<string, string> = {
+      originalName: filename,
+      uploadedAt: new Date().toISOString(),
+      purpose: 'knowledge-base',
+    }
+
     const cloudResult = await StorageService.uploadFile({
       file: buffer,
       fileName: filename,
       contentType: mimeType,
       context: 'knowledge-base',
+      metadata,
     })
 
     const httpsUrl = await StorageService.generatePresignedDownloadUrl(
@@ -192,34 +200,7 @@ async function handleFileForOCR(fileUrl: string, filename: string, mimeType: str
 }
 
 async function downloadFileWithTimeout(fileUrl: string): Promise<Buffer> {
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), TIMEOUTS.FILE_DOWNLOAD)
-
-  try {
-    const isInternalFileServe = fileUrl.includes('/api/files/serve/')
-    const headers: HeadersInit = {}
-
-    if (isInternalFileServe) {
-      const { generateInternalToken } = await import('@/lib/auth/internal')
-      const token = await generateInternalToken()
-      headers.Authorization = `Bearer ${token}`
-    }
-
-    const response = await fetch(fileUrl, { signal: controller.signal, headers })
-    clearTimeout(timeoutId)
-
-    if (!response.ok) {
-      throw new Error(`Failed to download file: ${response.statusText}`)
-    }
-
-    return Buffer.from(await response.arrayBuffer())
-  } catch (error) {
-    clearTimeout(timeoutId)
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error('File download timed out')
-    }
-    throw error
-  }
+  return downloadFileFromUrl(fileUrl, TIMEOUTS.FILE_DOWNLOAD)
 }
 
 async function downloadFileForBase64(fileUrl: string): Promise<Buffer> {

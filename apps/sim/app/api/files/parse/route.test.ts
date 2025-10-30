@@ -7,7 +7,6 @@ import { NextRequest } from 'next/server'
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMockRequest, setupFileApiMocks } from '@/app/api/__test-utils__/utils'
-import { POST } from '@/app/api/files/parse/route'
 
 const mockJoin = vi.fn((...args: string[]): string => {
   if (args[0] === '/test/uploads') {
@@ -18,7 +17,11 @@ const mockJoin = vi.fn((...args: string[]): string => {
 
 describe('File Parse API Route', () => {
   beforeEach(() => {
-    vi.resetAllMocks()
+    vi.resetModules()
+
+    setupFileApiMocks({
+      authenticated: true,
+    })
 
     vi.doMock('@/lib/file-parsers', () => ({
       isSupportedFileType: vi.fn().mockReturnValue(true),
@@ -50,8 +53,6 @@ describe('File Parse API Route', () => {
   })
 
   it('should handle missing file path', async () => {
-    setupFileApiMocks()
-
     const req = createMockRequest('POST', {})
     const { POST } = await import('@/app/api/files/parse/route')
 
@@ -66,6 +67,7 @@ describe('File Parse API Route', () => {
     setupFileApiMocks({
       cloudEnabled: false,
       storageProvider: 'local',
+      authenticated: true,
     })
 
     const req = createMockRequest('POST', {
@@ -91,6 +93,7 @@ describe('File Parse API Route', () => {
     setupFileApiMocks({
       cloudEnabled: true,
       storageProvider: 's3',
+      authenticated: true,
     })
 
     const req = createMockRequest('POST', {
@@ -114,6 +117,7 @@ describe('File Parse API Route', () => {
     setupFileApiMocks({
       cloudEnabled: false,
       storageProvider: 'local',
+      authenticated: true,
     })
 
     const req = createMockRequest('POST', {
@@ -135,6 +139,7 @@ describe('File Parse API Route', () => {
     setupFileApiMocks({
       cloudEnabled: true,
       storageProvider: 's3',
+      authenticated: true,
     })
 
     const req = createMockRequest('POST', {
@@ -159,6 +164,7 @@ describe('File Parse API Route', () => {
     setupFileApiMocks({
       cloudEnabled: true,
       storageProvider: 's3',
+      authenticated: true,
     })
 
     const req = createMockRequest('POST', {
@@ -183,6 +189,7 @@ describe('File Parse API Route', () => {
     setupFileApiMocks({
       cloudEnabled: true,
       storageProvider: 's3',
+      authenticated: true,
     })
 
     const downloadFileMock = vi.fn().mockRejectedValue(new Error('Access denied'))
@@ -211,6 +218,7 @@ describe('File Parse API Route', () => {
     setupFileApiMocks({
       cloudEnabled: false,
       storageProvider: 'local',
+      authenticated: true,
     })
 
     vi.doMock('fs/promises', () => ({
@@ -236,7 +244,10 @@ describe('File Parse API Route', () => {
 
 describe('Files Parse API - Path Traversal Security', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetModules()
+    setupFileApiMocks({
+      authenticated: true,
+    })
   })
 
   describe('Path Traversal Prevention', () => {
@@ -257,11 +268,14 @@ describe('Files Parse API - Path Traversal Security', () => {
           }),
         })
 
+        const { POST } = await import('@/app/api/files/parse/route')
         const response = await POST(request)
         const result = await response.json()
 
         expect(result.success).toBe(false)
-        expect(result.error).toMatch(/Access denied|Invalid path|Path outside allowed directory/)
+        expect(result.error).toMatch(
+          /Access denied|Invalid path|Path outside allowed directory|Unauthorized/
+        )
       }
     })
 
@@ -280,11 +294,12 @@ describe('Files Parse API - Path Traversal Security', () => {
           }),
         })
 
+        const { POST } = await import('@/app/api/files/parse/route')
         const response = await POST(request)
         const result = await response.json()
 
         expect(result.success).toBe(false)
-        expect(result.error).toMatch(/Access denied|Invalid path/)
+        expect(result.error).toMatch(/Access denied|Invalid path|Unauthorized/)
       }
     })
 
@@ -305,11 +320,12 @@ describe('Files Parse API - Path Traversal Security', () => {
           }),
         })
 
+        const { POST } = await import('@/app/api/files/parse/route')
         const response = await POST(request)
         const result = await response.json()
 
         expect(result.success).toBe(false)
-        expect(result.error).toMatch(/Access denied|Path outside allowed directory/)
+        expect(result.error).toMatch(/Access denied|Path outside allowed directory|Unauthorized/)
       }
     })
 
@@ -328,6 +344,7 @@ describe('Files Parse API - Path Traversal Security', () => {
           }),
         })
 
+        const { POST } = await import('@/app/api/files/parse/route')
         const response = await POST(request)
         const result = await response.json()
 
@@ -354,11 +371,14 @@ describe('Files Parse API - Path Traversal Security', () => {
           }),
         })
 
+        const { POST } = await import('@/app/api/files/parse/route')
         const response = await POST(request)
         const result = await response.json()
 
         expect(result.success).toBe(false)
-        expect(result.error).toMatch(/Access denied|Invalid path|Path outside allowed directory/)
+        expect(result.error).toMatch(
+          /Access denied|Invalid path|Path outside allowed directory|Unauthorized/
+        )
       }
     })
 
@@ -377,6 +397,7 @@ describe('Files Parse API - Path Traversal Security', () => {
           }),
         })
 
+        const { POST } = await import('@/app/api/files/parse/route')
         const response = await POST(request)
         const result = await response.json()
 
@@ -394,6 +415,7 @@ describe('Files Parse API - Path Traversal Security', () => {
         }),
       })
 
+      const { POST } = await import('@/app/api/files/parse/route')
       const response = await POST(request)
       const result = await response.json()
 
@@ -407,6 +429,7 @@ describe('Files Parse API - Path Traversal Security', () => {
         body: JSON.stringify({}),
       })
 
+      const { POST } = await import('@/app/api/files/parse/route')
       const response = await POST(request)
       const result = await response.json()
 

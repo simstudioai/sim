@@ -2,10 +2,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
-import {
-  downloadFileFromStorage,
-  processFilesToUserFiles,
-} from '@/lib/uploads/utils/file-processing'
+import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
+import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { generateRequestId } from '@/lib/utils'
 import { base64UrlEncode, buildMimeMessage } from '@/tools/gmail/utils'
 
