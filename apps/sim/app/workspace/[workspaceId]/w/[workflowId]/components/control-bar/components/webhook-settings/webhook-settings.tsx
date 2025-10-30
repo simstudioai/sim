@@ -505,7 +505,7 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
 
   return (
     <Dialog open={open} onOpenChange={handleCloseModal}>
-      <DialogContent className='relative flex h-[70vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[800px]'>
+      <DialogContent className='flex h-[70vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[800px]'>
         {/* Hidden dummy inputs to prevent browser password manager autofill */}
         <input
           type='text'
