@@ -172,8 +172,15 @@ export function useWebhookManagement({
         })
 
         if (!response.ok) {
-          logger.error('Failed to create webhook')
-          return false
+          let errorMessage = 'Failed to create webhook'
+          try {
+            const errorData = await response.json()
+            errorMessage = errorData.details || errorData.error || errorMessage
+          } catch {
+            // If response is not JSON, use default message
+          }
+          logger.error('Failed to create webhook', { errorMessage })
+          throw new Error(errorMessage)
         }
 
         const data = await response.json()
@@ -211,15 +218,23 @@ export function useWebhookManagement({
       })
 
       if (!response.ok) {
-        logger.error('Failed to save trigger config')
-        return false
+        let errorMessage = 'Failed to save trigger configuration'
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.details || errorData.error || errorMessage
+        } catch {
+          // If response is not JSON, use default message
+        }
+        logger.error('Failed to save trigger config', { errorMessage })
+        throw new Error(errorMessage)
       }
 
       logger.info('Trigger config saved successfully')
       return true
     } catch (error) {
       logger.error('Error saving trigger config:', error)
-      return false
+      // Re-throw to propagate error message to caller
+      throw error
     } finally {
       setIsSaving(false)
     }

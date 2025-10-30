@@ -254,8 +254,100 @@ export async function POST(request: NextRequest) {
     let savedWebhook: any = null // Variable to hold the result of save/update
 
     // Use the original provider config - Gmail/Outlook configuration functions will inject userId automatically
-    const finalProviderConfig = providerConfig
+    const finalProviderConfig = providerConfig || {}
 
+    // Create external subscriptions before saving to DB to prevent orphaned records
+    let externalSubscriptionId: string | undefined
+
+    const createTempWebhookData = () => ({
+      id: targetWebhookId || nanoid(),
+      path: finalPath,
+      providerConfig: finalProviderConfig,
+    })
+
+    if (provider === 'airtable') {
+      logger.info(`[${requestId}] Creating Airtable subscription before saving to database`)
+      try {
+        externalSubscriptionId = await createAirtableWebhookSubscription(
+          request,
+          userId,
+          createTempWebhookData(),
+          requestId
+        )
+        if (externalSubscriptionId) {
+          finalProviderConfig.externalId = externalSubscriptionId
+        }
+      } catch (err) {
+        logger.error(`[${requestId}] Error creating Airtable webhook subscription`, err)
+        return NextResponse.json(
+          {
+            error: 'Failed to create webhook in Airtable',
+            details: err instanceof Error ? err.message : 'Unknown error',
+          },
+          { status: 500 }
+        )
+      }
+    }
+
+    if (provider === 'microsoftteams') {
+      const { createTeamsSubscription } = await import('@/lib/webhooks/webhook-helpers')
+      logger.info(`[${requestId}] Creating Teams subscription before saving to database`)
+      try {
+        await createTeamsSubscription(request, createTempWebhookData(), workflowRecord, requestId)
+      } catch (err) {
+        logger.error(`[${requestId}] Error creating Teams subscription`, err)
+        return NextResponse.json(
+          {
+            error: 'Failed to create Teams subscription',
+            details: err instanceof Error ? err.message : 'Unknown error',
+          },
+          { status: 500 }
+        )
+      }
+    }
+
+    if (provider === 'telegram') {
+      const { createTelegramWebhook } = await import('@/lib/webhooks/webhook-helpers')
+      logger.info(`[${requestId}] Creating Telegram webhook before saving to database`)
+      try {
+        await createTelegramWebhook(request, createTempWebhookData(), requestId)
+      } catch (err) {
+        logger.error(`[${requestId}] Error creating Telegram webhook`, err)
+        return NextResponse.json(
+          {
+            error: 'Failed to create Telegram webhook',
+            details: err instanceof Error ? err.message : 'Unknown error',
+          },
+          { status: 500 }
+        )
+      }
+    }
+
+    if (provider === 'webflow') {
+      logger.info(`[${requestId}] Creating Webflow subscription before saving to database`)
+      try {
+        externalSubscriptionId = await createWebflowWebhookSubscription(
+          request,
+          userId,
+          createTempWebhookData(),
+          requestId
+        )
+        if (externalSubscriptionId) {
+          finalProviderConfig.externalId = externalSubscriptionId
+        }
+      } catch (err) {
+        logger.error(`[${requestId}] Error creating Webflow webhook subscription`, err)
+        return NextResponse.json(
+          {
+            error: 'Failed to create webhook in Webflow',
+            details: err instanceof Error ? err.message : 'Unknown error',
+          },
+          { status: 500 }
+        )
+      }
+    }
+
+    // Now save to database (only if subscription succeeded or provider doesn't need external subscription)
     if (targetWebhookId) {
       logger.info(`[${requestId}] Updating existing webhook for path: ${finalPath}`, {
         webhookId: targetWebhookId,
@@ -300,69 +392,7 @@ export async function POST(request: NextRequest) {
       savedWebhook = newResult[0]
     }
 
-    // --- Attempt to create webhook in Airtable if provider is 'airtable' ---
-    if (savedWebhook && provider === 'airtable') {
-      logger.info(
-        `[${requestId}] Airtable provider detected. Attempting to create webhook in Airtable.`
-      )
-      try {
-        await createAirtableWebhookSubscription(request, userId, savedWebhook, requestId)
-      } catch (err) {
-        logger.error(`[${requestId}] Error creating Airtable webhook`, err)
-        return NextResponse.json(
-          {
-            error: 'Failed to create webhook in Airtable',
-            details: err instanceof Error ? err.message : 'Unknown error',
-          },
-          { status: 500 }
-        )
-      }
-    }
-    // --- End Airtable specific logic ---
-
-    // --- Microsoft Teams subscription setup ---
-    if (savedWebhook && provider === 'microsoftteams') {
-      const { createTeamsSubscription } = await import('@/lib/webhooks/webhook-helpers')
-      logger.info(`[${requestId}] Creating Teams subscription for webhook ${savedWebhook.id}`)
-
-      const success = await createTeamsSubscription(
-        request,
-        savedWebhook,
-        workflowRecord,
-        requestId
-      )
-
-      if (!success) {
-        return NextResponse.json(
-          {
-            error: 'Failed to create Teams subscription',
-            details: 'Could not create subscription with Microsoft Graph API',
-          },
-          { status: 500 }
-        )
-      }
-    }
-    // --- End Teams subscription setup ---
-
-    // --- Telegram webhook setup ---
-    if (savedWebhook && provider === 'telegram') {
-      const { createTelegramWebhook } = await import('@/lib/webhooks/webhook-helpers')
-      logger.info(`[${requestId}] Creating Telegram webhook for webhook ${savedWebhook.id}`)
-
-      const success = await createTelegramWebhook(request, savedWebhook, requestId)
-
-      if (!success) {
-        return NextResponse.json(
-          {
-            error: 'Failed to create Telegram webhook',
-          },
-          { status: 500 }
-        )
-      }
-    }
-    // --- End Telegram webhook setup ---
-
-    // --- Gmail webhook setup ---
+    // --- Gmail/Outlook webhook setup (these don't require external subscriptions, configure after DB save) ---
     if (savedWebhook && provider === 'gmail') {
       logger.info(`[${requestId}] Gmail provider detected. Setting up Gmail webhook configuration.`)
       try {
@@ -428,26 +458,6 @@ export async function POST(request: NextRequest) {
     }
     // --- End Outlook specific logic ---
 
-    // --- Webflow webhook setup ---
-    if (savedWebhook && provider === 'webflow') {
-      logger.info(
-        `[${requestId}] Webflow provider detected. Attempting to create webhook in Webflow.`
-      )
-      try {
-        await createWebflowWebhookSubscription(request, userId, savedWebhook, requestId)
-      } catch (err) {
-        logger.error(`[${requestId}] Error creating Webflow webhook`, err)
-        return NextResponse.json(
-          {
-            error: 'Failed to create webhook in Webflow',
-            details: err instanceof Error ? err.message : 'Unknown error',
-          },
-          { status: 500 }
-        )
-      }
-    }
-    // --- End Webflow specific logic ---
-
     const status = targetWebhookId ? 200 : 201
     return NextResponse.json({ webhook: savedWebhook }, { status })
   } catch (error: any) {
@@ -465,7 +475,7 @@ async function createAirtableWebhookSubscription(
   userId: string,
   webhookData: any,
   requestId: string
-) {
+): Promise<string | undefined> {
   try {
     const { path, providerConfig } = webhookData
     const { baseId, tableId, includeCellValuesInFieldIds } = providerConfig || {}
@@ -474,7 +484,9 @@ async function createAirtableWebhookSubscription(
       logger.warn(`[${requestId}] Missing baseId or tableId for Airtable webhook creation.`, {
         webhookId: webhookData.id,
       })
-      return // Cannot proceed without base/table IDs
+      throw new Error(
+        'Base ID and Table ID are required to create Airtable webhook. Please provide valid Airtable base and table IDs.'
+      )
     }
 
     const accessToken = await getOAuthToken(userId, 'airtable')
@@ -532,32 +544,26 @@ async function createAirtableWebhookSubscription(
         `[${requestId}] Failed to create webhook in Airtable for webhook ${webhookData.id}. Status: ${airtableResponse.status}`,
         { type: errorType, message: errorMessage, response: responseBody }
       )
-    } else {
-      logger.info(
-        `[${requestId}] Successfully created webhook in Airtable for webhook ${webhookData.id}.`,
-        {
-          airtableWebhookId: responseBody.id,
-        }
-      )
-      // Store the airtableWebhookId (responseBody.id) within the providerConfig
-      try {
-        const currentConfig = (webhookData.providerConfig as Record<string, any>) || {}
-        const updatedConfig = {
-          ...currentConfig,
-          externalId: responseBody.id, // Add/update the externalId
-        }
-        await db
-          .update(webhook)
-          .set({ providerConfig: updatedConfig, updatedAt: new Date() })
-          .where(eq(webhook.id, webhookData.id))
-      } catch (dbError: any) {
-        logger.error(
-          `[${requestId}] Failed to store externalId in providerConfig for webhook ${webhookData.id}.`,
-          dbError
-        )
-        // Even if saving fails, the webhook exists in Airtable. Log and continue.
+
+      // Throw error to surface it to the user
+      let userFriendlyMessage = 'Failed to create webhook subscription in Airtable'
+      if (airtableResponse.status === 404) {
+        userFriendlyMessage =
+          'Airtable base or table not found. Please verify that the Base ID and Table ID are correct and that you have access to them.'
+      } else if (errorMessage && errorMessage !== 'Unknown Airtable API error') {
+        userFriendlyMessage = `Airtable error: ${errorMessage}`
       }
+
+      throw new Error(userFriendlyMessage)
     }
+    logger.info(
+      `[${requestId}] Successfully created webhook in Airtable for webhook ${webhookData.id}.`,
+      {
+        airtableWebhookId: responseBody.id,
+      }
+    )
+    // Return the externalId to be included in providerConfig before saving to DB
+    return responseBody.id
   } catch (error: any) {
     logger.error(
       `[${requestId}] Exception during Airtable webhook creation for webhook ${webhookData.id}.`,
@@ -566,6 +572,8 @@ async function createAirtableWebhookSubscription(
         stack: error.stack,
       }
     )
+    // Re-throw the error so it can be caught by the outer try-catch
+    throw error
   }
 }
 // Helper function to create the webhook subscription in Webflow
@@ -574,7 +582,7 @@ async function createWebflowWebhookSubscription(
   userId: string,
   webhookData: any,
   requestId: string
-) {
+): Promise<string | undefined> {
   try {
     const { path, providerConfig } = webhookData
     const { siteId, triggerId, collectionId, formId } = providerConfig || {}
@@ -672,24 +680,8 @@ async function createWebflowWebhookSubscription(
       }
     )
 
-    // Store the Webflow webhook ID in the providerConfig
-    try {
-      const currentConfig = (webhookData.providerConfig as Record<string, any>) || {}
-      const updatedConfig = {
-        ...currentConfig,
-        externalId: responseBody.id || responseBody._id,
-      }
-      await db
-        .update(webhook)
-        .set({ providerConfig: updatedConfig, updatedAt: new Date() })
-        .where(eq(webhook.id, webhookData.id))
-    } catch (dbError: any) {
-      logger.error(
-        `[${requestId}] Failed to store externalId in providerConfig for webhook ${webhookData.id}.`,
-        dbError
-      )
-      // Even if saving fails, the webhook exists in Webflow. Log and continue.
-    }
+    // Return the externalId to be included in providerConfig before saving to DB
+    return responseBody.id || responseBody._id
   } catch (error: any) {
     logger.error(
       `[${requestId}] Exception during Webflow webhook creation for webhook ${webhookData.id}.`,

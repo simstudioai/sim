@@ -38,8 +38,17 @@ export function useTriggerConfigAggregation(
     .forEach((subBlock) => {
       const fieldValue = subBlockStore.getValue(blockId, subBlock.id)
 
-      if (fieldValue !== null && fieldValue !== undefined && fieldValue !== '') {
-        aggregatedConfig[subBlock.id] = fieldValue
+      let valueToUse = fieldValue
+      if (
+        (fieldValue === null || fieldValue === undefined || fieldValue === '') &&
+        subBlock.required &&
+        subBlock.defaultValue !== undefined
+      ) {
+        valueToUse = subBlock.defaultValue
+      }
+
+      if (valueToUse !== null && valueToUse !== undefined && valueToUse !== '') {
+        aggregatedConfig[subBlock.id] = valueToUse
         hasAnyValue = true
       }
     })

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, Check, Loader2, Save, Trash2 } from 'lucide-react'
 import {
   AlertDialog,
@@ -53,39 +53,127 @@ export function TriggerSave({
     state.getValue(blockId, 'triggerCredentials')
   )
 
-  // Get trigger definition to validate required fields
   const triggerDef = triggerId ? getTrigger(triggerId) : null
 
-  const validateRequiredFields = (): { valid: boolean; missingFields: string[] } => {
-    if (!triggerDef) {
-      return { valid: true, missingFields: [] }
-    }
+  const validateRequiredFields = useCallback(
+    (
+      configToCheck: Record<string, any> | null | undefined
+    ): { valid: boolean; missingFields: string[] } => {
+      if (!triggerDef) {
+        return { valid: true, missingFields: [] }
+      }
 
-    const missingFields: string[] = []
+      const missingFields: string[] = []
 
-    // Check all required subblocks
-    triggerDef.subBlocks
+      triggerDef.subBlocks
+        .filter((sb) => sb.required && sb.mode === 'trigger')
+        .forEach((subBlock) => {
+          if (subBlock.id === 'triggerCredentials') {
+            if (!triggerCredentials) {
+              missingFields.push(subBlock.title || 'Credentials')
+            }
+          } else {
+            const value = configToCheck?.[subBlock.id]
+            if (value === undefined || value === null || value === '') {
+              missingFields.push(subBlock.title || subBlock.id)
+            }
+          }
+        })
+
+      return {
+        valid: missingFields.length === 0,
+        missingFields,
+      }
+    },
+    [triggerDef, triggerCredentials]
+  )
+
+  const requiredSubBlockIds = useMemo(() => {
+    if (!triggerDef) return []
+    return triggerDef.subBlocks
       .filter((sb) => sb.required && sb.mode === 'trigger')
-      .forEach((subBlock) => {
-        // Check credentials subblock
-        if (subBlock.id === 'triggerCredentials') {
-          if (!triggerCredentials) {
-            missingFields.push(subBlock.title || 'Credentials')
-          }
-        } else {
-          // Check other required fields from triggerConfig
-          const value = triggerConfig?.[subBlock.id]
-          if (value === undefined || value === null || value === '') {
-            missingFields.push(subBlock.title || subBlock.id)
-          }
-        }
-      })
+      .map((sb) => sb.id)
+  }, [triggerDef])
 
+  const otherRequiredValues = useSubBlockStore((state) => {
+    if (!triggerDef) return {}
+    const values: Record<string, any> = {}
+    requiredSubBlockIds
+      .filter((id) => id !== 'triggerCredentials')
+      .forEach((subBlockId) => {
+        values[subBlockId] = state.getValue(blockId, subBlockId)
+      })
+    return values
+  })
+
+  const requiredSubBlockValues = useMemo(() => {
     return {
-      valid: missingFields.length === 0,
-      missingFields,
+      triggerCredentials,
+      ...otherRequiredValues,
     }
-  }
+  }, [triggerCredentials, otherRequiredValues])
+
+  const previousValuesRef = useRef<Record<string, any>>({})
+  const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    if (saveStatus !== 'error' || !triggerDef) {
+      previousValuesRef.current = requiredSubBlockValues
+      return
+    }
+
+    const hasChanges = Object.keys(requiredSubBlockValues).some(
+      (key) =>
+        previousValuesRef.current[key] !== (requiredSubBlockValues as Record<string, any>)[key]
+    )
+
+    if (!hasChanges) {
+      return
+    }
+
+    if (validationTimeoutRef.current) {
+      clearTimeout(validationTimeoutRef.current)
+    }
+
+    validationTimeoutRef.current = setTimeout(() => {
+      const aggregatedConfig = useTriggerConfigAggregation(blockId, triggerId)
+
+      if (aggregatedConfig) {
+        useSubBlockStore.getState().setValue(blockId, 'triggerConfig', aggregatedConfig)
+      }
+
+      const configToValidate =
+        aggregatedConfig ?? useSubBlockStore.getState().getValue(blockId, 'triggerConfig')
+      const validation = validateRequiredFields(configToValidate)
+
+      if (validation.valid) {
+        setErrorMessage(null)
+        setSaveStatus('idle')
+        logger.debug('Error cleared after validation passed', { blockId, triggerId })
+      } else {
+        const newErrorMessage = `Missing required fields: ${validation.missingFields.join(', ')}`
+        setErrorMessage((prev) => {
+          if (prev !== newErrorMessage) {
+            logger.debug('Error message updated', {
+              blockId,
+              triggerId,
+              missingFields: validation.missingFields,
+            })
+            return newErrorMessage
+          }
+          return prev
+        })
+      }
+
+      previousValuesRef.current = requiredSubBlockValues
+    }, 300)
+
+    return () => {
+      if (validationTimeoutRef.current) {
+        clearTimeout(validationTimeoutRef.current)
+      }
+    }
+  }, [blockId, triggerId, triggerDef, requiredSubBlockValues, saveStatus, validateRequiredFields])
 
   const handleSave = async () => {
     if (isPreview || disabled) return
@@ -94,17 +182,15 @@ export function TriggerSave({
     setErrorMessage(null)
 
     try {
-      // Aggregate trigger field values into triggerConfig before validation
       const aggregatedConfig = useTriggerConfigAggregation(blockId, triggerId)
 
       if (aggregatedConfig) {
-        // Store the aggregated config in the subblock store
         useSubBlockStore.getState().setValue(blockId, 'triggerConfig', aggregatedConfig)
         logger.debug('Stored aggregated trigger config', { blockId, triggerId, aggregatedConfig })
       }
 
-      // Validate required fields (now includes aggregated config)
-      const validation = validateRequiredFields()
+      const configToValidate = aggregatedConfig ?? triggerConfig
+      const validation = validateRequiredFields(configToValidate)
       if (!validation.valid) {
         setErrorMessage(`Missing required fields: ${validation.missingFields.join(', ')}`)
         setSaveStatus('error')
@@ -117,7 +203,6 @@ export function TriggerSave({
         setSaveStatus('saved')
         setErrorMessage(null)
 
-        // Reset to idle after 2 seconds
         setTimeout(() => {
           setSaveStatus('idle')
         }, 2000)
@@ -173,7 +258,6 @@ export function TriggerSave({
     }
   }
 
-  // Don't render in preview mode
   if (isPreview) {
     return null
   }
@@ -183,7 +267,6 @@ export function TriggerSave({
   return (
     <div id={`${blockId}-${subBlockId}`} className='space-y-2'>
       <div className='flex gap-2'>
-        {/* Save Button */}
         <Button
           onClick={handleSave}
           disabled={disabled || isProcessing}
@@ -219,7 +302,6 @@ export function TriggerSave({
           )}
         </Button>
 
-        {/* Delete Button (only show if webhook exists) */}
         {webhookId && (
           <Button
             onClick={handleDeleteClick}
@@ -236,7 +318,6 @@ export function TriggerSave({
         )}
       </div>
 
-      {/* Error Message */}
       {errorMessage && (
         <div className='flex items-start gap-2 rounded-md bg-destructive/10 p-2 text-destructive text-sm'>
           <AlertCircle className='mt-0.5 h-4 w-4 flex-shrink-0' />
@@ -244,7 +325,6 @@ export function TriggerSave({
         </div>
       )}
 
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
