@@ -14,6 +14,8 @@ export interface NodeMetadata {
   distributionItem?: unknown
   isLoopNode?: boolean
   loopId?: string
+  isSentinel?: boolean
+  sentinelType?: 'start' | 'end'
 }
 
 export interface ContextExtensions {

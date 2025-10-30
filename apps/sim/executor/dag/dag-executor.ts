@@ -16,6 +16,7 @@ import {
   GenericBlockHandler,
   ResponseBlockHandler,
   RouterBlockHandler,
+  SentinelBlockHandler,
   TriggerBlockHandler,
   VariablesBlockHandler,
   WaitBlockHandler,
@@ -79,7 +80,13 @@ export class DAGExecutor {
     
     const subflowManager = new SubflowManager(this.workflow, dag, state, resolver)
     
-    const blockExecutor = new BlockExecutor(this.blockHandlers, resolver, this.contextExtensions)
+    // Create sentinel handler with DAG and SubflowManager dependencies
+    const sentinelHandler = new SentinelBlockHandler(subflowManager, dag)
+    
+    // Combine handlers (sentinel first for priority)
+    const allHandlers = [sentinelHandler, ...this.blockHandlers]
+    
+    const blockExecutor = new BlockExecutor(allHandlers, resolver, this.contextExtensions)
     
     const engine = new ExecutionEngine(
       this.workflow,

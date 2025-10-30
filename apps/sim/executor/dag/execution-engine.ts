@@ -181,15 +181,21 @@ export class ExecutionEngine {
       nodeId: node.id,
       hasLoopId: !!node.metadata.loopId,
       isParallelBranch: !!node.metadata.isParallelBranch,
+      isSentinel: !!node.metadata.isSentinel,
     })
 
     await this.withQueueLock(async () => {
       const loopId = node.metadata.loopId
       const isParallelBranch = node.metadata.isParallelBranch
+      const isSentinel = node.metadata.isSentinel
 
-      if (loopId) {
+      // Sentinel nodes are handled as regular nodes - they manage their own loop logic
+      if (isSentinel) {
+        logger.debug('Handling sentinel node', { nodeId: node.id, loopId })
+        this.handleRegularNode(node, output)
+      } else if (loopId) {
         logger.debug('Handling loop node', { nodeId: node.id, loopId })
-        this.handleLoopNode(node, output, loopId)
+        this.handleLoopNodeOutput(node, output, loopId)
       } else if (isParallelBranch) {
         const parallelId = this.findParallelIdForNode(node.id)
         if (parallelId) {
@@ -215,44 +221,27 @@ export class ExecutionEngine {
     return undefined
   }
 
-  private handleLoopNode(node: DAGNode, output: NormalizedBlockOutput, loopId: string): void {
-    const loopConfig = this.dag.loopConfigs.get(loopId)
-    if (!loopConfig) {
-      logger.error('Loop config not found', { loopId })
-      return
-    }
-
-    logger.debug('Handling loop iteration', { loopId, nodeId: node.id })
+  private handleLoopNodeOutput(node: DAGNode, output: NormalizedBlockOutput, loopId: string): void {
+    // For nodes inside a loop (but not sentinel nodes), just track their output for collection
+    // The sentinel_end node will handle iteration management and loop continuation
+    
+    logger.debug('Tracking loop node output', { loopId, nodeId: node.id })
 
     const scope = this.state.getLoopScope(loopId)
-    if (!scope) {
-      logger.error('Loop scope not found - should have been initialized before execution', { loopId })
-      return
-    }
-
-    const result = this.subflowManager.handleLoopIteration(loopId, node.id, output, this.context)
-
-    logger.debug('Loop iteration result', {
-      shouldContinue: result.shouldContinue,
-      nextNodeId: result.nextNodeId,
-    })
-
-    if (result.shouldContinue && result.nextNodeId) {
-      logger.debug('Loop continuing to next iteration (backwards edge)')
-      for (const loopNodeId of (loopConfig as any).nodes) {
-        this.state.executedBlocks.delete(loopNodeId)
-      }
-      this.addToQueue(result.nextNodeId)
-    } else if (result.shouldContinue && !result.nextNodeId) {
-      logger.debug('Processing edges within loop (not last node)')
-      this.processEdges(node, output, false)
+    if (scope) {
+      const baseId = node.id.replace(/₍\d+₎$/, '')
+      scope.currentIterationOutputs.set(baseId, output)
+      logger.debug('Stored loop node output in iteration scope', {
+        baseId,
+        iteration: scope.iteration,
+      })
     } else {
-      logger.debug('Loop exiting, processing exit edges')
-      const exitOutput = { ...output }
-      delete exitOutput.selectedOption
-      delete exitOutput.selectedRoute
-      this.processEdges(node, exitOutput, true)
+      logger.warn('Loop scope not found for loop node', { loopId, nodeId: node.id })
     }
+
+    // Store output and process edges normally
+    this.state.setBlockOutput(node.id, output)
+    this.processEdges(node, output, false)
   }
 
   private handleParallelNode(node: DAGNode, output: NormalizedBlockOutput, parallelId: string): void {
@@ -280,6 +269,27 @@ export class ExecutionEngine {
 
     if (node.outgoingEdges.size === 0) {
       this.finalOutput = output
+    }
+
+    // If this is a sentinel_end with loop_continue, clear executed state for loop nodes
+    if (node.metadata.isSentinel && node.metadata.sentinelType === 'end' && output.selectedRoute === 'loop_continue') {
+      const loopId = node.metadata.loopId
+      if (loopId) {
+        const loopConfig = this.dag.loopConfigs.get(loopId)
+        if (loopConfig) {
+          logger.debug('Clearing executed state for loop iteration', { loopId })
+          // Clear executed state for all nodes in the loop (including both sentinels)
+          const sentinelStartId = `loop-${loopId}-sentinel-start`
+          const sentinelEndId = `loop-${loopId}-sentinel-end`
+          
+          this.state.executedBlocks.delete(sentinelStartId)
+          this.state.executedBlocks.delete(sentinelEndId)
+          
+          for (const loopNodeId of (loopConfig as any).nodes) {
+            this.state.executedBlocks.delete(loopNodeId)
+          }
+        }
+      }
     }
 
     this.processEdges(node, output, false)
@@ -430,6 +440,16 @@ export class ExecutionEngine {
     if (handle?.startsWith(EDGE_HANDLE.ROUTER_PREFIX)) {
       const routeId = handle.substring(EDGE_HANDLE.ROUTER_PREFIX.length)
       return output.selectedRoute === routeId
+    }
+
+    // Handle loop continuation edges from sentinel_end
+    if (handle === EDGE_HANDLE.LOOP_CONTINUE || handle === EDGE_HANDLE.LOOP_CONTINUE_ALT) {
+      return output.selectedRoute === 'loop_continue'
+    }
+
+    // Handle loop exit edges from sentinel_end
+    if (handle === 'loop_exit') {
+      return output.selectedRoute === 'loop_exit'
     }
 
     if (handle === EDGE_HANDLE.ERROR && !output.error) {

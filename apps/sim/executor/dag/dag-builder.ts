@@ -116,6 +116,67 @@ export class DAGBuilder {
       }
     }
 
+    // Step 2.5: Create sentinel nodes for loops
+    for (const [loopId, loopConfig] of dag.loopConfigs) {
+      const config = loopConfig as any
+      const nodes = config.nodes || []
+      
+      if (nodes.length === 0) continue
+
+      // Create sentinel_start node
+      const sentinelStartId = `loop-${loopId}-sentinel-start`
+      dag.nodes.set(sentinelStartId, {
+        id: sentinelStartId,
+        block: {
+          id: sentinelStartId,
+          enabled: true,
+          metadata: {
+            id: 'sentinel_start',
+            name: `Loop Start (${loopId})`,
+            loopId,
+          },
+          config: { params: {} },
+        } as any,
+        incomingEdges: new Set(),
+        outgoingEdges: new Map(),
+        metadata: {
+          isSentinel: true,
+          sentinelType: 'start',
+          loopId,
+        },
+      })
+
+      // Create sentinel_end node
+      const sentinelEndId = `loop-${loopId}-sentinel-end`
+      dag.nodes.set(sentinelEndId, {
+        id: sentinelEndId,
+        block: {
+          id: sentinelEndId,
+          enabled: true,
+          metadata: {
+            id: 'sentinel_end',
+            name: `Loop End (${loopId})`,
+            loopId,
+          },
+          config: { params: {} },
+        } as any,
+        incomingEdges: new Set(),
+        outgoingEdges: new Map(),
+        metadata: {
+          isSentinel: true,
+          sentinelType: 'end',
+          loopId,
+        },
+      })
+
+      logger.debug('Created sentinel nodes for loop', {
+        loopId,
+        sentinelStartId,
+        sentinelEndId,
+        loopNodes: nodes,
+      })
+    }
+
     // Step 3: Create nodes - only for reachable blocks
     for (const block of workflow.blocks) {
       if (!block.enabled) continue
@@ -319,51 +380,33 @@ export class DAGBuilder {
       if (sourceIsLoopBlock || targetIsLoopBlock || sourceIsParallelBlock || targetIsParallelBlock) {
         // Handle loop/parallel edges specially
         if (sourceIsLoopBlock) {
-          // Edge FROM loop block
-          const loopConfig = dag.loopConfigs.get(source) as any
-          const loopNodes = loopConfig.nodes || []
-          const isTargetInLoop = loopNodes.includes(target)
+          // Edge FROM loop block → redirect to sentinel_end
+          const sentinelEndId = `loop-${source}-sentinel-end`
           
-          if (sourceHandle?.includes('start')) {
-            // Loop start edges - these go TO loop nodes (internal wiring)
-            logger.debug('Skipping loop start internal edge:', { sourceHandle, target })
-            continue // Skip - we handle loop entry via regular edges
-          }
-          
-          if (sourceHandle?.includes('end') && isTargetInLoop) {
-            // Loop end edge pointing back INTO the loop (internal wiring)
-            logger.debug('Skipping loop end internal edge:', { sourceHandle, target })
-            continue // Skip internal loop wiring  
-          }
-          
-          // This is a loop EXIT edge (loop → external block)
-          // Redirect from last node in loop
-          const lastNode = loopConfig.nodes[loopConfig.nodes.length - 1]
-          logger.debug('Redirecting loop exit edge:', {
+          logger.debug('Redirecting loop exit edge to sentinel_end:', {
             originalSource: source,
-            redirectedFrom: lastNode,
+            redirectedFrom: sentinelEndId,
             targetNode: target,
-            sourceHandle,
+            sourceHandle: 'loop_exit',
           })
-          source = lastNode // Redirect exit edge
+          
+          // Redirect to sentinel_end with 'loop_exit' handle
+          source = sentinelEndId
+          sourceHandle = 'loop_exit'
         }
 
         if (targetIsLoopBlock) {
-          // Edge TO loop block (entry edge) → redirect to first node in loop
-          // Skip internal loop edges
-          if (targetHandle?.includes('end') || targetHandle?.includes('loop')) {
-            logger.debug('Skipping loop internal edge:', { targetHandle })
-            continue // Skip internal loop wiring
-          }
+          // Edge TO loop block → redirect to sentinel_start
+          const sentinelStartId = `loop-${target}-sentinel-start`
           
-          const loopConfig = dag.loopConfigs.get(target) as any
-          const firstNode = loopConfig.nodes[0]
-          logger.debug('Redirecting loop entry edge:', {
+          logger.debug('Redirecting loop entry edge to sentinel_start:', {
             originalTarget: target,
-            redirectedTo: firstNode,
+            redirectedTo: sentinelStartId,
             sourceNode: source,
           })
-          target = firstNode // Redirect entry edge
+          
+          // Redirect to sentinel_start
+          target = sentinelStartId
         }
 
         if (sourceIsParallelBlock) {
@@ -375,6 +418,43 @@ export class DAGBuilder {
           // Skip - parallels are expanded, not blocks
           continue
         }
+      }
+
+      // Check if source/target are in loops (for sentinel routing)
+      const sourceInLoop = blocksInLoops.has(source)
+      const targetInLoop = blocksInLoops.has(target)
+      let sourceLoopId: string | undefined
+      let targetLoopId: string | undefined
+      
+      if (sourceInLoop) {
+        for (const [loopId, loopConfig] of dag.loopConfigs) {
+          if ((loopConfig as any).nodes.includes(source)) {
+            sourceLoopId = loopId
+            break
+          }
+        }
+      }
+      
+      if (targetInLoop) {
+        for (const [loopId, loopConfig] of dag.loopConfigs) {
+          if ((loopConfig as any).nodes.includes(target)) {
+            targetLoopId = loopId
+            break
+          }
+        }
+      }
+      
+      // If edge crosses loop boundary, skip it - sentinels will handle it
+      if (sourceInLoop !== targetInLoop || sourceLoopId !== targetLoopId) {
+        logger.debug('Skipping edge that crosses loop boundary - will be handled by sentinels', {
+          source,
+          target,
+          sourceInLoop,
+          targetInLoop,
+          sourceLoopId,
+          targetLoopId,
+        })
+        continue
       }
 
       // Determine if source/target are in parallels
@@ -426,26 +506,82 @@ export class DAGBuilder {
       }
     }
 
-    // Add backwards-edges for loops
+    // Wire up sentinel nodes for loops
+    // Process edges that cross loop boundaries through sentinels
     for (const [loopId, loopConfig] of dag.loopConfigs) {
       const config = loopConfig as any
       const nodes = config.nodes || []
 
-      if (nodes.length > 0) {
-        const firstNode = nodes[0]
-        const lastNode = nodes[nodes.length - 1]
+      if (nodes.length === 0) continue
 
-        logger.debug('Adding loop backwards-edge:', {
-          loopId,
-          from: lastNode,
-          to: firstNode,
-          loopType: config.loopType,
-          iterations: config.iterations,
-        })
+      const sentinelStartId = `loop-${loopId}-sentinel-start`
+      const sentinelEndId = `loop-${loopId}-sentinel-end`
+      
+      const nodesSet = new Set(nodes)
+      const startNodesSet = new Set<string>()
+      const terminalNodesSet = new Set<string>()
 
-        // Add backwards-edge from last to first (cycle!)
-        this.addEdge(dag, lastNode, firstNode, 'loop_continue', undefined, true)
+      // Find start nodes: nodes with no incoming edges from within the loop
+      for (const nodeId of nodes) {
+        const node = dag.nodes.get(nodeId)
+        if (!node) continue
+        
+        let hasIncomingFromLoop = false
+        for (const incomingNodeId of node.incomingEdges) {
+          if (nodesSet.has(incomingNodeId)) {
+            hasIncomingFromLoop = true
+            break
+          }
+        }
+        
+        if (!hasIncomingFromLoop) {
+          startNodesSet.add(nodeId)
+        }
       }
+      
+      // Find terminal nodes: nodes with no outgoing edges to other loop nodes
+      for (const nodeId of nodes) {
+        const node = dag.nodes.get(nodeId)
+        if (!node) continue
+        
+        let hasOutgoingToLoop = false
+        for (const [_, edge] of node.outgoingEdges) {
+          if (nodesSet.has(edge.target)) {
+            hasOutgoingToLoop = true
+            break
+          }
+        }
+        
+        if (!hasOutgoingToLoop) {
+          terminalNodesSet.add(nodeId)
+        }
+      }
+      
+      const startNodes = Array.from(startNodesSet)
+      const terminalNodes = Array.from(terminalNodesSet)
+
+      logger.debug('Wiring sentinel nodes for loop', {
+        loopId,
+        startNodes,
+        terminalNodes,
+        totalNodes: nodes.length,
+      })
+
+      // Connect sentinel_start to all start nodes
+      for (const startNodeId of startNodes) {
+        this.addEdge(dag, sentinelStartId, startNodeId)
+        logger.debug('Connected sentinel_start to start node', { from: sentinelStartId, to: startNodeId })
+      }
+
+      // Connect all terminal nodes to sentinel_end
+      for (const terminalNodeId of terminalNodes) {
+        this.addEdge(dag, terminalNodeId, sentinelEndId)
+        logger.debug('Connected terminal node to sentinel_end', { from: terminalNodeId, to: sentinelEndId })
+      }
+
+      // Add backward edge from sentinel_end to sentinel_start (loop continue)
+      this.addEdge(dag, sentinelEndId, sentinelStartId, 'loop_continue', undefined, true)
+      logger.debug('Added backward edge', { from: sentinelEndId, to: sentinelStartId })
     }
   }
 
