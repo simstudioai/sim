@@ -515,11 +515,72 @@ export class DAGExecutor {
 
       case 'while':
       case 'doWhile': {
-        // Evaluate condition
-        // TODO: Implement condition evaluation
-        // For now, limit to prevent infinite loops
-        const maxIterations = 500
-        return scope.iteration < maxIterations
+        // Evaluate while condition
+        if (!whileCondition || whileCondition.trim() === '') {
+          logger.warn(`${loopType} loop has no condition, defaulting to false (exit loop)`)
+          return false
+        }
+
+        try {
+          let evaluatedCondition = whileCondition
+          
+          // Resolve workflow variables using the exact same pattern as DAGResolver.resolveWorkflowVariable
+          const variableMatches = evaluatedCondition.match(/<variable\.(\w+)>/g)
+          if (variableMatches) {
+            for (const match of variableMatches) {
+              const variableName = match.slice(10, -1) // Extract name from <variable.name>
+              
+              // Use exact same resolution logic as DAGResolver
+              let variable: any = null
+              
+              // First check context's workflow variables (these get updated by Variables blocks)
+              if (context.workflowVariables) {
+                for (const [varId, varObj] of Object.entries(context.workflowVariables)) {
+                  const v = varObj as any
+                  if (v.name === variableName || v.id === variableName) {
+                    variable = v
+                    break
+                  }
+                }
+              }
+              
+              // Fallback to initial variables
+              if (!variable && this.workflowVariables) {
+                for (const [varId, varObj] of Object.entries(this.workflowVariables)) {
+                  const v = varObj as any
+                  if (v.name === variableName || v.id === variableName) {
+                    variable = v
+                    break
+                  }
+                }
+              }
+              
+              if (variable) {
+                evaluatedCondition = evaluatedCondition.replace(match, String(variable.value))
+              }
+            }
+          }
+          
+          // Replace loop context variables
+          evaluatedCondition = evaluatedCondition.replace(/<loop\.iteration>/g, scope.iteration.toString())
+          evaluatedCondition = evaluatedCondition.replace(/<loop\.item>/g, JSON.stringify(scope.item))
+          
+          logger.debug('Evaluating while condition:', {
+            original: whileCondition,
+            afterSubstitution: evaluatedCondition,
+            loopIteration: scope.iteration,
+          })
+          
+          const result = Boolean(eval(`(${evaluatedCondition})`))
+          logger.debug('While condition result:', { result })
+          return result
+        } catch (error) {
+          logger.error('Failed to evaluate while condition:', {
+            condition: whileCondition,
+            error: error instanceof Error ? error.message : String(error),
+          })
+          return false
+        }
       }
 
       default:

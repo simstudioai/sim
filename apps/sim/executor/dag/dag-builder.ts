@@ -70,19 +70,62 @@ export class DAGBuilder {
       totalBlocks: workflow.blocks.length,
     })
 
+    // Step 1.6: Filter loop and parallel configs to only include those with reachable blocks
+    for (const [loopId, loopConfig] of dag.loopConfigs) {
+      const loopNodes = (loopConfig as any).nodes || []
+      const reachableLoopNodes = loopNodes.filter((nodeId: string) => reachableBlocks.has(nodeId))
+      
+      if (reachableLoopNodes.length === 0) {
+        logger.debug('Removing unreachable loop:', { loopId, totalNodes: loopNodes.length })
+        dag.loopConfigs.delete(loopId)
+      } else if (reachableLoopNodes.length < loopNodes.length) {
+        // Partial reachability - update config with only reachable nodes
+        logger.debug('Filtering loop to reachable nodes:', {
+          loopId,
+          originalNodes: loopNodes.length,
+          reachableNodes: reachableLoopNodes.length,
+        })
+        ;(loopConfig as any).nodes = reachableLoopNodes
+      }
+    }
+
+    for (const [parallelId, parallelConfig] of dag.parallelConfigs) {
+      const parallelNodes = (parallelConfig as any).nodes || []
+      const reachableParallelNodes = parallelNodes.filter((nodeId: string) => reachableBlocks.has(nodeId))
+      
+      if (reachableParallelNodes.length === 0) {
+        logger.debug('Removing unreachable parallel:', { parallelId, totalNodes: parallelNodes.length })
+        dag.parallelConfigs.delete(parallelId)
+      } else if (reachableParallelNodes.length < parallelNodes.length) {
+        // Partial reachability - update config with only reachable nodes
+        logger.debug('Filtering parallel to reachable nodes:', {
+          parallelId,
+          originalNodes: parallelNodes.length,
+          reachableNodes: reachableParallelNodes.length,
+        })
+        ;(parallelConfig as any).nodes = reachableParallelNodes
+      }
+    }
+
     // Step 2: Determine which blocks are in loops vs parallels
     const blocksInLoops = new Set<string>()
     const blocksInParallels = new Set<string>()
 
     for (const [loopId, loopConfig] of dag.loopConfigs) {
       for (const nodeId of (loopConfig as any).nodes || []) {
-        blocksInLoops.add(nodeId)
+        // Only add if reachable (should always be true after filtering above)
+        if (reachableBlocks.has(nodeId)) {
+          blocksInLoops.add(nodeId)
+        }
       }
     }
 
     for (const [parallelId, parallelConfig] of dag.parallelConfigs) {
       for (const nodeId of (parallelConfig as any).nodes || []) {
-        blocksInParallels.add(nodeId)
+        // Only add if reachable (should always be true after filtering above)
+        if (reachableBlocks.has(nodeId)) {
+          blocksInParallels.add(nodeId)
+        }
       }
     }
 
@@ -426,7 +469,7 @@ export class DAGBuilder {
     const queue = [start]
     reachable.add(start)
 
-    // Build adjacency map
+    // Build adjacency map (initially only with explicit connections)
     const adjacency = new Map<string, string[]>()
     for (const conn of workflow.connections) {
       if (!adjacency.has(conn.source)) {
@@ -435,40 +478,79 @@ export class DAGBuilder {
       adjacency.get(conn.source)!.push(conn.target)
     }
 
-    // Add loop/parallel internal nodes to adjacency
-    if (workflow.loops) {
-      for (const [loopId, loopConfig] of Object.entries(workflow.loops)) {
-        const nodes = (loopConfig as any).nodes || []
-        // Add connections within loop
-        for (let i = 0; i < nodes.length - 1; i++) {
-          if (!adjacency.has(nodes[i])) {
-            adjacency.set(nodes[i], [])
+    // First pass: traverse explicit connections to find reachable loop/parallel blocks
+    const tempQueue = [start]
+    const tempReachable = new Set([start])
+    const reachableLoopBlocks = new Set<string>()
+    const reachableParallelBlocks = new Set<string>()
+
+    while (tempQueue.length > 0) {
+      const current = tempQueue.shift()!
+      const neighbors = adjacency.get(current) || []
+
+      for (const neighbor of neighbors) {
+        if (!tempReachable.has(neighbor)) {
+          tempReachable.add(neighbor)
+          tempQueue.push(neighbor)
+          
+          // Track if this is a loop or parallel block
+          if (workflow.loops && (workflow.loops as any)[neighbor]) {
+            reachableLoopBlocks.add(neighbor)
           }
-          adjacency.get(nodes[i])!.push(nodes[i + 1])
-        }
-        
-        // Loop block itself connects to first node
-        if (nodes.length > 0) {
-          if (!adjacency.has(loopId)) {
-            adjacency.set(loopId, [])
+          if (workflow.parallels && (workflow.parallels as any)[neighbor]) {
+            reachableParallelBlocks.add(neighbor)
           }
-          adjacency.get(loopId)!.push(nodes[0])
         }
       }
     }
 
+    // Add loop/parallel internal nodes to adjacency only if the loop/parallel block itself is reachable
+    if (workflow.loops) {
+      for (const [loopId, loopConfig] of Object.entries(workflow.loops)) {
+        // Only add internal connections if this loop block is reachable
+        if (reachableLoopBlocks.has(loopId)) {
+          const nodes = (loopConfig as any).nodes || []
+          // Add connections within loop
+          for (let i = 0; i < nodes.length - 1; i++) {
+            if (!adjacency.has(nodes[i])) {
+              adjacency.set(nodes[i], [])
+            }
+            adjacency.get(nodes[i])!.push(nodes[i + 1])
+          }
+          
+          // Loop block itself connects to first node
+          if (nodes.length > 0) {
+            if (!adjacency.has(loopId)) {
+              adjacency.set(loopId, [])
+            }
+            adjacency.get(loopId)!.push(nodes[0])
+          }
+        }
+      }
+    }
+
+    // Second pass: complete BFS traversal with all valid connections
+    const finalQueue = [start]
+    reachable.clear()
+    reachable.add(start)
+
     // Traverse
-    while (queue.length > 0) {
-      const current = queue.shift()!
+    while (finalQueue.length > 0) {
+      const current = finalQueue.shift()!
       const neighbors = adjacency.get(current) || []
 
       for (const neighbor of neighbors) {
         if (!reachable.has(neighbor)) {
           reachable.add(neighbor)
-          queue.push(neighbor)
+          finalQueue.push(neighbor)
         }
       }
     }
+
+    logger.debug('Reachable blocks after filtering:', {
+      reachableLoops: Array.from(reachableLoopBlocks),
+      reachableParallels: Array.from(reachableParallelBlocks),
+    })
 
     return reachable
   }
