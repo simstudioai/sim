@@ -844,7 +844,6 @@ async function handleSubflowOperationTx(
       }
 
       logger.debug(`[SERVER] Updating subflow ${payload.id} with config:`, payload.config)
-      logger.debug(`[SERVER] Subflow update - loopType: ${payload.config.loopType}, whileCondition: ${payload.config.whileCondition}, doWhileCondition: ${payload.config.doWhileCondition}`)
 
       // Update the subflow configuration
       const updateResult = await tx

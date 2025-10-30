@@ -194,20 +194,18 @@ export async function loadWorkflowFromNormalizedTables(
         }
         loops[subflow.id] = loop
 
-        // Sync block.data with loop config to ensure all condition fields are present
+        // Sync block.data with loop config to ensure all fields are present
+        // This allows switching between loop types without losing data
         if (sanitizedBlocks[subflow.id]) {
           const block = sanitizedBlocks[subflow.id]
-          
-          const syncedData = {
-            ...block.data,
-            whileCondition: loop.whileCondition !== undefined ? loop.whileCondition : (block.data?.whileCondition || ''),
-            doWhileCondition: loop.doWhileCondition !== undefined ? loop.doWhileCondition : (block.data?.doWhileCondition || ''),
-            collection: loop.forEachItems !== undefined ? loop.forEachItems : (block.data?.collection || ''),
-          }
-
           sanitizedBlocks[subflow.id] = {
             ...block,
-            data: syncedData,
+            data: {
+              ...block.data,
+              collection: loop.forEachItems ?? block.data?.collection ?? '',
+              whileCondition: loop.whileCondition ?? block.data?.whileCondition ?? '',
+              doWhileCondition: loop.doWhileCondition ?? block.data?.doWhileCondition ?? '',
+            },
           }
         }
       } else if (subflow.type === SUBFLOW_TYPES.PARALLEL) {

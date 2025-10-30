@@ -28,11 +28,6 @@ export class SubflowManager {
       throw new Error(`Loop config not found: ${loopId}`)
     }
 
-    logger.debug('Raw loop config', {
-      loopId,
-      loopConfig: JSON.stringify(loopConfig)
-    })
-
     const scope: LoopScope = {
       iteration: 0,
       currentIterationOutputs: new Map(),
@@ -50,12 +45,6 @@ export class SubflowManager {
       scope.maxIterations = items.length
       scope.item = items[0]
       scope.condition = `<loop.index> < ${scope.maxIterations}`
-      
-      logger.debug('Initialized forEach loop', {
-        loopId,
-        itemsCount: items.length,
-        firstItem: items[0],
-      })
     } else if (loopType === 'while') {
       scope.condition = loopConfig.whileCondition
     } else if (loopType === 'doWhile' || loopType === 'do-while') {
@@ -67,14 +56,6 @@ export class SubflowManager {
       }
       scope.skipFirstConditionCheck = true
     }
-
-    logger.debug('Initialized loop scope', {
-      loopId,
-      loopType,
-      condition: scope.condition,
-      maxIterations: scope.maxIterations,
-      skipFirstConditionCheck: scope.skipFirstConditionCheck
-    })
 
     this.state.setLoopScope(loopId, scope)
     return scope

@@ -85,16 +85,6 @@ export function IterationBadges({ nodeId, data, iterationType }: IterationBadges
   const currentType = (data?.[config.typeKey] ||
     (iterationType === 'loop' ? 'for' : 'count')) as any
 
-  // Debug logging for ALL loop types to see what's happening
-  if (iterationType === 'loop') {
-    console.log('[IterationBadges] Loop hydration:', {
-      nodeId,
-      currentType,
-      dataLoopType: data?.loopType,
-      nodeConfig: nodeConfig as any,
-      data: data as any,
-    })
-  }
 
   // Determine if we're in count mode, collection mode, or condition mode
   const isCountMode =
@@ -117,31 +107,11 @@ export function IterationBadges({ nodeId, data, iterationType }: IterationBadges
   const collectionString =
     typeof configCollection === 'string' ? configCollection : JSON.stringify(configCollection) || ''
   const conditionString = typeof configCondition === 'string' ? configCondition : ''
-  
-  if (iterationType === 'loop' && currentType === 'doWhile') {
-    console.log('[IterationBadges] DoWhile condition resolution:', {
-      conditionKey,
-      'nodeConfig[conditionKey]': (nodeConfig as any)?.[conditionKey],
-      'data[conditionKey]': (data as any)?.[conditionKey],
-      configCondition,
-      conditionString,
-      editorValue: conditionString,
-    })
-  }
 
   // State management
   const [tempInputValue, setTempInputValue] = useState<string | null>(null)
   const inputValue = tempInputValue ?? iterations.toString()
   const editorValue = isConditionMode ? conditionString : collectionString
-  
-  if (iterationType === 'loop' && currentType === 'doWhile') {
-    console.log('[IterationBadges] DoWhile editor value:', {
-      isConditionMode,
-      conditionString,
-      collectionString,
-      editorValue,
-    })
-  }
   const [typePopoverOpen, setTypePopoverOpen] = useState(false)
   const [configPopoverOpen, setConfigPopoverOpen] = useState(false)
   const [showTagDropdown, setShowTagDropdown] = useState(false)
@@ -211,7 +181,6 @@ export function IterationBadges({ nodeId, data, iterationType }: IterationBadges
   const handleEditorChange = useCallback(
     (value: string) => {
       if (isPreview) return
-      console.log('[IterationBadges] handleEditorChange called:', { nodeId, iterationType, value, currentType })
       collaborativeUpdateIterationCollection(nodeId, iterationType, value)
 
       const textarea = editorContainerRef.current?.querySelector('textarea')
