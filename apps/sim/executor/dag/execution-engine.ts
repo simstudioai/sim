@@ -277,15 +277,45 @@ export class ExecutionEngine {
       if (loopId) {
         const loopConfig = this.dag.loopConfigs.get(loopId)
         if (loopConfig) {
-          logger.debug('Clearing executed state for loop iteration', { loopId })
-          // Clear executed state for all nodes in the loop (including both sentinels)
+          logger.debug('Clearing executed state and restoring edges for loop iteration', { loopId })
+          
           const sentinelStartId = `loop-${loopId}-sentinel-start`
           const sentinelEndId = `loop-${loopId}-sentinel-end`
+          const loopNodes = (loopConfig as any).nodes as string[]
           
+          // Build set of all loop-related nodes
+          const allLoopNodeIds = new Set([sentinelStartId, sentinelEndId, ...loopNodes])
+          
+          // Restore incoming edges for all loop nodes by scanning outgoing edges
+          for (const nodeId of allLoopNodeIds) {
+            const nodeToRestore = this.dag.nodes.get(nodeId)
+            if (!nodeToRestore) continue
+            
+            // Find all nodes that have edges pointing to this node
+            for (const [potentialSourceId, potentialSourceNode] of this.dag.nodes) {
+              if (!allLoopNodeIds.has(potentialSourceId)) continue // Only from loop nodes
+              
+              for (const [edgeId, edge] of potentialSourceNode.outgoingEdges) {
+                if (edge.target === nodeId) {
+                  // Skip backward edges (they start inactive)
+                  const isBackwardEdge = edge.sourceHandle === 'loop_continue' || edge.sourceHandle === 'loop-continue-source'
+                  if (!isBackwardEdge) {
+                    nodeToRestore.incomingEdges.add(potentialSourceId)
+                    logger.debug('Restored incoming edge for loop node', {
+                      from: potentialSourceId,
+                      to: nodeId,
+                    })
+                  }
+                }
+              }
+            }
+          }
+          
+          // Clear executed state for all nodes in the loop (including both sentinels)
           this.state.executedBlocks.delete(sentinelStartId)
           this.state.executedBlocks.delete(sentinelEndId)
           
-          for (const loopNodeId of (loopConfig as any).nodes) {
+          for (const loopNodeId of loopNodes) {
             this.state.executedBlocks.delete(loopNodeId)
           }
         }
