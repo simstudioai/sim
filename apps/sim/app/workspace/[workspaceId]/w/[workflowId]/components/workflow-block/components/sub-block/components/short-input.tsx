@@ -464,6 +464,7 @@ export function ShortInput({
                 setShowEnvVars(false)
                 setSearchTerm('')
               }}
+              maxHeight='192px'
             />
             <TagDropdown
               visible={showTags}

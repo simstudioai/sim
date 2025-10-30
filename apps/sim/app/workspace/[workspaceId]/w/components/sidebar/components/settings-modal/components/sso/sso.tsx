@@ -497,7 +497,32 @@ export function SSO() {
   const showStatus = hasProviders && !showConfigForm
 
   return (
-    <div className='flex h-full flex-col'>
+    <div className='relative flex h-full flex-col'>
+      {/* Hidden dummy inputs to prevent browser password manager autofill */}
+      <input
+        type='text'
+        name='fakeusernameremembered'
+        autoComplete='username'
+        style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+        tabIndex={-1}
+        readOnly
+      />
+      <input
+        type='password'
+        name='fakepasswordremembered'
+        autoComplete='current-password'
+        style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+        tabIndex={-1}
+        readOnly
+      />
+      <input
+        type='email'
+        name='fakeemailremembered'
+        autoComplete='email'
+        style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+        tabIndex={-1}
+        readOnly
+      />
       <div className='flex-1 overflow-y-auto px-6 pt-4 pb-4'>
         <div className='space-y-6'>
           {error && (
@@ -757,11 +782,11 @@ export function SSO() {
                       <div className='relative'>
                         <Input
                           id='client-secret'
-                          type={showClientSecret ? 'text' : 'password'}
+                          type='text'
                           placeholder='Enter Client Secret'
                           value={formData.clientSecret}
                           name='sso_client_key'
-                          autoComplete='new-password'
+                          autoComplete='off'
                           autoCapitalize='none'
                           spellCheck={false}
                           readOnly
@@ -771,6 +796,11 @@ export function SSO() {
                           }}
                           onBlurCapture={() => setShowClientSecret(false)}
                           onChange={(e) => handleInputChange('clientSecret', e.target.value)}
+                          style={
+                            !showClientSecret
+                              ? ({ WebkitTextSecurity: 'disc' } as React.CSSProperties)
+                              : undefined
+                          }
                           className={cn(
                             'rounded-[10px] pr-10 shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
                             showErrors &&

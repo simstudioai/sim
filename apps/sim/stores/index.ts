@@ -217,11 +217,7 @@ export const resetAllStores = () => {
   })
   useWorkflowStore.getState().clear()
   useSubBlockStore.getState().clear()
-  useEnvironmentStore.setState({
-    variables: {},
-    isLoading: false,
-    error: null,
-  })
+  useEnvironmentStore.getState().reset()
   useExecutionStore.getState().reset()
   useConsoleStore.setState({ entries: [], isOpen: false })
   useCopilotStore.setState({ messages: [], isSendingMessage: false, error: null })
