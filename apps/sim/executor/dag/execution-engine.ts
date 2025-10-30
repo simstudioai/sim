@@ -247,21 +247,21 @@ export class ExecutionEngine {
   private handleParallelNode(node: DAGNode, output: NormalizedBlockOutput, parallelId: string): void {
     let scope = this.state.getParallelScope(parallelId)
     if (!scope) {
+      // Use the branch information from the node metadata (set by DAG builder)
+      // This ensures we use the actual number of branches that were created
+      const totalBranches = node.metadata.branchTotal || 1
+      
       const parallelConfig = this.dag.parallelConfigs.get(parallelId)
-      if (parallelConfig) {
-        const totalBranches = parallelConfig.count || (parallelConfig.distribution ? 
-          (Array.isArray(parallelConfig.distribution) ? parallelConfig.distribution.length : Object.keys(parallelConfig.distribution as object).length) : 
-          0
-        )
-        scope = this.subflowManager.initializeParallelScope(parallelId, totalBranches)
-      }
+      const nodesInParallel = (parallelConfig as any)?.nodes?.length || 1
+      
+      scope = this.subflowManager.initializeParallelScope(parallelId, totalBranches, nodesInParallel)
     }
 
     const allComplete = this.subflowManager.handleParallelBranch(parallelId, node.id, output)
 
-    if (allComplete) {
-      this.processEdges(node, output, false)
-    }
+    // Each parallel branch must process its own outgoing edges independently
+    // This allows all branches to contribute their edges to downstream nodes
+    this.processEdges(node, output, false)
   }
 
   private handleRegularNode(node: DAGNode, output: NormalizedBlockOutput): void {

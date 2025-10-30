@@ -211,9 +211,65 @@ export class VariableResolver {
       return undefined
     }
 
+    const branchIndex = this.extractBranchIndex(currentNodeId)
+    if (branchIndex === null) {
+      return undefined
+    }
+
     if (property === 'index') {
-      const branchIndex = this.extractBranchIndex(currentNodeId)
       return branchIndex
+    }
+
+    if (property === 'currentItem') {
+      // Get the distribution item for this specific branch
+      const parallelConfig = this.workflow.parallels?.[parallelId]
+      if (!parallelConfig) {
+        return undefined
+      }
+
+      // Get the distribution items
+      let distributionItems = (parallelConfig as any).distributionItems || (parallelConfig as any).distribution
+      
+      // Parse if string
+      if (typeof distributionItems === 'string' && !distributionItems.startsWith('<')) {
+        try {
+          distributionItems = JSON.parse(distributionItems.replace(/'/g, '"'))
+        } catch (e) {
+          return undefined
+        }
+      }
+
+      if (Array.isArray(distributionItems)) {
+        return distributionItems[branchIndex]
+      } else if (typeof distributionItems === 'object' && distributionItems !== null) {
+        const keys = Object.keys(distributionItems)
+        const key = keys[branchIndex]
+        return key !== undefined ? distributionItems[key] : undefined
+      }
+
+      return undefined
+    }
+
+    if (property === 'items') {
+      // Return all distribution items
+      const parallelConfig = this.workflow.parallels?.[parallelId]
+      if (!parallelConfig) {
+        return undefined
+      }
+
+      // Get the distribution items
+      let distributionItems = (parallelConfig as any).distributionItems || (parallelConfig as any).distribution
+      
+      // Parse if string
+      if (typeof distributionItems === 'string' && !distributionItems.startsWith('<')) {
+        try {
+          distributionItems = JSON.parse(distributionItems.replace(/'/g, '"'))
+        } catch (e) {
+          return undefined
+        }
+      }
+
+      return distributionItems
     }
 
     return undefined

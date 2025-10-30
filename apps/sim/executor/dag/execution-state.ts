@@ -21,7 +21,9 @@ export interface LoopScope {
 export interface ParallelScope {
   parallelId: string
   totalBranches: number
-  branchOutputs: Map<number, NormalizedBlockOutput>
+  branchOutputs: Map<number, NormalizedBlockOutput[]> // Map<branchIndex, array of outputs from all nodes in that branch>
+  completedCount: number
+  totalExpectedNodes: number
 }
 
 export class ExecutionState {

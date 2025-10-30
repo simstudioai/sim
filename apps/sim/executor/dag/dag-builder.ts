@@ -437,12 +437,14 @@ export class DAGBuilder {
         }
 
         if (sourceIsParallelBlock) {
-          // Skip - parallels are expanded, not blocks
+          // Edge FROM parallel block → handle later after all internal edges are built
+          // Store these edges for post-processing
           continue
         }
 
         if (targetIsParallelBlock) {
-          // Skip - parallels are expanded, not blocks
+          // Edge TO parallel block → handle later after all internal edges are built
+          // Store these edges for post-processing
           continue
         }
       }
@@ -507,9 +509,23 @@ export class DAGBuilder {
         const targetParallelId = this.getParallelId(target, dag)
 
         if (sourceParallelId === targetParallelId) {
-          // Same parallel - expand edge across all branches
+          // Same parallel - expand edge across all branches (internal connection)
           const parallelConfig = dag.parallelConfigs.get(sourceParallelId!) as any
-          const count = parallelConfig.parallelCount || parallelConfig.count || 1
+          
+          // Calculate actual branch count (same logic as branch creation)
+          let distributionItems = parallelConfig.distributionItems || parallelConfig.distribution || []
+          if (typeof distributionItems === 'string' && !distributionItems.startsWith('<')) {
+            try {
+              distributionItems = JSON.parse(distributionItems.replace(/'/g, '"'))
+            } catch (e) {
+              distributionItems = []
+            }
+          }
+          
+          let count = parallelConfig.parallelCount || parallelConfig.count || 1
+          if (parallelConfig.parallelType === 'collection' && Array.isArray(distributionItems)) {
+            count = distributionItems.length
+          }
 
           for (let i = 0; i < count; i++) {
             const sourceNodeId = `${source}₍${i}₎`
@@ -518,30 +534,21 @@ export class DAGBuilder {
           }
         } else {
           // Different parallels - shouldn't happen in valid workflows
-          logger.warn('Edge between different parallels:', { source, target })
+          logger.warn('Edge between different parallels - invalid workflow structure:', { source, target })
         }
-      } else if (sourceInParallel) {
-        // Source in parallel, target outside - edge from ALL branches to target
-        const sourceParallelId = this.getParallelId(source, dag)
-        const parallelConfig = dag.parallelConfigs.get(sourceParallelId!) as any
-        const count = parallelConfig.parallelCount || parallelConfig.count || 1
-
-        for (let i = 0; i < count; i++) {
-          const sourceNodeId = `${source}₍${i}₎`
-          this.addEdge(dag, sourceNodeId, target, sourceHandle, targetHandle)
-        }
-      } else if (targetInParallel) {
-        // Source outside, target in parallel - edge from source to ALL branches
-        const targetParallelId = this.getParallelId(target, dag)
-        const parallelConfig = dag.parallelConfigs.get(targetParallelId!) as any
-        const count = parallelConfig.parallelCount || parallelConfig.count || 1
-
-        for (let i = 0; i < count; i++) {
-          const targetNodeId = `${target}₍${i}₎`
-          this.addEdge(dag, source, targetNodeId, sourceHandle, targetHandle)
-        }
+      } else if (sourceInParallel || targetInParallel) {
+        // Internal node connecting to external node - this violates parallel/loop semantics
+        // These edges should be at the parallel block level, not internal node level
+        // They will be handled by the parallel block wiring section
+        logger.debug('Skipping internal-to-external edge (will be handled by parallel block wiring):', {
+          source,
+          target,
+          sourceInParallel,
+          targetInParallel,
+        })
+        continue
       } else {
-        // Regular edge
+        // Regular edge (both nodes outside any parallel/loop)
         this.addEdge(dag, source, target, sourceHandle, targetHandle)
       }
     }
@@ -630,6 +637,207 @@ export class DAGBuilder {
       // Add backward edge from sentinel_end to sentinel_start (loop continue)
       this.addEdge(dag, sentinelEndId, sentinelStartId, 'loop_continue', undefined, true)
       logger.debug('Added backward edge', { from: sentinelEndId, to: sentinelStartId })
+    }
+
+    // Wire up parallel blocks
+    // Process edges that cross parallel boundaries by connecting to entry/terminal nodes
+    for (const [parallelId, parallelConfig] of dag.parallelConfigs) {
+      const config = parallelConfig as any
+      const nodes = config.nodes || []
+
+      if (nodes.length === 0) continue
+
+      // Build a set of all nodes in this parallel for quick lookup
+      const nodesSet = new Set(nodes)
+      const entryNodesSet = new Set<string>()
+      const terminalNodesSet = new Set<string>()
+
+      // Find entry nodes: nodes with no incoming edges from within the parallel
+      for (const nodeId of nodes) {
+        // Check if any branch of this node exists in the DAG
+        const branchCount = config.count || config.parallelCount || 1
+        let hasAnyBranch = false
+        for (let i = 0; i < branchCount; i++) {
+          const branchNodeId = `${nodeId}₍${i}₎`
+          if (dag.nodes.has(branchNodeId)) {
+            hasAnyBranch = true
+            break
+          }
+        }
+        
+        if (!hasAnyBranch) continue // Skip unreachable nodes
+
+        // Check if this node has incoming edges from other nodes in the parallel
+        // We check the first branch as a representative
+        const firstBranchId = `${nodeId}₍0₎`
+        const firstBranchNode = dag.nodes.get(firstBranchId)
+        if (!firstBranchNode) continue
+
+        let hasIncomingFromParallel = false
+        for (const incomingNodeId of firstBranchNode.incomingEdges) {
+          // Extract original node ID from branch ID
+          const originalNodeId = incomingNodeId.includes('₍') 
+            ? incomingNodeId.substring(0, incomingNodeId.indexOf('₍'))
+            : incomingNodeId
+          
+          if (nodesSet.has(originalNodeId)) {
+            hasIncomingFromParallel = true
+            break
+          }
+        }
+
+        if (!hasIncomingFromParallel) {
+          entryNodesSet.add(nodeId)
+        }
+      }
+
+      // Find terminal nodes: nodes with no outgoing edges to other nodes in the parallel
+      for (const nodeId of nodes) {
+        // Check if any branch of this node exists in the DAG
+        const branchCount = config.count || config.parallelCount || 1
+        let hasAnyBranch = false
+        for (let i = 0; i < branchCount; i++) {
+          const branchNodeId = `${nodeId}₍${i}₎`
+          if (dag.nodes.has(branchNodeId)) {
+            hasAnyBranch = true
+            break
+          }
+        }
+        
+        if (!hasAnyBranch) continue // Skip unreachable nodes
+
+        // Check if this node has outgoing edges to other nodes in the parallel
+        // We check the first branch as a representative
+        const firstBranchId = `${nodeId}₍0₎`
+        const firstBranchNode = dag.nodes.get(firstBranchId)
+        if (!firstBranchNode) continue
+
+        let hasOutgoingToParallel = false
+        for (const [_, edge] of firstBranchNode.outgoingEdges) {
+          // Extract original node ID from branch ID
+          const originalTargetId = edge.target.includes('₍')
+            ? edge.target.substring(0, edge.target.indexOf('₍'))
+            : edge.target
+          
+          if (nodesSet.has(originalTargetId)) {
+            hasOutgoingToParallel = true
+            break
+          }
+        }
+
+        if (!hasOutgoingToParallel) {
+          terminalNodesSet.add(nodeId)
+        }
+      }
+
+      const entryNodes = Array.from(entryNodesSet)
+      const terminalNodes = Array.from(terminalNodesSet)
+      
+      // Calculate actual branch count (same logic as branch creation)
+      let distributionItems = config.distributionItems || config.distribution || []
+      if (typeof distributionItems === 'string' && !distributionItems.startsWith('<')) {
+        try {
+          distributionItems = JSON.parse(distributionItems.replace(/'/g, '"'))
+        } catch (e) {
+          distributionItems = []
+        }
+      }
+      
+      let branchCount = config.parallelCount || config.count || 1
+      if (config.parallelType === 'collection' && Array.isArray(distributionItems)) {
+        branchCount = distributionItems.length
+      }
+
+      logger.info('Wiring parallel block edges', {
+        parallelId,
+        entryNodes,
+        terminalNodes,
+        branchCount,
+        totalNodes: nodes.length,
+      })
+
+      // Now process edges that target or source the parallel block
+      for (const connection of workflow.connections) {
+        const { source, target, sourceHandle, targetHandle } = connection
+
+        // Edge TO parallel block: connect source to all branches of entry nodes
+        if (target === parallelId) {
+          // Skip if source is also a parallel/loop block (should have been filtered out)
+          if (loopBlockIds.has(source) || parallelBlockIds.has(source)) {
+            continue
+          }
+
+          // Skip if source is an internal node of this same parallel
+          // (This represents an invalid workflow structure)
+          if (nodesSet.has(source)) {
+            logger.warn('Skipping invalid connection to parallel block from its own internal node', {
+              parallelId,
+              source,
+            })
+            continue
+          }
+
+          logger.info('Wiring edge to parallel block', {
+            source,
+            parallelId,
+            entryNodes,
+            branchCount,
+          })
+
+          for (const entryNodeId of entryNodes) {
+            for (let i = 0; i < branchCount; i++) {
+              const branchNodeId = `${entryNodeId}₍${i}₎`
+              if (dag.nodes.has(branchNodeId)) {
+                this.addEdge(dag, source, branchNodeId, sourceHandle, targetHandle)
+                logger.debug('Connected to parallel entry branch', {
+                  from: source,
+                  to: branchNodeId,
+                  branch: i,
+                })
+              }
+            }
+          }
+        }
+
+        // Edge FROM parallel block: connect all branches of terminal nodes to target
+        if (source === parallelId) {
+          // Skip if target is also a parallel/loop block (should have been filtered out)
+          if (loopBlockIds.has(target) || parallelBlockIds.has(target)) {
+            continue
+          }
+
+          // Skip if target is an internal node of this same parallel
+          // (This represents an invalid workflow structure)
+          if (nodesSet.has(target)) {
+            logger.warn('Skipping invalid connection from parallel block to its own internal node', {
+              parallelId,
+              target,
+            })
+            continue
+          }
+
+          logger.info('Wiring edge from parallel block', {
+            parallelId,
+            target,
+            terminalNodes,
+            branchCount,
+          })
+
+          for (const terminalNodeId of terminalNodes) {
+            for (let i = 0; i < branchCount; i++) {
+              const branchNodeId = `${terminalNodeId}₍${i}₎`
+              if (dag.nodes.has(branchNodeId)) {
+                this.addEdge(dag, branchNodeId, target, sourceHandle, targetHandle)
+                logger.debug('Connected from parallel terminal branch', {
+                  from: branchNodeId,
+                  to: target,
+                  branch: i,
+                })
+              }
+            }
+          }
+        }
+      }
     }
   }
 

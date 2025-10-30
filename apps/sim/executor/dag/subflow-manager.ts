@@ -61,11 +61,13 @@ export class SubflowManager {
     return scope
   }
 
-  initializeParallelScope(parallelId: string, totalBranches: number): ParallelScope {
+  initializeParallelScope(parallelId: string, totalBranches: number, terminalNodesCount: number = 1): ParallelScope {
     const scope: ParallelScope = {
       parallelId,
       totalBranches,
       branchOutputs: new Map(),
+      completedCount: 0,
+      totalExpectedNodes: totalBranches * terminalNodesCount,
     }
 
     this.state.setParallelScope(parallelId, scope)
@@ -129,14 +131,21 @@ export class SubflowManager {
       return false
     }
 
+    // Extract branch index from node ID
     const branchIndex = this.extractBranchIndex(nodeId)
     if (branchIndex === null) {
       return false
     }
 
-    scope.branchOutputs.set(branchIndex, output)
+    // Append output to the branch's output array
+    if (!scope.branchOutputs.has(branchIndex)) {
+      scope.branchOutputs.set(branchIndex, [])
+    }
+    scope.branchOutputs.get(branchIndex)!.push(output)
+    
+    scope.completedCount++
 
-    const allBranchesComplete = scope.branchOutputs.size === scope.totalBranches
+    const allBranchesComplete = scope.completedCount === scope.totalExpectedNodes
 
     if (allBranchesComplete) {
       this.aggregateParallelResults(parallelId, scope)
@@ -237,13 +246,13 @@ export class SubflowManager {
   }
 
   private aggregateParallelResults(parallelId: string, scope: ParallelScope): void {
-    const results: NormalizedBlockOutput[] = []
-
+    // Collect all branch outputs in order
+    // Each branch already has its outputs collected in execution order
+    const results: NormalizedBlockOutput[][] = []
+    
     for (let i = 0; i < scope.totalBranches; i++) {
-      const branchOutput = scope.branchOutputs.get(i)
-      if (branchOutput) {
-        results.push(branchOutput)
-      }
+      const branchOutputs = scope.branchOutputs.get(i) || []
+      results.push(branchOutputs)
     }
 
     this.state.setBlockOutput(parallelId, {
@@ -253,6 +262,8 @@ export class SubflowManager {
     logger.debug('Aggregated parallel results', {
       parallelId,
       totalBranches: scope.totalBranches,
+      nodesPerBranch: results[0]?.length || 0,
+      totalOutputs: scope.completedCount,
     })
   }
 
