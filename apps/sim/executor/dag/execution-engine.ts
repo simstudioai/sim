@@ -83,13 +83,17 @@ export class ExecutionEngine {
       const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('Execution failed', { error: errorMessage })
 
-      return {
+      const executionResult: ExecutionResult = {
         success: false,
         output: this.finalOutput,
         error: errorMessage,
         logs: this.context.blockLogs,
         metadata: this.context.metadata,
       }
+
+      const executionError = new Error(errorMessage)
+      ;(executionError as any).executionResult = executionResult
+      throw executionError
     }
   }
 
@@ -244,7 +248,10 @@ export class ExecutionEngine {
       this.processEdges(node, output, false)
     } else {
       logger.debug('Loop exiting, processing exit edges')
-      this.processEdges(node, output, true)
+      const exitOutput = { ...output }
+      delete exitOutput.selectedOption
+      delete exitOutput.selectedRoute
+      this.processEdges(node, exitOutput, true)
     }
   }
 

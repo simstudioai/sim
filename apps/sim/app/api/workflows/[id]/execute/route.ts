@@ -72,8 +72,24 @@ export async function executeWorkflow(options: {
 
     return NextResponse.json(filteredResult)
   } catch (error: any) {
+    logger.error(`[${options.requestId}] Non-SSE execution failed:`, error)
+
+    // Extract execution result from error if available
+    const executionResult = error.executionResult
+
     return NextResponse.json(
-      { error: error.message || 'Execution failed', success: false },
+      {
+        success: false,
+        output: executionResult?.output,
+        error: executionResult?.error || error.message || 'Execution failed',
+        metadata: executionResult?.metadata
+          ? {
+              duration: executionResult.metadata.duration,
+              startTime: executionResult.metadata.startTime,
+              endTime: executionResult.metadata.endTime,
+            }
+          : undefined,
+      },
       { status: 500 }
     )
   }
@@ -247,20 +263,40 @@ export async function POST(
           }
           
           const onBlockComplete = async (blockId: string, blockName: string, blockType: string, callbackData: any) => {
-            logger.info(`[${requestId}] ✓ onBlockComplete called:`, { blockId, blockName, blockType })
-            sendEvent({
-              type: 'block:completed',
-              timestamp: new Date().toISOString(),
-              executionId,
-              workflowId,
-              data: {
-                blockId,
-                blockName,
-                blockType,
-                output: callbackData.output, // Use clean output without executionTime
-                durationMs: callbackData.executionTime || 0,
-              },
-            })
+            // Check if this is an error completion
+            const hasError = callbackData.output?.error
+            
+            if (hasError) {
+              logger.info(`[${requestId}] ✗ onBlockComplete (error) called:`, { blockId, blockName, blockType, error: callbackData.output.error })
+              sendEvent({
+                type: 'block:error',
+                timestamp: new Date().toISOString(),
+                executionId,
+                workflowId,
+                data: {
+                  blockId,
+                  blockName,
+                  blockType,
+                  error: callbackData.output.error,
+                  durationMs: callbackData.executionTime || 0,
+                },
+              })
+            } else {
+              logger.info(`[${requestId}] ✓ onBlockComplete called:`, { blockId, blockName, blockType })
+              sendEvent({
+                type: 'block:completed',
+                timestamp: new Date().toISOString(),
+                executionId,
+                workflowId,
+                data: {
+                  blockId,
+                  blockName,
+                  blockType,
+                  output: callbackData.output,
+                  durationMs: callbackData.executionTime || 0,
+                },
+              })
+            }
           }
           
           const onStream = async (streamingExec: StreamingExecution) => {
@@ -351,6 +387,9 @@ export async function POST(
         } catch (error: any) {
           logger.error(`[${requestId}] SSE execution failed:`, error)
           
+          // Extract execution result from error if available
+          const executionResult = error.executionResult
+          
           // Send error event
           sendEvent({
             type: 'execution:error',
@@ -358,8 +397,8 @@ export async function POST(
             executionId,
             workflowId,
             data: {
-              error: error.message || 'Unknown error',
-              duration: 0,
+              error: executionResult?.error || error.message || 'Unknown error',
+              duration: executionResult?.metadata?.duration || 0,
             },
           })
         } finally {
