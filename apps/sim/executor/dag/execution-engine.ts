@@ -146,24 +146,59 @@ export class ExecutionEngine {
       return
     }
 
-    const loopId = node.metadata.loopId
-    if (loopId && !this.state.getLoopScope(loopId)) {
-      logger.debug('Initializing loop scope before first execution', { loopId, nodeId })
-      const scope = this.subflowManager.initializeLoopScope(loopId, this.context)
-      this.state.setLoopScope(loopId, scope)
-    }
-
-    if (loopId && !this.subflowManager.shouldExecuteLoopNode(nodeId, loopId, this.context)) {
-      return
-    }
-
-    logger.debug('Launching node execution', { nodeId })
-
     try {
+      const loopId = node.metadata.loopId
+      if (loopId && !this.state.getLoopScope(loopId)) {
+        logger.debug('Initializing loop scope before first execution', { loopId, nodeId })
+        const scope = this.subflowManager.initializeLoopScope(loopId, this.context)
+        this.state.setLoopScope(loopId, scope)
+      }
+
+      if (loopId && !this.subflowManager.shouldExecuteLoopNode(nodeId, loopId, this.context)) {
+        return
+      }
+
+      logger.debug('Launching node execution', { nodeId })
+
       const output = await this.blockExecutor.execute(node, node.block, this.context)
       await this.handleNodeCompletion(node, output)
     } catch (error) {
-      logger.error('Node execution failed', { nodeId, error })
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.error('Node execution failed', { nodeId, error: errorMessage })
+
+      const errorOutput: NormalizedBlockOutput = {
+        error: errorMessage,
+      }
+
+      this.context.blockStates.set(nodeId, {
+        output: errorOutput,
+        executed: true,
+        executionTime: 0,
+      })
+
+      this.context.blockLogs.push({
+        blockId: nodeId,
+        blockName: node.block.metadata?.name || nodeId,
+        blockType: node.block.metadata?.id || 'unknown',
+        startedAt: new Date().toISOString(),
+        endedAt: new Date().toISOString(),
+        durationMs: 0,
+        success: false,
+        error: errorMessage,
+      })
+
+      if (this.context.onBlockComplete) {
+        await this.context.onBlockComplete(
+          nodeId,
+          node.block.metadata?.name || nodeId,
+          node.block.metadata?.id || 'unknown',
+          {
+            output: errorOutput,
+            executionTime: 0,
+          }
+        )
+      }
+
       throw error
     }
   }
