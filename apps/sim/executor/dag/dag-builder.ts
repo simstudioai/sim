@@ -261,6 +261,8 @@ export class DAGBuilder {
 
     // Build a map of condition block configurations for sourceHandle generation
     const conditionConfigMap = new Map<string, any[]>()
+    const routerBlockIds = new Set<string>()
+    
     for (const block of workflow.blocks) {
       if (block.metadata?.id === 'condition') {
         try {
@@ -274,6 +276,8 @@ export class DAGBuilder {
         } catch (error) {
           logger.warn('Failed to parse condition config:', { blockId: block.id })
         }
+      } else if (block.metadata?.id === 'router') {
+        routerBlockIds.add(block.id)
       }
     }
 
@@ -296,6 +300,27 @@ export class DAGBuilder {
             sourceHandle = `condition-${correspondingCondition.id}`
           }
         }
+      }
+
+      // Generate sourceHandle for router blocks if not provided
+      // Router edges use the target block ID as the route identifier
+      if (!sourceHandle && routerBlockIds.has(source)) {
+        sourceHandle = `router-${target}`
+        logger.debug('Generated router sourceHandle:', {
+          source,
+          target,
+          sourceHandle,
+        })
+      }
+
+      // ALWAYS ensure router blocks have the correct sourceHandle format
+      if (routerBlockIds.has(source)) {
+        sourceHandle = `router-${target}`
+        logger.debug('Set router sourceHandle:', {
+          source,
+          target,
+          sourceHandle,
+        })
       }
 
       // Skip edges involving loop/parallel blocks - we'll handle them specially

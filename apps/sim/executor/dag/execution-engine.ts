@@ -73,12 +73,15 @@ export class ExecutionEngine {
       return
     }
 
-    const startNodes = Array.from(this.dag.nodes.values()).filter(
-      node => node.incomingEdges.size === 0
+    // Find the start node - should be the only entry point
+    const startNode = Array.from(this.dag.nodes.values()).find(
+      node => node.block.metadata?.id === 'start_trigger' || node.block.metadata?.id === 'starter'
     )
 
-    for (const node of startNodes) {
-      this.addToQueue(node.id)
+    if (startNode) {
+      this.addToQueue(startNode.id)
+    } else {
+      logger.warn('No start node found in DAG')
     }
   }
 
