@@ -116,12 +116,19 @@ export class DAGBuilder {
       }
     }
 
-    // Step 2.5: Create sentinel nodes for loops
+    // Step 2.5: Create sentinel nodes for loops (only for reachable loops)
     for (const [loopId, loopConfig] of dag.loopConfigs) {
       const config = loopConfig as any
       const nodes = config.nodes || []
       
       if (nodes.length === 0) continue
+      
+      // Only create sentinels if at least one node in the loop is reachable
+      const hasReachableNodes = nodes.some((nodeId: string) => reachableBlocks.has(nodeId))
+      if (!hasReachableNodes) {
+        logger.debug('Skipping sentinel creation for unreachable loop', { loopId })
+        continue
+      }
 
       // Create sentinel_start node
       const sentinelStartId = `loop-${loopId}-sentinel-start`
@@ -280,7 +287,8 @@ export class DAGBuilder {
     }
 
     // Step 4: Add edges (expand for parallels, add backwards-edges for loops)
-    this.addEdges(workflow, dag, blocksInParallels, blocksInLoops)
+    // Only create edges for reachable blocks
+    this.addEdges(workflow, dag, blocksInParallels, blocksInLoops, reachableBlocks)
 
     logger.info('DAG built', {
       totalNodes: dag.nodes.size,
@@ -295,7 +303,8 @@ export class DAGBuilder {
     workflow: SerializedWorkflow,
     dag: DAG,
     blocksInParallels: Set<string>,
-    blocksInLoops: Set<string>
+    blocksInLoops: Set<string>,
+    reachableBlocks: Set<string>
   ) {
     // Build map of loop block IDs
     const loopBlockIds = new Set(dag.loopConfigs.keys())
@@ -383,6 +392,15 @@ export class DAGBuilder {
           // Edge FROM loop block → redirect to sentinel_end
           const sentinelEndId = `loop-${source}-sentinel-end`
           
+          // Verify sentinel exists (loop is reachable)
+          if (!dag.nodes.has(sentinelEndId)) {
+            logger.debug('Skipping loop exit edge - sentinel not found (unreachable loop)', {
+              source,
+              target,
+            })
+            continue
+          }
+          
           logger.debug('Redirecting loop exit edge to sentinel_end:', {
             originalSource: source,
             redirectedFrom: sentinelEndId,
@@ -398,6 +416,15 @@ export class DAGBuilder {
         if (targetIsLoopBlock) {
           // Edge TO loop block → redirect to sentinel_start
           const sentinelStartId = `loop-${target}-sentinel-start`
+          
+          // Verify sentinel exists (loop is reachable)
+          if (!dag.nodes.has(sentinelStartId)) {
+            logger.debug('Skipping loop entry edge - sentinel not found (unreachable loop)', {
+              source,
+              target,
+            })
+            continue
+          }
           
           logger.debug('Redirecting loop entry edge to sentinel_start:', {
             originalTarget: target,
@@ -419,7 +446,7 @@ export class DAGBuilder {
           continue
         }
       }
-
+      
       // Check if source/target are in loops (for sentinel routing)
       const sourceInLoop = blocksInLoops.has(source)
       const targetInLoop = blocksInLoops.has(target)
@@ -454,6 +481,19 @@ export class DAGBuilder {
           sourceLoopId,
           targetLoopId,
         })
+        continue
+      }
+      
+      // Check reachability AFTER loop/parallel redirects have been applied
+      // This ensures edges to loop/parallel blocks are redirected to sentinels first
+      // We check both reachableBlocks (original blocks) and dag.nodes (includes sentinels)
+      if (!reachableBlocks.has(source) && !dag.nodes.has(source)) {
+        logger.debug('Skipping edge - source not reachable', { source, target })
+        continue
+      }
+      
+      if (!reachableBlocks.has(target) && !dag.nodes.has(target)) {
+        logger.debug('Skipping edge - target not reachable', { source, target })
         continue
       }
 
@@ -513,18 +553,25 @@ export class DAGBuilder {
       const nodes = config.nodes || []
 
       if (nodes.length === 0) continue
-
+      
       const sentinelStartId = `loop-${loopId}-sentinel-start`
       const sentinelEndId = `loop-${loopId}-sentinel-end`
+      
+      // Skip if sentinel nodes don't exist (loop was unreachable)
+      if (!dag.nodes.has(sentinelStartId) || !dag.nodes.has(sentinelEndId)) {
+        logger.debug('Skipping sentinel wiring for unreachable loop', { loopId })
+        continue
+      }
       
       const nodesSet = new Set(nodes)
       const startNodesSet = new Set<string>()
       const terminalNodesSet = new Set<string>()
 
       // Find start nodes: nodes with no incoming edges from within the loop
+      // Only consider nodes that exist in the DAG (are reachable)
       for (const nodeId of nodes) {
         const node = dag.nodes.get(nodeId)
-        if (!node) continue
+        if (!node) continue // Skip unreachable nodes that weren't added to DAG
         
         let hasIncomingFromLoop = false
         for (const incomingNodeId of node.incomingEdges) {
@@ -540,9 +587,10 @@ export class DAGBuilder {
       }
       
       // Find terminal nodes: nodes with no outgoing edges to other loop nodes
+      // Only consider nodes that exist in the DAG (are reachable)
       for (const nodeId of nodes) {
         const node = dag.nodes.get(nodeId)
-        if (!node) continue
+        if (!node) continue // Skip unreachable nodes that weren't added to DAG
         
         let hasOutgoingToLoop = false
         for (const [_, edge] of node.outgoingEdges) {
@@ -629,35 +677,74 @@ export class DAGBuilder {
   }
 
   /**
-   * Find all blocks reachable from the start/trigger block
+   * Find all blocks reachable from a trigger block
    * Uses BFS to traverse the connection graph
    */
   private findReachableBlocks(workflow: SerializedWorkflow, startBlockId?: string): Set<string> {
     const reachable = new Set<string>()
     
-    // Find the start block
-    let start = startBlockId
-    if (!start) {
-      // Find a trigger block (any block with no incoming connections)
-      const blockIds = new Set(workflow.blocks.map(b => b.id))
-      const hasIncoming = new Set(workflow.connections.map(c => c.target))
+    // Find a trigger block to start traversal from
+    let triggerBlockId = startBlockId
+    
+    // Validate that startBlockId (if provided) is actually a trigger block
+    if (triggerBlockId) {
+      const triggerBlock = workflow.blocks.find(b => b.id === triggerBlockId)
+      const blockType = triggerBlock?.metadata?.id
+      const isTrigger = blockType === 'start_trigger' || blockType === 'starter' || blockType === 'trigger'
       
+      if (!isTrigger) {
+        logger.warn('Provided startBlockId is not a trigger block, finding trigger automatically', {
+          startBlockId: triggerBlockId,
+          blockType,
+        })
+        triggerBlockId = undefined // Clear it and find a valid trigger
+      }
+    }
+    
+    if (!triggerBlockId) {
+      // First priority: Find an explicit trigger block (start_trigger, starter, trigger)
       for (const block of workflow.blocks) {
-        if (!hasIncoming.has(block.id) && block.enabled) {
-          start = block.id
+        const blockType = block.metadata?.id
+        if (
+          block.enabled &&
+          (blockType === 'start_trigger' || blockType === 'starter' || blockType === 'trigger')
+        ) {
+          triggerBlockId = block.id
+          logger.debug('Found trigger block for reachability traversal', { blockId: triggerBlockId, blockType })
           break
+        }
+      }
+      
+      // Second priority: Find a block with no incoming connections (but not loop/parallel blocks)
+      if (!triggerBlockId) {
+        const hasIncoming = new Set(workflow.connections.map(c => c.target))
+        
+        for (const block of workflow.blocks) {
+          const blockType = block.metadata?.id
+          if (
+            !hasIncoming.has(block.id) && 
+            block.enabled &&
+            blockType !== 'loop' &&
+            blockType !== 'parallel'
+          ) {
+            triggerBlockId = block.id
+            logger.debug('Found block with no incoming connections as trigger', { blockId: triggerBlockId, blockType })
+            break
+          }
         }
       }
     }
 
-    if (!start) {
-      logger.warn('No start block found, including all blocks')
+    if (!triggerBlockId) {
+      logger.warn('No trigger block found, including all enabled blocks')
       return new Set(workflow.blocks.filter(b => b.enabled).map(b => b.id))
     }
+    
+    logger.debug('Starting reachability traversal from trigger block', { triggerBlockId })
 
-    // BFS traversal from start
-    const queue = [start]
-    reachable.add(start)
+    // BFS traversal from trigger block
+    const queue = [triggerBlockId]
+    reachable.add(triggerBlockId)
 
     // Build adjacency map (initially only with explicit connections)
     const adjacency = new Map<string, string[]>()
@@ -669,8 +756,8 @@ export class DAGBuilder {
     }
 
     // First pass: traverse explicit connections to find reachable loop/parallel blocks
-    const tempQueue = [start]
-    const tempReachable = new Set([start])
+    const tempQueue = [triggerBlockId]
+    const tempReachable = new Set([triggerBlockId])
     const reachableLoopBlocks = new Set<string>()
     const reachableParallelBlocks = new Set<string>()
 
@@ -720,9 +807,9 @@ export class DAGBuilder {
     }
 
     // Second pass: complete BFS traversal with all valid connections
-    const finalQueue = [start]
+    const finalQueue = [triggerBlockId]
     reachable.clear()
-    reachable.add(start)
+    reachable.add(triggerBlockId)
 
     // Traverse
     while (finalQueue.length > 0) {
