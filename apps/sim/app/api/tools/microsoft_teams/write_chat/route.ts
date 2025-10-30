@@ -4,7 +4,7 @@ import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { downloadFileFromStorage, processFilesToUserFiles } from '@/lib/uploads/file-processing'
 import { generateRequestId } from '@/lib/utils'
-import { resolveMentionsForChat } from '@/tools/microsoft_teams/utils'
+import { resolveMentionsForChat, type TeamsMention } from '@/tools/microsoft_teams/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -140,11 +140,7 @@ export async function POST(request: NextRequest) {
 
     let messageContent = validatedData.content
     let contentType: 'text' | 'html' = 'text'
-    const mentionEntities: Array<{
-      type: 'mention'
-      mentioned: { id: string; name: string }
-      text: string
-    }> = []
+    const mentionEntities: TeamsMention[] = []
 
     try {
       const mentionResult = await resolveMentionsForChat(
@@ -155,8 +151,9 @@ export async function POST(request: NextRequest) {
 
       if (mentionResult.hasMentions) {
         contentType = 'html'
-        mentionEntities.push(...mentionResult.entities)
-        logger.info(`[${requestId}] Resolved ${mentionResult.entities.length} mention(s)`)
+        messageContent = mentionResult.updatedContent
+        mentionEntities.push(...mentionResult.mentions)
+        logger.info(`[${requestId}] Resolved ${mentionResult.mentions.length} mention(s)`)
       }
     } catch (error) {
       logger.warn(`[${requestId}] Failed to resolve mentions, continuing without them:`, error)
@@ -167,7 +164,7 @@ export async function POST(request: NextRequest) {
       const attachmentTags = attachments
         .map((att) => `<attachment id="${att.id}"></attachment>`)
         .join(' ')
-      messageContent = `${validatedData.content}<br/>${attachmentTags}`
+      messageContent = `${messageContent}<br/>${attachmentTags}`
     }
 
     const messageBody: {
@@ -176,11 +173,7 @@ export async function POST(request: NextRequest) {
         content: string
       }
       attachments?: any[]
-      mentions?: Array<{
-        type: 'mention'
-        mentioned: { id: string; name: string }
-        text: string
-      }>
+      mentions?: TeamsMention[]
     } = {
       body: {
         contentType,

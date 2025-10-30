@@ -7,8 +7,7 @@ const logger = createLogger('MicrosoftTeamsUtils')
 interface ParsedMention {
   name: string
   fullTag: string
-  startIndex: number
-  endIndex: number
+  mentionId: number
 }
 
 interface TeamMember {
@@ -17,13 +16,22 @@ interface TeamMember {
   userIdentityType?: string
 }
 
-export interface MentionEntity {
-  type: 'mention'
-  mentioned: {
-    id: string
-    name: string
-  }
-  text: string
+export interface TeamsMention {
+  id: number
+  mentionText: string
+  mentioned:
+    | {
+        id: string
+        name: string
+        userIdentityType?: string
+      }
+    | {
+        application: {
+          displayName: string
+          id: string
+          applicationIdentityType: 'bot'
+        }
+      }
 }
 
 /**
@@ -126,6 +134,7 @@ function parseMentions(content: string): ParsedMention[] {
   const mentions: ParsedMention[] = []
   const mentionRegex = /<at>([^<]+)<\/at>/gi
   let match: RegExpExecArray | null
+  let mentionId = 0
 
   while ((match = mentionRegex.exec(content)) !== null) {
     const name = match[1].trim()
@@ -133,8 +142,7 @@ function parseMentions(content: string): ParsedMention[] {
       mentions.push({
         name,
         fullTag: match[0],
-        startIndex: match.index,
-        endIndex: match.index + match[0].length,
+        mentionId: mentionId++,
       })
     }
   }
@@ -201,40 +209,63 @@ export async function resolveMentionsForChat(
   content: string,
   chatId: string,
   accessToken: string
-): Promise<{ entities: MentionEntity[]; hasMentions: boolean }> {
+): Promise<{ mentions: TeamsMention[]; hasMentions: boolean; updatedContent: string }> {
   const parsedMentions = parseMentions(content)
 
   if (parsedMentions.length === 0) {
-    return { entities: [], hasMentions: false }
+    return { mentions: [], hasMentions: false, updatedContent: content }
   }
 
   const members = await fetchChatMembers(chatId, accessToken)
-  const entities: MentionEntity[] = []
-  const resolvedNames = new Set<string>()
+  const mentions: TeamsMention[] = []
+  const resolvedTags = new Set<string>()
+  let updatedContent = content
 
   for (const mention of parsedMentions) {
-    if (resolvedNames.has(mention.fullTag)) {
+    if (resolvedTags.has(mention.fullTag)) {
       continue
     }
 
     const member = findMemberByName(members, mention.name)
 
     if (member) {
-      entities.push({
-        type: 'mention',
-        mentioned: {
-          id: member.id,
-          name: member.displayName,
-        },
-        text: mention.fullTag,
-      })
-      resolvedNames.add(mention.fullTag)
+      const isBot = member.userIdentityType === 'bot'
+
+      if (isBot) {
+        mentions.push({
+          id: mention.mentionId,
+          mentionText: mention.name,
+          mentioned: {
+            application: {
+              displayName: member.displayName,
+              id: member.id,
+              applicationIdentityType: 'bot',
+            },
+          },
+        })
+      } else {
+        mentions.push({
+          id: mention.mentionId,
+          mentionText: mention.name,
+          mentioned: {
+            id: member.id,
+            name: member.displayName,
+            userIdentityType: member.userIdentityType,
+          },
+        })
+      }
+      resolvedTags.add(mention.fullTag)
+      updatedContent = updatedContent.replace(
+        mention.fullTag,
+        `<at id="${mention.mentionId}">${mention.name}</at>`
+      )
     }
   }
 
   return {
-    entities,
-    hasMentions: entities.length > 0,
+    mentions,
+    hasMentions: mentions.length > 0,
+    updatedContent,
   }
 }
 
@@ -243,39 +274,62 @@ export async function resolveMentionsForChannel(
   teamId: string,
   channelId: string,
   accessToken: string
-): Promise<{ entities: MentionEntity[]; hasMentions: boolean }> {
+): Promise<{ mentions: TeamsMention[]; hasMentions: boolean; updatedContent: string }> {
   const parsedMentions = parseMentions(content)
 
   if (parsedMentions.length === 0) {
-    return { entities: [], hasMentions: false }
+    return { mentions: [], hasMentions: false, updatedContent: content }
   }
 
   const members = await fetchChannelMembers(teamId, channelId, accessToken)
-  const entities: MentionEntity[] = []
-  const resolvedNames = new Set<string>()
+  const mentions: TeamsMention[] = []
+  const resolvedTags = new Set<string>()
+  let updatedContent = content
 
   for (const mention of parsedMentions) {
-    if (resolvedNames.has(mention.fullTag)) {
+    if (resolvedTags.has(mention.fullTag)) {
       continue
     }
 
     const member = findMemberByName(members, mention.name)
 
     if (member) {
-      entities.push({
-        type: 'mention',
-        mentioned: {
-          id: member.id,
-          name: member.displayName,
-        },
-        text: mention.fullTag,
-      })
-      resolvedNames.add(mention.fullTag)
+      const isBot = member.userIdentityType === 'bot'
+
+      if (isBot) {
+        mentions.push({
+          id: mention.mentionId,
+          mentionText: mention.name,
+          mentioned: {
+            application: {
+              displayName: member.displayName,
+              id: member.id,
+              applicationIdentityType: 'bot',
+            },
+          },
+        })
+      } else {
+        mentions.push({
+          id: mention.mentionId,
+          mentionText: mention.name,
+          mentioned: {
+            id: member.id,
+            name: member.displayName,
+            userIdentityType: member.userIdentityType,
+          },
+        })
+      }
+      resolvedTags.add(mention.fullTag)
+      updatedContent = updatedContent.replace(
+        mention.fullTag,
+        `<at id="${mention.mentionId}">${mention.name}</at>`
+      )
     }
   }
 
   return {
-    entities,
-    hasMentions: entities.length > 0,
+    mentions,
+    hasMentions: mentions.length > 0,
+    updatedContent,
   }
 }
