@@ -35,10 +35,16 @@ export class BlockExecutor {
 
     const resolvedInputs = this.resolver.resolveInputs(block.config.params, node.id, context, block)
 
-    const blockLog = this.createBlockLog(node.id, block)
-    context.blockLogs.push(blockLog)
+    // Check if this is a sentinel node (virtual node that shouldn't appear in logs)
+    const isSentinel = block.metadata?.id === 'sentinel_start' || block.metadata?.id === 'sentinel_end'
 
-    this.callOnBlockStart(node.id, block)
+    // Only create logs and callbacks for non-sentinel nodes
+    let blockLog: BlockLog | undefined
+    if (!isSentinel) {
+      blockLog = this.createBlockLog(node.id, block)
+      context.blockLogs.push(blockLog)
+      this.callOnBlockStart(node.id, block)
+    }
 
     const startTime = Date.now()
 
@@ -47,10 +53,13 @@ export class BlockExecutor {
       const normalizedOutput = this.normalizeOutput(output)
 
       const duration = Date.now() - startTime
-      blockLog.endedAt = new Date().toISOString()
-      blockLog.durationMs = duration
-      blockLog.success = true
-      blockLog.output = normalizedOutput
+      
+      if (blockLog) {
+        blockLog.endedAt = new Date().toISOString()
+        blockLog.durationMs = duration
+        blockLog.success = true
+        blockLog.output = normalizedOutput
+      }
 
       context.blockStates.set(node.id, {
         output: normalizedOutput,
@@ -58,17 +67,21 @@ export class BlockExecutor {
         executionTime: duration,
       })
 
-      this.callOnBlockComplete(node.id, block, normalizedOutput, duration)
+      if (!isSentinel) {
+        this.callOnBlockComplete(node.id, block, normalizedOutput, duration)
+      }
 
       return normalizedOutput
     } catch (error) {
       const duration = Date.now() - startTime
       const errorMessage = error instanceof Error ? error.message : String(error)
 
-      blockLog.endedAt = new Date().toISOString()
-      blockLog.durationMs = duration
-      blockLog.success = false
-      blockLog.error = errorMessage
+      if (blockLog) {
+        blockLog.endedAt = new Date().toISOString()
+        blockLog.durationMs = duration
+        blockLog.success = false
+        blockLog.error = errorMessage
+      }
 
       const errorOutput: NormalizedBlockOutput = {
         error: errorMessage,
@@ -86,7 +99,7 @@ export class BlockExecutor {
         error: errorMessage,
       })
 
-      if (this.contextExtensions.onBlockComplete) {
+      if (!isSentinel && this.contextExtensions.onBlockComplete) {
         await this.contextExtensions.onBlockComplete(
           node.id,
           block.metadata?.name || node.id,
