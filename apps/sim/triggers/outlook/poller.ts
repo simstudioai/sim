@@ -1,4 +1,5 @@
 import { OutlookIcon } from '@/components/icons'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { TriggerConfig } from '@/triggers/types'
 
 export const outlookPollingTrigger: TriggerConfig = {
@@ -25,11 +26,37 @@ export const outlookPollingTrigger: TriggerConfig = {
     {
       id: 'folderIds',
       title: 'Outlook Folders to Monitor',
-      type: 'multi-select-dropdown',
+      type: 'dropdown',
+      multiSelect: true,
       placeholder: 'Select Outlook folders to monitor for new emails',
       description: 'Choose which Outlook folders to monitor. Leave empty to monitor all emails.',
       required: false,
       options: [], // Will be populated dynamically
+      fetchOptions: async (blockId: string, subBlockId: string) => {
+        const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
+          | string
+          | null
+        if (!credentialId) {
+          return []
+        }
+        try {
+          const response = await fetch(`/api/tools/outlook/folders?credentialId=${credentialId}`)
+          if (!response.ok) {
+            throw new Error('Failed to fetch Outlook folders')
+          }
+          const data = await response.json()
+          if (data.folders && Array.isArray(data.folders)) {
+            return data.folders.map((folder: { id: string; name: string }) => ({
+              id: folder.id,
+              label: folder.name,
+            }))
+          }
+          return []
+        } catch (error) {
+          console.error('Error fetching Outlook folders:', error)
+          return []
+        }
+      },
       mode: 'trigger',
     },
     // Folder Filter Behavior

@@ -71,7 +71,6 @@ export type SubBlockType =
   | 'file-upload' // File uploader
   | 'input-mapping' // Map parent variables to child workflow input schema
   | 'variables-input' // Variable assignments for updating workflow variables
-  | 'multi-select-dropdown' // Multi-select dropdown with dynamic option loading
   | 'text' // Read-only text display
 
 export type SubBlockLayout = 'full' | 'half'
@@ -212,6 +211,11 @@ export interface SubBlockConfig {
   useWebhookUrl?: boolean
   // Trigger-save specific: The trigger ID for validation and saving
   triggerId?: string
+  // Dropdown specific: Function to fetch options dynamically (for multi-select or single-select)
+  fetchOptions?: (
+    blockId: string,
+    subBlockId: string
+  ) => Promise<Array<{ label: string; id: string }>>
 }
 
 export interface BlockConfig<T extends ToolResponse = ToolResponse> {

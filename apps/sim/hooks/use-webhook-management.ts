@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
@@ -46,6 +46,9 @@ export function useWebhookManagement({
   const [isSaving, setIsSaving] = useState(false)
 
   const triggerDef = triggerId ? getTrigger(triggerId) : null
+  const hasLoadedRef = useRef(false)
+  const lastBlockIdRef = useRef<string | null>(null)
+  const lastTriggerIdRef = useRef<string | undefined>(undefined)
 
   useEffect(() => {
     if (triggerId && !isPreview) {
@@ -57,8 +60,23 @@ export function useWebhookManagement({
   }, [triggerId, blockId, isPreview])
 
   useEffect(() => {
-    if (isPreview || isSaving) {
+    if (isPreview) {
       setIsLoading(false)
+      return
+    }
+
+    // Check if blockId or triggerId changed - if so, reset loaded state
+    const blockChanged = lastBlockIdRef.current !== blockId
+    const triggerChanged = lastTriggerIdRef.current !== triggerId
+
+    if (blockChanged || triggerChanged) {
+      hasLoadedRef.current = false
+      lastBlockIdRef.current = blockId
+      lastTriggerIdRef.current = triggerId
+    }
+
+    // Only fetch if we haven't loaded yet, or if block/trigger changed
+    if (hasLoadedRef.current && !blockChanged && !triggerChanged) {
       return
     }
 
@@ -105,6 +123,7 @@ export function useWebhookManagement({
           }
           // If no webhook exists, we already have the pre-generated URL
         }
+        hasLoadedRef.current = true
       } catch (error) {
         logger.error('Error loading webhook:', { error })
       } finally {
@@ -113,7 +132,7 @@ export function useWebhookManagement({
     }
 
     loadWebhookOrGenerateUrl()
-  }, [isPreview, triggerId, workflowId, blockId, isSaving])
+  }, [isPreview, triggerId, workflowId, blockId])
 
   const saveConfig = async (): Promise<boolean> => {
     if (isPreview || !triggerDef) {

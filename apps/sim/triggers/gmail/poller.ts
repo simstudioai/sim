@@ -1,4 +1,5 @@
 import { GmailIcon } from '@/components/icons'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { TriggerConfig } from '@/triggers/types'
 
 export const gmailPollingTrigger: TriggerConfig = {
@@ -25,11 +26,37 @@ export const gmailPollingTrigger: TriggerConfig = {
     {
       id: 'labelIds',
       title: 'Gmail Labels to Monitor',
-      type: 'multi-select-dropdown',
+      type: 'dropdown',
+      multiSelect: true,
       placeholder: 'Select Gmail labels to monitor for new emails',
       description: 'Choose which Gmail labels to monitor. Leave empty to monitor all emails.',
       required: false,
       options: [], // Will be populated dynamically from user's Gmail labels
+      fetchOptions: async (blockId: string, subBlockId: string) => {
+        const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
+          | string
+          | null
+        if (!credentialId) {
+          return []
+        }
+        try {
+          const response = await fetch(`/api/tools/gmail/labels?credentialId=${credentialId}`)
+          if (!response.ok) {
+            throw new Error('Failed to fetch Gmail labels')
+          }
+          const data = await response.json()
+          if (data.labels && Array.isArray(data.labels)) {
+            return data.labels.map((label: { id: string; name: string }) => ({
+              id: label.id,
+              label: label.name,
+            }))
+          }
+          return []
+        } catch (error) {
+          console.error('Error fetching Gmail labels:', error)
+          return []
+        }
+      },
       mode: 'trigger',
     },
     // Label Filter Behavior

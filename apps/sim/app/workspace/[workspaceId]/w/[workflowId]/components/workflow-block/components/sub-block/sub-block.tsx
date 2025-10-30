@@ -25,7 +25,6 @@ import {
   McpDynamicArgs,
   McpServerSelector,
   McpToolSelector,
-  MultiSelectDropdown,
   ProjectSelectorInput,
   ResponseFormat,
   ScheduleConfig,
@@ -138,7 +137,8 @@ export const SubBlock = memo(
                 isPreview={isPreview}
                 previewValue={previewValue}
                 disabled={isDisabled}
-                config={config}
+                multiSelect={config.multiSelect}
+                fetchOptions={config.fetchOptions}
               />
             </div>
           )
@@ -530,19 +530,6 @@ export const SubBlock = memo(
               isPreview={isPreview}
               previewValue={previewValue}
               isConnecting={isConnecting}
-            />
-          )
-        case 'multi-select-dropdown':
-          return (
-            <MultiSelectDropdown
-              blockId={blockId}
-              subBlockId={config.id}
-              options={config.options}
-              placeholder={config.placeholder}
-              disabled={isDisabled}
-              isPreview={isPreview}
-              previewValue={previewValue}
-              config={config}
             />
           )
         case 'text':

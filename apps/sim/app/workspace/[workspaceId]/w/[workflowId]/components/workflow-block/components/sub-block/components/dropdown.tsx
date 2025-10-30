@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Check, ChevronDown } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Check, ChevronDown, Loader2 } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -17,12 +18,16 @@ interface DropdownProps {
   defaultValue?: string
   blockId: string
   subBlockId: string
-  value?: string
+  value?: string | string[]
   isPreview?: boolean
-  previewValue?: string | null
+  previewValue?: string | string[] | null
   disabled?: boolean
   placeholder?: string
-  config?: import('@/blocks/types').SubBlockConfig
+  multiSelect?: boolean
+  fetchOptions?: (
+    blockId: string,
+    subBlockId: string
+  ) => Promise<Array<{ label: string; id: string }>>
 }
 
 export function Dropdown({
@@ -35,22 +40,29 @@ export function Dropdown({
   previewValue,
   disabled,
   placeholder = 'Select an option...',
-  config,
+  multiSelect = false,
+  fetchOptions,
 }: DropdownProps) {
-  const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlockId)
+  const [storeValue, setStoreValue] = useSubBlockValue<string | string[]>(blockId, subBlockId) as [
+    string | string[] | null | undefined,
+    (value: string | string[]) => void,
+  ]
+
   const [storeInitialized, setStoreInitialized] = useState(false)
   const [open, setOpen] = useState(false)
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
+  const [fetchedOptions, setFetchedOptions] = useState<Array<{ label: string; id: string }>>([])
+  const [isLoadingOptions, setIsLoadingOptions] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
   const inputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const previousModeRef = useRef<string | null>(null)
 
-  // For response dataMode conversion - get builderData and data sub-blocks
+  // For response dataMode conversion - get builderData and data sub-blocks (only for single-select mode)
   const [builderData, setBuilderData] = useSubBlockValue<any[]>(blockId, 'builderData')
   const [data, setData] = useSubBlockValue<string>(blockId, 'data')
 
-  // Keep refs with latest values to avoid stale closures
   const builderDataRef = useRef(builderData)
   const dataRef = useRef(data)
 
@@ -59,13 +71,55 @@ export function Dropdown({
     dataRef.current = data
   }, [builderData, data])
 
-  // Use preview value when in preview mode, otherwise use store value or prop value
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
-  // Evaluate options if it's a function
+  const singleValue = multiSelect ? null : (value as string | null | undefined)
+  const multiValues = multiSelect ? (value as string[] | null | undefined) || [] : null
+
+  const fetchOptionsIfNeeded = useCallback(async () => {
+    if (!fetchOptions || isPreview || disabled) return
+
+    setIsLoadingOptions(true)
+    setFetchError(null)
+    try {
+      const options = await fetchOptions(blockId, subBlockId)
+      setFetchedOptions(options)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch options'
+      setFetchError(errorMessage)
+      setFetchedOptions([])
+    } finally {
+      setIsLoadingOptions(false)
+    }
+  }, [fetchOptions, blockId, subBlockId, isPreview, disabled])
+
   const evaluatedOptions = useMemo(() => {
     return typeof options === 'function' ? options() : options
   }, [options])
+
+  const normalizedFetchedOptions = useMemo(() => {
+    return fetchedOptions.map((opt) => ({ label: opt.label, id: opt.id }))
+  }, [fetchedOptions])
+
+  const availableOptions = useMemo(() => {
+    if (fetchOptions && normalizedFetchedOptions.length > 0) {
+      return normalizedFetchedOptions
+    }
+    return evaluatedOptions
+  }, [fetchOptions, normalizedFetchedOptions, evaluatedOptions])
+
+  const normalizedOptions = useMemo(() => {
+    return availableOptions.map((opt) => {
+      if (typeof opt === 'string') {
+        return { id: opt, label: opt }
+      }
+      return { id: opt.id, label: opt.label }
+    })
+  }, [availableOptions])
+
+  const optionMap = useMemo(() => {
+    return new Map(normalizedOptions.map((opt) => [opt.id, opt.label]))
+  }, [normalizedOptions])
 
   const getOptionValue = (
     option:
@@ -83,47 +137,42 @@ export function Dropdown({
     return typeof option === 'string' ? option : option.label
   }
 
-  // Get the default option value (first option or provided defaultValue)
   const defaultOptionValue = useMemo(() => {
+    if (multiSelect) return undefined
     if (defaultValue !== undefined) {
       return defaultValue
     }
 
-    if (evaluatedOptions.length > 0) {
-      return getOptionValue(evaluatedOptions[0])
+    if (availableOptions.length > 0) {
+      const firstOption = availableOptions[0]
+      return typeof firstOption === 'string' ? firstOption : firstOption.id
     }
 
     return undefined
-  }, [defaultValue, evaluatedOptions, getOptionValue])
+  }, [defaultValue, availableOptions, multiSelect])
 
-  // Mark store as initialized on first render
   useEffect(() => {
     setStoreInitialized(true)
   }, [])
 
-  // Only set default value once the store is confirmed to be initialized
-  // and we know the actual value is null/undefined (not just loading)
   useEffect(() => {
     if (
-      storeInitialized &&
-      (value === null || value === undefined) &&
-      defaultOptionValue !== undefined
+      multiSelect ||
+      !storeInitialized ||
+      (value !== null && value !== undefined) ||
+      defaultOptionValue === undefined
     ) {
-      setStoreValue(defaultOptionValue)
+      return
     }
-  }, [storeInitialized, value, defaultOptionValue, setStoreValue])
+    setStoreValue(defaultOptionValue)
+  }, [storeInitialized, value, defaultOptionValue, setStoreValue, multiSelect])
 
-  // Helper function to normalize variable references in JSON strings
   const normalizeVariableReferences = (jsonString: string): string => {
-    // Replace unquoted variable references with quoted ones
-    // Pattern: <variable.name> -> "<variable.name>"
     return jsonString.replace(/([^"]<[^>]+>)/g, '"$1"')
   }
 
-  // Helper function to convert JSON string to builder data format
   const convertJsonToBuilderData = (jsonString: string): any[] => {
     try {
-      // Always normalize variable references first
       const normalizedJson = normalizeVariableReferences(jsonString)
       const parsed = JSON.parse(normalizedJson)
 
@@ -149,7 +198,6 @@ export function Dropdown({
     }
   }
 
-  // Helper function to infer field type from value
   const inferType = (value: any): 'string' | 'number' | 'boolean' | 'object' | 'array' => {
     if (typeof value === 'boolean') return 'boolean'
     if (typeof value === 'number') return 'number'
@@ -158,16 +206,14 @@ export function Dropdown({
     return 'string'
   }
 
-  // Handle data conversion when dataMode changes
+  // Handle data conversion when dataMode changes (only for single-select)
   useEffect(() => {
-    if (subBlockId !== 'dataMode' || isPreview || disabled) return
+    if (multiSelect || subBlockId !== 'dataMode' || isPreview || disabled) return
 
-    const currentMode = storeValue
+    const currentMode = storeValue as string
     const previousMode = previousModeRef.current
 
-    // Only convert if the mode actually changed
     if (previousMode !== null && previousMode !== currentMode) {
-      // Builder to Editor mode (structured → json)
       if (currentMode === 'json' && previousMode === 'structured') {
         const currentBuilderData = builderDataRef.current
         if (
@@ -178,9 +224,7 @@ export function Dropdown({
           const jsonString = ResponseBlockHandler.convertBuilderDataToJsonString(currentBuilderData)
           setData(jsonString)
         }
-      }
-      // Editor to Builder mode (json → structured)
-      else if (currentMode === 'structured' && previousMode === 'json') {
+      } else if (currentMode === 'structured' && previousMode === 'json') {
         const currentData = dataRef.current
         if (currentData && typeof currentData === 'string' && currentData.trim().length > 0) {
           const builderArray = convertJsonToBuilderData(currentData)
@@ -189,27 +233,39 @@ export function Dropdown({
       }
     }
 
-    // Update the previous mode ref
     previousModeRef.current = currentMode
-  }, [storeValue, subBlockId, isPreview, disabled, setData, setBuilderData])
+  }, [storeValue, subBlockId, isPreview, disabled, setData, setBuilderData, multiSelect])
 
-  // Event handlers
   const handleSelect = (selectedValue: string) => {
     if (!isPreview && !disabled) {
-      setStoreValue(selectedValue)
+      if (multiSelect) {
+        const currentValues = multiValues || []
+        const newValues = currentValues.includes(selectedValue)
+          ? currentValues.filter((v) => v !== selectedValue)
+          : [...currentValues, selectedValue]
+        setStoreValue(newValues)
+      } else {
+        setStoreValue(selectedValue)
+        setOpen(false)
+        setHighlightedIndex(-1)
+        inputRef.current?.blur()
+      }
+    } else if (!multiSelect) {
+      setOpen(false)
+      setHighlightedIndex(-1)
+      inputRef.current?.blur()
     }
-    setOpen(false)
-    setHighlightedIndex(-1)
-    inputRef.current?.blur()
   }
 
   const handleDropdownClick = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
     if (!disabled) {
-      setOpen(!open)
-      if (!open) {
+      const willOpen = !open
+      setOpen(willOpen)
+      if (willOpen) {
         inputRef.current?.focus()
+        fetchOptionsIfNeeded()
       }
     }
   }
@@ -217,10 +273,10 @@ export function Dropdown({
   const handleFocus = () => {
     setOpen(true)
     setHighlightedIndex(-1)
+    fetchOptionsIfNeeded()
   }
 
   const handleBlur = () => {
-    // Delay closing to allow dropdown selection
     setTimeout(() => {
       const activeElement = document.activeElement
       if (!activeElement || !activeElement.closest('.absolute.top-full')) {
@@ -242,38 +298,37 @@ export function Dropdown({
       if (!open) {
         setOpen(true)
         setHighlightedIndex(0)
+        fetchOptionsIfNeeded()
       } else {
-        setHighlightedIndex((prev) => (prev < evaluatedOptions.length - 1 ? prev + 1 : 0))
+        setHighlightedIndex((prev) => (prev < availableOptions.length - 1 ? prev + 1 : 0))
       }
     }
 
     if (e.key === 'ArrowUp') {
       e.preventDefault()
       if (open) {
-        setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : evaluatedOptions.length - 1))
+        setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : availableOptions.length - 1))
       }
     }
 
     if (e.key === 'Enter' && open && highlightedIndex >= 0) {
       e.preventDefault()
-      const selectedOption = evaluatedOptions[highlightedIndex]
+      const selectedOption = availableOptions[highlightedIndex]
       if (selectedOption) {
         handleSelect(getOptionValue(selectedOption))
       }
     }
   }
 
-  // Effects
   useEffect(() => {
     setHighlightedIndex((prev) => {
-      if (prev >= 0 && prev < evaluatedOptions.length) {
+      if (prev >= 0 && prev < availableOptions.length) {
         return prev
       }
       return -1
     })
-  }, [evaluatedOptions])
+  }, [availableOptions])
 
-  // Scroll highlighted option into view
   useEffect(() => {
     if (highlightedIndex >= 0 && dropdownRef.current) {
       const highlightedElement = dropdownRef.current.querySelector(
@@ -309,16 +364,33 @@ export function Dropdown({
     }
   }, [open])
 
-  // Display value
-  const displayValue = value?.toString() ?? ''
-  const selectedOption = evaluatedOptions.find((opt) => getOptionValue(opt) === value)
+  const displayValue = singleValue?.toString() ?? ''
+  const selectedOption = availableOptions.find((opt) => {
+    const optValue = typeof opt === 'string' ? opt : opt.id
+    return optValue === singleValue
+  })
   const selectedLabel = selectedOption ? getOptionLabel(selectedOption) : displayValue
   const SelectedIcon =
     selectedOption && typeof selectedOption === 'object' && 'icon' in selectedOption
       ? (selectedOption.icon as React.ComponentType<{ className?: string }>)
       : null
 
-  // Render component
+  const multiSelectDisplay =
+    multiValues && multiValues.length > 0 ? (
+      <div className='flex flex-wrap items-center gap-1'>
+        {multiValues.slice(0, 2).map((selectedValue: string) => (
+          <Badge key={selectedValue} variant='secondary' className='text-xs'>
+            {optionMap.get(selectedValue) || selectedValue}
+          </Badge>
+        ))}
+        {multiValues.length > 2 && (
+          <Badge variant='secondary' className='text-xs'>
+            +{multiValues.length - 2} more
+          </Badge>
+        )}
+      </div>
+    ) : null
+
   return (
     <div className='relative w-full'>
       <div className='relative'>
@@ -326,10 +398,11 @@ export function Dropdown({
           ref={inputRef}
           className={cn(
             'w-full cursor-pointer overflow-hidden pr-10 text-foreground',
-            SelectedIcon ? 'pl-8' : ''
+            SelectedIcon ? 'pl-8' : '',
+            multiSelect && multiSelectDisplay ? 'py-1.5' : ''
           )}
-          placeholder={placeholder}
-          value={selectedLabel || ''}
+          placeholder={multiSelect && multiSelectDisplay ? '' : placeholder}
+          value={multiSelect ? '' : selectedLabel || ''}
           readOnly
           onFocus={handleFocus}
           onBlur={handleBlur}
@@ -337,6 +410,12 @@ export function Dropdown({
           disabled={disabled}
           autoComplete='off'
         />
+        {/* Multi-select badges overlay */}
+        {multiSelect && multiSelectDisplay && (
+          <div className='pointer-events-none absolute top-0 bottom-0 left-0 flex items-center overflow-hidden bg-transparent pr-10 pl-3'>
+            {multiSelectDisplay}
+          </div>
+        )}
         {/* Icon overlay */}
         {SelectedIcon && (
           <div className='pointer-events-none absolute top-0 bottom-0 left-0 flex items-center bg-transparent pl-3 text-sm'>
@@ -366,26 +445,34 @@ export function Dropdown({
               className='allow-scroll max-h-48 overflow-y-auto p-1'
               style={{ scrollbarWidth: 'thin' }}
             >
-              {evaluatedOptions.length === 0 ? (
+              {isLoadingOptions ? (
+                <div className='flex items-center justify-center py-6'>
+                  <Loader2 className='h-4 w-4 animate-spin text-muted-foreground' />
+                  <span className='ml-2 text-muted-foreground text-sm'>Loading options...</span>
+                </div>
+              ) : fetchError ? (
+                <div className='px-2 py-6 text-center text-destructive text-sm'>{fetchError}</div>
+              ) : availableOptions.length === 0 ? (
                 <div className='py-6 text-center text-muted-foreground text-sm'>
                   No options available.
                 </div>
               ) : (
-                evaluatedOptions.map((option, index) => {
+                availableOptions.map((option, index) => {
                   const optionValue = getOptionValue(option)
                   const optionLabel = getOptionLabel(option)
                   const OptionIcon =
                     typeof option === 'object' && 'icon' in option
                       ? (option.icon as React.ComponentType<{ className?: string }>)
                       : null
-                  const isSelected = value === optionValue
+                  const isSelected = multiSelect
+                    ? multiValues?.includes(optionValue)
+                    : singleValue === optionValue
                   const isHighlighted = index === highlightedIndex
 
                   return (
                     <div
                       key={optionValue}
                       data-option-index={index}
-                      onClick={() => handleSelect(optionValue)}
                       onMouseDown={(e) => {
                         e.preventDefault()
                         handleSelect(optionValue)
