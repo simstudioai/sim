@@ -17,9 +17,6 @@ import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FileAuthorization')
 
-/**
- * Authorization result structure
- */
 export interface AuthorizationResult {
   granted: boolean
   reason: string

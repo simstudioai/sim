@@ -26,7 +26,6 @@ export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    // Strict authentication check - userId is required
     const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
 
     if (!authResult.success || !authResult.userId) {
