@@ -10,33 +10,98 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: MicrosoftTeamsIcon,
 
-  // Credentials are handled by requiresCredentials below, not in configFields
-  configFields: {
-    chatId: {
-      type: 'string',
-      label: 'Chat ID',
+  subBlocks: [
+    // Credentials
+    {
+      id: 'triggerCredentials',
+      title: 'Credentials',
+      type: 'oauth-input',
+      description: 'This trigger requires microsoft teams credentials to access your account.',
+      provider: 'microsoft-teams',
+      requiredScopes: [],
+      required: true,
+      mode: 'trigger',
+    },
+    // Chat ID
+    {
+      id: 'chatId',
+      title: 'Chat ID',
+      type: 'short-input',
       placeholder: 'Enter chat ID',
       description: 'The ID of the Teams chat to monitor',
       required: true,
+      mode: 'trigger',
     },
-    includeAttachments: {
-      type: 'boolean',
-      label: 'Include Attachments',
+    // Include Attachments
+    {
+      id: 'includeAttachments',
+      title: 'Include Attachments',
+      type: 'switch',
       defaultValue: true,
       description: 'Fetch hosted contents and upload to storage',
       required: false,
+      mode: 'trigger',
     },
-  },
-
-  // Require Microsoft Teams OAuth credentials
-  requiresCredentials: true,
-  credentialProvider: 'microsoft-teams',
-  webhook: {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+    // Setup Instructions
+    {
+      id: 'triggerInstructions',
+      title: 'Setup Instructions',
+      type: 'text',
+      defaultValue: [
+        'Connect your Microsoft Teams account and grant the required permissions.',
+        'Enter the Chat ID of the Teams chat you want to monitor.',
+        'We will create a Microsoft Graph change notification subscription that delivers chat message events to your Sim webhook URL.',
+      ]
+        .map(
+          (instruction, index) =>
+            `<div class="mb-3"><strong>${index + 1}.</strong> ${instruction}</div>`
+        )
+        .join(''),
+      mode: 'trigger',
     },
-  },
+    // Webhook URL
+    {
+      id: 'webhookUrlDisplay',
+      title: 'Webhook URL',
+      type: 'short-input',
+      readOnly: true,
+      showCopyButton: true,
+      useWebhookUrl: true,
+      placeholder: 'Webhook URL will be generated',
+      mode: 'trigger',
+    },
+    // Save Button
+    {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      mode: 'trigger',
+      triggerId: 'microsoftteams_chat_subscription',
+    },
+    // Sample Payload
+    {
+      id: 'samplePayload',
+      title: 'Event Payload Example',
+      type: 'code',
+      language: 'json',
+      defaultValue: JSON.stringify(
+        {
+          message_id: '1708709741557',
+          chat_id: '19:abcxyz@unq.gbl.spaces',
+          from_name: 'Adele Vance',
+          text: 'Hello from Teams!',
+          created_at: '2025-01-01T10:00:00Z',
+          attachments: [],
+        },
+        null,
+        2
+      ),
+      readOnly: true,
+      collapsible: true,
+      defaultCollapsed: true,
+      mode: 'trigger',
+    },
+  ],
 
   outputs: {
     // Core message fields
@@ -48,18 +113,10 @@ export const microsoftTeamsChatSubscriptionTrigger: TriggerConfig = {
     attachments: { type: 'file[]', description: 'Uploaded attachments as files' },
   },
 
-  instructions: [
-    'Connect your Microsoft Teams account and grant the required permissions.',
-    'Enter the Chat ID of the Teams chat you want to monitor.',
-    'We will create a Microsoft Graph change notification subscription that delivers chat message events to your Sim webhook URL.',
-  ],
-
-  samplePayload: {
-    message_id: '1708709741557',
-    chat_id: '19:abcxyz@unq.gbl.spaces',
-    from_name: 'Adele Vance',
-    text: 'Hello from Teams!',
-    created_at: '2025-01-01T10:00:00Z',
-    attachments: [],
+  webhook: {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
   },
 }

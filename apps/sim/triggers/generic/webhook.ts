@@ -9,54 +9,107 @@ export const genericWebhookTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: WebhookIcon,
 
-  configFields: {
-    requireAuth: {
-      type: 'boolean',
-      label: 'Require Authentication',
+  subBlocks: [
+    // Require Authentication
+    {
+      id: 'requireAuth',
+      title: 'Require Authentication',
+      type: 'switch',
       description: 'Require authentication for all webhook requests',
       defaultValue: false,
+      mode: 'trigger',
     },
-    token: {
-      type: 'string',
-      label: 'Authentication Token',
+    // Authentication Token
+    {
+      id: 'token',
+      title: 'Authentication Token',
+      type: 'short-input',
       placeholder: 'Enter an auth token',
       description: 'Token used to authenticate webhook requests via Bearer token or custom header',
+      password: true,
       required: false,
-      isSecret: true,
+      mode: 'trigger',
     },
-    secretHeaderName: {
-      type: 'string',
-      label: 'Secret Header Name (Optional)',
+    // Secret Header Name
+    {
+      id: 'secretHeaderName',
+      title: 'Secret Header Name (Optional)',
+      type: 'short-input',
       placeholder: 'X-Secret-Key',
       description:
         'Custom HTTP header name for the auth token. If blank, uses "Authorization: Bearer TOKEN"',
       required: false,
+      mode: 'trigger',
     },
-  },
-
-  outputs: {},
-
-  instructions: [
-    'Copy the webhook URL and use it in your external service or API.',
-    'Configure your service to send webhooks to this URL.',
-    'The webhook will receive any HTTP method (GET, POST, PUT, DELETE, etc.).',
-    'All request data (headers, body, query parameters) will be available in your workflow.',
-    'If authentication is enabled, include the token in requests using either the custom header or "Authorization: Bearer TOKEN".',
-    'Common fields like "event", "id", and "data" will be automatically extracted from the payload when available.',
+    // Setup Instructions
+    {
+      id: 'triggerInstructions',
+      title: 'Setup Instructions',
+      type: 'text',
+      defaultValue: [
+        'Copy the webhook URL and use it in your external service or API.',
+        'Configure your service to send webhooks to this URL.',
+        'The webhook will receive any HTTP method (GET, POST, PUT, DELETE, etc.).',
+        'All request data (headers, body, query parameters) will be available in your workflow.',
+        'If authentication is enabled, include the token in requests using either the custom header or "Authorization: Bearer TOKEN".',
+        'Common fields like "event", "id", and "data" will be automatically extracted from the payload when available.',
+      ]
+        .map(
+          (instruction, index) =>
+            `<div class="mb-3"><strong>${index + 1}.</strong> ${instruction}</div>`
+        )
+        .join(''),
+      mode: 'trigger',
+    },
+    // Webhook URL
+    {
+      id: 'webhookUrlDisplay',
+      title: 'Webhook URL',
+      type: 'short-input',
+      readOnly: true,
+      showCopyButton: true,
+      useWebhookUrl: true,
+      placeholder: 'Webhook URL will be generated',
+      mode: 'trigger',
+    },
+    // Save Button
+    {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      mode: 'trigger',
+      triggerId: 'generic_webhook',
+    },
+    // Sample Payload
+    {
+      id: 'samplePayload',
+      title: 'Event Payload Example',
+      type: 'code',
+      language: 'json',
+      defaultValue: JSON.stringify(
+        {
+          event: 'user.created',
+          id: 'evt_1234567890',
+          data: {
+            user: {
+              id: 'user_123',
+              email: 'user@example.com',
+              name: 'John Doe',
+            },
+          },
+          timestamp: '2023-01-01T12:00:00Z',
+        },
+        null,
+        2
+      ),
+      readOnly: true,
+      collapsible: true,
+      defaultCollapsed: true,
+      mode: 'trigger',
+    },
   ],
 
-  samplePayload: {
-    event: 'user.created',
-    id: 'evt_1234567890',
-    data: {
-      user: {
-        id: 'user_123',
-        email: 'user@example.com',
-        name: 'John Doe',
-      },
-    },
-    timestamp: '2023-01-01T12:00:00Z',
-  },
+  outputs: {},
 
   webhook: {
     method: 'POST',

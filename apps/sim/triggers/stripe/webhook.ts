@@ -9,9 +9,88 @@ export const stripeWebhookTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: ShieldCheck,
 
-  configFields: {
-    // Stripe webhooks don't require configuration fields - events are selected in Stripe dashboard
-  },
+  subBlocks: [
+    // Setup Instructions
+    {
+      id: 'triggerInstructions',
+      title: 'Setup Instructions',
+      type: 'text',
+      defaultValue: [
+        'Go to your Stripe Dashboard at https://dashboard.stripe.com/',
+        'Navigate to Developers > Webhooks',
+        'Click "Add endpoint"',
+        'Paste the Webhook URL into the "Endpoint URL" field',
+        'Select the events you want to listen to (e.g., charge.succeeded)',
+        'Click "Add endpoint"',
+        'Stripe will send a test event to verify your webhook endpoint',
+      ]
+        .map(
+          (instruction, index) =>
+            `<div class="mb-3"><strong>${index + 1}.</strong> ${instruction}</div>`
+        )
+        .join(''),
+      mode: 'trigger',
+    },
+    // Webhook URL
+    {
+      id: 'webhookUrlDisplay',
+      title: 'Webhook URL',
+      type: 'short-input',
+      readOnly: true,
+      showCopyButton: true,
+      useWebhookUrl: true,
+      placeholder: 'Webhook URL will be generated',
+      mode: 'trigger',
+    },
+    // Save Button
+    {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      mode: 'trigger',
+      triggerId: 'stripe_webhook',
+    },
+    // Sample Payload
+    {
+      id: 'samplePayload',
+      title: 'Event Payload Example',
+      type: 'code',
+      language: 'json',
+      defaultValue: JSON.stringify(
+        {
+          id: 'evt_1234567890',
+          type: 'charge.succeeded',
+          created: 1641234567,
+          data: {
+            object: {
+              id: 'ch_1234567890',
+              object: 'charge',
+              amount: 2500,
+              currency: 'usd',
+              description: 'Sample charge',
+              paid: true,
+              status: 'succeeded',
+              customer: 'cus_1234567890',
+              receipt_email: 'customer@example.com',
+            },
+          },
+          object: 'event',
+          livemode: false,
+          api_version: '2020-08-27',
+          request: {
+            id: 'req_1234567890',
+            idempotency_key: null,
+          },
+        },
+        null,
+        2
+      ),
+      readOnly: true,
+      collapsible: true,
+      defaultCollapsed: true,
+      mode: 'trigger',
+    },
+  ],
 
   outputs: {
     id: {
@@ -45,42 +124,6 @@ export const stripeWebhookTrigger: TriggerConfig = {
     request: {
       type: 'string',
       description: 'Information about the request that triggered this event',
-    },
-  },
-
-  instructions: [
-    'Go to your Stripe Dashboard at https://dashboard.stripe.com/',
-    'Navigate to Developers > Webhooks',
-    'Click "Add endpoint"',
-    'Paste the Webhook URL into the "Endpoint URL" field',
-    'Select the events you want to listen to (e.g., charge.succeeded)',
-    'Click "Add endpoint"',
-    'Stripe will send a test event to verify your webhook endpoint',
-  ],
-
-  samplePayload: {
-    id: 'evt_1234567890',
-    type: 'charge.succeeded',
-    created: 1641234567,
-    data: {
-      object: {
-        id: 'ch_1234567890',
-        object: 'charge',
-        amount: 2500,
-        currency: 'usd',
-        description: 'Sample charge',
-        paid: true,
-        status: 'succeeded',
-        customer: 'cus_1234567890',
-        receipt_email: 'customer@example.com',
-      },
-    },
-    object: 'event',
-    livemode: false,
-    api_version: '2020-08-27',
-    request: {
-      id: 'req_1234567890',
-      idempotency_key: null,
     },
   },
 

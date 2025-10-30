@@ -9,16 +9,100 @@ export const telegramWebhookTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: TelegramIcon,
 
-  configFields: {
-    botToken: {
-      type: 'string',
-      label: 'Bot Token',
+  subBlocks: [
+    // Bot Token
+    {
+      id: 'botToken',
+      title: 'Bot Token',
+      type: 'short-input',
       placeholder: '123456789:ABCdefGHIjklMNOpqrsTUVwxyz',
       description: 'Your Telegram Bot Token from BotFather',
+      password: true,
       required: true,
-      isSecret: true,
+      mode: 'trigger',
     },
-  },
+    // Setup Instructions
+    {
+      id: 'triggerInstructions',
+      title: 'Setup Instructions',
+      type: 'text',
+      defaultValue: [
+        'Message "/newbot" to <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" class="text-muted-foreground underline transition-colors hover:text-muted-foreground/80">@BotFather</a> in Telegram to create a bot and copy its token.',
+        'Enter your Bot Token above.',
+        'Save settings and any message sent to your bot will trigger the workflow.',
+      ]
+        .map(
+          (instruction, index) =>
+            `<div class="mb-3"><strong>${index + 1}.</strong> ${instruction}</div>`
+        )
+        .join(''),
+      mode: 'trigger',
+    },
+    // Webhook URL
+    {
+      id: 'webhookUrlDisplay',
+      title: 'Webhook URL',
+      type: 'short-input',
+      readOnly: true,
+      showCopyButton: true,
+      useWebhookUrl: true,
+      placeholder: 'Webhook URL will be generated',
+      mode: 'trigger',
+    },
+    // Save Button
+    {
+      id: 'triggerSave',
+      title: '',
+      type: 'trigger-save',
+      mode: 'trigger',
+      triggerId: 'telegram_webhook',
+    },
+    // Sample Payload
+    {
+      id: 'samplePayload',
+      title: 'Event Payload Example',
+      type: 'code',
+      language: 'json',
+      defaultValue: JSON.stringify(
+        {
+          update_id: 123456789,
+          message: {
+            message_id: 123,
+            from: {
+              id: 987654321,
+              is_bot: false,
+              first_name: 'John',
+              last_name: 'Doe',
+              username: 'johndoe',
+              language_code: 'en',
+            },
+            chat: {
+              id: 987654321,
+              first_name: 'John',
+              last_name: 'Doe',
+              username: 'johndoe',
+              type: 'private',
+            },
+            date: 1234567890,
+            text: 'Hello from Telegram!',
+            entities: [
+              {
+                offset: 0,
+                length: 5,
+                type: 'bold',
+              },
+            ],
+          },
+        },
+        null,
+        2
+      ),
+      readOnly: true,
+      collapsible: true,
+      defaultCollapsed: true,
+      mode: 'trigger',
+    },
+  ],
 
   outputs: {
     // Matches the formatted payload built in `formatWebhookInput` for provider "telegram"
@@ -88,43 +172,6 @@ export const telegramWebhookTrigger: TriggerConfig = {
       type: 'string',
       description:
         'Type of update: message, edited_message, channel_post, edited_channel_post, unknown',
-    },
-  },
-
-  instructions: [
-    'Message "/newbot" to <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" class="text-muted-foreground underline transition-colors hover:text-muted-foreground/80">@BotFather</a> in Telegram to create a bot and copy its token.',
-    'Enter your Bot Token above.',
-    'Save settings and any message sent to your bot will trigger the workflow.',
-  ],
-
-  samplePayload: {
-    update_id: 123456789,
-    message: {
-      message_id: 123,
-      from: {
-        id: 987654321,
-        is_bot: false,
-        first_name: 'John',
-        last_name: 'Doe',
-        username: 'johndoe',
-        language_code: 'en',
-      },
-      chat: {
-        id: 987654321,
-        first_name: 'John',
-        last_name: 'Doe',
-        username: 'johndoe',
-        type: 'private',
-      },
-      date: 1234567890,
-      text: 'Hello from Telegram!',
-      entities: [
-        {
-          offset: 0,
-          length: 5,
-          type: 'bold',
-        },
-      ],
     },
   },
 

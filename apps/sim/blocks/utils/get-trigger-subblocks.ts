@@ -1,10 +1,9 @@
 import type { SubBlockConfig } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
-import { mapTriggerToSubBlocks } from '@/triggers/utils/trigger-to-subblock-mapper'
 
 /**
  * Get subblocks for one or more triggers
- * - Single trigger: Returns subblocks for that trigger
+ * - Single trigger: Returns subblocks directly from trigger definition
  * - Multiple triggers: Adds a dropdown selector and conditionally shows subblocks based on selection
  */
 export function getTriggerSubBlocks(triggerIds: string | string[]): SubBlockConfig[] {
@@ -18,7 +17,8 @@ export function getTriggerSubBlocks(triggerIds: string | string[]): SubBlockConf
       console.warn(`Trigger not found: ${ids[0]}`)
       return []
     }
-    return mapTriggerToSubBlocks(triggerDef)
+    // Simply return the trigger's subblocks directly - no conversion needed!
+    return triggerDef.subBlocks || []
   }
 
   const subBlocks: SubBlockConfig[] = []
@@ -48,7 +48,7 @@ export function getTriggerSubBlocks(triggerIds: string | string[]): SubBlockConf
       return
     }
 
-    const triggerSubBlocks = mapTriggerToSubBlocks(triggerDef)
+    const triggerSubBlocks = triggerDef.subBlocks || []
 
     triggerSubBlocks.forEach((subBlock) => {
       subBlocks.push({

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Wand2 } from 'lucide-react'
+import { Check, Copy, Wand2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useReactFlow } from 'reactflow'
 import { Button } from '@/components/ui/button'
@@ -15,6 +15,7 @@ import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useTagSelection } from '@/hooks/use-tag-selection'
+import { useWebhookManagement } from '@/hooks/use-webhook-management'
 
 const logger = createLogger('ShortInput')
 
@@ -30,6 +31,9 @@ interface ShortInputProps {
   isPreview?: boolean
   previewValue?: string | null
   disabled?: boolean
+  readOnly?: boolean
+  showCopyButton?: boolean
+  useWebhookUrl?: boolean
 }
 
 export function ShortInput({
@@ -44,12 +48,25 @@ export function ShortInput({
   isPreview = false,
   previewValue,
   disabled = false,
+  readOnly = false,
+  showCopyButton = false,
+  useWebhookUrl = false,
 }: ShortInputProps) {
   // Local state for immediate UI updates during streaming
   const [localContent, setLocalContent] = useState<string>('')
   const [isFocused, setIsFocused] = useState(false)
   const [showEnvVars, setShowEnvVars] = useState(false)
   const [showTags, setShowTags] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  // Use webhook management hook if this is displaying a webhook URL
+  const webhookManagement = useWebhookUrl
+    ? useWebhookManagement({
+        blockId,
+        triggerId: undefined,
+        isPreview,
+      })
+    : null
 
   // Wand functionality (only if wandConfig is enabled)
   const wandHook = config.wandConfig?.enabled
@@ -95,8 +112,12 @@ export function ShortInput({
   // Use preview value when in preview mode, otherwise use store value or prop value
   const baseValue = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
-  // During streaming, use local content; otherwise use base value
-  const value = wandHook?.isStreaming ? localContent : baseValue
+  // If using webhook URL, override with webhook value
+  const effectiveValue =
+    useWebhookUrl && webhookManagement?.webhookUrl ? webhookManagement.webhookUrl : baseValue
+
+  // During streaming, use local content; otherwise use effective value
+  const value = wandHook?.isStreaming ? localContent : effectiveValue
 
   // Sync local content with base value when not streaming
   useEffect(() => {
@@ -146,10 +167,20 @@ export function ShortInput({
     )
   }, [config?.id, config?.title])
 
+  // Handle copy button click
+  const handleCopy = () => {
+    const textToCopy = useWebhookUrl ? webhookManagement?.webhookUrl : value?.toString()
+    if (textToCopy) {
+      navigator.clipboard.writeText(textToCopy)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
   // Handle input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Don't allow changes if disabled
-    if (disabled) {
+    // Don't allow changes if disabled or readOnly
+    if (disabled || readOnly) {
       e.preventDefault()
       return
     }
@@ -378,12 +409,14 @@ export function ShortInput({
             'allow-scroll w-full overflow-auto text-transparent caret-foreground [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-muted-foreground/50 [&::-webkit-scrollbar]:hidden',
             isConnecting &&
               config?.connectionDroppable !== false &&
-              'ring-2 ring-blue-500 ring-offset-2 focus-visible:ring-blue-500'
+              'ring-2 ring-blue-500 ring-offset-2 focus-visible:ring-blue-500',
+            showCopyButton && 'pr-10'
           )}
           placeholder={placeholder ?? ''}
           type='text'
           value={displayValue}
           onChange={handleChange}
+          readOnly={readOnly}
           onFocus={() => {
             setIsFocused(true)
 
@@ -417,7 +450,11 @@ export function ShortInput({
         />
         <div
           ref={overlayRef}
-          className='pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-3 text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+          className={cn(
+            'pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+            'pl-3',
+            showCopyButton ? 'pr-10' : 'pr-3'
+          )}
           style={{ overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           <div
@@ -432,6 +469,26 @@ export function ShortInput({
                 })}
           </div>
         </div>
+
+        {/* Copy Button */}
+        {showCopyButton && value && (
+          <Button
+            type='button'
+            variant='ghost'
+            size='sm'
+            onClick={handleCopy}
+            disabled={!value}
+            className={cn(
+              'absolute top-0.5 right-0.5 h-8 w-8 p-0',
+              'text-muted-foreground/60 transition-all duration-200',
+              'hover:scale-105 hover:bg-muted/50 hover:text-foreground',
+              'active:scale-95'
+            )}
+            aria-label='Copy value'
+          >
+            {copied ? <Check className='h-3.5 w-3.5' /> : <Copy className='h-3.5 w-3.5' />}
+          </Button>
+        )}
 
         {/* Wand Button */}
         {wandHook && !isPreview && !wandHook.isStreaming && (

@@ -8,10 +8,8 @@ import {
   ChannelSelectorInput,
   CheckboxList,
   Code,
-  CollapsibleJson,
   ComboBox,
   ConditionInput,
-  CopyableText,
   CredentialSelector,
   DocumentSelector,
   Dropdown,
@@ -38,6 +36,7 @@ import {
   Text,
   TimeInput,
   ToolInput,
+  TriggerSave,
   VariablesInput,
   WebhookConfig,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components'
@@ -103,6 +102,9 @@ export const SubBlock = memo(
               subBlockId={config.id}
               placeholder={config.placeholder}
               password={config.password}
+              readOnly={config.readOnly}
+              showCopyButton={config.showCopyButton}
+              useWebhookUrl={config.useWebhookUrl}
               isConnecting={isConnecting}
               config={config}
               isPreview={isPreview}
@@ -193,9 +195,17 @@ export const SubBlock = memo(
               placeholder={config.placeholder}
               language={config.language}
               generationType={config.generationType}
+              value={
+                typeof config.value === 'function' ? config.value(subBlockValues || {}) : undefined
+              }
               isPreview={isPreview}
               previewValue={previewValue}
               disabled={isDisabled}
+              readOnly={config.readOnly}
+              collapsible={config.collapsible}
+              defaultCollapsed={config.defaultCollapsed}
+              defaultValue={config.defaultValue}
+              showCopyButton={config.showCopyButton}
               onValidationChange={handleValidationChange}
               wandConfig={
                 config.wandConfig || {
@@ -547,29 +557,14 @@ export const SubBlock = memo(
               }
             />
           )
-        case 'copyable-text':
+        case 'trigger-save':
           return (
-            <CopyableText
+            <TriggerSave
               blockId={blockId}
               subBlockId={config.id}
-              content={
-                typeof config.value === 'function'
-                  ? config.value(subBlockValues || {})
-                  : (config.defaultValue as string) || ''
-              }
-              placeholder={config.placeholder}
+              triggerId={config.triggerId}
               isPreview={isPreview}
-              useWebhookUrl={config.useWebhookUrl}
-              webhookTriggerId={config.webhookTriggerId}
-            />
-          )
-        case 'collapsible-json':
-          return (
-            <CollapsibleJson
-              blockId={blockId}
-              subBlockId={config.id}
-              data={config.defaultValue}
-              description={config.description}
+              disabled={disabled}
             />
           )
         default:

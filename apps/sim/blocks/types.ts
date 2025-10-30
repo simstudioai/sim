@@ -67,13 +67,12 @@ export type SubBlockType =
   | 'mcp-dynamic-args' // MCP dynamic arguments based on tool schema
   | 'input-format' // Input structure format
   | 'response-format' // Response structure format
+  | 'trigger-save' // Trigger save button with validation
   | 'file-upload' // File uploader
   | 'input-mapping' // Map parent variables to child workflow input schema
   | 'variables-input' // Variable assignments for updating workflow variables
   | 'multi-select-dropdown' // Multi-select dropdown with dynamic option loading
   | 'text' // Read-only text display
-  | 'copyable-text' // Read-only text with copy button (for URLs, tokens, etc.)
-  | 'collapsible-json' // Collapsible JSON preview with Notice-style UI
 
 export type SubBlockLayout = 'full' | 'half'
 
@@ -145,6 +144,8 @@ export interface SubBlockConfig {
   columns?: string[]
   placeholder?: string
   password?: boolean
+  readOnly?: boolean
+  showCopyButton?: boolean
   connectionDroppable?: boolean
   hidden?: boolean
   description?: string
@@ -177,6 +178,8 @@ export interface SubBlockConfig {
   // Props specific to 'code' sub-block type
   language?: 'javascript' | 'json'
   generationType?: GenerationType
+  collapsible?: boolean // Whether the code block can be collapsed
+  defaultCollapsed?: boolean // Whether the code block is collapsed by default
   // OAuth specific properties
   provider?: string
   serviceId?: string
@@ -207,8 +210,8 @@ export interface SubBlockConfig {
   dependsOn?: string[]
   // Copyable-text specific: Use webhook URL from webhook management hook
   useWebhookUrl?: boolean
-  // Webhook management: The trigger ID to use for webhook management
-  webhookTriggerId?: string
+  // Trigger-save specific: The trigger ID for validation and saving
+  triggerId?: string
 }
 
 export interface BlockConfig<T extends ToolResponse = ToolResponse> {
