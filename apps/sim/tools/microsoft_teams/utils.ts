@@ -191,15 +191,29 @@ async function fetchChannelMembers(
   )
 
   if (!response.ok) {
+    logger.error('Failed to fetch channel members:', {
+      status: response.status,
+      statusText: response.statusText,
+    })
     return []
   }
 
   const data = await response.json()
-  return (data.value || []).map((member: TeamMember) => ({
+  const members = (data.value || []).map((member: TeamMember) => ({
     id: member.id,
     displayName: member.displayName || '',
     userIdentityType: member.userIdentityType,
   }))
+
+  logger.info('Fetched channel members:', {
+    count: members.length,
+    members: members.map((m: TeamMember) => ({
+      displayName: m.displayName,
+      userIdentityType: m.userIdentityType,
+    })),
+  })
+
+  return members
 }
 
 function findMemberByName(members: TeamMember[], name: string): TeamMember | undefined {
@@ -281,6 +295,11 @@ export async function resolveMentionsForChannel(
 ): Promise<{ mentions: TeamsMention[]; hasMentions: boolean; updatedContent: string }> {
   const parsedMentions = parseMentions(content)
 
+  logger.info('Resolving mentions for channel:', {
+    parsedMentionsCount: parsedMentions.length,
+    parsedMentions: parsedMentions.map((m: ParsedMention) => m.name),
+  })
+
   if (parsedMentions.length === 0) {
     return { mentions: [], hasMentions: false, updatedContent: content }
   }
@@ -296,6 +315,13 @@ export async function resolveMentionsForChannel(
     }
 
     const member = findMemberByName(members, mention.name)
+
+    logger.info('Attempting to resolve mention:', {
+      mentionName: mention.name,
+      foundMember: member
+        ? { displayName: member.displayName, userIdentityType: member.userIdentityType }
+        : null,
+    })
 
     if (member) {
       const isBot = member.userIdentityType === 'bot'
@@ -330,8 +356,18 @@ export async function resolveMentionsForChannel(
         mention.fullTag,
         `<at id="${mention.mentionId}">${mention.name}</at>`
       )
+    } else {
+      logger.warn('Could not find member for mention:', {
+        mentionName: mention.name,
+        availableMembers: members.map((m: TeamMember) => m.displayName),
+      })
     }
   }
+
+  logger.info('Resolved mentions for channel:', {
+    resolvedCount: mentions.length,
+    updatedContent,
+  })
 
   return {
     mentions,
