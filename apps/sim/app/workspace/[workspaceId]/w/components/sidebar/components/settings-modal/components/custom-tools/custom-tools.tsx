@@ -27,7 +27,7 @@ function CustomToolSkeleton() {
 export function CustomTools() {
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const { tools, isLoading, error, fetchTools, deleteTool } = useCustomToolsStore()
+  const { tools, isLoading, error, fetchTools, deleteTool, clearError } = useCustomToolsStore()
 
   const [searchTerm, setSearchTerm] = useState('')
   const [deletingTools, setDeletingTools] = useState<Set<string>>(new Set())
@@ -39,6 +39,13 @@ export function CustomTools() {
       fetchTools(workspaceId)
     }
   }, [workspaceId, fetchTools])
+
+  // Clear store errors when modal opens (errors should show in modal, not in settings)
+  useEffect(() => {
+    if (showAddForm || editingTool) {
+      clearError()
+    }
+  }, [showAddForm, editingTool, clearError])
 
   const filteredTools = tools.filter((tool) => {
     if (!searchTerm.trim()) return true
@@ -115,8 +122,8 @@ export function CustomTools() {
           </div>
         )}
 
-        {/* Error Alert */}
-        {error && (
+        {/* Error Alert - only show when modal is not open */}
+        {error && !showAddForm && !editingTool && (
           <Alert variant='destructive' className='mt-4'>
             <AlertCircle className='h-4 w-4' />
             <AlertDescription>{error}</AlertDescription>
@@ -133,37 +140,7 @@ export function CustomTools() {
               <CustomToolSkeleton />
               <CustomToolSkeleton />
             </div>
-          ) : showAddForm ? (
-            <div className='rounded-[8px] border bg-background p-4 shadow-xs'>
-              <CustomToolModal
-                open={showAddForm}
-                onOpenChange={(open) => {
-                  if (!open) {
-                    setShowAddForm(false)
-                  }
-                }}
-                onSave={handleToolSaved}
-                onDelete={() => {}}
-                blockId=''
-                initialValues={undefined}
-              />
-            </div>
-          ) : editingTool ? (
-            <div className='rounded-[8px] border bg-background p-4 shadow-xs'>
-              <CustomToolModal
-                open={true}
-                onOpenChange={(open) => {
-                  if (!open) {
-                    setEditingTool(null)
-                  }
-                }}
-                onSave={handleToolSaved}
-                onDelete={() => {}}
-                blockId=''
-                initialValues={tools.find((t) => t.id === editingTool)}
-              />
-            </div>
-          ) : filteredTools.length === 0 ? (
+          ) : filteredTools.length === 0 && !showAddForm && !editingTool ? (
             <div className='flex h-full items-center justify-center text-muted-foreground text-sm'>
               {searchTerm.trim() ? (
                 <>No tools found matching "{searchTerm}"</>
@@ -220,6 +197,21 @@ export function CustomTools() {
           )}
         </div>
       </div>
+
+      {/* Create/Edit Modal - rendered as overlay */}
+      <CustomToolModal
+        open={showAddForm || !!editingTool}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowAddForm(false)
+            setEditingTool(null)
+          }
+        }}
+        onSave={handleToolSaved}
+        onDelete={() => {}}
+        blockId=''
+        initialValues={editingTool ? tools.find((t) => t.id === editingTool) : undefined}
+      />
     </div>
   )
 }

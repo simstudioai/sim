@@ -427,64 +427,43 @@ try {
         return
       }
 
-      // Check for duplicate tool name
-      const toolName = parsed.function.name
-      const customToolsStore = useCustomToolsStore.getState()
-      const existingTools = customToolsStore.getAllTools()
-
-      // If editing, we need to find the original tool to get its ID
-      let originalToolId = toolId
-
-      if (isEditing && !originalToolId) {
-        // If we're editing but don't have an ID, try to find the tool by its original name
-        const originalSchema = initialValues?.schema
-        const originalName = originalSchema?.function?.name
-
-        if (originalName) {
-          const originalTool = existingTools.find(
-            (tool) => tool.schema.function.name === originalName
-          )
-          if (originalTool) {
-            originalToolId = originalTool.id
-          }
-        }
-      }
-
-      // Check for duplicates, excluding the current tool if editing
-      const isDuplicate = existingTools.some((tool) => {
-        // Skip the current tool when checking for duplicates
-        if (isEditing && tool.id === originalToolId) {
-          return false
-        }
-        return tool.schema.function.name === toolName
-      })
-
-      if (isDuplicate) {
-        setSchemaError(`Tool name already exists`)
-        setActiveSection('schema')
-        return
-      }
-
       // No errors, proceed with save - clear any existing errors
       setSchemaError(null)
       setCodeError(null)
 
-      // Save to custom tools store
+      // Parse schema to get tool details
       const schema = JSON.parse(jsonSchema)
       const name = schema.function.name
       const description = schema.function.description || ''
-      let _finalToolId: string | undefined = originalToolId
 
-      // Save to the store
-      if (isEditing && originalToolId) {
-        // Update existing tool in store
-        await updateTool(workspaceId, originalToolId, {
+      // Determine the tool ID for editing
+      let toolIdToUpdate: string | undefined = toolId
+      if (isEditing && !toolIdToUpdate && initialValues?.schema) {
+        const originalName = initialValues.schema.function?.name
+        if (originalName) {
+          const customToolsStore = useCustomToolsStore.getState()
+          const existingTools = customToolsStore.getAllTools()
+          const originalTool = existingTools.find(
+            (tool) => tool.schema.function.name === originalName
+          )
+          if (originalTool) {
+            toolIdToUpdate = originalTool.id
+          }
+        }
+      }
+
+      // Save to the store (server validates duplicates)
+      let _finalToolId: string | undefined = toolIdToUpdate
+
+      if (isEditing && toolIdToUpdate) {
+        // Update existing tool
+        await updateTool(workspaceId, toolIdToUpdate, {
           title: name,
           schema,
           code: functionCode || '',
         })
       } else {
-        // Add new tool to store
+        // Create new tool
         const createdTool = await createTool(workspaceId, {
           title: name,
           schema,
@@ -512,7 +491,18 @@ try {
       handleClose()
     } catch (error) {
       logger.error('Error saving custom tool:', { error })
-      setSchemaError('Failed to save custom tool. Please check your inputs and try again.')
+
+      // Check if it's an API error with status code (from store)
+      const hasStatus = error && typeof error === 'object' && 'status' in error
+      const errorStatus = hasStatus ? (error as { status: number }).status : null
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save custom tool'
+
+      // Display server validation errors (400) directly, generic message for others
+      setSchemaError(
+        errorStatus === 400
+          ? errorMessage
+          : 'Failed to save custom tool. Please check your inputs and try again.'
+      )
       setActiveSection('schema')
     }
   }

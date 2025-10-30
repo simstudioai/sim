@@ -6,6 +6,15 @@ import type { CustomToolsState, CustomToolsStore } from './types'
 const logger = createLogger('CustomToolsStore')
 const API_ENDPOINT = '/api/tools/custom'
 
+class ApiError extends Error {
+  status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.status = status
+    this.name = 'ApiError'
+  }
+}
+
 const initialState: CustomToolsState = {
   tools: [],
   isLoading: false,
@@ -103,9 +112,7 @@ export const useCustomToolsStore = create<CustomToolsStore>()(
           const data = await response.json()
 
           if (!response.ok) {
-            const error = new Error(data.error || 'Failed to create tool')
-            ;(error as any).status = response.status
-            throw error
+            throw new ApiError(data.error || 'Failed to create tool', response.status)
           }
 
           // Refetch tools to get the created tool with its ID
@@ -119,12 +126,8 @@ export const useCustomToolsStore = create<CustomToolsStore>()(
           logger.info(`Created custom tool: ${createdTool.id}`)
           return createdTool
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Failed to create tool'
           logger.error('Error creating custom tool:', error)
-          set({
-            error: errorMessage,
-            isLoading: false,
-          })
+          set({ isLoading: false })
           throw error
         }
       },
@@ -159,9 +162,7 @@ export const useCustomToolsStore = create<CustomToolsStore>()(
           const data = await response.json()
 
           if (!response.ok) {
-            const error = new Error(data.error || 'Failed to update tool')
-            ;(error as any).status = response.status
-            throw error
+            throw new ApiError(data.error || 'Failed to update tool', response.status)
           }
 
           // Refetch tools to get updated data
@@ -169,12 +170,8 @@ export const useCustomToolsStore = create<CustomToolsStore>()(
 
           logger.info(`Updated custom tool: ${id}`)
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Failed to update tool'
           logger.error('Error updating custom tool:', error)
-          set({
-            error: errorMessage,
-            isLoading: false,
-          })
+          set({ isLoading: false })
           throw error
         }
       },
@@ -207,12 +204,8 @@ export const useCustomToolsStore = create<CustomToolsStore>()(
 
           logger.info(`Deleted custom tool: ${id}`)
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Failed to delete tool'
           logger.error('Error deleting custom tool:', error)
-          set({
-            error: errorMessage,
-            isLoading: false,
-          })
+          set({ isLoading: false })
           throw error
         }
       },

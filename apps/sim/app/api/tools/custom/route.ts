@@ -3,7 +3,6 @@ import { customTools, workflow } from '@sim/db/schema'
 import { and, eq, isNull, ne, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getSession } from '@/lib/auth'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
@@ -69,8 +68,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Check workspace permissions
-    // Skip for internal JWT with workflowId (checkHybridAuth already verified workflow ownership)
-    // Skip if no workspaceId (legacy workflows/tools)
+    // For internal JWT with workflowId: checkHybridAuth already resolved userId from workflow owner
+    // For session/API key: verify user has access to the workspace
+    // For legacy (no workspaceId): skip workspace check, rely on userId match
     if (resolvedWorkspaceId && !(authResult.authType === 'internal_jwt' && workflowId)) {
       const userPermission = await getUserEntityPermissions(
         userId,
@@ -85,13 +85,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // If workspaceId exists, fetch both workspace-scoped and user-scoped tools
+    // Build query to fetch tools
+    // 1. Workspace-scoped tools: tools with matching workspaceId
+    // 2. User-scoped legacy tools: tools with null workspaceId and matching userId
     const conditions = []
 
     if (resolvedWorkspaceId) {
       conditions.push(eq(customTools.workspaceId, resolvedWorkspaceId))
     }
 
+    // Always include legacy user-scoped tools for backward compatibility
     conditions.push(and(isNull(customTools.workspaceId), eq(customTools.userId, userId)))
 
     const result = await db
@@ -111,12 +114,14 @@ export async function POST(req: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
+    // Use hybrid auth (though this endpoint is only called from UI)
+    const authResult = await checkHybridAuth(req, { requireWorkflowId: false })
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized custom tools update attempt`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const userId = authResult.userId
     const body = await req.json()
 
     try {
@@ -129,14 +134,10 @@ export async function POST(req: NextRequest) {
       }
 
       // Check workspace permissions
-      const userPermission = await getUserEntityPermissions(
-        session.user.id,
-        'workspace',
-        workspaceId
-      )
+      const userPermission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
       if (!userPermission) {
         logger.warn(
-          `[${requestId}] User ${session.user.id} does not have access to workspace ${workspaceId}`
+          `[${requestId}] User ${userId} does not have access to workspace ${workspaceId}`
         )
         return NextResponse.json({ error: 'Access denied' }, { status: 403 })
       }
@@ -144,7 +145,7 @@ export async function POST(req: NextRequest) {
       // Check write permission
       if (userPermission !== 'admin' && userPermission !== 'write') {
         logger.warn(
-          `[${requestId}] User ${session.user.id} does not have write permission for workspace ${workspaceId}`
+          `[${requestId}] User ${userId} does not have write permission for workspace ${workspaceId}`
         )
         return NextResponse.json({ error: 'Write permission required' }, { status: 403 })
       }
@@ -221,7 +222,7 @@ export async function POST(req: NextRequest) {
           await tx.insert(customTools).values({
             id: tool.id || crypto.randomUUID(),
             workspaceId,
-            userId: session.user.id,
+            userId,
             title: tool.title,
             schema: tool.schema,
             code: tool.code,
@@ -263,11 +264,14 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
+    // Use hybrid auth (though this endpoint is only called from UI)
+    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized custom tool deletion attempt`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const userId = authResult.userId
 
     // Check if the tool exists
     const existingTool = await db
@@ -291,14 +295,10 @@ export async function DELETE(request: NextRequest) {
       }
 
       // Check workspace permissions
-      const userPermission = await getUserEntityPermissions(
-        session.user.id,
-        'workspace',
-        workspaceId
-      )
+      const userPermission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
       if (!userPermission) {
         logger.warn(
-          `[${requestId}] User ${session.user.id} does not have access to workspace ${workspaceId}`
+          `[${requestId}] User ${userId} does not have access to workspace ${workspaceId}`
         )
         return NextResponse.json({ error: 'Access denied' }, { status: 403 })
       }
@@ -306,7 +306,7 @@ export async function DELETE(request: NextRequest) {
       // Check write permission
       if (userPermission !== 'admin' && userPermission !== 'write') {
         logger.warn(
-          `[${requestId}] User ${session.user.id} does not have write permission for workspace ${workspaceId}`
+          `[${requestId}] User ${userId} does not have write permission for workspace ${workspaceId}`
         )
         return NextResponse.json({ error: 'Write permission required' }, { status: 403 })
       }
@@ -317,11 +317,11 @@ export async function DELETE(request: NextRequest) {
         return NextResponse.json({ error: 'Tool not found' }, { status: 404 })
       }
     } else {
-      // Handle user-scoped tools (legacy, no workspaceId)
+      // Handle legacy user-scoped tools (no workspaceId)
       // Only allow deletion if user owns the tool
-      if (tool.userId !== session.user.id) {
+      if (tool.userId !== userId) {
         logger.warn(
-          `[${requestId}] User ${session.user.id} attempted to delete tool they don't own: ${toolId}`
+          `[${requestId}] User ${userId} attempted to delete tool they don't own: ${toolId}`
         )
         return NextResponse.json({ error: 'Access denied' }, { status: 403 })
       }
