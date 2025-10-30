@@ -94,7 +94,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
   const keyToUse = customKey || fileName
 
   if (USE_BLOB_STORAGE) {
-    const { uploadToBlob } = await import('../providers/blob/client')
+    const { uploadToBlob } = await import('@/lib/uploads/providers/blob/client')
     const uploadResult = await uploadToBlob(
       file,
       keyToUse,
@@ -119,7 +119,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
   }
 
   if (USE_S3_STORAGE) {
-    const { uploadToS3 } = await import('../providers/s3/client')
+    const { uploadToS3 } = await import('@/lib/uploads/providers/s3/client')
     const uploadResult = await uploadToS3(
       file,
       keyToUse,
@@ -178,12 +178,12 @@ export async function downloadFile(options: DownloadFileOptions): Promise<Buffer
     const config = getStorageConfig(context)
 
     if (USE_BLOB_STORAGE) {
-      const { downloadFromBlob } = await import('../providers/blob/client')
+      const { downloadFromBlob } = await import('@/lib/uploads/providers/blob/client')
       return downloadFromBlob(key, createBlobConfig(config))
     }
 
     if (USE_S3_STORAGE) {
-      const { downloadFromS3 } = await import('../providers/s3/client')
+      const { downloadFromS3 } = await import('@/lib/uploads/providers/s3/client')
       return downloadFromS3(key, createS3Config(config))
     }
   }
@@ -202,17 +202,17 @@ export async function deleteFile(options: DeleteFileOptions): Promise<void> {
     const config = getStorageConfig(context)
 
     if (USE_BLOB_STORAGE) {
-      const { deleteFromBlob } = await import('../providers/blob/client')
+      const { deleteFromBlob } = await import('@/lib/uploads/providers/blob/client')
       return deleteFromBlob(key, createBlobConfig(config))
     }
 
     if (USE_S3_STORAGE) {
-      const { deleteFromS3 } = await import('../providers/s3/client')
+      const { deleteFromS3 } = await import('@/lib/uploads/providers/s3/client')
       return deleteFromS3(key, createS3Config(config))
     }
   }
 
-  const { deleteFile: defaultDelete } = await import('./storage-client')
+  const { deleteFile: defaultDelete } = await import('@/lib/uploads/core/storage-client')
   return defaultDelete(key)
 }
 
@@ -276,7 +276,7 @@ async function generateS3PresignedUrl(
   config: { bucket?: string; region?: string },
   expirationSeconds: number
 ): Promise<PresignedUrlResponse> {
-  const { getS3Client } = await import('../providers/s3/client')
+  const { getS3Client } = await import('@/lib/uploads/providers/s3/client')
   const { PutObjectCommand } = await import('@aws-sdk/client-s3')
   const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
 
@@ -320,7 +320,7 @@ async function generateBlobPresignedUrl(
   },
   expirationSeconds: number
 ): Promise<PresignedUrlResponse> {
-  const { getBlobServiceClient } = await import('../providers/blob/client')
+  const { getBlobServiceClient } = await import('@/lib/uploads/providers/blob/client')
   const { BlobSASPermissions, generateBlobSASQueryParameters, StorageSharedKeyCredential } =
     await import('@azure/storage-blob')
 
@@ -414,12 +414,12 @@ export async function generatePresignedDownloadUrl(
   const config = getStorageConfig(context)
 
   if (USE_S3_STORAGE) {
-    const { getPresignedUrlWithConfig } = await import('../providers/s3/client')
+    const { getPresignedUrlWithConfig } = await import('@/lib/uploads/providers/s3/client')
     return getPresignedUrlWithConfig(key, createS3Config(config), expirationSeconds)
   }
 
   if (USE_BLOB_STORAGE) {
-    const { getPresignedUrlWithConfig } = await import('../providers/blob/client')
+    const { getPresignedUrlWithConfig } = await import('@/lib/uploads/providers/blob/client')
     return getPresignedUrlWithConfig(key, createBlobConfig(config), expirationSeconds)
   }
 
