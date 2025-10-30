@@ -10,6 +10,29 @@ const logger = createLogger('StorageClient')
 export type { FileInfo, StorageConfig } from '../shared/types'
 
 /**
+ * Validate and resolve local file path ensuring it's within the allowed directory
+ * @param key File key/name
+ * @param uploadDir Upload directory path
+ * @returns Resolved file path
+ * @throws Error if path is invalid or outside allowed directory
+ */
+async function validateLocalFilePath(key: string, uploadDir: string): Promise<string> {
+  const { join, resolve, sep } = await import('path')
+
+  const safeKey = sanitizeFileKey(key)
+  const filePath = join(uploadDir, safeKey)
+
+  const resolvedPath = resolve(filePath)
+  const allowedDir = resolve(uploadDir)
+
+  if (!resolvedPath.startsWith(allowedDir + sep) && resolvedPath !== allowedDir) {
+    throw new Error('Invalid file path')
+  }
+
+  return filePath
+}
+
+/**
  * Upload a file to the configured storage provider
  * @param file Buffer containing file data
  * @param fileName Original file name
@@ -51,9 +74,19 @@ export async function uploadFile(
   if (USE_BLOB_STORAGE) {
     const { uploadToBlob } = await import('@/lib/uploads/providers/blob/client')
     if (typeof configOrSize === 'object') {
+      if (!configOrSize.containerName || !configOrSize.accountName) {
+        throw new Error(
+          'Blob configuration missing required properties: containerName and accountName'
+        )
+      }
+      if (!configOrSize.connectionString && !configOrSize.accountKey) {
+        throw new Error(
+          'Blob configuration missing authentication: either connectionString or accountKey must be provided'
+        )
+      }
       const blobConfig: BlobConfig = {
-        containerName: configOrSize.containerName!,
-        accountName: configOrSize.accountName!,
+        containerName: configOrSize.containerName,
+        accountName: configOrSize.accountName,
         accountKey: configOrSize.accountKey,
         connectionString: configOrSize.connectionString,
       }
@@ -65,9 +98,12 @@ export async function uploadFile(
   if (USE_S3_STORAGE) {
     const { uploadToS3 } = await import('@/lib/uploads/providers/s3/client')
     if (typeof configOrSize === 'object') {
+      if (!configOrSize.bucket || !configOrSize.region) {
+        throw new Error('S3 configuration missing required properties: bucket and region')
+      }
       const s3Config: S3Config = {
-        bucket: configOrSize.bucket!,
-        region: configOrSize.region!,
+        bucket: configOrSize.bucket,
+        region: configOrSize.region,
       }
       return uploadToS3(file, fileName, contentType, s3Config, size)
     }
@@ -120,9 +156,19 @@ export async function downloadFile(key: string, customConfig?: StorageConfig): P
   if (USE_BLOB_STORAGE) {
     const { downloadFromBlob } = await import('@/lib/uploads/providers/blob/client')
     if (customConfig) {
+      if (!customConfig.containerName || !customConfig.accountName) {
+        throw new Error(
+          'Blob configuration missing required properties: containerName and accountName'
+        )
+      }
+      if (!customConfig.connectionString && !customConfig.accountKey) {
+        throw new Error(
+          'Blob configuration missing authentication: either connectionString or accountKey must be provided'
+        )
+      }
       const blobConfig: BlobConfig = {
-        containerName: customConfig.containerName!,
-        accountName: customConfig.accountName!,
+        containerName: customConfig.containerName,
+        accountName: customConfig.accountName,
         accountKey: customConfig.accountKey,
         connectionString: customConfig.connectionString,
       }
@@ -134,9 +180,12 @@ export async function downloadFile(key: string, customConfig?: StorageConfig): P
   if (USE_S3_STORAGE) {
     const { downloadFromS3 } = await import('@/lib/uploads/providers/s3/client')
     if (customConfig) {
+      if (!customConfig.bucket || !customConfig.region) {
+        throw new Error('S3 configuration missing required properties: bucket and region')
+      }
       const s3Config: S3Config = {
-        bucket: customConfig.bucket!,
-        region: customConfig.region!,
+        bucket: customConfig.bucket,
+        region: customConfig.region,
       }
       return downloadFromS3(key, s3Config)
     }
@@ -144,17 +193,9 @@ export async function downloadFile(key: string, customConfig?: StorageConfig): P
   }
 
   const { readFile } = await import('fs/promises')
-  const { join, resolve, sep } = await import('path')
   const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/core/setup.server')
 
-  const safeKey = key.replace(/\.\./g, '').replace(/[/\\]/g, '')
-  const filePath = join(UPLOAD_DIR_SERVER, safeKey)
-
-  const resolvedPath = resolve(filePath)
-  const allowedDir = resolve(UPLOAD_DIR_SERVER)
-  if (!resolvedPath.startsWith(allowedDir + sep) && resolvedPath !== allowedDir) {
-    throw new Error('Invalid file path')
-  }
+  const filePath = await validateLocalFilePath(key, UPLOAD_DIR_SERVER)
 
   try {
     return await readFile(filePath)
@@ -182,17 +223,9 @@ export async function deleteFile(key: string): Promise<void> {
   }
 
   const { unlink } = await import('fs/promises')
-  const { join, resolve, sep } = await import('path')
   const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/core/setup.server')
 
-  const safeKey = key.replace(/\.\./g, '').replace(/[/\\]/g, '')
-  const filePath = join(UPLOAD_DIR_SERVER, safeKey)
-
-  const resolvedPath = resolve(filePath)
-  const allowedDir = resolve(UPLOAD_DIR_SERVER)
-  if (!resolvedPath.startsWith(allowedDir + sep) && resolvedPath !== allowedDir) {
-    throw new Error('Invalid file path')
-  }
+  const filePath = await validateLocalFilePath(key, UPLOAD_DIR_SERVER)
 
   try {
     await unlink(filePath)

@@ -91,7 +91,10 @@ export async function insertFileMetadata(
       uploadedAt: new Date(),
     }
   } catch (error) {
-    if (error instanceof Error && error.message.includes('unique')) {
+    if (
+      (error as any)?.code === '23505' ||
+      (error instanceof Error && error.message.includes('unique'))
+    ) {
       const existingAfterError = await db
         .select()
         .from(workspaceFiles)

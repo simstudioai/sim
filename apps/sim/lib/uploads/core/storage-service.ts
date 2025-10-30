@@ -12,17 +12,32 @@ import type {
   StorageContext,
   UploadFileOptions,
 } from '../shared/types'
-import { sanitizeFileKey } from '../utils/file-utils'
+import {
+  sanitizeFileKey,
+  sanitizeFilenameForMetadata,
+  sanitizeStorageMetadata,
+} from '../utils/file-utils'
 
 const logger = createLogger('StorageService')
 
 /**
  * Create a Blob config from StorageConfig
+ * @throws Error if required properties are missing
  */
 function createBlobConfig(config: StorageConfig): BlobConfig {
+  if (!config.containerName || !config.accountName) {
+    throw new Error('Blob configuration missing required properties: containerName and accountName')
+  }
+
+  if (!config.connectionString && !config.accountKey) {
+    throw new Error(
+      'Blob configuration missing authentication: either connectionString or accountKey must be provided'
+    )
+  }
+
   return {
-    containerName: config.containerName!,
-    accountName: config.accountName!,
+    containerName: config.containerName,
+    accountName: config.accountName,
     accountKey: config.accountKey,
     connectionString: config.connectionString,
   }
@@ -30,11 +45,16 @@ function createBlobConfig(config: StorageConfig): BlobConfig {
 
 /**
  * Create an S3 config from StorageConfig
+ * @throws Error if required properties are missing
  */
 function createS3Config(config: StorageConfig): S3Config {
+  if (!config.bucket || !config.region) {
+    throw new Error('S3 configuration missing required properties: bucket and region')
+  }
+
   return {
-    bucket: config.bucket!,
-    region: config.region!,
+    bucket: config.bucket,
+    region: config.region,
   }
 }
 
@@ -259,19 +279,14 @@ async function generateS3PresignedUrl(
   const { getS3Client } = await import('../providers/s3/client')
   const { PutObjectCommand } = await import('@aws-sdk/client-s3')
   const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
-  const { sanitizeFilenameForMetadata } = await import('../utils/file-utils')
 
   if (!config.bucket || !config.region) {
     throw new Error('S3 configuration missing bucket or region')
   }
 
-  const sanitizedMetadata: Record<string, string> = {}
-  for (const [key, value] of Object.entries(metadata)) {
-    if (key === 'originalName') {
-      sanitizedMetadata[key] = sanitizeFilenameForMetadata(value)
-    } else {
-      sanitizedMetadata[key] = value
-    }
+  const sanitizedMetadata = sanitizeStorageMetadata(metadata, 2000)
+  if (sanitizedMetadata.originalName) {
+    sanitizedMetadata.originalName = sanitizeFilenameForMetadata(sanitizedMetadata.originalName)
   }
 
   const command = new PutObjectCommand({
@@ -421,7 +436,7 @@ export function hasCloudStorage(): boolean {
 /**
  * Get the current storage provider name
  */
-export async function getStorageProviderName(): Promise<'Azure Blob' | 'S3' | 'Local'> {
+export function getStorageProviderName(): 'Azure Blob' | 'S3' | 'Local' {
   if (USE_BLOB_STORAGE) return 'Azure Blob'
   if (USE_S3_STORAGE) return 'S3'
   return 'Local'

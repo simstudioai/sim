@@ -281,6 +281,23 @@ export function parseInternalFileUrl(
 }
 
 /**
+ * Raw file input that can be converted to UserFile
+ * Supports various file object formats from different sources
+ */
+export interface RawFileInput {
+  id?: string
+  key?: string
+  path?: string
+  url?: string
+  name: string
+  size: number
+  type?: string
+  uploadedAt?: string | Date
+  expiresAt?: string | Date
+  [key: string]: unknown // Allow additional properties for flexibility
+}
+
+/**
  * Converts a single raw file object to UserFile format
  * @param file - Raw file object
  * @param requestId - Request ID for logging
@@ -289,7 +306,7 @@ export function parseInternalFileUrl(
  * @throws Error if file has no storage key
  */
 export function processSingleFileToUserFile(
-  file: any,
+  file: RawFileInput,
   requestId: string,
   logger: Logger
 ): UserFile {
@@ -307,12 +324,20 @@ export function processSingleFileToUserFile(
   const userFile: UserFile = {
     id: file.id || `file-${Date.now()}`,
     name: file.name,
-    url: file.url || file.path,
+    url: file.url || file.path || '',
     size: file.size,
     type: file.type || 'application/octet-stream',
     key: storageKey,
-    uploadedAt: file.uploadedAt || new Date().toISOString(),
-    expiresAt: file.expiresAt || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    uploadedAt: file.uploadedAt
+      ? typeof file.uploadedAt === 'string'
+        ? file.uploadedAt
+        : file.uploadedAt.toISOString()
+      : new Date().toISOString(),
+    expiresAt: file.expiresAt
+      ? typeof file.expiresAt === 'string'
+        ? file.expiresAt
+        : file.expiresAt.toISOString()
+      : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
   }
 
   logger.info(`[${requestId}] Converted file to UserFile: ${userFile.name} (key: ${userFile.key})`)
@@ -327,7 +352,7 @@ export function processSingleFileToUserFile(
  * @returns Array of UserFile objects
  */
 export function processFilesToUserFiles(
-  files: any[],
+  files: RawFileInput[],
   requestId: string,
   logger: Logger
 ): UserFile[] {
