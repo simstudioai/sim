@@ -202,6 +202,9 @@ export interface WorkflowActions {
   updateLoopCount: (loopId: string, count: number) => void
   updateLoopType: (loopId: string, loopType: 'for' | 'forEach' | 'while' | 'doWhile') => void
   updateLoopCollection: (loopId: string, collection: string) => void
+  setLoopForEachItems: (loopId: string, items: any) => void
+  setLoopWhileCondition: (loopId: string, condition: string) => void
+  setLoopDoWhileCondition: (loopId: string, condition: string) => void
   updateParallelCount: (parallelId: string, count: number) => void
   updateParallelCollection: (parallelId: string, collection: string) => void
   updateParallelType: (parallelId: string, parallelType: 'count' | 'collection') => void

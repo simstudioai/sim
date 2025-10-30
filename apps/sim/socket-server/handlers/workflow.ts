@@ -95,6 +95,28 @@ export function setupWorkflowHandlers(
       roomManager.setUserSession(socket.id, { userId, userName })
 
       const workflowState = await getWorkflowState(workflowId)
+      
+      // Debug: log what we're sending
+      logger.debug(`[SERVER] Workflow state structure:`, {
+        hasState: !!(workflowState as any)?.state,
+        hasLoops: !!((workflowState as any)?.state?.loops),
+        loopsKeys: Object.keys((workflowState as any)?.state?.loops || {}),
+      })
+      
+      const state = (workflowState as any)?.state
+      if (state?.loops) {
+        Object.entries(state.loops).forEach(([loopId, loop]: [string, any]) => {
+          logger.debug(`[SERVER] Sending loop ${loopId} to client:`, {
+            loopType: loop.loopType,
+            whileCondition: loop.whileCondition,
+            doWhileCondition: loop.doWhileCondition,
+            fullLoop: loop,
+          })
+        })
+      } else {
+        logger.debug(`[SERVER] No loops in workflow state to send`)
+      }
+      
       socket.emit('workflow-state', workflowState)
 
       // Broadcast updated presence list to all users in the room

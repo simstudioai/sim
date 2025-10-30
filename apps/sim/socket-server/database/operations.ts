@@ -844,6 +844,7 @@ async function handleSubflowOperationTx(
       }
 
       logger.debug(`[SERVER] Updating subflow ${payload.id} with config:`, payload.config)
+      logger.debug(`[SERVER] Subflow update - loopType: ${payload.config.loopType}, whileCondition: ${payload.config.whileCondition}, doWhileCondition: ${payload.config.doWhileCondition}`)
 
       // Update the subflow configuration
       const updateResult = await tx
@@ -864,26 +865,34 @@ async function handleSubflowOperationTx(
       logger.debug(`[SERVER] Successfully updated subflow ${payload.id} in database`)
 
       // Also update the corresponding block's data to keep UI in sync
-      if (payload.type === 'loop' && payload.config.iterations !== undefined) {
-        // Update the loop block's data.count property
-        const blockData: any = {
-          count: payload.config.iterations,
-          loopType: payload.config.loopType,
-          width: 500,
-          height: 300,
-          type: 'subflowNode',
-        }
+      if (payload.type === 'loop') {
+        const existingBlock = await tx
+          .select({ data: workflowBlocks.data })
+          .from(workflowBlocks)
+          .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+          .limit(1)
 
-        // Add the appropriate field based on loop type
-        if (payload.config.loopType === 'while') {
-          // For while loops, use whileCondition
-          blockData.whileCondition = payload.config.whileCondition || ''
-        } else if (payload.config.loopType === 'doWhile') {
-          // For do-while loops, use doWhileCondition
-          blockData.doWhileCondition = payload.config.doWhileCondition || ''
-        } else {
-          // For for/forEach loops, use collection (block data) which maps to forEachItems (loops store)
-          blockData.collection = payload.config.forEachItems || ''
+        const existingData = (existingBlock[0]?.data as any) || {}
+
+        const blockData: any = {
+          ...existingData,
+          count: payload.config.iterations ?? existingData.count ?? DEFAULT_LOOP_ITERATIONS,
+          loopType: payload.config.loopType ?? existingData.loopType ?? 'for',
+          type: 'subflowNode',
+          width: existingData.width ?? 500,
+          height: existingData.height ?? 300,
+          collection:
+            payload.config.forEachItems !== undefined
+              ? payload.config.forEachItems
+              : existingData.collection ?? '',
+          whileCondition:
+            payload.config.whileCondition !== undefined
+              ? payload.config.whileCondition
+              : existingData.whileCondition ?? '',
+          doWhileCondition:
+            payload.config.doWhileCondition !== undefined
+              ? payload.config.doWhileCondition
+              : existingData.doWhileCondition ?? '',
         }
 
         await tx

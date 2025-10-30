@@ -340,11 +340,14 @@ export function useCollaborativeWorkflow() {
                 if (config.iterations !== undefined) {
                   workflowStore.updateLoopCount(payload.id, config.iterations)
                 }
-                // Handle both forEach items and while conditions
                 if (config.forEachItems !== undefined) {
-                  workflowStore.updateLoopCollection(payload.id, config.forEachItems)
-                } else if (config.whileCondition !== undefined) {
-                  workflowStore.updateLoopCollection(payload.id, config.whileCondition)
+                  workflowStore.setLoopForEachItems(payload.id, config.forEachItems)
+                }
+                if (config.whileCondition !== undefined) {
+                  workflowStore.setLoopWhileCondition(payload.id, config.whileCondition)
+                }
+                if (config.doWhileCondition !== undefined) {
+                  workflowStore.setLoopDoWhileCondition(payload.id, config.doWhileCondition)
                 }
               } else if (payload.type === 'parallel') {
                 const { config } = payload
@@ -1274,25 +1277,28 @@ export function useCollaborativeWorkflow() {
 
       const currentIterations = currentBlock.data?.count || 5
       const currentCollection = currentBlock.data?.collection || ''
-      const currentCondition = currentBlock.data?.whileCondition || ''
+
+      const existingLoop = workflowStore.loops[loopId]
+      const existingForEachItems = existingLoop?.forEachItems ?? currentCollection ?? ''
+      const existingWhileCondition = existingLoop?.whileCondition ?? currentBlock.data?.whileCondition ?? ''
+      const existingDoWhileCondition = existingLoop?.doWhileCondition ?? currentBlock.data?.doWhileCondition ?? ''
 
       const config: any = {
         id: loopId,
         nodes: childNodes,
         iterations: currentIterations,
         loopType,
+        forEachItems: existingForEachItems ?? '',
+        whileCondition: existingWhileCondition ?? '',
+        doWhileCondition: existingDoWhileCondition ?? '',
       }
 
-      // Include the appropriate field based on loop type
-      if (loopType === 'forEach') {
-        config.forEachItems = currentCollection
-      } else if (loopType === 'while' || loopType === 'doWhile') {
-        config.whileCondition = currentCondition
-      }
-
-      executeQueuedOperation('update', 'subflow', { id: loopId, type: 'loop', config }, () =>
+      executeQueuedOperation('update', 'subflow', { id: loopId, type: 'loop', config }, () => {
         workflowStore.updateLoopType(loopId, loopType)
-      )
+        workflowStore.setLoopForEachItems(loopId, existingForEachItems ?? '')
+        workflowStore.setLoopWhileCondition(loopId, existingWhileCondition ?? '')
+        workflowStore.setLoopDoWhileCondition(loopId, existingDoWhileCondition ?? '')
+      })
     },
     [executeQueuedOperation, workflowStore]
   )
@@ -1396,25 +1402,34 @@ export function useCollaborativeWorkflow() {
         const currentIterations = currentBlock.data?.count || 5
         const currentLoopType = currentBlock.data?.loopType || 'for'
 
+        const existingLoop = workflowStore.loops[nodeId]
+        let nextForEachItems = existingLoop?.forEachItems ?? currentBlock.data?.collection ?? ''
+        let nextWhileCondition = existingLoop?.whileCondition ?? currentBlock.data?.whileCondition ?? ''
+        let nextDoWhileCondition = existingLoop?.doWhileCondition ?? currentBlock.data?.doWhileCondition ?? ''
+
+        if (currentLoopType === 'forEach') {
+          nextForEachItems = collection
+        } else if (currentLoopType === 'while') {
+          nextWhileCondition = collection
+        } else if (currentLoopType === 'doWhile') {
+          nextDoWhileCondition = collection
+        }
+
         const config: any = {
           id: nodeId,
           nodes: childNodes,
           iterations: currentIterations,
           loopType: currentLoopType,
+          forEachItems: nextForEachItems ?? '',
+          whileCondition: nextWhileCondition ?? '',
+          doWhileCondition: nextDoWhileCondition ?? '',
         }
 
-        // Add the appropriate field based on loop type
-        if (currentLoopType === 'forEach') {
-          config.forEachItems = collection
-        } else if (currentLoopType === 'while') {
-          config.whileCondition = collection
-        } else if (currentLoopType === 'doWhile') {
-          config.doWhileCondition = collection
-        }
-
-        executeQueuedOperation('update', 'subflow', { id: nodeId, type: 'loop', config }, () =>
-          workflowStore.updateLoopCollection(nodeId, collection)
-        )
+        executeQueuedOperation('update', 'subflow', { id: nodeId, type: 'loop', config }, () => {
+          workflowStore.setLoopForEachItems(nodeId, nextForEachItems ?? '')
+          workflowStore.setLoopWhileCondition(nodeId, nextWhileCondition ?? '')
+          workflowStore.setLoopDoWhileCondition(nodeId, nextDoWhileCondition ?? '')
+        })
       } else {
         const currentCount = currentBlock.data?.count || 5
         const currentParallelType = currentBlock.data?.parallelType || 'count'

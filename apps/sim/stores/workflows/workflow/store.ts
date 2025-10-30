@@ -787,37 +787,93 @@ export const useWorkflowStore = create<WorkflowStore>()(
           }
         }),
 
-      updateLoopCollection: (loopId: string, collection: string) =>
+      setLoopForEachItems: (loopId: string, items: any) =>
         set((state) => {
           const block = state.blocks[loopId]
           if (!block || block.type !== 'loop') return state
-
-          const loopType = block.data?.loopType || 'for'
-
-          // Update the appropriate field based on loop type
-          const dataUpdate: any = { ...block.data }
-          if (loopType === 'while') {
-            dataUpdate.whileCondition = collection
-          } else if (loopType === 'doWhile') {
-            dataUpdate.doWhileCondition = collection
-          } else {
-            dataUpdate.collection = collection
-          }
 
           const newBlocks = {
             ...state.blocks,
             [loopId]: {
               ...block,
-              data: dataUpdate,
+              data: {
+                ...block.data,
+                collection: items ?? '',
+              },
             },
           }
 
           return {
             blocks: newBlocks,
             edges: [...state.edges],
-            loops: generateLoopBlocks(newBlocks), // Regenerate loops
+            loops: generateLoopBlocks(newBlocks),
           }
         }),
+
+      setLoopWhileCondition: (loopId: string, condition: string) =>
+        set((state) => {
+          const block = state.blocks[loopId]
+          if (!block || block.type !== 'loop') return state
+
+          const newBlocks = {
+            ...state.blocks,
+            [loopId]: {
+              ...block,
+              data: {
+                ...block.data,
+                whileCondition: condition ?? '',
+              },
+            },
+          }
+
+          return {
+            blocks: newBlocks,
+            edges: [...state.edges],
+            loops: generateLoopBlocks(newBlocks),
+          }
+        }),
+
+      setLoopDoWhileCondition: (loopId: string, condition: string) =>
+        set((state) => {
+          const block = state.blocks[loopId]
+          if (!block || block.type !== 'loop') return state
+
+          const newBlocks = {
+            ...state.blocks,
+            [loopId]: {
+              ...block,
+              data: {
+                ...block.data,
+                doWhileCondition: condition ?? '',
+              },
+            },
+          }
+
+          return {
+            blocks: newBlocks,
+            edges: [...state.edges],
+            loops: generateLoopBlocks(newBlocks),
+          }
+        }),
+
+      updateLoopCollection: (loopId: string, collection: string) => {
+        const store = get()
+        const block = store.blocks[loopId]
+        if (!block || block.type !== 'loop') return
+
+        const loopType = block.data?.loopType || 'for'
+
+        if (loopType === 'while') {
+          store.setLoopWhileCondition(loopId, collection)
+        } else if (loopType === 'doWhile') {
+          store.setLoopDoWhileCondition(loopId, collection)
+        } else if (loopType === 'forEach') {
+          store.setLoopForEachItems(loopId, collection)
+        } else {
+          // Default to forEach-style storage for backward compatibility
+          store.setLoopForEachItems(loopId, collection)
+        }
+      },
 
       // Function to convert UI loop blocks to execution format
       generateLoopBlocks: () => {

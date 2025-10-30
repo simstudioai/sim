@@ -174,23 +174,42 @@ export async function loadWorkflowFromNormalizedTables(
       const config = (subflow.config ?? {}) as Partial<Loop & Parallel>
 
       if (subflow.type === SUBFLOW_TYPES.LOOP) {
+        const loopType =
+          (config as Loop).loopType === 'for' ||
+          (config as Loop).loopType === 'forEach' ||
+          (config as Loop).loopType === 'while' ||
+          (config as Loop).loopType === 'doWhile'
+            ? (config as Loop).loopType
+            : 'for'
+
         const loop: Loop = {
           id: subflow.id,
           nodes: Array.isArray((config as Loop).nodes) ? (config as Loop).nodes : [],
           iterations:
             typeof (config as Loop).iterations === 'number' ? (config as Loop).iterations : 1,
-          loopType:
-            (config as Loop).loopType === 'for' ||
-            (config as Loop).loopType === 'forEach' ||
-            (config as Loop).loopType === 'while' ||
-            (config as Loop).loopType === 'doWhile'
-              ? (config as Loop).loopType
-              : 'for',
+          loopType,
           forEachItems: (config as Loop).forEachItems ?? '',
-          whileCondition: (config as Loop).whileCondition ?? undefined,
-          doWhileCondition: (config as Loop).doWhileCondition ?? undefined,
+          whileCondition: (config as Loop).whileCondition ?? '',
+          doWhileCondition: (config as Loop).doWhileCondition ?? '',
         }
         loops[subflow.id] = loop
+
+        // Sync block.data with loop config to ensure all condition fields are present
+        if (sanitizedBlocks[subflow.id]) {
+          const block = sanitizedBlocks[subflow.id]
+          
+          const syncedData = {
+            ...block.data,
+            whileCondition: loop.whileCondition !== undefined ? loop.whileCondition : (block.data?.whileCondition || ''),
+            doWhileCondition: loop.doWhileCondition !== undefined ? loop.doWhileCondition : (block.data?.doWhileCondition || ''),
+            collection: loop.forEachItems !== undefined ? loop.forEachItems : (block.data?.collection || ''),
+          }
+
+          sanitizedBlocks[subflow.id] = {
+            ...block,
+            data: syncedData,
+          }
+        }
       } else if (subflow.type === SUBFLOW_TYPES.PARALLEL) {
         const parallel: Parallel = {
           id: subflow.id,
