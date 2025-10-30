@@ -722,6 +722,13 @@
       "when": 1761845605676,
       "tag": "0103_careful_harpoon",
       "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1761848118406,
+      "tag": "0104_orange_shinobi_shaw",
+      "breakpoints": true
     }
   ]
 }

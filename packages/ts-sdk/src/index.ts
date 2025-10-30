@@ -22,7 +22,6 @@ export interface WorkflowExecutionResult {
 export interface WorkflowStatus {
   isDeployed: boolean
   deployedAt?: string
-  isPublished: boolean
   needsRedeployment: boolean
 }
 

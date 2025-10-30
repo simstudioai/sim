@@ -42,7 +42,6 @@ class WorkflowStatus:
     """Status of a workflow."""
     is_deployed: bool
     deployed_at: Optional[str] = None
-    is_published: bool = False
     needs_redeployment: bool = False
 
 
@@ -296,7 +295,6 @@ class SimStudioClient:
             return WorkflowStatus(
                 is_deployed=status_data.get('isDeployed', False),
                 deployed_at=status_data.get('deployedAt'),
-                is_published=status_data.get('isPublished', False),
                 needs_redeployment=status_data.get('needsRedeployment', False)
             )
             

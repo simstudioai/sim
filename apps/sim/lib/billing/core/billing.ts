@@ -220,6 +220,7 @@ export async function getSimplifiedBillingSummary(
   metadata: any
   stripeSubscriptionId: string | null
   periodEnd: Date | string | null
+  cancelAtPeriodEnd?: boolean
   // Usage details
   usage: {
     current: number
@@ -341,6 +342,7 @@ export async function getSimplifiedBillingSummary(
         metadata: subscription.metadata || null,
         stripeSubscriptionId: subscription.stripeSubscriptionId || null,
         periodEnd: subscription.periodEnd || null,
+        cancelAtPeriodEnd: subscription.cancelAtPeriodEnd || undefined,
         // Usage details
         usage: {
           current: usageData.currentUsage,
@@ -463,6 +465,7 @@ export async function getSimplifiedBillingSummary(
       metadata: subscription?.metadata || null,
       stripeSubscriptionId: subscription?.stripeSubscriptionId || null,
       periodEnd: subscription?.periodEnd || null,
+      cancelAtPeriodEnd: subscription?.cancelAtPeriodEnd || undefined,
       // Usage details
       usage: {
         current: currentUsage,
@@ -524,5 +527,14 @@ function getDefaultBillingSummary(type: 'individual' | 'organization') {
       daysRemaining: 0,
       copilotCost: 0,
     },
+    ...(type === 'organization' && {
+      organizationData: {
+        seatCount: 0,
+        memberCount: 0,
+        totalBasePrice: 0,
+        totalCurrentUsage: 0,
+        totalOverage: 0,
+      },
+    }),
   }
 }

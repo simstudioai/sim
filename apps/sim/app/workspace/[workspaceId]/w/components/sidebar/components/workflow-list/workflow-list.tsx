@@ -40,15 +40,10 @@ function WorkflowItem({ workflow, active, isMarketplace }: WorkflowItemProps) {
 
 interface WorkflowListProps {
   regularWorkflows: WorkflowMetadata[]
-  marketplaceWorkflows: WorkflowMetadata[]
   isLoading?: boolean
 }
 
-export function WorkflowList({
-  regularWorkflows,
-  marketplaceWorkflows,
-  isLoading = false,
-}: WorkflowListProps) {
+export function WorkflowList({ regularWorkflows, isLoading = false }: WorkflowListProps) {
   const pathname = usePathname()
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -70,11 +65,7 @@ export function WorkflowList({
   }, [])
 
   // Only show empty state when not loading and user is logged in
-  const showEmptyState =
-    !isLoading &&
-    session?.user &&
-    regularWorkflows.length === 0 &&
-    marketplaceWorkflows.length === 0
+  const showEmptyState = !isLoading && session?.user && regularWorkflows.length === 0
 
   return (
     <div className={`space-y-1 ${isLoading ? 'opacity-60' : ''}`}>
@@ -91,29 +82,6 @@ export function WorkflowList({
               active={pathname === `/workspace/${workspaceId}/w/${workflow.id}`}
             />
           ))}
-
-          {/* Marketplace Temp Workflows (if any) */}
-          {marketplaceWorkflows.length > 0 && (
-            <div className='mt-2 border-border/30 border-t pt-2'>
-              <h3 className='mb-1 px-2 font-medium text-muted-foreground text-xs'>Marketplace</h3>
-              {marketplaceWorkflows.map((workflow) => (
-                <WorkflowItem
-                  key={workflow.id}
-                  workflow={workflow}
-                  active={pathname === `/workspace/${workspaceId}/w/${workflow.id}`}
-                  isMarketplace
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Empty state */}
-          {showEmptyState && (
-            <div className='px-2 py-1.5 text-muted-foreground text-xs'>
-              No workflows in {workspaceId ? 'this workspace' : 'your account'}. Create one to get
-              started.
-            </div>
-          )}
         </>
       )}
     </div>

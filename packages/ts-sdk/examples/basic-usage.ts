@@ -82,7 +82,6 @@ async function statusExample() {
     const status = await client.getWorkflowStatus('your-workflow-id')
     console.log('Status:', {
       deployed: status.isDeployed,
-      published: status.isPublished,
       needsRedeployment: status.needsRedeployment,
       deployedAt: status.deployedAt,
     })

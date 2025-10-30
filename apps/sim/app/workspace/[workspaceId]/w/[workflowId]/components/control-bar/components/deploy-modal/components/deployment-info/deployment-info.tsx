@@ -17,7 +17,6 @@ import {
 } from '@/components/ui'
 import {
   ApiEndpoint,
-  ApiKey,
   DeployStatus,
   ExampleCommand,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/control-bar/components/deploy-modal/components/deployment-info/components'
@@ -114,7 +113,6 @@ export function DeploymentInfo({
       <div className='space-y-4 overflow-y-auto px-1'>
         <div className='space-y-4'>
           <ApiEndpoint endpoint={deploymentInfo.endpoint} />
-          <ApiKey apiKey={deploymentInfo.apiKey} />
           <ExampleCommand
             command={deploymentInfo.exampleCommand}
             apiKey={deploymentInfo.apiKey}

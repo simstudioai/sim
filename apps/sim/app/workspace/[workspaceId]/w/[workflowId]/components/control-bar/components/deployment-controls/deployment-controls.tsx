@@ -37,7 +37,7 @@ export function DeploymentControls({
   const workflowNeedsRedeployment = needsRedeployment
   const isPreviousVersionActive = isDeployed && workflowNeedsRedeployment
 
-  const [isDeploying, _setIsDeploying] = useState(false)
+  const [isDeploying, setIsDeploying] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   const lastWorkflowIdRef = useRef<string | null>(null)
@@ -59,11 +59,52 @@ export function DeploymentControls({
   const canDeploy = userPermissions.canAdmin
   const isDisabled = isDeploying || !canDeploy
 
-  const handleDeployClick = useCallback(() => {
-    if (canDeploy) {
-      setIsModalOpen(true)
+  const handleDeployClick = useCallback(async () => {
+    if (!canDeploy || !activeWorkflowId) return
+
+    // If undeployed, deploy first then open modal
+    if (!isDeployed) {
+      setIsDeploying(true)
+      try {
+        const response = await fetch(`/api/workflows/${activeWorkflowId}/deploy`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            deployChatEnabled: false,
+          }),
+        })
+
+        if (response.ok) {
+          const responseData = await response.json()
+          const setDeploymentStatus = useWorkflowRegistry.getState().setDeploymentStatus
+          const isDeployedStatus = responseData.isDeployed ?? false
+          const deployedAtTime = responseData.deployedAt
+            ? new Date(responseData.deployedAt)
+            : undefined
+          setDeploymentStatus(
+            activeWorkflowId,
+            isDeployedStatus,
+            deployedAtTime,
+            responseData.apiKey || ''
+          )
+          await refetchWithErrorHandling()
+          // Open modal after successful deployment
+          setIsModalOpen(true)
+        }
+      } catch (error) {
+        // On error, still open modal to show error
+        setIsModalOpen(true)
+      } finally {
+        setIsDeploying(false)
+      }
+      return
     }
-  }, [canDeploy, setIsModalOpen])
+
+    // If already deployed, just open modal
+    setIsModalOpen(true)
+  }, [canDeploy, isDeployed, activeWorkflowId, refetchWithErrorHandling])
 
   const getTooltipText = () => {
     if (!canDeploy) {

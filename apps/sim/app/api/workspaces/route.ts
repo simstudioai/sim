@@ -95,6 +95,8 @@ async function createWorkspace(userId: string, name: string) {
         id: workspaceId,
         name,
         ownerId: userId,
+        billedAccountUserId: userId,
+        allowPersonalApiKeys: true,
         createdAt: now,
         updatedAt: now,
       })
@@ -124,11 +126,8 @@ async function createWorkspace(userId: string, name: string) {
         createdAt: now,
         updatedAt: now,
         isDeployed: false,
-        collaborators: [],
         runCount: 0,
         variables: {},
-        isPublished: false,
-        marketplaceData: null,
       })
 
       // No blocks are inserted - empty canvas
@@ -147,6 +146,8 @@ async function createWorkspace(userId: string, name: string) {
     id: workspaceId,
     name,
     ownerId: userId,
+    billedAccountUserId: userId,
+    allowPersonalApiKeys: true,
     createdAt: now,
     updatedAt: now,
     role: 'owner',

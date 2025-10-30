@@ -79,12 +79,10 @@ def test_workflow_status():
     status = WorkflowStatus(
         is_deployed=True,
         deployed_at="2023-01-01T00:00:00Z",
-        is_published=False,
         needs_redeployment=False
     )
     assert status.is_deployed is True
     assert status.deployed_at == "2023-01-01T00:00:00Z"
-    assert status.is_published is False
     assert status.needs_redeployment is False
 
 

@@ -1,8 +1,3 @@
-export interface MarketplaceData {
-  id: string // Marketplace entry ID to track original marketplace source
-  status: 'owner' | 'temp'
-}
-
 export interface DeploymentStatus {
   isDeployed: boolean
   deployedAt?: Date
@@ -17,7 +12,6 @@ export interface WorkflowMetadata {
   createdAt: Date
   description?: string
   color: string
-  marketplaceData?: MarketplaceData | null
   workspaceId?: string
   folderId?: string | null
 }
@@ -39,18 +33,11 @@ export interface WorkflowRegistryActions {
   updateWorkflow: (id: string, metadata: Partial<WorkflowMetadata>) => Promise<void>
   createWorkflow: (options?: {
     isInitial?: boolean
-    marketplaceId?: string
-    marketplaceState?: any
     name?: string
     description?: string
     workspaceId?: string
     folderId?: string | null
   }) => Promise<string>
-  createMarketplaceWorkflow: (
-    marketplaceId: string,
-    state: any,
-    metadata: Partial<WorkflowMetadata>
-  ) => Promise<string>
   duplicateWorkflow: (sourceId: string) => Promise<string | null>
   getWorkflowDeploymentStatus: (workflowId: string | null) => DeploymentStatus | null
   setDeploymentStatus: (

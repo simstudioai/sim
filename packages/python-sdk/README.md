@@ -158,7 +158,6 @@ class WorkflowExecutionResult:
 class WorkflowStatus:
     is_deployed: bool
     deployed_at: Optional[str] = None
-    is_published: bool = False
     needs_redeployment: bool = False
 ```
 

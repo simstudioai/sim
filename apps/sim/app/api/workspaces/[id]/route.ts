@@ -100,22 +100,95 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   try {
-    const { name } = await request.json()
+    const body = await request.json()
+    const {
+      name,
+      billedAccountUserId,
+      allowPersonalApiKeys,
+    }: {
+      name?: string
+      billedAccountUserId?: string
+      allowPersonalApiKeys?: boolean
+    } = body ?? {}
 
-    if (!name) {
-      return NextResponse.json({ error: 'Name is required' }, { status: 400 })
+    if (
+      name === undefined &&
+      billedAccountUserId === undefined &&
+      allowPersonalApiKeys === undefined
+    ) {
+      return NextResponse.json({ error: 'No updates provided' }, { status: 400 })
     }
 
-    // Update workspace
-    await db
-      .update(workspace)
-      .set({
-        name,
-        updatedAt: new Date(),
-      })
+    const existingWorkspace = await db
+      .select()
+      .from(workspace)
       .where(eq(workspace.id, workspaceId))
+      .then((rows) => rows[0])
 
-    // Get updated workspace
+    if (!existingWorkspace) {
+      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+    }
+
+    const updateData: Record<string, unknown> = {}
+
+    if (name !== undefined) {
+      const trimmedName = name.trim()
+      if (!trimmedName) {
+        return NextResponse.json({ error: 'Name is required' }, { status: 400 })
+      }
+      updateData.name = trimmedName
+    }
+
+    if (allowPersonalApiKeys !== undefined) {
+      updateData.allowPersonalApiKeys = Boolean(allowPersonalApiKeys)
+    }
+
+    if (billedAccountUserId !== undefined) {
+      const candidateId = billedAccountUserId?.trim()
+
+      if (!candidateId) {
+        return NextResponse.json({ error: 'billedAccountUserId is required' }, { status: 400 })
+      }
+
+      const isOwner = candidateId === existingWorkspace.ownerId
+
+      let hasAdminAccess = isOwner
+
+      if (!hasAdminAccess) {
+        const adminPermission = await db
+          .select({ id: permissions.id })
+          .from(permissions)
+          .where(
+            and(
+              eq(permissions.entityType, 'workspace'),
+              eq(permissions.entityId, workspaceId),
+              eq(permissions.userId, candidateId),
+              eq(permissions.permissionType, 'admin')
+            )
+          )
+          .limit(1)
+
+        hasAdminAccess = adminPermission.length > 0
+      }
+
+      if (!hasAdminAccess) {
+        return NextResponse.json(
+          { error: 'Billed account must be a workspace admin' },
+          { status: 400 }
+        )
+      }
+
+      updateData.billedAccountUserId = candidateId
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: 'No valid updates provided' }, { status: 400 })
+    }
+
+    updateData.updatedAt = new Date()
+
+    await db.update(workspace).set(updateData).where(eq(workspace.id, workspaceId))
+
     const updatedWorkspace = await db
       .select()
       .from(workspace)

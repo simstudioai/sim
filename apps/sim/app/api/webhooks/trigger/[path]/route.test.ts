@@ -109,17 +109,17 @@ describe('Webhook Trigger API Route', () => {
     globalMockData.workflows.push({
       id: 'test-workflow-id',
       userId: 'test-user-id',
-      pinnedApiKeyId: 'test-pinned-api-key-id',
+      workspaceId: 'test-workspace-id',
     })
 
-    vi.doMock('@/lib/api-key/service', async () => {
-      const actual = await vi.importActual('@/lib/api-key/service')
+    vi.doMock('@/lib/workspaces/utils', async () => {
+      const actual = await vi.importActual('@/lib/workspaces/utils')
       return {
         ...(actual as Record<string, unknown>),
-        getApiKeyOwnerUserId: vi
+        getWorkspaceBilledAccountUserId: vi
           .fn()
-          .mockImplementation(async (pinnedApiKeyId: string | null | undefined) =>
-            pinnedApiKeyId ? 'test-user-id' : null
+          .mockImplementation(async (workspaceId: string | null | undefined) =>
+            workspaceId ? 'test-user-id' : null
           ),
       }
     })
@@ -240,7 +240,7 @@ describe('Webhook Trigger API Route', () => {
       globalMockData.workflows.push({
         id: 'test-workflow-id',
         userId: 'test-user-id',
-        pinnedApiKeyId: 'test-pinned-api-key-id',
+        workspaceId: 'test-workspace-id',
       })
 
       const req = createMockRequest('POST', { event: 'test', id: 'test-123' })
@@ -272,7 +272,7 @@ describe('Webhook Trigger API Route', () => {
       globalMockData.workflows.push({
         id: 'test-workflow-id',
         userId: 'test-user-id',
-        pinnedApiKeyId: 'test-pinned-api-key-id',
+        workspaceId: 'test-workspace-id',
       })
 
       const headers = {
@@ -307,7 +307,7 @@ describe('Webhook Trigger API Route', () => {
       globalMockData.workflows.push({
         id: 'test-workflow-id',
         userId: 'test-user-id',
-        pinnedApiKeyId: 'test-pinned-api-key-id',
+        workspaceId: 'test-workspace-id',
       })
 
       const headers = {
@@ -338,7 +338,7 @@ describe('Webhook Trigger API Route', () => {
       globalMockData.workflows.push({
         id: 'test-workflow-id',
         userId: 'test-user-id',
-        pinnedApiKeyId: 'test-pinned-api-key-id',
+        workspaceId: 'test-workspace-id',
       })
 
       vi.doMock('@trigger.dev/sdk', () => ({
@@ -388,7 +388,7 @@ describe('Webhook Trigger API Route', () => {
       globalMockData.workflows.push({
         id: 'test-workflow-id',
         userId: 'test-user-id',
-        pinnedApiKeyId: 'test-pinned-api-key-id',
+        workspaceId: 'test-workspace-id',
       })
 
       vi.doMock('@trigger.dev/sdk', () => ({

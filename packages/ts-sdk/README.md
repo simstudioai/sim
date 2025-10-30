@@ -157,7 +157,6 @@ interface WorkflowExecutionResult {
 interface WorkflowStatus {
   isDeployed: boolean;
   deployedAt?: string;
-  isPublished: boolean;
   needsRedeployment: boolean;
 }
 ```

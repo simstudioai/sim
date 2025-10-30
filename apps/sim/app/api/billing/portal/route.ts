@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { subscription as subscriptionTable, user } from '@sim/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
@@ -38,7 +38,10 @@ export async function POST(request: NextRequest) {
         .where(
           and(
             eq(subscriptionTable.referenceId, organizationId),
-            eq(subscriptionTable.status, 'active')
+            or(
+              eq(subscriptionTable.status, 'active'),
+              eq(subscriptionTable.cancelAtPeriodEnd, true)
+            )
           )
         )
         .limit(1)

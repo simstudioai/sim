@@ -96,7 +96,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         createdAt: now,
         updatedAt: now,
         isDeployed: false,
-        collaborators: [],
         runCount: 0,
         // Duplicate variables with new IDs and new workflowId
         variables: (() => {
@@ -112,8 +111,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           }
           return remapped
         })(),
-        isPublished: false,
-        marketplaceData: null,
       })
 
       // Copy all blocks from source workflow with new IDs
