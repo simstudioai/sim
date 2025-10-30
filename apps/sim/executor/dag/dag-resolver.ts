@@ -15,7 +15,7 @@ interface LoopScope {
   item?: any
   items?: any[]
   currentIterationOutputs: Map<string, NormalizedBlockOutput>
-  allIterationOutputs: NormalizedBlockOutput[]
+  allIterationOutputs: NormalizedBlockOutput[][] // Array of arrays: each iteration produces an array of outputs
 }
 
 /**
@@ -163,12 +163,12 @@ export class DAGResolver {
     const refContent = reference.slice(1, -1) // Remove < >
     const parts = refContent.split('.')
 
-    // Special: loop variables
+    // Special: loop variables (loop context, not loop block output)
     if (parts[0] === 'loop') {
       return this.resolveLoopVariable(parts, currentNodeId, loopScopes)
     }
 
-    // Special: parallel variables
+    // Special: parallel variables (parallel context, not parallel block output)
     if (parts[0] === 'parallel') {
       return this.resolveParallelVariable(parts, currentNodeId, context)
     }
@@ -189,7 +189,32 @@ export class DAGResolver {
       return undefined
     }
 
-    // Resolve with scoping
+    // Check if target is a loop block - if so, look up results differently
+    const targetBlock = this.workflow.blocks.find((b) => b.id === targetBlockId)
+    if (targetBlock && targetBlock.metadata?.id === 'loop') {
+      // For loop blocks, look up results using the special ${loopId}.results key
+      const loopResultsKey = `${targetBlockId}.results`
+      const loopOutput = context.blockStates.get(loopResultsKey)
+      if (!loopOutput) {
+        logger.warn(`Loop results not found for loop: ${targetBlockName}`)
+        return undefined
+      }
+      return this.navigatePath(loopOutput.output, path)
+    }
+
+    // Check if target is a parallel block - if so, look up results differently
+    if (targetBlock && targetBlock.metadata?.id === 'parallel') {
+      // For parallel blocks, look up results using the special ${parallelId}.results key
+      const parallelResultsKey = `${targetBlockId}.results`
+      const parallelOutput = context.blockStates.get(parallelResultsKey)
+      if (!parallelOutput) {
+        logger.warn(`Parallel results not found for parallel: ${targetBlockName}`)
+        return undefined
+      }
+      return this.navigatePath(parallelOutput.output, path)
+    }
+
+    // Regular block output reference
     const output = this.resolveScopedOutput(targetBlockId, currentNodeId, context, loopScopes)
 
     if (!output) {

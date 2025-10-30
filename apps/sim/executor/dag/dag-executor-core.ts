@@ -43,7 +43,13 @@ interface LoopScope {
   item?: any
   items?: any[]
   currentIterationOutputs: Map<string, NormalizedBlockOutput>
-  allIterationOutputs: NormalizedBlockOutput[]
+  allIterationOutputs: NormalizedBlockOutput[][] // Array of arrays: each iteration produces an array of outputs
+}
+
+interface ParallelScope {
+  parallelId: string
+  totalBranches: number
+  branchOutputs: Map<number, NormalizedBlockOutput> // branchIndex → output
 }
 
 /**
@@ -138,6 +144,7 @@ export class DAGExecutor {
 
     let finalOutput: NormalizedBlockOutput = {}
     const loopScopes = new Map<string, LoopScope>()
+    const parallelScopes = new Map<string, ParallelScope>()
     
     // Mutex for queue operations
     let queueLock = Promise.resolve()
@@ -177,7 +184,7 @@ export class DAGExecutor {
               const output = await this.executeBlock(node, context, loopScopes)
               finalOutput = output
 
-              // Store output based on whether block is in a loop
+              // Store output based on whether block is in a loop or parallel
               const baseId = this.extractBaseId(nodeId)
               const loopId = node.metadata.loopId
               
@@ -187,6 +194,53 @@ export class DAGExecutor {
                 if (loopScope) {
                   loopScope.currentIterationOutputs.set(baseId, output)
                 }
+              } else if (node.metadata.isParallelBranch) {
+                // Block is in a parallel - track branch output
+                const parallelId = this.findParallelId(baseId, dag)
+                if (parallelId) {
+                  let parallelScope = parallelScopes.get(parallelId)
+                  if (!parallelScope) {
+                    parallelScope = {
+                      parallelId,
+                      totalBranches: node.metadata.branchTotal || 1,
+                      branchOutputs: new Map(),
+                    }
+                    parallelScopes.set(parallelId, parallelScope)
+                  }
+                  parallelScope.branchOutputs.set(node.metadata.branchIndex || 0, output)
+                  
+                  // Check if all branches have completed
+                  if (parallelScope.branchOutputs.size === parallelScope.totalBranches) {
+                    // All branches done - aggregate results
+                    const aggregatedResults: NormalizedBlockOutput[] = []
+                    for (let i = 0; i < parallelScope.totalBranches; i++) {
+                      const branchOutput = parallelScope.branchOutputs.get(i)
+                      if (branchOutput) {
+                        aggregatedResults.push(branchOutput)
+                      }
+                    }
+                    
+                    // Store aggregated results
+                    context.blockStates.set(`${parallelId}.results`, {
+                      output: { results: aggregatedResults },
+                      executed: true,
+                      executionTime: 0,
+                    })
+                    
+                    logger.info('Parallel completed:', {
+                      parallelId,
+                      totalBranches: parallelScope.totalBranches,
+                      resultsCount: aggregatedResults.length,
+                    })
+                  }
+                }
+                
+                // Also store individual branch output
+                context.blockStates.set(nodeId, {
+                  output,
+                  executed: true,
+                  executionTime: 0,
+                })
               } else {
                 // Regular block - store in global context
                 context.blockStates.set(nodeId, {
@@ -411,10 +465,16 @@ export class DAGExecutor {
       loopScopes.set(loopId, scope)
     }
 
-    // Store this iteration's output (from loop iteration context)
-    const iterationOutput = scope.currentIterationOutputs.get(lastNodeId)
-    if (iterationOutput) {
-      scope.allIterationOutputs.push(iterationOutput)
+    // Aggregate all block outputs from this iteration into an array
+    // Each iteration produces an array of outputs (one per block in the loop)
+    const iterationResults: NormalizedBlockOutput[] = []
+    for (const [blockId, blockOutput] of scope.currentIterationOutputs) {
+      iterationResults.push(blockOutput)
+    }
+    
+    // Only push to allIterationOutputs if we have outputs
+    if (iterationResults.length > 0) {
+      scope.allIterationOutputs.push(iterationResults)
     }
 
     // Check if we should continue BEFORE incrementing
@@ -820,6 +880,20 @@ export class DAGExecutor {
    */
   private extractBaseId(nodeId: string): string {
     return nodeId.replace(/₍\d+₎$/, '')
+  }
+
+  /**
+   * Find the parallel ID that contains a given block
+   */
+  private findParallelId(blockId: string, dag: DAG): string | null {
+    // Check all parallel configs to see which one contains this block
+    for (const [parallelId, parallelConfig] of dag.parallelConfigs) {
+      const nodes = (parallelConfig as any).nodes || []
+      if (nodes.includes(blockId)) {
+        return parallelId
+      }
+    }
+    return null
   }
 }
 
