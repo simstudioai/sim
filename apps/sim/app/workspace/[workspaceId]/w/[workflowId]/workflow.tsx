@@ -1146,25 +1146,19 @@ const WorkflowContent = React.memo(() => {
     setIsWorkflowReady(shouldBeReady)
   }, [activeWorkflowId, params.workflowId, workflows, isLoading])
 
-  // Preload workspace environment variables when workflow is ready
   const loadWorkspaceEnvironment = useEnvironmentStore((state) => state.loadWorkspaceEnvironment)
   const clearWorkspaceEnvCache = useEnvironmentStore((state) => state.clearWorkspaceEnvCache)
   const prevWorkspaceIdRef = useRef<string | null>(null)
 
   useEffect(() => {
-    // Only preload if workflow is ready and workspaceId is available
-    if (!isWorkflowReady || !workspaceId) return
-
-    // Clear cache if workspace changed
+    if (!workspaceId) return
     if (prevWorkspaceIdRef.current && prevWorkspaceIdRef.current !== workspaceId) {
       clearWorkspaceEnvCache(prevWorkspaceIdRef.current)
     }
-
-    // Preload workspace environment (will use cache if available)
     void loadWorkspaceEnvironment(workspaceId)
 
     prevWorkspaceIdRef.current = workspaceId
-  }, [isWorkflowReady, workspaceId, loadWorkspaceEnvironment, clearWorkspaceEnvCache])
+  }, [workspaceId, loadWorkspaceEnvironment, clearWorkspaceEnvCache])
 
   // Handle navigation and validation
   useEffect(() => {

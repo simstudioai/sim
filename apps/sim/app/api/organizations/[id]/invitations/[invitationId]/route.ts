@@ -249,6 +249,7 @@ export async function PUT(
                   .set({
                     proPeriodCostSnapshot: currentProUsage,
                     currentPeriodCost: '0', // Reset so new usage is attributed to team
+                    currentPeriodCopilotCost: '0', // Reset copilot cost for new period
                   })
                   .where(eq(userStats.userId, userId))
 

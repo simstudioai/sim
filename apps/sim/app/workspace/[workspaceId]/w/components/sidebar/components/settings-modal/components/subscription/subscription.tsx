@@ -356,14 +356,14 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
             }
             current={
               subscription.isEnterprise || subscription.isTeam
-                ? organizationBillingData?.totalCurrentUsage || 0
+                ? (organizationBillingData?.totalCurrentUsage ?? usage.current)
                 : usage.current
             }
             limit={
               subscription.isEnterprise || subscription.isTeam
                 ? organizationBillingData?.totalUsageLimit ||
                   organizationBillingData?.minimumBillingAmount ||
-                  0
+                  usage.limit
                 : !subscription.isFree &&
                     (permissions.canEditUsageLimit || permissions.showTeamMemberView)
                   ? usage.current // placeholder; rightContent will render UsageLimit
@@ -374,13 +374,14 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
             percentUsed={
               subscription.isEnterprise || subscription.isTeam
                 ? organizationBillingData?.totalUsageLimit &&
-                  organizationBillingData.totalUsageLimit > 0
+                  organizationBillingData.totalUsageLimit > 0 &&
+                  organizationBillingData.totalCurrentUsage !== undefined
                   ? Math.round(
                       (organizationBillingData.totalCurrentUsage /
                         organizationBillingData.totalUsageLimit) *
                         100
                     )
-                  : 0
+                  : Math.round(usage.percentUsed)
                 : Math.round(usage.percentUsed)
             }
             onResolvePayment={async () => {
@@ -434,6 +435,22 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
             progressValue={Math.min(Math.round(usage.percentUsed), 100)}
           />
         </div>
+
+        {/* Cost Breakdown */}
+        {/* TODO: Re-enable CostBreakdown component in the next billing period
+            once sufficient copilot cost data has been collected for accurate display.
+            Currently hidden to avoid confusion with initial zero values.
+        */}
+        {/*
+        {subscriptionData?.usage && typeof subscriptionData.usage.copilotCost === 'number' && (
+          <div className='mb-2'>
+            <CostBreakdown
+              copilotCost={subscriptionData.usage.copilotCost}
+              totalCost={subscriptionData.usage.current}
+            />
+          </div>
+        )}
+        */}
 
         {/* Team Member Notice */}
         {permissions.showTeamMemberView && (
