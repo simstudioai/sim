@@ -1,6 +1,3 @@
-import { existsSync } from 'fs'
-import { mkdir } from 'fs/promises'
-import path, { join } from 'path'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getStorageProvider, USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/core/setup'
@@ -8,8 +5,16 @@ import { getStorageProvider, USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uplo
 const logger = createLogger('UploadsSetup')
 
 // Server-only upload directory path
-const PROJECT_ROOT = path.resolve(process.cwd())
-export const UPLOAD_DIR_SERVER = join(PROJECT_ROOT, 'uploads')
+// Use dynamic import for path to avoid bundling issues
+let UPLOAD_DIR_SERVER: string | undefined
+
+if (typeof window === 'undefined') {
+  const path = require('path')
+  const PROJECT_ROOT = path.resolve(process.cwd())
+  UPLOAD_DIR_SERVER = path.join(PROJECT_ROOT, 'uploads')
+}
+
+export { UPLOAD_DIR_SERVER }
 
 /**
  * Server-only function to ensure uploads directory exists
@@ -25,7 +30,15 @@ export async function ensureUploadsDirectory() {
     return true
   }
 
+  if (typeof window !== 'undefined' || !UPLOAD_DIR_SERVER) {
+    // Skip on client side
+    return true
+  }
+
   try {
+    const { existsSync } = require('fs')
+    const { mkdir } = require('fs/promises')
+
     if (!existsSync(UPLOAD_DIR_SERVER)) {
       await mkdir(UPLOAD_DIR_SERVER, { recursive: true })
     } else {

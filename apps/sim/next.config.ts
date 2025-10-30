@@ -4,6 +4,30 @@ import { isDev, isHosted } from './lib/environment'
 import { getMainCSPPolicy, getWorkflowExecutionCSPPolicy } from './lib/security/csp'
 
 const nextConfig: NextConfig = {
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      // Don't resolve server-only modules on the client
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        'fs/promises': false,
+        path: false,
+        dns: false,
+        util: false,
+        net: false,
+        tls: false,
+        crypto: false,
+        stream: false,
+        perf_hooks: false,
+        os: false,
+        http: false,
+        https: false,
+        zlib: false,
+        child_process: false,
+      }
+    }
+    return config
+  },
   devIndicators: false,
   images: {
     remotePatterns: [
@@ -75,7 +99,7 @@ const nextConfig: NextConfig = {
   turbopack: {
     resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
   },
-  serverExternalPackages: ['pdf-parse'],
+  serverExternalPackages: ['pdf-parse', '@azure/storage-blob', '@aws-sdk/client-s3', '@aws-sdk/s3-request-presigner'],
   experimental: {
     optimizeCss: true,
     turbopackSourceMaps: false,
