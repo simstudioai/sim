@@ -4,8 +4,8 @@ import {
   downloadFile,
   generatePresignedDownloadUrl,
   generatePresignedUploadUrl,
-  type PresignedUrlResponse,
 } from '@/lib/uploads/core/storage-service'
+import type { PresignedUrlResponse } from '@/lib/uploads/shared/types'
 
 const logger = createLogger('CopilotFileManager')
 
@@ -61,12 +61,6 @@ export async function generateCopilotUploadUrl(
 ): Promise<PresignedUrlResponse> {
   const { fileName, contentType, fileSize, userId, expirationSeconds = 3600 } = options
 
-  logger.info(`Generating copilot upload URL for: ${fileName}`, {
-    userId,
-    contentType,
-    fileSize,
-  })
-
   if (!userId?.trim()) {
     throw new Error('Authenticated user session is required for copilot uploads')
   }
@@ -103,8 +97,6 @@ export async function generateCopilotUploadUrl(
  * @throws Error if file not found or download fails
  */
 export async function downloadCopilotFile(key: string): Promise<Buffer> {
-  logger.info(`Downloading copilot file: ${key}`)
-
   try {
     const fileBuffer = await downloadFile({
       key,
@@ -136,8 +128,6 @@ export async function processCopilotAttachments(
   attachments: CopilotFileAttachment[],
   requestId: string
 ): Promise<Array<{ buffer: Buffer; attachment: CopilotFileAttachment }>> {
-  logger.info(`Processing ${attachments.length} copilot attachments`, { requestId })
-
   const results: Array<{ buffer: Buffer; attachment: CopilotFileAttachment }> = []
 
   for (const attachment of attachments) {
@@ -173,8 +163,6 @@ export async function generateCopilotDownloadUrl(
   key: string,
   expirationSeconds = 3600
 ): Promise<string> {
-  logger.info(`Generating copilot download URL for: ${key}`)
-
   const downloadUrl = await generatePresignedDownloadUrl(key, 'copilot', expirationSeconds)
 
   logger.info(`Generated copilot download URL for: ${key}`)
@@ -188,8 +176,6 @@ export async function generateCopilotDownloadUrl(
  * @param key File storage key
  */
 export async function deleteCopilotFile(key: string): Promise<void> {
-  logger.info(`Deleting copilot file: ${key}`)
-
   await deleteFile({
     key,
     context: 'copilot',

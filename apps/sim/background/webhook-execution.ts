@@ -160,11 +160,12 @@ async function executeWebhookJobInternal(
     const { blocks, edges, loops, parallels } = workflowData
 
     const wfRows = await db
-      .select({ workspaceId: workflowTable.workspaceId })
+      .select({ workspaceId: workflowTable.workspaceId, variables: workflowTable.variables })
       .from(workflowTable)
       .where(eq(workflowTable.id, payload.workflowId))
       .limit(1)
     const workspaceId = wfRows[0]?.workspaceId || undefined
+    const workflowVariables = (wfRows[0]?.variables as Record<string, any>) || {}
 
     const { personalEncrypted, workspaceEncrypted } = await getPersonalAndWorkspaceEnv(
       payload.userId,
@@ -207,9 +208,6 @@ async function executeWebhookJobInternal(
       },
       {} as Record<string, Record<string, any>>
     )
-
-    // Handle workflow variables (for now, use empty object since we don't have workflow metadata)
-    const workflowVariables = {}
 
     // Create serialized workflow
     const serializer = new Serializer()
@@ -430,7 +428,8 @@ async function executeWebhookJobInternal(
                 const uploadedFiles = await processExecutionFiles(
                   fieldValue,
                   executionContext,
-                  requestId
+                  requestId,
+                  payload.userId
                 )
 
                 if (uploadedFiles.length > 0) {

@@ -314,18 +314,7 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
             {} as Record<string, Record<string, any>>
           )
 
-          let workflowVariables = {}
-          if (workflowRecord.variables) {
-            try {
-              if (typeof workflowRecord.variables === 'string') {
-                workflowVariables = JSON.parse(workflowRecord.variables)
-              } else {
-                workflowVariables = workflowRecord.variables
-              }
-            } catch (error) {
-              logger.error(`Failed to parse workflow variables: ${payload.workflowId}`, error)
-            }
-          }
+          const workflowVariables = (workflowRecord.variables as Record<string, any>) || {}
 
           const serializedWorkflow = new Serializer().serializeWorkflow(
             mergedStates,

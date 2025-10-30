@@ -29,6 +29,7 @@ export interface SubscriptionData {
   metadata: any | null
   stripeSubscriptionId: string | null
   periodEnd: Date | null
+  cancelAtPeriodEnd?: boolean
   usage: UsageData
   billingBlocked?: boolean
 }

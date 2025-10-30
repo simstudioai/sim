@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
         const config = getStorageConfig(context)
 
         if (storageProvider === 's3') {
-          const { initiateS3MultipartUpload } = await import('@/lib/uploads/providers/s3/s3-client')
+          const { initiateS3MultipartUpload } = await import('@/lib/uploads/providers/s3/client')
 
           const result = await initiateS3MultipartUpload({
             fileName,
@@ -68,9 +68,7 @@ export async function POST(request: NextRequest) {
           })
         }
         if (storageProvider === 'blob') {
-          const { initiateMultipartUpload } = await import(
-            '@/lib/uploads/providers/blob/blob-client'
-          )
+          const { initiateMultipartUpload } = await import('@/lib/uploads/providers/blob/client')
 
           const result = await initiateMultipartUpload({
             fileName,
@@ -107,16 +105,16 @@ export async function POST(request: NextRequest) {
         const config = getStorageConfig(context)
 
         if (storageProvider === 's3') {
-          const { getS3MultipartPartUrls } = await import('@/lib/uploads/providers/s3/s3-client')
+          const { getS3MultipartPartUrls } = await import('@/lib/uploads/providers/s3/client')
 
           const presignedUrls = await getS3MultipartPartUrls(key, uploadId, partNumbers)
 
           return NextResponse.json({ presignedUrls })
         }
         if (storageProvider === 'blob') {
-          const { getMultipartPartUrls } = await import('@/lib/uploads/providers/blob/blob-client')
+          const { getMultipartPartUrls } = await import('@/lib/uploads/providers/blob/client')
 
-          const presignedUrls = await getMultipartPartUrls(key, uploadId, partNumbers, {
+          const presignedUrls = await getMultipartPartUrls(key, partNumbers, {
             containerName: config.containerName!,
             accountName: config.accountName!,
             accountKey: config.accountKey,
@@ -145,7 +143,7 @@ export async function POST(request: NextRequest) {
 
               if (storageProvider === 's3') {
                 const { completeS3MultipartUpload } = await import(
-                  '@/lib/uploads/providers/s3/s3-client'
+                  '@/lib/uploads/providers/s3/client'
                 )
                 const parts = upload.parts // S3 format: { ETag, PartNumber }
 
@@ -160,11 +158,11 @@ export async function POST(request: NextRequest) {
               }
               if (storageProvider === 'blob') {
                 const { completeMultipartUpload } = await import(
-                  '@/lib/uploads/providers/blob/blob-client'
+                  '@/lib/uploads/providers/blob/client'
                 )
                 const parts = upload.parts // Azure format: { blockId, partNumber }
 
-                const result = await completeMultipartUpload(key, uploadId, parts, {
+                const result = await completeMultipartUpload(key, parts, {
                   containerName: config.containerName!,
                   accountName: config.accountName!,
                   accountKey: config.accountKey,
@@ -190,7 +188,7 @@ export async function POST(request: NextRequest) {
         const { uploadId, key, parts } = data
 
         if (storageProvider === 's3') {
-          const { completeS3MultipartUpload } = await import('@/lib/uploads/providers/s3/s3-client')
+          const { completeS3MultipartUpload } = await import('@/lib/uploads/providers/s3/client')
 
           const result = await completeS3MultipartUpload(key, uploadId, parts)
 
@@ -204,11 +202,9 @@ export async function POST(request: NextRequest) {
           })
         }
         if (storageProvider === 'blob') {
-          const { completeMultipartUpload } = await import(
-            '@/lib/uploads/providers/blob/blob-client'
-          )
+          const { completeMultipartUpload } = await import('@/lib/uploads/providers/blob/client')
 
-          const result = await completeMultipartUpload(key, uploadId, parts, {
+          const result = await completeMultipartUpload(key, parts, {
             containerName: config.containerName!,
             accountName: config.accountName!,
             accountKey: config.accountKey,
@@ -238,15 +234,15 @@ export async function POST(request: NextRequest) {
         const config = getStorageConfig(context as StorageContext)
 
         if (storageProvider === 's3') {
-          const { abortS3MultipartUpload } = await import('@/lib/uploads/providers/s3/s3-client')
+          const { abortS3MultipartUpload } = await import('@/lib/uploads/providers/s3/client')
 
           await abortS3MultipartUpload(key, uploadId)
 
           logger.info(`Aborted S3 multipart upload for key ${key} (context: ${context})`)
         } else if (storageProvider === 'blob') {
-          const { abortMultipartUpload } = await import('@/lib/uploads/providers/blob/blob-client')
+          const { abortMultipartUpload } = await import('@/lib/uploads/providers/blob/client')
 
-          await abortMultipartUpload(key, uploadId, {
+          await abortMultipartUpload(key, {
             containerName: config.containerName!,
             accountName: config.accountName!,
             accountKey: config.accountKey,

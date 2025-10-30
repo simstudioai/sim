@@ -44,6 +44,7 @@ import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { useCopilotStore } from '@/stores/copilot/store'
 import { useExecutionStore } from '@/stores/execution/store'
+import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { hasWorkflowsInitiallyLoaded, useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -1144,6 +1145,26 @@ const WorkflowContent = React.memo(() => {
 
     setIsWorkflowReady(shouldBeReady)
   }, [activeWorkflowId, params.workflowId, workflows, isLoading])
+
+  // Preload workspace environment variables when workflow is ready
+  const loadWorkspaceEnvironment = useEnvironmentStore((state) => state.loadWorkspaceEnvironment)
+  const clearWorkspaceEnvCache = useEnvironmentStore((state) => state.clearWorkspaceEnvCache)
+  const prevWorkspaceIdRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    // Only preload if workflow is ready and workspaceId is available
+    if (!isWorkflowReady || !workspaceId) return
+
+    // Clear cache if workspace changed
+    if (prevWorkspaceIdRef.current && prevWorkspaceIdRef.current !== workspaceId) {
+      clearWorkspaceEnvCache(prevWorkspaceIdRef.current)
+    }
+
+    // Preload workspace environment (will use cache if available)
+    void loadWorkspaceEnvironment(workspaceId)
+
+    prevWorkspaceIdRef.current = workspaceId
+  }, [isWorkflowReady, workspaceId, loadWorkspaceEnvironment, clearWorkspaceEnvCache])
 
   // Handle navigation and validation
   useEffect(() => {

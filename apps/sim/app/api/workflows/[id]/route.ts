@@ -37,7 +37,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     if (authHeader?.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1]
-      isInternalCall = await verifyInternalToken(token)
+      const verification = await verifyInternalToken(token)
+      isInternalCall = verification.valid
     }
 
     let userId: string | null = null

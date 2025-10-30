@@ -9,7 +9,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
   description: 'Read, write, and create messages',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Microsoft Teams into the workflow. Can read and write chat messages, and read and write channel messages. Can be used in trigger mode to trigger a workflow when a message is sent to a chat or channel.',
+    'Integrate Microsoft Teams into the workflow. Can read and write chat messages, and read and write channel messages. Can be used in trigger mode to trigger a workflow when a message is sent to a chat or channel. To mention users in messages, wrap their name in <at> tags: <at>userName</at>',
   docsLink: 'https://docs.sim.ai/tools/microsoft_teams',
   category: 'tools',
   triggerAllowed: true,
@@ -47,6 +47,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
         'Channel.ReadBasic.All',
         'ChannelMessage.Send',
         'ChannelMessage.Read.All',
+        'ChannelMember.Read.All',
         'Group.Read.All',
         'Group.ReadWrite.All',
         'Team.ReadBasic.All',
@@ -255,7 +256,10 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
     manualChannelId: { type: 'string', description: 'Manual channel identifier' },
     teamId: { type: 'string', description: 'Team identifier' },
     manualTeamId: { type: 'string', description: 'Manual team identifier' },
-    content: { type: 'string', description: 'Message content' },
+    content: {
+      type: 'string',
+      description: 'Message content. Mention users with <at>userName</at>',
+    },
     attachmentFiles: { type: 'json', description: 'Files to attach (UI upload)' },
     files: { type: 'json', description: 'Files to attach (UserFile array)' },
   },

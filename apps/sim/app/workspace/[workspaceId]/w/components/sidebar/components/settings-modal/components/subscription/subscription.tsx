@@ -619,6 +619,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
               }}
               subscriptionData={{
                 periodEnd: subscriptionData?.periodEnd || null,
+                cancelAtPeriodEnd: subscriptionData?.cancelAtPeriodEnd,
               }}
             />
           </div>
