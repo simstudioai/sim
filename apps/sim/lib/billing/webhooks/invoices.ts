@@ -75,17 +75,23 @@ export async function resetUsageForSubscription(sub: { plan: string | null; refe
 
     for (const m of membersRows) {
       const currentStats = await db
-        .select({ current: userStats.currentPeriodCost })
+        .select({
+          current: userStats.currentPeriodCost,
+          currentCopilot: userStats.currentPeriodCopilotCost,
+        })
         .from(userStats)
         .where(eq(userStats.userId, m.userId))
         .limit(1)
       if (currentStats.length > 0) {
         const current = currentStats[0].current || '0'
+        const currentCopilot = currentStats[0].currentCopilot || '0'
         await db
           .update(userStats)
           .set({
             lastPeriodCost: current,
+            lastPeriodCopilotCost: currentCopilot,
             currentPeriodCost: '0',
+            currentPeriodCopilotCost: '0',
             billedOverageThisPeriod: '0',
           })
           .where(eq(userStats.userId, m.userId))
@@ -96,6 +102,7 @@ export async function resetUsageForSubscription(sub: { plan: string | null; refe
       .select({
         current: userStats.currentPeriodCost,
         snapshot: userStats.proPeriodCostSnapshot,
+        currentCopilot: userStats.currentPeriodCopilotCost,
       })
       .from(userStats)
       .where(eq(userStats.userId, sub.referenceId))
@@ -105,12 +112,15 @@ export async function resetUsageForSubscription(sub: { plan: string | null; refe
       const current = Number.parseFloat(currentStats[0].current?.toString() || '0')
       const snapshot = Number.parseFloat(currentStats[0].snapshot?.toString() || '0')
       const totalLastPeriod = (current + snapshot).toString()
+      const currentCopilot = currentStats[0].currentCopilot || '0'
 
       await db
         .update(userStats)
         .set({
           lastPeriodCost: totalLastPeriod,
+          lastPeriodCopilotCost: currentCopilot,
           currentPeriodCost: '0',
+          currentPeriodCopilotCost: '0',
           proPeriodCostSnapshot: '0', // Clear snapshot at period end
           billedOverageThisPeriod: '0', // Clear threshold billing tracker at period end
         })

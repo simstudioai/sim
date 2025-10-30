@@ -7,6 +7,8 @@ export interface UsageData {
   billingPeriodStart: Date | null
   billingPeriodEnd: Date | null
   lastPeriodCost: number
+  lastPeriodCopilotCost?: number
+  copilotCost?: number
 }
 
 export interface UsageLimitData {

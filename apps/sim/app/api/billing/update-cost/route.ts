@@ -97,6 +97,7 @@ export async function POST(req: NextRequest) {
       currentPeriodCost: sql`current_period_cost + ${cost}`,
       // Copilot usage tracking increments
       totalCopilotCost: sql`total_copilot_cost + ${cost}`,
+      currentPeriodCopilotCost: sql`current_period_copilot_cost + ${cost}`,
       totalCopilotCalls: sql`total_copilot_calls + 1`,
       lastActive: new Date(),
     }

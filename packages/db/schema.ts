@@ -571,6 +571,8 @@ export const userStats = pgTable('user_stats', {
   proPeriodCostSnapshot: decimal('pro_period_cost_snapshot').default('0'), // Snapshot of Pro usage when joining team
   // Copilot usage tracking
   totalCopilotCost: decimal('total_copilot_cost').notNull().default('0'),
+  currentPeriodCopilotCost: decimal('current_period_copilot_cost').notNull().default('0'),
+  lastPeriodCopilotCost: decimal('last_period_copilot_cost').default('0'),
   totalCopilotTokens: integer('total_copilot_tokens').notNull().default(0),
   totalCopilotCalls: integer('total_copilot_calls').notNull().default(0),
   // Storage tracking (for free/pro users)

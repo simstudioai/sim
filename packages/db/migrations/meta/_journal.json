@@ -715,6 +715,13 @@
       "when": 1761769369858,
       "tag": "0102_eminent_amphibian",
       "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1761845605676,
+      "tag": "0103_careful_harpoon",
+      "breakpoints": true
     }
   ]
 }
