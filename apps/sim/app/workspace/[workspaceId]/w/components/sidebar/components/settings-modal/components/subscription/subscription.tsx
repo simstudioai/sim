@@ -1,10 +1,22 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useParams } from 'next/navigation'
 import { Skeleton, Switch } from '@/components/ui'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useSession } from '@/lib/auth-client'
+import { createLogger } from '@/lib/logs/console/logger'
 import { useSubscriptionUpgrade } from '@/lib/subscription/upgrade'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { cn } from '@/lib/utils'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { UsageHeader } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/settings-modal/components/shared/usage-header'
 import {
   CancelSubscription,
@@ -175,6 +187,11 @@ const formatPlanName = (plan: string): string => plan.charAt(0).toUpperCase() + 
 export function Subscription({ onOpenChange }: SubscriptionProps) {
   const { data: session } = useSession()
   const { handleUpgrade } = useSubscriptionUpgrade()
+  const params = useParams()
+  const workspaceId = (params?.workspaceId as string) || ''
+  const userPermissions = useUserPermissionsContext()
+  const canManageWorkspaceKeys = userPermissions.canAdmin
+  const logger = createLogger('Subscription')
 
   const {
     isLoading,
@@ -191,6 +208,14 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
   const [upgradeError, setUpgradeError] = useState<'pro' | 'team' | null>(null)
   const usageLimitRef = useRef<UsageLimitRef | null>(null)
 
+  // Workspace billing state
+  const [billedAccountUserId, setBilledAccountUserId] = useState<string | null>(null)
+  const [workspaceAdmins, setWorkspaceAdmins] = useState<
+    Array<{ userId: string; name: string; email: string; permissionType: string }>
+  >([])
+  const [workspaceSettingsLoading, setWorkspaceSettingsLoading] = useState<boolean>(true)
+  const [workspaceSettingsUpdating, setWorkspaceSettingsUpdating] = useState<boolean>(false)
+
   // Get real subscription data from store
   const subscription = getSubscriptionStatus()
   const usage = getUsage()
@@ -202,6 +227,77 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
       loadOrganizationBillingData(activeOrgId)
     }
   }, [activeOrgId, subscription.isTeam, subscription.isEnterprise, loadOrganizationBillingData])
+
+  // Fetch workspace billing settings
+  const fetchWorkspaceSettings = useCallback(async () => {
+    if (!workspaceId) return
+
+    setWorkspaceSettingsLoading(true)
+    try {
+      const [workspaceResponse, permissionsResponse] = await Promise.all([
+        fetch(`/api/workspaces/${workspaceId}`),
+        fetch(`/api/workspaces/${workspaceId}/permissions`),
+      ])
+
+      if (workspaceResponse.ok) {
+        const data = await workspaceResponse.json()
+        const workspaceData = data.workspace ?? {}
+        setBilledAccountUserId(workspaceData.billedAccountUserId ?? null)
+      } else {
+        logger.error('Failed to fetch workspace details', { status: workspaceResponse.status })
+      }
+
+      if (permissionsResponse.ok) {
+        const data = await permissionsResponse.json()
+        const users = Array.isArray(data.users) ? data.users : []
+        const admins = users.filter((user: any) => user.permissionType === 'admin')
+        setWorkspaceAdmins(admins)
+      } else {
+        logger.error('Failed to fetch workspace permissions', {
+          status: permissionsResponse.status,
+        })
+      }
+    } catch (error) {
+      logger.error('Error fetching workspace settings:', { error })
+    } finally {
+      setWorkspaceSettingsLoading(false)
+    }
+  }, [workspaceId, logger])
+
+  const updateWorkspaceSettings = async (updates: { billedAccountUserId?: string }) => {
+    if (!workspaceId) return
+    setWorkspaceSettingsUpdating(true)
+    try {
+      const response = await fetch(`/api/workspaces/${workspaceId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to update workspace settings')
+      }
+
+      await fetchWorkspaceSettings()
+    } catch (error) {
+      logger.error('Error updating workspace settings:', { error })
+      throw error
+    } finally {
+      setWorkspaceSettingsUpdating(false)
+    }
+  }
+
+  useEffect(() => {
+    if (workspaceId) {
+      fetchWorkspaceSettings()
+    } else {
+      setWorkspaceSettingsLoading(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceId])
 
   // Auto-clear upgrade error
   useEffect(() => {
@@ -525,6 +621,51 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                 periodEnd: subscriptionData?.periodEnd || null,
               }}
             />
+          </div>
+        )}
+
+        {/* Workspace API Billing Settings */}
+        {canManageWorkspaceKeys && (
+          <div className='mt-6 flex items-center justify-between'>
+            <span className='font-medium text-sm'>Billed Account for Workspace</span>
+            {workspaceSettingsLoading ? (
+              <Skeleton className='h-8 w-[200px] rounded-md' />
+            ) : workspaceAdmins.length === 0 ? (
+              <div className='rounded-md border border-dashed px-3 py-1.5 text-muted-foreground text-xs'>
+                No admin members available
+              </div>
+            ) : (
+              <Select
+                value={billedAccountUserId ?? ''}
+                onValueChange={async (value) => {
+                  if (value === billedAccountUserId) return
+                  const previous = billedAccountUserId
+                  setBilledAccountUserId(value)
+                  try {
+                    await updateWorkspaceSettings({ billedAccountUserId: value })
+                  } catch (error) {
+                    setBilledAccountUserId(previous ?? null)
+                  }
+                }}
+                disabled={!canManageWorkspaceKeys || workspaceSettingsUpdating}
+              >
+                <SelectTrigger className='h-8 w-[200px] justify-between text-left text-xs'>
+                  <SelectValue placeholder='Select admin' />
+                </SelectTrigger>
+                <SelectContent align='start'>
+                  <SelectGroup>
+                    <SelectLabel className='px-3 py-1 text-muted-foreground text-[11px] uppercase'>
+                      Workspace admins
+                    </SelectLabel>
+                    {workspaceAdmins.map((admin) => (
+                      <SelectItem key={admin.userId} value={admin.userId} className='py-1 text-xs'>
+                        {admin.email}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            )}
           </div>
         )}
       </div>

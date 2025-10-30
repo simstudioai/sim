@@ -1,6 +1,9 @@
 import type { NextRequest } from 'next/server'
-import { authenticateApiKey } from '@/lib/api-key/auth'
-import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
+import {
+  type ApiKeyAuthResult,
+  authenticateApiKeyFromHeader,
+  updateApiKeyLastUsed,
+} from '@/lib/api-key/service'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getWorkflowById } from '@/lib/workflows/utils'
@@ -60,50 +63,39 @@ export async function validateWorkflowAccess(
         }
       }
 
-      // If a pinned key exists, only accept that specific key
-      if (workflow.pinnedApiKey?.key) {
-        const isValidPinnedKey = await authenticateApiKey(apiKeyHeader, workflow.pinnedApiKey.key)
-        if (!isValidPinnedKey) {
-          return {
-            error: {
-              message: 'Unauthorized: Invalid API key',
-              status: 401,
-            },
-          }
+      let validResult: ApiKeyAuthResult | null = null
+
+      if (workflow.workspaceId) {
+        const workspaceResult = await authenticateApiKeyFromHeader(apiKeyHeader, {
+          workspaceId: workflow.workspaceId as string,
+          keyTypes: ['workspace', 'personal'],
+        })
+
+        if (workspaceResult.success) {
+          validResult = workspaceResult
         }
       } else {
-        // Try personal keys first
         const personalResult = await authenticateApiKeyFromHeader(apiKeyHeader, {
           userId: workflow.userId as string,
           keyTypes: ['personal'],
         })
 
-        let validResult = null
         if (personalResult.success) {
           validResult = personalResult
-        } else if (workflow.workspaceId) {
-          // Try workspace keys
-          const workspaceResult = await authenticateApiKeyFromHeader(apiKeyHeader, {
-            workspaceId: workflow.workspaceId as string,
-            keyTypes: ['workspace'],
-          })
-
-          if (workspaceResult.success) {
-            validResult = workspaceResult
-          }
         }
+      }
 
-        // If no valid key found, reject
-        if (!validResult) {
-          return {
-            error: {
-              message: 'Unauthorized: Invalid API key',
-              status: 401,
-            },
-          }
+      if (!validResult) {
+        return {
+          error: {
+            message: 'Unauthorized: Invalid API key',
+            status: 401,
+          },
         }
+      }
 
-        await updateApiKeyLastUsed(validResult.keyId!)
+      if (validResult.keyId) {
+        await updateApiKeyLastUsed(validResult.keyId)
       }
     }
     return { workflow }

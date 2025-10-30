@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { permissions } from '@sim/db/schema'
+import { permissions, workspace } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
@@ -21,6 +21,23 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     if (!workspaceId) {
       return NextResponse.json({ error: 'Workspace ID is required' }, { status: 400 })
+    }
+
+    const workspaceRow = await db
+      .select({ billedAccountUserId: workspace.billedAccountUserId })
+      .from(workspace)
+      .where(eq(workspace.id, workspaceId))
+      .limit(1)
+
+    if (!workspaceRow.length) {
+      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+    }
+
+    if (workspaceRow[0].billedAccountUserId === userId) {
+      return NextResponse.json(
+        { error: 'Cannot remove the workspace billing account. Please reassign billing first.' },
+        { status: 400 }
+      )
     }
 
     // Check if the user to be removed actually has permissions for this workspace
