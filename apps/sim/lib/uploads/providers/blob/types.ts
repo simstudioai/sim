@@ -1,6 +1,3 @@
-/**
- * Blob storage configuration
- */
 export interface BlobConfig {
   containerName: string
   accountName: string
@@ -8,9 +5,6 @@ export interface BlobConfig {
   connectionString?: string
 }
 
-/**
- * Azure multipart upload initialization options
- */
 export interface AzureMultipartUploadInit {
   fileName: string
   contentType: string
@@ -18,18 +12,12 @@ export interface AzureMultipartUploadInit {
   customConfig?: BlobConfig
 }
 
-/**
- * Azure part upload URL
- */
 export interface AzurePartUploadUrl {
   partNumber: number
   blockId: string
   url: string
 }
 
-/**
- * Azure multipart part
- */
 export interface AzureMultipartPart {
   blockId: string
   partNumber: number
