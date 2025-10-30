@@ -100,8 +100,36 @@ export class DAGBuilder {
       if (inParallel) {
         // Expand parallel block into N branches
         const parallelConfig = dag.parallelConfigs.get(inParallel) as any
-        const count = parallelConfig.parallelCount || parallelConfig.count || 1
-        const distributionItems = parallelConfig.distributionItems || []
+        
+        logger.debug('Expanding parallel:', {
+          parallelId: inParallel,
+          config: parallelConfig,
+        })
+        
+        let distributionItems = parallelConfig.distributionItems || parallelConfig.distribution || []
+        
+        // Parse if string
+        if (typeof distributionItems === 'string' && !distributionItems.startsWith('<')) {
+          try {
+            distributionItems = JSON.parse(distributionItems.replace(/'/g, '"'))
+          } catch (e) {
+            logger.error('Failed to parse parallel distribution:', distributionItems)
+            distributionItems = []
+          }
+        }
+        
+        // For collection-type parallels, count = distribution.length
+        let count = parallelConfig.parallelCount || parallelConfig.count || 1
+        if (parallelConfig.parallelType === 'collection' && Array.isArray(distributionItems)) {
+          count = distributionItems.length
+        }
+
+        logger.debug('Creating parallel branches:', {
+          parallelId: inParallel,
+          count,
+          parsedDistributionItems: distributionItems,
+          distributionItemsLength: Array.isArray(distributionItems) ? distributionItems.length : 0,
+        })
 
         for (let branchIndex = 0; branchIndex < count; branchIndex++) {
           const branchNodeId = `${block.id}₍${branchIndex}₎`

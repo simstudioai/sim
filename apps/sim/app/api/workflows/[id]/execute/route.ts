@@ -199,10 +199,11 @@ export async function POST(
     // SSE PATH: Stream execution events for client builder UI
     logger.info(`[${requestId}] Using SSE execution (streaming response)`)
     const encoder = new TextEncoder()
+    let executorInstance: any = null
+    let isStreamClosed = false
 
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
-        let isStreamClosed = false
         
         const sendEvent = (event: ExecutionEvent) => {
           if (isStreamClosed) return
@@ -213,8 +214,9 @@ export async function POST(
               data: event.data,
             })
             controller.enqueue(encodeSSEEvent(event))
-          } catch (error) {
-            logger.error(`[${requestId}] Failed to send SSE event:`, error)
+          } catch {
+            // Stream closed - stop sending events
+            isStreamClosed = true
           }
         }
         
@@ -311,6 +313,9 @@ export async function POST(
             onBlockStart,
             onBlockComplete,
             onStream,
+            onExecutorCreated: (executor) => {
+              executorInstance = executor
+            },
           })
 
           // Check if execution was cancelled
@@ -358,20 +363,25 @@ export async function POST(
             },
           })
         } finally {
-          // Close the stream
-          try {
-            // Send final [DONE] marker
-            controller.enqueue(encoder.encode('data: [DONE]\n\n'))
-            controller.close()
-          } catch (error) {
-            logger.error(`[${requestId}] Error closing stream:`, error)
+          // Close the stream if not already closed
+          if (!isStreamClosed) {
+            try {
+              controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+              controller.close()
+            } catch {
+              // Stream already closed - nothing to do
+            }
           }
         }
       },
       cancel() {
-        logger.info(`[${requestId}] Client aborted SSE stream`)
-        // Note: Stream is automatically closed by browser
-        // The core function will complete but won't send more events
+        isStreamClosed = true
+        logger.info(`[${requestId}] Client aborted SSE stream, cancelling executor`)
+        
+        // Cancel the executor if it exists
+        if (executorInstance && typeof executorInstance.cancel === 'function') {
+          executorInstance.cancel()
+        }
       },
     })
 

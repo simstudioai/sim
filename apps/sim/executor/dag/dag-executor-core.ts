@@ -138,57 +138,103 @@ export class DAGExecutor {
 
     let finalOutput: NormalizedBlockOutput = {}
     const loopScopes = new Map<string, LoopScope>()
+    
+    // Mutex for queue operations
+    let queueLock = Promise.resolve()
+    const withQueueLock = async <T>(fn: () => Promise<T>): Promise<T> => {
+      const release = queueLock
+      let releaseFn: () => void
+      queueLock = new Promise(resolve => { releaseFn = resolve })
+      await release
+      try {
+        return await fn()
+      } finally {
+        releaseFn!()
+      }
+    }
 
     try {
-      // CONTINUOUS QUEUE PROCESSING
-      while (readyQueue.length > 0 && !this.isCancelled) {
-        const nodeId = readyQueue.shift()!
-        const node = dag.nodes.get(nodeId)
-
-        if (!node || context.executedBlocks.has(nodeId)) {
-          continue
-        }
-
-        logger.debug('Executing node from queue:', nodeId)
-
-        // Execute the block
-        const output = await this.executeBlock(node, context, loopScopes)
-        finalOutput = output
-
-        // Store output based on whether block is in a loop
-        const baseId = this.extractBaseId(nodeId)
-        const loopId = node.metadata.loopId
-        
-        if (loopId) {
-          // Block is in a loop - store in iteration context
-          const loopScope = loopScopes.get(loopId)
-          if (loopScope) {
-            loopScope.currentIterationOutputs.set(baseId, output)
+      // CONTINUOUS QUEUE PROCESSING WITH TRUE PARALLELISM
+      // Launch all ready blocks concurrently and process edges as each completes
+      const executing = new Set<Promise<void>>()
+      
+      while ((readyQueue.length > 0 || executing.size > 0) && !this.isCancelled) {
+        // Launch all currently ready nodes (unless cancelled)
+        while (readyQueue.length > 0 && !this.isCancelled) {
+          const nodeId = readyQueue.shift()!
+          const node = dag.nodes.get(nodeId)
+          
+          if (!node || context.executedBlocks.has(nodeId)) {
+            continue
           }
-        } else {
-          // Regular block - store in global context
-          context.blockStates.set(nodeId, {
-            output,
-            executed: true,
-            executionTime: 0,
-          })
-        }
-        
-        context.executedBlocks.add(nodeId)
 
-        // Update DAG and queue
-        await this.processCompletedNode(node, output, dag, readyQueue, loopScopes, context)
+          logger.debug('Launching node execution:', nodeId)
+          
+          // Launch execution (don't await - let it run in parallel)
+          const execution = (async () => {
+            try {
+              // Execute the block
+              const output = await this.executeBlock(node, context, loopScopes)
+              finalOutput = output
+
+              // Store output based on whether block is in a loop
+              const baseId = this.extractBaseId(nodeId)
+              const loopId = node.metadata.loopId
+              
+              if (loopId) {
+                // Block is in a loop - store in iteration context
+                const loopScope = loopScopes.get(loopId)
+                if (loopScope) {
+                  loopScope.currentIterationOutputs.set(baseId, output)
+                }
+              } else {
+                // Regular block - store in global context
+                context.blockStates.set(nodeId, {
+                  output,
+                  executed: true,
+                  executionTime: 0,
+                })
+              }
+              
+              context.executedBlocks.add(nodeId)
+
+              // Update DAG and queue with lock (prevent concurrent modifications)
+              await withQueueLock(async () => {
+                await this.processCompletedNode(node, output, dag, readyQueue, loopScopes, context)
+              })
+            } catch (error) {
+              logger.error('Error executing node:', nodeId, error)
+              throw error
+            }
+          })()
+          
+          executing.add(execution)
+          execution.finally(() => executing.delete(execution))
+        }
+
+        // Wait for at least one to complete before checking queue again
+        if (executing.size > 0) {
+          await Promise.race(executing)
+        }
+      }
+
+      // Wait for any remaining executing blocks to complete (don't abandon them)
+      if (executing.size > 0) {
+        logger.info('Waiting for executing blocks to complete before shutdown')
+        await Promise.all(executing)
       }
 
       // Handle cancellation
       if (this.isCancelled) {
+        const endTime = new Date()
         return {
           success: false,
           output: finalOutput,
           error: 'Workflow execution was cancelled',
           metadata: {
-            duration: Date.now() - startTime.getTime(),
+            duration: endTime.getTime() - startTime.getTime(),
             startTime: startTime.toISOString(),
+            endTime: endTime.toISOString(),
           },
           logs: context.blockLogs,
         }
@@ -430,23 +476,25 @@ export class DAGExecutor {
         return (scope.iteration + 1) < (iterations || 1)
 
       case 'forEach': {
-        // Log what we received
-        logger.debug('ForEach evaluation:', {
-          forEachItems,
-          type: typeof forEachItems,
-          isArray: Array.isArray(forEachItems),
-          isString: typeof forEachItems === 'string',
-          currentIteration: scope.iteration,
-        })
-        
-        // Resolve items if they're a reference
+        // Resolve items
         let items = forEachItems
         
-        // If it's a string reference, resolve it from context
-        if (typeof items === 'string' && items.startsWith('<') && items.endsWith('>')) {
-          // TODO: Resolve the reference properly using DAGResolver
-          logger.warn('ForEach items are a reference that needs resolution:', items)
-          items = []
+        // If it's a string, try to parse it
+        if (typeof items === 'string') {
+          // Check if it's a reference like <blockName.output>
+          if (items.startsWith('<') && items.endsWith('>')) {
+            // TODO: Resolve the reference properly using DAGResolver
+            logger.warn('ForEach items are a reference that needs resolution:', items)
+            items = []
+          } else {
+            // It's a string literal array - parse it
+            try {
+              items = JSON.parse(items.replace(/'/g, '"')) // Replace single quotes with double quotes for JSON
+            } catch (e) {
+              logger.error('Failed to parse forEach items:', items, e)
+              items = []
+            }
+          }
         }
         
         const itemsArray = Array.isArray(items)
@@ -499,6 +547,46 @@ export class DAGExecutor {
     }
 
     try {
+      // If this is the first node in a loop, initialize loop scope
+      if (node.metadata.isLoopNode) {
+        const loopId = node.metadata.loopId!
+        const loopConfig = context.workflow?.loops?.[loopId]
+        
+        if (loopConfig && !loopScopes.has(loopId)) {
+          // Initialize loop scope before first iteration
+          const initialScope: LoopScope = {
+            iteration: 0,
+            currentIterationOutputs: new Map(),
+            allIterationOutputs: [],
+          }
+          
+          // For forEach, set up items
+          if ((loopConfig as any).loopType === 'forEach') {
+            let forEachItems = (loopConfig as any).forEachItems
+            
+            // Parse if string
+            if (typeof forEachItems === 'string' && !forEachItems.startsWith('<')) {
+              try {
+                forEachItems = JSON.parse(forEachItems.replace(/'/g, '"'))
+              } catch (e) {
+                logger.error('Failed to parse forEach items during init:', forEachItems)
+                forEachItems = []
+              }
+            }
+            
+            const items = Array.isArray(forEachItems)
+              ? forEachItems
+              : Object.entries(forEachItems || {})
+            initialScope.items = items
+            initialScope.maxIterations = items.length
+            initialScope.item = items[0]
+          }
+          
+          loopScopes.set(loopId, initialScope)
+          logger.debug('Initialized loop scope:', { loopId, iteration: 0 })
+        }
+      }
+      
       // Resolve inputs with DAG scoping
       const inputs = this.resolver.resolveInputs(block, node.id, context, loopScopes)
 
@@ -562,12 +650,8 @@ export class DAGExecutor {
       blockLog.endedAt = new Date().toISOString()
       context.blockLogs.push(blockLog)
 
-      // Add to console (skip trigger blocks)
-      const blockConfig = getBlock(block.metadata?.id || '')
-      const isTriggerBlock =
-        blockConfig?.category === 'triggers' || block.metadata?.id === BlockType.STARTER
-
-      if (!this.isChildExecution && !isTriggerBlock) {
+      // Add to console
+      if (!this.isChildExecution) {
         const addConsole = useConsoleStore.getState().addConsole
         addConsole({
           input: inputs,

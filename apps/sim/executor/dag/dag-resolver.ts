@@ -69,9 +69,22 @@ export class DAGResolver {
     const params = block.config.params || {}
     const resolved: Record<string, any> = {}
 
+    logger.debug('DAGResolver resolveInputs called:', {
+      blockId: block.id,
+      blockType: block.metadata?.id,
+      paramKeys: Object.keys(params),
+      codePreview: typeof params.code === 'string' ? params.code.substring(0, 100) : 'N/A',
+    })
+
     for (const [key, value] of Object.entries(params)) {
-      resolved[key] = this.resolveValue(value, currentNodeId, context, loopScopes)
+      resolved[key] = this.resolveValue(value, currentNodeId, context, loopScopes, block)
     }
+
+    logger.debug('DAGResolver resolved inputs:', {
+      blockId: block.id,
+      resolvedKeys: Object.keys(resolved),
+      resolvedCodePreview: typeof resolved.code === 'string' ? resolved.code.substring(0, 100) : 'N/A',
+    })
 
     return resolved
   }
@@ -83,20 +96,28 @@ export class DAGResolver {
     value: any,
     currentNodeId: string,
     context: ExecutionContext,
-    loopScopes: Map<string, LoopScope>
+    loopScopes: Map<string, LoopScope>,
+    block?: SerializedBlock
   ): any {
     if (typeof value !== 'string') {
       return value
     }
 
+    const isFunctionBlock = block?.metadata?.id === 'function'
+
     // Check for variable references
     if (value.startsWith('<') && value.endsWith('>')) {
-      return this.resolveReference(value, currentNodeId, context, loopScopes)
+      const resolved = this.resolveReference(value, currentNodeId, context, loopScopes)
+      // For function blocks, format for code context
+      if (isFunctionBlock) {
+        return this.formatValueForCodeContext(resolved)
+      }
+      return resolved
     }
 
     // Check for template strings with multiple references
     if (value.includes('<') && value.includes('>')) {
-      return this.resolveTemplateString(value, currentNodeId, context, loopScopes)
+      return this.resolveTemplateString(value, currentNodeId, context, loopScopes, block)
     }
 
     // Check for environment variables
@@ -221,23 +242,34 @@ export class DAGResolver {
     }
 
     const variable = parts[1]
+    
+    logger.debug('Resolving loop variable:', {
+      variable,
+      loopId,
+      iteration: loopScope.iteration,
+      item: loopScope.item,
+      hasItems: !!loopScope.items,
+    })
+    
     switch (variable) {
       case 'iteration':
       case 'index':
         return loopScope.iteration
       case 'item':
+      case 'currentItem':
         return loopScope.item
       case 'items':
         return loopScope.items
       case 'results':
         return loopScope.allIterationOutputs
       default:
+        logger.warn('Unknown loop variable:', variable)
         return undefined
     }
   }
 
   /**
-   * Resolve parallel-scoped variables like <parallel.results>
+   * Resolve parallel-scoped variables like <parallel.currentItem>
    */
   private resolveParallelVariable(
     parts: string[],
@@ -245,13 +277,79 @@ export class DAGResolver {
     context: ExecutionContext
   ): any {
     const variable = parts[1]
-
-    if (variable === 'results') {
-      // TODO: Collect all branch results
-      return []
+    
+    // Extract branch index from current node ID
+    const branchIndex = this.extractBranchIndex(currentNodeId)
+    
+    if (branchIndex === null) {
+      logger.warn('Parallel variable referenced outside parallel:', parts.join('.'))
+      return undefined
     }
-
-    return undefined
+    
+    // Find which parallel this node belongs to
+    const baseId = this.extractBaseId(currentNodeId)
+    
+    // Search through parallel configs to find which one contains this base block
+    let parallelId: string | null = null
+    for (const [pid, pconfig] of Object.entries(this.workflow.parallels || {})) {
+      if ((pconfig as any).nodes?.includes(baseId)) {
+        parallelId = pid
+        break
+      }
+    }
+    
+    if (!parallelId) {
+      logger.warn('Could not find parallel for node:', { currentNodeId, baseId })
+      return undefined
+    }
+    
+    // Get parallel config
+    const parallelConfig = context.workflow?.parallels?.[parallelId]
+    if (!parallelConfig) {
+      logger.warn('Parallel config not found:', parallelId)
+      return undefined
+    }
+    
+    let distributionItems = (parallelConfig as any).distributionItems || (parallelConfig as any).distribution || []
+    
+    // Parse if string
+    if (typeof distributionItems === 'string' && !distributionItems.startsWith('<')) {
+      try {
+        distributionItems = JSON.parse(distributionItems.replace(/'/g, '"'))
+        logger.debug('Parsed parallel distribution:', { original: (parallelConfig as any).distribution, parsed: distributionItems })
+      } catch (e) {
+        logger.error('Failed to parse parallel distributionItems:', distributionItems, e)
+        distributionItems = []
+      }
+    }
+    
+    logger.debug('Resolving parallel variable:', {
+      variable,
+      parallelId,
+      branchIndex,
+      totalItems: Array.isArray(distributionItems) ? distributionItems.length : 0,
+      distributionItem: distributionItems[branchIndex],
+    })
+    
+    switch (variable) {
+      case 'currentItem':
+      case 'item':
+        return distributionItems[branchIndex]
+      
+      case 'index':
+        return branchIndex
+      
+      case 'items':
+        return distributionItems
+      
+      case 'results':
+        // TODO: Collect all branch results when parallel completes
+        return []
+      
+      default:
+        logger.warn('Unknown parallel variable:', variable)
+        return undefined
+    }
   }
 
   /**
@@ -313,19 +411,49 @@ export class DAGResolver {
     template: string,
     currentNodeId: string,
     context: ExecutionContext,
-    loopScopes: Map<string, LoopScope>
+    loopScopes: Map<string, LoopScope>,
+    block?: SerializedBlock
   ): string {
     let result = template
 
     const matches = template.match(/<[^>]+>/g)
     if (!matches) return template
 
+    const isFunctionBlock = block?.metadata?.id === 'function'
+
     for (const match of matches) {
       const resolved = this.resolveReference(match, currentNodeId, context, loopScopes)
-      result = result.replace(match, String(resolved ?? ''))
+      
+      // For function blocks, format the value for code context
+      const formatted = isFunctionBlock 
+        ? this.formatValueForCodeContext(resolved)
+        : String(resolved ?? '')
+      
+      result = result.replace(match, formatted)
     }
 
     return result
+  }
+
+  /**
+   * Format value for safe use in code context (function blocks)
+   * Ensures strings are properly quoted
+   */
+  private formatValueForCodeContext(value: any): string {
+    if (typeof value === 'string') {
+      return JSON.stringify(value) // Quote strings
+    }
+    if (typeof value === 'object' && value !== null) {
+      return JSON.stringify(value) // Stringify objects/arrays
+    }
+    if (value === undefined) {
+      return 'undefined'
+    }
+    if (value === null) {
+      return 'null'
+    }
+    // Numbers, booleans can be inserted as-is
+    return String(value)
   }
 }
 

@@ -36,6 +36,7 @@ export interface ExecuteWorkflowCoreOptions {
   onBlockStart?: (blockId: string, blockName: string, blockType: string) => Promise<void>
   onBlockComplete?: (blockId: string, blockName: string, blockType: string, output: any) => Promise<void>
   onStream?: (streamingExec: any) => Promise<void>
+  onExecutorCreated?: (executor: any) => void // Callback when executor is created (for cancellation)
 }
 
 /**
@@ -213,6 +214,11 @@ export async function executeWorkflowCore(
     })
 
     loggingSession.setupExecutor(executorInstance)
+    
+    // Store executor in options for potential cancellation
+    if (options.onExecutorCreated) {
+      options.onExecutorCreated(executorInstance)
+    }
 
     const result = (await executorInstance.execute(workflowId, options.startBlockId)) as ExecutionResult
 

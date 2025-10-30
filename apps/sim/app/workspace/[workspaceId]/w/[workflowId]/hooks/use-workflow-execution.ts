@@ -1035,13 +1035,30 @@ export function useWorkflowExecution() {
         })
 
         return executionResult
-      } catch (error) {
+      } catch (error: any) {
+        // Don't log abort errors - they're intentional user actions
+        if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+          logger.info('Execution aborted by user')
+          
+          // Reset execution state
+          setIsExecuting(false)
+          setActiveBlocks(new Set())
+          
+          // Return gracefully without error
+          return {
+            success: false,
+            output: {},
+            metadata: { duration: 0 },
+            logs: [],
+          }
+        }
+        
         logger.error('Server-side execution failed:', error)
         throw error
       }
     }
 
-    // Fallback: should never reach here since USE_SERVER_SIDE_EXECUTOR is always true
+    // Fallback: should never reach here
     throw new Error('Server-side execution is required')
   }
 
@@ -1271,10 +1288,8 @@ export function useWorkflowExecution() {
   const handleCancelExecution = useCallback(() => {
     logger.info('Workflow execution cancellation requested')
 
-    // Cancel the executor if it exists
-    if (executor) {
-      executor.cancel()
-    }
+    // Cancel the execution stream (server-side)
+    executionStream.cancel()
 
     // Reset execution state
     setIsExecuting(false)
@@ -1285,7 +1300,7 @@ export function useWorkflowExecution() {
     if (isDebugging) {
       resetDebugState()
     }
-  }, [executor, isDebugging, resetDebugState, setIsExecuting, setIsDebugging, setActiveBlocks])
+  }, [executionStream, isDebugging, resetDebugState, setIsExecuting, setIsDebugging, setActiveBlocks])
 
   return {
     isExecuting,
