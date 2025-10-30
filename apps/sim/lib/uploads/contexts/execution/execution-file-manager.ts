@@ -1,10 +1,4 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import {
-  deleteFile,
-  downloadFile,
-  generatePresignedDownloadUrl,
-  uploadFile,
-} from '@/lib/uploads/core/storage-service'
 import type { UserFile } from '@/executor/types'
 import type { ExecutionContext } from './execution-file-helpers'
 import {
@@ -23,13 +17,14 @@ export async function uploadExecutionFile(
   fileBuffer: Buffer,
   fileName: string,
   contentType: string,
-  isAsync?: boolean
+  userId?: string
 ): Promise<UserFile> {
   logger.info(`Uploading execution file: ${fileName} for execution ${context.executionId}`)
   logger.debug(`File upload context:`, {
     workspaceId: context.workspaceId,
     workflowId: context.workflowId,
     executionId: context.executionId,
+    userId: userId || 'not provided',
     fileName,
     bufferSize: fileBuffer.length,
   })
@@ -39,9 +34,19 @@ export async function uploadExecutionFile(
 
   logger.info(`Generated storage key: "${storageKey}" for file: ${fileName}`)
 
-  const urlExpirationSeconds = isAsync ? 10 * 60 : 5 * 60
+  const metadata: Record<string, string> = {
+    originalName: fileName,
+    uploadedAt: new Date().toISOString(),
+    purpose: 'execution',
+    workspaceId: context.workspaceId,
+  }
+
+  if (userId) {
+    metadata.userId = userId
+  }
 
   try {
+    const { uploadFile } = await import('@/lib/uploads/core/storage-service')
     const fileInfo = await uploadFile({
       file: fileBuffer,
       fileName: storageKey,
@@ -49,34 +54,15 @@ export async function uploadExecutionFile(
       context: 'execution',
       preserveKey: true, // Don't add timestamp prefix
       customKey: storageKey, // Use exact execution-scoped key
+      metadata, // Pass metadata for cloud storage and database tracking
     })
-
-    logger.info(`Upload returned key: "${fileInfo.key}" for file: ${fileName}`)
-    logger.info(`Original storage key was: "${storageKey}"`)
-    logger.info(`Keys match: ${fileInfo.key === storageKey}`)
-
-    let directUrl: string | undefined
-
-    try {
-      logger.info(
-        `Generating presigned URL with key: "${fileInfo.key}" (expiration: ${urlExpirationSeconds / 60} minutes)`
-      )
-      directUrl = await generatePresignedDownloadUrl(
-        fileInfo.key,
-        'execution',
-        urlExpirationSeconds
-      )
-      logger.info(`Generated presigned URL for execution file`)
-    } catch (error) {
-      logger.warn(`Failed to generate presigned URL for ${fileName}:`, error)
-    }
 
     const userFile: UserFile = {
       id: fileId,
       name: fileName,
       size: fileBuffer.length,
       type: contentType,
-      url: directUrl || `/api/files/serve/${fileInfo.key}`, // Use presigned URL (5 or 10 min), fallback to serve path
+      url: `/api/files/serve/${fileInfo.key}`, // Always use internal serve path for consistency
       key: fileInfo.key,
       uploadedAt: new Date().toISOString(),
       expiresAt: getFileExpirationDate(),
@@ -100,6 +86,7 @@ export async function downloadExecutionFile(userFile: UserFile): Promise<Buffer>
   logger.info(`Downloading execution file: ${userFile.name}`)
 
   try {
+    const { downloadFile } = await import('@/lib/uploads/core/storage-service')
     const fileBuffer = await downloadFile({
       key: userFile.key,
       context: 'execution',
@@ -125,6 +112,7 @@ export async function generateExecutionFileDownloadUrl(userFile: UserFile): Prom
   logger.info(`File key: "${userFile.key}"`)
 
   try {
+    const { generatePresignedDownloadUrl } = await import('@/lib/uploads/core/storage-service')
     const downloadUrl = await generatePresignedDownloadUrl(
       userFile.key,
       'execution',
@@ -148,6 +136,7 @@ export async function deleteExecutionFile(userFile: UserFile): Promise<void> {
   logger.info(`Deleting execution file: ${userFile.name}`)
 
   try {
+    const { deleteFile } = await import('@/lib/uploads/core/storage-service')
     await deleteFile({
       key: userFile.key,
       context: 'execution',

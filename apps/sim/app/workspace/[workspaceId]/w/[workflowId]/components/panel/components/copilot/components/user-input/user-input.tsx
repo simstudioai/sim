@@ -596,53 +596,33 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
         setAttachedFiles((prev) => [...prev, tempFile])
 
         try {
-          // Request presigned URL
-          const presignedResponse = await fetch('/api/files/presigned?type=copilot', {
+          const formData = new FormData()
+          formData.append('file', file)
+          formData.append('context', 'copilot')
+
+          const uploadResponse = await fetch('/api/files/upload', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              fileName: file.name,
-              contentType: file.type,
-              fileSize: file.size,
-              userId,
-            }),
+            body: formData,
           })
-
-          if (!presignedResponse.ok) {
-            throw new Error('Failed to get presigned URL')
-          }
-
-          const presignedData = await presignedResponse.json()
-
-          logger.info(`Uploading file: ${presignedData.presignedUrl}`)
-          const uploadHeaders = presignedData.uploadHeaders || {}
-          const uploadResponse = await fetch(presignedData.presignedUrl, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': file.type,
-              ...uploadHeaders,
-            },
-            body: file,
-          })
-
-          logger.info(`Upload response status: ${uploadResponse.status}`)
 
           if (!uploadResponse.ok) {
-            const errorText = await uploadResponse.text()
-            logger.error(`Upload failed: ${errorText}`)
-            throw new Error(`Failed to upload file: ${uploadResponse.status} ${errorText}`)
+            const errorData = await uploadResponse.json().catch(() => ({
+              error: `Upload failed: ${uploadResponse.status}`,
+            }))
+            throw new Error(errorData.error || `Failed to upload file: ${uploadResponse.status}`)
           }
 
-          // Update file entry with success
+          const uploadData = await uploadResponse.json()
+
+          logger.info(`File uploaded successfully: ${uploadData.fileInfo?.path || uploadData.path}`)
+
           setAttachedFiles((prev) =>
             prev.map((f) =>
               f.id === tempFile.id
                 ? {
                     ...f,
-                    path: presignedData.fileInfo.path,
-                    key: presignedData.fileInfo.key, // Store the actual storage key
+                    path: uploadData.fileInfo?.path || uploadData.path || uploadData.url,
+                    key: uploadData.fileInfo?.key || uploadData.key,
                     uploading: false,
                   }
                 : f
@@ -650,7 +630,6 @@ const UserInput = forwardRef<UserInputRef, UserInputProps>(
           )
         } catch (error) {
           logger.error(`File upload failed: ${error}`)
-          // Remove failed upload
           setAttachedFiles((prev) => prev.filter((f) => f.id !== tempFile.id))
         }
       }

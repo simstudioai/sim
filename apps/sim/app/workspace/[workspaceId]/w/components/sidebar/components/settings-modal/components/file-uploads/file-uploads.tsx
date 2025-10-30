@@ -179,18 +179,7 @@ export function FileUploads() {
   const handleDownload = async (file: WorkspaceFileRecord) => {
     if (!workspaceId) return
 
-    try {
-      const response = await fetch(`/api/workspaces/${workspaceId}/files/${file.id}/download`, {
-        method: 'POST',
-      })
-      const data = await response.json()
-
-      if (data.success && data.downloadUrl) {
-        window.open(data.downloadUrl, '_blank')
-      }
-    } catch (error) {
-      logger.error('Error downloading file:', error)
-    }
+    window.open(`/workspace/${workspaceId}/files/${file.id}/view`, '_blank')
   }
 
   const handleDelete = async (file: WorkspaceFileRecord) => {
@@ -376,9 +365,13 @@ export function FileUploads() {
                     <TableCell className='px-3'>
                       <div className='flex min-w-0 items-center gap-2'>
                         <Icon className='h-3.5 w-3.5 shrink-0 text-muted-foreground' />
-                        <span className='min-w-0 truncate font-normal' title={file.name}>
+                        <button
+                          onClick={() => handleDownload(file)}
+                          className='min-w-0 truncate text-left font-normal hover:underline'
+                          title={file.name}
+                        >
                           {truncateMiddle(file.name)}
-                        </span>
+                        </button>
                       </div>
                     </TableCell>
                     <TableCell className='whitespace-nowrap px-3 text-[12px] text-muted-foreground'>

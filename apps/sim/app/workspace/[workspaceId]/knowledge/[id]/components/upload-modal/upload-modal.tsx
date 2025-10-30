@@ -2,16 +2,14 @@
 
 import { useRef, useState } from 'react'
 import { AlertCircle, Check, Loader2, X } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { createLogger } from '@/lib/logs/console/logger'
-import {
-  ACCEPT_ATTRIBUTE,
-  ACCEPTED_FILE_TYPES,
-  MAX_FILE_SIZE,
-} from '@/lib/uploads/utils/validation'
+import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
+import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 
@@ -40,6 +38,8 @@ export function UploadModal({
   chunkingConfig,
   onUploadComplete,
 }: UploadModalProps) {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [files, setFiles] = useState<FileWithPreview[]>([])
 
@@ -47,6 +47,7 @@ export function UploadModal({
   const [isDragging, setIsDragging] = useState(false)
 
   const { isUploading, uploadProgress, uploadError, uploadFiles, clearError } = useKnowledgeUpload({
+    workspaceId,
     onUploadComplete: () => {
       logger.info(`Successfully uploaded ${files.length} files`)
       onUploadComplete?.()
@@ -65,13 +66,7 @@ export function UploadModal({
   }
 
   const validateFile = (file: File): string | null => {
-    if (file.size > MAX_FILE_SIZE) {
-      return `File "${file.name}" is too large. Maximum size is 100MB.`
-    }
-    if (!ACCEPTED_FILE_TYPES.includes(file.type)) {
-      return `File "${file.name}" has an unsupported format. Please use PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSON, YAML, or YML files.`
-    }
-    return null
+    return validateKnowledgeBaseFile(file)
   }
 
   const processFiles = (fileList: FileList | File[]) => {
@@ -151,14 +146,6 @@ export function UploadModal({
   const getFileIcon = (mimeType: string, filename: string) => {
     const IconComponent = getDocumentIcon(mimeType, filename)
     return <IconComponent className='h-10 w-8' />
-  }
-
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 B'
-    const k = 1024
-    const sizes = ['B', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return `${Number.parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`
   }
 
   return (
@@ -281,18 +268,19 @@ export function UploadModal({
               </div>
             )}
 
-            {fileError && (
-              <div className='rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-destructive text-sm'>
-                {fileError}
-              </div>
-            )}
-
+            {/* Show upload error first, then file error only if no upload error */}
             {uploadError && (
               <div className='rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2'>
                 <div className='flex items-start gap-2'>
                   <AlertCircle className='mt-0.5 h-4 w-4 shrink-0 text-destructive' />
                   <div className='flex-1 text-destructive text-sm'>{uploadError.message}</div>
                 </div>
+              </div>
+            )}
+
+            {fileError && !uploadError && (
+              <div className='rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-destructive text-sm'>
+                {fileError}
               </div>
             )}
           </div>

@@ -48,54 +48,9 @@ export function useProfilePictureUpload({
 
   const uploadFileToServer = useCallback(async (file: File): Promise<string> => {
     try {
-      const presignedResponse = await fetch('/api/files/presigned?type=profile-pictures', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fileName: file.name,
-          contentType: file.type,
-          fileSize: file.size,
-        }),
-      })
-
-      if (presignedResponse.ok) {
-        const presignedData = await presignedResponse.json()
-
-        logger.info('Presigned URL response:', presignedData)
-
-        if (presignedData.directUploadSupported && presignedData.presignedUrl) {
-          const uploadHeaders: Record<string, string> = {
-            'Content-Type': file.type,
-          }
-
-          if (presignedData.uploadHeaders) {
-            Object.assign(uploadHeaders, presignedData.uploadHeaders)
-          }
-
-          const uploadResponse = await fetch(presignedData.presignedUrl, {
-            method: 'PUT',
-            body: file,
-            headers: uploadHeaders,
-          })
-
-          logger.info(`Upload response status: ${uploadResponse.status}`)
-
-          if (!uploadResponse.ok) {
-            const responseText = await uploadResponse.text()
-            logger.error(`Direct upload failed: ${uploadResponse.status} - ${responseText}`)
-            throw new Error(`Direct upload failed: ${uploadResponse.status} - ${responseText}`)
-          }
-
-          const publicUrl = presignedData.fileInfo.path
-          logger.info(`Profile picture uploaded successfully via direct upload: ${publicUrl}`)
-          return publicUrl
-        }
-      }
-
       const formData = new FormData()
       formData.append('file', file)
+      formData.append('context', 'profile-pictures')
 
       const response = await fetch('/api/files/upload', {
         method: 'POST',
@@ -108,7 +63,7 @@ export function useProfilePictureUpload({
       }
 
       const data = await response.json()
-      const publicUrl = data.path
+      const publicUrl = data.fileInfo?.path || data.path || data.url
       logger.info(`Profile picture uploaded successfully via server upload: ${publicUrl}`)
       return publicUrl
     } catch (error) {

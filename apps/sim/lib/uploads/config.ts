@@ -1,43 +1,108 @@
-import {
-  BLOB_CHAT_CONFIG,
-  BLOB_CONFIG,
-  BLOB_COPILOT_CONFIG,
-  BLOB_EXECUTION_FILES_CONFIG,
-  BLOB_KB_CONFIG,
-  BLOB_PROFILE_PICTURES_CONFIG,
-  S3_CHAT_CONFIG,
-  S3_CONFIG,
-  S3_COPILOT_CONFIG,
-  S3_EXECUTION_FILES_CONFIG,
-  S3_KB_CONFIG,
-  S3_PROFILE_PICTURES_CONFIG,
-  USE_BLOB_STORAGE,
-  USE_S3_STORAGE,
-} from '@/lib/uploads/core/setup'
+import { env } from '@/lib/env'
+import type { StorageConfig, StorageContext } from '@/lib/uploads/shared/types'
 
-export type StorageContext =
-  | 'general'
-  | 'knowledge-base'
-  | 'chat'
-  | 'copilot'
-  | 'execution'
-  | 'workspace'
-  | 'profile-pictures'
+export type { StorageConfig, StorageContext } from '@/lib/uploads/shared/types'
+export const UPLOAD_DIR = '/uploads'
 
-export interface StorageConfig {
-  // S3 config
-  bucket?: string
-  region?: string
-  // Blob config
-  containerName?: string
-  accountName?: string
-  accountKey?: string
-  connectionString?: string
+const hasS3Config = !!(env.S3_BUCKET_NAME && env.AWS_REGION)
+const hasBlobConfig = !!(
+  env.AZURE_STORAGE_CONTAINER_NAME &&
+  ((env.AZURE_ACCOUNT_NAME && env.AZURE_ACCOUNT_KEY) || env.AZURE_CONNECTION_STRING)
+)
+
+export const USE_BLOB_STORAGE = hasBlobConfig
+export const USE_S3_STORAGE = hasS3Config && !USE_BLOB_STORAGE
+
+export const S3_CONFIG = {
+  bucket: env.S3_BUCKET_NAME || '',
+  region: env.AWS_REGION || '',
+}
+
+export const BLOB_CONFIG = {
+  accountName: env.AZURE_ACCOUNT_NAME || '',
+  accountKey: env.AZURE_ACCOUNT_KEY || '',
+  connectionString: env.AZURE_CONNECTION_STRING || '',
+  containerName: env.AZURE_STORAGE_CONTAINER_NAME || '',
+}
+
+export const S3_KB_CONFIG = {
+  bucket: env.S3_KB_BUCKET_NAME || '',
+  region: env.AWS_REGION || '',
+}
+
+export const S3_EXECUTION_FILES_CONFIG = {
+  bucket: env.S3_EXECUTION_FILES_BUCKET_NAME || 'sim-execution-files',
+  region: env.AWS_REGION || '',
+}
+
+export const BLOB_KB_CONFIG = {
+  accountName: env.AZURE_ACCOUNT_NAME || '',
+  accountKey: env.AZURE_ACCOUNT_KEY || '',
+  connectionString: env.AZURE_CONNECTION_STRING || '',
+  containerName: env.AZURE_STORAGE_KB_CONTAINER_NAME || '',
+}
+
+export const BLOB_EXECUTION_FILES_CONFIG = {
+  accountName: env.AZURE_ACCOUNT_NAME || '',
+  accountKey: env.AZURE_ACCOUNT_KEY || '',
+  connectionString: env.AZURE_CONNECTION_STRING || '',
+  containerName: env.AZURE_STORAGE_EXECUTION_FILES_CONTAINER_NAME || 'sim-execution-files',
+}
+
+export const S3_CHAT_CONFIG = {
+  bucket: env.S3_CHAT_BUCKET_NAME || '',
+  region: env.AWS_REGION || '',
+}
+
+export const BLOB_CHAT_CONFIG = {
+  accountName: env.AZURE_ACCOUNT_NAME || '',
+  accountKey: env.AZURE_ACCOUNT_KEY || '',
+  connectionString: env.AZURE_CONNECTION_STRING || '',
+  containerName: env.AZURE_STORAGE_CHAT_CONTAINER_NAME || '',
+}
+
+export const S3_COPILOT_CONFIG = {
+  bucket: env.S3_COPILOT_BUCKET_NAME || '',
+  region: env.AWS_REGION || '',
+}
+
+export const BLOB_COPILOT_CONFIG = {
+  accountName: env.AZURE_ACCOUNT_NAME || '',
+  accountKey: env.AZURE_ACCOUNT_KEY || '',
+  connectionString: env.AZURE_CONNECTION_STRING || '',
+  containerName: env.AZURE_STORAGE_COPILOT_CONTAINER_NAME || '',
+}
+
+export const S3_PROFILE_PICTURES_CONFIG = {
+  bucket: env.S3_PROFILE_PICTURES_BUCKET_NAME || '',
+  region: env.AWS_REGION || '',
+}
+
+export const BLOB_PROFILE_PICTURES_CONFIG = {
+  accountName: env.AZURE_ACCOUNT_NAME || '',
+  accountKey: env.AZURE_ACCOUNT_KEY || '',
+  connectionString: env.AZURE_CONNECTION_STRING || '',
+  containerName: env.AZURE_STORAGE_PROFILE_PICTURES_CONTAINER_NAME || '',
+}
+
+/**
+ * Get the current storage provider as a human-readable string
+ */
+export function getStorageProvider(): 'Azure Blob' | 'S3' | 'Local' {
+  if (USE_BLOB_STORAGE) return 'Azure Blob'
+  if (USE_S3_STORAGE) return 'S3'
+  return 'Local'
+}
+
+/**
+ * Check if we're using any cloud storage (S3 or Blob)
+ */
+export function isUsingCloudStorage(): boolean {
+  return USE_S3_STORAGE || USE_BLOB_STORAGE
 }
 
 /**
  * Get the appropriate storage configuration for a given context
- * Automatically selects between S3 and Blob based on USE_BLOB_STORAGE/USE_S3_STORAGE flags
  */
 export function getStorageConfig(context: StorageContext): StorageConfig {
   if (USE_BLOB_STORAGE) {
@@ -48,7 +113,6 @@ export function getStorageConfig(context: StorageContext): StorageConfig {
     return getS3Config(context)
   }
 
-  // Local storage doesn't need config
   return {}
 }
 
@@ -78,7 +142,6 @@ function getS3Config(context: StorageContext): StorageConfig {
         region: S3_EXECUTION_FILES_CONFIG.region,
       }
     case 'workspace':
-      // Workspace files use general bucket but with custom key structure
       return {
         bucket: S3_CONFIG.bucket,
         region: S3_CONFIG.region,
@@ -130,7 +193,6 @@ function getBlobConfig(context: StorageContext): StorageConfig {
         containerName: BLOB_EXECUTION_FILES_CONFIG.containerName,
       }
     case 'workspace':
-      // Workspace files use general container but with custom key structure
       return {
         accountName: BLOB_CONFIG.accountName,
         accountKey: BLOB_CONFIG.accountKey,
@@ -172,6 +234,5 @@ export function isStorageContextConfigured(context: StorageContext): boolean {
     return !!(config.bucket && config.region)
   }
 
-  // Local storage is always available
   return true
 }

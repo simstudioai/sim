@@ -90,7 +90,7 @@ describe('Azure Blob Storage Client', () => {
 
   describe('uploadToBlob', () => {
     it('should upload a file to Azure Blob Storage', async () => {
-      const { uploadToBlob } = await import('@/lib/uploads/providers/blob/blob-client')
+      const { uploadToBlob } = await import('@/lib/uploads/providers/blob/client')
 
       const testBuffer = Buffer.from('test file content')
       const fileName = 'test-file.txt'
@@ -120,7 +120,7 @@ describe('Azure Blob Storage Client', () => {
     })
 
     it('should handle custom blob configuration', async () => {
-      const { uploadToBlob } = await import('@/lib/uploads/providers/blob/blob-client')
+      const { uploadToBlob } = await import('@/lib/uploads/providers/blob/client')
 
       const testBuffer = Buffer.from('test file content')
       const fileName = 'test-file.txt'
@@ -143,7 +143,7 @@ describe('Azure Blob Storage Client', () => {
 
   describe('downloadFromBlob', () => {
     it('should download a file from Azure Blob Storage', async () => {
-      const { downloadFromBlob } = await import('@/lib/uploads/providers/blob/blob-client')
+      const { downloadFromBlob } = await import('@/lib/uploads/providers/blob/client')
 
       const testKey = 'test-file-key'
       const testContent = Buffer.from('downloaded content')
@@ -172,7 +172,7 @@ describe('Azure Blob Storage Client', () => {
 
   describe('deleteFromBlob', () => {
     it('should delete a file from Azure Blob Storage', async () => {
-      const { deleteFromBlob } = await import('@/lib/uploads/providers/blob/blob-client')
+      const { deleteFromBlob } = await import('@/lib/uploads/providers/blob/client')
 
       const testKey = 'test-file-key'
 
@@ -187,7 +187,7 @@ describe('Azure Blob Storage Client', () => {
 
   describe('getPresignedUrl', () => {
     it('should generate a presigned URL for Azure Blob Storage', async () => {
-      const { getPresignedUrl } = await import('@/lib/uploads/providers/blob/blob-client')
+      const { getPresignedUrl } = await import('@/lib/uploads/providers/blob/client')
 
       const testKey = 'test-file-key'
       const expiresIn = 3600
@@ -211,9 +211,7 @@ describe('Azure Blob Storage Client', () => {
     ]
 
     it.each(testCases)('should sanitize "$input" to "$expected"', async ({ input, expected }) => {
-      const { sanitizeFilenameForMetadata } = await import(
-        '@/lib/uploads/providers/blob/blob-client'
-      )
+      const { sanitizeFilenameForMetadata } = await import('@/lib/uploads/utils/file-utils')
       expect(sanitizeFilenameForMetadata(input)).toBe(expected)
     })
   })

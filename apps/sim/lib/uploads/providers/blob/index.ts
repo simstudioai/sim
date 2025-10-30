@@ -1,11 +1,14 @@
 export {
-  type CustomBlobConfig,
   deleteFromBlob,
   downloadFromBlob,
-  type FileInfo,
   getBlobServiceClient,
   getPresignedUrl,
   getPresignedUrlWithConfig,
-  sanitizeFilenameForMetadata,
   uploadToBlob,
-} from '@/lib/uploads/providers/blob/blob-client'
+} from '@/lib/uploads/providers/blob/client'
+export type {
+  AzureMultipartPart,
+  AzureMultipartUploadInit,
+  AzurePartUploadUrl,
+  BlobConfig,
+} from '@/lib/uploads/providers/blob/types'
