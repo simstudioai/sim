@@ -47,6 +47,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
         'Channel.ReadBasic.All',
         'ChannelMessage.Send',
         'ChannelMessage.Read.All',
+        'ChannelMember.Read.All',
         'Group.Read.All',
         'Group.ReadWrite.All',
         'Team.ReadBasic.All',
