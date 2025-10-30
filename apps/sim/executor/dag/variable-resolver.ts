@@ -9,6 +9,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedWorkflow } from '@/serializer/types'
 import type { ExecutionState, LoopScope } from './execution-state'
+import { normalizeBlockName } from '@/stores/workflows/utils'
 
 const logger = createLogger('VariableResolver')
 
@@ -19,11 +20,37 @@ const ENV_VAR_END = '}}'
 const PATH_DELIMITER = '.'
 
 export class VariableResolver {
+  private blockByNormalizedName: Map<string, string> // Maps normalized name to block ID
+
   constructor(
     private workflow: SerializedWorkflow,
     private workflowVariables: Record<string, any>,
     private state: ExecutionState
-  ) {}
+  ) {
+    // Initialize the normalized name map for efficient block lookups
+    this.blockByNormalizedName = new Map()
+    
+    for (const block of workflow.blocks) {
+      // Map by block ID
+      this.blockByNormalizedName.set(block.id, block.id)
+      
+      // Map by normalized block name
+      if (block.metadata?.name) {
+        const normalized = normalizeBlockName(block.metadata.name)
+        this.blockByNormalizedName.set(normalized, block.id)
+      }
+    }
+    
+    // Add special handling for the starter block - allow referencing it as "start"
+    const starterBlock = workflow.blocks.find((b) => 
+      b.metadata?.id === 'starter' || 
+      b.metadata?.id === 'start_trigger' ||
+      b.metadata?.category === 'triggers'
+    )
+    if (starterBlock) {
+      this.blockByNormalizedName.set('start', starterBlock.id)
+    }
+  }
 
   resolveInputs(
     params: Record<string, any>,
@@ -41,6 +68,22 @@ export class VariableResolver {
     }
 
     return resolved
+  }
+
+  private getBlockOutputFromContext(blockId: string, context: ExecutionContext): any {
+    // First check ExecutionState (for blocks that have completed during this execution)
+    const stateOutput = this.state.getBlockOutput(blockId)
+    if (stateOutput !== undefined) {
+      return stateOutput
+    }
+
+    // Then check context.blockStates (for pre-initialized blocks like starter)
+    const contextState = context.blockStates?.get(blockId)
+    if (contextState?.output) {
+      return contextState.output
+    }
+
+    return undefined
   }
 
   resolveSingleReference(reference: string, currentNodeId: string, context: ExecutionContext, loopScope?: LoopScope): any {
@@ -67,7 +110,42 @@ export class VariableResolver {
     }
 
     if (typeof value === 'string') {
-      return this.resolveTemplate(value, currentNodeId, context, loopScope)
+      const trimmed = value.trim()
+      
+      logger.info(`[VariableResolver] Resolving string value`, {
+        originalValue: value,
+        trimmed,
+        isReference: this.isReference(trimmed),
+        isEnvVariable: this.isEnvVariable(trimmed),
+      })
+      
+      // Check if this is a direct reference (entire string is just a reference)
+      if (this.isReference(trimmed)) {
+        const resolved = this.resolveReference(trimmed, currentNodeId, context, loopScope)
+        logger.info(`[VariableResolver] Resolved direct reference`, {
+          reference: trimmed,
+          resolved,
+        })
+        return resolved !== undefined ? resolved : value
+      }
+      
+      // Check if this is a direct environment variable (entire string is just an env var)
+      if (this.isEnvVariable(trimmed)) {
+        const resolved = this.resolveEnvVariable(trimmed, context)
+        logger.info(`[VariableResolver] Resolved direct env variable`, {
+          envVar: trimmed,
+          resolved,
+        })
+        return resolved
+      }
+      
+      // Otherwise treat as a template with potential interpolations
+      const resolved = this.resolveTemplate(value, currentNodeId, context, loopScope)
+      logger.info(`[VariableResolver] Resolved template`, {
+        template: value,
+        resolved,
+      })
+      return resolved
     }
 
     return value
@@ -92,22 +170,46 @@ export class VariableResolver {
     )
     const parts = content.split(PATH_DELIMITER)
 
+    logger.info(`[VariableResolver] Resolving reference`, {
+      reference,
+      content,
+      parts,
+    })
+
     if (parts.length === 0) {
       return undefined
     }
 
     const [type, ...pathParts] = parts
 
+    logger.info(`[VariableResolver] Reference type and path`, {
+      type,
+      pathParts,
+    })
+
+    let result: any
     switch (type) {
       case 'loop':
-        return this.resolveLoopVariable(pathParts, currentNodeId, loopScope)
+        result = this.resolveLoopVariable(pathParts, currentNodeId, loopScope)
+        break
       case 'parallel':
-        return this.resolveParallelVariable(pathParts, currentNodeId)
+        result = this.resolveParallelVariable(pathParts, currentNodeId)
+        break
       case 'variable':
-        return this.resolveWorkflowVariable(pathParts, context)
+        result = this.resolveWorkflowVariable(pathParts, context)
+        break
       default:
-        return this.resolveBlockOutput(type, pathParts)
+        result = this.resolveBlockOutput(type, pathParts, context)
+        break
     }
+
+    logger.info(`[VariableResolver] Reference resolved to`, {
+      reference,
+      type,
+      result,
+    })
+
+    return result
   }
 
   private resolveLoopVariable(pathParts: string[], currentNodeId: string, loopScope?: LoopScope): any {
@@ -177,13 +279,35 @@ export class VariableResolver {
     return undefined
   }
 
-  private resolveBlockOutput(blockName: string, pathParts: string[]): any {
+  private resolveBlockOutput(blockName: string, pathParts: string[], context?: ExecutionContext): any {
     const blockId = this.findBlockIdByName(blockName)
+    
+    logger.info(`[VariableResolver] Resolving block output`, {
+      blockName,
+      blockId,
+      pathParts,
+    })
+    
     if (!blockId) {
+      logger.warn(`[VariableResolver] Block not found by name`, { blockName })
       return undefined
     }
 
-    const output = this.state.getBlockOutput(blockId)
+    // Get output from either ExecutionState or context.blockStates
+    let output: any
+    if (context) {
+      output = this.getBlockOutputFromContext(blockId, context)
+    } else {
+      output = this.state.getBlockOutput(blockId)
+    }
+
+    logger.info(`[VariableResolver] Block output retrieved`, {
+      blockName,
+      blockId,
+      hasOutput: !!output,
+      outputKeys: output ? Object.keys(output) : [],
+    })
+
     if (!output) {
       return undefined
     }
@@ -192,7 +316,15 @@ export class VariableResolver {
       return output
     }
 
-    return this.navigatePath(output, pathParts)
+    const result = this.navigatePath(output, pathParts)
+    
+    logger.info(`[VariableResolver] Navigated path result`, {
+      blockName,
+      pathParts,
+      result,
+    })
+
+    return result
   }
 
   private resolveEnvVariable(value: string, context: ExecutionContext): string {
@@ -253,12 +385,14 @@ export class VariableResolver {
   }
 
   private findBlockIdByName(name: string): string | undefined {
-    for (const block of this.workflow.blocks) {
-      if (block.metadata?.name === name || block.id === name) {
-        return block.id
-      }
+    // Try direct lookup first (handles IDs and exact name matches)
+    if (this.blockByNormalizedName.has(name)) {
+      return this.blockByNormalizedName.get(name)
     }
-    return undefined
+    
+    // Try normalized lookup
+    const normalized = normalizeBlockName(name)
+    return this.blockByNormalizedName.get(normalized)
   }
 
   private findLoopForBlock(blockId: string): string | undefined {

@@ -27,6 +27,11 @@ import {
   WaitBlockHandler,
   WorkflowBlockHandler,
 } from '@/executor/handlers'
+import {
+  buildResolutionFromBlock,
+  buildStartBlockOutput,
+  resolveExecutorStartBlock,
+} from '@/executor/utils/start-block'
 import { DAGBuilder } from './dag-builder'
 import { ExecutionState } from './execution-state'
 import { VariableResolver } from './variable-resolver'
@@ -129,7 +134,7 @@ export class DAGExecutor {
   }
 
   private createExecutionContext(workflowId: string): ExecutionContext {
-    return {
+    const context: ExecutionContext = {
       workflowId,
       blockStates: new Map(),
       blockLogs: [],
@@ -155,6 +160,79 @@ export class DAGExecutor {
       onStream: this.contextExtensions.onStream,
       onBlockStart: this.contextExtensions.onBlockStart,
       onBlockComplete: this.contextExtensions.onBlockComplete,
+    }
+
+    // Initialize starter block output with processed inputFormat
+    this.initializeStarterBlock(context)
+
+    return context
+  }
+
+  private initializeStarterBlock(context: ExecutionContext): void {
+    logger.info('Attempting to initialize starter block', {
+      workflowBlockCount: this.workflow.blocks.length,
+      workflowInputKeys: Object.keys(this.workflowInput || {}),
+    })
+
+    try {
+      // Resolve the start block type and build its output
+      const startResolution = resolveExecutorStartBlock(this.workflow.blocks, {
+        execution: 'manual',
+        isChildWorkflow: false,
+      })
+
+      logger.info('resolveExecutorStartBlock result', {
+        hasResolution: !!startResolution,
+        hasBlock: !!startResolution?.block,
+        blockId: startResolution?.block?.id,
+        blockType: startResolution?.block?.metadata?.id,
+      })
+
+      if (startResolution && startResolution.block) {
+        const blockOutput = buildStartBlockOutput({
+          resolution: startResolution,
+          workflowInput: this.workflowInput,
+          isDeployedExecution: this.contextExtensions?.isDeployedContext === true,
+        })
+
+        logger.info('buildStartBlockOutput result', {
+          outputKeys: Object.keys(blockOutput),
+          output: blockOutput,
+        })
+
+        context.blockStates.set(startResolution.block.id, {
+          output: blockOutput,
+          executed: true,
+          executionTime: 0,
+        })
+
+        logger.info('Initialized starter block with inputFormat', {
+          blockId: startResolution.block.id,
+          blockType: startResolution.block.metadata?.id,
+          outputKeys: Object.keys(blockOutput),
+        })
+      } else {
+        logger.warn('No start resolution found')
+      }
+    } catch (error) {
+      logger.error('Error initializing starter block:', error)
+      // Try to find any start/trigger block as fallback
+      const starterBlock = this.workflow.blocks.find(
+        (b) => b.metadata?.id === 'starter' || 
+               b.metadata?.id === 'start_trigger' || 
+               b.metadata?.category === 'triggers'
+      )
+      if (starterBlock) {
+        logger.info('Using fallback starter block', {
+          blockId: starterBlock.id,
+          blockType: starterBlock.metadata?.id,
+        })
+        context.blockStates.set(starterBlock.id, {
+          output: this.workflowInput || {},
+          executed: true,
+          executionTime: 0,
+        })
+      }
     }
   }
 

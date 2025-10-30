@@ -461,6 +461,14 @@ async function handleInternalRequest(
 
     const fullUrlObj = new URL(endpointUrl, baseUrl)
     const isInternalRoute = endpointUrl.startsWith('/api/')
+    
+    if (isInternalRoute) {
+      const workflowId = params._context?.workflowId
+      if (workflowId) {
+        fullUrlObj.searchParams.set('workflowId', workflowId)
+      }
+    }
+    
     const fullUrl = fullUrlObj.toString()
 
     // For custom tools, validate parameters on the client side before sending

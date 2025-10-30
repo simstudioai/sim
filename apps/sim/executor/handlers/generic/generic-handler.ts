@@ -56,6 +56,14 @@ export class GenericBlockHandler implements BlockHandler {
       }
     }
 
+    logger.info(`[GenericBlockHandler] Calling executeTool for ${block.config.tool}`, {
+      blockId: block.id,
+      blockName: block.metadata?.name,
+      originalInputs: inputs,
+      finalInputs: finalInputs,
+      tool: block.config.tool,
+    })
+
     try {
       const result = await executeTool(
         block.config.tool,
