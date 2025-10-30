@@ -203,3 +203,13 @@ Lire le contenu d'un canal Microsoft Teams
 
 - Catégorie : `tools`
 - Type : `microsoft_teams`
+
+### Mentionner des utilisateurs
+
+Pour mentionner des utilisateurs dans vos messages (à la fois dans les discussions et les canaux), encadrez leur nom d'affichage avec les balises `<at>` :
+
+```
+<at>John Doe</at> can you review this?
+```
+
+La mention sera automatiquement résolue vers l'utilisateur correct et ils recevront une notification dans Microsoft Teams. Cela fonctionne à la fois pour les messages de discussion et les messages de canal. Les bots/applications ne peuvent pas être tagués.
