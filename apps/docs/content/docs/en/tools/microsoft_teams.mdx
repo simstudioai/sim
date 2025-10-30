@@ -208,3 +208,13 @@ Write or send a message to a Microsoft Teams channel
 
 - Category: `tools`
 - Type: `microsoft_teams`
+
+### Mentioning Users
+
+To mention users in your messages (both in chats and channels), wrap their display name in `<at>` tags:
+
+```
+<at>John Doe</at> can you review this?
+```
+
+The mention will be automatically resolved to the correct user and they will receive a notification in Microsoft Teams. This works for both chat messages and channel messages. Bots/Apps cannot be tagged.
