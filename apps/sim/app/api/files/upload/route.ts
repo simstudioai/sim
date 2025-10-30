@@ -30,9 +30,6 @@ const ALLOWED_EXTENSIONS = new Set([
   'yml',
 ])
 
-/**
- * Validates file extension against allowlist
- */
 function validateFileExtension(filename: string): boolean {
   const extension = filename.split('.').pop()?.toLowerCase()
   if (!extension) return false

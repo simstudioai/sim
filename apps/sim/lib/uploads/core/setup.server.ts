@@ -3,7 +3,7 @@ import { mkdir } from 'fs/promises'
 import path, { join } from 'path'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getStorageProvider, USE_BLOB_STORAGE, USE_S3_STORAGE } from '../config'
+import { getStorageProvider, USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/config'
 
 const logger = createLogger('UploadsSetup')
 

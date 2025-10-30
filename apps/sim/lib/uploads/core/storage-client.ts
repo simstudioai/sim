@@ -1,13 +1,13 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import { USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/config'
 import type { BlobConfig } from '@/lib/uploads/providers/blob/types'
 import type { S3Config } from '@/lib/uploads/providers/s3/types'
-import { USE_BLOB_STORAGE, USE_S3_STORAGE } from '../config'
-import type { FileInfo, StorageConfig } from '../shared/types'
-import { sanitizeFileKey } from '../utils/file-utils'
+import type { FileInfo, StorageConfig } from '@/lib/uploads/shared/types'
+import { sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('StorageClient')
 
-export type { FileInfo, StorageConfig } from '../shared/types'
+export type { FileInfo, StorageConfig } from '@/lib/uploads/shared/types'
 
 /**
  * Validate and resolve local file path ensuring it's within the allowed directory
@@ -283,7 +283,7 @@ export async function getFileMetadata(
 
   if (USE_BLOB_STORAGE) {
     const { getBlobServiceClient } = await import('@/lib/uploads/providers/blob/client')
-    const { BLOB_CONFIG } = await import('../config')
+    const { BLOB_CONFIG } = await import('@/lib/uploads/config')
 
     let blobServiceClient = await getBlobServiceClient()
     let containerName = BLOB_CONFIG.containerName
@@ -314,7 +314,7 @@ export async function getFileMetadata(
   if (USE_S3_STORAGE) {
     const { getS3Client } = await import('@/lib/uploads/providers/s3/client')
     const { HeadObjectCommand } = await import('@aws-sdk/client-s3')
-    const { S3_CONFIG } = await import('../config')
+    const { S3_CONFIG } = await import('@/lib/uploads/config')
 
     const s3Client = getS3Client()
     const bucket = customConfig?.bucket || S3_CONFIG.bucket

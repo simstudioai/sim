@@ -1,7 +1,7 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { getStorageConfig, USE_BLOB_STORAGE, USE_S3_STORAGE } from '../config'
-import type { BlobConfig } from '../providers/blob/types'
-import type { S3Config } from '../providers/s3/types'
+import { getStorageConfig, USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/config'
+import type { BlobConfig } from '@/lib/uploads/providers/blob/types'
+import type { S3Config } from '@/lib/uploads/providers/s3/types'
 import type {
   DeleteFileOptions,
   DownloadFileOptions,
@@ -11,12 +11,12 @@ import type {
   StorageConfig,
   StorageContext,
   UploadFileOptions,
-} from '../shared/types'
+} from '@/lib/uploads/shared/types'
 import {
   sanitizeFileKey,
   sanitizeFilenameForMetadata,
   sanitizeStorageMetadata,
-} from '../utils/file-utils'
+} from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('StorageService')
 
