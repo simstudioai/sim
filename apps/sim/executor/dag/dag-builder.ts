@@ -42,7 +42,7 @@ export interface DAG {
  * - Adds backwards-edges for loops
  */
 export class DAGBuilder {
-  build(workflow: SerializedWorkflow): DAG {
+  build(workflow: SerializedWorkflow, startBlockId?: string): DAG {
     const dag: DAG = {
       nodes: new Map(),
       loopConfigs: new Map(),
@@ -62,6 +62,14 @@ export class DAGBuilder {
       }
     }
 
+    // Step 1.5: Find reachable blocks from start
+    const reachableBlocks = this.findReachableBlocks(workflow, startBlockId)
+    logger.debug('Reachable blocks from start:', {
+      startBlockId,
+      reachableCount: reachableBlocks.size,
+      totalBlocks: workflow.blocks.length,
+    })
+
     // Step 2: Determine which blocks are in loops vs parallels
     const blocksInLoops = new Set<string>()
     const blocksInParallels = new Set<string>()
@@ -78,9 +86,15 @@ export class DAGBuilder {
       }
     }
 
-    // Step 3: Create nodes - expand parallels, skip loop/parallel blocks themselves
+    // Step 3: Create nodes - only for reachable blocks
     for (const block of workflow.blocks) {
       if (!block.enabled) continue
+
+      // Skip unreachable blocks
+      if (!reachableBlocks.has(block.id)) {
+        logger.debug('Skipping unreachable block:', block.id)
+        continue
+      }
 
       // Skip loop and parallel blocks - they're metadata only, not executable nodes
       if (block.metadata?.id === 'loop' || block.metadata?.id === 'parallel') {
@@ -379,6 +393,84 @@ export class DAGBuilder {
       }
     }
     return null
+  }
+
+  /**
+   * Find all blocks reachable from the start/trigger block
+   * Uses BFS to traverse the connection graph
+   */
+  private findReachableBlocks(workflow: SerializedWorkflow, startBlockId?: string): Set<string> {
+    const reachable = new Set<string>()
+    
+    // Find the start block
+    let start = startBlockId
+    if (!start) {
+      // Find a trigger block (any block with no incoming connections)
+      const blockIds = new Set(workflow.blocks.map(b => b.id))
+      const hasIncoming = new Set(workflow.connections.map(c => c.target))
+      
+      for (const block of workflow.blocks) {
+        if (!hasIncoming.has(block.id) && block.enabled) {
+          start = block.id
+          break
+        }
+      }
+    }
+
+    if (!start) {
+      logger.warn('No start block found, including all blocks')
+      return new Set(workflow.blocks.filter(b => b.enabled).map(b => b.id))
+    }
+
+    // BFS traversal from start
+    const queue = [start]
+    reachable.add(start)
+
+    // Build adjacency map
+    const adjacency = new Map<string, string[]>()
+    for (const conn of workflow.connections) {
+      if (!adjacency.has(conn.source)) {
+        adjacency.set(conn.source, [])
+      }
+      adjacency.get(conn.source)!.push(conn.target)
+    }
+
+    // Add loop/parallel internal nodes to adjacency
+    if (workflow.loops) {
+      for (const [loopId, loopConfig] of Object.entries(workflow.loops)) {
+        const nodes = (loopConfig as any).nodes || []
+        // Add connections within loop
+        for (let i = 0; i < nodes.length - 1; i++) {
+          if (!adjacency.has(nodes[i])) {
+            adjacency.set(nodes[i], [])
+          }
+          adjacency.get(nodes[i])!.push(nodes[i + 1])
+        }
+        
+        // Loop block itself connects to first node
+        if (nodes.length > 0) {
+          if (!adjacency.has(loopId)) {
+            adjacency.set(loopId, [])
+          }
+          adjacency.get(loopId)!.push(nodes[0])
+        }
+      }
+    }
+
+    // Traverse
+    while (queue.length > 0) {
+      const current = queue.shift()!
+      const neighbors = adjacency.get(current) || []
+
+      for (const neighbor of neighbors) {
+        if (!reachable.has(neighbor)) {
+          reachable.add(neighbor)
+          queue.push(neighbor)
+        }
+      }
+    }
+
+    return reachable
   }
 }
 

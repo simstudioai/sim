@@ -111,9 +111,9 @@ export class DAGExecutor {
     const startTime = new Date()
     const context = this.createExecutionContext(workflowId, startTime)
 
-    // Build DAG
+    // Build DAG (only reachable nodes from start)
     const dagBuilder = new DAGBuilder()
-    const dag = dagBuilder.build(this.workflow)
+    const dag = dagBuilder.build(this.workflow, startBlockId)
 
     // Initialize ready queue
     const readyQueue: string[] = []

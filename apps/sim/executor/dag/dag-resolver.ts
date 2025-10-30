@@ -69,22 +69,26 @@ export class DAGResolver {
     const params = block.config.params || {}
     const resolved: Record<string, any> = {}
 
-    logger.debug('DAGResolver resolveInputs called:', {
-      blockId: block.id,
-      blockType: block.metadata?.id,
-      paramKeys: Object.keys(params),
-      codePreview: typeof params.code === 'string' ? params.code.substring(0, 100) : 'N/A',
-    })
+    if (block.metadata?.id === 'function') {
+      logger.debug('DAGResolver resolveInputs called for function:', {
+        blockId: block.id,
+        blockName: block.metadata?.name,
+        originalCode: typeof params.code === 'string' ? params.code : 'N/A',
+        paramKeys: Object.keys(params),
+      })
+    }
 
     for (const [key, value] of Object.entries(params)) {
       resolved[key] = this.resolveValue(value, currentNodeId, context, loopScopes, block)
     }
 
-    logger.debug('DAGResolver resolved inputs:', {
-      blockId: block.id,
-      resolvedKeys: Object.keys(resolved),
-      resolvedCodePreview: typeof resolved.code === 'string' ? resolved.code.substring(0, 100) : 'N/A',
-    })
+    if (block.metadata?.id === 'function') {
+      logger.debug('DAGResolver resolved function inputs:', {
+        blockId: block.id,
+        blockName: block.metadata?.name,
+        resolvedCode: typeof resolved.code === 'string' ? resolved.code : 'N/A',
+      })
+    }
 
     return resolved
   }
@@ -99,6 +103,22 @@ export class DAGResolver {
     loopScopes: Map<string, LoopScope>,
     block?: SerializedBlock
   ): any {
+    // Handle arrays - recursively resolve each element
+    if (Array.isArray(value)) {
+      return value.map(item => 
+        this.resolveValue(item, currentNodeId, context, loopScopes, block)
+      )
+    }
+
+    // Handle objects - recursively resolve each property
+    if (typeof value === 'object' && value !== null) {
+      const resolved: Record<string, any> = {}
+      for (const [key, val] of Object.entries(value)) {
+        resolved[key] = this.resolveValue(val, currentNodeId, context, loopScopes, block)
+      }
+      return resolved
+    }
+
     if (typeof value !== 'string') {
       return value
     }
@@ -108,7 +128,9 @@ export class DAGResolver {
     // Check for variable references
     if (value.startsWith('<') && value.endsWith('>')) {
       const resolved = this.resolveReference(value, currentNodeId, context, loopScopes)
-      // For function blocks, format for code context
+      // For function blocks, if this is the entire value (standalone reference),
+      // format it for code context (e.g., `<variable.i>` → `0` not `"0"`)
+      // Formatting for template strings is handled in resolveTemplateString
       if (isFunctionBlock) {
         return this.formatValueForCodeContext(resolved)
       }
@@ -149,6 +171,11 @@ export class DAGResolver {
     // Special: parallel variables
     if (parts[0] === 'parallel') {
       return this.resolveParallelVariable(parts, currentNodeId, context)
+    }
+
+    // Special: workflow variable
+    if (parts[0] === 'variable') {
+      return this.resolveWorkflowVariable(parts, context)
     }
 
     // Block output reference
@@ -266,6 +293,60 @@ export class DAGResolver {
         logger.warn('Unknown loop variable:', variable)
         return undefined
     }
+  }
+
+  /**
+   * Resolve workflow variables like <variable.i>
+   * Variables can be updated by Variables blocks during execution,
+   * so we check context.workflowVariables first (runtime), then fall back to initial values
+   * Returns the value in its native type (number, string, boolean, etc.)
+   */
+  private resolveWorkflowVariable(parts: string[], context: ExecutionContext): any {
+    const variableName = parts[1]
+    
+    if (!variableName) {
+      logger.warn('No variable name provided in reference')
+      return undefined
+    }
+
+    let variable: any = null
+
+    // First check context's workflow variables (these get updated by Variables blocks)
+    if (context.workflowVariables) {
+      for (const [varId, varObj] of Object.entries(context.workflowVariables)) {
+        const v = varObj as any
+        if (v.name === variableName || v.id === variableName) {
+          variable = v
+          break
+        }
+      }
+    }
+
+    // Fallback to initial variables
+    if (!variable) {
+      for (const [varId, varObj] of Object.entries(this.workflowVariables)) {
+        const v = varObj as any
+        if (v.name === variableName || v.id === variableName) {
+          variable = v
+          break
+        }
+      }
+    }
+
+    if (!variable) {
+      logger.warn('Workflow variable not found:', variableName)
+      return undefined
+    }
+
+    // Return the value - Variables block handler should have already converted it to native type
+    logger.debug('Resolved workflow variable:', {
+      variableName,
+      value: variable.value,
+      valueType: typeof variable.value,
+      variableType: variable.type,
+    })
+    
+    return variable.value
   }
 
   /**
@@ -437,14 +518,14 @@ export class DAGResolver {
 
   /**
    * Format value for safe use in code context (function blocks)
-   * Ensures strings are properly quoted
+   * Returns a string representation that, when inserted into code, evaluates correctly
    */
   private formatValueForCodeContext(value: any): string {
     if (typeof value === 'string') {
-      return JSON.stringify(value) // Quote strings
+      return JSON.stringify(value) // Quote strings: "hello" → "\"hello\""
     }
     if (typeof value === 'object' && value !== null) {
-      return JSON.stringify(value) // Stringify objects/arrays
+      return JSON.stringify(value) // Stringify objects/arrays: {a:1} → "{\"a\":1}"
     }
     if (value === undefined) {
       return 'undefined'
@@ -452,7 +533,9 @@ export class DAGResolver {
     if (value === null) {
       return 'null'
     }
-    // Numbers, booleans can be inserted as-is
+    // Numbers and booleans: return unquoted string so they insert as literals
+    // 0 → "0" inserts as 0 (number), not "0" (string)
+    // true → "true" inserts as true (boolean), not "true" (string)
     return String(value)
   }
 }
