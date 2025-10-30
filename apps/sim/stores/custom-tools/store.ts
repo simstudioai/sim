@@ -103,7 +103,9 @@ export const useCustomToolsStore = create<CustomToolsStore>()(
           const data = await response.json()
 
           if (!response.ok) {
-            throw new Error(data.error || 'Failed to create tool')
+            const error = new Error(data.error || 'Failed to create tool')
+            ;(error as any).status = response.status
+            throw error
           }
 
           // Refetch tools to get the created tool with its ID
@@ -157,7 +159,9 @@ export const useCustomToolsStore = create<CustomToolsStore>()(
           const data = await response.json()
 
           if (!response.ok) {
-            throw new Error(data.error || 'Failed to update tool')
+            const error = new Error(data.error || 'Failed to update tool')
+            ;(error as any).status = response.status
+            throw error
           }
 
           // Refetch tools to get updated data

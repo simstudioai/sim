@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Code, FileJson, Trash2, X } from 'lucide-react'
+import { AlertCircle, Code, FileJson, Trash2, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,7 +24,6 @@ import {
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
 import { Label } from '@/components/ui/label'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn } from '@/lib/utils'
 import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
@@ -156,8 +156,8 @@ Example 2:
     },
     currentValue: jsonSchema,
     onGeneratedContent: (content) => {
-      handleJsonSchemaChange(content)
-      setSchemaError(null) // Clear error on successful generation
+      setJsonSchema(content)
+      setSchemaError(null)
     },
     onStreamChunk: (chunk) => {
       setJsonSchema((prev) => {
@@ -303,7 +303,6 @@ try {
     setActiveSection('schema')
     setIsEditing(false)
     setToolId(undefined)
-    // Reset AI state as well
     schemaGeneration.closePrompt()
     schemaGeneration.hidePromptInline()
     codeGeneration.closePrompt()
@@ -378,17 +377,14 @@ try {
   const isCodeValid = useMemo(() => validateFunctionCode(functionCode), [functionCode])
 
   const handleSave = async () => {
-    setSchemaError(null)
-    setCodeError(null)
-
-    // Validation with error messages
-    if (!jsonSchema) {
-      setSchemaError('Schema cannot be empty')
-      setActiveSection('schema')
-      return
-    }
-
     try {
+      // Validation with error messages
+      if (!jsonSchema) {
+        setSchemaError('Schema cannot be empty')
+        setActiveSection('schema')
+        return
+      }
+
       const parsed = JSON.parse(jsonSchema)
 
       if (!parsed.type || parsed.type !== 'function') {
@@ -464,45 +460,37 @@ try {
       })
 
       if (isDuplicate) {
-        setSchemaError(`A tool with the name "${toolName}" already exists`)
+        setSchemaError(`Tool name already exists`)
         setActiveSection('schema')
         return
       }
+
+      // No errors, proceed with save - clear any existing errors
+      setSchemaError(null)
+      setCodeError(null)
 
       // Save to custom tools store
       const schema = JSON.parse(jsonSchema)
       const name = schema.function.name
       const description = schema.function.description || ''
-
       let _finalToolId: string | undefined = originalToolId
 
-      // Only save to the store if we're not reusing an existing tool
-      try {
-        if (isEditing && originalToolId) {
-          // Update existing tool in store
-          await updateTool(workspaceId, originalToolId, {
-            title: name,
-            schema,
-            code: functionCode || '',
-          })
-        } else {
-          // Add new tool to store
-          const createdTool = await createTool(workspaceId, {
-            title: name,
-            schema,
-            code: functionCode || '',
-          })
-          _finalToolId = createdTool.id
-        }
-      } catch (error) {
-        // Handle duplicate name errors from API
-        const errorMessage = error instanceof Error ? error.message : 'Failed to save tool'
-        if (errorMessage.includes('already exists')) {
-          setSchemaError(errorMessage)
-          setActiveSection('schema')
-          return
-        }
-        throw error
+      // Save to the store
+      if (isEditing && originalToolId) {
+        // Update existing tool in store
+        await updateTool(workspaceId, originalToolId, {
+          title: name,
+          schema,
+          code: functionCode || '',
+        })
+      } else {
+        // Add new tool to store
+        const createdTool = await createTool(workspaceId, {
+          title: name,
+          schema,
+          code: functionCode || '',
+        })
+        _finalToolId = createdTool.id
       }
 
       // Create the custom tool object for the parent component
@@ -525,6 +513,7 @@ try {
     } catch (error) {
       logger.error('Error saving custom tool:', { error })
       setSchemaError('Failed to save custom tool. Please check your inputs and try again.')
+      setActiveSection('schema')
     }
   }
 
@@ -864,6 +853,16 @@ try {
             </DialogDescription>
           </DialogHeader>
 
+          {/* Error Alert */}
+          {schemaError && (
+            <div className='px-6 pt-4'>
+              <Alert variant='destructive'>
+                <AlertCircle className='h-4 w-4' />
+                <AlertDescription>{schemaError}</AlertDescription>
+              </Alert>
+            </div>
+          )}
+
           <div className='flex min-h-0 flex-1 flex-col overflow-hidden'>
             <div className='flex border-b'>
               {navigationItems.map((item) => (
@@ -935,17 +934,6 @@ try {
                     <Label htmlFor='json-schema' className='font-medium'>
                       JSON Schema
                     </Label>
-                    {schemaError &&
-                      !schemaGeneration.isStreaming && ( // Hide schema error while streaming
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <AlertTriangle className='h-4 w-4 cursor-pointer text-destructive' />
-                          </TooltipTrigger>
-                          <TooltipContent side='top'>
-                            <p>Invalid JSON</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      )}
                   </div>
                 </div>
                 <CodeEditor
@@ -1187,20 +1175,9 @@ try {
                     Next
                   </Button>
                 ) : (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span>
-                        <Button onClick={handleSave} disabled={!isSchemaValid || !!schemaError}>
-                          {isEditing ? 'Update Tool' : 'Save Tool'}
-                        </Button>
-                      </span>
-                    </TooltipTrigger>
-                    {(!isSchemaValid || !!schemaError) && (
-                      <TooltipContent side='top'>
-                        <p>JSON schema invalid</p>
-                      </TooltipContent>
-                    )}
-                  </Tooltip>
+                  <Button onClick={handleSave} disabled={!isSchemaValid || !!schemaError}>
+                    {isEditing ? 'Update Tool' : 'Save Tool'}
+                  </Button>
                 )}
               </div>
             </div>
