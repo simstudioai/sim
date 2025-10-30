@@ -1151,7 +1151,6 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     // Get and sort regular workflows by creation date (newest first) for stable ordering
     const regularWorkflows = Object.values(workflows)
       .filter((workflow) => workflow.workspaceId === workspaceId)
-      .filter((workflow) => workflow.marketplaceData?.status !== 'temp')
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
 
     // Group workflows by folder

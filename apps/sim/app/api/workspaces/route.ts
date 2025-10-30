@@ -128,8 +128,6 @@ async function createWorkspace(userId: string, name: string) {
         isDeployed: false,
         runCount: 0,
         variables: {},
-        isPublished: false,
-        marketplaceData: null,
       })
 
       // No blocks are inserted - empty canvas

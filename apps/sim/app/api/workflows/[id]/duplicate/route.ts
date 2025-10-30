@@ -111,8 +111,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           }
           return remapped
         })(),
-        isPublished: false,
-        marketplaceData: null,
       })
 
       // Copy all blocks from source workflow with new IDs

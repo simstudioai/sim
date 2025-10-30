@@ -92,7 +92,6 @@ async function fetchWorkflowsFromDB(workspaceId?: string): Promise<void> {
         color,
         variables,
         createdAt,
-        marketplaceData,
         workspaceId,
         folderId,
         isDeployed,
@@ -108,7 +107,6 @@ async function fetchWorkflowsFromDB(workspaceId?: string): Promise<void> {
         color: color || '#3972F6',
         lastModified: createdAt ? new Date(createdAt) : new Date(),
         createdAt: createdAt ? new Date(createdAt) : new Date(),
-        marketplaceData: marketplaceData || null,
         workspaceId,
         folderId: folderId || null,
       }
@@ -438,7 +436,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             deployedAt: workflowData.deployedAt ? new Date(workflowData.deployedAt) : undefined,
             apiKey: workflowData.apiKey,
             lastSaved: Date.now(),
-            marketplaceData: workflowData.marketplaceData || null,
             deploymentStatuses: {},
           }
         } else {
@@ -513,7 +510,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             body: JSON.stringify({
               name: options.name || generateCreativeWorkflowName(),
               description: options.description || 'New workflow',
-              color: options.marketplaceId ? '#808080' : getNextWorkflowColor(),
+              color: getNextWorkflowColor(),
               workspaceId,
               folderId: options.folderId || null,
             }),
@@ -537,15 +534,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             createdAt: new Date(),
             description: createdWorkflow.description,
             color: createdWorkflow.color,
-            marketplaceData: options.marketplaceId
-              ? { id: options.marketplaceId, status: 'temp' as const }
-              : undefined,
             workspaceId,
             folderId: createdWorkflow.folderId,
-          }
-
-          if (options.marketplaceId && options.marketplaceState) {
-            logger.info(`Created workflow from marketplace: ${options.marketplaceId}`)
           }
 
           // Add workflow to registry with server-generated ID
@@ -557,26 +547,16 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             error: null,
           }))
 
-          // Initialize subblock values if this is a marketplace import
-          if (options.marketplaceId && options.marketplaceState?.blocks) {
-            useSubBlockStore
-              .getState()
-              .initializeFromWorkflow(serverWorkflowId, options.marketplaceState.blocks)
-          }
-
           // Initialize subblock values to ensure they're available for sync
-          if (!options.marketplaceId) {
-            // For non-marketplace workflows, initialize empty subblock values
-            const subblockValues: Record<string, Record<string, any>> = {}
+          const subblockValues: Record<string, Record<string, any>> = {}
 
-            // Update the subblock store with the initial values
-            useSubBlockStore.setState((state) => ({
-              workflowValues: {
-                ...state.workflowValues,
-                [serverWorkflowId]: subblockValues,
-              },
-            }))
-          }
+          // Update the subblock store with the initial values
+          useSubBlockStore.setState((state) => ({
+            workflowValues: {
+              ...state.workflowValues,
+              [serverWorkflowId]: subblockValues,
+            },
+          }))
 
           // Don't set as active workflow here - let the navigation/URL change handle that
           // This prevents race conditions and flickering
@@ -592,107 +572,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           })
           throw error
         }
-      },
-
-      /**
-       * Creates a new workflow from a marketplace workflow
-       */
-      createMarketplaceWorkflow: async (
-        marketplaceId: string,
-        state: any,
-        metadata: Partial<WorkflowMetadata>
-      ) => {
-        const id = crypto.randomUUID()
-
-        // Generate workflow metadata with marketplace properties
-        const newWorkflow: WorkflowMetadata = {
-          id,
-          name: metadata.name || generateCreativeWorkflowName(),
-          lastModified: new Date(),
-          createdAt: new Date(),
-          description: metadata.description || 'Imported from marketplace',
-          color: metadata.color || getNextWorkflowColor(),
-          marketplaceData: { id: marketplaceId, status: 'temp' as const },
-        }
-
-        // Prepare workflow state based on the marketplace workflow state
-        const initialState = {
-          blocks: state.blocks || {},
-          edges: state.edges || [],
-          loops: state.loops || {},
-          parallels: state.parallels || {},
-          isDeployed: false,
-          deployedAt: undefined,
-          lastSaved: Date.now(),
-        }
-
-        // Add workflow to registry
-        set((state) => ({
-          workflows: {
-            ...state.workflows,
-            [id]: newWorkflow,
-          },
-          error: null,
-        }))
-
-        // Initialize subblock values from state blocks
-        if (state.blocks) {
-          useSubBlockStore.getState().initializeFromWorkflow(id, state.blocks)
-        }
-
-        // Set as active workflow and update store
-        set({ activeWorkflowId: id })
-        useWorkflowStore.setState(initialState)
-
-        // Immediately persist the marketplace workflow to the database
-        const persistWorkflow = async () => {
-          try {
-            const workflowData = {
-              [id]: {
-                id,
-                name: newWorkflow.name,
-                description: newWorkflow.description,
-                color: newWorkflow.color,
-                state: initialState,
-                marketplaceData: newWorkflow.marketplaceData,
-                workspaceId: newWorkflow.workspaceId,
-                folderId: newWorkflow.folderId,
-              },
-            }
-
-            const response = await fetch('/api/workflows', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                workflows: workflowData,
-                workspaceId: newWorkflow.workspaceId,
-              }),
-            })
-
-            if (!response.ok) {
-              throw new Error(`Failed to persist workflow: ${response.statusText}`)
-            }
-
-            logger.info(`Successfully persisted marketplace workflow ${id} to database`)
-          } catch (error) {
-            logger.error(`Failed to persist marketplace workflow ${id}:`, error)
-          }
-        }
-
-        // Persist synchronously to ensure workflow exists before Socket.IO operations
-        try {
-          await persistWorkflow()
-        } catch (error) {
-          logger.error(
-            `Critical: Failed to persist marketplace workflow ${id}, Socket.IO operations may fail:`,
-            error
-          )
-          // Don't throw - allow workflow creation to continue in memory
-        }
-
-        logger.info(`Created marketplace workflow ${id} imported from ${marketplaceId}`)
-
-        return id
       },
 
       /**
