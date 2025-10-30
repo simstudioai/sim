@@ -21,9 +21,11 @@ export interface TeamsMention {
   mentionText: string
   mentioned:
     | {
-        id: string
-        name: string
-        userIdentityType?: string
+        user: {
+          id: string
+          displayName: string
+          userIdentityType?: string
+        }
       }
     | {
         application: {
@@ -248,9 +250,11 @@ export async function resolveMentionsForChat(
           id: mention.mentionId,
           mentionText: mention.name,
           mentioned: {
-            id: member.id,
-            name: member.displayName,
-            userIdentityType: member.userIdentityType,
+            user: {
+              id: member.id,
+              displayName: member.displayName,
+              userIdentityType: member.userIdentityType || 'aadUser',
+            },
           },
         })
       }
@@ -313,9 +317,11 @@ export async function resolveMentionsForChannel(
           id: mention.mentionId,
           mentionText: mention.name,
           mentioned: {
-            id: member.id,
-            name: member.displayName,
-            userIdentityType: member.userIdentityType,
+            user: {
+              id: member.id,
+              displayName: member.displayName,
+              userIdentityType: member.userIdentityType || 'aadUser',
+            },
           },
         })
       }
