@@ -40,6 +40,70 @@ export interface ExecuteWorkflowCoreOptions {
 }
 
 /**
+ * Convert variable value to its native type
+ */
+function parseVariableValueByType(value: any, type: string): any {
+  if (value === null || value === undefined) {
+    switch (type) {
+      case 'number':
+        return 0
+      case 'boolean':
+        return false
+      case 'array':
+        return []
+      case 'object':
+        return {}
+      default:
+        return ''
+    }
+  }
+
+  if (type === 'number') {
+    if (typeof value === 'number') return value
+    if (typeof value === 'string') {
+      const num = Number(value)
+      return Number.isNaN(num) ? 0 : num
+    }
+    return 0
+  }
+
+  if (type === 'boolean') {
+    if (typeof value === 'boolean') return value
+    if (typeof value === 'string') {
+      return value.toLowerCase() === 'true'
+    }
+    return Boolean(value)
+  }
+
+  if (type === 'array') {
+    if (Array.isArray(value)) return value
+    if (typeof value === 'string' && value.trim()) {
+      try {
+        return JSON.parse(value)
+      } catch {
+        return []
+      }
+    }
+    return []
+  }
+
+  if (type === 'object') {
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) return value
+    if (typeof value === 'string' && value.trim()) {
+      try {
+        return JSON.parse(value)
+      } catch {
+        return {}
+      }
+    }
+    return {}
+  }
+
+  // string or plain
+  return typeof value === 'string' ? value : String(value)
+}
+
+/**
  * Core execution function - used by HTTP endpoint, background jobs, webhooks, schedules
  * This is the ONLY place where Executor is instantiated and executed
  */
@@ -214,6 +278,16 @@ export async function executeWorkflowCore(
     })
 
     loggingSession.setupExecutor(executorInstance)
+    
+    // Convert initial workflow variables to their native types
+    if (workflowVariables) {
+      for (const [varId, variable] of Object.entries(workflowVariables)) {
+        const v = variable as any
+        if (v.value !== undefined && v.type) {
+          v.value = parseVariableValueByType(v.value, v.type)
+        }
+      }
+    }
     
     // Store executor in options for potential cancellation
     if (options.onExecutorCreated) {
