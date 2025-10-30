@@ -1,39 +1,26 @@
-/**
- * DAG Builder - Constructs the execution graph from workflow
- */
-
 import { createLogger } from '@/lib/logs/console/logger'
-import type { SerializedWorkflow, SerializedBlock } from '@/serializer/types'
+import type { 
+  SerializedWorkflow, 
+  SerializedBlock, 
+  SerializedLoop, 
+  SerializedParallel 
+} from '@/serializer/types'
+import type { DAGEdge, NodeMetadata } from './types'
 
 const logger = createLogger('DAGBuilder')
 
 export interface DAGNode {
-  id: string // Node ID (may include branch suffix for parallels: "A₍0₎")
-  block: SerializedBlock // Original block config
-  incomingEdges: Set<string> // Source node IDs that feed into this node
-  outgoingEdges: Map<
-    string,
-    {
-      target: string
-      sourceHandle?: string
-      targetHandle?: string
-      isActive?: boolean // For conditional routing
-    }
-  >
-  metadata: {
-    isParallelBranch?: boolean
-    branchIndex?: number
-    branchTotal?: number
-    distributionItem?: any
-    isLoopNode?: boolean
-    loopId?: string
-  }
+  id: string
+  block: SerializedBlock
+  incomingEdges: Set<string>
+  outgoingEdges: Map<string, DAGEdge>
+  metadata: NodeMetadata
 }
 
 export interface DAG {
   nodes: Map<string, DAGNode>
-  loopConfigs: Map<string, any> // Loop configurations
-  parallelConfigs: Map<string, any> // Parallel configurations (before expansion)
+  loopConfigs: Map<string, SerializedLoop>
+  parallelConfigs: Map<string, SerializedParallel>
 }
 
 /**

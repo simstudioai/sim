@@ -1,10 +1,3 @@
-/**
- * ExecutionEngine
- * 
- * Main execution loop that coordinates block execution.
- * Manages the queue, processes edges, handles subflows.
- */
-
 import { createLogger } from '@/lib/logs/console/logger'
 import type {
   ExecutionContext,
@@ -13,18 +6,34 @@ import type {
 } from '@/executor/types'
 import type { SerializedWorkflow } from '@/serializer/types'
 import type { DAG, DAGNode } from './dag-builder'
+import type { DAGEdge } from './types'
 import type { ExecutionState } from './execution-state'
 import type { BlockExecutor } from './block-executor'
 import type { SubflowManager } from './subflow-manager'
 
 const logger = createLogger('ExecutionEngine')
 
+const EDGE_HANDLE = {
+  CONDITION_PREFIX: 'condition-',
+  ROUTER_PREFIX: 'router-',
+  ERROR: 'error',
+  SOURCE: 'source',
+  LOOP_CONTINUE: 'loop_continue',
+  LOOP_CONTINUE_ALT: 'loop-continue-source',
+  DEFAULT: 'default',
+} as const
+
+const TRIGGER_BLOCK_TYPE = {
+  START: 'start_trigger',
+  STARTER: 'starter',
+} as const
+
 export class ExecutionEngine {
   private readyQueue: string[] = []
   private executing = new Set<Promise<void>>()
   private queueLock = Promise.resolve()
   private finalOutput: NormalizedBlockOutput = {}
-  private deactivatedEdges = new Set<string>() // Edges that won't execute due to condition/router/error branching
+  private deactivatedEdges = new Set<string>()
 
   constructor(
     private workflow: SerializedWorkflow,
@@ -38,32 +47,49 @@ export class ExecutionEngine {
   async run(startNodeId?: string): Promise<ExecutionResult> {
     const startTime = Date.now()
 
-    this.initializeQueue(startNodeId)
+    try {
+      this.initializeQueue(startNodeId)
 
-    logger.debug('Starting execution loop', {
-      initialQueueSize: this.readyQueue.length,
-      startNodeId,
-    })
+      logger.debug('Starting execution loop', {
+        initialQueueSize: this.readyQueue.length,
+        startNodeId,
+      })
 
-    while (this.hasWork()) {
-      await this.processQueue()
-    }
+      while (this.hasWork()) {
+        await this.processQueue()
+      }
 
-    logger.debug('Execution loop completed', {
-      finalOutputKeys: Object.keys(this.finalOutput),
-    })
+      logger.debug('Execution loop completed', {
+        finalOutputKeys: Object.keys(this.finalOutput),
+      })
 
-    await Promise.all(Array.from(this.executing))
+      await Promise.all(Array.from(this.executing))
 
-    const endTime = Date.now()
-    this.context.metadata.endTime = new Date(endTime).toISOString()
-    this.context.metadata.duration = endTime - startTime
+      const endTime = Date.now()
+      this.context.metadata.endTime = new Date(endTime).toISOString()
+      this.context.metadata.duration = endTime - startTime
 
-    return {
-      success: true,
-      output: this.finalOutput,
-      logs: this.context.blockLogs,
-      metadata: this.context.metadata,
+      return {
+        success: true,
+        output: this.finalOutput,
+        logs: this.context.blockLogs,
+        metadata: this.context.metadata,
+      }
+    } catch (error) {
+      const endTime = Date.now()
+      this.context.metadata.endTime = new Date(endTime).toISOString()
+      this.context.metadata.duration = endTime - startTime
+
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.error('Execution failed', { error: errorMessage })
+
+      return {
+        success: false,
+        output: this.finalOutput,
+        error: errorMessage,
+        logs: this.context.blockLogs,
+        metadata: this.context.metadata,
+      }
     }
   }
 
@@ -73,9 +99,10 @@ export class ExecutionEngine {
       return
     }
 
-    // Find the start node - should be the only entry point
     const startNode = Array.from(this.dag.nodes.values()).find(
-      node => node.block.metadata?.id === 'start_trigger' || node.block.metadata?.id === 'starter'
+      node => 
+        node.block.metadata?.id === TRIGGER_BLOCK_TYPE.START || 
+        node.block.metadata?.id === TRIGGER_BLOCK_TYPE.STARTER
     )
 
     if (startNode) {
@@ -225,7 +252,10 @@ export class ExecutionEngine {
     if (!scope) {
       const parallelConfig = this.dag.parallelConfigs.get(parallelId)
       if (parallelConfig) {
-        const totalBranches = parallelConfig.branches
+        const totalBranches = parallelConfig.count || (parallelConfig.distribution ? 
+          (Array.isArray(parallelConfig.distribution) ? parallelConfig.distribution.length : Object.keys(parallelConfig.distribution as object).length) : 
+          0
+        )
         scope = this.subflowManager.initializeParallelScope(parallelId, totalBranches)
       }
     }
@@ -260,11 +290,9 @@ export class ExecutionEngine {
         continue
       }
 
-      // Check if this edge should be activated based on condition/router output
       const shouldActivate = this.shouldActivateEdge(edge, output)
       
       if (!shouldActivate) {
-        // Mark this edge as deactivated and deactivate all downstream edges
         this.deactivateEdgeAndDescendants(node.id, edge.target, edge.sourceHandle)
         logger.debug('Edge deactivated', { 
           edgeId, 
@@ -289,7 +317,6 @@ export class ExecutionEngine {
         remainingIncomingEdges: targetNode.incomingEdges.size,
       })
 
-      // Check if node is ready by counting only active incoming edges
       if (this.isNodeReady(targetNode)) {
         logger.debug('Node ready', { nodeId: targetNode.id })
         this.addToQueue(targetNode.id)
@@ -298,40 +325,17 @@ export class ExecutionEngine {
   }
 
   private deactivateEdgeAndDescendants(sourceId: string, targetId: string, sourceHandle?: string): void {
-    // Mark this edge as deactivated
-    const edgeKey = `${sourceId}-${targetId}-${sourceHandle || 'default'}`
+    const edgeKey = this.createEdgeKey(sourceId, targetId, sourceHandle)
     if (this.deactivatedEdges.has(edgeKey)) {
-      return // Already deactivated
+      return
     }
     this.deactivatedEdges.add(edgeKey)
 
-    // Get the target node
     const targetNode = this.dag.nodes.get(targetId)
     if (!targetNode) return
 
-    // Check if target node has any other active incoming edges
-    let hasOtherActiveIncoming = false
-    for (const incomingSourceId of targetNode.incomingEdges) {
-      if (incomingSourceId === sourceId) continue // Skip the edge we just deactivated
+    const hasOtherActiveIncoming = this.hasActiveIncomingEdges(targetNode, sourceId)
 
-      const incomingNode = this.dag.nodes.get(incomingSourceId)
-      if (!incomingNode) continue
-
-      // Check if there's an active edge from this source
-      for (const [_, incomingEdge] of incomingNode.outgoingEdges) {
-        if (incomingEdge.target === targetId) {
-          const incomingEdgeKey = `${incomingSourceId}-${targetId}-${incomingEdge.sourceHandle || 'default'}`
-          if (!this.deactivatedEdges.has(incomingEdgeKey)) {
-            hasOtherActiveIncoming = true
-            break
-          }
-        }
-      }
-
-      if (hasOtherActiveIncoming) break
-    }
-
-    // If target has no other active incoming edges, deactivate all its outgoing edges
     if (!hasOtherActiveIncoming) {
       logger.debug('Deactivating descendants of unreachable node', { nodeId: targetId })
       for (const [_, outgoingEdge] of targetNode.outgoingEdges) {
@@ -340,34 +344,36 @@ export class ExecutionEngine {
     }
   }
 
-  private isNodeReady(node: DAGNode): boolean {
-    // Node is ready if it has no remaining incoming edges
-    if (node.incomingEdges.size === 0) {
-      return true
-    }
+  private hasActiveIncomingEdges(node: DAGNode, excludeSourceId: string): boolean {
+    for (const incomingSourceId of node.incomingEdges) {
+      if (incomingSourceId === excludeSourceId) continue
 
-    // Check if all remaining incoming edges are deactivated
-    // If so, the node is ready because it's waiting for edges that will never fire
-    let activeIncomingCount = 0
-    
-    for (const sourceId of node.incomingEdges) {
-      // Find the edge from this source to this node
-      const sourceNode = this.dag.nodes.get(sourceId)
-      if (!sourceNode) continue
+      const incomingNode = this.dag.nodes.get(incomingSourceId)
+      if (!incomingNode) continue
 
-      // Check if there's an active edge from source to this node
-      for (const [_, edge] of sourceNode.outgoingEdges) {
-        if (edge.target === node.id) {
-          const edgeKey = `${sourceId}-${edge.target}-${edge.sourceHandle || 'default'}`
-          if (!this.deactivatedEdges.has(edgeKey)) {
-            activeIncomingCount++
-            break
+      for (const [_, incomingEdge] of incomingNode.outgoingEdges) {
+        if (incomingEdge.target === node.id) {
+          const incomingEdgeKey = this.createEdgeKey(incomingSourceId, node.id, incomingEdge.sourceHandle)
+          if (!this.deactivatedEdges.has(incomingEdgeKey)) {
+            return true
           }
         }
       }
     }
+    return false
+  }
 
-    // If there are still active incoming edges waiting, node is not ready
+  private createEdgeKey(sourceId: string, targetId: string, sourceHandle?: string): string {
+    return `${sourceId}-${targetId}-${sourceHandle || EDGE_HANDLE.DEFAULT}`
+  }
+
+  private isNodeReady(node: DAGNode): boolean {
+    if (node.incomingEdges.size === 0) {
+      return true
+    }
+
+    const activeIncomingCount = this.countActiveIncomingEdges(node)
+
     if (activeIncomingCount > 0) {
       logger.debug('Node not ready - waiting for active incoming edges', {
         nodeId: node.id,
@@ -377,7 +383,6 @@ export class ExecutionEngine {
       return false
     }
 
-    // All remaining incoming edges are deactivated, so node is ready
     logger.debug('Node ready - all remaining edges are deactivated', {
       nodeId: node.id,
       totalIncoming: node.incomingEdges.size,
@@ -385,24 +390,45 @@ export class ExecutionEngine {
     return true
   }
 
-  private shouldActivateEdge(edge: any, output: NormalizedBlockOutput): boolean {
-    if (edge.sourceHandle?.startsWith('condition-')) {
-      const conditionValue = edge.sourceHandle.substring('condition-'.length)
+  private countActiveIncomingEdges(node: DAGNode): number {
+    let count = 0
+    
+    for (const sourceId of node.incomingEdges) {
+      const sourceNode = this.dag.nodes.get(sourceId)
+      if (!sourceNode) continue
+
+      for (const [_, edge] of sourceNode.outgoingEdges) {
+        if (edge.target === node.id) {
+          const edgeKey = this.createEdgeKey(sourceId, edge.target, edge.sourceHandle)
+          if (!this.deactivatedEdges.has(edgeKey)) {
+            count++
+            break
+          }
+        }
+      }
+    }
+    
+    return count
+  }
+
+  private shouldActivateEdge(edge: DAGEdge, output: NormalizedBlockOutput): boolean {
+    const handle = edge.sourceHandle
+
+    if (handle?.startsWith(EDGE_HANDLE.CONDITION_PREFIX)) {
+      const conditionValue = handle.substring(EDGE_HANDLE.CONDITION_PREFIX.length)
       return output.selectedOption === conditionValue
     }
 
-    if (edge.sourceHandle?.startsWith('router-')) {
-      const routeId = edge.sourceHandle.substring('router-'.length)
+    if (handle?.startsWith(EDGE_HANDLE.ROUTER_PREFIX)) {
+      const routeId = handle.substring(EDGE_HANDLE.ROUTER_PREFIX.length)
       return output.selectedRoute === routeId
     }
 
-    // For error handles: if we have a success output, deactivate error edge
-    if (edge.sourceHandle === 'error' && !output.error) {
+    if (handle === EDGE_HANDLE.ERROR && !output.error) {
       return false
     }
 
-    // For success handles: if we have an error, deactivate success edge
-    if (edge.sourceHandle === 'source' && output.error) {
+    if (handle === EDGE_HANDLE.SOURCE && output.error) {
       return false
     }
 
@@ -410,7 +436,10 @@ export class ExecutionEngine {
   }
 
   private isBackwardsEdge(sourceHandle?: string): boolean {
-    return sourceHandle === 'loop_continue' || sourceHandle === 'loop-continue-source'
+    return (
+      sourceHandle === EDGE_HANDLE.LOOP_CONTINUE || 
+      sourceHandle === EDGE_HANDLE.LOOP_CONTINUE_ALT
+    )
   }
 
   private addToQueue(nodeId: string): void {

@@ -1,10 +1,3 @@
-/**
- * BlockExecutor
- * 
- * Executes individual blocks using their handlers.
- * Resolves inputs, executes, handles callbacks.
- */
-
 import { createLogger } from '@/lib/logs/console/logger'
 import type {
   BlockHandler,
@@ -15,14 +8,19 @@ import type {
 import type { SerializedBlock } from '@/serializer/types'
 import type { DAGNode } from './dag-builder'
 import type { VariableResolver } from './variable-resolver'
+import type { ContextExtensions } from './types'
 
 const logger = createLogger('BlockExecutor')
+
+const FALLBACK_VALUE = {
+  BLOCK_TYPE: 'unknown',
+} as const
 
 export class BlockExecutor {
   constructor(
     private blockHandlers: BlockHandler[],
     private resolver: VariableResolver,
-    private contextExtensions: any
+    private contextExtensions: ContextExtensions
   ) {}
 
   async execute(
@@ -54,21 +52,51 @@ export class BlockExecutor {
       blockLog.success = true
       blockLog.output = normalizedOutput
 
+      context.blockStates.set(node.id, {
+        output: normalizedOutput,
+        executed: true,
+        executionTime: duration,
+      })
+
       this.callOnBlockComplete(node.id, block, normalizedOutput, duration)
 
       return normalizedOutput
     } catch (error) {
       const duration = Date.now() - startTime
+      const errorMessage = error instanceof Error ? error.message : String(error)
+
       blockLog.endedAt = new Date().toISOString()
       blockLog.durationMs = duration
       blockLog.success = false
-      blockLog.error = error instanceof Error ? error.message : String(error)
+      blockLog.error = errorMessage
+
+      const errorOutput: NormalizedBlockOutput = {
+        error: errorMessage,
+      }
+
+      context.blockStates.set(node.id, {
+        output: errorOutput,
+        executed: true,
+        executionTime: duration,
+      })
 
       logger.error('Block execution failed', {
         blockId: node.id,
         blockType: block.metadata?.id,
-        error,
+        error: errorMessage,
       })
+
+      if (this.contextExtensions.onBlockComplete) {
+        await this.contextExtensions.onBlockComplete(
+          node.id,
+          block.metadata?.name || node.id,
+          block.metadata?.id || FALLBACK_VALUE.BLOCK_TYPE,
+          {
+            output: errorOutput,
+            executionTime: duration,
+          }
+        )
+      }
 
       throw error
     }
@@ -82,7 +110,7 @@ export class BlockExecutor {
     return {
       blockId,
       blockName: block.metadata?.name || blockId,
-      blockType: block.metadata?.id || 'unknown',
+      blockType: block.metadata?.id || FALLBACK_VALUE.BLOCK_TYPE,
       startedAt: new Date().toISOString(),
       endedAt: '',
       durationMs: 0,
@@ -90,7 +118,7 @@ export class BlockExecutor {
     }
   }
 
-  private normalizeOutput(output: any): NormalizedBlockOutput {
+  private normalizeOutput(output: unknown): NormalizedBlockOutput {
     if (output === null || output === undefined) {
       return {}
     }
@@ -104,7 +132,7 @@ export class BlockExecutor {
 
   private callOnBlockStart(blockId: string, block: SerializedBlock): void {
     const blockName = block.metadata?.name || blockId
-    const blockType = block.metadata?.id || 'unknown'
+    const blockType = block.metadata?.id || FALLBACK_VALUE.BLOCK_TYPE
 
     if (this.contextExtensions.onBlockStart) {
       this.contextExtensions.onBlockStart(blockId, blockName, blockType)
@@ -118,7 +146,7 @@ export class BlockExecutor {
     duration: number
   ): void {
     const blockName = block.metadata?.name || blockId
-    const blockType = block.metadata?.id || 'unknown'
+    const blockType = block.metadata?.id || FALLBACK_VALUE.BLOCK_TYPE
 
     if (this.contextExtensions.onBlockComplete) {
       this.contextExtensions.onBlockComplete(blockId, blockName, blockType, {

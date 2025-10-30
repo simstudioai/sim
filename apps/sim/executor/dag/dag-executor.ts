@@ -1,10 +1,3 @@
-/**
- * DAGExecutor
- * 
- * Main orchestrator for DAG-based workflow execution.
- * Coordinates the construction and execution phases.
- */
-
 import { createLogger } from '@/lib/logs/console/logger'
 import type {
   BlockHandler,
@@ -13,6 +6,7 @@ import type {
 } from '@/executor/types'
 import type { BlockOutput } from '@/blocks/types'
 import type { SerializedWorkflow } from '@/serializer/types'
+import type { ContextExtensions, WorkflowInput } from './types'
 import {
   AgentBlockHandler,
   ApiBlockHandler,
@@ -45,18 +39,18 @@ export interface DAGExecutorOptions {
   workflow: SerializedWorkflow
   currentBlockStates?: Record<string, BlockOutput>
   envVarValues?: Record<string, string>
-  workflowInput?: any
-  workflowVariables?: Record<string, any>
-  contextExtensions?: any
+  workflowInput?: WorkflowInput
+  workflowVariables?: Record<string, unknown>
+  contextExtensions?: ContextExtensions
 }
 
 export class DAGExecutor {
   private workflow: SerializedWorkflow
   private initialBlockStates: Record<string, BlockOutput>
   private environmentVariables: Record<string, string>
-  private workflowInput: any
-  private workflowVariables: Record<string, any>
-  private contextExtensions: any
+  private workflowInput: WorkflowInput
+  private workflowVariables: Record<string, unknown>
+  private contextExtensions: ContextExtensions
   private isCancelled = false
 
   private blockHandlers: BlockHandler[]
@@ -75,41 +69,28 @@ export class DAGExecutor {
   }
 
   async execute(workflowId: string, startBlockId?: string): Promise<ExecutionResult> {
-    try {
-      const dag = this.dagBuilder.build(this.workflow, startBlockId)
-      
-      const context = this.createExecutionContext(workflowId)
-      
-      const state = new ExecutionState()
-      
-      const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
-      
-      const subflowManager = new SubflowManager(this.workflow, dag, state, resolver)
-      
-      const blockExecutor = new BlockExecutor(this.blockHandlers, resolver, this.contextExtensions)
-      
-      const engine = new ExecutionEngine(
-        this.workflow,
-        dag,
-        state,
-        blockExecutor,
-        subflowManager,
-        context
-      )
-      
-      const result = await engine.run(startBlockId)
-      
-      return result
-    } catch (error) {
-      logger.error('Execution failed', { workflowId, error })
-      
-      return {
-        success: false,
-        output: {},
-        logs: [],
-        error: error instanceof Error ? error.message : String(error),
-      }
-    }
+    const dag = this.dagBuilder.build(this.workflow, startBlockId)
+    
+    const context = this.createExecutionContext(workflowId)
+    
+    const state = new ExecutionState()
+    
+    const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
+    
+    const subflowManager = new SubflowManager(this.workflow, dag, state, resolver)
+    
+    const blockExecutor = new BlockExecutor(this.blockHandlers, resolver, this.contextExtensions)
+    
+    const engine = new ExecutionEngine(
+      this.workflow,
+      dag,
+      state,
+      blockExecutor,
+      subflowManager,
+      context
+    )
+    
+    return await engine.run(startBlockId)
   }
 
   cancel(): void {
@@ -169,71 +150,32 @@ export class DAGExecutor {
   }
 
   private initializeStarterBlock(context: ExecutionContext): void {
-    logger.info('Attempting to initialize starter block', {
-      workflowBlockCount: this.workflow.blocks.length,
-      workflowInputKeys: Object.keys(this.workflowInput || {}),
+    const startResolution = resolveExecutorStartBlock(this.workflow.blocks, {
+      execution: 'manual',
+      isChildWorkflow: false,
     })
 
-    try {
-      // Resolve the start block type and build its output
-      const startResolution = resolveExecutorStartBlock(this.workflow.blocks, {
-        execution: 'manual',
-        isChildWorkflow: false,
-      })
-
-      logger.info('resolveExecutorStartBlock result', {
-        hasResolution: !!startResolution,
-        hasBlock: !!startResolution?.block,
-        blockId: startResolution?.block?.id,
-        blockType: startResolution?.block?.metadata?.id,
-      })
-
-      if (startResolution && startResolution.block) {
-        const blockOutput = buildStartBlockOutput({
-          resolution: startResolution,
-          workflowInput: this.workflowInput,
-          isDeployedExecution: this.contextExtensions?.isDeployedContext === true,
-        })
-
-        logger.info('buildStartBlockOutput result', {
-          outputKeys: Object.keys(blockOutput),
-          output: blockOutput,
-        })
-
-        context.blockStates.set(startResolution.block.id, {
-          output: blockOutput,
-          executed: true,
-          executionTime: 0,
-        })
-
-        logger.info('Initialized starter block with inputFormat', {
-          blockId: startResolution.block.id,
-          blockType: startResolution.block.metadata?.id,
-          outputKeys: Object.keys(blockOutput),
-        })
-      } else {
-        logger.warn('No start resolution found')
-      }
-    } catch (error) {
-      logger.error('Error initializing starter block:', error)
-      // Try to find any start/trigger block as fallback
-      const starterBlock = this.workflow.blocks.find(
-        (b) => b.metadata?.id === 'starter' || 
-               b.metadata?.id === 'start_trigger' || 
-               b.metadata?.category === 'triggers'
-      )
-      if (starterBlock) {
-        logger.info('Using fallback starter block', {
-          blockId: starterBlock.id,
-          blockType: starterBlock.metadata?.id,
-        })
-        context.blockStates.set(starterBlock.id, {
-          output: this.workflowInput || {},
-          executed: true,
-          executionTime: 0,
-        })
-      }
+    if (!startResolution?.block) {
+      logger.warn('No start block found in workflow')
+      return
     }
+
+    const blockOutput = buildStartBlockOutput({
+      resolution: startResolution,
+      workflowInput: this.workflowInput,
+      isDeployedExecution: this.contextExtensions?.isDeployedContext === true,
+    })
+
+    context.blockStates.set(startResolution.block.id, {
+      output: blockOutput,
+      executed: true,
+      executionTime: 0,
+    })
+
+    logger.debug('Initialized start block', {
+      blockId: startResolution.block.id,
+      blockType: startResolution.block.metadata?.id,
+    })
   }
 
   private initializeBlockHandlers(): BlockHandler[] {
