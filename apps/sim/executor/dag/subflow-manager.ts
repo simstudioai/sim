@@ -28,6 +28,11 @@ export class SubflowManager {
       throw new Error(`Loop config not found: ${loopId}`)
     }
 
+    logger.debug('Raw loop config', {
+      loopId,
+      loopConfig: JSON.stringify(loopConfig)
+    })
+
     const scope: LoopScope = {
       iteration: 0,
       currentIterationOutputs: new Map(),
@@ -38,19 +43,38 @@ export class SubflowManager {
 
     if (loopType === 'for') {
       scope.maxIterations = loopConfig.iterations || 1
+      scope.condition = `<loop.index> < ${scope.maxIterations}`
     } else if (loopType === 'forEach') {
       const items = this.resolveForEachItems(loopConfig.forEachItems, context)
       scope.items = items
       scope.maxIterations = items.length
       scope.item = items[0]
+      scope.condition = `<loop.index> < ${scope.maxIterations}`
       
       logger.debug('Initialized forEach loop', {
         loopId,
         itemsCount: items.length,
         firstItem: items[0],
-        forEachItemsRaw: loopConfig.forEachItems,
       })
+    } else if (loopType === 'while') {
+      scope.condition = loopConfig.whileCondition
+    } else if (loopType === 'doWhile' || loopType === 'do-while') {
+      if (loopConfig.doWhileCondition) {
+        scope.condition = loopConfig.doWhileCondition
+      } else {
+        scope.maxIterations = loopConfig.iterations || 1
+        scope.condition = `<loop.index> < ${scope.maxIterations}`
+      }
+      scope.skipFirstConditionCheck = true
     }
+
+    logger.debug('Initialized loop scope', {
+      loopId,
+      loopType,
+      condition: scope.condition,
+      maxIterations: scope.maxIterations,
+      skipFirstConditionCheck: scope.skipFirstConditionCheck
+    })
 
     this.state.setLoopScope(loopId, scope)
     return scope
@@ -106,12 +130,6 @@ export class SubflowManager {
     const shouldContinue = this.shouldLoopContinue(loopId, scope, context)
 
     if (shouldContinue) {
-      scope.iteration++
-      
-      if (scope.items && scope.iteration < scope.items.length) {
-        scope.item = scope.items[scope.iteration]
-      }
-
       const firstNodeId = loopConfig.nodes[0]
       return { shouldContinue: true, nextNodeId: firstNodeId }
     }
@@ -146,37 +164,47 @@ export class SubflowManager {
     return allBranchesComplete
   }
 
-  private shouldLoopContinue(loopId: string, scope: LoopScope, context: ExecutionContext): boolean {
-    const loopConfig = this.dag.loopConfigs.get(loopId) as any
-    if (!loopConfig) {
+  evaluateCondition(scope: LoopScope, context: ExecutionContext, nextIteration?: number): boolean {
+    if (!scope.condition) {
       return false
     }
 
-    const loopType = loopConfig.loopType
-
-    if (loopType === 'while') {
-      const whileCondition = loopConfig.whileCondition
-      return this.evaluateWhileCondition(whileCondition, scope, context)
+    if (nextIteration !== undefined) {
+      const currentIteration = scope.iteration
+      scope.iteration = nextIteration
+      const result = this.evaluateWhileCondition(scope.condition, scope, context)
+      scope.iteration = currentIteration
+      return result
     }
 
-    if (scope.maxIterations === undefined) {
-      return false
-    }
-
-    const shouldContinue = (scope.iteration + 1) < scope.maxIterations
-    
-    logger.debug('Evaluating loop continue', {
-      loopId,
-      loopType,
-      currentIteration: scope.iteration,
-      maxIterations: scope.maxIterations,
-      shouldContinue,
-    })
-
-    return shouldContinue
+    return this.evaluateWhileCondition(scope.condition, scope, context)
   }
 
-  evaluateWhileCondition(condition: string, scope: LoopScope, context: ExecutionContext): boolean {
+  shouldExecuteLoopNode(nodeId: string, loopId: string, context: ExecutionContext): boolean {
+    return true
+  }
+
+  private shouldLoopContinue(loopId: string, scope: LoopScope, context: ExecutionContext): boolean {
+    const isFirstIteration = scope.iteration === 0
+    const shouldSkipFirstCheck = scope.skipFirstConditionCheck && isFirstIteration
+
+    if (!shouldSkipFirstCheck) {
+      if (!this.evaluateCondition(scope, context, scope.iteration + 1)) {
+        logger.debug('Loop condition false for next iteration', { iteration: scope.iteration + 1 })
+        return false
+      }
+    }
+
+    scope.iteration++
+    
+    if (scope.items && scope.iteration < scope.items.length) {
+      scope.item = scope.items[scope.iteration]
+    }
+
+    return true
+  }
+
+  private evaluateWhileCondition(condition: string, scope: LoopScope, context: ExecutionContext): boolean {
     if (!condition) {
       return false
     }
@@ -184,16 +212,30 @@ export class SubflowManager {
     try {
       const referencePattern = /<([^>]+)>/g
       let evaluatedCondition = condition
+      const replacements: Record<string, string> = {}
 
       evaluatedCondition = evaluatedCondition.replace(referencePattern, (match) => {
         const resolved = this.resolver.resolveSingleReference(match, '', context, scope)
         if (resolved !== undefined) {
-          return typeof resolved === 'string' ? resolved : JSON.stringify(resolved)
+          if (typeof resolved === 'string') {
+            replacements[match] = `"${resolved}"`
+            return `"${resolved}"`
+          }
+          replacements[match] = String(resolved)
+          return String(resolved)
         }
         return match
       })
 
-      return Boolean(eval(`(${evaluatedCondition})`))
+      const result = Boolean(eval(`(${evaluatedCondition})`))
+      logger.debug('Evaluated while condition', { 
+        condition, 
+        replacements,
+        evaluatedCondition, 
+        result, 
+        iteration: scope.iteration 
+      })
+      return result
     } catch (error) {
       logger.error('Failed to evaluate while condition', { condition, error })
       return false
@@ -244,7 +286,8 @@ export class SubflowManager {
 
     if (typeof items === 'string') {
       if (items.startsWith('<') && items.endsWith('>')) {
-        return this.resolver.resolveSingleReference(items, '', context) || []
+        const resolved = this.resolver.resolveSingleReference(items, '', context)
+        return Array.isArray(resolved) ? resolved : []
       }
 
       const normalized = items.replace(/'/g, '"')

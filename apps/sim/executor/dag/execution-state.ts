@@ -9,11 +9,13 @@ import type { NormalizedBlockOutput } from '@/executor/types'
 
 export interface LoopScope {
   iteration: number
+  currentIterationOutputs: Map<string, NormalizedBlockOutput>
+  allIterationOutputs: NormalizedBlockOutput[][]
   maxIterations?: number
   item?: any
   items?: any[]
-  currentIterationOutputs: Map<string, NormalizedBlockOutput>
-  allIterationOutputs: NormalizedBlockOutput[][]
+  condition?: string
+  skipFirstConditionCheck?: boolean
 }
 
 export interface ParallelScope {

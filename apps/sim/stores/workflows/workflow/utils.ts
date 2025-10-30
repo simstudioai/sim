@@ -26,9 +26,12 @@ export function convertLoopBlockToLoop(
   }
 
   // Set the appropriate field based on loop type
-  if (loopType === 'while' || loopType === 'doWhile') {
-    // For while and doWhile loops, use whileCondition
+  if (loopType === 'while') {
+    // For while loops, use whileCondition
     loop.whileCondition = loopBlock.data?.whileCondition || ''
+  } else if (loopType === 'doWhile') {
+    // For do-while loops, use doWhileCondition
+    loop.doWhileCondition = loopBlock.data?.doWhileCondition || ''
   } else {
     // For for/forEach loops, read from collection (block data) and map to forEachItems (loops store)
     // Parse collection if it's a string representation of an array/object

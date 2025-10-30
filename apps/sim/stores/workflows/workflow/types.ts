@@ -18,7 +18,8 @@ export interface LoopConfig {
   iterations: number
   loopType: 'for' | 'forEach' | 'while' | 'doWhile'
   forEachItems?: any[] | Record<string, any> | string
-  whileCondition?: string // JS expression that evaluates to boolean
+  whileCondition?: string // JS expression that evaluates to boolean (for while loops)
+  doWhileCondition?: string // JS expression that evaluates to boolean (for do-while loops)
 }
 
 export interface ParallelConfig {
@@ -54,7 +55,8 @@ export interface BlockData {
   collection?: any // The items to iterate over in a forEach loop
   count?: number // Number of iterations for numeric loops
   loopType?: 'for' | 'forEach' | 'while' | 'doWhile' // Type of loop - must match Loop interface
-  whileCondition?: string // While/DoWhile loop condition (JS expression)
+  whileCondition?: string // While loop condition (JS expression)
+  doWhileCondition?: string // Do-While loop condition (JS expression)
 
   // Parallel-specific properties
   parallelType?: 'collection' | 'count' // Type of parallel execution
@@ -125,7 +127,8 @@ export interface Loop {
   iterations: number
   loopType: 'for' | 'forEach' | 'while' | 'doWhile'
   forEachItems?: any[] | Record<string, any> | string // Items or expression
-  whileCondition?: string // JS expression that evaluates to boolean
+  whileCondition?: string // JS expression that evaluates to boolean (for while loops)
+  doWhileCondition?: string // JS expression that evaluates to boolean (for do-while loops)
 }
 
 export interface Parallel {

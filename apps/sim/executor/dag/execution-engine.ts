@@ -122,6 +122,10 @@ export class ExecutionEngine {
       this.state.setLoopScope(loopId, scope)
     }
 
+    if (loopId && !this.subflowManager.shouldExecuteLoopNode(nodeId, loopId, this.context)) {
+      return
+    }
+
     logger.debug('Launching node execution', { nodeId })
 
     try {

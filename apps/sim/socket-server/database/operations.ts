@@ -299,9 +299,11 @@ async function handleBlockOperationTx(
                   iterations: payload.data?.count || DEFAULT_LOOP_ITERATIONS,
                   loopType: payload.data?.loopType || 'for',
                   // Set the appropriate field based on loop type
-                  ...(payload.data?.loopType === 'while' || payload.data?.loopType === 'doWhile'
+                  ...(payload.data?.loopType === 'while'
                     ? { whileCondition: payload.data?.whileCondition || '' }
-                    : { forEachItems: payload.data?.collection || '' }),
+                    : payload.data?.loopType === 'doWhile'
+                      ? { doWhileCondition: payload.data?.doWhileCondition || '' }
+                      : { forEachItems: payload.data?.collection || '' }),
                 }
               : {
                   id: payload.id,
@@ -725,9 +727,11 @@ async function handleBlockOperationTx(
                   iterations: payload.data?.count || DEFAULT_LOOP_ITERATIONS,
                   loopType: payload.data?.loopType || 'for',
                   // Set the appropriate field based on loop type
-                  ...(payload.data?.loopType === 'while' || payload.data?.loopType === 'doWhile'
+                  ...(payload.data?.loopType === 'while'
                     ? { whileCondition: payload.data?.whileCondition || '' }
-                    : { forEachItems: payload.data?.collection || '' }),
+                    : payload.data?.loopType === 'doWhile'
+                      ? { doWhileCondition: payload.data?.doWhileCondition || '' }
+                      : { forEachItems: payload.data?.collection || '' }),
                 }
               : {
                   id: payload.id,
@@ -871,9 +875,12 @@ async function handleSubflowOperationTx(
         }
 
         // Add the appropriate field based on loop type
-        if (payload.config.loopType === 'while' || payload.config.loopType === 'doWhile') {
-          // For while and doWhile loops, use whileCondition
+        if (payload.config.loopType === 'while') {
+          // For while loops, use whileCondition
           blockData.whileCondition = payload.config.whileCondition || ''
+        } else if (payload.config.loopType === 'doWhile') {
+          // For do-while loops, use doWhileCondition
+          blockData.doWhileCondition = payload.config.doWhileCondition || ''
         } else {
           // For for/forEach loops, use collection (block data) which maps to forEachItems (loops store)
           blockData.collection = payload.config.forEachItems || ''

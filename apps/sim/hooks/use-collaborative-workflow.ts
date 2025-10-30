@@ -1408,6 +1408,8 @@ export function useCollaborativeWorkflow() {
           config.forEachItems = collection
         } else if (currentLoopType === 'while') {
           config.whileCondition = collection
+        } else if (currentLoopType === 'doWhile') {
+          config.doWhileCondition = collection
         }
 
         executeQueuedOperation('update', 'subflow', { id: nodeId, type: 'loop', config }, () =>

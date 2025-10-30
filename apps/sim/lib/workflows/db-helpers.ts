@@ -188,6 +188,7 @@ export async function loadWorkflowFromNormalizedTables(
               : 'for',
           forEachItems: (config as Loop).forEachItems ?? '',
           whileCondition: (config as Loop).whileCondition ?? undefined,
+          doWhileCondition: (config as Loop).doWhileCondition ?? undefined,
         }
         loops[subflow.id] = loop
       } else if (subflow.type === SUBFLOW_TYPES.PARALLEL) {

@@ -96,7 +96,11 @@ export function IterationBadges({ nodeId, data, iterationType }: IterationBadges
   const configCollection = (nodeConfig as any)?.[config.configKeys.items] ?? data?.collection ?? ''
   const configCondition =
     iterationType === 'loop'
-      ? ((nodeConfig as any)?.whileCondition ?? (data as any)?.whileCondition ?? '')
+      ? currentType === 'while'
+        ? ((nodeConfig as any)?.whileCondition ?? (data as any)?.whileCondition ?? '')
+        : currentType === 'doWhile'
+          ? ((nodeConfig as any)?.doWhileCondition ?? (data as any)?.doWhileCondition ?? '')
+          : ''
       : ''
 
   const iterations = configIterations
