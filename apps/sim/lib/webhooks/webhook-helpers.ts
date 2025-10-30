@@ -4,10 +4,11 @@ import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 const teamsLogger = createLogger('TeamsSubscription')
 const telegramLogger = createLogger('TelegramWebhook')
+const airtableLogger = createLogger('AirtableWebhook')
 
 /**
  * Create a Microsoft Teams chat subscription
@@ -291,5 +292,155 @@ export async function deleteTelegramWebhook(webhook: any, requestId: string): Pr
       error
     )
     // Don't fail webhook deletion
+  }
+}
+
+/**
+ * Delete an Airtable webhook
+ * Always returns void (don't fail webhook deletion if cleanup fails)
+ */
+export async function deleteAirtableWebhook(
+  webhook: any,
+  workflow: any,
+  requestId: string
+): Promise<void> {
+  try {
+    const config = (webhook.providerConfig as Record<string, any>) || {}
+    const { baseId, externalId } = config as {
+      baseId?: string
+      externalId?: string
+    }
+
+    if (!baseId) {
+      airtableLogger.warn(`[${requestId}] Missing baseId for Airtable webhook deletion`, {
+        webhookId: webhook.id,
+      })
+      return
+    }
+
+    const userIdForToken = workflow.userId
+    const accessToken = await getOAuthToken(userIdForToken, 'airtable')
+    if (!accessToken) {
+      airtableLogger.warn(
+        `[${requestId}] Could not retrieve Airtable access token for user ${userIdForToken}. Cannot delete webhook in Airtable.`,
+        { webhookId: webhook.id }
+      )
+      return
+    }
+
+    // Resolve externalId if missing by listing webhooks and matching our notificationUrl
+    let resolvedExternalId: string | undefined = externalId
+
+    if (!resolvedExternalId) {
+      try {
+        const expectedNotificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${webhook.path}`
+
+        const listUrl = `https://api.airtable.com/v0/bases/${baseId}/webhooks`
+        const listResp = await fetch(listUrl, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+        const listBody = await listResp.json().catch(() => null)
+
+        if (listResp.ok && listBody && Array.isArray(listBody.webhooks)) {
+          const match = listBody.webhooks.find((w: any) => {
+            const url: string | undefined = w?.notificationUrl
+            if (!url) return false
+            return (
+              url === expectedNotificationUrl ||
+              url.endsWith(`/api/webhooks/trigger/${webhook.path}`)
+            )
+          })
+          if (match?.id) {
+            resolvedExternalId = match.id as string
+            airtableLogger.info(`[${requestId}] Resolved Airtable externalId by listing webhooks`, {
+              baseId,
+              externalId: resolvedExternalId,
+            })
+          } else {
+            airtableLogger.warn(`[${requestId}] Could not resolve Airtable externalId from list`, {
+              baseId,
+              expectedNotificationUrl,
+            })
+          }
+        } else {
+          airtableLogger.warn(
+            `[${requestId}] Failed to list Airtable webhooks to resolve externalId`,
+            {
+              baseId,
+              status: listResp.status,
+              body: listBody,
+            }
+          )
+        }
+      } catch (e: any) {
+        airtableLogger.warn(`[${requestId}] Error attempting to resolve Airtable externalId`, {
+          error: e?.message,
+        })
+      }
+    }
+
+    // If still not resolvable, skip remote deletion
+    if (!resolvedExternalId) {
+      airtableLogger.info(
+        `[${requestId}] Airtable externalId not found; skipping remote deletion`,
+        { baseId }
+      )
+      return
+    }
+
+    const airtableDeleteUrl = `https://api.airtable.com/v0/bases/${baseId}/webhooks/${resolvedExternalId}`
+    const airtableResponse = await fetch(airtableDeleteUrl, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+
+    if (!airtableResponse.ok) {
+      let responseBody: any = null
+      try {
+        responseBody = await airtableResponse.json()
+      } catch {
+        // ignore parse errors
+      }
+
+      airtableLogger.warn(
+        `[${requestId}] Failed to delete Airtable webhook in Airtable. Status: ${airtableResponse.status}`,
+        { baseId, externalId: resolvedExternalId, response: responseBody }
+      )
+    } else {
+      airtableLogger.info(`[${requestId}] Successfully deleted Airtable webhook in Airtable`, {
+        baseId,
+        externalId: resolvedExternalId,
+      })
+    }
+  } catch (error: any) {
+    airtableLogger.error(`[${requestId}] Error deleting Airtable webhook`, {
+      webhookId: webhook.id,
+      error: error.message,
+      stack: error.stack,
+    })
+    // Don't fail webhook deletion
+  }
+}
+
+/**
+ * Clean up external webhook subscriptions for a webhook
+ * This handles Airtable, Teams, and Telegram cleanup
+ * Always returns void (don't fail deletion if cleanup fails)
+ */
+export async function cleanupExternalWebhook(
+  webhook: any,
+  workflow: any,
+  requestId: string
+): Promise<void> {
+  if (webhook.provider === 'airtable') {
+    await deleteAirtableWebhook(webhook, workflow, requestId)
+  } else if (webhook.provider === 'microsoftteams') {
+    await deleteTeamsSubscription(webhook, workflow, requestId)
+  } else if (webhook.provider === 'telegram') {
+    await deleteTelegramWebhook(webhook, requestId)
   }
 }
