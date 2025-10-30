@@ -203,3 +203,13 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 - 类别：`tools`
 - 类型：`microsoft_teams`
+
+### 提及用户
+
+要在消息（包括聊天和频道中）中提及用户，请将他们的显示名称用 `<at>` 标签包裹起来：
+
+```
+<at>John Doe</at> can you review this?
+```
+
+提及将自动解析为正确的用户，他们会在 Microsoft Teams 中收到通知。这适用于聊天消息和频道消息。机器人/应用程序无法被标记。
