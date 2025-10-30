@@ -73,8 +73,6 @@ export type SubBlockType =
   | 'variables-input' // Variable assignments for updating workflow variables
   | 'text' // Read-only text display
 
-export type SubBlockLayout = 'full' | 'half'
-
 export type ExtractToolOutput<T> = T extends ToolResponse ? T['output'] : never
 
 export type ToolOutputToValueType<T> = T extends Record<string, any>
@@ -120,7 +118,6 @@ export interface SubBlockConfig {
   id: string
   title?: string
   type: SubBlockType
-  layout?: SubBlockLayout
   mode?: 'basic' | 'advanced' | 'both' | 'trigger' // Default is 'both' if not specified. 'trigger' means only shown in trigger mode
   canonicalParamId?: string
   required?: boolean

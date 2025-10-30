@@ -7,12 +7,12 @@ import { type DiffStatus, hasDiffStatus } from '@/lib/workflows/diff/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useExecutionStore } from '@/stores/execution/store'
-import { usePanelDesignStore } from '@/stores/panel-new/design/store'
+import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useCurrentWorkflow } from '../../hooks'
-import { useSubBlockValue } from '../panel-new/components/design/components/sub-block/hooks/use-sub-block-value'
+import { useSubBlockValue } from '../panel-new/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { BlockHandles, BlockHeader } from './components'
 import { ActionBar } from './components/action-bar/action-bar'
 import { ConnectionBlocks } from './components/connection-blocks/connection-blocks'
@@ -188,8 +188,8 @@ export const WorkflowBlock = memo(
       [id, collaborativeUpdateBlockName]
     )
 
-    // Design panel selection
-    const setCurrentBlockId = usePanelDesignStore((s) => s.setCurrentBlockId)
+    // Editor panel selection
+    const setCurrentBlockId = usePanelEditorStore((s) => s.setCurrentBlockId)
     const handleSelectBlock = useCallback(
       (e?: React.MouseEvent) => {
         e?.stopPropagation()

@@ -2,7 +2,7 @@
 
 import { type CSSProperties, useMemo } from 'react'
 import Image from 'next/image'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip } from '@/components/emcn'
 import { getPresenceColors } from '@/lib/collaboration/presence-colors'
 
 interface AvatarProps {
@@ -70,12 +70,12 @@ export function UserAvatar({
 
   if (tooltipContent) {
     return (
-      <Tooltip>
-        <TooltipTrigger asChild>{avatarElement}</TooltipTrigger>
-        <TooltipContent side='bottom' className='max-w-xs'>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>{avatarElement}</Tooltip.Trigger>
+        <Tooltip.Content side='bottom' className='max-w-xs'>
           {tooltipContent}
-        </TooltipContent>
-      </Tooltip>
+        </Tooltip.Content>
+      </Tooltip.Root>
     )
   }
 

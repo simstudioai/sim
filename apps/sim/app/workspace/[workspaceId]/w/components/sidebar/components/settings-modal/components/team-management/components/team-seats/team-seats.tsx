@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Tooltip } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -16,7 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { DEFAULT_TEAM_TIER_COST_LIMIT } from '@/lib/billing/constants'
 import { env } from '@/lib/env'
 
@@ -118,39 +118,38 @@ export function TeamSeats({
           <Button variant='outline' onClick={() => onOpenChange(false)} disabled={isLoading}>
             Cancel
           </Button>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span>
-                  <Button
-                    onClick={handleConfirm}
-                    disabled={
-                      isLoading ||
-                      (showCostBreakdown && selectedSeats === currentSeats) ||
-                      isCancelledAtPeriodEnd
-                    }
-                  >
-                    {isLoading ? (
-                      <div className='flex items-center space-x-2'>
-                        <div className='h-4 w-4 animate-spin rounded-full border-2 border-current border-b-transparent' />
-                        <span>Loading...</span>
-                      </div>
-                    ) : (
-                      <span>{confirmButtonText}</span>
-                    )}
-                  </Button>
-                </span>
-              </TooltipTrigger>
-              {isCancelledAtPeriodEnd && (
-                <TooltipContent>
-                  <p>
-                    To update seats, go to Subscription {'>'} Manage {'>'} Keep Subscription to
-                    reactivate
-                  </p>
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
+
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <span>
+                <Button
+                  onClick={handleConfirm}
+                  disabled={
+                    isLoading ||
+                    (showCostBreakdown && selectedSeats === currentSeats) ||
+                    isCancelledAtPeriodEnd
+                  }
+                >
+                  {isLoading ? (
+                    <div className='flex items-center space-x-2'>
+                      <div className='h-4 w-4 animate-spin rounded-full border-2 border-current border-b-transparent' />
+                      <span>Loading...</span>
+                    </div>
+                  ) : (
+                    <span>{confirmButtonText}</span>
+                  )}
+                </Button>
+              </span>
+            </Tooltip.Trigger>
+            {isCancelledAtPeriodEnd && (
+              <Tooltip.Content>
+                <p>
+                  To update seats, go to Subscription {'>'} Manage {'>'} Keep Subscription to
+                  reactivate
+                </p>
+              </Tooltip.Content>
+            )}
+          </Tooltip.Root>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -17,7 +17,6 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'Add Memories', id: 'add' },
         { label: 'Search Memories', id: 'search' },
@@ -30,7 +29,6 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
       id: 'userId',
       title: 'User ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter user identifier',
       value: () => 'userid', // Default to the working user ID from curl example
       required: true,
@@ -39,7 +37,6 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
       id: 'messages',
       title: 'Messages',
       type: 'code',
-      layout: 'full',
       placeholder: 'JSON array, e.g. [{"role": "user", "content": "I love Sim!"}]',
       language: 'json',
       condition: {
@@ -52,7 +49,6 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
       id: 'query',
       title: 'Search Query',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter search query to find relevant memories',
       condition: {
         field: 'operation',
@@ -64,7 +60,6 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
       id: 'memoryId',
       title: 'Memory ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Specific memory ID to retrieve',
       condition: {
         field: 'operation',
@@ -75,7 +70,6 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
       id: 'startDate',
       title: 'Start Date',
       type: 'short-input',
-      layout: 'half',
       placeholder: 'YYYY-MM-DD',
       condition: {
         field: 'operation',
@@ -86,7 +80,6 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
       id: 'endDate',
       title: 'End Date',
       type: 'short-input',
-      layout: 'half',
       placeholder: 'YYYY-MM-DD',
       condition: {
         field: 'operation',
@@ -97,7 +90,6 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter your Mem0 API key',
       password: true,
       required: true,
@@ -106,7 +98,6 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
       id: 'limit',
       title: 'Result Limit',
       type: 'slider',
-      layout: 'full',
       min: 1,
       max: 50,
       step: 1,

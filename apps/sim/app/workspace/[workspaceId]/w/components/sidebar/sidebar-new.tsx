@@ -3,15 +3,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { ArrowDown, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import {
-  Badge,
-  Button,
-  ChevronDown,
-  FolderPlus,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/emcn'
+import { Badge, Button, ChevronDown, FolderPlus, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth-client'
 import { useFolderStore } from '@/stores/folders/store'
 import { Blocks } from './components-new/blocks/blocks'
@@ -165,8 +157,8 @@ export function SidebarNew() {
                   Workflows
                 </div>
                 <div className='flex items-center justify-center gap-[10px]'>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
                       <Button
                         variant='ghost'
                         className='translate-y-[-0.25px] p-[1px]'
@@ -175,13 +167,13 @@ export function SidebarNew() {
                       >
                         <ArrowDown className='h-[14px] w-[14px]' />
                       </Button>
-                    </TooltipTrigger>
-                    <TooltipContent className='py-[2.5px]'>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content className='py-[2.5px]'>
                       <p>{isImporting ? 'Importing workflow...' : 'Import from JSON'}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
+                    </Tooltip.Content>
+                  </Tooltip.Root>
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
                       <Button
                         variant='ghost'
                         className='mr-[1px] translate-y-[-0.25px] p-[1px]'
@@ -190,13 +182,13 @@ export function SidebarNew() {
                       >
                         <FolderPlus className='h-[14px] w-[14px]' />
                       </Button>
-                    </TooltipTrigger>
-                    <TooltipContent className='py-[2.5px]'>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content className='py-[2.5px]'>
                       <p>{isCreatingFolder ? 'Creating folder...' : 'Create folder'}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
+                    </Tooltip.Content>
+                  </Tooltip.Root>
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
                       <Button
                         variant='outline'
                         className='translate-y-[-0.25px] p-[1px]'
@@ -205,11 +197,11 @@ export function SidebarNew() {
                       >
                         <Plus className='h-[14px] w-[14px]' />
                       </Button>
-                    </TooltipTrigger>
-                    <TooltipContent className='py-[2.5px]'>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content className='py-[2.5px]'>
                       <p>{isCreatingWorkflow ? 'Creating workflow...' : 'Create workflow'}</p>
-                    </TooltipContent>
-                  </Tooltip>
+                    </Tooltip.Content>
+                  </Tooltip.Root>
                 </div>
               </div>
             </div>

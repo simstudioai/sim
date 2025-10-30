@@ -1,7 +1,7 @@
 import { memo, useCallback } from 'react'
 import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, Copy, LogOut, Trash2 } from 'lucide-react'
+import { Tooltip } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
@@ -59,8 +59,8 @@ export const ActionBar = memo(
           'opacity-0 transition-opacity duration-200 group-hover:opacity-100'
         )}
       >
-        {/* <Tooltip>
-        <TooltipTrigger asChild>
+        {/* <Tooltip.Root>
+            <Tooltip.Trigger asChild>
           <Button
             className={cn(
               isEnabled
@@ -72,12 +72,12 @@ export const ActionBar = memo(
           >
             <Play fill="currentColor" className="!h-3.5 !w-3.5" />
           </Button>
-        </TooltipTrigger>
-        <TooltipContent side="right">Run Block</TooltipContent>
-      </Tooltip> */}
+        </Tooltip.Trigger>
+        <Tooltip.Content side="right">Run Block</Tooltip.Content>
+      </Tooltip.Root> */}
 
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
             <Button
               variant='ghost'
               size='sm'
@@ -91,15 +91,15 @@ export const ActionBar = memo(
             >
               {isEnabled ? <Circle className='h-4 w-4' /> : <CircleOff className='h-4 w-4' />}
             </Button>
-          </TooltipTrigger>
-          <TooltipContent side='right'>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='right'>
             {getTooltipMessage(isEnabled ? 'Disable Block' : 'Enable Block')}
-          </TooltipContent>
-        </Tooltip>
+          </Tooltip.Content>
+        </Tooltip.Root>
 
         {!isStarterBlock && (
-          <Tooltip>
-            <TooltipTrigger asChild>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
               <Button
                 variant='ghost'
                 size='sm'
@@ -113,15 +113,15 @@ export const ActionBar = memo(
               >
                 <Copy className='h-4 w-4' />
               </Button>
-            </TooltipTrigger>
-            <TooltipContent side='right'>{getTooltipMessage('Duplicate Block')}</TooltipContent>
-          </Tooltip>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='right'>{getTooltipMessage('Duplicate Block')}</Tooltip.Content>
+          </Tooltip.Root>
         )}
 
         {/* Remove from subflow - only show when inside loop/parallel */}
         {!isStarterBlock && parentId && (parentType === 'loop' || parentType === 'parallel') && (
-          <Tooltip>
-            <TooltipTrigger asChild>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
               <Button
                 variant='ghost'
                 size='sm'
@@ -140,13 +140,15 @@ export const ActionBar = memo(
               >
                 <LogOut className='h-4 w-4' />
               </Button>
-            </TooltipTrigger>
-            <TooltipContent side='right'>{getTooltipMessage('Remove From Subflow')}</TooltipContent>
-          </Tooltip>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='right'>
+              {getTooltipMessage('Remove From Subflow')}
+            </Tooltip.Content>
+          </Tooltip.Root>
         )}
 
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
             <Button
               variant='ghost'
               size='sm'
@@ -164,15 +166,15 @@ export const ActionBar = memo(
                 <ArrowUpDown className='h-4 w-4' />
               )}
             </Button>
-          </TooltipTrigger>
-          <TooltipContent side='right'>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='right'>
             {getTooltipMessage(horizontalHandles ? 'Vertical Ports' : 'Horizontal Ports')}
-          </TooltipContent>
-        </Tooltip>
+          </Tooltip.Content>
+        </Tooltip.Root>
 
         {!isStarterBlock && (
-          <Tooltip>
-            <TooltipTrigger asChild>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
               <Button
                 variant='ghost'
                 size='sm'
@@ -189,9 +191,9 @@ export const ActionBar = memo(
               >
                 <Trash2 className='h-4 w-4' />
               </Button>
-            </TooltipTrigger>
-            <TooltipContent side='right'>{getTooltipMessage('Delete Block')}</TooltipContent>
-          </Tooltip>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='right'>{getTooltipMessage('Delete Block')}</Tooltip.Content>
+          </Tooltip.Root>
         )}
       </div>
     )

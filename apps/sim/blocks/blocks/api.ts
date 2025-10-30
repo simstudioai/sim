@@ -20,7 +20,6 @@ export const ApiBlock: BlockConfig<RequestResponse> = {
       id: 'url',
       title: 'URL',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter URL',
       required: true,
     },
@@ -28,7 +27,6 @@ export const ApiBlock: BlockConfig<RequestResponse> = {
       id: 'method',
       title: 'Method',
       type: 'dropdown',
-      layout: 'half',
       required: true,
       options: [
         { label: 'GET', id: 'GET' },
@@ -42,14 +40,12 @@ export const ApiBlock: BlockConfig<RequestResponse> = {
       id: 'params',
       title: 'Query Params',
       type: 'table',
-      layout: 'full',
       columns: ['Key', 'Value'],
     },
     {
       id: 'headers',
       title: 'Headers',
       type: 'table',
-      layout: 'full',
       columns: ['Key', 'Value'],
       description:
         'Custom headers (standard headers like User-Agent, Accept, etc. are added automatically)',
@@ -58,7 +54,6 @@ export const ApiBlock: BlockConfig<RequestResponse> = {
       id: 'body',
       title: 'Body',
       type: 'code',
-      layout: 'full',
       placeholder: 'Enter JSON...',
       wandConfig: {
         enabled: true,

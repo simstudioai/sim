@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip } from '@/components/emcn'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
@@ -72,14 +72,14 @@ export default function LoopToolbarItem({ disabled = false }: LoopToolbarItemPro
 
   if (disabled) {
     return (
-      <Tooltip>
-        <TooltipTrigger asChild>{blockContent}</TooltipTrigger>
-        <TooltipContent>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>{blockContent}</Tooltip.Trigger>
+        <Tooltip.Content>
           {userPermissions.isOfflineMode
             ? 'Connection lost - please refresh'
             : 'Edit permissions required to add blocks'}
-        </TooltipContent>
-      </Tooltip>
+        </Tooltip.Content>
+      </Tooltip.Root>
     )
   }
 

@@ -1,5 +1,6 @@
 import type React from 'react'
 import { ChevronDown, ChevronRight, Code, Cpu, ExternalLink } from 'lucide-react'
+import { Tooltip } from '@/components/emcn'
 import {
   AgentIcon,
   ApiIcon,
@@ -8,7 +9,6 @@ import {
   ConditionalIcon,
   ConnectIcon,
 } from '@/components/icons'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import {
   CollapsibleInputOutput,
@@ -284,23 +284,21 @@ export function TraceSpanItem({
                 {formatSpanName(span)}
               </span>
               {chipVisibility.model && span.model && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className='inline-flex cursor-default items-center gap-1 rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground tabular-nums'>
-                        {(() => {
-                          const model = String(span.model) || ''
-                          const IconComp = getProviderIcon(model) as React.ComponentType<{
-                            className?: string
-                          }> | null
-                          return IconComp ? <IconComp className='h-3 w-3' /> : null
-                        })()}
-                        {String(span.model)}
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side='top'>Model</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <span className='inline-flex cursor-default items-center gap-1 rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground tabular-nums'>
+                      {(() => {
+                        const model = String(span.model) || ''
+                        const IconComp = getProviderIcon(model) as React.ComponentType<{
+                          className?: string
+                        }> | null
+                        return IconComp ? <IconComp className='h-3 w-3' /> : null
+                      })()}
+                      {String(span.model)}
+                    </span>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top'>Model</Tooltip.Content>
+                </Tooltip.Root>
               )}
               {chipVisibility.toolProvider &&
                 span.type === 'tool' &&
@@ -325,100 +323,93 @@ export function TraceSpanItem({
                   )
                 })()}
               {chipVisibility.tokens && span.tokens && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className='cursor-default rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground tabular-nums'>
-                        {(() => {
-                          const t = span.tokens
-                          const total =
-                            typeof t === 'number'
-                              ? t
-                              : (t.total ?? (t.input || 0) + (t.output || 0))
-                          return `T:${total}`
-                        })()}
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side='top'>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <span className='cursor-default rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground tabular-nums'>
                       {(() => {
                         const t = span.tokens
-                        if (typeof t === 'number') return <span>{t} tokens</span>
-                        const hasIn = typeof t.input === 'number'
-                        const hasOut = typeof t.output === 'number'
-                        const input = hasIn ? t.input : undefined
-                        const output = hasOut ? t.output : undefined
                         const total =
-                          t.total ??
-                          (hasIn && hasOut ? (t.input || 0) + (t.output || 0) : undefined)
-
-                        if (hasIn || hasOut) {
-                          return (
-                            <span className='font-normal text-xs'>
-                              {`${hasIn ? input : '—'} in / ${hasOut ? output : '—'} out`}
-                              {typeof total === 'number' ? ` (total ${total})` : ''}
-                            </span>
-                          )
-                        }
-                        if (typeof total === 'number')
-                          return <span className='font-normal text-xs'>Total {total} tokens</span>
-                        return <span className='font-normal text-xs'>Tokens unavailable</span>
+                          typeof t === 'number' ? t : (t.total ?? (t.input || 0) + (t.output || 0))
+                        return `T:${total}`
                       })()}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                    </span>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top'>
+                    {(() => {
+                      const t = span.tokens
+                      if (typeof t === 'number') return <span>{t} tokens</span>
+                      const hasIn = typeof t.input === 'number'
+                      const hasOut = typeof t.output === 'number'
+                      const input = hasIn ? t.input : undefined
+                      const output = hasOut ? t.output : undefined
+                      const total =
+                        t.total ?? (hasIn && hasOut ? (t.input || 0) + (t.output || 0) : undefined)
+
+                      if (hasIn || hasOut) {
+                        return (
+                          <span className='font-normal text-xs'>
+                            {`${hasIn ? input : '—'} in / ${hasOut ? output : '—'} out`}
+                            {typeof total === 'number' ? ` (total ${total})` : ''}
+                          </span>
+                        )
+                      }
+                      if (typeof total === 'number')
+                        return <span className='font-normal text-xs'>Total {total} tokens</span>
+                      return <span className='font-normal text-xs'>Tokens unavailable</span>
+                    })()}
+                  </Tooltip.Content>
+                </Tooltip.Root>
               )}
               {chipVisibility.cost && span.cost?.total !== undefined && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className='cursor-default rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground tabular-nums'>
-                        {(() => {
-                          try {
-                            const { formatCost } = require('@/providers/utils')
-                            return formatCost(Number(span.cost.total) || 0)
-                          } catch {
-                            return `$${Number.parseFloat(String(span.cost.total)).toFixed(4)}`
-                          }
-                        })()}
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side='top'>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <span className='cursor-default rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground tabular-nums'>
                       {(() => {
-                        const c = span.cost || {}
-                        const input = typeof c.input === 'number' ? c.input : undefined
-                        const output = typeof c.output === 'number' ? c.output : undefined
-                        const total =
-                          typeof c.total === 'number'
-                            ? c.total
-                            : typeof input === 'number' && typeof output === 'number'
-                              ? input + output
-                              : undefined
-                        let formatCostFn: (v: number) => string = (v: number) =>
-                          `$${Number(v).toFixed(4)}`
                         try {
-                          formatCostFn = require('@/providers/utils').formatCost as (
-                            v: number
-                          ) => string
-                        } catch {}
-                        return (
-                          <div className='space-y-0.5'>
-                            {typeof input === 'number' && (
-                              <div className='text-xs'>Input: {formatCostFn(input)}</div>
-                            )}
-                            {typeof output === 'number' && (
-                              <div className='text-xs'>Output: {formatCostFn(output)}</div>
-                            )}
-                            {typeof total === 'number' && (
-                              <div className='border-t pt-0.5 text-xs'>
-                                Total: {formatCostFn(total)}
-                              </div>
-                            )}
-                          </div>
-                        )
+                          const { formatCost } = require('@/providers/utils')
+                          return formatCost(Number(span.cost.total) || 0)
+                        } catch {
+                          return `$${Number.parseFloat(String(span.cost.total)).toFixed(4)}`
+                        }
                       })()}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                    </span>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top'>
+                    {(() => {
+                      const c = span.cost || {}
+                      const input = typeof c.input === 'number' ? c.input : undefined
+                      const output = typeof c.output === 'number' ? c.output : undefined
+                      const total =
+                        typeof c.total === 'number'
+                          ? c.total
+                          : typeof input === 'number' && typeof output === 'number'
+                            ? input + output
+                            : undefined
+                      let formatCostFn: (v: number) => string = (v: number) =>
+                        `$${Number(v).toFixed(4)}`
+                      try {
+                        formatCostFn = require('@/providers/utils').formatCost as (
+                          v: number
+                        ) => string
+                      } catch {}
+                      return (
+                        <div className='space-y-0.5'>
+                          {typeof input === 'number' && (
+                            <div className='text-xs'>Input: {formatCostFn(input)}</div>
+                          )}
+                          {typeof output === 'number' && (
+                            <div className='text-xs'>Output: {formatCostFn(output)}</div>
+                          )}
+                          {typeof total === 'number' && (
+                            <div className='border-t pt-0.5 text-xs'>
+                              Total: {formatCostFn(total)}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
+                  </Tooltip.Content>
+                </Tooltip.Root>
               )}
               {showRelativeChip && depth > 0 && (
                 <span className='inline-flex items-center rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground tabular-nums'>

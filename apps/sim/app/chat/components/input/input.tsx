@@ -4,7 +4,7 @@ import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { AlertCircle, Paperclip, Send, Square, X } from 'lucide-react'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip } from '@/components/emcn'
 import { VoiceInput } from '@/app/chat/components/input/voice-input'
 
 const logger = createLogger('ChatInput')
@@ -194,18 +194,16 @@ export const ChatInput: React.FC<{
       <div className='flex items-center justify-center'>
         {/* Voice Input Only */}
         {isSttAvailable && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div>
-                  <VoiceInput onVoiceStart={handleVoiceStart} disabled={isStreaming} large={true} />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side='top'>
-                <p>Start voice conversation</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <div>
+                <VoiceInput onVoiceStart={handleVoiceStart} disabled={isStreaming} large={true} />
+              </div>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>
+              <p>Start voice conversation</p>
+            </Tooltip.Content>
+          </Tooltip.Root>
         )}
       </div>
     )
@@ -338,9 +336,8 @@ export const ChatInput: React.FC<{
 
             <div className='flex items-center gap-2 p-3 md:p-4'>
               {/* Paperclip Button */}
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
                     <button
                       type='button'
                       onClick={() => fileInputRef.current?.click()}
@@ -349,12 +346,11 @@ export const ChatInput: React.FC<{
                     >
                       <Paperclip size={16} className='md:h-5 md:w-5' />
                     </button>
-                  </TooltipTrigger>
-                  <TooltipContent side='top'>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top'>
                     <p>Attach files</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+                  </Tooltip.Content>
+                </Tooltip.Root>
 
               {/* Hidden file input */}
               <input
@@ -420,22 +416,16 @@ export const ChatInput: React.FC<{
 
               {/* Voice Input */}
               {isSttAvailable && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div>
-                        <VoiceInput
-                          onVoiceStart={handleVoiceStart}
-                          disabled={isStreaming}
-                          minimal
-                        />
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent side='top'>
-                      <p>Start voice conversation</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <div>
+                      <VoiceInput onVoiceStart={handleVoiceStart} disabled={isStreaming} minimal />
+                    </div>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top'>
+                    <p>Start voice conversation</p>
+                  </Tooltip.Content>
+                </Tooltip.Root>
               )}
 
               {/* Send Button */}

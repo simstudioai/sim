@@ -4,7 +4,7 @@ import { useRef } from 'react'
 import { BubbleChatPreview, Button, MoreHorizontal, Play, Rocket } from '@/components/emcn'
 import { usePanelStore } from '@/stores/panel-new/store'
 import type { PanelTab } from '@/stores/panel-new/types'
-import { Copilot, Design } from './components'
+import { Copilot, Editor } from './components'
 import { usePanelResize } from './hooks/use-panel-resize'
 
 /**
@@ -81,10 +81,10 @@ export function Panel() {
             </Button>
             <Button
               className='px-[8px] py-[5px] text-[12.5px] hover:bg-[#353535] hover:text-[#E6E6E6] dark:hover:bg-[#353535] dark:hover:text-[#E6E6E6]'
-              variant={activeTab === 'design' ? 'active' : 'ghost'}
-              onClick={() => handleTabClick('design')}
+              variant={activeTab === 'editor' ? 'active' : 'ghost'}
+              onClick={() => handleTabClick('editor')}
             >
-              Design
+              Editor
             </Button>
           </div>
 
@@ -93,8 +93,8 @@ export function Panel() {
             <div className={activeTab === 'copilot' ? 'h-full' : 'hidden'}>
               <Copilot ref={copilotRef} panelWidth={panelWidth} />
             </div>
-            <div className={activeTab === 'design' ? 'h-full' : 'hidden'}>
-              <Design />
+            <div className={activeTab === 'editor' ? 'h-full' : 'hidden'}>
+              <Editor />
             </div>
           </div>
         </div>

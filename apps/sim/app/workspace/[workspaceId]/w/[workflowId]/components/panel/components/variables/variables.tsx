@@ -16,6 +16,7 @@ import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
 
 import Editor from 'react-simple-code-editor'
+import { Tooltip } from '@/components/emcn'
 import {
   Button,
   DropdownMenu,
@@ -24,9 +25,6 @@ import {
   DropdownMenuTrigger,
   Input,
   ScrollArea,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
 } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn, validateName } from '@/lib/utils'
@@ -371,16 +369,16 @@ export function Variables() {
                     {/* Validation indicator */}
                     {variable.value !== '' && getValidationStatus(variable) && (
                       <div className='absolute top-2 right-2 z-10'>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
+                        <Tooltip.Root>
+                          <Tooltip.Trigger asChild>
                             <div className='cursor-help'>
                               <AlertTriangle className='h-3 w-3 text-muted-foreground' />
                             </div>
-                          </TooltipTrigger>
-                          <TooltipContent side='bottom' className='max-w-xs'>
+                          </Tooltip.Trigger>
+                          <Tooltip.Content side='bottom' className='max-w-xs'>
                             <p>{getValidationStatus(variable)}</p>
-                          </TooltipContent>
-                        </Tooltip>
+                          </Tooltip.Content>
+                        </Tooltip.Root>
                       </div>
                     )}
 

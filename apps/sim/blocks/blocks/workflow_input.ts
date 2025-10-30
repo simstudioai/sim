@@ -41,7 +41,6 @@ export const WorkflowInputBlock: BlockConfig = {
       id: 'inputMapping',
       title: 'Input Mapping',
       type: 'input-mapping',
-      layout: 'full',
       description:
         "Map fields defined in the child workflow's Start block to variables/values in this workflow.",
       dependsOn: ['workflowId'],

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Search, Share2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { Tooltip } from '@/components/emcn'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,7 +17,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import type { EnvironmentVariable as StoreEnvironmentVariable } from '@/stores/settings/environment/types'
@@ -433,8 +433,8 @@ export function EnvironmentVariables({
             className={`allow-scroll h-9 rounded-[8px] border-none px-3 font-normal text-sm ring-0 ring-offset-0 placeholder:text-muted-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 ${isConflict ? 'cursor-not-allowed border border-red-500 bg-[#F6D2D2] outline-none ring-0 disabled:bg-[#F6D2D2] disabled:opacity-100 dark:bg-[#442929] disabled:dark:bg-[#442929]' : 'bg-muted'}`}
           />
           <div className='flex items-center justify-end gap-2'>
-            <Tooltip>
-              <TooltipTrigger asChild>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
                 <Button
                   variant='ghost'
                   size='icon'
@@ -451,11 +451,11 @@ export function EnvironmentVariables({
                 >
                   <Share2 className='h-4 w-4' />
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>Make it workspace scoped</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
+              </Tooltip.Trigger>
+              <Tooltip.Content>Make it workspace scoped</Tooltip.Content>
+            </Tooltip.Root>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
                 <Button
                   variant='ghost'
                   size='icon'
@@ -464,9 +464,9 @@ export function EnvironmentVariables({
                 >
                   ×
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>Delete environment variable</TooltipContent>
-            </Tooltip>
+              </Tooltip.Trigger>
+              <Tooltip.Content>Delete environment variable</Tooltip.Content>
+            </Tooltip.Root>
           </div>
         </div>
         {isConflict && (
@@ -583,8 +583,8 @@ export function EnvironmentVariables({
                           className='h-9 rounded-[8px] border-none bg-muted px-3 text-sm'
                         />
                         <div className='flex justify-end'>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
+                          <Tooltip.Root>
+                            <Tooltip.Trigger asChild>
                               <Button
                                 variant='ghost'
                                 size='icon'
@@ -599,9 +599,9 @@ export function EnvironmentVariables({
                               >
                                 ×
                               </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Delete environment variable</TooltipContent>
-                          </Tooltip>
+                            </Tooltip.Trigger>
+                            <Tooltip.Content>Delete environment variable</Tooltip.Content>
+                          </Tooltip.Root>
                         </div>
                       </div>
                     ))
@@ -637,8 +637,8 @@ export function EnvironmentVariables({
                         className='h-9 rounded-[8px] border-none bg-muted px-3 text-sm'
                       />
                       <div className='flex justify-end'>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
+                        <Tooltip.Root>
+                          <Tooltip.Trigger asChild>
                             <Button
                               variant='ghost'
                               size='icon'
@@ -653,9 +653,9 @@ export function EnvironmentVariables({
                             >
                               ×
                             </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Delete environment variable</TooltipContent>
-                        </Tooltip>
+                          </Tooltip.Trigger>
+                          <Tooltip.Content>Delete environment variable</Tooltip.Content>
+                        </Tooltip.Root>
                       </div>
                     </div>
                   ))}
@@ -705,8 +705,8 @@ export function EnvironmentVariables({
                 Add Variable
               </Button>
 
-              <Tooltip>
-                <TooltipTrigger asChild>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
                   <Button
                     onClick={handleSave}
                     disabled={!hasChanges || hasConflicts}
@@ -714,11 +714,11 @@ export function EnvironmentVariables({
                   >
                     Save Changes
                   </Button>
-                </TooltipTrigger>
+                </Tooltip.Trigger>
                 {hasConflicts && (
-                  <TooltipContent>Resolve all conflicts before saving</TooltipContent>
+                  <Tooltip.Content>Resolve all conflicts before saving</Tooltip.Content>
                 )}
-              </Tooltip>
+              </Tooltip.Root>
             </>
           )}
         </div>
@@ -742,17 +742,17 @@ export function EnvironmentVariables({
               Discard Changes
             </AlertDialogCancel>
             {hasConflicts ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
                   <AlertDialogAction
                     disabled={true}
                     className='h-9 w-full cursor-not-allowed rounded-[8px] bg-primary text-white opacity-50 transition-all duration-200'
                   >
                     Save Changes
                   </AlertDialogAction>
-                </TooltipTrigger>
-                <TooltipContent>Resolve all conflicts before saving</TooltipContent>
-              </Tooltip>
+                </Tooltip.Trigger>
+                <Tooltip.Content>Resolve all conflicts before saving</Tooltip.Content>
+              </Tooltip.Root>
             ) : (
               <AlertDialogAction
                 onClick={handleSave}

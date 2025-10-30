@@ -2,8 +2,8 @@
 
 import { Minus, Plus, Redo2, Undo2 } from 'lucide-react'
 import { useReactFlow, useStore } from 'reactflow'
+import { Tooltip } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
 import { cn } from '@/lib/utils'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
@@ -44,8 +44,8 @@ export function FloatingControls() {
   return (
     <div className='-translate-x-1/2 fixed bottom-6 left-1/2 z-10'>
       <div className='flex items-center gap-1 rounded-[14px] border bg-card/95 p-1 shadow-lg backdrop-blur-sm'>
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
             <Button
               variant='ghost'
               size='icon'
@@ -59,16 +59,16 @@ export function FloatingControls() {
             >
               <Minus className='h-4 w-4' />
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>Zoom Out</TooltipContent>
-        </Tooltip>
+          </Tooltip.Trigger>
+          <Tooltip.Content>Zoom Out</Tooltip.Content>
+        </Tooltip.Root>
 
         <div className='flex w-12 items-center justify-center font-medium text-muted-foreground text-sm'>
           {currentZoom}%
         </div>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
             <Button
               variant='ghost'
               size='icon'
@@ -82,14 +82,14 @@ export function FloatingControls() {
             >
               <Plus className='h-4 w-4' />
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>Zoom In</TooltipContent>
-        </Tooltip>
+          </Tooltip.Trigger>
+          <Tooltip.Content>Zoom In</Tooltip.Content>
+        </Tooltip.Root>
 
         <div className='mx-1 h-6 w-px bg-border' />
 
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
             <Button
               variant='ghost'
               size='icon'
@@ -103,17 +103,17 @@ export function FloatingControls() {
             >
               <Undo2 className='h-4 w-4' />
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>
+          </Tooltip.Trigger>
+          <Tooltip.Content>
             <div className='text-center'>
               <p>Undo</p>
               <p className='text-muted-foreground text-xs'>Cmd+Z</p>
             </div>
-          </TooltipContent>
-        </Tooltip>
+          </Tooltip.Content>
+        </Tooltip.Root>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
             <Button
               variant='ghost'
               size='icon'
@@ -127,14 +127,14 @@ export function FloatingControls() {
             >
               <Redo2 className='h-4 w-4' />
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>
+          </Tooltip.Trigger>
+          <Tooltip.Content>
             <div className='text-center'>
               <p>Redo</p>
               <p className='text-muted-foreground text-xs'>Cmd+Shift+Z</p>
             </div>
-          </TooltipContent>
-        </Tooltip>
+          </Tooltip.Content>
+        </Tooltip.Root>
       </div>
     </div>
   )

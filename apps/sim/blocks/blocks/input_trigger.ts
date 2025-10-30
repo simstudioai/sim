@@ -26,7 +26,6 @@ export const InputTriggerBlock: BlockConfig = {
       id: 'inputFormat',
       title: 'Input Format',
       type: 'input-format',
-      layout: 'full',
       description: 'Define the JSON input schema for this workflow when run manually.',
     },
   ],

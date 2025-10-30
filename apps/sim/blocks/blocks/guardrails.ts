@@ -47,7 +47,6 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
       id: 'input',
       title: 'Content to Validate',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter content to validate',
       required: true,
     },
@@ -55,7 +54,6 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
       id: 'validationType',
       title: 'Validation Type',
       type: 'dropdown',
-      layout: 'full',
       required: true,
       options: [
         { label: 'Valid JSON', id: 'json' },
@@ -69,7 +67,6 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
       id: 'regex',
       title: 'Regex Pattern',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'e.g., ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$',
       required: true,
       condition: {
@@ -81,7 +78,6 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
       id: 'knowledgeBaseId',
       title: 'Knowledge Base',
       type: 'knowledge-base-selector',
-      layout: 'full',
       placeholder: 'Select knowledge base',
       multiSelect: false,
       required: true,
@@ -94,7 +90,6 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
       id: 'model',
       title: 'Model',
       type: 'combobox',
-      layout: 'half',
       placeholder: 'Type or select a model...',
       required: true,
       options: () => {
@@ -118,7 +113,6 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
       id: 'threshold',
       title: 'Confidence',
       type: 'slider',
-      layout: 'half',
       min: 0,
       max: 10,
       step: 1,
@@ -132,7 +126,6 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
       id: 'topK',
       title: 'Number of Chunks to Retrieve',
       type: 'slider',
-      layout: 'full',
       min: 1,
       max: 20,
       step: 1,
@@ -147,7 +140,6 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter your API key',
       password: true,
       connectionDroppable: false,
@@ -186,7 +178,6 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
       id: 'piiEntityTypes',
       title: 'PII Types to Detect',
       type: 'grouped-checkbox-list',
-      layout: 'full',
       maxHeight: 400,
       options: [
         // Common PII types
@@ -256,7 +247,6 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
       id: 'piiMode',
       title: 'Action',
       type: 'dropdown',
-      layout: 'full',
       required: true,
       options: [
         { label: 'Block Request', id: 'block' },
@@ -272,7 +262,6 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
       id: 'piiLanguage',
       title: 'Language',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'English', id: 'en' },
         { label: 'Spanish', id: 'es' },

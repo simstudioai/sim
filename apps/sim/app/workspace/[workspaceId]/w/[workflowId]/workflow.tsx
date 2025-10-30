@@ -42,8 +42,8 @@ import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useCopilotStore } from '@/stores/panel-new/copilot/store'
-import { usePanelDesignStore } from '@/stores/panel-new/design/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
+import { usePanelEditorStore } from '@/stores/panel-new/editor/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { hasWorkflowsInitiallyLoaded, useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -1795,7 +1795,7 @@ const WorkflowContent = React.memo(() => {
     setSelectedEdgeInfo(null)
     try {
       // Clear current design selection when clicking on empty canvas
-      usePanelDesignStore.getState().clearCurrentBlock()
+      usePanelEditorStore.getState().clearCurrentBlock()
     } catch {}
   }, [])
 

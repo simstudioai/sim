@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowDownToLine, CircleSlash, History, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { Tooltip } from '@/components/emcn'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { LandingPromptStorage } from '@/lib/browser-storage'
 import { createLogger } from '@/lib/logs/console/logger'
 import { useChatStore } from '@/stores/panel/chat/store'
@@ -370,8 +370,8 @@ export function Panel() {
             <h2 className='font-[450] text-base text-card-foreground capitalize'>{activeTab}</h2>
             <div className='flex items-center gap-2'>
               {activeTab === 'console' && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
                     <button
                       onClick={() => activeWorkflowId && exportConsoleCSV(activeWorkflowId)}
                       className='font-medium text-md leading-normal transition-[filter] hover:brightness-75 focus:outline-none focus-visible:outline-none active:outline-none dark:hover:brightness-125'
@@ -379,13 +379,13 @@ export function Panel() {
                     >
                       <ArrowDownToLine className='h-4 w-4' strokeWidth={2} />
                     </button>
-                  </TooltipTrigger>
-                  <TooltipContent side='bottom'>Export console data</TooltipContent>
-                </Tooltip>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='bottom'>Export console data</Tooltip.Content>
+                </Tooltip.Root>
               )}
               {activeTab === 'chat' && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
                     <button
                       onClick={() => activeWorkflowId && exportChatCSV(activeWorkflowId)}
                       className='font-medium text-md leading-normal transition-[filter] hover:brightness-75 focus:outline-none focus-visible:outline-none active:outline-none dark:hover:brightness-125'
@@ -393,15 +393,15 @@ export function Panel() {
                     >
                       <ArrowDownToLine className='h-4 w-4' strokeWidth={2} />
                     </button>
-                  </TooltipTrigger>
-                  <TooltipContent side='bottom'>Export chat data</TooltipContent>
-                </Tooltip>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='bottom'>Export chat data</Tooltip.Content>
+                </Tooltip.Root>
               )}
               {activeTab === 'copilot' && (
                 <>
                   {/* New Chat Button */}
-                  <Tooltip>
-                    <TooltipTrigger asChild>
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
                       <button
                         onClick={handleNewChat}
                         className='font-medium text-md leading-normal transition-[filter] hover:brightness-75 focus:outline-none focus-visible:outline-none active:outline-none dark:hover:brightness-125'
@@ -409,28 +409,28 @@ export function Panel() {
                       >
                         <Plus className='h-4 w-4' strokeWidth={2} />
                       </button>
-                    </TooltipTrigger>
-                    <TooltipContent side='bottom'>New chat</TooltipContent>
-                  </Tooltip>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='bottom'>New chat</Tooltip.Content>
+                  </Tooltip.Root>
 
                   {/* History Dropdown */}
                   <DropdownMenu
                     open={isHistoryDropdownOpen}
                     onOpenChange={handleHistoryDropdownOpen}
                   >
-                    <Tooltip>
+                    <Tooltip.Root>
                       <DropdownMenuTrigger asChild>
-                        <TooltipTrigger asChild>
+                        <Tooltip.Trigger asChild>
                           <button
                             className='font-medium text-md leading-normal transition-[filter] hover:brightness-75 focus:outline-none focus-visible:outline-none active:outline-none dark:hover:brightness-125'
                             style={{ color: 'var(--base-muted-foreground)' }}
                           >
                             <History className='h-4 w-4' strokeWidth={2} />
                           </button>
-                        </TooltipTrigger>
+                        </Tooltip.Trigger>
                       </DropdownMenuTrigger>
-                      <TooltipContent side='bottom'>Chat history</TooltipContent>
-                    </Tooltip>
+                      <Tooltip.Content side='bottom'>Chat history</Tooltip.Content>
+                    </Tooltip.Root>
                     <DropdownMenuContent
                       align='end'
                       className='z-[200] w-96 rounded-lg border bg-background p-2 shadow-lg dark:border-[#414141] dark:bg-[var(--surface-elevated)]'
@@ -567,8 +567,8 @@ export function Panel() {
                 </>
               )}
               {(activeTab === 'console' || activeTab === 'chat') && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
                     <button
                       onClick={() => {
                         if (activeTab === 'console') {
@@ -582,12 +582,12 @@ export function Panel() {
                     >
                       <CircleSlash className='h-4 w-4' strokeWidth={2} />
                     </button>
-                  </TooltipTrigger>
-                  <TooltipContent side='bottom'>Clear {activeTab}</TooltipContent>
-                </Tooltip>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='bottom'>Clear {activeTab}</Tooltip.Content>
+                </Tooltip.Root>
               )}
-              <Tooltip>
-                <TooltipTrigger asChild>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
                   <button
                     onClick={handleClosePanel}
                     className='font-medium text-md leading-normal transition-[filter] hover:brightness-75 focus:outline-none focus-visible:outline-none active:outline-none dark:hover:brightness-125'
@@ -595,9 +595,9 @@ export function Panel() {
                   >
                     <X className='h-4 w-4' strokeWidth={2} />
                   </button>
-                </TooltipTrigger>
-                <TooltipContent side='bottom'>Close panel</TooltipContent>
-              </Tooltip>
+                </Tooltip.Trigger>
+                <Tooltip.Content side='bottom'>Close panel</Tooltip.Content>
+              </Tooltip.Root>
             </div>
           </div>
 

@@ -1,16 +1,12 @@
 'use client'
 
 import { Bot, Check, MessageSquare } from 'lucide-react'
-import { Badge } from '@/components/emcn'
+import { Badge, Tooltip } from '@/components/emcn'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
 } from '@/components/ui'
 import { cn } from '@/lib/utils'
 
@@ -67,61 +63,59 @@ export function ModeSelector({ mode, onModeChange, isNearTop, disabled }: ModeSe
         </Badge>
       </DropdownMenuTrigger>
       <DropdownMenuContent align='start' side={isNearTop ? 'bottom' : 'top'} className='p-0'>
-        <TooltipProvider>
-          <div className='w-[160px] p-1'>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <DropdownMenuItem
-                  onSelect={() => onModeChange?.('ask')}
-                  className={cn(
-                    'flex items-center justify-between rounded-sm px-2 py-1.5 text-xs leading-4',
-                    mode === 'ask' && 'bg-muted/40'
-                  )}
-                >
-                  <span className='flex items-center gap-1.5'>
-                    <MessageSquare className='h-3 w-3 text-muted-foreground' />
-                    Ask
-                  </span>
-                  {mode === 'ask' && <Check className='h-3 w-3 text-muted-foreground' />}
-                </DropdownMenuItem>
-              </TooltipTrigger>
-              <TooltipContent
-                side='right'
-                sideOffset={6}
-                align='center'
-                className='max-w-[220px] border bg-popover p-2 text-[11px] text-popover-foreground leading-snug shadow-md'
+        <div className='w-[160px] p-1'>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <DropdownMenuItem
+                onSelect={() => onModeChange?.('ask')}
+                className={cn(
+                  'flex items-center justify-between rounded-sm px-2 py-1.5 text-xs leading-4',
+                  mode === 'ask' && 'bg-muted/40'
+                )}
               >
-                Ask mode can help answer questions about your workflow, tell you about Sim, and
-                guide you in building/editing.
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <DropdownMenuItem
-                  onSelect={() => onModeChange?.('agent')}
-                  className={cn(
-                    'flex items-center justify-between rounded-sm px-2 py-1.5 text-xs leading-4',
-                    mode === 'agent' && 'bg-muted/40'
-                  )}
-                >
-                  <span className='flex items-center gap-1.5'>
-                    <Bot className='h-3 w-3 text-muted-foreground' />
-                    Agent
-                  </span>
-                  {mode === 'agent' && <Check className='h-3 w-3 text-muted-foreground' />}
-                </DropdownMenuItem>
-              </TooltipTrigger>
-              <TooltipContent
-                side='right'
-                sideOffset={6}
-                align='center'
-                className='max-w-[220px] border bg-popover p-2 text-[11px] text-popover-foreground leading-snug shadow-md'
+                <span className='flex items-center gap-1.5'>
+                  <MessageSquare className='h-3 w-3 text-muted-foreground' />
+                  Ask
+                </span>
+                {mode === 'ask' && <Check className='h-3 w-3 text-muted-foreground' />}
+              </DropdownMenuItem>
+            </Tooltip.Trigger>
+            <Tooltip.Content
+              side='right'
+              sideOffset={6}
+              align='center'
+              className='max-w-[220px] border bg-popover p-2 text-[11px] text-popover-foreground leading-snug shadow-md'
+            >
+              Ask mode can help answer questions about your workflow, tell you about Sim, and guide
+              you in building/editing.
+            </Tooltip.Content>
+          </Tooltip.Root>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <DropdownMenuItem
+                onSelect={() => onModeChange?.('agent')}
+                className={cn(
+                  'flex items-center justify-between rounded-sm px-2 py-1.5 text-xs leading-4',
+                  mode === 'agent' && 'bg-muted/40'
+                )}
               >
-                Agent mode can build, edit, and interact with your workflows (Recommended)
-              </TooltipContent>
-            </Tooltip>
-          </div>
-        </TooltipProvider>
+                <span className='flex items-center gap-1.5'>
+                  <Bot className='h-3 w-3 text-muted-foreground' />
+                  Agent
+                </span>
+                {mode === 'agent' && <Check className='h-3 w-3 text-muted-foreground' />}
+              </DropdownMenuItem>
+            </Tooltip.Trigger>
+            <Tooltip.Content
+              side='right'
+              sideOffset={6}
+              align='center'
+              className='max-w-[220px] border bg-popover p-2 text-[11px] text-popover-foreground leading-snug shadow-md'
+            >
+              Agent mode can build, edit, and interact with your workflows (Recommended)
+            </Tooltip.Content>
+          </Tooltip.Root>
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   )

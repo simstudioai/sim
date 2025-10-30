@@ -2,7 +2,7 @@
 
 import { memo, useMemo, useState } from 'react'
 import { Check, Copy, File as FileIcon, FileText, Image as ImageIcon } from 'lucide-react'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip } from '@/components/emcn'
 import MarkdownRenderer from './components/markdown-renderer'
 
 export interface ChatAttachment {
@@ -24,11 +24,7 @@ export interface ChatMessage {
 }
 
 function EnhancedMarkdownRenderer({ content }: { content: string }) {
-  return (
-    <TooltipProvider>
-      <MarkdownRenderer content={content} />
-    </TooltipProvider>
-  )
+  return <MarkdownRenderer content={content} />
 }
 
 export const ClientChatMessage = memo(
@@ -190,33 +186,31 @@ export const ClientChatMessage = memo(
               <div className='flex items-center justify-start space-x-2'>
                 {/* Copy Button - Only show when not streaming */}
                 {!message.isStreaming && (
-                  <TooltipProvider>
-                    <Tooltip delayDuration={300}>
-                      <TooltipTrigger asChild>
-                        <button
-                          className='text-muted-foreground transition-colors hover:bg-muted'
-                          onClick={() => {
-                            const contentToCopy =
-                              typeof cleanTextContent === 'string'
-                                ? cleanTextContent
-                                : JSON.stringify(cleanTextContent, null, 2)
-                            navigator.clipboard.writeText(contentToCopy)
-                            setIsCopied(true)
-                            setTimeout(() => setIsCopied(false), 2000)
-                          }}
-                        >
-                          {isCopied ? (
-                            <Check className='h-3 w-3' strokeWidth={2} />
-                          ) : (
-                            <Copy className='h-3 w-3' strokeWidth={2} />
-                          )}
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side='top' align='center' sideOffset={5}>
-                        {isCopied ? 'Copied!' : 'Copy to clipboard'}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  <Tooltip.Root delayDuration={300}>
+                    <Tooltip.Trigger asChild>
+                      <button
+                        className='text-muted-foreground transition-colors hover:bg-muted'
+                        onClick={() => {
+                          const contentToCopy =
+                            typeof cleanTextContent === 'string'
+                              ? cleanTextContent
+                              : JSON.stringify(cleanTextContent, null, 2)
+                          navigator.clipboard.writeText(contentToCopy)
+                          setIsCopied(true)
+                          setTimeout(() => setIsCopied(false), 2000)
+                        }}
+                      >
+                        {isCopied ? (
+                          <Check className='h-3 w-3' strokeWidth={2} />
+                        ) : (
+                          <Copy className='h-3 w-3' strokeWidth={2} />
+                        )}
+                      </button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='top' align='center' sideOffset={5}>
+                      {isCopied ? 'Copied!' : 'Copy to clipboard'}
+                    </Tooltip.Content>
+                  </Tooltip.Root>
                 )}
               </div>
             )}

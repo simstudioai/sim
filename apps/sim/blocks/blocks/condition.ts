@@ -33,7 +33,6 @@ export const ConditionBlock: BlockConfig<ConditionBlockOutput> = {
     {
       id: 'conditions',
       type: 'condition-input',
-      layout: 'full',
     },
   ],
   tools: {

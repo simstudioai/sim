@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Tooltip } from '@/components/emcn'
 import {
   AlertDialog,
   AlertDialogAction,

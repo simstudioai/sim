@@ -2,11 +2,11 @@
 
 import { useEffect } from 'react'
 import { Info } from 'lucide-react'
+import { Tooltip } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useGeneralStore } from '@/stores/settings/general/store'
 
 const TOOLTIPS = {
@@ -55,8 +55,8 @@ export function Privacy() {
               <Label htmlFor='telemetry' className='font-normal'>
                 Allow anonymous telemetry
               </Label>
-              <Tooltip>
-                <TooltipTrigger asChild>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
                   <Button
                     variant='ghost'
                     size='sm'
@@ -65,11 +65,11 @@ export function Privacy() {
                   >
                     <Info className='h-5 w-5' />
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent side='top' className='max-w-[300px] p-3'>
+                </Tooltip.Trigger>
+                <Tooltip.Content side='top' className='max-w-[300px] p-3'>
                   <p className='text-sm'>{TOOLTIPS.telemetry}</p>
-                </TooltipContent>
-              </Tooltip>
+                </Tooltip.Content>
+              </Tooltip.Root>
             </div>
             <Switch
               id='telemetry'

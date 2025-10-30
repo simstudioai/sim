@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { BookOpen, Info } from 'lucide-react'
+import { Tooltip } from '@/components/emcn'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn, validateName } from '@/lib/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { MAX_BLOCK_NAME_LENGTH } from '../../constants'
@@ -142,8 +142,8 @@ export function BlockHeader({
         <div className='flex flex-shrink-0 items-center gap-2'>
           {/* Child Workflow Deployment Indicator */}
           {childWorkflowId && (
-            <Tooltip>
-              <TooltipTrigger asChild>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
                 <div className='relative mr-1 flex items-center justify-center'>
                   <div
                     className={cn(
@@ -152,8 +152,8 @@ export function BlockHeader({
                     )}
                   />
                 </div>
-              </TooltipTrigger>
-              <TooltipContent side='top' className='px-3 py-2'>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top' className='px-3 py-2'>
                 <span className='text-sm'>
                   {childIsDeployed
                     ? isLoadingChildVersion
@@ -163,8 +163,8 @@ export function BlockHeader({
                         : 'Deployed'
                     : 'Not Deployed'}
                 </span>
-              </TooltipContent>
-            </Tooltip>
+              </Tooltip.Content>
+            </Tooltip.Root>
           )}
 
           {/* Disabled Badge */}
@@ -176,8 +176,8 @@ export function BlockHeader({
 
           {/* Schedule Badge */}
           {shouldShowScheduleBadge && scheduleInfo && (
-            <Tooltip>
-              <TooltipTrigger asChild>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
                 <Badge
                   variant='outline'
                   className={cn(
@@ -210,8 +210,8 @@ export function BlockHeader({
                   </div>
                   {scheduleInfo.isDisabled ? 'Disabled' : 'Scheduled'}
                 </Badge>
-              </TooltipTrigger>
-              <TooltipContent side='top' className='max-w-[300px] p-4'>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top' className='max-w-[300px] p-4'>
                 {scheduleInfo.isDisabled ? (
                   <p className='text-sm'>
                     This schedule is currently disabled. Click the badge to reactivate it.
@@ -219,14 +219,14 @@ export function BlockHeader({
                 ) : (
                   <p className='text-sm'>Click the badge to disable this schedule.</p>
                 )}
-              </TooltipContent>
-            </Tooltip>
+              </Tooltip.Content>
+            </Tooltip.Root>
           )}
 
           {/* Webhook Badge */}
           {showWebhookIndicator && (
-            <Tooltip>
-              <TooltipTrigger asChild>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
                 <Badge
                   variant='outline'
                   className='flex items-center gap-1 border-green-200 bg-green-50 font-normal text-green-600 text-xs hover:bg-green-50 dark:bg-green-900/20 dark:text-green-400'
@@ -237,8 +237,8 @@ export function BlockHeader({
                   </div>
                   Webhook
                 </Badge>
-              </TooltipTrigger>
-              <TooltipContent side='top' className='max-w-[300px] p-4'>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top' className='max-w-[300px] p-4'>
                 {webhookProvider && webhookPath ? (
                   <>
                     <p className='text-sm'>{getProviderName(webhookProvider)} Webhook</p>
@@ -249,8 +249,8 @@ export function BlockHeader({
                     This workflow is triggered by a webhook.
                   </p>
                 )}
-              </TooltipContent>
-            </Tooltip>
+              </Tooltip.Content>
+            </Tooltip.Root>
           )}
         </div>
 
@@ -258,8 +258,8 @@ export function BlockHeader({
         <>
           {/* Documentation Button */}
           {config.docsLink ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
                 <Button
                   variant='ghost'
                   size='sm'
@@ -271,18 +271,18 @@ export function BlockHeader({
                 >
                   <BookOpen className='h-5 w-5' />
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent side='top'>See Docs</TooltipContent>
-            </Tooltip>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>See Docs</Tooltip.Content>
+            </Tooltip.Root>
           ) : (
             config.longDescription && (
-              <Tooltip>
-                <TooltipTrigger asChild>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
                   <Button variant='ghost' size='sm' className='h-7 p-1 text-gray-500'>
                     <Info className='h-5 w-5' />
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent side='top' className='max-w-[300px] p-4'>
+                </Tooltip.Trigger>
+                <Tooltip.Content side='top' className='max-w-[300px] p-4'>
                   <div className='space-y-3'>
                     <div>
                       <p className='mb-1 font-medium text-sm'>Description</p>
@@ -317,8 +317,8 @@ export function BlockHeader({
                       </div>
                     )}
                   </div>
-                </TooltipContent>
-              </Tooltip>
+                </Tooltip.Content>
+              </Tooltip.Root>
             )
           )}
         </>

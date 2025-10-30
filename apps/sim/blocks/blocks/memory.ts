@@ -21,7 +21,6 @@ export const MemoryBlock: BlockConfig = {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Add Memory', id: 'add' },
         { label: 'Get All Memories', id: 'getAll' },
@@ -35,7 +34,6 @@ export const MemoryBlock: BlockConfig = {
       id: 'id',
       title: 'ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter memory identifier',
       condition: {
         field: 'operation',
@@ -47,7 +45,6 @@ export const MemoryBlock: BlockConfig = {
       id: 'id',
       title: 'ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter memory identifier to retrieve',
       condition: {
         field: 'operation',
@@ -59,7 +56,6 @@ export const MemoryBlock: BlockConfig = {
       id: 'id',
       title: 'ID',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter memory identifier to delete',
       condition: {
         field: 'operation',
@@ -71,7 +67,6 @@ export const MemoryBlock: BlockConfig = {
       id: 'role',
       title: 'Role',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'User', id: 'user' },
         { label: 'Assistant', id: 'assistant' },
@@ -88,7 +83,6 @@ export const MemoryBlock: BlockConfig = {
       id: 'content',
       title: 'Content',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter message content',
       condition: {
         field: 'operation',

@@ -14,6 +14,7 @@ import {
   Search,
   Trash2,
 } from 'lucide-react'
+import { Tooltip } from '@/components/emcn'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,9 +33,6 @@ import {
   Label,
   Skeleton,
   Switch,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
 } from '@/components/ui'
 import { createLogger } from '@/lib/logs/console/logger'
 import { cn, generatePassword } from '@/lib/utils'
@@ -613,8 +611,8 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
                                     {webhook.url}
                                   </code>
                                 </div>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
+                                <Tooltip.Root>
+                                  <Tooltip.Trigger asChild>
                                     <Button
                                       variant='ghost'
                                       size='icon'
@@ -634,11 +632,11 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
                                       )}
                                       <span className='sr-only'>Copy webhook URL</span>
                                     </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent side='top' align='center'>
+                                  </Tooltip.Trigger>
+                                  <Tooltip.Content side='top' align='center'>
                                     Copy webhook URL
-                                  </TooltipContent>
-                                </Tooltip>
+                                  </Tooltip.Content>
+                                </Tooltip.Root>
 
                                 {/* Test Status inline for this specific webhook */}
                                 {testStatus &&
@@ -652,8 +650,8 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
                               </div>
 
                               <div className='flex items-center gap-2'>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
+                                <Tooltip.Root>
+                                  <Tooltip.Trigger asChild>
                                     <Button
                                       variant='ghost'
                                       size='icon'
@@ -671,13 +669,13 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
                                       <Play className='h-3.5 w-3.5' />
                                       <span className='sr-only'>Test webhook</span>
                                     </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent side='top' align='center'>
+                                  </Tooltip.Trigger>
+                                  <Tooltip.Content side='top' align='center'>
                                     Test webhook
-                                  </TooltipContent>
-                                </Tooltip>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
+                                  </Tooltip.Content>
+                                </Tooltip.Root>
+                                <Tooltip.Root>
+                                  <Tooltip.Trigger asChild>
                                     <Button
                                       variant='ghost'
                                       size='icon'
@@ -693,13 +691,13 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
                                       <Pencil className='h-3.5 w-3.5' />
                                       <span className='sr-only'>Edit webhook</span>
                                     </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent side='top' align='center'>
+                                  </Tooltip.Trigger>
+                                  <Tooltip.Content side='top' align='center'>
                                     Edit webhook
-                                  </TooltipContent>
-                                </Tooltip>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
+                                  </Tooltip.Content>
+                                </Tooltip.Root>
+                                <Tooltip.Root>
+                                  <Tooltip.Trigger asChild>
                                     <Button
                                       variant='ghost'
                                       size='icon'
@@ -715,11 +713,11 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
                                       <Trash2 className='h-3.5 w-3.5' />
                                       <span className='sr-only'>Delete webhook</span>
                                     </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent side='bottom' align='end'>
+                                  </Tooltip.Trigger>
+                                  <Tooltip.Content side='bottom' align='end'>
                                     Delete webhook
-                                  </TooltipContent>
-                                </Tooltip>
+                                  </Tooltip.Content>
+                                </Tooltip.Root>
                               </div>
                             </div>
 
@@ -862,8 +860,8 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
                           }
                         />
                         <div className='absolute top-0.5 right-0.5 flex h-8 items-center gap-1 pr-1'>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
+                          <Tooltip.Root>
+                            <Tooltip.Trigger asChild>
                               <Button
                                 type='button'
                                 variant='ghost'
@@ -888,13 +886,13 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
                                 />
                                 <span className='sr-only'>Generate password</span>
                               </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side='top' align='center'>
+                            </Tooltip.Trigger>
+                            <Tooltip.Content side='top' align='center'>
                               Generate secure secret
-                            </TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
+                            </Tooltip.Content>
+                          </Tooltip.Root>
+                          <Tooltip.Root>
+                            <Tooltip.Trigger asChild>
                               <Button
                                 type='button'
                                 variant='ghost'
@@ -916,13 +914,13 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
                                 )}
                                 <span className='sr-only'>Copy secret</span>
                               </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side='top' align='center'>
+                            </Tooltip.Trigger>
+                            <Tooltip.Content side='top' align='center'>
                               Copy secret
-                            </TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
+                            </Tooltip.Content>
+                          </Tooltip.Root>
+                          <Tooltip.Root>
+                            <Tooltip.Trigger asChild>
                               <Button
                                 type='button'
                                 variant='ghost'
@@ -944,11 +942,11 @@ export function WebhookSettings({ workflowId, open, onOpenChange }: WebhookSetti
                                   {showSecret ? 'Hide secret' : 'Show secret'}
                                 </span>
                               </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side='top' align='center'>
+                            </Tooltip.Trigger>
+                            <Tooltip.Content side='top' align='center'>
                               {showSecret ? 'Hide secret' : 'Show secret'}
-                            </TooltipContent>
-                          </Tooltip>
+                            </Tooltip.Content>
+                          </Tooltip.Root>
                         </div>
                       </div>
                       <p className='text-muted-foreground text-xs'>

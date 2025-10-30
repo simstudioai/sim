@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Info } from 'lucide-react'
+import { Tooltip } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import {
@@ -11,7 +12,6 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
 import { getEnv, isTruthy } from '@/lib/env'
 import { useGeneralStore } from '@/stores/settings/general/store'
@@ -159,8 +159,8 @@ export function General() {
                 <Label htmlFor='auto-connect' className='font-normal'>
                   Auto-connect on drop
                 </Label>
-                <Tooltip>
-                  <TooltipTrigger asChild>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
                     <Button
                       variant='ghost'
                       size='sm'
@@ -170,11 +170,11 @@ export function General() {
                     >
                       <Info className='h-5 w-5' />
                     </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side='top' className='max-w-[300px] p-3'>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top' className='max-w-[300px] p-3'>
                     <p className='text-sm'>{TOOLTIPS.autoConnect}</p>
-                  </TooltipContent>
-                </Tooltip>
+                  </Tooltip.Content>
+                </Tooltip.Root>
               </div>
               <Skeleton className='h-6 w-11 rounded-full' />
             </div>
@@ -185,8 +185,8 @@ export function General() {
                 <Label htmlFor='console-expanded-by-default' className='font-normal'>
                   Console expanded by default
                 </Label>
-                <Tooltip>
-                  <TooltipTrigger asChild>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
                     <Button
                       variant='ghost'
                       size='sm'
@@ -196,11 +196,11 @@ export function General() {
                     >
                       <Info className='h-5 w-5' />
                     </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side='top' className='max-w-[300px] p-3'>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top' className='max-w-[300px] p-3'>
                     <p className='text-sm'>{TOOLTIPS.consoleExpandedByDefault}</p>
-                  </TooltipContent>
-                </Tooltip>
+                  </Tooltip.Content>
+                </Tooltip.Root>
               </div>
               <Skeleton className='h-6 w-11 rounded-full' />
             </div>
@@ -248,8 +248,8 @@ export function General() {
                 <Label htmlFor='auto-connect' className='font-normal'>
                   Auto-connect on drop
                 </Label>
-                <Tooltip>
-                  <TooltipTrigger asChild>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
                     <Button
                       variant='ghost'
                       size='sm'
@@ -259,11 +259,11 @@ export function General() {
                     >
                       <Info className='h-5 w-5' />
                     </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side='top' className='max-w-[300px] p-3'>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top' className='max-w-[300px] p-3'>
                     <p className='text-sm'>{TOOLTIPS.autoConnect}</p>
-                  </TooltipContent>
-                </Tooltip>
+                  </Tooltip.Content>
+                </Tooltip.Root>
               </div>
               <Switch
                 id='auto-connect'
@@ -278,8 +278,8 @@ export function General() {
                 <Label htmlFor='console-expanded-by-default' className='font-normal'>
                   Console expanded by default
                 </Label>
-                <Tooltip>
-                  <TooltipTrigger asChild>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
                     <Button
                       variant='ghost'
                       size='sm'
@@ -289,11 +289,11 @@ export function General() {
                     >
                       <Info className='h-5 w-5' />
                     </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side='top' className='max-w-[300px] p-3'>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top' className='max-w-[300px] p-3'>
                     <p className='text-sm'>{TOOLTIPS.consoleExpandedByDefault}</p>
-                  </TooltipContent>
-                </Tooltip>
+                  </Tooltip.Content>
+                </Tooltip.Root>
               </div>
               <Switch
                 id='console-expanded-by-default'
@@ -308,8 +308,8 @@ export function General() {
                 <Label htmlFor='floating-controls' className='font-normal'>
                   Floating controls
                 </Label>
-                <Tooltip>
-                  <TooltipTrigger asChild>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
                     <Button
                       variant='ghost'
                       size='sm'
@@ -319,11 +319,11 @@ export function General() {
                     >
                       <Info className='h-5 w-5' />
                     </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side='top' className='max-w-[300px] p-3'>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top' className='max-w-[300px] p-3'>
                     <p className='text-sm'>{TOOLTIPS.floatingControls}</p>
-                  </TooltipContent>
-                </Tooltip>
+                  </Tooltip.Content>
+                </Tooltip.Root>
               </div>
               <Switch
                 id='floating-controls'
@@ -339,8 +339,8 @@ export function General() {
                   <Label htmlFor='training-controls' className='font-normal'>
                     Training controls
                   </Label>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
                       <Button
                         variant='ghost'
                         size='icon'
@@ -350,11 +350,11 @@ export function General() {
                       >
                         <Info className='h-3.5 w-3.5 text-muted-foreground' />
                       </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side='top' className='max-w-[300px] p-3'>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='top' className='max-w-[300px] p-3'>
                       <p className='text-sm'>{TOOLTIPS.trainingControls}</p>
-                    </TooltipContent>
-                  </Tooltip>
+                    </Tooltip.Content>
+                  </Tooltip.Root>
                 </div>
                 <Switch
                   id='training-controls'
@@ -372,8 +372,8 @@ export function General() {
                   <Label htmlFor='super-user-mode' className='font-normal'>
                     Super User Mode
                   </Label>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
                       <Button
                         variant='ghost'
                         size='sm'
@@ -383,11 +383,11 @@ export function General() {
                       >
                         <Info className='h-5 w-5' />
                       </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side='top' className='max-w-[300px] p-3'>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='top' className='max-w-[300px] p-3'>
                       <p className='text-sm'>{TOOLTIPS.superUserMode}</p>
-                    </TooltipContent>
-                  </Tooltip>
+                    </Tooltip.Content>
+                  </Tooltip.Root>
                 </div>
                 <Switch
                   id='super-user-mode'

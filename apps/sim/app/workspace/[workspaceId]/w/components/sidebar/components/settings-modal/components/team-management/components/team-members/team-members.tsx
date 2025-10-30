@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { LogOut, UserX, X } from 'lucide-react'
+import { Tooltip } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
 import type { Invitation, Member, Organization } from '@/stores/organization'
 
@@ -221,8 +221,8 @@ export function TeamMembers({
                 item.type === 'member' &&
                 item.role !== 'owner' &&
                 item.email !== currentUserEmail && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
                       <Button
                         variant='outline'
                         size='sm'
@@ -231,15 +231,15 @@ export function TeamMembers({
                       >
                         <UserX className='h-4 w-4' />
                       </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side='left'>Remove Member</TooltipContent>
-                  </Tooltip>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='left'>Remove Member</Tooltip.Content>
+                  </Tooltip.Root>
                 )}
 
               {/* Admin can cancel invitations */}
               {isAdminOrOwner && item.type === 'invitation' && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
                     <Button
                       variant='outline'
                       size='sm'
@@ -253,13 +253,13 @@ export function TeamMembers({
                         <X className='h-4 w-4' />
                       )}
                     </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side='left'>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='left'>
                     {cancellingInvitations.has(item.invitation.id)
                       ? 'Cancelling...'
                       : 'Cancel Invitation'}
-                  </TooltipContent>
-                </Tooltip>
+                  </Tooltip.Content>
+                </Tooltip.Root>
               )}
             </div>
           </div>

@@ -80,6 +80,19 @@
   z-index: 60 !important;
 }
 
+/* Workflow canvas background */
+.workflow-container,
+.workflow-container .react-flow__pane,
+.workflow-container .react-flow__renderer {
+  background-color: #e4e4e4 !important;
+}
+
+.dark .workflow-container,
+.dark .workflow-container .react-flow__pane,
+.dark .workflow-container .react-flow__renderer {
+  background-color: #1b1b1b !important;
+}
+
 /* ==========================================================================
    LANDING LOOP ANIMATION
    ========================================================================== */
@@ -146,6 +159,7 @@
     /* Border & Input Colors */
     --border: 0 0% 89.8%;
     --input: 0 0% 89.8%;
+    --input-background: 0 0% 79.22%;
     --ring: 0 0% 3.9%;
 
     /* Border Radius */
@@ -185,7 +199,7 @@
   /* Dark Mode Theme */
   .dark {
     /* Core Colors */
-    --background: 0 0% 10.6%;
+    --background: 0 0% 10.59%;
     --foreground: 0 0% 98%;
 
     /* Card Colors */
@@ -219,6 +233,7 @@
     /* Border & Input Colors */
     --border: 0 0% 16.1%;
     --input: 0 0% 16.1%;
+    --input-background: 0 0% 20.78%;
     --ring: 0 0% 83.9%;
 
     /* Scrollbar Properties */
@@ -227,7 +242,7 @@
     --scrollbar-thumb-hover: 0 0% 40%;
 
     /* Workflow Properties */
-    --workflow-background: 0 0% 10.6%;
+    --workflow-background: 0 0% 10.59%;
     --card-background: 0 0% 9.0%;
     --card-border: 0 0% 22.7%;
     --card-text: 0 0% 98%;
@@ -454,6 +469,11 @@ input[type="search"]::-ms-clear {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+
+  /* Input Background Utility */
+  .bg-input-background {
+    background-color: hsl(var(--input-background));
   }
 
   /* Brand Color Utilities */

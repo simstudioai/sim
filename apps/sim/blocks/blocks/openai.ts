@@ -17,7 +17,6 @@ export const OpenAIBlock: BlockConfig = {
       id: 'input',
       title: 'Input Text',
       type: 'long-input',
-      layout: 'full',
       placeholder: 'Enter text to generate embeddings for',
       required: true,
     },
@@ -25,7 +24,6 @@ export const OpenAIBlock: BlockConfig = {
       id: 'model',
       title: 'Model',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'text-embedding-3-small', id: 'text-embedding-3-small' },
         { label: 'text-embedding-3-large', id: 'text-embedding-3-large' },
@@ -37,7 +35,6 @@ export const OpenAIBlock: BlockConfig = {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Enter your OpenAI API key',
       password: true,
       required: true,

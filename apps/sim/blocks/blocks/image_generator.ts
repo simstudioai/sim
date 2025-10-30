@@ -18,7 +18,6 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       id: 'model',
       title: 'Model',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'DALL-E 3', id: 'dall-e-3' },
         { label: 'GPT Image', id: 'gpt-image-1' },
@@ -29,7 +28,6 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       id: 'prompt',
       title: 'Prompt',
       type: 'long-input',
-      layout: 'full',
       required: true,
       placeholder: 'Describe the image you want to generate...',
     },
@@ -37,7 +35,6 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       id: 'size',
       title: 'Size',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: '1024x1024', id: '1024x1024' },
         { label: '1024x1792', id: '1024x1792' },
@@ -50,7 +47,6 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       id: 'size',
       title: 'Size',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'Auto', id: 'auto' },
         { label: '1024x1024', id: '1024x1024' },
@@ -64,7 +60,6 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       id: 'quality',
       title: 'Quality',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'Standard', id: 'standard' },
         { label: 'HD', id: 'hd' },
@@ -76,7 +71,6 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       id: 'style',
       title: 'Style',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'Vivid', id: 'vivid' },
         { label: 'Natural', id: 'natural' },
@@ -88,7 +82,6 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       id: 'background',
       title: 'Background',
       type: 'dropdown',
-      layout: 'half',
       options: [
         { label: 'Auto', id: 'auto' },
         { label: 'Transparent', id: 'transparent' },
@@ -101,7 +94,6 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
-      layout: 'full',
       required: true,
       placeholder: 'Enter your OpenAI API key',
       password: true,

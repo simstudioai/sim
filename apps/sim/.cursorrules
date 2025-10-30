@@ -1,0 +1,735 @@
+# Sim App Architecture Guidelines
+
+You are building features in the Sim app following the architecture established by the sidebar-new component. This file defines the patterns, structures, and conventions you must follow.
+
+---
+
+## Core Principles
+
+1. **Single Responsibility Principle**: Each component, hook, and store should have one clear purpose
+2. **Composition Over Complexity**: Break down complex logic into smaller, composable pieces
+3. **Type Safety First**: Use TypeScript interfaces for all props, state, and return types
+4. **Predictable State Management**: Use Zustand for global state, local state for UI-only concerns
+5. **Performance by Default**: Use useMemo, useCallback, and refs appropriately
+6. **Accessibility**: Include semantic HTML and ARIA attributes
+7. **Documentation**: Use TSDoc for all public interfaces and keep it in sync with code changes
+
+---
+
+## File Organization
+
+### Directory Structure
+
+```
+feature/
+├── components/          # Feature components
+│   ├── sub-feature/    # Sub-feature with its own components
+│   │   ├── component.tsx
+│   │   └── index.ts
+├── hooks/              # Custom hooks for feature logic
+│   ├── use-feature-logic.ts
+│   └── use-another-hook.ts
+└── feature.tsx         # Main feature component
+```
+
+### Naming Conventions
+
+- **Components**: PascalCase with descriptive names (`WorkflowList`, `TriggerPanel`)
+- **Hooks**: camelCase with `use` prefix (`useWorkflowOperations`, `usePanelResize`)
+- **Files**: kebab-case matching export name (`workflow-list.tsx`, `use-panel-resize.ts`)
+- **Stores**: kebab-case in stores/ directory (`sidebar/store.ts`, `workflows/registry/store.ts`)
+- **Constants**: SCREAMING_SNAKE_CASE at module level
+- **Interfaces**: PascalCase with descriptive suffix (`WorkflowListProps`, `UseWorkspaceManagementProps`)
+
+---
+
+## Component Architecture
+
+### Component Structure Template
+
+```typescript
+'use client' // Only if using hooks like useState, useEffect, etc.
+
+import { useCallback, useMemo, useRef, useState } from 'react'
+// Other imports organized: external, internal paths, relative
+
+/**
+ * Constants - Define at module level before component
+ */
+const DEFAULT_VALUE = 100
+const MIN_VALUE = 50
+const MAX_VALUE = 200
+
+const CONFIG = {
+  SPACING: 8,
+  ITEM_HEIGHT: 25,
+} as const
+
+interface ComponentProps {
+  /** Description of prop */
+  requiredProp: string
+  /** Description with default noted */
+  optionalProp?: boolean
+  onAction?: (id: string) => void
+}
+
+/**
+ * Component description explaining purpose and key features.
+ * Mention important integrations, hooks, or patterns used.
+ *
+ * @param props - Component props
+ * @returns JSX description
+ */
+export function ComponentName({
+  requiredProp,
+  optionalProp = false,
+  onAction,
+}: ComponentProps) {
+  // 1. Refs first
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // 2. External hooks (router, params, context)
+  const params = useParams()
+
+  // 3. Store hooks
+  const { state, actions } = useStore()
+
+  // 4. Custom hooks (your feature hooks)
+  const { data, isLoading } = useCustomHook({ requiredProp })
+
+  // 5. Local state (UI-only concerns)
+  const [isOpen, setIsOpen] = useState(false)
+
+  // 6. Derived/computed values with useMemo
+  const filteredData = useMemo(() => {
+    return data.filter(item => item.active)
+  }, [data])
+
+  // 7. Callbacks with useCallback
+  const handleClick = useCallback((id: string) => {
+    onAction?.(id)
+  }, [onAction])
+
+  // 8. Effects
+  useEffect(() => {
+    // Setup logic
+    return () => {
+      // Cleanup logic
+    }
+  }, [])
+
+  // 9. Render helpers (if complex)
+  const renderItem = useCallback((item: Item) => (
+    <div key={item.id}>{item.name}</div>
+  ), [])
+
+  // 10. Return JSX
+  return (
+    <div ref={containerRef} className='...' aria-label='...'>
+      {/* Section comments for clarity */}
+      {/* Header */}
+      <header>...</header>
+
+      {/* Content */}
+      <main>...</main>
+    </div>
+  )
+}
+```
+
+### Component Rules
+
+1. **Client Components**: Add `'use client'` directive when using React hooks
+2. **Props Interface**: Always define TypeScript interface, even for simple props
+3. **TSDoc Required and Up-to-Date**: Include description, @param, and @returns. Update TSDoc whenever props, behavior, or side effects change (including additions and deletions).
+4. **Constants**: Extract magic numbers and config to module-level constants using `as const`
+5. **No Inline Styles**: Use Tailwind classes exclusively (CSS variables for dynamic values)
+6. **Section Comments**: Use comments to mark logical sections of JSX
+7. **Semantic HTML**: Use appropriate elements (`aside`, `nav`, `article`, etc.)
+8. **ARIA Attributes**: Include `aria-label`, `aria-orientation`, `role` where appropriate
+9. **Refs for DOM**: Use refs for direct DOM access, not state
+10. **Callback Props**: Always use optional chaining for callback props (`onAction?.(...)`)
+
+---
+
+## Custom Hooks Architecture
+
+### Hook Structure Template
+
+```typescript
+import { useCallback, useEffect, useState } from 'react'
+import { createLogger } from '@/lib/logs/console/logger'
+
+const logger = createLogger('useFeatureName')
+
+/**
+ * Constants specific to this hook
+ */
+const DEFAULT_CONFIG = {
+  timeout: 1000,
+  retries: 3,
+} as const
+
+interface UseFeatureNameProps {
+  /** Description of required prop */
+  id: string
+  /** Optional callback fired on success */
+  onSuccess?: (result: Result) => void
+}
+
+/**
+ * Custom hook to [clear description of purpose].
+ * [Additional context about what it manages or coordinates].
+ *
+ * @param props - Configuration object containing id and callbacks
+ * @returns Feature state and operations
+ */
+export function useFeatureName({ id, onSuccess }: UseFeatureNameProps) {
+  // 1. Refs (to avoid dependency issues)
+  const idRef = useRef(id)
+  const onSuccessRef = useRef(onSuccess)
+
+  // 2. State
+  const [data, setData] = useState<Data | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
+
+  // 3. Update refs when values change
+  useEffect(() => {
+    idRef.current = id
+    onSuccessRef.current = onSuccess
+  }, [id, onSuccess])
+
+  // 4. Operations with useCallback (stable references)
+  const fetchData = useCallback(async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const response = await fetch(`/api/data/${idRef.current}`)
+      const result = await response.json()
+      setData(result)
+      onSuccessRef.current?.(result)
+      logger.info('Data fetched successfully', { id: idRef.current })
+    } catch (err) {
+      const error = err as Error
+      setError(error)
+      logger.error('Failed to fetch data', { error })
+    } finally {
+      setIsLoading(false)
+    }
+  }, []) // Empty deps because using refs
+
+  const updateData = useCallback(async (newData: Partial<Data>) => {
+    try {
+      logger.info('Updating data', { id: idRef.current, newData })
+      const response = await fetch(`/api/data/${idRef.current}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newData),
+      })
+      const result = await response.json()
+      setData(result)
+      return true
+    } catch (err) {
+      logger.error('Failed to update data', { error: err })
+      return false
+    }
+  }, [])
+
+  // 5. Effects
+  useEffect(() => {
+    if (id) {
+      fetchData()
+    }
+  }, [id, fetchData])
+
+  // 6. Return object - group by state and operations
+  return {
+    // State
+    data,
+    isLoading,
+    error,
+
+    // Operations
+    fetchData,
+    updateData,
+  }
+}
+```
+
+### Hook Rules
+
+1. **Single Responsibility**: Each hook manages one concern (data fetching, resize, navigation)
+2. **Props Interface**: Define TypeScript interface for all parameters
+3. **TSDoc Required and Up-to-Date**: Include clear description, @param, and @returns. Update TSDoc whenever inputs, outputs, behavior, or side effects change (including additions and deletions).
+4. **Logger Usage**: Import and use logger instead of console.log
+5. **Refs for Stable Deps**: Use refs to avoid recreating callbacks unnecessarily
+6. **useCallback Always**: Wrap all returned functions in useCallback
+7. **Grouped Returns**: Return object with comments separating State and Operations
+8. **Error Handling**: Always try/catch async operations and log errors
+9. **Loading States**: Track loading, error states for async operations
+10. **Dependency Arrays**: Be explicit and correct with all dependency arrays
+
+---
+
+## Store Architecture (Zustand)
+
+### Store Structure Template
+
+```typescript
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+
+/**
+ * Store state interface
+ */
+interface FeatureState {
+  // State properties
+  items: Item[]
+  activeId: string | null
+  isLoading: boolean
+
+  // Actions
+  setItems: (items: Item[]) => void
+  setActiveId: (id: string | null) => void
+  addItem: (item: Item) => void
+  removeItem: (id: string) => void
+  clearState: () => void
+}
+
+/**
+ * Constants - Configuration values
+ */
+const DEFAULT_CONFIG = {
+  maxItems: 100,
+  cacheTime: 3600,
+} as const
+
+/**
+ * Initial state factory
+ */
+const createInitialState = () => ({
+  items: [],
+  activeId: null,
+  isLoading: false,
+})
+
+/**
+ * Feature store managing [description].
+ * [Additional context about what this store coordinates].
+ */
+export const useFeatureStore = create<FeatureState>()(
+  persist(
+    (set, get) => ({
+      ...createInitialState(),
+
+      setItems: (items) => set({ items }),
+
+      setActiveId: (id) => set({ activeId: id }),
+
+      addItem: (item) =>
+        set((state) => ({
+          items: [...state.items, item].slice(-DEFAULT_CONFIG.maxItems),
+        })),
+
+      removeItem: (id) =>
+        set((state) => ({
+          items: state.items.filter((item) => item.id !== id),
+          activeId: state.activeId === id ? null : state.activeId,
+        })),
+
+      clearState: () => set(createInitialState()),
+    }),
+    {
+      name: 'feature-state',
+      // Optionally customize what to persist
+      partialize: (state) => ({
+        items: state.items,
+        activeId: state.activeId,
+      }),
+      onRehydrateStorage: () => (state) => {
+        // Validate and transform persisted state if needed
+        if (state) {
+          // Enforce constraints
+          if (state.items.length > DEFAULT_CONFIG.maxItems) {
+            state.items = state.items.slice(-DEFAULT_CONFIG.maxItems)
+          }
+        }
+      },
+    }
+  )
+)
+```
+
+### Store Rules
+
+1. **Interface First**: Define TypeScript interface including both state and actions
+2. **Constants**: Extract configuration values to module-level constants
+3. **TSDoc on Store**: Document what the store manages
+4. **Persist Strategically**: Only persist what's needed across sessions
+5. **Validation**: Use onRehydrateStorage to validate persisted state
+6. **Immutable Updates**: Use set() with new objects/arrays, never mutate
+7. **Derived State**: Use getters or selectors, not stored computed values
+8. **CSS Variables**: Update CSS variables in setters for hydration-safe dynamic styles
+9. **Cleanup Actions**: Provide clear/reset actions for state cleanup
+10. **Functional Updates**: Use `set((state) => ...)` when new state depends on old state
+
+---
+
+## State Management Strategy
+
+### When to Use Local State (useState)
+
+- UI-only concerns (dropdown open, hover states, form inputs)
+- Component-scoped state not needed elsewhere
+- Temporary state that doesn't need persistence
+
+### When to Use Zustand Store
+
+- Shared state across multiple components
+- State that needs persistence (localStorage)
+- Global application state (user, theme, settings)
+- Complex state with many actions/reducers
+
+### When to Use Refs (useRef)
+
+- DOM element references
+- Avoiding dependency issues in hooks
+- Storing mutable values that don't trigger re-renders
+- Accessing latest props/state in callbacks without recreating them
+
+---
+
+## CSS and Styling
+
+### CSS Variables for Dynamic Styles
+
+Use CSS variables for values that need to persist across hydration:
+
+```typescript
+// In store setter
+setSidebarWidth: (width) => {
+  const clampedWidth = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, width))
+  set({ sidebarWidth: clampedWidth })
+  
+  // Update CSS variable for immediate visual feedback
+  if (typeof window !== 'undefined') {
+    document.documentElement.style.setProperty('--sidebar-width', `${clampedWidth}px`)
+  }
+}
+
+// In component
+<aside 
+  className='sidebar-container'
+  style={{ width: 'var(--sidebar-width)' }}
+>
+```
+
+### Tailwind Classes
+
+1. **No Inline Styles**: Use Tailwind utility classes exclusively
+2. **Dark Mode**: Always include dark mode variants (`dark:bg-[#1E1E1E]`)
+3. **Exact Values**: Use exact values from design system (`text-[14px]`, `h-[25px]`)
+4. **clsx for Conditionals**: Use clsx() for conditional classes
+5. **Consistent Spacing**: Use spacing tokens (`gap-[8px]`, `px-[14px]`)
+6. **Transitions**: Add transitions for interactive states (`transition-colors`)
+7. **Prefer px units**: Use arbitrary px values over scale utilities (e.g., `px-[4px]` instead of `px-1`)
+
+```typescript
+<div
+  className={clsx(
+    'base-classes that-always-apply',
+    isActive && 'active-state-classes',
+    disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-accent',
+    'dark:bg-[#1E1E1E] dark:border-[#2C2C2C]' // Dark mode variants
+  )}
+>
+```
+
+---
+
+## TypeScript Patterns
+
+### Interface Conventions
+
+```typescript
+// Component props
+interface ComponentNameProps {
+  requiredProp: string
+  optionalProp?: boolean
+}
+
+// Hook props
+interface UseHookNameProps {
+  id: string
+  onSuccess?: () => void
+}
+
+// Store state
+interface FeatureState {
+  data: Data[]
+  isLoading: boolean
+  actions: () => void
+}
+
+// Return types (if complex)
+interface UseHookNameReturn {
+  state: State
+  actions: Actions
+}
+```
+
+### Type Safety Rules
+
+1. **No `any`**: Use proper types or `unknown` with type guards
+2. **Props Interface**: Always define, even for simple components
+3. **Callback Types**: Define full signature including parameters and return type
+4. **Generic Types**: Use generics for reusable components/hooks
+5. **Const Assertions**: Use `as const` for constant objects/arrays
+6. **Type Guards**: Create type guards for runtime checks
+7. **Ref Types**: Explicitly type refs (`useRef<HTMLDivElement>(null)`)
+
+---
+
+## Performance Patterns
+
+### Memoization
+
+```typescript
+// useMemo for expensive computations
+const sortedItems = useMemo(() => {
+  return items.sort((a, b) => a.name.localeCompare(b.name))
+}, [items])
+
+// useCallback for functions passed as props
+const handleClick = useCallback((id: string) => {
+  onItemClick?.(id)
+}, [onItemClick])
+
+// useCallback for render functions
+const renderItem = useCallback((item: Item) => (
+  <ItemComponent key={item.id} item={item} onClick={handleClick} />
+), [handleClick])
+```
+
+### When to Memoize
+
+1. **useMemo**: Expensive calculations, filtering/sorting large arrays, object creation in render
+2. **useCallback**: Functions passed to child components, dependencies in other hooks, event handlers used in effects
+3. **Don't Over-Memoize**: Simple calculations, primitives, or functions not passed down
+
+### Refs for Avoiding Recreations
+
+```typescript
+// Pattern: Use refs to avoid function recreations
+const onSuccessRef = useRef(onSuccess)
+
+useEffect(() => {
+  onSuccessRef.current = onSuccess
+}, [onSuccess])
+
+const stableCallback = useCallback(() => {
+  // Use ref so this callback never needs to change
+  onSuccessRef.current?.()
+}, []) // Empty deps!
+```
+
+---
+
+## Logging and Debugging
+
+### Logger Usage
+
+```typescript
+import { createLogger } from '@/lib/logs/console/logger'
+
+const logger = createLogger('ComponentName')
+
+// Use throughout component/hook
+logger.info('User action', { userId, action })
+logger.warn('Potential issue', { details })
+logger.error('Operation failed', { error })
+```
+
+### Logging Rules
+
+1. **No console.log**: Use logger.info/warn/error instead
+2. **Logger Per File**: Create logger with component/hook name
+3. **Structured Logging**: Pass objects with context, not just strings
+4. **Log Levels**:
+   - `info`: Normal operations, user actions, state changes
+   - `warn`: Unusual but handled situations, deprecations
+   - `error`: Failures, exceptions, errors that need attention
+
+---
+
+## Code Quality Checklist
+
+Before considering a component/hook complete, verify:
+
+### Documentation
+- [ ] TSDoc in sync with implementation after any change (params/returns/behavior/throws)
+- [ ] TSDoc comment on component/hook/store
+- [ ] Props interface documented with /** */ comments
+- [ ] Complex logic explained with inline comments
+- [ ] Section comments in JSX for clarity
+
+### TypeScript
+- [ ] All props have interface defined
+- [ ] No `any` types used
+- [ ] Refs properly typed
+- [ ] Return types explicit for complex hooks
+
+### Performance
+- [ ] useMemo for expensive computations
+- [ ] useCallback for functions passed as props
+- [ ] Refs used to avoid unnecessary recreations
+- [ ] No unnecessary re-renders
+
+### Hooks
+- [ ] Correct dependency arrays
+- [ ] Cleanup in useEffect return functions
+- [ ] Stable callback references with useCallback
+- [ ] Logic extracted to custom hooks when reusable
+
+### Styling
+- [ ] No styles attributes (use className with Tailwind)
+- [ ] Dark mode variants included
+- [ ] Consistent spacing using design tokens
+- [ ] clsx for conditional classes
+
+### Accessibility
+- [ ] Semantic HTML elements
+- [ ] ARIA labels and roles where needed
+- [ ] Keyboard navigation support
+- [ ] Focus management
+
+### State Management
+- [ ] Local state for UI-only concerns
+- [ ] Zustand for shared/persisted state
+- [ ] No duplicate state
+- [ ] Clear state update patterns
+
+### Error Handling
+- [ ] try/catch around async operations
+- [ ] Error states tracked and displayed
+- [ ] Loading states for async actions
+- [ ] Failures logged with context
+
+---
+
+## Anti-Patterns to Avoid
+
+### ❌ Don't Do This
+
+```typescript
+// ❌ Inline styles
+<div style={{ width: 200, marginTop: 10 }}>
+
+// ❌ console.log
+console.log('Debug info')
+
+// ❌ any type
+const handleClick = (e: any) => {}
+
+// ❌ Missing dependencies
+useEffect(() => {
+  doSomething(prop)
+}, []) // Missing prop!
+
+// ❌ Mutating state
+const handleAdd = () => {
+  items.push(newItem) // Mutating!
+  setItems(items)
+}
+
+// ❌ No error handling
+const fetchData = async () => {
+  const data = await fetch('/api/data')
+  setData(data)
+}
+
+// ❌ Complex logic in component
+export function Component() {
+  const [data, setData] = useState([])
+  useEffect(() => {
+    // 50 lines of complex logic
+  }, [])
+}
+```
+
+### ✅ Do This Instead
+
+```typescript
+// ✅ Tailwind classes
+<div className='w-[200px] mt-[10px]'>
+
+// ✅ Logger
+logger.info('Debug info', { context })
+
+// ✅ Proper types
+const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {}
+
+// ✅ Complete dependencies
+useEffect(() => {
+  doSomething(prop)
+}, [prop])
+
+// ✅ Immutable updates
+const handleAdd = () => {
+  setItems([...items, newItem])
+}
+
+// ✅ Error handling
+const fetchData = async () => {
+  try {
+    const response = await fetch('/api/data')
+    if (!response.ok) throw new Error('Failed to fetch')
+    const data = await response.json()
+    setData(data)
+  } catch (error) {
+    logger.error('Fetch failed', { error })
+    setError(error)
+  }
+}
+
+// ✅ Extract to custom hook
+export function Component() {
+  const { data, isLoading, error } = useFeatureData()
+}
+```
+
+---
+
+## Examples from Codebase
+
+Study these files as reference implementations:
+
+### Components
+- `sidebar-new.tsx` - Main component structure, hook composition
+- `workflow-list.tsx` - Complex component with drag-drop, memoization
+- `blocks.tsx` - Simple panel component with resize
+- `triggers.tsx` - Similar panel pattern
+
+### Hooks
+- `use-workspace-management.ts` - Complex hook with multiple operations, refs pattern
+- `use-sidebar-resize.ts` - Simple focused hook with event listeners
+- `use-workflow-operations.ts` - Hook coordinating store and navigation
+- `use-panel-resize.ts` - Shared resize logic pattern
+
+### Stores
+- `stores/sidebar/store.ts` - Persist middleware, CSS variables, validation
+
+---
+
+## Summary
+
+This architecture prioritizes:
+
+1. **Separation of Concerns**: Components render, hooks contain logic, stores manage state
+2. **Type Safety**: TypeScript everywhere with no escape hatches
+3. **Performance**: Smart use of memoization and refs
+4. **Maintainability**: Clear structure, documentation, and consistent patterns
+5. **Developer Experience**: Logging, error handling, and clear interfaces
+
+When in doubt, follow the patterns established in the sidebar-new component family.

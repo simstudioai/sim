@@ -19,7 +19,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       id: 'operation',
       title: 'Operation',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'Read Data', id: 'read' },
         { label: 'Write/Update Data', id: 'write' },
@@ -31,7 +30,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       id: 'credential',
       title: 'Microsoft Account',
       type: 'oauth-input',
-      layout: 'full',
       provider: 'microsoft-excel',
       serviceId: 'microsoft-excel',
       requiredScopes: [],
@@ -42,7 +40,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       id: 'spreadsheetId',
       title: 'Select Sheet',
       type: 'file-selector',
-      layout: 'full',
       canonicalParamId: 'spreadsheetId',
       provider: 'microsoft-excel',
       serviceId: 'microsoft-excel',
@@ -56,7 +53,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       id: 'manualSpreadsheetId',
       title: 'Spreadsheet ID',
       type: 'short-input',
-      layout: 'full',
       canonicalParamId: 'spreadsheetId',
       placeholder: 'Enter spreadsheet ID',
       dependsOn: ['credential'],
@@ -66,7 +62,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       id: 'range',
       title: 'Range',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Sheet name and cell range (e.g., Sheet1!A1:D10)',
       condition: { field: 'operation', value: ['read', 'write', 'update'] },
     },
@@ -74,7 +69,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       id: 'tableName',
       title: 'Table Name',
       type: 'short-input',
-      layout: 'full',
       placeholder: 'Name of the Excel table',
       condition: { field: 'operation', value: ['table_add'] },
       required: true,
@@ -83,7 +77,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       id: 'values',
       title: 'Values',
       type: 'long-input',
-      layout: 'full',
       placeholder:
         'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}, {"name":"Jane", "age":25}])',
       condition: { field: 'operation', value: 'write' },
@@ -93,7 +86,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       id: 'valueInputOption',
       title: 'Value Input Option',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'User Entered (Parse formulas)', id: 'USER_ENTERED' },
         { label: "Raw (Don't parse formulas)", id: 'RAW' },
@@ -104,7 +96,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       id: 'values',
       title: 'Values',
       type: 'long-input',
-      layout: 'full',
       placeholder:
         'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}, {"name":"Jane", "age":25}])',
       condition: { field: 'operation', value: 'update' },
@@ -114,7 +105,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       id: 'valueInputOption',
       title: 'Value Input Option',
       type: 'dropdown',
-      layout: 'full',
       options: [
         { label: 'User Entered (Parse formulas)', id: 'USER_ENTERED' },
         { label: "Raw (Don't parse formulas)", id: 'RAW' },
@@ -125,7 +115,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       id: 'values',
       title: 'Values',
       type: 'long-input',
-      layout: 'full',
       placeholder:
         'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}, {"name":"Jane", "age":25}])',
       condition: { field: 'operation', value: 'table_add' },

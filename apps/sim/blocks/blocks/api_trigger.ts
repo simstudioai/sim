@@ -22,7 +22,6 @@ export const ApiTriggerBlock: BlockConfig = {
       id: 'inputFormat',
       title: 'Input Format',
       type: 'input-format',
-      layout: 'full',
       description: 'Define the JSON input schema accepted by the API endpoint.',
     },
   ],

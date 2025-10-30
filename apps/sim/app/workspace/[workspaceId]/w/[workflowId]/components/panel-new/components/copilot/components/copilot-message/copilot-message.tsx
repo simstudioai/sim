@@ -2,7 +2,7 @@
 
 import { type FC, memo, useMemo, useState } from 'react'
 import { Check, Copy, CornerDownLeft, RotateCcw, Square, ThumbsDown, ThumbsUp } from 'lucide-react'
-import { Button } from '@/components/emcn/components/button'
+import { Button } from '@/components/emcn'
 import { createLogger } from '@/lib/logs/console/logger'
 import { InlineToolCall } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel-new/components/copilot/components'
 import {

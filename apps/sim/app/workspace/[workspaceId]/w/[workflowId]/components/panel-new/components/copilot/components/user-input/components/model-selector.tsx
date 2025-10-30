@@ -6,7 +6,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  TooltipProvider,
 } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import { getProviderIcon } from '@/providers/utils'
@@ -110,118 +109,116 @@ export function ModelSelector({
         side={isNearTop ? 'bottom' : 'top'}
         className='max-h-[400px] p-0'
       >
-        <TooltipProvider delayDuration={100} skipDelayDuration={0}>
-          <div className='w-[220px]'>
-            <div className='max-h-[280px] overflow-y-auto p-2'>
-              <div>
-                <div className='mb-1'>
-                  <span className='font-medium text-xs'>Model</span>
+        <div className='w-[220px]'>
+          <div className='max-h-[280px] overflow-y-auto p-2'>
+            <div>
+              <div className='mb-1'>
+                <span className='font-medium text-xs'>Model</span>
+              </div>
+              <div className='space-y-2'>
+                {/* Anthropic Models */}
+                <div>
+                  <div className='px-2 py-1 font-medium text-[10px] text-muted-foreground uppercase'>
+                    Anthropic
+                  </div>
+                  <div className='space-y-0.5'>
+                    {modelOptions
+                      .filter((option) =>
+                        [
+                          'claude-4-sonnet',
+                          'claude-4.5-haiku',
+                          'claude-4.5-sonnet',
+                          'claude-4.1-opus',
+                        ].includes(option.value)
+                      )
+                      .map((option) => (
+                        <DropdownMenuItem
+                          key={option.value}
+                          onSelect={() => {
+                            onModelSelect(option.value)
+                            // Automatically turn off Lite mode for fast models
+                            if (
+                              MODEL_CATEGORIES.ZAP.includes(option.value as any) &&
+                              agentPrefetch
+                            ) {
+                              onAgentPrefetchChange(false)
+                            }
+                          }}
+                          className={cn(
+                            'flex h-7 items-center gap-1.5 px-2 py-1 text-left text-xs',
+                            selectedModel === option.value ? 'bg-muted/50' : ''
+                          )}
+                        >
+                          {getModelIconComponent(option.value)}
+                          <span>{option.label}</span>
+                        </DropdownMenuItem>
+                      ))}
+                  </div>
                 </div>
-                <div className='space-y-2'>
-                  {/* Anthropic Models */}
-                  <div>
-                    <div className='px-2 py-1 font-medium text-[10px] text-muted-foreground uppercase'>
-                      Anthropic
-                    </div>
-                    <div className='space-y-0.5'>
-                      {modelOptions
-                        .filter((option) =>
-                          [
-                            'claude-4-sonnet',
-                            'claude-4.5-haiku',
-                            'claude-4.5-sonnet',
-                            'claude-4.1-opus',
-                          ].includes(option.value)
-                        )
-                        .map((option) => (
-                          <DropdownMenuItem
-                            key={option.value}
-                            onSelect={() => {
-                              onModelSelect(option.value)
-                              // Automatically turn off Lite mode for fast models
-                              if (
-                                MODEL_CATEGORIES.ZAP.includes(option.value as any) &&
-                                agentPrefetch
-                              ) {
-                                onAgentPrefetchChange(false)
-                              }
-                            }}
-                            className={cn(
-                              'flex h-7 items-center gap-1.5 px-2 py-1 text-left text-xs',
-                              selectedModel === option.value ? 'bg-muted/50' : ''
-                            )}
-                          >
-                            {getModelIconComponent(option.value)}
-                            <span>{option.label}</span>
-                          </DropdownMenuItem>
-                        ))}
-                    </div>
-                  </div>
 
-                  {/* OpenAI Models */}
-                  <div>
-                    <div className='px-2 py-1 font-medium text-[10px] text-muted-foreground uppercase'>
-                      OpenAI
-                    </div>
-                    <div className='space-y-0.5'>
-                      {modelOptions
-                        .filter((option) =>
-                          [
-                            'gpt-5-fast',
-                            'gpt-5',
-                            'gpt-5-medium',
-                            'gpt-5-high',
-                            'gpt-4o',
-                            'gpt-4.1',
-                            'o3',
-                          ].includes(option.value)
-                        )
-                        .map((option) => (
-                          <DropdownMenuItem
-                            key={option.value}
-                            onSelect={() => {
-                              onModelSelect(option.value)
-                              // Automatically turn off Lite mode for fast models
-                              if (
-                                MODEL_CATEGORIES.ZAP.includes(option.value as any) &&
-                                agentPrefetch
-                              ) {
-                                onAgentPrefetchChange(false)
-                              }
-                            }}
-                            className={cn(
-                              'flex h-7 items-center gap-1.5 px-2 py-1 text-left text-xs',
-                              selectedModel === option.value ? 'bg-muted/50' : ''
-                            )}
-                          >
-                            {getModelIconComponent(option.value)}
-                            <span>{option.label}</span>
-                          </DropdownMenuItem>
-                        ))}
-                    </div>
+                {/* OpenAI Models */}
+                <div>
+                  <div className='px-2 py-1 font-medium text-[10px] text-muted-foreground uppercase'>
+                    OpenAI
                   </div>
+                  <div className='space-y-0.5'>
+                    {modelOptions
+                      .filter((option) =>
+                        [
+                          'gpt-5-fast',
+                          'gpt-5',
+                          'gpt-5-medium',
+                          'gpt-5-high',
+                          'gpt-4o',
+                          'gpt-4.1',
+                          'o3',
+                        ].includes(option.value)
+                      )
+                      .map((option) => (
+                        <DropdownMenuItem
+                          key={option.value}
+                          onSelect={() => {
+                            onModelSelect(option.value)
+                            // Automatically turn off Lite mode for fast models
+                            if (
+                              MODEL_CATEGORIES.ZAP.includes(option.value as any) &&
+                              agentPrefetch
+                            ) {
+                              onAgentPrefetchChange(false)
+                            }
+                          }}
+                          className={cn(
+                            'flex h-7 items-center gap-1.5 px-2 py-1 text-left text-xs',
+                            selectedModel === option.value ? 'bg-muted/50' : ''
+                          )}
+                        >
+                          {getModelIconComponent(option.value)}
+                          <span>{option.label}</span>
+                        </DropdownMenuItem>
+                      ))}
+                  </div>
+                </div>
 
-                  {/* More Models Button */}
-                  <div className='mt-1 border-t pt-1'>
-                    <button
-                      type='button'
-                      onClick={() => {
-                        window.dispatchEvent(
-                          new CustomEvent('open-settings', {
-                            detail: { tab: 'copilot' },
-                          })
-                        )
-                      }}
-                      className='w-full rounded-sm px-2 py-1.5 text-left text-muted-foreground text-xs transition-colors hover:bg-muted/50'
-                    >
-                      More Models...
-                    </button>
-                  </div>
+                {/* More Models Button */}
+                <div className='mt-1 border-t pt-1'>
+                  <button
+                    type='button'
+                    onClick={() => {
+                      window.dispatchEvent(
+                        new CustomEvent('open-settings', {
+                          detail: { tab: 'copilot' },
+                        })
+                      )
+                    }}
+                    className='w-full rounded-sm px-2 py-1.5 text-left text-muted-foreground text-xs transition-colors hover:bg-muted/50'
+                  >
+                    More Models...
+                  </button>
                 </div>
               </div>
             </div>
           </div>
-        </TooltipProvider>
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   )

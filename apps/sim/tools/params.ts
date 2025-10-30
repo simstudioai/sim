@@ -21,7 +21,6 @@ export interface UIComponentConfig {
   password?: boolean
   condition?: ComponentCondition
   title?: string
-  layout?: string
   value?: unknown
   provider?: string
   serviceId?: string
@@ -47,7 +46,6 @@ export interface SubBlockConfig {
   placeholder?: string
   password?: boolean
   condition?: ComponentCondition
-  layout?: string
   value?: unknown
   provider?: string
   serviceId?: string
@@ -223,7 +221,6 @@ export function getToolParametersConfig(
               password: subBlock.password,
               condition: subBlock.condition,
               title: subBlock.title,
-              layout: subBlock.layout,
               value: subBlock.value,
               provider: subBlock.provider,
               serviceId: subBlock.serviceId,

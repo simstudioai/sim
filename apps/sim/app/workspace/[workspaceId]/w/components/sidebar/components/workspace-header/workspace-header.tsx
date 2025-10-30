@@ -2,9 +2,9 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { ChevronDown, ChevronUp, PanelLeft } from 'lucide-react'
+import { Tooltip } from '@/components/emcn'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
 
 /**
@@ -130,8 +130,8 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
         </div>
 
         {/* Toggle Sidebar - with gap-1 from chevron */}
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
             <Button
               variant='ghost'
               size='icon'
@@ -140,9 +140,9 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
             >
               <PanelLeft className='h-4 w-4' />
             </Button>
-          </TooltipTrigger>
-          <TooltipContent side='bottom'>Toggle sidebar</TooltipContent>
-        </Tooltip>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='bottom'>Toggle sidebar</Tooltip.Content>
+        </Tooltip.Root>
       </>
     )
 
