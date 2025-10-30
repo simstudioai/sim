@@ -57,7 +57,6 @@ export async function processChatFiles(
     transformedFiles,
     executionContext,
     requestId,
-    false,
     userId
   )
 

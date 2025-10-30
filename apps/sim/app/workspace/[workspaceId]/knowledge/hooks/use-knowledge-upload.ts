@@ -356,14 +356,13 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
       try {
-        // For large files (>50MB), use multipart upload (server-orchestrated)
+        // For large files (>50MB), use multipart upload
         if (file.size > UPLOAD_CONFIG.LARGE_FILE_THRESHOLD) {
           presignedData = presignedOverride ?? (await getPresignedData(file, timeoutMs, controller))
           return await uploadFileInChunks(file, presignedData, timeoutMs, fileIndex)
         }
 
-        // For all other files, use server-side upload (no presigned URLs)
-        logger.info(`Using server-side upload for ${file.name}`)
+        // For all other files, use server-side upload
         return await uploadFileThroughAPI(file, timeoutMs)
       } finally {
         clearTimeout(timeoutId)
@@ -712,7 +711,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
   }
 
   /**
-   * Fallback upload through API (server-side)
+   * Fallback upload through API
    */
   const uploadFileThroughAPI = async (file: File, timeoutMs: number): Promise<UploadedFile> => {
     const controller = new AbortController()

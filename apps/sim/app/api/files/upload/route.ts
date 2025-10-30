@@ -109,7 +109,6 @@ export async function POST(request: NextRequest) {
           buffer,
           originalName,
           file.type,
-          false, // isAsync
           session.user.id // userId available from session
         )
 

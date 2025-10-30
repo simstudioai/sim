@@ -14,7 +14,6 @@ export async function processExecutionFile(
   file: { type: string; data: string; name: string; mime?: string },
   executionContext: { workspaceId: string; workflowId: string; executionId: string },
   requestId: string,
-  isAsync?: boolean,
   userId?: string
 ): Promise<UserFile | null> {
   if (file.type === 'file' && file.data && file.name) {
@@ -50,7 +49,6 @@ export async function processExecutionFile(
       buffer,
       file.name,
       mimeType || file.mime || 'application/octet-stream',
-      isAsync,
       userId
     )
 
@@ -81,7 +79,6 @@ export async function processExecutionFiles(
   fieldValue: any,
   executionContext: { workspaceId: string; workflowId: string; executionId: string },
   requestId: string,
-  isAsync?: boolean,
   userId?: string
 ): Promise<UserFile[]> {
   if (!fieldValue || typeof fieldValue !== 'object') {
@@ -94,7 +91,7 @@ export async function processExecutionFiles(
 
   for (const file of files) {
     try {
-      const userFile = await processExecutionFile(file, fullContext, requestId, isAsync, userId)
+      const userFile = await processExecutionFile(file, fullContext, requestId, userId)
 
       if (userFile) {
         uploadedFiles.push(userFile)

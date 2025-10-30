@@ -636,7 +636,6 @@ export async function POST(
                 fieldValue,
                 executionContext,
                 requestId,
-                isAsync,
                 authenticatedUserId
               )
 
