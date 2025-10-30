@@ -4,6 +4,7 @@ import { and, eq, isNull, ne, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { generateRequestId } from '@/lib/utils'
@@ -41,18 +42,21 @@ export async function GET(request: NextRequest) {
   const workflowId = searchParams.get('workflowId')
 
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
+    // Use hybrid auth to support session, API key, and internal JWT
+    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized custom tools access attempt`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const userId = authResult.userId
 
     let resolvedWorkspaceId: string | null = workspaceId
 
     // If workflowId is provided, get workspaceId from the workflow
     if (!resolvedWorkspaceId && workflowId) {
       const [workflowData] = await db
-        .select({ workspaceId: workflow.workspaceId })
+        .select({ workspaceId: workflow.workspaceId, workflowUserId: workflow.userId })
         .from(workflow)
         .where(eq(workflow.id, workflowId))
         .limit(1)
@@ -63,38 +67,49 @@ export async function GET(request: NextRequest) {
       }
 
       resolvedWorkspaceId = workflowData.workspaceId
+
+      // For internal JWT auth (API triggers, schedules, webhooks), verify workflow ownership
+      if (authResult.authType === 'internal_jwt' && workflowData.workflowUserId !== userId) {
+        logger.warn(
+          `[${requestId}] User ${userId} attempted to access workflow ${workflowId} owned by ${workflowData.workflowUserId}`
+        )
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+      }
     }
 
-    if (!resolvedWorkspaceId) {
-      logger.warn(`[${requestId}] Missing workspaceId parameter`)
-      return NextResponse.json({ error: 'workspaceId is required' }, { status: 400 })
-    }
-
-    // Check workspace permissions
-    const userPermission = await getUserEntityPermissions(
-      session.user.id,
-      'workspace',
-      resolvedWorkspaceId
-    )
-    if (!userPermission) {
-      logger.warn(
-        `[${requestId}] User ${session.user.id} does not have access to workspace ${resolvedWorkspaceId}`
+    // Check workspace permissions (skip for internal JWT when workflowId is provided, as we already verified ownership)
+    // Also skip if there's no workspaceId (legacy workflows/tools)
+    if (resolvedWorkspaceId && (authResult.authType !== 'internal_jwt' || !workflowId)) {
+      const userPermission = await getUserEntityPermissions(
+        userId,
+        'workspace',
+        resolvedWorkspaceId
       )
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+      if (!userPermission) {
+        logger.warn(
+          `[${requestId}] User ${userId} does not have access to workspace ${resolvedWorkspaceId}`
+        )
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+      }
     }
 
     // Fetch workspace-scoped tools AND user-scoped tools (for backward compatibility)
+    // If workspaceId is null (legacy workflow), only fetch user-scoped tools
+    // If workspaceId exists, fetch both workspace-scoped and user-scoped tools
+    const conditions = []
+
+    if (resolvedWorkspaceId) {
+      // Include workspace-scoped tools
+      conditions.push(eq(customTools.workspaceId, resolvedWorkspaceId))
+    }
+
+    // Always include user-scoped tools (legacy tools without workspaceId)
+    conditions.push(and(isNull(customTools.workspaceId), eq(customTools.userId, userId)))
+
     const result = await db
       .select()
       .from(customTools)
-      .where(
-        and(
-          or(
-            eq(customTools.workspaceId, resolvedWorkspaceId),
-            and(isNull(customTools.workspaceId), eq(customTools.userId, session.user.id))
-          )
-        )
-      )
+      .where(or(...conditions))
 
     return NextResponse.json({ data: result }, { status: 200 })
   } catch (error) {
