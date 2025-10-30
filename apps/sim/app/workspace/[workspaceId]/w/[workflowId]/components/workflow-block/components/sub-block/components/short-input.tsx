@@ -410,7 +410,7 @@ export function ShortInput({
             isConnecting &&
               config?.connectionDroppable !== false &&
               'ring-2 ring-blue-500 ring-offset-2 focus-visible:ring-blue-500',
-            showCopyButton && 'pr-10'
+            showCopyButton && 'pr-14'
           )}
           placeholder={placeholder ?? ''}
           type='text'
@@ -453,12 +453,12 @@ export function ShortInput({
           className={cn(
             'pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
             'pl-3',
-            showCopyButton ? 'pr-10' : 'pr-3'
+            showCopyButton ? 'pr-14' : 'pr-3'
           )}
           style={{ overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           <div
-            className='w-full whitespace-pre'
+            className={cn('whitespace-pre', showCopyButton ? 'mr-12' : '')}
             style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
           >
             {password && !isFocused
@@ -472,22 +472,24 @@ export function ShortInput({
 
         {/* Copy Button */}
         {showCopyButton && value && (
-          <Button
-            type='button'
-            variant='ghost'
-            size='sm'
-            onClick={handleCopy}
-            disabled={!value}
-            className={cn(
-              'absolute top-0.5 right-0.5 h-8 w-8 p-0',
-              'text-muted-foreground/60 transition-all duration-200',
-              'hover:scale-105 hover:bg-muted/50 hover:text-foreground',
-              'active:scale-95'
-            )}
-            aria-label='Copy value'
-          >
-            {copied ? <Check className='h-3.5 w-3.5' /> : <Copy className='h-3.5 w-3.5' />}
-          </Button>
+          <div className='pointer-events-none absolute top-0 right-0 bottom-0 z-10 flex w-14 items-center justify-end pr-2'>
+            <Button
+              type='button'
+              variant='ghost'
+              size='sm'
+              onClick={handleCopy}
+              disabled={!value}
+              className={cn(
+                'pointer-events-auto h-8 w-8 p-0',
+                'text-muted-foreground/60 transition-all duration-200',
+                'hover:scale-105 hover:bg-muted/50 hover:text-foreground',
+                'bg-background/80 backdrop-blur-sm active:scale-95'
+              )}
+              aria-label='Copy value'
+            >
+              {copied ? <Check className='h-3.5 w-3.5' /> : <Copy className='h-3.5 w-3.5' />}
+            </Button>
+          </div>
         )}
 
         {/* Wand Button */}
