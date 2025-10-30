@@ -407,7 +407,7 @@ export function EnvironmentVariables({
             data-input-type='value'
             value={envVar.value}
             onChange={(e) => updateEnvVar(originalIndex, 'value', e.target.value)}
-            type={focusedValueIndex === originalIndex ? 'text' : 'password'}
+            type='text'
             onFocus={(e) => {
               if (!isConflict) {
                 e.target.removeAttribute('readOnly')
@@ -421,10 +421,15 @@ export function EnvironmentVariables({
             disabled={isConflict}
             aria-disabled={isConflict}
             name={`env_variable_value_${envVar.id || originalIndex}_${Math.random()}`}
-            autoComplete='new-password'
+            autoComplete='off'
             autoCapitalize='off'
             spellCheck='false'
             readOnly={isConflict}
+            style={
+              focusedValueIndex !== originalIndex && !isConflict
+                ? ({ WebkitTextSecurity: 'disc' } as React.CSSProperties)
+                : undefined
+            }
             className={`allow-scroll h-9 rounded-[8px] border-none px-3 font-normal text-sm ring-0 ring-offset-0 placeholder:text-muted-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 ${isConflict ? 'cursor-not-allowed border border-red-500 bg-[#F6D2D2] outline-none ring-0 disabled:bg-[#F6D2D2] disabled:opacity-100 dark:bg-[#442929] disabled:dark:bg-[#442929]' : 'bg-muted'}`}
           />
           <div className='flex items-center justify-end gap-2'>
@@ -476,8 +481,31 @@ export function EnvironmentVariables({
 
   return (
     <div className='relative flex h-full flex-col'>
-      {/* Hidden dummy input to prevent autofill */}
-      <input type='text' name='hidden' style={{ display: 'none' }} autoComplete='false' />
+      {/* Hidden dummy inputs to prevent browser password manager autofill */}
+      <input
+        type='text'
+        name='fakeusernameremembered'
+        autoComplete='username'
+        style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+        tabIndex={-1}
+        readOnly
+      />
+      <input
+        type='password'
+        name='fakepasswordremembered'
+        autoComplete='current-password'
+        style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+        tabIndex={-1}
+        readOnly
+      />
+      <input
+        type='email'
+        name='fakeemailremembered'
+        autoComplete='email'
+        style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+        tabIndex={-1}
+        readOnly
+      />
       {/* Fixed Header */}
       <div className='px-6 pt-4 pb-2'>
         {/* Search Input */}
