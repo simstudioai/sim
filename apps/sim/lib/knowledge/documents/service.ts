@@ -439,6 +439,19 @@ export async function processDocumentAsync(
   try {
     logger.info(`[${documentId}] Starting document processing: ${docData.filename}`)
 
+    const kb = await db
+      .select({
+        userId: knowledgeBase.userId,
+        workspaceId: knowledgeBase.workspaceId,
+      })
+      .from(knowledgeBase)
+      .where(eq(knowledgeBase.id, knowledgeBaseId))
+      .limit(1)
+
+    if (kb.length === 0) {
+      throw new Error(`Knowledge base not found: ${knowledgeBaseId}`)
+    }
+
     await db
       .update(document)
       .set({
@@ -458,7 +471,9 @@ export async function processDocumentAsync(
           docData.mimeType,
           processingOptions.chunkSize || 512,
           processingOptions.chunkOverlap || 200,
-          processingOptions.minCharactersPerChunk || 1
+          processingOptions.minCharactersPerChunk || 1,
+          kb[0].userId,
+          kb[0].workspaceId
         )
 
         if (processed.chunks.length > LARGE_DOC_CONFIG.MAX_CHUNKS_PER_DOCUMENT) {
