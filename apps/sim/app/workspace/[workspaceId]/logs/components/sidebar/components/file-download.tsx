@@ -35,7 +35,16 @@ export function FileDownload({ file, isExecutionFile = false, className }: FileD
     try {
       logger.info(`Initiating download for file: ${file.name}`)
 
-      // Generate a fresh download URL
+      if (file.key.startsWith('url/')) {
+        if (file.url) {
+          window.open(file.url, '_blank')
+          logger.info(`Opened URL-type file directly: ${file.url}`)
+          return
+        }
+        throw new Error('URL is required for URL-type files')
+      }
+
+      // Generate a fresh download URL for stored files
       const response = await fetch('/api/files/download', {
         method: 'POST',
         headers: {
@@ -44,6 +53,7 @@ export function FileDownload({ file, isExecutionFile = false, className }: FileD
         body: JSON.stringify({
           key: file.key,
           name: file.name,
+          url: file.url, // Pass URL for URL-type files
           storageProvider: file.storageProvider,
           bucketName: file.bucketName,
           isExecutionFile, // Add flag to indicate execution file

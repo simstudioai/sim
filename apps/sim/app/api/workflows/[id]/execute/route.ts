@@ -565,7 +565,34 @@ export async function POST(
       input: rawInput,
     } = extractExecutionParams(request as NextRequest, parsedBody)
 
-    // Generate executionId early so it can be used for file uploads
+    let authenticatedUserId: string
+    let triggerType: TriggerType = 'manual'
+
+    if (finalIsSecureMode) {
+      authenticatedUserId = validation.workflow.userId
+      triggerType = 'manual'
+    } else {
+      const session = await getSession()
+      const apiKeyHeader = request.headers.get('X-API-Key')
+
+      if (session?.user?.id && !apiKeyHeader) {
+        authenticatedUserId = session.user.id
+        triggerType = 'manual'
+      } else if (apiKeyHeader) {
+        const auth = await authenticateApiKeyFromHeader(apiKeyHeader)
+        if (!auth.success || !auth.userId) {
+          return createErrorResponse('Unauthorized', 401)
+        }
+        authenticatedUserId = auth.userId
+        triggerType = 'api'
+        if (auth.keyId) {
+          void updateApiKeyLastUsed(auth.keyId).catch(() => {})
+        }
+      } else {
+        return createErrorResponse('Authentication required', 401)
+      }
+    }
+
     const executionId = uuidv4()
 
     let processedInput = rawInput
@@ -609,7 +636,8 @@ export async function POST(
                 fieldValue,
                 executionContext,
                 requestId,
-                isAsync
+                isAsync,
+                authenticatedUserId
               )
 
               if (uploadedFiles.length > 0) {
@@ -632,34 +660,6 @@ export async function POST(
     }
 
     const input = processedInput
-
-    let authenticatedUserId: string
-    let triggerType: TriggerType = 'manual'
-
-    if (finalIsSecureMode) {
-      authenticatedUserId = validation.workflow.userId
-      triggerType = 'manual'
-    } else {
-      const session = await getSession()
-      const apiKeyHeader = request.headers.get('X-API-Key')
-
-      if (session?.user?.id && !apiKeyHeader) {
-        authenticatedUserId = session.user.id
-        triggerType = 'manual'
-      } else if (apiKeyHeader) {
-        const auth = await authenticateApiKeyFromHeader(apiKeyHeader)
-        if (!auth.success || !auth.userId) {
-          return createErrorResponse('Unauthorized', 401)
-        }
-        authenticatedUserId = auth.userId
-        triggerType = 'api'
-        if (auth.keyId) {
-          void updateApiKeyLastUsed(auth.keyId).catch(() => {})
-        }
-      } else {
-        return createErrorResponse('Authentication required', 401)
-      }
-    }
 
     const userSubscription = await getHighestPrioritySubscription(authenticatedUserId)
 

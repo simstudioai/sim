@@ -50,7 +50,7 @@ export async function checkHybridAuth(
             const bodyText = await clonedRequest.text()
             if (bodyText) {
               const body = JSON.parse(bodyText)
-              workflowId = body.workflowId
+              workflowId = body.workflowId || body._context?.workflowId
             }
           } catch {
             // Ignore JSON parse errors

@@ -74,13 +74,20 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now()
 
   try {
-    const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
+    const authResult = await checkHybridAuth(request, { requireWorkflowId: true })
 
-    if (!authResult.success || !authResult.userId) {
+    if (!authResult.success) {
       logger.warn('Unauthorized file parse request', {
-        error: authResult.error || 'Missing userId',
+        error: authResult.error || 'Authentication failed',
       })
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (!authResult.userId) {
+      logger.warn('File parse request missing userId', {
+        authType: authResult.authType,
+      })
+      return NextResponse.json({ success: false, error: 'User context required' }, { status: 401 })
     }
 
     const userId = authResult.userId

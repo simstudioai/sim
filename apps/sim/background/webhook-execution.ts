@@ -430,7 +430,9 @@ async function executeWebhookJobInternal(
                 const uploadedFiles = await processExecutionFiles(
                   fieldValue,
                   executionContext,
-                  requestId
+                  requestId,
+                  false,
+                  payload.userId
                 )
 
                 if (uploadedFiles.length > 0) {

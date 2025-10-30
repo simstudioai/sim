@@ -23,13 +23,26 @@ export async function POST(request: NextRequest) {
 
     const userId = authResult.userId
     const body = await request.json()
-    const { key, name, isExecutionFile, context } = body
+    const { key, name, isExecutionFile, context, url } = body
 
     if (!key) {
       return createErrorResponse(new Error('File key is required'), 400)
     }
 
     logger.info(`Generating download URL for file: ${name || key}`)
+
+    if (key.startsWith('url/')) {
+      if (!url) {
+        return createErrorResponse(new Error('URL is required for URL-type files'), 400)
+      }
+
+      logger.info(`Returning direct URL for URL-type file: ${url}`)
+      return NextResponse.json({
+        downloadUrl: url,
+        expiresIn: null,
+        fileName: name || key.split('/').pop() || 'download',
+      })
+    }
 
     let storageContext: StorageContext = context || 'general'
 
