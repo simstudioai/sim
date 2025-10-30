@@ -253,8 +253,50 @@ export class DAGBuilder {
     const loopBlockIds = new Set(dag.loopConfigs.keys())
     const parallelBlockIds = new Set(dag.parallelConfigs.keys())
 
+    // Build a map of block types for quick lookup
+    const blockTypeMap = new Map<string, string>()
+    for (const block of workflow.blocks) {
+      blockTypeMap.set(block.id, block.metadata?.id || '')
+    }
+
+    // Build a map of condition block configurations for sourceHandle generation
+    const conditionConfigMap = new Map<string, any[]>()
+    for (const block of workflow.blocks) {
+      if (block.metadata?.id === 'condition') {
+        try {
+          const conditionsJson = block.config.params?.conditions
+          if (typeof conditionsJson === 'string') {
+            const conditions = JSON.parse(conditionsJson)
+            conditionConfigMap.set(block.id, conditions)
+          } else if (Array.isArray(conditionsJson)) {
+            conditionConfigMap.set(block.id, conditionsJson)
+          }
+        } catch (error) {
+          logger.warn('Failed to parse condition config:', { blockId: block.id })
+        }
+      }
+    }
+
     for (const connection of workflow.connections) {
       let { source, target, sourceHandle, targetHandle } = connection
+
+      // Generate sourceHandle for condition blocks if not provided
+      if (!sourceHandle && blockTypeMap.get(source) === 'condition') {
+        const conditions = conditionConfigMap.get(source)
+        if (conditions && conditions.length > 0) {
+          // Get all edges from this condition block
+          const edgesFromCondition = workflow.connections.filter((c) => c.source === source)
+          
+          // Find which index this target is in the edges from this condition
+          const edgeIndex = edgesFromCondition.findIndex((e) => e.target === target)
+          
+          // Use the condition at the same index
+          if (edgeIndex >= 0 && edgeIndex < conditions.length) {
+            const correspondingCondition = conditions[edgeIndex]
+            sourceHandle = `condition-${correspondingCondition.id}`
+          }
+        }
+      }
 
       // Skip edges involving loop/parallel blocks - we'll handle them specially
       const sourceIsLoopBlock = loopBlockIds.has(source)

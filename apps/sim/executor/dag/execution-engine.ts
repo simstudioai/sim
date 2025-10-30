@@ -284,12 +284,12 @@ export class ExecutionEngine {
 
   private shouldActivateEdge(edge: any, output: NormalizedBlockOutput): boolean {
     if (edge.sourceHandle?.startsWith('condition-')) {
-      const conditionValue = edge.sourceHandle.split('-')[1]
+      const conditionValue = edge.sourceHandle.substring('condition-'.length)
       return output.selectedOption === conditionValue
     }
 
     if (edge.sourceHandle?.startsWith('router-')) {
-      const routeId = edge.sourceHandle.split('-')[1]
+      const routeId = edge.sourceHandle.substring('router-'.length)
       return output.selectedRoute === routeId
     }
 

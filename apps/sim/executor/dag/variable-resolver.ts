@@ -346,8 +346,11 @@ export class VariableResolver {
         return match
       }
       
+      // For template interpolation, insert values as-is without extra quoting
+      // Numbers and booleans are converted to strings
+      // Objects and arrays are JSON stringified
       if (typeof resolved === 'string') {
-        return JSON.stringify(resolved)
+        return resolved
       }
       
       if (typeof resolved === 'number' || typeof resolved === 'boolean') {
@@ -434,4 +437,5 @@ export class VariableResolver {
     return match ? parseInt(match[1], 10) : null
   }
 }
+
 

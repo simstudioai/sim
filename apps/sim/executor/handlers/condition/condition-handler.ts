@@ -25,11 +25,15 @@ export async function evaluateConditionExpression(
 
   let resolvedConditionValue = conditionExpression
   try {
-    // Use full resolution pipeline: variables -> block references -> env vars
-    const resolvedVars = resolver.resolveVariableReferences(conditionExpression, block)
-    const resolvedRefs = resolver.resolveBlockReferences(resolvedVars, context, block)
-    resolvedConditionValue = resolver.resolveEnvVariables(resolvedRefs)
-    logger.info(`Resolved condition: from "${conditionExpression}" to "${resolvedConditionValue}"`)
+    // Only resolve if resolver is available (old BFS executor path)
+    // DAG executor already resolves variables before calling the handler
+    if (resolver) {
+      // Use full resolution pipeline: variables -> block references -> env vars
+      const resolvedVars = resolver.resolveVariableReferences(conditionExpression, block)
+      const resolvedRefs = resolver.resolveBlockReferences(resolvedVars, context, block)
+      resolvedConditionValue = resolver.resolveEnvVariables(resolvedRefs)
+      logger.info(`Resolved condition: from "${conditionExpression}" to "${resolvedConditionValue}"`)
+    }
   } catch (resolveError: any) {
     logger.error(`Failed to resolve references in condition: ${resolveError.message}`, {
       conditionExpression,
@@ -103,33 +107,29 @@ export class ConditionBlockHandler implements BlockHandler {
       throw new Error(`Invalid conditions format: ${error.message}`)
     }
 
-    // Find source block for the condition (used for context if needed, maybe remove later)
+    // Find source block for the condition (used for context if needed)
     const sourceBlockId = context.workflow?.connections.find(
       (conn) => conn.target === block.id
     )?.source
 
-    if (!sourceBlockId) {
-      throw new Error(`No source block found for condition block ${block.id}`)
+    // Build evaluation context
+    // In DAG executor, all variables are already resolved, so we just need loop context if applicable
+    let evalContext: Record<string, any> = {
+      ...(context.loopItems.get(block.id) || {}),
     }
 
-    const sourceOutput = context.blockStates.get(sourceBlockId)?.output
-    if (!sourceOutput) {
-      throw new Error(`No output found for source block ${sourceBlockId}`)
+    // Get source block output if available
+    let sourceOutput: any = null
+    if (sourceBlockId) {
+      sourceOutput = context.blockStates.get(sourceBlockId)?.output
+      if (sourceOutput && typeof sourceOutput === 'object' && sourceOutput !== null) {
+        evalContext = {
+          ...evalContext,
+          ...sourceOutput,
+        }
+      }
     }
 
-    // Get source block to derive a dynamic key (maybe remove later)
-    const sourceBlock = context.workflow?.blocks.find((b) => b.id === sourceBlockId)
-    if (!sourceBlock) {
-      throw new Error(`Source block ${sourceBlockId} not found`)
-    }
-
-    // Build evaluation context (primarily for potential 'context' object in Function)
-    // We might not strictly need sourceKey here if references handle everything
-    const evalContext = {
-      ...(typeof sourceOutput === 'object' && sourceOutput !== null ? sourceOutput : {}),
-      // Add other relevant context if needed, like loop variables
-      ...(context.loopItems.get(block.id) || {}), // Example: Add loop context if applicable
-    }
     logger.info('Base eval context:', JSON.stringify(evalContext, null, 2))
 
     // Get outgoing connections
@@ -233,6 +233,7 @@ export class ConditionBlockHandler implements BlockHandler {
         blockType: targetBlock.metadata?.id || 'unknown',
         blockTitle: targetBlock.metadata?.name || 'Untitled Block',
       },
+      selectedOption: selectedCondition.id, // Used by ExecutionEngine to activate the correct edge
       selectedConditionId: selectedCondition.id,
     }
   }

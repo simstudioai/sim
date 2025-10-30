@@ -117,7 +117,8 @@ export class RouterBlockHandler implements BlockHandler {
           blockType: chosenBlock.type || 'unknown',
           blockTitle: chosenBlock.title || 'Untitled Block',
         },
-      }
+        selectedRoute: String(chosenBlock.id), // Used by ExecutionEngine to activate the correct edge
+      } as BlockOutput
     } catch (error) {
       logger.error('Router execution failed:', error)
       throw error
