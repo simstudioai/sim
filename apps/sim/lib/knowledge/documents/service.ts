@@ -773,7 +773,11 @@ export async function createDocumentRecords(
         `[${requestId}] Bulk created ${documentRecords.length} document records in knowledge base ${knowledgeBaseId}`
       )
 
-      // Increment storage usage tracking
+      await tx
+        .update(knowledgeBase)
+        .set({ updatedAt: now })
+        .where(eq(knowledgeBase.id, knowledgeBaseId))
+
       if (userId) {
         const totalSize = documents.reduce((sum, doc) => sum + doc.fileSize, 0)
 
@@ -1085,9 +1089,13 @@ export async function createSingleDocument(
 
   await db.insert(document).values(newDocument)
 
+  await db
+    .update(knowledgeBase)
+    .set({ updatedAt: now })
+    .where(eq(knowledgeBase.id, knowledgeBaseId))
+
   logger.info(`[${requestId}] Document created: ${documentId} in knowledge base ${knowledgeBaseId}`)
 
-  // Increment storage usage tracking
   if (userId) {
     // Get knowledge base owner
     const kb = await db
