@@ -10,6 +10,7 @@ import type { ExecutionContext } from '@/executor/types'
 import type { SerializedWorkflow } from '@/serializer/types'
 import type { ExecutionState, LoopScope } from './execution-state'
 import { normalizeBlockName } from '@/stores/workflows/utils'
+import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('VariableResolver')
 
@@ -52,11 +53,7 @@ export class VariableResolver {
     }
   }
 
-  resolveInputs(
-    params: Record<string, any>,
-    currentNodeId: string,
-    context: ExecutionContext
-  ): Record<string, any> {
+  resolveInputs(params: Record<string, any>, currentNodeId: string, context: ExecutionContext, block?: SerializedBlock): Record<string, any> {
     if (!params) {
       return {}
     }
@@ -64,7 +61,7 @@ export class VariableResolver {
     const resolved: Record<string, any> = {}
 
     for (const [key, value] of Object.entries(params)) {
-      resolved[key] = this.resolveValue(value, currentNodeId, context)
+      resolved[key] = this.resolveValue(value, currentNodeId, context, undefined, block)
     }
 
     return resolved
@@ -90,62 +87,27 @@ export class VariableResolver {
     return this.resolveValue(reference, currentNodeId, context, loopScope)
   }
 
-  private resolveValue(value: any, currentNodeId: string, context: ExecutionContext, loopScope?: LoopScope): any {
+  private resolveValue(value: any, currentNodeId: string, context: ExecutionContext, loopScope?: LoopScope, block?: SerializedBlock): any {
     if (value === null || value === undefined) {
       return value
     }
 
     if (Array.isArray(value)) {
-      return value.map(v => this.resolveValue(v, currentNodeId, context, loopScope))
+      return value.map(v => this.resolveValue(v, currentNodeId, context, loopScope, block))
     }
 
     if (typeof value === 'object') {
       return Object.entries(value).reduce(
         (acc, [key, val]) => ({
           ...acc,
-          [key]: this.resolveValue(val, currentNodeId, context, loopScope),
+          [key]: this.resolveValue(val, currentNodeId, context, loopScope, block),
         }),
         {}
       )
     }
 
     if (typeof value === 'string') {
-      const trimmed = value.trim()
-      
-      logger.info(`[VariableResolver] Resolving string value`, {
-        originalValue: value,
-        trimmed,
-        isReference: this.isReference(trimmed),
-        isEnvVariable: this.isEnvVariable(trimmed),
-      })
-      
-      // Check if this is a direct reference (entire string is just a reference)
-      if (this.isReference(trimmed)) {
-        const resolved = this.resolveReference(trimmed, currentNodeId, context, loopScope)
-        logger.info(`[VariableResolver] Resolved direct reference`, {
-          reference: trimmed,
-          resolved,
-        })
-        return resolved !== undefined ? resolved : value
-      }
-      
-      // Check if this is a direct environment variable (entire string is just an env var)
-      if (this.isEnvVariable(trimmed)) {
-        const resolved = this.resolveEnvVariable(trimmed, context)
-        logger.info(`[VariableResolver] Resolved direct env variable`, {
-          envVar: trimmed,
-          resolved,
-        })
-        return resolved
-      }
-      
-      // Otherwise treat as a template with potential interpolations
-      const resolved = this.resolveTemplate(value, currentNodeId, context, loopScope)
-      logger.info(`[VariableResolver] Resolved template`, {
-        template: value,
-        resolved,
-      })
-      return resolved
+      return this.resolveTemplate(value, currentNodeId, context, loopScope, block)
     }
 
     return value
@@ -336,7 +298,7 @@ export class VariableResolver {
     return context.environmentVariables?.[varName] ?? value
   }
 
-  private resolveTemplate(template: string, currentNodeId: string, context: ExecutionContext, loopScope?: LoopScope): string {
+  private resolveTemplate(template: string, currentNodeId: string, context: ExecutionContext, loopScope?: LoopScope, block?: SerializedBlock): string {
     let result = template
 
     const referenceRegex = /<([^>]+)>/g
@@ -346,10 +308,15 @@ export class VariableResolver {
         return match
       }
       
-      // For template interpolation, insert values as-is without extra quoting
-      // Numbers and booleans are converted to strings
-      // Objects and arrays are JSON stringified
+      // For function blocks, string values should be quoted for code context
+      // This prevents variables like <loop.item> from becoming bare identifiers
+      const isFunctionBlock = block?.metadata?.id === 'function'
+      
       if (typeof resolved === 'string') {
+        // If this is a function block, quote string values so they're string literals in code
+        if (isFunctionBlock) {
+          return JSON.stringify(resolved)
+        }
         return resolved
       }
       

@@ -33,7 +33,7 @@ export class BlockExecutor {
       throw new Error(`No handler found for block type: ${block.metadata?.id}`)
     }
 
-    const resolvedInputs = this.resolver.resolveInputs(block.config.params, node.id, context)
+    const resolvedInputs = this.resolver.resolveInputs(block.config.params, node.id, context, block)
 
     const blockLog = this.createBlockLog(node.id, block)
     context.blockLogs.push(blockLog)
