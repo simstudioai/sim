@@ -180,7 +180,8 @@ async function fetchChannelMembers(
   channelId: string,
   accessToken: string
 ): Promise<TeamMember[]> {
-  const response = await fetch(
+  // Fetch channel members (users only)
+  const membersResponse = await fetch(
     `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(teamId)}/channels/${encodeURIComponent(channelId)}/members`,
     {
       headers: {
@@ -190,22 +191,52 @@ async function fetchChannelMembers(
     }
   )
 
-  if (!response.ok) {
+  const members: TeamMember[] = []
+
+  if (membersResponse.ok) {
+    const membersData = await membersResponse.json()
+    const userMembers = (membersData.value || []).map((member: TeamMember) => ({
+      id: member.id,
+      displayName: member.displayName || '',
+      userIdentityType: member.userIdentityType,
+    }))
+    members.push(...userMembers)
+  } else {
     logger.error('Failed to fetch channel members:', {
-      status: response.status,
-      statusText: response.statusText,
+      status: membersResponse.status,
+      statusText: membersResponse.statusText,
     })
-    return []
   }
 
-  const data = await response.json()
-  const members = (data.value || []).map((member: TeamMember) => ({
-    id: member.id,
-    displayName: member.displayName || '',
-    userIdentityType: member.userIdentityType,
-  }))
+  // Fetch installed apps (includes bots) at team level
+  const appsResponse = await fetch(
+    `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(teamId)}/installedApps?$expand=teamsAppDefinition`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    }
+  )
 
-  logger.info('Fetched channel members:', {
+  if (appsResponse.ok) {
+    const appsData = await appsResponse.json()
+    const bots = (appsData.value || [])
+      .filter((app: any) => app.teamsAppDefinition?.bot)
+      .map((app: any) => ({
+        id: app.teamsAppDefinition.bot.id || app.teamsAppDefinition.teamsAppId,
+        displayName: app.teamsAppDefinition.displayName || '',
+        userIdentityType: 'bot',
+      }))
+    members.push(...bots)
+  } else {
+    logger.warn('Failed to fetch installed apps/bots:', {
+      status: appsResponse.status,
+      statusText: appsResponse.statusText,
+    })
+  }
+
+  logger.info('Fetched channel members and bots:', {
     count: members.length,
     members: members.map((m: TeamMember) => ({
       displayName: m.displayName,
