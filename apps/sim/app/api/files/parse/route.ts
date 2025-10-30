@@ -12,7 +12,13 @@ import { validateExternalUrl } from '@/lib/security/input-validation'
 import { isUsingCloudStorage, type StorageContext, StorageService } from '@/lib/uploads'
 import { UPLOAD_DIR_SERVER } from '@/lib/uploads/core/setup.server'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
-import { extractStorageKey, inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import {
+  extractCleanFilename,
+  extractStorageKey,
+  extractWorkspaceIdFromExecutionKey,
+  getViewerUrl,
+  inferContextFromKey,
+} from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import '@/lib/uploads/core/setup.server'
 
@@ -29,6 +35,7 @@ interface ParseResult {
   error?: string
   filePath: string
   originalName?: string // Original filename from database (for workspace files)
+  viewerUrl?: string | null // Viewer URL for the file if available
   metadata?: {
     fileType: string
     size: number
@@ -118,7 +125,8 @@ export async function POST(request: NextRequest) {
         }
 
         if (result.success) {
-          const displayName = result.originalName || result.filePath.split('/').pop() || 'unknown'
+          const displayName =
+            result.originalName || extractCleanFilename(result.filePath) || 'unknown'
           results.push({
             success: true,
             output: {
@@ -129,6 +137,7 @@ export async function POST(request: NextRequest) {
               binary: false,
             },
             filePath: result.filePath,
+            viewerUrl: result.viewerUrl,
           })
         } else {
           results.push(result)
@@ -148,7 +157,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (result.success) {
-      const displayName = result.originalName || result.filePath.split('/').pop() || 'unknown'
+      const displayName = result.originalName || extractCleanFilename(result.filePath) || 'unknown'
       return NextResponse.json({
         success: true,
         output: {
@@ -158,6 +167,8 @@ export async function POST(request: NextRequest) {
           size: result.metadata?.size || 0,
           binary: false,
         },
+        filePath: result.filePath,
+        viewerUrl: result.viewerUrl,
       })
     }
 
@@ -453,26 +464,43 @@ async function handleCloudFile(
     const filename = originalFilename || cloudKey.split('/').pop() || cloudKey
     const extension = path.extname(filename).toLowerCase().substring(1)
 
+    const normalizedFilePath = `/api/files/serve/${encodeURIComponent(cloudKey)}?context=${context}`
+    let workspaceIdFromKey: string | undefined
+
+    if (context === 'execution') {
+      workspaceIdFromKey = extractWorkspaceIdFromExecutionKey(cloudKey) || undefined
+    } else if (context === 'workspace') {
+      const segments = cloudKey.split('/')
+      if (segments.length >= 2 && /^[a-f0-9-]{36}$/.test(segments[0])) {
+        workspaceIdFromKey = segments[0]
+      }
+    }
+
+    const viewerUrl = getViewerUrl(cloudKey, workspaceIdFromKey)
+
     let parseResult: ParseResult
     if (extension === 'pdf') {
-      parseResult = await handlePdfBuffer(fileBuffer, filename, fileType, filePath)
+      parseResult = await handlePdfBuffer(fileBuffer, filename, fileType, normalizedFilePath)
     } else if (extension === 'csv') {
-      parseResult = await handleCsvBuffer(fileBuffer, filename, fileType, filePath)
+      parseResult = await handleCsvBuffer(fileBuffer, filename, fileType, normalizedFilePath)
     } else if (isSupportedFileType(extension)) {
       parseResult = await handleGenericTextBuffer(
         fileBuffer,
         filename,
         extension,
         fileType,
-        filePath
+        normalizedFilePath
       )
     } else {
       parseResult = handleGenericBuffer(fileBuffer, filename, extension, fileType)
+      parseResult.filePath = normalizedFilePath
     }
 
     if (originalFilename) {
       parseResult.originalName = originalFilename
     }
+
+    parseResult.viewerUrl = viewerUrl
 
     return parseResult
   } catch (error) {

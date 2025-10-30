@@ -35,8 +35,6 @@ export async function uploadExecutionFile(
 
   logger.info(`Generated storage key: "${storageKey}" for file: ${fileName}`)
 
-  const urlExpirationSeconds = isAsync ? 10 * 60 : 5 * 60
-
   const metadata: Record<string, string> = {
     originalName: fileName,
     uploadedAt: new Date().toISOString(),
@@ -60,33 +58,12 @@ export async function uploadExecutionFile(
       metadata, // Pass metadata for cloud storage and database tracking
     })
 
-    logger.info(`Upload returned key: "${fileInfo.key}" for file: ${fileName}`)
-    logger.info(`Original storage key was: "${storageKey}"`)
-    logger.info(`Keys match: ${fileInfo.key === storageKey}`)
-
-    let directUrl: string | undefined
-
-    try {
-      logger.info(
-        `Generating presigned URL with key: "${fileInfo.key}" (expiration: ${urlExpirationSeconds / 60} minutes)`
-      )
-      const { generatePresignedDownloadUrl } = await import('@/lib/uploads/core/storage-service')
-      directUrl = await generatePresignedDownloadUrl(
-        fileInfo.key,
-        'execution',
-        urlExpirationSeconds
-      )
-      logger.info(`Generated presigned URL for execution file`)
-    } catch (error) {
-      logger.warn(`Failed to generate presigned URL for ${fileName}:`, error)
-    }
-
     const userFile: UserFile = {
       id: fileId,
       name: fileName,
       size: fileBuffer.length,
       type: contentType,
-      url: directUrl || `/api/files/serve/${fileInfo.key}`, // Use presigned URL (5 or 10 min), fallback to serve path
+      url: `/api/files/serve/${fileInfo.key}`, // Always use internal serve path for consistency
       key: fileInfo.key,
       uploadedAt: new Date().toISOString(),
       expiresAt: getFileExpirationDate(),

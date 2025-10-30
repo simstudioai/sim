@@ -203,7 +203,16 @@ export function validateKnowledgeBaseFile(
  * Extract storage key from a file path
  */
 export function extractStorageKey(filePath: string): string {
-  const pathWithoutQuery = filePath.split('?')[0]
+  let pathWithoutQuery = filePath.split('?')[0]
+
+  try {
+    if (pathWithoutQuery.startsWith('http://') || pathWithoutQuery.startsWith('https://')) {
+      const url = new URL(pathWithoutQuery)
+      pathWithoutQuery = url.pathname
+    }
+  } catch {
+    // If URL parsing fails, use the original path
+  }
 
   if (pathWithoutQuery.includes('/api/files/serve/s3/')) {
     return decodeURIComponent(pathWithoutQuery.split('/api/files/serve/s3/')[1])
@@ -425,4 +434,60 @@ export function sanitizeStorageMetadata(
  */
 export function sanitizeFileKey(key: string): string {
   return key.replace(/[^a-zA-Z0-9.-]/g, '_').replace(/\.\./g, '')
+}
+
+/**
+ * Extract clean filename from URL or path, stripping query parameters
+ * Handles both internal serve URLs (/api/files/serve/...) and external URLs
+ * @param urlOrPath URL or path string that may contain query parameters
+ * @returns Clean filename without query parameters
+ */
+export function extractCleanFilename(urlOrPath: string): string {
+  const withoutQuery = urlOrPath.split('?')[0]
+
+  try {
+    const url = new URL(
+      withoutQuery.startsWith('http') ? withoutQuery : `http://localhost${withoutQuery}`
+    )
+    const pathname = url.pathname
+    const filename = pathname.split('/').pop() || 'unknown'
+    return decodeURIComponent(filename)
+  } catch {
+    const filename = withoutQuery.split('/').pop() || 'unknown'
+    return decodeURIComponent(filename)
+  }
+}
+
+/**
+ * Extract workspaceId from execution file key pattern
+ * Execution files have format: workspaceId/workflowId/executionId/filename
+ * @param key File storage key
+ * @returns workspaceId if key matches execution file pattern, null otherwise
+ */
+export function extractWorkspaceIdFromExecutionKey(key: string): string | null {
+  const segments = key.split('/')
+  if (segments.length >= 4) {
+    const workspaceId = segments[0]
+    if (workspaceId && /^[a-f0-9-]{36}$/.test(workspaceId)) {
+      return workspaceId
+    }
+  }
+  return null
+}
+
+/**
+ * Construct viewer URL for a file
+ * Viewer URL format: /workspace/{workspaceId}/files/{fileKey}/view
+ * @param fileKey File storage key
+ * @param workspaceId Optional workspace ID (will be extracted from key if not provided)
+ * @returns Viewer URL string or null if workspaceId cannot be determined
+ */
+export function getViewerUrl(fileKey: string, workspaceId?: string): string | null {
+  const resolvedWorkspaceId = workspaceId || extractWorkspaceIdFromExecutionKey(fileKey)
+
+  if (!resolvedWorkspaceId) {
+    return null
+  }
+
+  return `/workspace/${resolvedWorkspaceId}/files/${fileKey}/view`
 }
