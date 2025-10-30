@@ -56,7 +56,9 @@ export async function processDocument(
   mimeType: string,
   chunkSize = 1000,
   chunkOverlap = 200,
-  minChunkSize = 1
+  minChunkSize = 1,
+  userId?: string,
+  workspaceId?: string | null
 ): Promise<{
   chunks: Chunk[]
   metadata: {
@@ -73,7 +75,7 @@ export async function processDocument(
   logger.info(`Processing document: ${filename}`)
 
   try {
-    const parseResult = await parseDocument(fileUrl, filename, mimeType)
+    const parseResult = await parseDocument(fileUrl, filename, mimeType, userId, workspaceId)
     const { content, processingMethod } = parseResult
     const cloudUrl = 'cloudUrl' in parseResult ? parseResult.cloudUrl : undefined
 
@@ -131,7 +133,9 @@ export async function processDocument(
 async function parseDocument(
   fileUrl: string,
   filename: string,
-  mimeType: string
+  mimeType: string,
+  userId?: string,
+  workspaceId?: string | null
 ): Promise<{
   content: string
   processingMethod: 'file-parser' | 'mistral-ocr'
@@ -146,12 +150,12 @@ async function parseDocument(
   if (isPDF && (hasAzureMistralOCR || hasMistralOCR)) {
     if (hasAzureMistralOCR) {
       logger.info(`Using Azure Mistral OCR: ${filename}`)
-      return parseWithAzureMistralOCR(fileUrl, filename, mimeType)
+      return parseWithAzureMistralOCR(fileUrl, filename, mimeType, userId, workspaceId)
     }
 
     if (hasMistralOCR) {
       logger.info(`Using Mistral OCR: ${filename}`)
-      return parseWithMistralOCR(fileUrl, filename, mimeType)
+      return parseWithMistralOCR(fileUrl, filename, mimeType, userId, workspaceId)
     }
   }
 
@@ -159,7 +163,13 @@ async function parseDocument(
   return parseWithFileParser(fileUrl, filename, mimeType)
 }
 
-async function handleFileForOCR(fileUrl: string, filename: string, mimeType: string) {
+async function handleFileForOCR(
+  fileUrl: string,
+  filename: string,
+  mimeType: string,
+  userId?: string,
+  workspaceId?: string | null
+) {
   const isExternalHttps = fileUrl.startsWith('https://') && !fileUrl.includes('/api/files/serve/')
 
   if (isExternalHttps) {
@@ -175,6 +185,8 @@ async function handleFileForOCR(fileUrl: string, filename: string, mimeType: str
       originalName: filename,
       uploadedAt: new Date().toISOString(),
       purpose: 'knowledge-base',
+      ...(userId && { userId }),
+      ...(workspaceId && { workspaceId }),
     }
 
     const cloudResult = await StorageService.uploadFile({
@@ -288,7 +300,13 @@ async function makeOCRRequest(
   }
 }
 
-async function parseWithAzureMistralOCR(fileUrl: string, filename: string, mimeType: string) {
+async function parseWithAzureMistralOCR(
+  fileUrl: string,
+  filename: string,
+  mimeType: string,
+  userId?: string,
+  workspaceId?: string | null
+) {
   validateOCRConfig(
     env.OCR_AZURE_API_KEY,
     env.OCR_AZURE_ENDPOINT,
@@ -336,12 +354,18 @@ async function parseWithAzureMistralOCR(fileUrl: string, filename: string, mimeT
     })
 
     return env.MISTRAL_API_KEY
-      ? parseWithMistralOCR(fileUrl, filename, mimeType)
+      ? parseWithMistralOCR(fileUrl, filename, mimeType, userId, workspaceId)
       : parseWithFileParser(fileUrl, filename, mimeType)
   }
 }
 
-async function parseWithMistralOCR(fileUrl: string, filename: string, mimeType: string) {
+async function parseWithMistralOCR(
+  fileUrl: string,
+  filename: string,
+  mimeType: string,
+  userId?: string,
+  workspaceId?: string | null
+) {
   if (!env.MISTRAL_API_KEY) {
     throw new Error('Mistral API key required')
   }
@@ -350,7 +374,13 @@ async function parseWithMistralOCR(fileUrl: string, filename: string, mimeType: 
     throw new Error('Mistral parser tool not configured')
   }
 
-  const { httpsUrl, cloudUrl } = await handleFileForOCR(fileUrl, filename, mimeType)
+  const { httpsUrl, cloudUrl } = await handleFileForOCR(
+    fileUrl,
+    filename,
+    mimeType,
+    userId,
+    workspaceId
+  )
   const params = { filePath: httpsUrl, apiKey: env.MISTRAL_API_KEY, resultType: 'text' as const }
 
   try {
@@ -361,7 +391,9 @@ async function parseWithMistralOCR(fileUrl: string, filename: string, mimeType: 
             ? mistralParserTool.request!.url(params)
             : mistralParserTool.request!.url
 
-        if (url.startsWith('/')) {
+        const isInternalRoute = url.startsWith('/')
+
+        if (isInternalRoute) {
           const { getBaseUrl } = await import('@/lib/urls/utils')
           url = `${getBaseUrl()}${url}`
         }
@@ -371,9 +403,9 @@ async function parseWithMistralOCR(fileUrl: string, filename: string, mimeType: 
             ? mistralParserTool.request!.headers(params)
             : mistralParserTool.request!.headers
 
-        if (url.includes('/api/tools/mistral/parse')) {
+        if (isInternalRoute) {
           const { generateInternalToken } = await import('@/lib/auth/internal')
-          const internalToken = await generateInternalToken()
+          const internalToken = await generateInternalToken(userId)
           headers = {
             ...headers,
             Authorization: `Bearer ${internalToken}`,
