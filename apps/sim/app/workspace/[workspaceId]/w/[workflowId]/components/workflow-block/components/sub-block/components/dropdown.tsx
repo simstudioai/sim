@@ -156,16 +156,14 @@ export function Dropdown({
   }, [])
 
   useEffect(() => {
-    if (
-      multiSelect ||
-      !storeInitialized ||
-      (value !== null && value !== undefined) ||
-      defaultOptionValue === undefined
-    ) {
+    if (multiSelect || !storeInitialized || defaultOptionValue === undefined) {
       return
     }
-    setStoreValue(defaultOptionValue)
-  }, [storeInitialized, value, defaultOptionValue, setStoreValue, multiSelect])
+    // Only set default if store value is null or undefined (not if it's already set)
+    if (storeValue === null || storeValue === undefined || storeValue === '') {
+      setStoreValue(defaultOptionValue)
+    }
+  }, [storeInitialized, storeValue, defaultOptionValue, setStoreValue, multiSelect])
 
   const normalizeVariableReferences = (jsonString: string): string => {
     return jsonString.replace(/([^"]<[^>]+>)/g, '"$1"')
