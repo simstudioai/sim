@@ -48,7 +48,6 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
         'ChannelMessage.Send',
         'ChannelMessage.Read.All',
         'ChannelMember.Read.All',
-        'TeamsAppInstallation.ReadForTeam.All',
         'Group.Read.All',
         'Group.ReadWrite.All',
         'Team.ReadBasic.All',
