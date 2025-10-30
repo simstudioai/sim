@@ -254,9 +254,9 @@ try {
   // Schema params keyboard navigation
   const [schemaParamSelectedIndex, setSchemaParamSelectedIndex] = useState(0)
 
-  const addTool = useCustomToolsStore((state) => state.addTool)
+  const createTool = useCustomToolsStore((state) => state.createTool)
   const updateTool = useCustomToolsStore((state) => state.updateTool)
-  const removeTool = useCustomToolsStore((state) => state.removeTool)
+  const deleteTool = useCustomToolsStore((state) => state.deleteTool)
 
   // Initialize form with initial values if provided
   useEffect(() => {
@@ -377,7 +377,7 @@ try {
   const isSchemaValid = useMemo(() => validateJsonSchema(jsonSchema), [jsonSchema])
   const isCodeValid = useMemo(() => validateFunctionCode(functionCode), [functionCode])
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setSchemaError(null)
     setCodeError(null)
 
@@ -477,20 +477,32 @@ try {
       let _finalToolId: string | undefined = originalToolId
 
       // Only save to the store if we're not reusing an existing tool
-      if (isEditing && originalToolId) {
-        // Update existing tool in store
-        updateTool(originalToolId, {
-          title: name,
-          schema,
-          code: functionCode || '',
-        })
-      } else {
-        // Add new tool to store
-        _finalToolId = addTool({
-          title: name,
-          schema,
-          code: functionCode || '',
-        })
+      try {
+        if (isEditing && originalToolId) {
+          // Update existing tool in store
+          await updateTool(workspaceId, originalToolId, {
+            title: name,
+            schema,
+            code: functionCode || '',
+          })
+        } else {
+          // Add new tool to store
+          const createdTool = await createTool(workspaceId, {
+            title: name,
+            schema,
+            code: functionCode || '',
+          })
+          _finalToolId = createdTool.id
+        }
+      } catch (error) {
+        // Handle duplicate name errors from API
+        const errorMessage = error instanceof Error ? error.message : 'Failed to save tool'
+        if (errorMessage.includes('already exists')) {
+          setSchemaError(errorMessage)
+          setActiveSection('schema')
+          return
+        }
+        throw error
       }
 
       // Create the custom tool object for the parent component
@@ -784,19 +796,8 @@ try {
     try {
       setShowDeleteConfirm(false)
 
-      // Call API to delete the tool
-      const response = await fetch(`/api/tools/custom?id=${toolId}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        const errorMessage = errorData.error || response.statusText || 'Failed to delete tool'
-        throw new Error(errorMessage)
-      }
-
-      // Remove from local store
-      removeTool(toolId)
+      // Delete from store (which calls the API)
+      await deleteTool(workspaceId, toolId)
       logger.info(`Deleted tool: ${toolId}`)
 
       // Notify parent component if callback provided
@@ -1189,14 +1190,14 @@ try {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span>
-                        <Button onClick={handleSave} disabled={!isSchemaValid}>
+                        <Button onClick={handleSave} disabled={!isSchemaValid || !!schemaError}>
                           {isEditing ? 'Update Tool' : 'Save Tool'}
                         </Button>
                       </span>
                     </TooltipTrigger>
-                    {!isSchemaValid && (
+                    {(!isSchemaValid || !!schemaError) && (
                       <TooltipContent side='top'>
-                        <p>Invalid JSON schema</p>
+                        <p>JSON schema invalid</p>
                       </TooltipContent>
                     )}
                   </Tooltip>
