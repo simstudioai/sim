@@ -43,41 +43,31 @@ export class VariableResolver {
     return resolved
   }
 
-  resolveSingleReference(reference: string, currentNodeId: string, context: ExecutionContext): any {
-    return this.resolveValue(reference, currentNodeId, context)
+  resolveSingleReference(reference: string, currentNodeId: string, context: ExecutionContext, loopScope?: LoopScope): any {
+    return this.resolveValue(reference, currentNodeId, context, loopScope)
   }
 
-  private resolveValue(value: any, currentNodeId: string, context: ExecutionContext): any {
+  private resolveValue(value: any, currentNodeId: string, context: ExecutionContext, loopScope?: LoopScope): any {
     if (value === null || value === undefined) {
       return value
     }
 
     if (Array.isArray(value)) {
-      return value.map(item => this.resolveValue(item, currentNodeId, context))
+      return value.map(v => this.resolveValue(v, currentNodeId, context, loopScope))
     }
 
-    if (typeof value === 'object' && value.constructor === Object) {
-      const resolved: Record<string, any> = {}
-      for (const [k, v] of Object.entries(value)) {
-        resolved[k] = this.resolveValue(v, currentNodeId, context)
-      }
-      return resolved
+    if (typeof value === 'object') {
+      return Object.entries(value).reduce(
+        (acc, [key, val]) => ({
+          ...acc,
+          [key]: this.resolveValue(val, currentNodeId, context, loopScope),
+        }),
+        {}
+      )
     }
 
-    if (typeof value !== 'string') {
-      return value
-    }
-
-    if (this.isReference(value)) {
-      return this.resolveReference(value, currentNodeId, context)
-    }
-
-    if (this.isEnvVariable(value)) {
-      return this.resolveEnvVariable(value, context)
-    }
-
-    if (this.hasTemplate(value)) {
-      return this.resolveTemplate(value, currentNodeId, context)
+    if (typeof value === 'string') {
+      return this.resolveTemplate(value, currentNodeId, context, loopScope)
     }
 
     return value
@@ -95,7 +85,7 @@ export class VariableResolver {
     return value.includes(REFERENCE_START) || value.includes(ENV_VAR_START)
   }
 
-  private resolveReference(reference: string, currentNodeId: string, context: ExecutionContext): any {
+  private resolveReference(reference: string, currentNodeId: string, context: ExecutionContext, loopScope?: LoopScope): any {
     const content = reference.substring(
       REFERENCE_START.length,
       reference.length - REFERENCE_END.length
@@ -110,7 +100,7 @@ export class VariableResolver {
 
     switch (type) {
       case 'loop':
-        return this.resolveLoopVariable(pathParts, currentNodeId)
+        return this.resolveLoopVariable(pathParts, currentNodeId, loopScope)
       case 'parallel':
         return this.resolveParallelVariable(pathParts, currentNodeId)
       case 'variable':
@@ -120,15 +110,18 @@ export class VariableResolver {
     }
   }
 
-  private resolveLoopVariable(pathParts: string[], currentNodeId: string): any {
+  private resolveLoopVariable(pathParts: string[], currentNodeId: string, loopScope?: LoopScope): any {
     const [property] = pathParts
 
-    const loopId = this.findLoopForBlock(currentNodeId)
-    if (!loopId) {
-      return undefined
+    let scope = loopScope
+    if (!scope) {
+      const loopId = this.findLoopForBlock(currentNodeId)
+      if (!loopId) {
+        return undefined
+      }
+      scope = this.state.getLoopScope(loopId)
     }
 
-    const scope = this.state.getLoopScope(loopId)
     if (!scope) {
       return undefined
     }
@@ -211,12 +204,12 @@ export class VariableResolver {
     return context.environmentVariables?.[varName] ?? value
   }
 
-  private resolveTemplate(template: string, currentNodeId: string, context: ExecutionContext): string {
+  private resolveTemplate(template: string, currentNodeId: string, context: ExecutionContext, loopScope?: LoopScope): string {
     let result = template
 
     const referenceRegex = /<([^>]+)>/g
     result = result.replace(referenceRegex, (match) => {
-      const resolved = this.resolveReference(match, currentNodeId, context)
+      const resolved = this.resolveReference(match, currentNodeId, context, loopScope)
       if (resolved === undefined) {
         return match
       }

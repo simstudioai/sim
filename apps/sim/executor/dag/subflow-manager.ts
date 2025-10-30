@@ -182,22 +182,16 @@ export class SubflowManager {
     }
 
     try {
+      const referencePattern = /<([^>]+)>/g
       let evaluatedCondition = condition
 
-      evaluatedCondition = evaluatedCondition.replace(/<loop\.iteration>/g, String(scope.iteration))
-      evaluatedCondition = evaluatedCondition.replace(/<loop\.item>/g, JSON.stringify(scope.item))
-
-      const variablePattern = /<variable\.(\w+)>/g
-      const variableMatches = evaluatedCondition.match(variablePattern)
-      
-      if (variableMatches) {
-        for (const match of variableMatches) {
-          const resolved = this.resolver.resolveSingleReference(match, '', context)
-          if (resolved !== undefined) {
-            evaluatedCondition = evaluatedCondition.replace(match, String(resolved))
-          }
+      evaluatedCondition = evaluatedCondition.replace(referencePattern, (match) => {
+        const resolved = this.resolver.resolveSingleReference(match, '', context, scope)
+        if (resolved !== undefined) {
+          return typeof resolved === 'string' ? resolved : JSON.stringify(resolved)
         }
-      }
+        return match
+      })
 
       return Boolean(eval(`(${evaluatedCondition})`))
     } catch (error) {
