@@ -24,6 +24,7 @@ export class ExecutionEngine {
   private executing = new Set<Promise<void>>()
   private queueLock = Promise.resolve()
   private finalOutput: NormalizedBlockOutput = {}
+  private deactivatedEdges = new Set<string>() // Edges that won't execute due to condition/router/error branching
 
   constructor(
     private workflow: SerializedWorkflow,
@@ -256,8 +257,18 @@ export class ExecutionEngine {
         continue
       }
 
-      if (!this.shouldActivateEdge(edge, output)) {
-        logger.debug('Edge not activated', { edgeId, sourceHandle: edge.sourceHandle })
+      // Check if this edge should be activated based on condition/router output
+      const shouldActivate = this.shouldActivateEdge(edge, output)
+      
+      if (!shouldActivate) {
+        // Mark this edge as deactivated and deactivate all downstream edges
+        this.deactivateEdgeAndDescendants(node.id, edge.target, edge.sourceHandle)
+        logger.debug('Edge deactivated', { 
+          edgeId, 
+          sourceHandle: edge.sourceHandle,
+          from: node.id,
+          to: edge.target,
+        })
         continue
       }
 
@@ -275,11 +286,100 @@ export class ExecutionEngine {
         remainingIncomingEdges: targetNode.incomingEdges.size,
       })
 
-      if (targetNode.incomingEdges.size === 0) {
+      // Check if node is ready by counting only active incoming edges
+      if (this.isNodeReady(targetNode)) {
         logger.debug('Node ready', { nodeId: targetNode.id })
         this.addToQueue(targetNode.id)
       }
     }
+  }
+
+  private deactivateEdgeAndDescendants(sourceId: string, targetId: string, sourceHandle?: string): void {
+    // Mark this edge as deactivated
+    const edgeKey = `${sourceId}-${targetId}-${sourceHandle || 'default'}`
+    if (this.deactivatedEdges.has(edgeKey)) {
+      return // Already deactivated
+    }
+    this.deactivatedEdges.add(edgeKey)
+
+    // Get the target node
+    const targetNode = this.dag.nodes.get(targetId)
+    if (!targetNode) return
+
+    // Check if target node has any other active incoming edges
+    let hasOtherActiveIncoming = false
+    for (const incomingSourceId of targetNode.incomingEdges) {
+      if (incomingSourceId === sourceId) continue // Skip the edge we just deactivated
+
+      const incomingNode = this.dag.nodes.get(incomingSourceId)
+      if (!incomingNode) continue
+
+      // Check if there's an active edge from this source
+      for (const [_, incomingEdge] of incomingNode.outgoingEdges) {
+        if (incomingEdge.target === targetId) {
+          const incomingEdgeKey = `${incomingSourceId}-${targetId}-${incomingEdge.sourceHandle || 'default'}`
+          if (!this.deactivatedEdges.has(incomingEdgeKey)) {
+            hasOtherActiveIncoming = true
+            break
+          }
+        }
+      }
+
+      if (hasOtherActiveIncoming) break
+    }
+
+    // If target has no other active incoming edges, deactivate all its outgoing edges
+    if (!hasOtherActiveIncoming) {
+      logger.debug('Deactivating descendants of unreachable node', { nodeId: targetId })
+      for (const [_, outgoingEdge] of targetNode.outgoingEdges) {
+        this.deactivateEdgeAndDescendants(targetId, outgoingEdge.target, outgoingEdge.sourceHandle)
+      }
+    }
+  }
+
+  private isNodeReady(node: DAGNode): boolean {
+    // Node is ready if it has no remaining incoming edges
+    if (node.incomingEdges.size === 0) {
+      return true
+    }
+
+    // Check if all remaining incoming edges are deactivated
+    // If so, the node is ready because it's waiting for edges that will never fire
+    let activeIncomingCount = 0
+    
+    for (const sourceId of node.incomingEdges) {
+      // Find the edge from this source to this node
+      const sourceNode = this.dag.nodes.get(sourceId)
+      if (!sourceNode) continue
+
+      // Check if there's an active edge from source to this node
+      for (const [_, edge] of sourceNode.outgoingEdges) {
+        if (edge.target === node.id) {
+          const edgeKey = `${sourceId}-${edge.target}-${edge.sourceHandle || 'default'}`
+          if (!this.deactivatedEdges.has(edgeKey)) {
+            activeIncomingCount++
+            break
+          }
+        }
+      }
+    }
+
+    // If there are still active incoming edges waiting, node is not ready
+    if (activeIncomingCount > 0) {
+      logger.debug('Node not ready - waiting for active incoming edges', {
+        nodeId: node.id,
+        totalIncoming: node.incomingEdges.size,
+        activeIncoming: activeIncomingCount,
+      })
+      return false
+    }
+
+    // All remaining incoming edges are deactivated, so node is ready
+    logger.debug('Node ready - all remaining edges are deactivated', {
+      nodeId: node.id,
+      totalIncoming: node.incomingEdges.size,
+    })
+    return true
   }
 
   private shouldActivateEdge(edge: any, output: NormalizedBlockOutput): boolean {
@@ -291,6 +391,16 @@ export class ExecutionEngine {
     if (edge.sourceHandle?.startsWith('router-')) {
       const routeId = edge.sourceHandle.substring('router-'.length)
       return output.selectedRoute === routeId
+    }
+
+    // For error handles: if we have a success output, deactivate error edge
+    if (edge.sourceHandle === 'error' && !output.error) {
+      return false
+    }
+
+    // For success handles: if we have an error, deactivate success edge
+    if (edge.sourceHandle === 'source' && output.error) {
+      return false
     }
 
     return true
