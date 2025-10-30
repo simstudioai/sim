@@ -53,10 +53,9 @@ export async function GET(request: NextRequest) {
 
     let resolvedWorkspaceId: string | null = workspaceId
 
-    // If workflowId is provided, get workspaceId from the workflow
     if (!resolvedWorkspaceId && workflowId) {
       const [workflowData] = await db
-        .select({ workspaceId: workflow.workspaceId, workflowUserId: workflow.userId })
+        .select({ workspaceId: workflow.workspaceId })
         .from(workflow)
         .where(eq(workflow.id, workflowId))
         .limit(1)
@@ -67,19 +66,12 @@ export async function GET(request: NextRequest) {
       }
 
       resolvedWorkspaceId = workflowData.workspaceId
-
-      // For internal JWT auth (API triggers, schedules, webhooks), verify workflow ownership
-      if (authResult.authType === 'internal_jwt' && workflowData.workflowUserId !== userId) {
-        logger.warn(
-          `[${requestId}] User ${userId} attempted to access workflow ${workflowId} owned by ${workflowData.workflowUserId}`
-        )
-        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-      }
     }
 
-    // Check workspace permissions (skip for internal JWT when workflowId is provided, as we already verified ownership)
-    // Also skip if there's no workspaceId (legacy workflows/tools)
-    if (resolvedWorkspaceId && (authResult.authType !== 'internal_jwt' || !workflowId)) {
+    // Check workspace permissions
+    // Skip for internal JWT with workflowId (checkHybridAuth already verified workflow ownership)
+    // Skip if no workspaceId (legacy workflows/tools)
+    if (resolvedWorkspaceId && !(authResult.authType === 'internal_jwt' && workflowId)) {
       const userPermission = await getUserEntityPermissions(
         userId,
         'workspace',
@@ -93,17 +85,13 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Fetch workspace-scoped tools AND user-scoped tools (for backward compatibility)
-    // If workspaceId is null (legacy workflow), only fetch user-scoped tools
     // If workspaceId exists, fetch both workspace-scoped and user-scoped tools
     const conditions = []
 
     if (resolvedWorkspaceId) {
-      // Include workspace-scoped tools
       conditions.push(eq(customTools.workspaceId, resolvedWorkspaceId))
     }
 
-    // Always include user-scoped tools (legacy tools without workspaceId)
     conditions.push(and(isNull(customTools.workspaceId), eq(customTools.userId, userId)))
 
     const result = await db
