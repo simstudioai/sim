@@ -1,7 +1,7 @@
 /**
- * Custom Blob configuration
+ * Blob storage configuration
  */
-export interface CustomBlobConfig {
+export interface BlobConfig {
   containerName: string
   accountName: string
   accountKey?: string
@@ -15,7 +15,7 @@ export interface AzureMultipartUploadInit {
   fileName: string
   contentType: string
   fileSize: number
-  customConfig?: CustomBlobConfig
+  customConfig?: BlobConfig
 }
 
 /**

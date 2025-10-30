@@ -7,7 +7,7 @@ export {
   uploadToS3,
 } from '@/lib/uploads/providers/s3/client'
 export type {
-  CustomS3Config,
+  S3Config,
   S3MultipartPart,
   S3MultipartUploadInit,
   S3PartUploadUrl,

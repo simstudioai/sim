@@ -1,7 +1,7 @@
 /**
- * Custom S3 configuration
+ * S3 storage configuration
  */
-export interface CustomS3Config {
+export interface S3Config {
   bucket: string
   region: string
 }
@@ -13,7 +13,7 @@ export interface S3MultipartUploadInit {
   fileName: string
   contentType: string
   fileSize: number
-  customConfig?: CustomS3Config
+  customConfig?: S3Config
 }
 
 /**

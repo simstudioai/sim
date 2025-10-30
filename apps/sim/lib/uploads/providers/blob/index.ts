@@ -10,5 +10,5 @@ export type {
   AzureMultipartPart,
   AzureMultipartUploadInit,
   AzurePartUploadUrl,
-  CustomBlobConfig,
+  BlobConfig,
 } from '@/lib/uploads/providers/blob/types'

@@ -1,7 +1,7 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { getStorageConfig, USE_BLOB_STORAGE, USE_S3_STORAGE } from '../config'
-import type { CustomBlobConfig } from '../providers/blob/types'
-import type { CustomS3Config } from '../providers/s3/types'
+import type { BlobConfig } from '../providers/blob/types'
+import type { S3Config } from '../providers/s3/types'
 import type {
   DeleteFileOptions,
   DownloadFileOptions,
@@ -19,7 +19,7 @@ const logger = createLogger('StorageService')
 /**
  * Create a Blob config from StorageConfig
  */
-function createBlobConfig(config: StorageConfig): CustomBlobConfig {
+function createBlobConfig(config: StorageConfig): BlobConfig {
   return {
     containerName: config.containerName!,
     accountName: config.accountName!,
@@ -31,7 +31,7 @@ function createBlobConfig(config: StorageConfig): CustomBlobConfig {
 /**
  * Create an S3 config from StorageConfig
  */
-function createS3Config(config: StorageConfig): CustomS3Config {
+function createS3Config(config: StorageConfig): S3Config {
   return {
     bucket: config.bucket!,
     region: config.region!,

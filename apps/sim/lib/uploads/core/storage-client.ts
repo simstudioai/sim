@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import type { CustomBlobConfig } from '@/lib/uploads/providers/blob/types'
-import type { CustomS3Config } from '@/lib/uploads/providers/s3/types'
+import type { BlobConfig } from '@/lib/uploads/providers/blob/types'
+import type { S3Config } from '@/lib/uploads/providers/s3/types'
 import { USE_BLOB_STORAGE, USE_S3_STORAGE } from '../config'
 import type { FileInfo, StorageConfig } from '../shared/types'
 import { sanitizeFileKey } from '../utils/file-utils'
@@ -51,7 +51,7 @@ export async function uploadFile(
   if (USE_BLOB_STORAGE) {
     const { uploadToBlob } = await import('@/lib/uploads/providers/blob/client')
     if (typeof configOrSize === 'object') {
-      const blobConfig: CustomBlobConfig = {
+      const blobConfig: BlobConfig = {
         containerName: configOrSize.containerName!,
         accountName: configOrSize.accountName!,
         accountKey: configOrSize.accountKey,
@@ -65,7 +65,7 @@ export async function uploadFile(
   if (USE_S3_STORAGE) {
     const { uploadToS3 } = await import('@/lib/uploads/providers/s3/client')
     if (typeof configOrSize === 'object') {
-      const s3Config: CustomS3Config = {
+      const s3Config: S3Config = {
         bucket: configOrSize.bucket!,
         region: configOrSize.region!,
       }
@@ -120,7 +120,7 @@ export async function downloadFile(key: string, customConfig?: StorageConfig): P
   if (USE_BLOB_STORAGE) {
     const { downloadFromBlob } = await import('@/lib/uploads/providers/blob/client')
     if (customConfig) {
-      const blobConfig: CustomBlobConfig = {
+      const blobConfig: BlobConfig = {
         containerName: customConfig.containerName!,
         accountName: customConfig.accountName!,
         accountKey: customConfig.accountKey,
@@ -134,7 +134,7 @@ export async function downloadFile(key: string, customConfig?: StorageConfig): P
   if (USE_S3_STORAGE) {
     const { downloadFromS3 } = await import('@/lib/uploads/providers/s3/client')
     if (customConfig) {
-      const s3Config: CustomS3Config = {
+      const s3Config: S3Config = {
         bucket: customConfig.bucket!,
         region: customConfig.region!,
       }

@@ -12,7 +12,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { env } from '@/lib/env'
 import { S3_CONFIG, S3_KB_CONFIG } from '@/lib/uploads/config'
 import type {
-  CustomS3Config,
+  S3Config,
   S3MultipartPart,
   S3MultipartUploadInit,
   S3PartUploadUrl,
@@ -56,7 +56,7 @@ export function getS3Client(): S3Client {
  * @param fileName Original file name
  * @param contentType MIME type of the file
  * @param configOrSize Custom S3 configuration OR file size in bytes (optional)
- * @param size File size in bytes (required if configOrSize is CustomS3Config, optional otherwise)
+ * @param size File size in bytes (required if configOrSize is S3Config, optional otherwise)
  * @param skipTimestampPrefix Skip adding timestamp prefix to filename (default: false)
  * @param metadata Optional metadata to store with the file
  * @returns Object with file information
@@ -65,7 +65,7 @@ export async function uploadToS3(
   file: Buffer,
   fileName: string,
   contentType: string,
-  configOrSize?: CustomS3Config | number,
+  configOrSize?: S3Config | number,
   size?: number,
   skipTimestampPrefix?: boolean,
   metadata?: Record<string, string>
@@ -75,12 +75,12 @@ export async function uploadToS3(
   file: Buffer,
   fileName: string,
   contentType: string,
-  configOrSize?: CustomS3Config | number,
+  configOrSize?: S3Config | number,
   size?: number,
   skipTimestampPrefix?: boolean,
   metadata?: Record<string, string>
 ): Promise<FileInfo> {
-  let config: CustomS3Config
+  let config: S3Config
   let fileSize: number
   let shouldSkipTimestamp: boolean
 
@@ -153,7 +153,7 @@ export async function getPresignedUrl(key: string, expiresIn = 3600) {
  */
 export async function getPresignedUrlWithConfig(
   key: string,
-  customConfig: CustomS3Config,
+  customConfig: S3Config,
   expiresIn = 3600
 ) {
   const command = new GetObjectCommand({
@@ -177,9 +177,9 @@ export async function downloadFromS3(key: string): Promise<Buffer>
  * @param customConfig Custom S3 configuration
  * @returns File buffer
  */
-export async function downloadFromS3(key: string, customConfig: CustomS3Config): Promise<Buffer>
+export async function downloadFromS3(key: string, customConfig: S3Config): Promise<Buffer>
 
-export async function downloadFromS3(key: string, customConfig?: CustomS3Config): Promise<Buffer> {
+export async function downloadFromS3(key: string, customConfig?: S3Config): Promise<Buffer> {
   const config = customConfig || { bucket: S3_CONFIG.bucket, region: S3_CONFIG.region }
 
   const command = new GetObjectCommand({
@@ -209,9 +209,9 @@ export async function deleteFromS3(key: string): Promise<void>
  * @param key S3 object key
  * @param customConfig Custom S3 configuration
  */
-export async function deleteFromS3(key: string, customConfig: CustomS3Config): Promise<void>
+export async function deleteFromS3(key: string, customConfig: S3Config): Promise<void>
 
-export async function deleteFromS3(key: string, customConfig?: CustomS3Config): Promise<void> {
+export async function deleteFromS3(key: string, customConfig?: S3Config): Promise<void> {
   const config = customConfig || { bucket: S3_CONFIG.bucket, region: S3_CONFIG.region }
 
   await getS3Client().send(
@@ -267,7 +267,7 @@ export async function getS3MultipartPartUrls(
   key: string,
   uploadId: string,
   partNumbers: number[],
-  customConfig?: CustomS3Config
+  customConfig?: S3Config
 ): Promise<S3PartUploadUrl[]> {
   const config = customConfig || { bucket: S3_KB_CONFIG.bucket, region: S3_KB_CONFIG.region }
   const s3Client = getS3Client()
@@ -296,7 +296,7 @@ export async function completeS3MultipartUpload(
   key: string,
   uploadId: string,
   parts: S3MultipartPart[],
-  customConfig?: CustomS3Config
+  customConfig?: S3Config
 ): Promise<{ location: string; path: string; key: string }> {
   const config = customConfig || { bucket: S3_KB_CONFIG.bucket, region: S3_KB_CONFIG.region }
   const s3Client = getS3Client()
@@ -328,7 +328,7 @@ export async function completeS3MultipartUpload(
 export async function abortS3MultipartUpload(
   key: string,
   uploadId: string,
-  customConfig?: CustomS3Config
+  customConfig?: S3Config
 ): Promise<void> {
   const config = customConfig || { bucket: S3_KB_CONFIG.bucket, region: S3_KB_CONFIG.region }
   const s3Client = getS3Client()

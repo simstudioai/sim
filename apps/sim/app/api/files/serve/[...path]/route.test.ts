@@ -16,7 +16,6 @@ describe('File Serve API Route', () => {
       withUploadUtils: true,
     })
 
-    // Mock checkHybridAuth
     vi.doMock('@/lib/auth/hybrid', () => ({
       checkHybridAuth: vi.fn().mockResolvedValue({
         success: true,
@@ -24,7 +23,6 @@ describe('File Serve API Route', () => {
       }),
     }))
 
-    // Mock verifyFileAccess
     vi.doMock('@/app/api/files/authorization', () => ({
       verifyFileAccess: vi.fn().mockResolvedValue(true),
     }))

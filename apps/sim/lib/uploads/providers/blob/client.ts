@@ -4,7 +4,7 @@ import type {
   AzureMultipartPart,
   AzureMultipartUploadInit,
   AzurePartUploadUrl,
-  CustomBlobConfig,
+  BlobConfig,
 } from '@/lib/uploads/providers/blob/types'
 import type { FileInfo } from '@/lib/uploads/shared/types'
 import { sanitizeStorageMetadata } from '@/lib/uploads/utils/file-utils'
@@ -46,7 +46,7 @@ export async function getBlobServiceClient(): Promise<BlobServiceClientInstance>
  * @param fileName Original file name
  * @param contentType MIME type of the file
  * @param configOrSize Custom Blob configuration OR file size in bytes (optional)
- * @param size File size in bytes (required if configOrSize is CustomBlobConfig, optional otherwise)
+ * @param size File size in bytes (required if configOrSize is BlobConfig, optional otherwise)
  * @param metadata Optional metadata to store with the file
  * @returns Object with file information
  */
@@ -54,7 +54,7 @@ export async function uploadToBlob(
   file: Buffer,
   fileName: string,
   contentType: string,
-  configOrSize?: CustomBlobConfig | number,
+  configOrSize?: BlobConfig | number,
   size?: number,
   metadata?: Record<string, string>
 ): Promise<FileInfo>
@@ -63,11 +63,11 @@ export async function uploadToBlob(
   file: Buffer,
   fileName: string,
   contentType: string,
-  configOrSize?: CustomBlobConfig | number,
+  configOrSize?: BlobConfig | number,
   size?: number,
   metadata?: Record<string, string>
 ): Promise<FileInfo> {
-  let config: CustomBlobConfig
+  let config: BlobConfig
   let fileSize: number
 
   if (typeof configOrSize === 'object') {
@@ -161,7 +161,7 @@ export async function getPresignedUrl(key: string, expiresIn = 3600) {
  */
 export async function getPresignedUrlWithConfig(
   key: string,
-  customConfig: CustomBlobConfig,
+  customConfig: BlobConfig,
   expiresIn = 3600
 ) {
   const {
@@ -227,12 +227,9 @@ export async function downloadFromBlob(key: string): Promise<Buffer>
  * @param customConfig Custom Blob configuration
  * @returns File buffer
  */
-export async function downloadFromBlob(key: string, customConfig: CustomBlobConfig): Promise<Buffer>
+export async function downloadFromBlob(key: string, customConfig: BlobConfig): Promise<Buffer>
 
-export async function downloadFromBlob(
-  key: string,
-  customConfig?: CustomBlobConfig
-): Promise<Buffer> {
+export async function downloadFromBlob(key: string, customConfig?: BlobConfig): Promise<Buffer> {
   const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
   let blobServiceClient: BlobServiceClientInstance
   let containerName: string
@@ -281,9 +278,9 @@ export async function deleteFromBlob(key: string): Promise<void>
  * @param key Blob name
  * @param customConfig Custom Blob configuration
  */
-export async function deleteFromBlob(key: string, customConfig: CustomBlobConfig): Promise<void>
+export async function deleteFromBlob(key: string, customConfig: BlobConfig): Promise<void>
 
-export async function deleteFromBlob(key: string, customConfig?: CustomBlobConfig): Promise<void> {
+export async function deleteFromBlob(key: string, customConfig?: BlobConfig): Promise<void> {
   const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
   let blobServiceClient: BlobServiceClientInstance
   let containerName: string
@@ -393,7 +390,7 @@ export async function initiateMultipartUpload(
 export async function getMultipartPartUrls(
   key: string,
   partNumbers: number[],
-  customConfig?: CustomBlobConfig
+  customConfig?: BlobConfig
 ): Promise<AzurePartUploadUrl[]> {
   const {
     BlobServiceClient,
@@ -477,7 +474,7 @@ export async function getMultipartPartUrls(
 export async function completeMultipartUpload(
   key: string,
   parts: AzureMultipartPart[],
-  customConfig?: CustomBlobConfig
+  customConfig?: BlobConfig
 ): Promise<{ location: string; path: string; key: string }> {
   const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
   let blobServiceClient: BlobServiceClientInstance
@@ -533,10 +530,7 @@ export async function completeMultipartUpload(
 /**
  * Abort multipart upload by deleting the blob if it exists
  */
-export async function abortMultipartUpload(
-  key: string,
-  customConfig?: CustomBlobConfig
-): Promise<void> {
+export async function abortMultipartUpload(key: string, customConfig?: BlobConfig): Promise<void> {
   const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
   let blobServiceClient: BlobServiceClientInstance
   let containerName: string

@@ -209,7 +209,6 @@ async function verifyWorkspaceFileAccess(
       return false
     }
 
-    // No authorization source available - deny access
     logger.warn('Workspace file missing authorization metadata', { cloudKey, userId })
     return false
   } catch (error) {
@@ -223,12 +222,10 @@ async function verifyWorkspaceFileAccess(
  * Execution files have format: workspace_id/workflow_id/execution_id/filename
  */
 function isExecutionFile(cloudKey: string, bucketType?: string | null): boolean {
-  // Execution files are stored in execution-files bucket or have the pattern
   if (bucketType === 'execution-files' || bucketType === 'execution') {
     return true
   }
 
-  // Use inferContextFromKey to check if it's an execution file
   return inferContextFromKey(cloudKey) === 'execution'
 }
 
@@ -253,7 +250,6 @@ async function verifyExecutionFileAccess(
     return false
   }
 
-  // Verify user has workspace access
   const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
   if (permission === null) {
     logger.warn('User does not have workspace access for execution file', {
@@ -282,7 +278,6 @@ async function verifyCopilotFileAccess(
     const fileRecord = await getFileMetadataByKey(cloudKey, 'copilot')
 
     if (fileRecord) {
-      // Verify userId matches authenticated user
       if (fileRecord.userId === userId) {
         logger.debug('Copilot file access granted (workspaceFiles table)', {
           userId,
@@ -333,7 +328,6 @@ async function verifyCopilotFileAccess(
       return false
     }
 
-    // No authorization source available - deny access
     logger.warn('Copilot file missing authorization metadata', { cloudKey, userId })
     return false
   } catch (error) {
@@ -457,20 +451,16 @@ async function verifyChatFileAccess(
   customConfig?: StorageConfig
 ): Promise<boolean> {
   try {
-    // Determine storage config for chat files
     const config: StorageConfig = customConfig || (await getChatStorageConfig())
 
-    // Retrieve metadata
     const metadata = await getFileMetadata(cloudKey, config)
     const workspaceId = metadata.workspaceId
 
     if (!workspaceId) {
       logger.warn('Chat file missing workspaceId in metadata', { cloudKey, userId })
-      // Deny access if metadata unavailable
       return false
     }
 
-    // Verify user has workspace access
     const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
     if (permission === null) {
       logger.warn('User does not have workspace access for chat file', {
@@ -583,7 +573,6 @@ export async function authorizeFileAccess(
   const granted = await verifyFileAccess(key, userId, null, storageConfig, context, isLocal)
 
   if (granted) {
-    // Try to determine workspaceId for logging
     let workspaceId: string | undefined
     const inferredContext = context || inferContextFromKey(key)
 
@@ -632,7 +621,6 @@ async function getKBStorageConfig(): Promise<StorageConfig> {
     }
   }
 
-  // Fallback to default config
   return {}
 }
 
@@ -658,6 +646,5 @@ async function getChatStorageConfig(): Promise<StorageConfig> {
     }
   }
 
-  // Fallback to default config
   return {}
 }

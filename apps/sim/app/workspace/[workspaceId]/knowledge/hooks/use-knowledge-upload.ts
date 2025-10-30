@@ -723,7 +723,6 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
       formData.append('file', file)
       formData.append('context', 'knowledge-base')
 
-      // Add workspaceId if available
       if (options.workspaceId) {
         formData.append('workspaceId', options.workspaceId)
       }
@@ -750,10 +749,8 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
 
       const uploadResult = await uploadResponse.json()
 
-      // Handle both response formats (fileInfo.path for new format, path for legacy)
       const filePath = uploadResult.fileInfo?.path || uploadResult.path
 
-      // Validate upload result structure
       if (!filePath) {
         throw new DirectUploadError(
           `Invalid upload response for ${file.name}: missing file path`,
