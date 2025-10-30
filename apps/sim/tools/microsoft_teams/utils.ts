@@ -180,8 +180,10 @@ async function fetchChannelMembers(
   channelId: string,
   accessToken: string
 ): Promise<TeamMember[]> {
+  // Channel members endpoint requires ChannelMember.Read.All which may not be available
+  // Instead, fetch team members which works with the standard Teams permissions
   const response = await fetch(
-    `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(teamId)}/channels/${encodeURIComponent(channelId)}/members`,
+    `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(teamId)}/members`,
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -191,7 +193,7 @@ async function fetchChannelMembers(
   )
 
   if (!response.ok) {
-    logger.error('Failed to fetch channel members:', {
+    logger.error('Failed to fetch team members:', {
       status: response.status,
       statusText: response.statusText,
     })
@@ -205,7 +207,7 @@ async function fetchChannelMembers(
     userIdentityType: member.userIdentityType,
   }))
 
-  logger.info('Fetched channel members:', {
+  logger.info('Fetched team members for channel:', {
     count: members.length,
     members: members.map((m: TeamMember) => ({
       displayName: m.displayName,
