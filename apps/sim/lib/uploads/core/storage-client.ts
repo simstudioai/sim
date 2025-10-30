@@ -92,11 +92,15 @@ export async function uploadFile(
     return uploadToS3(file, fileName, contentType, configOrSize)
   }
 
+  if (typeof window !== 'undefined') {
+    throw new Error('Local file upload is only supported on the server')
+  }
+
   logger.info(`Uploading file to local storage: ${fileName}`)
-  const { writeFile } = await import('fs/promises')
-  const { join } = await import('path')
-  const { v4: uuidv4 } = await import('uuid')
-  const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/core/setup.server')
+  const { writeFile } = require('fs/promises')
+  const { join } = require('path')
+  const { v4: uuidv4 } = require('uuid')
+  const { UPLOAD_DIR_SERVER } = require('@/lib/uploads/core/setup.server')
 
   const safeFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_').replace(/\.\./g, '')
   const uniqueKey = `${uuidv4()}-${safeFileName}`
@@ -169,10 +173,14 @@ export async function downloadFile(
     return downloadFromS3(key)
   }
 
+  if (typeof window !== 'undefined') {
+    throw new Error('Local file download is only supported on the server')
+  }
+
   logger.info(`Downloading file from local storage: ${key}`)
-  const { readFile } = await import('fs/promises')
-  const { join, resolve, sep } = await import('path')
-  const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/core/setup.server')
+  const { readFile } = require('fs/promises')
+  const { join, resolve, sep } = require('path')
+  const { UPLOAD_DIR_SERVER } = require('@/lib/uploads/core/setup.server')
 
   const safeKey = key.replace(/\.\./g, '').replace(/[/\\]/g, '')
   const filePath = join(UPLOAD_DIR_SERVER, safeKey)
@@ -210,10 +218,14 @@ export async function deleteFile(key: string): Promise<void> {
     return deleteFromS3(key)
   }
 
+  if (typeof window !== 'undefined') {
+    throw new Error('Local file deletion is only supported on the server')
+  }
+
   logger.info(`Deleting file from local storage: ${key}`)
-  const { unlink } = await import('fs/promises')
-  const { join, resolve, sep } = await import('path')
-  const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/core/setup.server')
+  const { unlink } = require('fs/promises')
+  const { join, resolve, sep } = require('path')
+  const { UPLOAD_DIR_SERVER } = require('@/lib/uploads/core/setup.server')
 
   const safeKey = key.replace(/\.\./g, '').replace(/[/\\]/g, '')
   const filePath = join(UPLOAD_DIR_SERVER, safeKey)
