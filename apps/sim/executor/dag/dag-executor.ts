@@ -30,7 +30,8 @@ import {
 import { DAGBuilder } from './dag-builder'
 import { ExecutionState } from './execution-state'
 import { VariableResolver } from './variable-resolver'
-import { SubflowManager } from './subflow-manager'
+import { LoopOrchestrator } from './loop-orchestrator'
+import { ParallelOrchestrator } from './parallel-orchestrator'
 import { BlockExecutor } from './block-executor'
 import { ExecutionEngine } from './execution-engine'
 
@@ -78,10 +79,12 @@ export class DAGExecutor {
     
     const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
     
-    const subflowManager = new SubflowManager(this.workflow, dag, state, resolver)
+    // Create orchestrators for loop and parallel execution
+    const loopOrchestrator = new LoopOrchestrator(dag, state, resolver)
+    const parallelOrchestrator = new ParallelOrchestrator(dag, state)
     
-    // Create sentinel handler with DAG and SubflowManager dependencies
-    const sentinelHandler = new SentinelBlockHandler(subflowManager, dag)
+    // Create sentinel handler with LoopOrchestrator dependency
+    const sentinelHandler = new SentinelBlockHandler(loopOrchestrator)
     
     // Combine handlers (sentinel first for priority)
     const allHandlers = [sentinelHandler, ...this.blockHandlers]
@@ -93,7 +96,8 @@ export class DAGExecutor {
       dag,
       state,
       blockExecutor,
-      subflowManager,
+      loopOrchestrator,
+      parallelOrchestrator,
       context
     )
     

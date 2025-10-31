@@ -2,6 +2,7 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { BlockType } from '@/executor/consts'
 import type { BlockHandler, ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
+import type { LoopOrchestrator } from '@/executor/dag/loop-orchestrator'
 
 const logger = createLogger('SentinelBlockHandler')
 
@@ -9,11 +10,12 @@ const logger = createLogger('SentinelBlockHandler')
  * Handler for virtual sentinel nodes that bookend loops.
  * - sentinel_start: Entry point for loop (initializes scope, passes through to internal nodes)
  * - sentinel_end: Exit point that evaluates loop conditions and manages backward edges
+ * 
+ * All loop logic is delegated to LoopOrchestrator for consolidation.
  */
 export class SentinelBlockHandler implements BlockHandler {
   constructor(
-    private subflowManager?: any,
-    private dag?: any
+    private loopOrchestrator?: LoopOrchestrator
   ) {}
 
   canHandle(block: SerializedBlock): boolean {
@@ -51,10 +53,10 @@ export class SentinelBlockHandler implements BlockHandler {
   ): Promise<NormalizedBlockOutput> {
     logger.debug('Sentinel start - loop entry', { blockId: block.id, loopId })
 
-    // Note: Loop scope initialization is handled by ExecutionEngine before execution
+    // Loop scope initialization is handled by ExecutionEngine before execution
+    // using LoopOrchestrator.initializeLoopScope()
     // This sentinel_start just passes through to start the loop
 
-    // Pass through - sentinel_start just gates entry
     return {
       ...inputs,
       sentinelStart: true,
@@ -69,78 +71,38 @@ export class SentinelBlockHandler implements BlockHandler {
   ): Promise<NormalizedBlockOutput> {
     logger.debug('Sentinel end - evaluating loop continuation', { blockId: block.id, loopId })
 
-    if (!loopId || !this.subflowManager || !this.dag) {
-      logger.warn('Sentinel end called without loop context')
+    if (!loopId || !this.loopOrchestrator) {
+      logger.warn('Sentinel end called without loop context or orchestrator')
       return { ...inputs, shouldExit: true, selectedRoute: 'loop_exit' }
     }
 
-    const loopConfig = this.dag.loopConfigs?.get(loopId)
-    if (!loopConfig) {
-      logger.warn('Loop config not found', { loopId })
-      return { ...inputs, shouldExit: true, selectedRoute: 'loop_exit' }
-    }
+    // Delegate all loop continuation logic to LoopOrchestrator
+    const continuationResult = this.loopOrchestrator.evaluateLoopContinuation(loopId, context)
 
-    // Get the loop scope from SubflowManager's internal state
-    const scope = (this.subflowManager as any).state.getLoopScope(loopId)
-    if (!scope) {
-      logger.warn('Loop scope not found', { loopId })
-      return { ...inputs, shouldExit: true, selectedRoute: 'loop_exit' }
-    }
+    logger.debug('Loop continuation evaluated', {
+      loopId,
+      shouldContinue: continuationResult.shouldContinue,
+      shouldExit: continuationResult.shouldExit,
+      iteration: continuationResult.currentIteration,
+    })
 
-    // Collect iteration outputs (already stored by loop nodes in handleLoopNodeOutput)
-    const iterationResults: NormalizedBlockOutput[] = []
-    for (const blockOutput of scope.currentIterationOutputs.values()) {
-      iterationResults.push(blockOutput)
-    }
-
-    if (iterationResults.length > 0) {
-      scope.allIterationOutputs.push(iterationResults)
-    }
-
-    scope.currentIterationOutputs.clear()
-
-    // Check if loop should continue using SubflowManager's internal method
-    // Note: shouldLoopContinue already increments scope.iteration and updates scope.item
-    const shouldContinue = (this.subflowManager as any).shouldLoopContinue(loopId, scope, context)
-
-    if (shouldContinue) {
-      logger.debug('Loop continuing', {
-        loopId,
-        iteration: scope.iteration,
-        maxIterations: scope.maxIterations,
-      })
-
-      // Signal to continue loop via selectedRoute
-      // The ExecutionEngine will use this to activate the backward edge
+    if (continuationResult.shouldContinue) {
+      // Loop continues - return route for backward edge
       return {
         ...inputs,
         shouldContinue: true,
         shouldExit: false,
-        selectedRoute: 'loop_continue', // This will match the backward edge sourceHandle
-        loopIteration: scope.iteration,
+        selectedRoute: continuationResult.selectedRoute, // 'loop_continue'
+        loopIteration: continuationResult.currentIteration,
       }
     } else {
-      // Aggregate results and exit
-      logger.debug('Loop exiting', {
-        loopId,
-        totalIterations: scope.allIterationOutputs.length,
-      })
-
-      const results = scope.allIterationOutputs
-
-      // Store aggregated results
-      context.blockStates?.set(loopId, {
-        output: { results },
-        executed: true,
-        executionTime: 0,
-      })
-
+      // Loop exits - return aggregated results
       return {
-        results,
+        results: continuationResult.aggregatedResults || [],
         shouldContinue: false,
         shouldExit: true,
-        selectedRoute: 'loop_exit', // This will match the forward exit edge sourceHandle
-        totalIterations: scope.allIterationOutputs.length,
+        selectedRoute: continuationResult.selectedRoute, // 'loop_exit'
+        totalIterations: continuationResult.aggregatedResults?.length || 0,
       }
     }
   }

@@ -9,7 +9,8 @@ import type { DAG, DAGNode } from './dag-builder'
 import type { DAGEdge } from './types'
 import type { ExecutionState } from './execution-state'
 import type { BlockExecutor } from './block-executor'
-import type { SubflowManager } from './subflow-manager'
+import type { LoopOrchestrator } from './loop-orchestrator'
+import type { ParallelOrchestrator } from './parallel-orchestrator'
 
 const logger = createLogger('ExecutionEngine')
 
@@ -40,7 +41,8 @@ export class ExecutionEngine {
     private dag: DAG,
     private state: ExecutionState,
     private blockExecutor: BlockExecutor,
-    private subflowManager: SubflowManager,
+    private loopOrchestrator: LoopOrchestrator,
+    private parallelOrchestrator: ParallelOrchestrator,
     private context: ExecutionContext
   ) {}
 
@@ -152,13 +154,15 @@ export class ExecutionEngine {
 
     try {
       const loopId = node.metadata.loopId
-      if (loopId && !this.state.getLoopScope(loopId)) {
+      
+      // Initialize loop scope if needed (using LoopOrchestrator)
+      if (loopId && !this.loopOrchestrator.getLoopScope(loopId)) {
         logger.debug('Initializing loop scope before first execution', { loopId, nodeId })
-        const scope = this.subflowManager.initializeLoopScope(loopId, this.context)
-        this.state.setLoopScope(loopId, scope)
+        this.loopOrchestrator.initializeLoopScope(loopId, this.context)
       }
 
-      if (loopId && !this.subflowManager.shouldExecuteLoopNode(nodeId, loopId, this.context)) {
+      // Check if loop node should execute (using LoopOrchestrator)
+      if (loopId && !this.loopOrchestrator.shouldExecuteLoopNode(nodeId, loopId, this.context)) {
         return
       }
 
@@ -211,14 +215,9 @@ export class ExecutionEngine {
   }
 
   private findParallelIdForNode(nodeId: string): string | undefined {
-    for (const [parallelId, config] of this.dag.parallelConfigs) {
-      const nodes = (config as any).nodes || []
-      const baseId = nodeId.replace(/₍\d+₎$/, '')
-      if (nodes.includes(baseId)) {
-        return parallelId
-      }
-    }
-    return undefined
+    // Delegate to ParallelOrchestrator
+    const baseId = nodeId.replace(/₍\d+₎$/, '')
+    return this.parallelOrchestrator.findParallelIdForNode(baseId)
   }
 
   private handleLoopNodeOutput(node: DAGNode, output: NormalizedBlockOutput, loopId: string): void {
@@ -227,37 +226,39 @@ export class ExecutionEngine {
     
     logger.debug('Tracking loop node output', { loopId, nodeId: node.id })
 
-    const scope = this.state.getLoopScope(loopId)
-    if (scope) {
-      const baseId = node.id.replace(/₍\d+₎$/, '')
-      scope.currentIterationOutputs.set(baseId, output)
-      logger.debug('Stored loop node output in iteration scope', {
-        baseId,
-        iteration: scope.iteration,
-      })
-    } else {
-      logger.warn('Loop scope not found for loop node', { loopId, nodeId: node.id })
-    }
+    // Delegate to LoopOrchestrator for output storage
+    this.loopOrchestrator.storeLoopNodeOutput(loopId, node.id, output)
 
-    // Store output and process edges normally
+    // Store output in execution state and process edges normally
     this.state.setBlockOutput(node.id, output)
     this.processEdges(node, output, false)
   }
 
   private handleParallelNode(node: DAGNode, output: NormalizedBlockOutput, parallelId: string): void {
-    let scope = this.state.getParallelScope(parallelId)
+    let scope = this.parallelOrchestrator.getParallelScope(parallelId)
+    
     if (!scope) {
+      // Initialize parallel scope using ParallelOrchestrator
       // Use the branch information from the node metadata (set by DAG builder)
-      // This ensures we use the actual number of branches that were created
       const totalBranches = node.metadata.branchTotal || 1
       
       const parallelConfig = this.dag.parallelConfigs.get(parallelId)
       const nodesInParallel = (parallelConfig as any)?.nodes?.length || 1
       
-      scope = this.subflowManager.initializeParallelScope(parallelId, totalBranches, nodesInParallel)
+      this.parallelOrchestrator.initializeParallelScope(parallelId, totalBranches, nodesInParallel)
     }
 
-    const allComplete = this.subflowManager.handleParallelBranch(parallelId, node.id, output)
+    // Delegate to ParallelOrchestrator for branch completion handling
+    const allComplete = this.parallelOrchestrator.handleParallelBranchCompletion(
+      parallelId,
+      node.id,
+      output
+    )
+
+    if (allComplete) {
+      // Aggregate results when all branches complete
+      this.parallelOrchestrator.aggregateParallelResults(parallelId)
+    }
 
     // Each parallel branch must process its own outgoing edges independently
     // This allows all branches to contribute their edges to downstream nodes
@@ -271,54 +272,17 @@ export class ExecutionEngine {
       this.finalOutput = output
     }
 
-    // If this is a sentinel_end with loop_continue, clear executed state for loop nodes
+    // If this is a sentinel_end with loop_continue, clear state for next iteration
     if (node.metadata.isSentinel && node.metadata.sentinelType === 'end' && output.selectedRoute === 'loop_continue') {
       const loopId = node.metadata.loopId
       if (loopId) {
-        const loopConfig = this.dag.loopConfigs.get(loopId)
-        if (loopConfig) {
-          logger.debug('Clearing executed state and restoring edges for loop iteration', { loopId })
-          
-          const sentinelStartId = `loop-${loopId}-sentinel-start`
-          const sentinelEndId = `loop-${loopId}-sentinel-end`
-          const loopNodes = (loopConfig as any).nodes as string[]
-          
-          // Build set of all loop-related nodes
-          const allLoopNodeIds = new Set([sentinelStartId, sentinelEndId, ...loopNodes])
-          
-          // Restore incoming edges for all loop nodes by scanning outgoing edges
-          for (const nodeId of allLoopNodeIds) {
-            const nodeToRestore = this.dag.nodes.get(nodeId)
-            if (!nodeToRestore) continue
-            
-            // Find all nodes that have edges pointing to this node
-            for (const [potentialSourceId, potentialSourceNode] of this.dag.nodes) {
-              if (!allLoopNodeIds.has(potentialSourceId)) continue // Only from loop nodes
-              
-              for (const [edgeId, edge] of potentialSourceNode.outgoingEdges) {
-                if (edge.target === nodeId) {
-                  // Skip backward edges (they start inactive)
-                  const isBackwardEdge = edge.sourceHandle === 'loop_continue' || edge.sourceHandle === 'loop-continue-source'
-                  if (!isBackwardEdge) {
-                    nodeToRestore.incomingEdges.add(potentialSourceId)
-                    logger.debug('Restored incoming edge for loop node', {
-                      from: potentialSourceId,
-                      to: nodeId,
-                    })
-                  }
-                }
-              }
-            }
-          }
-          
-          // Clear executed state for all nodes in the loop (including both sentinels)
-          this.state.executedBlocks.delete(sentinelStartId)
-          this.state.executedBlocks.delete(sentinelEndId)
-          
-          for (const loopNodeId of loopNodes) {
-            this.state.executedBlocks.delete(loopNodeId)
-          }
-        }
+        logger.debug('Preparing loop for next iteration', { loopId })
+        
+        // Delegate to LoopOrchestrator for state clearing
+        this.loopOrchestrator.clearLoopExecutionState(loopId, this.state.executedBlocks)
+        
+        // Delegate to LoopOrchestrator for edge restoration
+        this.loopOrchestrator.restoreLoopEdges(loopId)
       }
     }
 
