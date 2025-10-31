@@ -137,7 +137,6 @@ export function populateTriggerFieldsFromConfig(
         const currentValue = subBlockStore.getValue(blockId, subBlock.id)
 
         let normalizedValue = configValue
-        // Handle array fields - normalize strings to arrays, preserve arrays as-is
         if (subBlock.id === 'labelIds' || subBlock.id === 'folderIds') {
           if (typeof configValue === 'string' && configValue.trim() !== '') {
             try {
@@ -150,10 +149,8 @@ export function populateTriggerFieldsFromConfig(
             configValue !== null &&
             configValue !== undefined
           ) {
-            // If it's not already an array and not null/undefined, wrap it
             normalizedValue = [configValue]
           }
-          // If it's already an array or null/undefined, use as-is
         }
 
         if (currentValue === null || currentValue === undefined || currentValue === '') {

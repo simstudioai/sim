@@ -86,12 +86,10 @@ export function useWebhookManagement({
       return
     }
 
-    // If already checked and webhookId exists, skip fetching
     if (alreadyChecked && currentWebhookId) {
       return
     }
 
-    // If already checked but webhookId is null, allow re-checking (handles timing issues)
     if (alreadyChecked && !currentWebhookId) {
       useSubBlockStore.setState((state) => {
         const newSet = new Set(state.checkedWebhooks)
@@ -114,10 +112,8 @@ export function useWebhookManagement({
 
       try {
         const response = await fetch(`/api/webhooks?workflowId=${workflowId}&blockId=${blockId}`)
-        const stillMounted = isMounted // Capture mount state at response time
+        const stillMounted = isMounted
 
-        // Process response even if component unmounted, since we're using Zustand (global store)
-        // The webhookId should be set in the store regardless of component lifecycle
         if (response.ok) {
           const data = await response.json()
 
@@ -140,10 +136,8 @@ export function useWebhookManagement({
             }
 
             if (webhook.providerConfig) {
-              // Determine triggerId from multiple sources
               let effectiveTriggerId: string | undefined = triggerId
               if (!effectiveTriggerId) {
-                // Try to get from stored value
                 const storedTriggerId = useSubBlockStore.getState().getValue(blockId, 'triggerId')
                 effectiveTriggerId =
                   (typeof storedTriggerId === 'string' ? storedTriggerId : undefined) || undefined
@@ -155,7 +149,6 @@ export function useWebhookManagement({
                     : undefined
               }
               if (!effectiveTriggerId) {
-                // Try to determine from block config
                 const workflowState = useWorkflowStore.getState()
                 const block = workflowState.blocks?.[blockId]
                 if (block) {
@@ -205,7 +198,6 @@ export function useWebhookManagement({
             useSubBlockStore.getState().setValue(blockId, 'webhookId', null)
           }
 
-          // Mark as checked even if component unmounted, since Zustand state persists
           useSubBlockStore.setState((state) => ({
             checkedWebhooks: new Set([...state.checkedWebhooks, blockId]),
           }))
@@ -233,7 +225,6 @@ export function useWebhookManagement({
     return () => {
       isMounted = false
     }
-    // Note: Intentionally not including webhookId in dependencies to avoid re-running when it changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPreview, triggerId, workflowId, blockId])
 
