@@ -5,7 +5,7 @@ services:
     runtime: node
     plan: free
     region: oregon
-    buildCommand: bun install && bun run build
+    buildCommand: bun install && cd apps/sim && bun run build
     startCommand: cd apps/sim && bun run start
     healthCheckPath: /
     envVars:
