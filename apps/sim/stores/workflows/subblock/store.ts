@@ -1,11 +1,14 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { createLogger } from '@/lib/logs/console/logger'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import { populateTriggerFieldsFromConfig } from '@/hooks/use-trigger-config-aggregation'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { SubBlockStore } from '@/stores/workflows/subblock/types'
 import { isTriggerValid } from '@/triggers'
+
+const logger = createLogger('SubBlockStore')
 
 /**
  * SubBlockState stores values for all subblocks in workflows
@@ -29,34 +32,29 @@ export const useSubBlockStore = create<SubBlockStore>()(
       const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
       if (!activeWorkflowId) return
 
-      // Validate and fix table data if needed
       let validatedValue = value
       if (Array.isArray(value)) {
-        // Check if this looks like table data (array of objects with cells)
         const isTableData =
           value.length > 0 &&
           value.some((item) => item && typeof item === 'object' && 'cells' in item)
 
         if (isTableData) {
-          console.log('Validating table data for subblock:', { blockId, subBlockId })
+          logger.debug('Validating table data for subblock', { blockId, subBlockId })
           validatedValue = value.map((row: any) => {
-            // Ensure each row has proper structure
             if (!row || typeof row !== 'object') {
-              console.warn('Fixing malformed table row:', row)
+              logger.warn('Fixing malformed table row', { blockId, subBlockId, row })
               return {
                 id: crypto.randomUUID(),
                 cells: { Key: '', Value: '' },
               }
             }
 
-            // Ensure row has an id
             if (!row.id) {
               row.id = crypto.randomUUID()
             }
 
-            // Ensure row has cells object
             if (!row.cells || typeof row.cells !== 'object') {
-              console.warn('Fixing malformed table row cells:', row)
+              logger.warn('Fixing malformed table row cells', { blockId, subBlockId, row })
               row.cells = { Key: '', Value: '' }
             }
 
@@ -129,7 +127,16 @@ export const useSubBlockStore = create<SubBlockStore>()(
         if (blockConfig.category === 'triggers') {
           triggerId = block.type
         } else if (block.triggerMode === true && blockConfig.triggers?.enabled) {
-          triggerId = block.subBlocks?.triggerId?.value || blockConfig.triggers?.available?.[0]
+          const selectedTriggerIdValue = block.subBlocks?.selectedTriggerId?.value
+          const triggerIdValue = block.subBlocks?.triggerId?.value
+          triggerId =
+            (typeof selectedTriggerIdValue === 'string' && isTriggerValid(selectedTriggerIdValue)
+              ? selectedTriggerIdValue
+              : undefined) ||
+            (typeof triggerIdValue === 'string' && isTriggerValid(triggerIdValue)
+              ? triggerIdValue
+              : undefined) ||
+            blockConfig.triggers?.available?.[0]
         }
 
         if (!triggerId || !isTriggerValid(triggerId)) {

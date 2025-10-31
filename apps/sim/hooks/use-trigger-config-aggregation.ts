@@ -6,7 +6,16 @@ import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/consts'
 const logger = createLogger('useTriggerConfigAggregation')
 
 /**
- * Maps old trigger config field names to new subblock IDs for backward compatibility
+ * Maps old trigger config field names to new subblock IDs for backward compatibility.
+ * This handles field name changes during the migration from modal-based configuration
+ * to individual subblock fields.
+ *
+ * @param oldFieldName - The field name from the old triggerConfig object
+ * @returns The corresponding new subblock ID, or the original field name if no mapping exists
+ *
+ * @example
+ * mapOldFieldNameToNewSubBlockId('credentialId') // Returns 'triggerCredentials'
+ * mapOldFieldNameToNewSubBlockId('labelIds') // Returns 'labelIds' (no mapping needed)
  */
 function mapOldFieldNameToNewSubBlockId(oldFieldName: string): string {
   const fieldMapping: Record<string, string> = {
@@ -92,6 +101,10 @@ export function populateTriggerFieldsFromConfig(
   triggerId: string | undefined
 ) {
   if (!triggerConfig || !triggerId || !blockId) {
+    return
+  }
+
+  if (Object.keys(triggerConfig).length === 0) {
     return
   }
 

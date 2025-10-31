@@ -164,9 +164,16 @@ export function useWebhookManagement({
                     if (blockConfig.category === 'triggers') {
                       effectiveTriggerId = block.type
                     } else if (block.triggerMode && blockConfig.triggers?.enabled) {
+                      const selectedTriggerIdValue = block.subBlocks?.selectedTriggerId?.value
                       const triggerIdValue = block.subBlocks?.triggerId?.value
                       effectiveTriggerId =
-                        (typeof triggerIdValue === 'string' ? triggerIdValue : undefined) ||
+                        (typeof selectedTriggerIdValue === 'string' &&
+                        isTriggerValid(selectedTriggerIdValue)
+                          ? selectedTriggerIdValue
+                          : undefined) ||
+                        (typeof triggerIdValue === 'string' && isTriggerValid(triggerIdValue)
+                          ? triggerIdValue
+                          : undefined) ||
                         blockConfig.triggers?.available?.[0]
                     }
                   }
@@ -235,6 +242,21 @@ export function useWebhookManagement({
       return false
     }
 
+    let effectiveTriggerId: string | undefined = triggerId
+    if (!effectiveTriggerId) {
+      const selectedTriggerId = useSubBlockStore.getState().getValue(blockId, 'selectedTriggerId')
+      if (typeof selectedTriggerId === 'string' && isTriggerValid(selectedTriggerId)) {
+        effectiveTriggerId = selectedTriggerId
+      }
+    }
+    if (!effectiveTriggerId) {
+      const storedTriggerId = useSubBlockStore.getState().getValue(blockId, 'triggerId')
+      effectiveTriggerId =
+        typeof storedTriggerId === 'string' && isTriggerValid(storedTriggerId)
+          ? storedTriggerId
+          : triggerId
+    }
+
     try {
       setIsSaving(true)
 
@@ -250,7 +272,7 @@ export function useWebhookManagement({
         const webhookConfig = {
           ...(triggerConfig || {}),
           ...(selectedCredentialId ? { credentialId: selectedCredentialId } : {}),
-          triggerId,
+          triggerId: effectiveTriggerId,
         }
 
         const response = await fetch('/api/webhooks', {
@@ -281,7 +303,7 @@ export function useWebhookManagement({
         const savedWebhookId = data.webhook.id
 
         useSubBlockStore.getState().setValue(blockId, 'triggerPath', path)
-        useSubBlockStore.getState().setValue(blockId, 'triggerId', triggerId)
+        useSubBlockStore.getState().setValue(blockId, 'triggerId', effectiveTriggerId)
         useSubBlockStore.getState().setValue(blockId, 'webhookId', savedWebhookId)
         useSubBlockStore.setState((state) => ({
           checkedWebhooks: new Set([...state.checkedWebhooks, blockId]),
@@ -289,7 +311,7 @@ export function useWebhookManagement({
 
         logger.info('Trigger webhook created successfully', {
           webhookId: savedWebhookId,
-          triggerId,
+          triggerId: effectiveTriggerId,
           provider: triggerDef.provider,
           blockId,
         })
@@ -308,7 +330,7 @@ export function useWebhookManagement({
           providerConfig: {
             ...triggerConfig,
             ...(selectedCredentialId ? { credentialId: selectedCredentialId } : {}),
-            triggerId,
+            triggerId: effectiveTriggerId,
           },
         }),
       })

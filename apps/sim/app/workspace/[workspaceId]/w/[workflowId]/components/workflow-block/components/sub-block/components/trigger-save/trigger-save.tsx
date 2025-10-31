@@ -119,16 +119,19 @@ export function TriggerSave({
       .map((sb) => sb.id)
   }, [triggerDef])
 
-  const otherRequiredValues = useSubBlockStore((state) => {
+  const otherRequiredValues = useMemo(() => {
     if (!triggerDef) return {}
     const values: Record<string, any> = {}
     requiredSubBlockIds
       .filter((id) => id !== 'triggerCredentials')
       .forEach((subBlockId) => {
-        values[subBlockId] = state.getValue(blockId, subBlockId)
+        const value = useSubBlockStore.getState().getValue(blockId, subBlockId)
+        if (value !== null && value !== undefined && value !== '') {
+          values[subBlockId] = value
+        }
       })
     return values
-  })
+  }, [blockId, triggerDef, requiredSubBlockIds])
 
   const requiredSubBlockValues = useMemo(() => {
     return {
