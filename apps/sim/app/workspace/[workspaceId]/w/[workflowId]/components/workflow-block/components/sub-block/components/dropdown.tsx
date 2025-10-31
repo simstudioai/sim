@@ -58,7 +58,6 @@ export function Dropdown({
   const inputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const previousModeRef = useRef<string | null>(null)
-  const hasAttemptedFetchRef = useRef(false)
 
   const [builderData, setBuilderData] = useSubBlockValue<any[]>(blockId, 'builderData')
   const [data, setData] = useSubBlockValue<string>(blockId, 'data')
@@ -163,33 +162,6 @@ export function Dropdown({
       setStoreValue(defaultOptionValue)
     }
   }, [storeInitialized, storeValue, defaultOptionValue, setStoreValue, multiSelect])
-
-  useEffect(() => {
-    if (
-      !fetchOptions ||
-      fetchedOptions.length > 0 ||
-      !storeInitialized ||
-      hasAttemptedFetchRef.current
-    ) {
-      return
-    }
-
-    const hasSelectedValue = multiSelect
-      ? Array.isArray(storeValue) && storeValue.length > 0
-      : typeof storeValue === 'string' && storeValue !== ''
-
-    if (hasSelectedValue) {
-      hasAttemptedFetchRef.current = true
-      fetchOptionsIfNeeded()
-    }
-  }, [
-    fetchOptions,
-    fetchedOptions.length,
-    storeInitialized,
-    storeValue,
-    multiSelect,
-    fetchOptionsIfNeeded,
-  ])
 
   const normalizeVariableReferences = (jsonString: string): string => {
     return jsonString.replace(/([^"]<[^>]+>)/g, '"$1"')
@@ -401,16 +373,32 @@ export function Dropdown({
   const multiSelectDisplay =
     multiValues && multiValues.length > 0 ? (
       <div className='flex flex-wrap items-center gap-1'>
-        {multiValues.slice(0, 2).map((selectedValue: string) => (
-          <Badge key={selectedValue} variant='secondary' className='text-xs'>
-            {optionMap.get(selectedValue) || selectedValue}
-          </Badge>
-        ))}
-        {multiValues.length > 2 && (
-          <Badge variant='secondary' className='text-xs'>
-            +{multiValues.length - 2} more
-          </Badge>
-        )}
+        {(() => {
+          const optionsNotLoaded = fetchOptions && fetchedOptions.length === 0
+
+          if (optionsNotLoaded) {
+            return (
+              <Badge variant='secondary' className='text-xs'>
+                {multiValues.length} selected
+              </Badge>
+            )
+          }
+
+          return (
+            <>
+              {multiValues.slice(0, 2).map((selectedValue: string) => (
+                <Badge key={selectedValue} variant='secondary' className='text-xs'>
+                  {optionMap.get(selectedValue) || selectedValue}
+                </Badge>
+              ))}
+              {multiValues.length > 2 && (
+                <Badge variant='secondary' className='text-xs'>
+                  +{multiValues.length - 2} more
+                </Badge>
+              )}
+            </>
+          )
+        })()}
       </div>
     ) : null
 
