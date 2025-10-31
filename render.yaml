@@ -5,12 +5,14 @@ services:
     runtime: node
     plan: free
     region: oregon
-    buildCommand: npm install --ignore-scripts && cd apps/sim && npm run build
+    buildCommand: npm config set ignore-scripts true && npm install && cd apps/sim && npm run build
     startCommand: cd apps/sim && npm run start
     healthCheckPath: /
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NPM_CONFIG_IGNORE_SCRIPTS
+        value: "true"
       - key: DATABASE_URL
         fromDatabase:
           name: sim-db
