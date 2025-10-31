@@ -5,7 +5,7 @@ services:
     runtime: node
     plan: free
     region: oregon
-    buildCommand: npm install && npm run build
+    buildCommand: npm install --ignore-scripts && cd apps/sim && npm run build
     startCommand: cd apps/sim && npm run start
     healthCheckPath: /
     envVars:
