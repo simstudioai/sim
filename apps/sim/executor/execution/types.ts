@@ -1,6 +1,6 @@
 /**
  * Execution-specific types
- * 
+ *
  * Types used for workflow execution and context extensions.
  */
 
@@ -24,4 +24,3 @@ export interface ContextExtensions {
 export interface WorkflowInput {
   [key: string]: unknown
 }
-

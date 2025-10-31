@@ -27,7 +27,7 @@ export function convertLoopBlockToLoop(
 
   // Load ALL fields regardless of current loop type
   // This allows switching between loop types without losing data
-  
+
   // For for/forEach loops, read from collection (block data) and map to forEachItems (loops store)
   let forEachItems: any = loopBlock.data?.collection || ''
   if (typeof forEachItems === 'string' && forEachItems.trim()) {
@@ -42,10 +42,10 @@ export function convertLoopBlockToLoop(
     }
   }
   loop.forEachItems = forEachItems
-  
+
   // For while loops, use whileCondition
   loop.whileCondition = loopBlock.data?.whileCondition || ''
-  
+
   // For do-while loops, use doWhileCondition
   loop.doWhileCondition = loopBlock.data?.doWhileCondition || ''
 

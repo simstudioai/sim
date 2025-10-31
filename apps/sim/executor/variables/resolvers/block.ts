@@ -1,6 +1,6 @@
 /**
  * Block Resolver
- * 
+ *
  * Resolves references to block outputs: <blockName.output.field>
  * - Finds blocks by ID or normalized name
  * - Navigates nested paths in block outputs
@@ -8,15 +8,12 @@
  */
 
 import { createLogger } from '@/lib/logs/console/logger'
-import { normalizeBlockName } from '@/stores/workflows/utils'
+import { REFERENCE } from '@/executor/consts'
 import type { SerializedWorkflow } from '@/serializer/types'
-import type { Resolver, ResolutionContext } from './reference'
+import { normalizeBlockName } from '@/stores/workflows/utils'
+import type { ResolutionContext, Resolver } from './reference'
 
 const logger = createLogger('BlockResolver')
-
-const REFERENCE_START = '<'
-const REFERENCE_END = '>'
-const PATH_DELIMITER = '.'
 
 export class BlockResolver implements Resolver {
   private blockByNormalizedName: Map<string, string>
@@ -35,17 +32,6 @@ export class BlockResolver implements Resolver {
         this.blockByNormalizedName.set(normalized, block.id)
       }
     }
-
-    // Add special handling for starter block - allow referencing as "start"
-    const starterBlock = workflow.blocks.find(
-      (b) =>
-        b.metadata?.id === 'starter' ||
-        b.metadata?.id === 'start_trigger' ||
-        b.metadata?.category === 'triggers'
-    )
-    if (starterBlock) {
-      this.blockByNormalizedName.set('start', starterBlock.id)
-    }
   }
 
   canResolve(reference: string): boolean {
@@ -54,7 +40,7 @@ export class BlockResolver implements Resolver {
     }
 
     const content = this.extractContent(reference)
-    const parts = content.split(PATH_DELIMITER)
+    const parts = content.split(REFERENCE.PATH_DELIMITER)
 
     if (parts.length === 0) {
       return false
@@ -69,7 +55,7 @@ export class BlockResolver implements Resolver {
 
   resolve(reference: string, context: ResolutionContext): any {
     const content = this.extractContent(reference)
-    const parts = content.split(PATH_DELIMITER)
+    const parts = content.split(REFERENCE.PATH_DELIMITER)
 
     if (parts.length === 0) {
       return undefined
@@ -126,11 +112,11 @@ export class BlockResolver implements Resolver {
    */
 
   private isReference(value: string): boolean {
-    return value.startsWith(REFERENCE_START) && value.endsWith(REFERENCE_END)
+    return value.startsWith(REFERENCE.START) && value.endsWith(REFERENCE.END)
   }
 
   private extractContent(reference: string): string {
-    return reference.substring(REFERENCE_START.length, reference.length - REFERENCE_END.length)
+    return reference.substring(REFERENCE.START.length, reference.length - REFERENCE.END.length)
   }
 
   private getBlockOutput(blockId: string, context: ResolutionContext): any {
@@ -170,7 +156,7 @@ export class BlockResolver implements Resolver {
 
       // Handle array indices
       if (/^\d+$/.test(part)) {
-        const index = parseInt(part, 10)
+        const index = Number.parseInt(part, 10)
         current = Array.isArray(current) ? current[index] : undefined
       } else {
         current = current[part]
@@ -180,4 +166,3 @@ export class BlockResolver implements Resolver {
     return current
   }
 }
-

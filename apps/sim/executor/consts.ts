@@ -1,6 +1,6 @@
 /**
  * Central constants and types for the executor
- * 
+ *
  * Consolidates all magic strings, block types, edge handles, and type definitions
  * used throughout the executor to eliminate duplication and improve type safety.
  */
@@ -14,27 +14,27 @@ export enum BlockType {
   LOOP = 'loop',
   ROUTER = 'router',
   CONDITION = 'condition',
-  
+
   // Triggers
   START_TRIGGER = 'start_trigger',
   STARTER = 'starter',
   TRIGGER = 'trigger',
-  
+
   // Data processing
   FUNCTION = 'function',
   AGENT = 'agent',
   API = 'api',
   EVALUATOR = 'evaluator',
   VARIABLES = 'variables',
-  
+
   // I/O
   RESPONSE = 'response',
   WORKFLOW = 'workflow',
   WORKFLOW_INPUT = 'workflow_input',
-  
+
   // Utilities
   WAIT = 'wait',
-  
+
   // Infrastructure (virtual blocks)
   SENTINEL_START = 'sentinel_start',
   SENTINEL_END = 'sentinel_end',
@@ -52,10 +52,7 @@ export const TRIGGER_BLOCK_TYPES = [
 /**
  * Metadata-only block types (not executable, just configuration)
  */
-export const METADATA_ONLY_BLOCK_TYPES = [
-  BlockType.LOOP,
-  BlockType.PARALLEL,
-] as const
+export const METADATA_ONLY_BLOCK_TYPES = [BlockType.LOOP, BlockType.PARALLEL] as const
 
 /**
  * Loop types
@@ -80,20 +77,34 @@ export const EDGE_HANDLE = {
   CONDITION_TRUE: 'condition-true',
   CONDITION_FALSE: 'condition-false',
   CONDITION_PREFIX: 'condition-',
-  
+
   // Router block outputs
   ROUTER_PREFIX: 'router-',
   ROUTER_DEFAULT: 'default',
-  
+
   // Loop sentinel outputs
   LOOP_CONTINUE: 'loop_continue',
   LOOP_CONTINUE_ALT: 'loop-continue-source', // Alternative handle name
   LOOP_EXIT: 'loop_exit',
-  
+
   // Error handling
   ERROR: 'error',
-  
+
   // Default/fallback
+  SOURCE: 'source',
+  DEFAULT: 'default',
+} as const
+
+/**
+ * Edge handle naming conventions
+ */
+export const EDGE = {
+  CONDITION_PREFIX: 'condition-',
+  ROUTER_PREFIX: 'router-',
+  LOOP_CONTINUE: 'loop_continue',
+  LOOP_CONTINUE_ALT: 'loop-continue-source',
+  LOOP_EXIT: 'loop_exit',
+  ERROR: 'error',
   SOURCE: 'source',
   DEFAULT: 'default',
 } as const
@@ -107,9 +118,9 @@ export const LOOP = {
     FOR: 'for' as LoopType,
     FOR_EACH: 'forEach' as LoopType,
     WHILE: 'while' as LoopType,
-    DO_WHILE: 'doWhile' as LoopType,
+    DO_WHILE: 'doWhile',
   },
-  
+
   // Sentinel node naming
   SENTINEL: {
     PREFIX: 'loop-',
@@ -129,13 +140,13 @@ export const PARALLEL = {
     COLLECTION: 'collection' as ParallelType,
     COUNT: 'count' as ParallelType,
   },
-  
+
   // Branch notation
   BRANCH: {
     PREFIX: '₍',
     SUFFIX: '₎',
   },
-  
+
   // Default values
   DEFAULT_COUNT: 1,
 } as const
@@ -148,11 +159,11 @@ export const REFERENCE = {
   START: '<',
   END: '>',
   PATH_DELIMITER: '.',
-  
+
   // Environment variable syntax
   ENV_VAR_START: '{{',
   ENV_VAR_END: '}}',
-  
+
   // Reference prefixes
   PREFIX: {
     LOOP: 'loop',

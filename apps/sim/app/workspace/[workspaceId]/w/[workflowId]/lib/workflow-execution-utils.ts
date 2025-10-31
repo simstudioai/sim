@@ -25,7 +25,7 @@ export async function executeWorkflowWithFullLogging(
   options: WorkflowExecutionOptions = {}
 ): Promise<ExecutionResult | StreamingExecution> {
   const { activeWorkflowId } = useWorkflowRegistry.getState()
-  
+
   if (!activeWorkflowId) {
     throw new Error('No active workflow')
   }
@@ -51,4 +51,3 @@ export async function executeWorkflowWithFullLogging(
   const result = await response.json()
   return result as ExecutionResult
 }
-

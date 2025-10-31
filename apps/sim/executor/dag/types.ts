@@ -1,6 +1,6 @@
 /**
  * DAG-specific types
- * 
+ *
  * Types used for DAG construction and graph structure.
  */
 

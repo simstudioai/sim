@@ -85,7 +85,6 @@ export function IterationBadges({ nodeId, data, iterationType }: IterationBadges
   const currentType = (data?.[config.typeKey] ||
     (iterationType === 'loop' ? 'for' : 'count')) as any
 
-
   // Determine if we're in count mode, collection mode, or condition mode
   const isCountMode =
     (iterationType === 'loop' && currentType === 'for') ||
@@ -95,9 +94,14 @@ export function IterationBadges({ nodeId, data, iterationType }: IterationBadges
 
   const configIterations = (nodeConfig as any)?.[config.configKeys.iterations] ?? data?.count ?? 5
   const configCollection = (nodeConfig as any)?.[config.configKeys.items] ?? data?.collection ?? ''
-  
+
   // Get condition based on loop type - same pattern as forEachItems
-  const conditionKey = currentType === 'while' ? 'whileCondition' : currentType === 'doWhile' ? 'doWhileCondition' : null
+  const conditionKey =
+    currentType === 'while'
+      ? 'whileCondition'
+      : currentType === 'doWhile'
+        ? 'doWhileCondition'
+        : null
   const configCondition =
     iterationType === 'loop' && conditionKey
       ? ((nodeConfig as any)?.[conditionKey] ?? (data as any)?.[conditionKey] ?? '')

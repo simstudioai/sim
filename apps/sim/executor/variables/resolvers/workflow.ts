@@ -1,20 +1,16 @@
 /**
  * Workflow Resolver
- * 
+ *
  * Resolves references to workflow variables: <variable.name>
  * - Looks up variables by name or ID
  * - Returns the variable's value
  */
 
 import { createLogger } from '@/lib/logs/console/logger'
-import type { Resolver, ResolutionContext } from './reference'
+import { REFERENCE } from '@/executor/consts'
+import type { ResolutionContext, Resolver } from './reference'
 
 const logger = createLogger('WorkflowResolver')
-
-const REFERENCE_START = '<'
-const REFERENCE_END = '>'
-const PATH_DELIMITER = '.'
-const VARIABLE_PREFIX = 'variable'
 
 export class WorkflowResolver implements Resolver {
   constructor(private workflowVariables: Record<string, any>) {}
@@ -25,19 +21,19 @@ export class WorkflowResolver implements Resolver {
     }
 
     const content = this.extractContent(reference)
-    const parts = content.split(PATH_DELIMITER)
+    const parts = content.split(REFERENCE.PATH_DELIMITER)
 
     if (parts.length === 0) {
       return false
     }
 
     const [type] = parts
-    return type === VARIABLE_PREFIX
+    return type === REFERENCE.PREFIX.VARIABLE
   }
 
   resolve(reference: string, context: ResolutionContext): any {
     const content = this.extractContent(reference)
-    const parts = content.split(PATH_DELIMITER)
+    const parts = content.split(REFERENCE.PATH_DELIMITER)
 
     if (parts.length < 2) {
       logger.warn('Invalid variable reference - missing variable name', { reference })
@@ -73,11 +69,10 @@ export class WorkflowResolver implements Resolver {
    */
 
   private isReference(value: string): boolean {
-    return value.startsWith(REFERENCE_START) && value.endsWith(REFERENCE_END)
+    return value.startsWith(REFERENCE.START) && value.endsWith(REFERENCE.END)
   }
 
   private extractContent(reference: string): string {
-    return reference.substring(REFERENCE_START.length, reference.length - REFERENCE_END.length)
+    return reference.substring(REFERENCE.START.length, reference.length - REFERENCE.END.length)
   }
 }
-

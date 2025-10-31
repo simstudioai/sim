@@ -1,27 +1,19 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import type {
-  BlockHandler,
-  ExecutionContext,
-  ExecutionResult,
-} from '@/executor/types'
 import type { BlockOutput } from '@/blocks/types'
-import type { SerializedWorkflow } from '@/serializer/types'
-import type { ContextExtensions, WorkflowInput } from './types'
 import { createBlockHandlers } from '@/executor/handlers/registry'
-import {
-  buildResolutionFromBlock,
-  buildStartBlockOutput,
-  resolveExecutorStartBlock,
-} from '@/executor/utils/start-block'
+import type { ExecutionContext, ExecutionResult } from '@/executor/types'
+import { buildStartBlockOutput, resolveExecutorStartBlock } from '@/executor/utils/start-block'
+import type { SerializedWorkflow } from '@/serializer/types'
 import { DAGBuilder } from '../dag/builder'
-import { ExecutionState } from './state'
-import { VariableResolver } from '../variables/resolver'
 import { LoopOrchestrator } from '../orchestrators/loop'
-import { ParallelOrchestrator } from '../orchestrators/parallel'
 import { NodeExecutionOrchestrator } from '../orchestrators/node'
-import { EdgeManager } from './edge-manager'
+import { ParallelOrchestrator } from '../orchestrators/parallel'
+import { VariableResolver } from '../variables/resolver'
 import { BlockExecutor } from './block-executor'
+import { EdgeManager } from './edge-manager'
 import { ExecutionEngine } from './engine'
+import { ExecutionState } from './state'
+import type { ContextExtensions, WorkflowInput } from './types'
 
 const logger = createLogger('DAGExecutor')
 
@@ -59,26 +51,26 @@ export class DAGExecutor {
   async execute(workflowId: string, startBlockId?: string): Promise<ExecutionResult> {
     // 1. Build the DAG from workflow
     const dag = this.dagBuilder.build(this.workflow, startBlockId)
-    
+
     // 2. Create execution context
     const context = this.createExecutionContext(workflowId)
-    
+
     // 3. Create execution state
     const state = new ExecutionState()
-    
+
     // 4. Create variable resolver
     const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
-    
+
     // 5. Create control flow orchestrators
     const loopOrchestrator = new LoopOrchestrator(dag, state, resolver)
     const parallelOrchestrator = new ParallelOrchestrator(dag, state)
-    
+
     // 6. Create block handlers (sentinels handled by NodeExecutionOrchestrator)
     const allHandlers = createBlockHandlers()
-    
+
     // 7. Create block executor
     const blockExecutor = new BlockExecutor(allHandlers, resolver, this.contextExtensions)
-    
+
     // 8. Create execution components
     const edgeManager = new EdgeManager(dag)
     const nodeOrchestrator = new NodeExecutionOrchestrator(
@@ -88,15 +80,10 @@ export class DAGExecutor {
       loopOrchestrator,
       parallelOrchestrator
     )
-    
+
     // 9. Create execution engine
-    const engine = new ExecutionEngine(
-      dag,
-      edgeManager,
-      nodeOrchestrator,
-      context
-    )
-    
+    const engine = new ExecutionEngine(dag, edgeManager, nodeOrchestrator, context)
+
     return await engine.run(startBlockId)
   }
 
@@ -185,4 +172,3 @@ export class DAGExecutor {
     })
   }
 }
-

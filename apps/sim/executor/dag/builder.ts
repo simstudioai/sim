@@ -1,9 +1,9 @@
 /**
  * DAGBuilder
- * 
+ *
  * Orchestrates the construction of a DAG from a serialized workflow.
  * Uses specialized constructors for clarity and maintainability.
- * 
+ *
  * Steps:
  * 1. PathConstructor - Construct reachable paths from trigger (using only actual connections)
  * 2. LoopConstructor - Construct loop sentinel nodes
@@ -13,16 +13,16 @@
 
 import { createLogger } from '@/lib/logs/console/logger'
 import type {
-  SerializedWorkflow,
   SerializedBlock,
   SerializedLoop,
   SerializedParallel,
+  SerializedWorkflow,
 } from '@/serializer/types'
-import type { DAGEdge, NodeMetadata } from './types'
-import { PathConstructor } from './construction/paths'
+import { EdgeConstructor } from './construction/edges'
 import { LoopConstructor } from './construction/loops'
 import { NodeConstructor } from './construction/nodes'
-import { EdgeConstructor } from './construction/edges'
+import { PathConstructor } from './construction/paths'
+import type { DAGEdge, NodeMetadata } from './types'
 
 const logger = createLogger('DAGBuilder')
 
@@ -78,13 +78,7 @@ export class DAGBuilder {
     )
 
     // Step 4: Construct edges
-    this.edgeConstructor.execute(
-      workflow,
-      dag,
-      blocksInParallels,
-      blocksInLoops,
-      reachableBlocks
-    )
+    this.edgeConstructor.execute(workflow, dag, blocksInParallels, blocksInLoops, reachableBlocks)
 
     logger.info('DAG built', {
       totalNodes: dag.nodes.size,
@@ -112,4 +106,3 @@ export class DAGBuilder {
     }
   }
 }
-

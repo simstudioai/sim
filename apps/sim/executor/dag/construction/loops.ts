@@ -1,15 +1,14 @@
 /**
  * LoopConstructor
- * 
+ *
  * Creates sentinel nodes (start/end gates) for each loop.
  * Sentinels control loop entry, continuation, and exit.
  */
 
 import { createLogger } from '@/lib/logs/console/logger'
-import type { SerializedLoop } from '@/serializer/types'
-import type { DAG, DAGNode } from '../builder'
 import { BlockType, LOOP, type SentinelType } from '@/executor/consts'
-import { buildSentinelStartId, buildSentinelEndId } from '@/executor/utils/subflow-utils'
+import { buildSentinelEndId, buildSentinelStartId } from '@/executor/utils/subflow-utils'
+import type { DAG, DAGNode } from '../builder'
 
 const logger = createLogger('LoopConstructor')
 
@@ -48,21 +47,27 @@ export class LoopConstructor {
     const startId = buildSentinelStartId(loopId)
     const endId = buildSentinelEndId(loopId)
 
-    dag.nodes.set(startId, this.createSentinelNode({
-      id: startId,
-      loopId,
-      sentinelType: LOOP.SENTINEL.START_TYPE,
-      blockType: BlockType.SENTINEL_START,
-      name: `Loop Start (${loopId})`,
-    }))
+    dag.nodes.set(
+      startId,
+      this.createSentinelNode({
+        id: startId,
+        loopId,
+        sentinelType: LOOP.SENTINEL.START_TYPE,
+        blockType: BlockType.SENTINEL_START,
+        name: `Loop Start (${loopId})`,
+      })
+    )
 
-    dag.nodes.set(endId, this.createSentinelNode({
-      id: endId,
-      loopId,
-      sentinelType: LOOP.SENTINEL.END_TYPE,
-      blockType: BlockType.SENTINEL_END,
-      name: `Loop End (${loopId})`,
-    }))
+    dag.nodes.set(
+      endId,
+      this.createSentinelNode({
+        id: endId,
+        loopId,
+        sentinelType: LOOP.SENTINEL.END_TYPE,
+        blockType: BlockType.SENTINEL_END,
+        name: `Loop End (${loopId})`,
+      })
+    )
 
     logger.debug('Created sentinel pair for loop', {
       loopId,

@@ -1,21 +1,17 @@
 /**
  * Loop Resolver
- * 
+ *
  * Resolves references to loop variables: <loop.iteration>, <loop.item>, <loop.index>
  * - Extracts loop scope from context
  * - Returns current iteration number, item, or index
  */
 
 import { createLogger } from '@/lib/logs/console/logger'
+import { REFERENCE } from '@/executor/consts'
 import type { SerializedWorkflow } from '@/serializer/types'
-import type { Resolver, ResolutionContext } from './reference'
+import type { ResolutionContext, Resolver } from './reference'
 
 const logger = createLogger('LoopResolver')
-
-const REFERENCE_START = '<'
-const REFERENCE_END = '>'
-const PATH_DELIMITER = '.'
-const LOOP_PREFIX = 'loop'
 
 export class LoopResolver implements Resolver {
   constructor(private workflow: SerializedWorkflow) {}
@@ -26,19 +22,19 @@ export class LoopResolver implements Resolver {
     }
 
     const content = this.extractContent(reference)
-    const parts = content.split(PATH_DELIMITER)
+    const parts = content.split(REFERENCE.PATH_DELIMITER)
 
     if (parts.length === 0) {
       return false
     }
 
     const [type] = parts
-    return type === LOOP_PREFIX
+    return type === REFERENCE.PREFIX.LOOP
   }
 
   resolve(reference: string, context: ResolutionContext): any {
     const content = this.extractContent(reference)
-    const parts = content.split(PATH_DELIMITER)
+    const parts = content.split(REFERENCE.PATH_DELIMITER)
 
     if (parts.length < 2) {
       logger.warn('Invalid loop reference - missing property', { reference })
@@ -87,11 +83,11 @@ export class LoopResolver implements Resolver {
    */
 
   private isReference(value: string): boolean {
-    return value.startsWith(REFERENCE_START) && value.endsWith(REFERENCE_END)
+    return value.startsWith(REFERENCE.START) && value.endsWith(REFERENCE.END)
   }
 
   private extractContent(reference: string): string {
-    return reference.substring(REFERENCE_START.length, reference.length - REFERENCE_END.length)
+    return reference.substring(REFERENCE.START.length, reference.length - REFERENCE.END.length)
   }
 
   private findLoopForBlock(blockId: string): string | undefined {
@@ -111,4 +107,3 @@ export class LoopResolver implements Resolver {
     return nodeId.replace(/₍\d+₎$/, '')
   }
 }
-

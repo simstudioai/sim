@@ -1,4 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
+import { isSentinelBlockType } from '@/executor/consts'
 import type {
   BlockHandler,
   BlockLog,
@@ -36,7 +37,7 @@ export class BlockExecutor {
     const resolvedInputs = this.resolver.resolveInputs(block.config.params, node.id, context, block)
 
     // Check if this is a sentinel node (virtual node that shouldn't appear in logs)
-    const isSentinel = block.metadata?.id === 'sentinel_start' || block.metadata?.id === 'sentinel_end'
+    const isSentinel = isSentinelBlockType(block.metadata?.id ?? '')
 
     // Only create logs and callbacks for non-sentinel nodes
     let blockLog: BlockLog | undefined
@@ -53,7 +54,7 @@ export class BlockExecutor {
       const normalizedOutput = this.normalizeOutput(output)
 
       const duration = Date.now() - startTime
-      
+
       if (blockLog) {
         blockLog.endedAt = new Date().toISOString()
         blockLog.durationMs = duration
@@ -116,7 +117,7 @@ export class BlockExecutor {
   }
 
   private findHandler(block: SerializedBlock): BlockHandler | undefined {
-    return this.blockHandlers.find(h => h.canHandle(block))
+    return this.blockHandlers.find((h) => h.canHandle(block))
   }
 
   private createBlockLog(blockId: string, block: SerializedBlock): BlockLog {
@@ -169,4 +170,3 @@ export class BlockExecutor {
     }
   }
 }
-

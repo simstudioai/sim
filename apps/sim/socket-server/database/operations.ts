@@ -883,15 +883,15 @@ async function handleSubflowOperationTx(
           collection:
             payload.config.forEachItems !== undefined
               ? payload.config.forEachItems
-              : existingData.collection ?? '',
+              : (existingData.collection ?? ''),
           whileCondition:
             payload.config.whileCondition !== undefined
               ? payload.config.whileCondition
-              : existingData.whileCondition ?? '',
+              : (existingData.whileCondition ?? ''),
           doWhileCondition:
             payload.config.doWhileCondition !== undefined
               ? payload.config.doWhileCondition
-              : existingData.doWhileCondition ?? '',
+              : (existingData.doWhileCondition ?? ''),
         }
 
         await tx

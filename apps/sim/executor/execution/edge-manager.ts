@@ -1,12 +1,12 @@
 /**
  * EdgeManager
- * 
+ *
  * Manages all edge-related operations in the DAG:
  * - Edge activation/deactivation based on block outputs
  * - Incoming edge removal as dependencies complete
  * - Node ready state detection (inDegree = 0)
  * - Edge deactivation propagation for unreachable paths
- * 
+ *
  * This is the single source of truth for graph traversal logic.
  */
 
@@ -39,7 +39,7 @@ export class EdgeManager {
   /**
    * Process outgoing edges from a completed node
    * Removes incoming edges from targets and returns nodes that become ready
-   * 
+   *
    * @param node - The node that just completed
    * @param output - The output from the node
    * @param skipBackwardsEdge - Whether to skip backward edges (for loops)
@@ -48,7 +48,7 @@ export class EdgeManager {
   processOutgoingEdges(
     node: DAGNode,
     output: NormalizedBlockOutput,
-    skipBackwardsEdge: boolean = false
+    skipBackwardsEdge = false
   ): string[] {
     const readyNodes: string[] = []
 
@@ -220,8 +220,7 @@ export class EdgeManager {
    */
   private isBackwardsEdge(sourceHandle?: string): boolean {
     return (
-      sourceHandle === EDGE_HANDLE.LOOP_CONTINUE ||
-      sourceHandle === EDGE_HANDLE.LOOP_CONTINUE_ALT
+      sourceHandle === EDGE_HANDLE.LOOP_CONTINUE || sourceHandle === EDGE_HANDLE.LOOP_CONTINUE_ALT
     )
   }
 
@@ -235,12 +234,12 @@ export class EdgeManager {
     sourceHandle?: string
   ): void {
     const edgeKey = this.createEdgeKey(sourceId, targetId, sourceHandle)
-    
+
     // Already deactivated - skip
     if (this.deactivatedEdges.has(edgeKey)) {
       return
     }
-    
+
     this.deactivatedEdges.add(edgeKey)
 
     const targetNode = this.dag.nodes.get(targetId)
@@ -252,7 +251,7 @@ export class EdgeManager {
     // If no other active incoming edges, deactivate all descendants
     if (!hasOtherActiveIncoming) {
       logger.debug('Deactivating descendants of unreachable node', { nodeId: targetId })
-      
+
       for (const [_, outgoingEdge] of targetNode.outgoingEdges) {
         this.deactivateEdgeAndDescendants(targetId, outgoingEdge.target, outgoingEdge.sourceHandle)
       }
@@ -276,14 +275,14 @@ export class EdgeManager {
             node.id,
             incomingEdge.sourceHandle
           )
-          
+
           if (!this.deactivatedEdges.has(incomingEdgeKey)) {
             return true
           }
         }
       }
     }
-    
+
     return false
   }
 
@@ -300,7 +299,7 @@ export class EdgeManager {
       for (const [_, edge] of sourceNode.outgoingEdges) {
         if (edge.target === node.id) {
           const edgeKey = this.createEdgeKey(sourceId, edge.target, edge.sourceHandle)
-          
+
           if (!this.deactivatedEdges.has(edgeKey)) {
             count++
             break // Only count once per source node
@@ -319,4 +318,3 @@ export class EdgeManager {
     return `${sourceId}-${targetId}-${sourceHandle || EDGE_HANDLE.DEFAULT}`
   }
 }
-

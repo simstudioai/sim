@@ -1,6 +1,6 @@
 /**
  * ExecutionState
- * 
+ *
  * Manages all mutable state during workflow execution.
  * Provides a clean interface for storing and retrieving execution data.
  */
@@ -61,4 +61,3 @@ export class ExecutionState {
     this.parallelScopes.set(parallelId, scope)
   }
 }
-

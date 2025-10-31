@@ -9,7 +9,6 @@ import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
-import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
   type BlockState,
   calculateNextRunTime as calculateNextTime,
@@ -18,12 +17,10 @@ import {
 } from '@/lib/schedules/utils'
 import { decryptSecret } from '@/lib/utils'
 import { blockExistsInDeployment, loadDeployedWorkflowState } from '@/lib/workflows/db-helpers'
-import { getWorkflowById, updateWorkflowRunCounts } from '@/lib/workflows/utils'
-import { Executor } from '@/executor'
+import { executeWorkflowCore } from '@/lib/workflows/execution-core'
 import { Serializer } from '@/serializer'
 import { RateLimiter } from '@/services/queue'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
-import { executeWorkflowCore } from '@/lib/workflows/execution-core'
 
 const logger = createLogger('TriggerScheduleExecution')
 

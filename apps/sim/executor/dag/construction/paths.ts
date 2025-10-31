@@ -1,18 +1,13 @@
 /**
  * PathConstructor
- * 
+ *
  * Finds all blocks reachable from the workflow trigger using BFS traversal.
  * Uses actual connections as single source of truth (not loop/parallel metadata).
  */
 
 import { createLogger } from '@/lib/logs/console/logger'
-import type { SerializedWorkflow, SerializedBlock } from '@/serializer/types'
-import { 
-  TRIGGER_BLOCK_TYPES, 
-  METADATA_ONLY_BLOCK_TYPES,
-  isTriggerBlockType,
-  isMetadataOnlyBlockType,
-} from '@/executor/consts'
+import { isMetadataOnlyBlockType, isTriggerBlockType } from '@/executor/consts'
+import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('PathConstructor')
 
@@ -45,13 +40,16 @@ export class PathConstructor {
   /**
    * Find the trigger block to start traversal from
    */
-  private findTriggerBlock(workflow: SerializedWorkflow, startBlockId?: string): string | undefined {
+  private findTriggerBlock(
+    workflow: SerializedWorkflow,
+    startBlockId?: string
+  ): string | undefined {
     if (startBlockId) {
       const block = workflow.blocks.find((b) => b.id === startBlockId)
       if (block && this.isTriggerBlock(block)) {
         return startBlockId
       }
-      
+
       logger.warn('Provided startBlockId is not a trigger, searching for trigger', {
         startBlockId,
         blockType: block?.metadata?.id,
@@ -79,9 +77,9 @@ export class PathConstructor {
   private findExplicitTrigger(workflow: SerializedWorkflow): string | undefined {
     for (const block of workflow.blocks) {
       if (block.enabled && this.isTriggerBlock(block)) {
-        logger.debug('Found explicit trigger block', { 
-          blockId: block.id, 
-          blockType: block.metadata?.id 
+        logger.debug('Found explicit trigger block', {
+          blockId: block.id,
+          blockType: block.metadata?.id,
         })
         return block.id
       }
@@ -96,7 +94,11 @@ export class PathConstructor {
     const hasIncoming = new Set(workflow.connections.map((c) => c.target))
 
     for (const block of workflow.blocks) {
-      if (!hasIncoming.has(block.id) && block.enabled && !isMetadataOnlyBlockType(block.metadata?.id)) {
+      if (
+        !hasIncoming.has(block.id) &&
+        block.enabled &&
+        !isMetadataOnlyBlockType(block.metadata?.id)
+      ) {
         logger.debug('Found root block (no incoming connections)', {
           blockId: block.id,
           blockType: block.metadata?.id,

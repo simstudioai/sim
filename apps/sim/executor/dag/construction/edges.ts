@@ -1,8 +1,7 @@
 /**
  * EdgeConstructor
- * 
- * Constructs all edges in the DAG.
- * Handles:
+ *
+ * Constructs all edges in the DAG:
  * - Regular edges between nodes
  * - Loop boundary edges (redirect to sentinels)
  * - Parallel boundary edges (connect to all branches)
@@ -11,11 +10,31 @@
  */
 
 import { createLogger } from '@/lib/logs/console/logger'
+import { EDGE, isConditionBlockType, isRouterBlockType } from '@/executor/consts'
+import {
+  buildBranchNodeId,
+  buildSentinelEndId,
+  buildSentinelStartId,
+  calculateBranchCount,
+  extractBaseBlockId,
+  parseDistributionItems,
+} from '@/executor/utils/subflow-utils'
 import type { SerializedWorkflow } from '@/serializer/types'
 import type { DAG } from '../builder'
-import type { DAGEdge } from '../types'
 
 const logger = createLogger('EdgeConstructor')
+
+interface ConditionConfig {
+  id: string
+  label?: string
+  condition: string
+}
+
+interface EdgeMetadata {
+  blockTypeMap: Map<string, string>
+  conditionConfigMap: Map<string, ConditionConfig[]>
+  routerBlockIds: Set<string>
+}
 
 export class EdgeConstructor {
   /**
@@ -32,7 +51,7 @@ export class EdgeConstructor {
     const parallelBlockIds = new Set(dag.parallelConfigs.keys())
 
     // Build metadata maps for sourceHandle generation
-    const { blockTypeMap, conditionConfigMap, routerBlockIds } = this.buildMetadataMaps(workflow)
+    const metadata = this.buildMetadataMaps(workflow)
 
     // Process regular connections
     this.wireRegularEdges(
@@ -43,9 +62,7 @@ export class EdgeConstructor {
       reachableBlocks,
       loopBlockIds,
       parallelBlockIds,
-      blockTypeMap,
-      conditionConfigMap,
-      routerBlockIds
+      metadata
     )
 
     // Wire loop sentinels
@@ -58,36 +75,50 @@ export class EdgeConstructor {
   /**
    * Build metadata maps for edge processing
    */
-  private buildMetadataMaps(workflow: SerializedWorkflow): {
-    blockTypeMap: Map<string, string>
-    conditionConfigMap: Map<string, any[]>
-    routerBlockIds: Set<string>
-  } {
+  private buildMetadataMaps(workflow: SerializedWorkflow): EdgeMetadata {
     const blockTypeMap = new Map<string, string>()
-    const conditionConfigMap = new Map<string, any[]>()
+    const conditionConfigMap = new Map<string, ConditionConfig[]>()
     const routerBlockIds = new Set<string>()
 
     for (const block of workflow.blocks) {
-      blockTypeMap.set(block.id, block.metadata?.id || '')
+      const blockType = block.metadata?.id ?? ''
+      blockTypeMap.set(block.id, blockType)
 
-      if (block.metadata?.id === 'condition') {
-        try {
-          const conditionsJson = block.config.params?.conditions
-          if (typeof conditionsJson === 'string') {
-            const conditions = JSON.parse(conditionsJson)
-            conditionConfigMap.set(block.id, conditions)
-          } else if (Array.isArray(conditionsJson)) {
-            conditionConfigMap.set(block.id, conditionsJson)
-          }
-        } catch (error) {
-          logger.warn('Failed to parse condition config:', { blockId: block.id })
+      if (isConditionBlockType(blockType)) {
+        const conditions = this.parseConditionConfig(block)
+        if (conditions) {
+          conditionConfigMap.set(block.id, conditions)
         }
-      } else if (block.metadata?.id === 'router') {
+      } else if (isRouterBlockType(blockType)) {
         routerBlockIds.add(block.id)
       }
     }
 
     return { blockTypeMap, conditionConfigMap, routerBlockIds }
+  }
+
+  /**
+   * Parse condition configuration from block config
+   */
+  private parseConditionConfig(block: any): ConditionConfig[] | null {
+    try {
+      const conditionsJson = block.config.params?.conditions
+
+      if (typeof conditionsJson === 'string') {
+        return JSON.parse(conditionsJson)
+      }
+      if (Array.isArray(conditionsJson)) {
+        return conditionsJson
+      }
+
+      return null
+    } catch (error) {
+      logger.warn('Failed to parse condition config', {
+        blockId: block.id,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return null
+    }
   }
 
   /**
@@ -97,31 +128,29 @@ export class EdgeConstructor {
     source: string,
     target: string,
     sourceHandle: string | undefined,
-    blockTypeMap: Map<string, string>,
-    conditionConfigMap: Map<string, any[]>,
-    routerBlockIds: Set<string>,
+    metadata: EdgeMetadata,
     workflow: SerializedWorkflow
   ): string | undefined {
     let handle = sourceHandle
 
     // Generate sourceHandle for condition blocks if not provided
-    if (!handle && blockTypeMap.get(source) === 'condition') {
-      const conditions = conditionConfigMap.get(source)
+    if (!handle && isConditionBlockType(metadata.blockTypeMap.get(source) ?? '')) {
+      const conditions = metadata.conditionConfigMap.get(source)
       if (conditions && conditions.length > 0) {
         const edgesFromCondition = workflow.connections.filter((c) => c.source === source)
         const edgeIndex = edgesFromCondition.findIndex((e) => e.target === target)
 
         if (edgeIndex >= 0 && edgeIndex < conditions.length) {
           const correspondingCondition = conditions[edgeIndex]
-          handle = `condition-${correspondingCondition.id}`
+          handle = `${EDGE.CONDITION_PREFIX}${correspondingCondition.id}`
         }
       }
     }
 
     // Generate sourceHandle for router blocks
-    if (routerBlockIds.has(source)) {
-      handle = `router-${target}`
-      logger.debug('Set router sourceHandle:', { source, target, sourceHandle: handle })
+    if (metadata.routerBlockIds.has(source)) {
+      handle = `${EDGE.ROUTER_PREFIX}${target}`
+      logger.debug('Set router sourceHandle', { source, target, sourceHandle: handle })
     }
 
     return handle
@@ -138,9 +167,7 @@ export class EdgeConstructor {
     reachableBlocks: Set<string>,
     loopBlockIds: Set<string>,
     parallelBlockIds: Set<string>,
-    blockTypeMap: Map<string, string>,
-    conditionConfigMap: Map<string, any[]>,
-    routerBlockIds: Set<string>
+    metadata: EdgeMetadata
   ): void {
     for (const connection of workflow.connections) {
       let { source, target } = connection
@@ -148,12 +175,10 @@ export class EdgeConstructor {
         source,
         target,
         connection.sourceHandle,
-        blockTypeMap,
-        conditionConfigMap,
-        routerBlockIds,
+        metadata,
         workflow
       )
-      let targetHandle = connection.targetHandle
+      const targetHandle = connection.targetHandle
 
       const sourceIsLoopBlock = loopBlockIds.has(source)
       const targetIsLoopBlock = loopBlockIds.has(target)
@@ -161,22 +186,27 @@ export class EdgeConstructor {
       const targetIsParallelBlock = parallelBlockIds.has(target)
 
       // Handle loop/parallel block redirections
-      if (sourceIsLoopBlock || targetIsLoopBlock || sourceIsParallelBlock || targetIsParallelBlock) {
+      if (
+        sourceIsLoopBlock ||
+        targetIsLoopBlock ||
+        sourceIsParallelBlock ||
+        targetIsParallelBlock
+      ) {
         if (sourceIsLoopBlock) {
           // Redirect FROM loop block to sentinel_end
-          const sentinelEndId = `loop-${source}-sentinel-end`
+          const sentinelEndId = buildSentinelEndId(source)
           if (!dag.nodes.has(sentinelEndId)) {
             logger.debug('Skipping loop exit edge - sentinel not found', { source, target })
             continue
           }
           source = sentinelEndId
-          sourceHandle = 'loop_exit'
+          sourceHandle = EDGE.LOOP_EXIT
           logger.debug('Redirected loop exit edge', { from: sentinelEndId, to: target })
         }
 
         if (targetIsLoopBlock) {
           // Redirect TO loop block to sentinel_start
-          const sentinelStartId = `loop-${target}-sentinel-start`
+          const sentinelStartId = buildSentinelStartId(target)
           if (!dag.nodes.has(sentinelStartId)) {
             logger.debug('Skipping loop entry edge - sentinel not found', { source, target })
             continue
@@ -209,7 +239,14 @@ export class EdgeConstructor {
 
         if (sourceParallelId === targetParallelId) {
           // Same parallel - expand edge across all branches
-          this.wireParallelInternalEdge(source, target, sourceParallelId!, dag, sourceHandle, targetHandle)
+          this.wireParallelInternalEdge(
+            source,
+            target,
+            sourceParallelId!,
+            dag,
+            sourceHandle,
+            targetHandle
+          )
         } else {
           logger.warn('Edge between different parallels - invalid workflow', { source, target })
         }
@@ -218,7 +255,6 @@ export class EdgeConstructor {
           source,
           target,
         })
-        continue
       } else {
         // Regular edge
         this.addEdge(dag, source, target, sourceHandle, targetHandle)
@@ -231,13 +267,12 @@ export class EdgeConstructor {
    */
   private wireLoopSentinels(dag: DAG, reachableBlocks: Set<string>): void {
     for (const [loopId, loopConfig] of dag.loopConfigs) {
-      const config = loopConfig as any
-      const nodes = config.nodes || []
+      const nodes = loopConfig.nodes
 
       if (nodes.length === 0) continue
 
-      const sentinelStartId = `loop-${loopId}-sentinel-start`
-      const sentinelEndId = `loop-${loopId}-sentinel-end`
+      const sentinelStartId = buildSentinelStartId(loopId)
+      const sentinelEndId = buildSentinelEndId(loopId)
 
       // Skip if sentinel nodes don't exist
       if (!dag.nodes.has(sentinelStartId) || !dag.nodes.has(sentinelEndId)) {
@@ -245,11 +280,7 @@ export class EdgeConstructor {
         continue
       }
 
-      const { startNodes, terminalNodes } = this.findLoopBoundaryNodes(
-        nodes,
-        dag,
-        reachableBlocks
-      )
+      const { startNodes, terminalNodes } = this.findLoopBoundaryNodes(nodes, dag, reachableBlocks)
 
       logger.debug('Wiring sentinel nodes for loop', {
         loopId,
@@ -268,7 +299,7 @@ export class EdgeConstructor {
       }
 
       // Add backward edge from sentinel_end to sentinel_start
-      this.addEdge(dag, sentinelEndId, sentinelStartId, 'loop_continue', undefined, true)
+      this.addEdge(dag, sentinelEndId, sentinelStartId, EDGE.LOOP_CONTINUE, undefined, true)
       logger.debug('Added backward edge for loop', { loopId })
     }
   }
@@ -283,8 +314,7 @@ export class EdgeConstructor {
     parallelBlockIds: Set<string>
   ): void {
     for (const [parallelId, parallelConfig] of dag.parallelConfigs) {
-      const config = parallelConfig as any
-      const nodes = config.nodes || []
+      const nodes = parallelConfig.nodes
 
       if (nodes.length === 0) continue
 
@@ -320,7 +350,7 @@ export class EdgeConstructor {
 
           for (const entryNodeId of entryNodes) {
             for (let i = 0; i < branchCount; i++) {
-              const branchNodeId = `${entryNodeId}₍${i}₎`
+              const branchNodeId = buildBranchNodeId(entryNodeId, i)
               if (dag.nodes.has(branchNodeId)) {
                 this.addEdge(dag, source, branchNodeId, sourceHandle, targetHandle)
               }
@@ -343,7 +373,7 @@ export class EdgeConstructor {
 
           for (const terminalNodeId of terminalNodes) {
             for (let i = 0; i < branchCount; i++) {
-              const branchNodeId = `${terminalNodeId}₍${i}₎`
+              const branchNodeId = buildBranchNodeId(terminalNodeId, i)
               if (dag.nodes.has(branchNodeId)) {
                 this.addEdge(dag, branchNodeId, target, sourceHandle, targetHandle)
               }
@@ -380,10 +410,10 @@ export class EdgeConstructor {
     let targetLoopId: string | undefined
 
     for (const [loopId, loopConfig] of dag.loopConfigs) {
-      if ((loopConfig as any).nodes.includes(source)) {
+      if (loopConfig.nodes.includes(source)) {
         sourceLoopId = loopId
       }
-      if ((loopConfig as any).nodes.includes(target)) {
+      if (loopConfig.nodes.includes(target)) {
         targetLoopId = loopId
       }
     }
@@ -414,27 +444,18 @@ export class EdgeConstructor {
     sourceHandle?: string,
     targetHandle?: string
   ): void {
-    const parallelConfig = dag.parallelConfigs.get(parallelId) as any
-
-    // Calculate branch count
-    let distributionItems = parallelConfig.distributionItems || parallelConfig.distribution || []
-    if (typeof distributionItems === 'string' && !distributionItems.startsWith('<')) {
-      try {
-        distributionItems = JSON.parse(distributionItems.replace(/'/g, '"'))
-      } catch (e) {
-        distributionItems = []
-      }
+    const parallelConfig = dag.parallelConfigs.get(parallelId)
+    if (!parallelConfig) {
+      throw new Error(`Parallel config not found: ${parallelId}`)
     }
 
-    let count = parallelConfig.parallelCount || parallelConfig.count || 1
-    if (parallelConfig.parallelType === 'collection' && Array.isArray(distributionItems)) {
-      count = distributionItems.length
-    }
+    const distributionItems = parseDistributionItems(parallelConfig)
+    const count = calculateBranchCount(parallelConfig, distributionItems)
 
     // Add edge for each branch
     for (let i = 0; i < count; i++) {
-      const sourceNodeId = `${source}₍${i}₎`
-      const targetNodeId = `${target}₍${i}₎`
+      const sourceNodeId = buildBranchNodeId(source, i)
+      const targetNodeId = buildBranchNodeId(target, i)
       this.addEdge(dag, sourceNodeId, targetNodeId, sourceHandle, targetHandle)
     }
   }
@@ -499,29 +520,20 @@ export class EdgeConstructor {
     const entryNodesSet = new Set<string>()
     const terminalNodesSet = new Set<string>()
 
-    const parallelConfig = dag.parallelConfigs.get(parallelId) as any
-
-    // Calculate branch count
-    let distributionItems = parallelConfig.distributionItems || parallelConfig.distribution || []
-    if (typeof distributionItems === 'string' && !distributionItems.startsWith('<')) {
-      try {
-        distributionItems = JSON.parse(distributionItems.replace(/'/g, '"'))
-      } catch (e) {
-        distributionItems = []
-      }
+    const parallelConfig = dag.parallelConfigs.get(parallelId)
+    if (!parallelConfig) {
+      throw new Error(`Parallel config not found: ${parallelId}`)
     }
 
-    let branchCount = parallelConfig.parallelCount || parallelConfig.count || 1
-    if (parallelConfig.parallelType === 'collection' && Array.isArray(distributionItems)) {
-      branchCount = distributionItems.length
-    }
+    const distributionItems = parseDistributionItems(parallelConfig)
+    const branchCount = calculateBranchCount(parallelConfig, distributionItems)
 
     // Find entry nodes: nodes with no incoming edges from within parallel
     for (const nodeId of nodes) {
       // Check if any branch exists in DAG
       let hasAnyBranch = false
       for (let i = 0; i < branchCount; i++) {
-        if (dag.nodes.has(`${nodeId}₍${i}₎`)) {
+        if (dag.nodes.has(buildBranchNodeId(nodeId, i))) {
           hasAnyBranch = true
           break
         }
@@ -530,15 +542,13 @@ export class EdgeConstructor {
       if (!hasAnyBranch) continue
 
       // Check first branch for incoming edges
-      const firstBranchId = `${nodeId}₍0₎`
+      const firstBranchId = buildBranchNodeId(nodeId, 0)
       const firstBranchNode = dag.nodes.get(firstBranchId)
       if (!firstBranchNode) continue
 
       let hasIncomingFromParallel = false
       for (const incomingNodeId of firstBranchNode.incomingEdges) {
-        const originalNodeId = incomingNodeId.includes('₍')
-          ? incomingNodeId.substring(0, incomingNodeId.indexOf('₍'))
-          : incomingNodeId
+        const originalNodeId = extractBaseBlockId(incomingNodeId)
 
         if (nodesSet.has(originalNodeId)) {
           hasIncomingFromParallel = true
@@ -556,7 +566,7 @@ export class EdgeConstructor {
       // Check if any branch exists in DAG
       let hasAnyBranch = false
       for (let i = 0; i < branchCount; i++) {
-        if (dag.nodes.has(`${nodeId}₍${i}₎`)) {
+        if (dag.nodes.has(buildBranchNodeId(nodeId, i))) {
           hasAnyBranch = true
           break
         }
@@ -565,15 +575,13 @@ export class EdgeConstructor {
       if (!hasAnyBranch) continue
 
       // Check first branch for outgoing edges
-      const firstBranchId = `${nodeId}₍0₎`
+      const firstBranchId = buildBranchNodeId(nodeId, 0)
       const firstBranchNode = dag.nodes.get(firstBranchId)
       if (!firstBranchNode) continue
 
       let hasOutgoingToParallel = false
       for (const [_, edge] of firstBranchNode.outgoingEdges) {
-        const originalTargetId = edge.target.includes('₍')
-          ? edge.target.substring(0, edge.target.indexOf('₍'))
-          : edge.target
+        const originalTargetId = extractBaseBlockId(edge.target)
 
         if (nodesSet.has(originalTargetId)) {
           hasOutgoingToParallel = true
@@ -595,7 +603,7 @@ export class EdgeConstructor {
 
   private getParallelId(blockId: string, dag: DAG): string | null {
     for (const [parallelId, parallelConfig] of dag.parallelConfigs) {
-      if ((parallelConfig as any).nodes.includes(blockId)) {
+      if (parallelConfig.nodes.includes(blockId)) {
         return parallelId
       }
     }
@@ -614,7 +622,7 @@ export class EdgeConstructor {
     const targetNode = dag.nodes.get(targetId)
 
     if (!sourceNode || !targetNode) {
-      logger.warn('Edge references non-existent node:', { sourceId, targetId })
+      logger.warn('Edge references non-existent node', { sourceId, targetId })
       return
     }
 
@@ -630,10 +638,12 @@ export class EdgeConstructor {
     // Only add to incoming edges if not a loop back-edge
     if (!isLoopBackEdge) {
       targetNode.incomingEdges.add(sourceId)
-      logger.debug('Added incoming edge:', { from: sourceId, to: targetId })
+      logger.debug('Added incoming edge', { from: sourceId, to: targetId })
     } else {
-      logger.debug('Skipped adding backwards-edge to incomingEdges:', { from: sourceId, to: targetId })
+      logger.debug('Skipped adding backwards-edge to incomingEdges', {
+        from: sourceId,
+        to: targetId,
+      })
     }
   }
 }
-

@@ -1,6 +1,6 @@
 /**
  * Handler Registry
- * 
+ *
  * Central registry for all block handlers.
  * Creates handlers for real user blocks (not infrastructure like sentinels).
  */
@@ -21,7 +21,7 @@ import { WorkflowBlockHandler } from './workflow/workflow-handler'
 
 /**
  * Create all block handlers
- * 
+ *
  * Note: Sentinels are NOT included here - they're infrastructure handled
  * by NodeExecutionOrchestrator, not user blocks.
  */
@@ -39,7 +39,7 @@ export function createBlockHandlers(): BlockHandler[] {
     new WorkflowBlockHandler(),
     new WaitBlockHandler(),
     new EvaluatorBlockHandler(),
-    
+
     // Generic handler must be last (fallback)
     new GenericBlockHandler(),
   ]

@@ -1,21 +1,17 @@
 /**
  * Parallel Resolver
- * 
+ *
  * Resolves references to parallel variables: <parallel.index>, <parallel.currentItem>, <parallel.items>
  * - Extracts branch index from node ID
  * - Returns current item from distribution items
  */
 
 import { createLogger } from '@/lib/logs/console/logger'
+import { REFERENCE } from '@/executor/consts'
 import type { SerializedWorkflow } from '@/serializer/types'
-import type { Resolver, ResolutionContext } from './reference'
+import type { ResolutionContext, Resolver } from './reference'
 
 const logger = createLogger('ParallelResolver')
-
-const REFERENCE_START = '<'
-const REFERENCE_END = '>'
-const PATH_DELIMITER = '.'
-const PARALLEL_PREFIX = 'parallel'
 
 export class ParallelResolver implements Resolver {
   constructor(private workflow: SerializedWorkflow) {}
@@ -26,19 +22,19 @@ export class ParallelResolver implements Resolver {
     }
 
     const content = this.extractContent(reference)
-    const parts = content.split(PATH_DELIMITER)
+    const parts = content.split(REFERENCE.PATH_DELIMITER)
 
     if (parts.length === 0) {
       return false
     }
 
     const [type] = parts
-    return type === PARALLEL_PREFIX
+    return type === REFERENCE.PREFIX.PARALLEL
   }
 
   resolve(reference: string, context: ResolutionContext): any {
     const content = this.extractContent(reference)
-    const parts = content.split(PATH_DELIMITER)
+    const parts = content.split(REFERENCE.PATH_DELIMITER)
 
     if (parts.length < 2) {
       logger.warn('Invalid parallel reference - missing property', { reference })
@@ -79,7 +75,8 @@ export class ParallelResolver implements Resolver {
       case 'currentItem':
         if (Array.isArray(distributionItems)) {
           return distributionItems[branchIndex]
-        } else if (typeof distributionItems === 'object' && distributionItems !== null) {
+        }
+        if (typeof distributionItems === 'object' && distributionItems !== null) {
           const keys = Object.keys(distributionItems)
           const key = keys[branchIndex]
           return key !== undefined ? distributionItems[key] : undefined
@@ -100,11 +97,11 @@ export class ParallelResolver implements Resolver {
    */
 
   private isReference(value: string): boolean {
-    return value.startsWith(REFERENCE_START) && value.endsWith(REFERENCE_END)
+    return value.startsWith(REFERENCE.START) && value.endsWith(REFERENCE.END)
   }
 
   private extractContent(reference: string): string {
-    return reference.substring(REFERENCE_START.length, reference.length - REFERENCE_END.length)
+    return reference.substring(REFERENCE.START.length, reference.length - REFERENCE.END.length)
   }
 
   private findParallelForBlock(blockId: string): string | undefined {
@@ -130,7 +127,7 @@ export class ParallelResolver implements Resolver {
 
   private extractBranchIndex(nodeId: string): number | null {
     const match = nodeId.match(/₍(\d+)₎$/)
-    return match ? parseInt(match[1], 10) : null
+    return match ? Number.parseInt(match[1], 10) : null
   }
 
   private getDistributionItems(parallelConfig: any): any {
@@ -149,4 +146,3 @@ export class ParallelResolver implements Resolver {
     return distributionItems
   }
 }
-

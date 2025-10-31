@@ -32,7 +32,9 @@ export async function evaluateConditionExpression(
       const resolvedVars = resolver.resolveVariableReferences(conditionExpression, block)
       const resolvedRefs = resolver.resolveBlockReferences(resolvedVars, context, block)
       resolvedConditionValue = resolver.resolveEnvVariables(resolvedRefs)
-      logger.info(`Resolved condition: from "${conditionExpression}" to "${resolvedConditionValue}"`)
+      logger.info(
+        `Resolved condition: from "${conditionExpression}" to "${resolvedConditionValue}"`
+      )
     }
   } catch (resolveError: any) {
     logger.error(`Failed to resolve references in condition: ${resolveError.message}`, {

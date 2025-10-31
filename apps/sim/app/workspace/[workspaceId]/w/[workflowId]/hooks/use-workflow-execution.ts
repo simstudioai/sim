@@ -4,8 +4,8 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import { resolveStartCandidates, StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers'
-import { Executor } from '@/executor'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
+import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { Serializer, WorkflowValidationError } from '@/serializer'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
@@ -15,7 +15,6 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { useCurrentWorkflow } from './use-current-workflow'
-import { useExecutionStream } from '@/hooks/use-execution-stream'
 
 const logger = createLogger('useWorkflowExecution')
 
@@ -896,7 +895,7 @@ export function useWorkflowExecution() {
     // SERVER-SIDE EXECUTION (always)
     if (activeWorkflowId) {
       logger.info('Using server-side executor')
-      
+
       let executionResult: ExecutionResult = {
         success: false,
         output: {},
@@ -925,7 +924,7 @@ export function useWorkflowExecution() {
 
             onBlockCompleted: (data) => {
               logger.info('onBlockCompleted received:', { data })
-              
+
               activeBlocksSet.delete(data.blockId)
               // Create a new Set to trigger React re-render
               setActiveBlocks(new Set(activeBlocksSet))
@@ -978,7 +977,7 @@ export function useWorkflowExecution() {
             onStreamChunk: (data) => {
               const existing = streamedContent.get(data.blockId) || ''
               streamedContent.set(data.blockId, existing + data.chunk)
-              
+
               // Call onStream callback if provided (create a fake StreamingExecution)
               if (onStream && isExecutingFromChat) {
                 const stream = new ReadableStream({
@@ -987,7 +986,7 @@ export function useWorkflowExecution() {
                     controller.close()
                   },
                 })
-                
+
                 const streamingExec: StreamingExecution = {
                   stream,
                   execution: {
@@ -996,7 +995,7 @@ export function useWorkflowExecution() {
                     blockId: data.blockId,
                   } as any,
                 }
-                
+
                 onStream(streamingExec).catch((error) => {
                   logger.error('Error in onStream callback:', error)
                 })
@@ -1039,11 +1038,11 @@ export function useWorkflowExecution() {
         // Don't log abort errors - they're intentional user actions
         if (error.name === 'AbortError' || error.message?.includes('aborted')) {
           logger.info('Execution aborted by user')
-          
+
           // Reset execution state
           setIsExecuting(false)
           setActiveBlocks(new Set())
-          
+
           // Return gracefully without error
           return {
             success: false,
@@ -1052,7 +1051,7 @@ export function useWorkflowExecution() {
             logs: [],
           }
         }
-        
+
         logger.error('Server-side execution failed:', error)
         throw error
       }
@@ -1300,7 +1299,14 @@ export function useWorkflowExecution() {
     if (isDebugging) {
       resetDebugState()
     }
-  }, [executionStream, isDebugging, resetDebugState, setIsExecuting, setIsDebugging, setActiveBlocks])
+  }, [
+    executionStream,
+    isDebugging,
+    resetDebugState,
+    setIsExecuting,
+    setIsDebugging,
+    setActiveBlocks,
+  ])
 
   return {
     isExecuting,

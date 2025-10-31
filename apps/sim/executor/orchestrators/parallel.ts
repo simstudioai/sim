@@ -1,21 +1,23 @@
 /**
  * ParallelOrchestrator
- * 
+ *
  * Consolidates ALL parallel-related logic in one place:
  * - Parallel scope initialization
  * - Branch tracking and completion detection
  * - Output collection from all branches
  * - Result aggregation
  * - Branch metadata management
- * 
+ *
  * This is the single source of truth for parallel execution.
  */
 
 import { createLogger } from '@/lib/logs/console/logger'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import type { SerializedParallel } from '@/serializer/types'
-import type { ExecutionState, ParallelScope } from '../execution/state'
 import type { DAG } from '../dag/builder'
+import type { ExecutionState, ParallelScope } from '../execution/state'
+import { PARALLEL } from '@/executor/consts'
+import { parseDistributionItems, calculateBranchCount } from '@/executor/utils/subflow-utils'
 
 const logger = createLogger('ParallelOrchestrator')
 
@@ -50,7 +52,7 @@ export class ParallelOrchestrator {
 
   /**
    * Initialize a parallel scope before execution
-   * 
+   *
    * @param parallelId - ID of the parallel configuration
    * @param totalBranches - Total number of parallel branches
    * @param terminalNodesCount - Number of terminal nodes per branch (for completion tracking)
@@ -58,7 +60,7 @@ export class ParallelOrchestrator {
   initializeParallelScope(
     parallelId: string,
     totalBranches: number,
-    terminalNodesCount: number = 1
+    terminalNodesCount = 1
   ): ParallelScope {
     const scope: ParallelScope = {
       parallelId,
@@ -83,7 +85,7 @@ export class ParallelOrchestrator {
   /**
    * Handle completion of a parallel branch node
    * Tracks outputs and detects when all branches complete
-   * 
+   *
    * @returns True if all branches are now complete, false otherwise
    */
   handleParallelBranchCompletion(
@@ -137,7 +139,7 @@ export class ParallelOrchestrator {
   /**
    * Aggregate results from all parallel branches
    * Creates a 2D array: results[branchIndex][nodeOutputIndex]
-   * 
+   *
    * Stores aggregated results in ExecutionState
    */
   aggregateParallelResults(parallelId: string): ParallelAggregationResult {
@@ -248,7 +250,7 @@ export class ParallelOrchestrator {
    */
   private extractBranchIndex(nodeId: string): number | null {
     const match = nodeId.match(/₍(\d+)₎$/)
-    return match ? parseInt(match[1], 10) : null
+    return match ? Number.parseInt(match[1], 10) : null
   }
 
   /**
@@ -266,28 +268,11 @@ export class ParallelOrchestrator {
     parallelConfig: SerializedParallel,
     branchIndex: number
   ): { totalBranches: number; distributionItem?: any } {
-    const config = parallelConfig as any
-
-    // Parse distribution items
-    let distributionItems = config.distributionItems || config.distribution || []
-
-    if (typeof distributionItems === 'string' && !distributionItems.startsWith('<')) {
-      try {
-        distributionItems = JSON.parse(distributionItems.replace(/'/g, '"'))
-      } catch (e) {
-        logger.error('Failed to parse distribution items', { distributionItems })
-        distributionItems = []
-      }
-    }
-
-    // Calculate total branches
-    let totalBranches = config.parallelCount || config.count || 1
-    if (config.parallelType === 'collection' && Array.isArray(distributionItems)) {
-      totalBranches = distributionItems.length
-    }
+    const distributionItems = parseDistributionItems(parallelConfig)
+    const totalBranches = calculateBranchCount(parallelConfig, distributionItems)
 
     // Get distribution item for this branch
-    let distributionItem: any = undefined
+    let distributionItem: any
     if (Array.isArray(distributionItems) && branchIndex < distributionItems.length) {
       distributionItem = distributionItems[branchIndex]
     }
@@ -295,4 +280,3 @@ export class ParallelOrchestrator {
     return { totalBranches, distributionItem }
   }
 }
-

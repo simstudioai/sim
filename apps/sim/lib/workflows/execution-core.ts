@@ -3,18 +3,21 @@
  * This is the SINGLE source of truth for workflow execution
  */
 
+import { z } from 'zod'
+import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
-import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { decryptSecret } from '@/lib/utils'
-import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
-import { loadDeployedWorkflowState, loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
+import {
+  loadDeployedWorkflowState,
+  loadWorkflowFromNormalizedTables,
+} from '@/lib/workflows/db-helpers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { Executor } from '@/executor' // Now exports DAGExecutor
 import type { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/server-utils'
-import { z } from 'zod'
 
 const logger = createLogger('ExecutionCore')
 
@@ -34,7 +37,12 @@ export interface ExecuteWorkflowCoreOptions {
   startBlockId?: string // Optional: start from specific block (for webhooks/schedules)
   // Callbacks for SSE streaming (optional)
   onBlockStart?: (blockId: string, blockName: string, blockType: string) => Promise<void>
-  onBlockComplete?: (blockId: string, blockName: string, blockType: string, output: any) => Promise<void>
+  onBlockComplete?: (
+    blockId: string,
+    blockName: string,
+    blockType: string,
+    output: any
+  ) => Promise<void>
   onStream?: (streamingExec: any) => Promise<void>
   onExecutorCreated?: (executor: any) => void // Callback when executor is created (for cancellation)
 }
@@ -132,7 +140,10 @@ export async function executeWorkflowCore(
     const startTime = new Date()
 
     // Load workflow state based on trigger type
-    let blocks, edges, loops, parallels
+    let blocks
+    let edges
+    let loops
+    let parallels
 
     if (triggerType === 'manual') {
       // Load draft state from normalized tables
@@ -278,7 +289,7 @@ export async function executeWorkflowCore(
     })
 
     loggingSession.setupExecutor(executorInstance)
-    
+
     // Convert initial workflow variables to their native types
     if (workflowVariables) {
       for (const [varId, variable] of Object.entries(workflowVariables)) {
@@ -288,13 +299,16 @@ export async function executeWorkflowCore(
         }
       }
     }
-    
+
     // Store executor in options for potential cancellation
     if (options.onExecutorCreated) {
       options.onExecutorCreated(executorInstance)
     }
 
-    const result = (await executorInstance.execute(workflowId, options.startBlockId)) as ExecutionResult
+    const result = (await executorInstance.execute(
+      workflowId,
+      options.startBlockId
+    )) as ExecutionResult
 
     // Build trace spans for logging
     const { traceSpans, totalDuration } = buildTraceSpans(result)
@@ -333,4 +347,3 @@ export async function executeWorkflowCore(
     throw error
   }
 }
-

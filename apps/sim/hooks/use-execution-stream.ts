@@ -92,7 +92,7 @@ export function useExecutionStream() {
       try {
         while (true) {
           const { done, value } = await reader.read()
-          
+
           if (done) {
             break
           }
@@ -102,7 +102,7 @@ export function useExecutionStream() {
 
           // Process complete SSE messages
           const lines = buffer.split('\n\n')
-          
+
           // Keep the last incomplete message in the buffer
           buffer = lines.pop() || ''
 
@@ -206,4 +206,3 @@ export function useExecutionStream() {
     cancel,
   }
 }
-

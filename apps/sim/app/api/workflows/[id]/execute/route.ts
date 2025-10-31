@@ -4,23 +4,13 @@ import { z } from 'zod'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { getSession } from '@/lib/auth'
 import { checkServerSideUsageLimits } from '@/lib/billing'
-import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
-import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
-import { SSE_HEADERS, generateRequestId, decryptSecret } from '@/lib/utils'
-import { loadDeployedWorkflowState, loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
-import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
-import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
-import { Executor } from '@/executor'
-import type { ExecutionResult, StreamingExecution } from '@/executor/types'
-import { Serializer } from '@/serializer'
-import { mergeSubblockState } from '@/stores/workflows/server-utils'
-import {
-  type ExecutionEvent,
-  encodeSSEEvent,
-} from '@/lib/workflows/execution-events'
+import { generateRequestId, SSE_HEADERS } from '@/lib/utils'
 import { executeWorkflowCore } from '@/lib/workflows/execution-core'
+import { type ExecutionEvent, encodeSSEEvent } from '@/lib/workflows/execution-events'
+import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
+import type { StreamingExecution } from '@/executor/types'
 
 const EnvVarsSchema = z.record(z.string())
 
@@ -97,14 +87,11 @@ export async function executeWorkflow(options: {
 
 /**
  * POST /api/workflows/[id]/execute
- * 
+ *
  * Unified server-side workflow execution endpoint.
  * Supports both SSE streaming (for interactive/manual runs) and direct JSON responses (for background jobs).
  */
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = generateRequestId()
   const { id: workflowId } = await params
 
@@ -147,14 +134,9 @@ export async function POST(
     } catch (error) {
       logger.warn(`[${requestId}] Failed to parse request body, using defaults`)
     }
-    
-    const {
-      input,
-      selectedOutputs = [],
-      triggerType = 'manual',
-      stream: streamParam,
-    } = body
-    
+
+    const { input, selectedOutputs = [], triggerType = 'manual', stream: streamParam } = body
+
     // Determine if SSE should be enabled
     // Default: false (JSON response)
     // Client must explicitly request streaming via header or body parameter
@@ -191,10 +173,21 @@ export async function POST(
     // Map client trigger type to logging trigger type (excluding 'api-endpoint')
     type LoggingTriggerType = 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
     let loggingTriggerType: LoggingTriggerType = 'manual'
-    if (triggerType === 'api' || triggerType === 'chat' || triggerType === 'webhook' || triggerType === 'schedule' || triggerType === 'manual') {
+    if (
+      triggerType === 'api' ||
+      triggerType === 'chat' ||
+      triggerType === 'webhook' ||
+      triggerType === 'schedule' ||
+      triggerType === 'manual'
+    ) {
       loggingTriggerType = triggerType as LoggingTriggerType
     }
-    const loggingSession = new LoggingSession(workflowId, executionId, loggingTriggerType, requestId)
+    const loggingSession = new LoggingSession(
+      workflowId,
+      executionId,
+      loggingTriggerType,
+      requestId
+    )
 
     // NON-SSE PATH: Direct JSON execution for API calls, background jobs
     if (!enableSSE) {
@@ -220,10 +213,9 @@ export async function POST(
 
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
-        
         const sendEvent = (event: ExecutionEvent) => {
           if (isStreamClosed) return
-          
+
           try {
             logger.info(`[${requestId}] 📤 Sending SSE event:`, {
               type: event.type,
@@ -235,7 +227,7 @@ export async function POST(
             isStreamClosed = true
           }
         }
-        
+
         try {
           const startTime = new Date()
 
@@ -261,13 +253,23 @@ export async function POST(
               data: { blockId, blockName, blockType },
             })
           }
-          
-          const onBlockComplete = async (blockId: string, blockName: string, blockType: string, callbackData: any) => {
+
+          const onBlockComplete = async (
+            blockId: string,
+            blockName: string,
+            blockType: string,
+            callbackData: any
+          ) => {
             // Check if this is an error completion
             const hasError = callbackData.output?.error
-            
+
             if (hasError) {
-              logger.info(`[${requestId}] ✗ onBlockComplete (error) called:`, { blockId, blockName, blockType, error: callbackData.output.error })
+              logger.info(`[${requestId}] ✗ onBlockComplete (error) called:`, {
+                blockId,
+                blockName,
+                blockType,
+                error: callbackData.output.error,
+              })
               sendEvent({
                 type: 'block:error',
                 timestamp: new Date().toISOString(),
@@ -282,7 +284,11 @@ export async function POST(
                 },
               })
             } else {
-              logger.info(`[${requestId}] ✓ onBlockComplete called:`, { blockId, blockName, blockType })
+              logger.info(`[${requestId}] ✓ onBlockComplete called:`, {
+                blockId,
+                blockName,
+                blockType,
+              })
               sendEvent({
                 type: 'block:completed',
                 timestamp: new Date().toISOString(),
@@ -298,17 +304,17 @@ export async function POST(
               })
             }
           }
-          
+
           const onStream = async (streamingExec: StreamingExecution) => {
             const blockId = (streamingExec.execution as any).blockId
             const reader = streamingExec.stream.getReader()
             const decoder = new TextDecoder()
-            
+
             try {
               while (true) {
                 const { done, value } = await reader.read()
                 if (done) break
-                
+
                 const chunk = decoder.decode(value, { stream: true })
                 sendEvent({
                   type: 'stream:chunk',
@@ -318,7 +324,7 @@ export async function POST(
                   data: { blockId, chunk },
                 })
               }
-              
+
               sendEvent({
                 type: 'stream:done',
                 timestamp: new Date().toISOString(),
@@ -383,13 +389,12 @@ export async function POST(
               endTime: result.metadata?.endTime || new Date().toISOString(),
             },
           })
-
         } catch (error: any) {
           logger.error(`[${requestId}] SSE execution failed:`, error)
-          
+
           // Extract execution result from error if available
           const executionResult = error.executionResult
-          
+
           // Send error event
           sendEvent({
             type: 'execution:error',
@@ -416,7 +421,7 @@ export async function POST(
       cancel() {
         isStreamClosed = true
         logger.info(`[${requestId}] Client aborted SSE stream, cancelling executor`)
-        
+
         // Cancel the executor if it exists
         if (executorInstance && typeof executorInstance.cancel === 'function') {
           executorInstance.cancel()
@@ -431,7 +436,6 @@ export async function POST(
         'X-Execution-Id': executionId,
       },
     })
-
   } catch (error: any) {
     logger.error(`[${requestId}] Failed to start workflow execution:`, error)
     return NextResponse.json(
@@ -440,4 +444,3 @@ export async function POST(
     )
   }
 }
-

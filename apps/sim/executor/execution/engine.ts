@@ -1,6 +1,6 @@
 /**
  * ExecutionEngine
- * 
+ *
  * Orchestrates the execution of a workflow DAG.
  * Manages:
  * - Queue and concurrency (ready queue, promise tracking)
@@ -9,14 +9,10 @@
  */
 
 import { createLogger } from '@/lib/logs/console/logger'
-import type {
-  ExecutionContext,
-  ExecutionResult,
-  NormalizedBlockOutput,
-} from '@/executor/types'
+import type { ExecutionContext, ExecutionResult, NormalizedBlockOutput } from '@/executor/types'
 import type { DAG } from '../dag/builder'
-import type { EdgeManager } from './edge-manager'
 import type { NodeExecutionOrchestrator } from '../orchestrators/node'
+import type { EdgeManager } from './edge-manager'
 
 const logger = createLogger('ExecutionEngine')
 
@@ -33,7 +29,7 @@ export class ExecutionEngine {
   private readyQueue: string[] = []
   private executing = new Set<Promise<void>>()
   private queueLock = Promise.resolve()
-  
+
   // Execution state
   private finalOutput: NormalizedBlockOutput = {}
 

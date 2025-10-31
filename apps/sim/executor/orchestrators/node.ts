@@ -1,22 +1,23 @@
 /**
  * NodeExecutionOrchestrator
- * 
+ *
  * Manages the lifecycle of individual node execution:
  * - Node execution delegation to BlockExecutor
  * - Completion handling (loop vs parallel vs regular nodes)
  * - Detection of node types (loop, parallel, sentinel)
  * - Coordination with LoopOrchestrator and ParallelOrchestrator
- * 
+ *
  * This is the single source of truth for node execution lifecycle.
  */
 
 import { createLogger } from '@/lib/logs/console/logger'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import type { DAG, DAGNode } from '../dag/builder'
-import type { ExecutionState } from '../execution/state'
 import type { BlockExecutor } from '../execution/block-executor'
+import type { ExecutionState } from '../execution/state'
 import type { LoopOrchestrator } from './loop'
 import type { ParallelOrchestrator } from './parallel'
+import { EDGE } from '@/executor/consts'
 
 const logger = createLogger('NodeExecutionOrchestrator')
 
@@ -53,7 +54,7 @@ export class NodeExecutionOrchestrator {
 
     if (this.state.hasExecuted(nodeId)) {
       logger.debug('Node already executed, skipping', { nodeId })
-      
+
       // Return cached output
       const output = this.state.getBlockOutput(nodeId) || {}
       return {
@@ -82,7 +83,11 @@ export class NodeExecutionOrchestrator {
 
     // Handle sentinel nodes (infrastructure, not real blocks)
     if (node.metadata.isSentinel) {
-      logger.debug('Executing sentinel node', { nodeId, sentinelType: node.metadata.sentinelType, loopId })
+      logger.debug('Executing sentinel node', {
+        nodeId,
+        sentinelType: node.metadata.sentinelType,
+        loopId,
+      })
       const output = this.handleSentinel(node, context)
       const isFinalOutput = node.outgoingEdges.size === 0
       return {
@@ -126,7 +131,7 @@ export class NodeExecutionOrchestrator {
 
       if (!loopId) {
         logger.warn('Sentinel end called without loopId')
-        return { shouldExit: true, selectedRoute: 'loop_exit' }
+        return { shouldExit: true, selectedRoute: EDGE.LOOP_EXIT }
       }
 
       // Delegate to LoopOrchestrator
@@ -147,15 +152,14 @@ export class NodeExecutionOrchestrator {
           selectedRoute: continuationResult.selectedRoute, // 'loop_continue'
           loopIteration: continuationResult.currentIteration,
         }
-      } else {
-        // Loop exits - return aggregated results
-        return {
-          results: continuationResult.aggregatedResults || [],
-          shouldContinue: false,
-          shouldExit: true,
-          selectedRoute: continuationResult.selectedRoute, // 'loop_exit'
-          totalIterations: continuationResult.aggregatedResults?.length || 0,
-        }
+      }
+      // Loop exits - return aggregated results
+      return {
+        results: continuationResult.aggregatedResults || [],
+        shouldContinue: false,
+        shouldExit: true,
+        selectedRoute: continuationResult.selectedRoute, // 'loop_exit'
+        totalIterations: continuationResult.aggregatedResults?.length || 0,
       }
     }
 
@@ -238,7 +242,7 @@ export class NodeExecutionOrchestrator {
     output: NormalizedBlockOutput,
     parallelId: string
   ): void {
-    let scope = this.parallelOrchestrator.getParallelScope(parallelId)
+    const scope = this.parallelOrchestrator.getParallelScope(parallelId)
 
     if (!scope) {
       // Initialize parallel scope using ParallelOrchestrator
@@ -302,4 +306,3 @@ export class NodeExecutionOrchestrator {
     return this.parallelOrchestrator.findParallelIdForNode(baseId)
   }
 }
-

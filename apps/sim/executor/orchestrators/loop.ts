@@ -1,6 +1,6 @@
 /**
  * LoopOrchestrator
- * 
+ *
  * Consolidates ALL loop-related logic in one place:
  * - Loop scope initialization and management
  * - Iteration tracking and incrementing
@@ -8,26 +8,29 @@
  * - Backward edge decision logic
  * - Result aggregation
  * - Loop state clearing for continuation
- * 
+ *
  * This is the single source of truth for loop execution.
  */
 
 import { createLogger } from '@/lib/logs/console/logger'
 import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import type { SerializedLoop } from '@/serializer/types'
+import type { DAG } from '../dag/builder'
 import type { ExecutionState, LoopScope } from '../execution/state'
 import type { VariableResolver } from '../variables/resolver'
-import type { DAG, DAGNode } from '../dag/builder'
+import { EDGE, LOOP } from '@/executor/consts'
 
 const logger = createLogger('LoopOrchestrator')
 
 /**
  * Result of evaluating whether a loop should continue
  */
+export type LoopRoute = typeof EDGE.LOOP_CONTINUE | typeof EDGE.LOOP_EXIT
+
 export interface LoopContinuationResult {
   shouldContinue: boolean
   shouldExit: boolean
-  selectedRoute: 'loop_continue' | 'loop_exit'
+  selectedRoute: LoopRoute
   aggregatedResults?: NormalizedBlockOutput[][]
   currentIteration?: number
 }
@@ -70,7 +73,7 @@ export class LoopOrchestrator {
         logger.debug('For loop initialized', { loopId, maxIterations: scope.maxIterations })
         break
 
-      case 'forEach':
+      case 'forEach': {
         const items = this.resolveForEachItems(loopConfig.forEachItems, context)
         scope.items = items
         scope.maxIterations = items.length
@@ -78,6 +81,7 @@ export class LoopOrchestrator {
         scope.condition = `<loop.index> < ${scope.maxIterations}`
         logger.debug('ForEach loop initialized', { loopId, itemCount: items.length })
         break
+      }
 
       case 'while':
         scope.condition = loopConfig.whileCondition
@@ -128,20 +132,17 @@ export class LoopOrchestrator {
   /**
    * Evaluate whether a loop should continue to the next iteration
    * This is the core loop continuation logic, called by sentinel_end
-   * 
+   *
    * Returns routing information for ExecutionEngine to activate correct edge
    */
-  evaluateLoopContinuation(
-    loopId: string,
-    context: ExecutionContext
-  ): LoopContinuationResult {
+  evaluateLoopContinuation(loopId: string, context: ExecutionContext): LoopContinuationResult {
     const scope = this.state.getLoopScope(loopId)
     if (!scope) {
       logger.error('Loop scope not found during continuation evaluation', { loopId })
       return {
         shouldContinue: false,
         shouldExit: true,
-        selectedRoute: 'loop_exit',
+        selectedRoute: EDGE.LOOP_EXIT,
       }
     }
 
@@ -196,7 +197,7 @@ export class LoopOrchestrator {
     return {
       shouldContinue: true,
       shouldExit: false,
-      selectedRoute: 'loop_continue',
+      selectedRoute: EDGE.LOOP_CONTINUE,
       currentIteration: scope.iteration,
     }
   }
@@ -263,8 +264,7 @@ export class LoopOrchestrator {
           if (edge.target === nodeId) {
             // Skip backward edges (they start inactive)
             const isBackwardEdge =
-              edge.sourceHandle === 'loop_continue' ||
-              edge.sourceHandle === 'loop-continue-source'
+              edge.sourceHandle === EDGE.LOOP_CONTINUE || edge.sourceHandle === EDGE.LOOP_CONTINUE_ALT
 
             if (!isBackwardEdge) {
               nodeToRestore.incomingEdges.add(potentialSourceId)
@@ -390,7 +390,8 @@ export class LoopOrchestrator {
         return match
       })
 
-      const result = Boolean(eval(`(${evaluatedCondition})`))
+      // Use Function constructor instead of eval for safety
+      const result = Boolean(new Function(`return (${evaluatedCondition})`)())
 
       logger.debug('Evaluated loop condition', {
         condition,
@@ -447,4 +448,3 @@ export class LoopOrchestrator {
     return nodeId.replace(/₍\d+₎$/, '')
   }
 }
-

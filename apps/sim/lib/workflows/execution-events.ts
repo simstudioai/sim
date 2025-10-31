@@ -164,4 +164,3 @@ export function formatSSEEvent(event: ExecutionEvent): string {
 export function encodeSSEEvent(event: ExecutionEvent): Uint8Array {
   return new TextEncoder().encode(formatSSEEvent(event))
 }
-

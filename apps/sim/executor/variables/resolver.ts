@@ -1,6 +1,6 @@
 /**
  * VariableResolver
- * 
+ *
  * Coordinator for variable resolution that delegates to specialized resolvers.
  * Uses the Strategy Pattern to handle different reference types:
  * - Block references: <blockName.output.field>
@@ -8,27 +8,23 @@
  * - Parallel references: <parallel.index>, <parallel.currentItem>
  * - Workflow variables: <variable.name>
  * - Environment variables: {{env.VAR_NAME}}
- * 
+ *
  * This class orchestrates resolution and template string replacement.
  */
 
 import { createLogger } from '@/lib/logs/console/logger'
+import { BlockType, REFERENCE } from '@/executor/consts'
 import type { ExecutionContext } from '@/executor/types'
-import type { SerializedWorkflow, SerializedBlock } from '@/serializer/types'
+import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { ExecutionState, LoopScope } from '../execution/state'
-import type { Resolver, ResolutionContext } from './resolvers/reference'
 import { BlockResolver } from './resolvers/block'
+import { EnvResolver } from './resolvers/env'
 import { LoopResolver } from './resolvers/loop'
 import { ParallelResolver } from './resolvers/parallel'
+import type { ResolutionContext, Resolver } from './resolvers/reference'
 import { WorkflowResolver } from './resolvers/workflow'
-import { EnvResolver } from './resolvers/env'
 
 const logger = createLogger('VariableResolver')
-
-const REFERENCE_START = '<'
-const REFERENCE_END = '>'
-const ENV_VAR_START = '{{'
-const ENV_VAR_END = '}}'
 
 /**
  * Coordinates variable resolution using specialized resolver strategies
@@ -153,7 +149,10 @@ export class VariableResolver {
     }
 
     // Resolve <references>
-    const referenceRegex = /<([^>]+)>/g
+    const referenceRegex = new RegExp(
+      `${REFERENCE.START}([^${REFERENCE.END}]+)${REFERENCE.END}`,
+      'g'
+    )
     result = result.replace(referenceRegex, (match) => {
       const resolved = this.resolveReference(match, resolutionContext)
 
@@ -162,7 +161,7 @@ export class VariableResolver {
       }
 
       // For function blocks, quote string values so they become string literals in code
-      const isFunctionBlock = block?.metadata?.id === 'function'
+      const isFunctionBlock = block?.metadata?.id === BlockType.FUNCTION
 
       if (typeof resolved === 'string') {
         if (isFunctionBlock) {
@@ -179,7 +178,7 @@ export class VariableResolver {
     })
 
     // Resolve {{env.vars}}
-    const envRegex = /\{\{([^}]+)\}\}/g
+    const envRegex = new RegExp(`${REFERENCE.ENV_VAR_START}([^}]+)${REFERENCE.ENV_VAR_END}`, 'g')
     result = result.replace(envRegex, (match) => {
       const resolved = this.resolveReference(match, resolutionContext)
       return typeof resolved === 'string' ? resolved : match
@@ -193,14 +192,8 @@ export class VariableResolver {
    * Delegates to the first resolver that can handle the reference
    */
   private resolveReference(reference: string, context: ResolutionContext): any {
-    // Try each resolver in order
     for (const resolver of this.resolvers) {
       if (resolver.canResolve(reference)) {
-        logger.debug('Resolving reference with strategy', {
-          reference,
-          resolver: resolver.constructor.name,
-        })
-
         const result = resolver.resolve(reference, context)
 
         logger.debug('Reference resolved', {
@@ -215,12 +208,5 @@ export class VariableResolver {
 
     logger.warn('No resolver found for reference', { reference })
     return undefined
-  }
-
-  /**
-   * Check if a value contains any references or templates
-   */
-  private hasTemplate(value: string): boolean {
-    return value.includes(REFERENCE_START) || value.includes(ENV_VAR_START)
   }
 }

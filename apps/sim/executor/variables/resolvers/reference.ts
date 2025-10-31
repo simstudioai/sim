@@ -1,6 +1,6 @@
 /**
  * Reference Resolver Interface
- * 
+ *
  * Strategy interface for resolving different types of variable references.
  * Each implementation handles a specific reference type (block, loop, parallel, etc.)
  */
@@ -24,7 +24,7 @@ export interface ResolutionContext {
 export interface Resolver {
   /**
    * Determine if this resolver can handle the given reference
-   * 
+   *
    * @param reference - The reference string (e.g., "<block.output>", "<loop.index>")
    * @returns True if this resolver can handle this reference
    */
@@ -32,11 +32,10 @@ export interface Resolver {
 
   /**
    * Resolve the reference to its actual value
-   * 
+   *
    * @param reference - The reference string to resolve
    * @param context - Resolution context with execution state and metadata
    * @returns The resolved value, or undefined if not found
    */
   resolve(reference: string, context: ResolutionContext): any
 }
-

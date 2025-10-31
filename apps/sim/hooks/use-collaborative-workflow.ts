@@ -1280,8 +1280,10 @@ export function useCollaborativeWorkflow() {
 
       const existingLoop = workflowStore.loops[loopId]
       const existingForEachItems = existingLoop?.forEachItems ?? currentCollection ?? ''
-      const existingWhileCondition = existingLoop?.whileCondition ?? currentBlock.data?.whileCondition ?? ''
-      const existingDoWhileCondition = existingLoop?.doWhileCondition ?? currentBlock.data?.doWhileCondition ?? ''
+      const existingWhileCondition =
+        existingLoop?.whileCondition ?? currentBlock.data?.whileCondition ?? ''
+      const existingDoWhileCondition =
+        existingLoop?.doWhileCondition ?? currentBlock.data?.doWhileCondition ?? ''
 
       const config: any = {
         id: loopId,
@@ -1404,8 +1406,10 @@ export function useCollaborativeWorkflow() {
 
         const existingLoop = workflowStore.loops[nodeId]
         let nextForEachItems = existingLoop?.forEachItems ?? currentBlock.data?.collection ?? ''
-        let nextWhileCondition = existingLoop?.whileCondition ?? currentBlock.data?.whileCondition ?? ''
-        let nextDoWhileCondition = existingLoop?.doWhileCondition ?? currentBlock.data?.doWhileCondition ?? ''
+        let nextWhileCondition =
+          existingLoop?.whileCondition ?? currentBlock.data?.whileCondition ?? ''
+        let nextDoWhileCondition =
+          existingLoop?.doWhileCondition ?? currentBlock.data?.doWhileCondition ?? ''
 
         if (currentLoopType === 'forEach') {
           nextForEachItems = collection

@@ -1,6 +1,6 @@
 /**
  * NodeConstructor
- * 
+ *
  * Creates DAG nodes for blocks in the workflow:
  * - Regular blocks → 1:1 mapping
  * - Parallel blocks → Expanded into N branches (blockId₍0₎, blockId₍1₎, etc.)
@@ -8,19 +8,14 @@
  */
 
 import { createLogger } from '@/lib/logs/console/logger'
-import type { SerializedWorkflow, SerializedBlock, SerializedLoop, SerializedParallel } from '@/serializer/types'
-import type { DAG, DAGNode } from '../builder'
-import { 
-  BlockType, 
-  PARALLEL, 
-  REFERENCE, 
-  isMetadataOnlyBlockType,
-} from '@/executor/consts'
-import { 
-  parseDistributionItems, 
-  calculateBranchCount, 
-  buildBranchNodeId 
+import { isMetadataOnlyBlockType } from '@/executor/consts'
+import {
+  buildBranchNodeId,
+  calculateBranchCount,
+  parseDistributionItems,
 } from '@/executor/utils/subflow-utils'
+import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
+import type { DAG, DAGNode } from '../builder'
 
 const logger = createLogger('NodeConstructor')
 
@@ -75,9 +70,9 @@ export class NodeConstructor {
     }
 
     if (isMetadataOnlyBlockType(block.metadata?.id)) {
-      logger.debug('Skipping metadata-only block', { 
-        blockId: block.id, 
-        blockType: block.metadata?.id 
+      logger.debug('Skipping metadata-only block', {
+        blockId: block.id,
+        blockType: block.metadata?.id,
       })
       return false
     }
@@ -145,11 +140,7 @@ export class NodeConstructor {
     })
 
     for (let branchIndex = 0; branchIndex < expansion.branchCount; branchIndex++) {
-      const branchNode = this.createParallelBranchNode(
-        block,
-        branchIndex,
-        expansion
-      )
+      const branchNode = this.createParallelBranchNode(block, branchIndex, expansion)
       dag.nodes.set(branchNode.id, branchNode)
     }
   }
@@ -200,7 +191,11 @@ export class NodeConstructor {
   /**
    * Create regular node or loop node
    */
-  private createRegularOrLoopNode(block: SerializedBlock, blocksInLoops: Set<string>, dag: DAG): void {
+  private createRegularOrLoopNode(
+    block: SerializedBlock,
+    blocksInLoops: Set<string>,
+    dag: DAG
+  ): void {
     const isLoopNode = blocksInLoops.has(block.id)
     const loopId = isLoopNode ? this.findLoopIdForBlock(block.id, dag) : undefined
 
@@ -240,5 +235,3 @@ export class NodeConstructor {
     return null
   }
 }
-
-

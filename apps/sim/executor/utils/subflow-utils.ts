@@ -1,6 +1,6 @@
 /**
  * Subflow Utilities
- * 
+ *
  * Common utilities for loop and parallel (subflow) configurations.
  * Consolidates logic for:
  * - Loop sentinel ID construction
@@ -10,8 +10,8 @@
  */
 
 import { createLogger } from '@/lib/logs/console/logger'
-import type { SerializedParallel } from '@/serializer/types'
 import { LOOP, PARALLEL, REFERENCE } from '@/executor/consts'
+import type { SerializedParallel } from '@/serializer/types'
 
 const logger = createLogger('SubflowUtils')
 
@@ -51,12 +51,12 @@ export function extractLoopIdFromSentinel(sentinelId: string): string | null {
     new RegExp(`${LOOP.SENTINEL.PREFIX}(.+)${LOOP.SENTINEL.START_SUFFIX}`)
   )
   if (startMatch) return startMatch[1]
-  
+
   const endMatch = sentinelId.match(
     new RegExp(`${LOOP.SENTINEL.PREFIX}(.+)${LOOP.SENTINEL.END_SUFFIX}`)
   )
   if (endMatch) return endMatch[1]
-  
+
   return null
 }
 
@@ -84,9 +84,9 @@ export function parseDistributionItems(config: SerializedParallel): any[] {
       const normalizedJSON = rawItems.replace(/'/g, '"')
       return JSON.parse(normalizedJSON)
     } catch (error) {
-      logger.error('Failed to parse distribution items', { 
+      logger.error('Failed to parse distribution items', {
         rawItems,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       })
       return []
     }
@@ -108,12 +108,9 @@ export function parseDistributionItems(config: SerializedParallel): any[] {
 /**
  * Calculate branch count from parallel config
  */
-export function calculateBranchCount(
-  config: SerializedParallel, 
-  distributionItems: any[]
-): number {
+export function calculateBranchCount(config: SerializedParallel, distributionItems: any[]): number {
   const explicitCount = config.count ?? PARALLEL.DEFAULT_COUNT
-  
+
   // For collection type, use distribution item count
   if (config.parallelType === PARALLEL.TYPE.COLLECTION && distributionItems.length > 0) {
     return distributionItems.length
@@ -147,7 +144,7 @@ export function extractBranchIndex(branchNodeId: string): number | null {
   const match = branchNodeId.match(
     new RegExp(`${PARALLEL.BRANCH.PREFIX}(\\d+)${PARALLEL.BRANCH.SUFFIX}$`)
   )
-  return match ? parseInt(match[1], 10) : null
+  return match ? Number.parseInt(match[1], 10) : null
 }
 
 /**
@@ -157,4 +154,3 @@ export function isBranchNodeId(nodeId: string): boolean {
   const branchPattern = new RegExp(`${PARALLEL.BRANCH.PREFIX}\\d+${PARALLEL.BRANCH.SUFFIX}$`)
   return branchPattern.test(nodeId)
 }
-
