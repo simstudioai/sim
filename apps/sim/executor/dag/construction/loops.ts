@@ -1,91 +1,105 @@
 /**
  * LoopConstructor
  * 
- * Constructs sentinel nodes (start/end) for each loop.
- * Sentinels act as gates that manage loop entry, exit, and continuation.
+ * Creates sentinel nodes (start/end gates) for each loop.
+ * Sentinels control loop entry, continuation, and exit.
  */
 
 import { createLogger } from '@/lib/logs/console/logger'
-import type { DAG } from '../builder'
+import type { SerializedLoop } from '@/serializer/types'
+import type { DAG, DAGNode } from '../builder'
+import { BlockType, LOOP, type SentinelType } from '@/executor/consts'
+import { buildSentinelStartId, buildSentinelEndId } from '@/executor/utils/subflow-utils'
 
 const logger = createLogger('LoopConstructor')
 
 export class LoopConstructor {
   /**
-   * Create sentinel nodes for all reachable loops
+   * Create sentinel nodes for all loops with reachable nodes
    */
   execute(dag: DAG, reachableBlocks: Set<string>): void {
     for (const [loopId, loopConfig] of dag.loopConfigs) {
-      const config = loopConfig as any
-      const nodes = config.nodes || []
+      const loopNodes = loopConfig.nodes
 
-      if (nodes.length === 0) continue
+      if (loopNodes.length === 0) {
+        continue
+      }
 
-      // Only create sentinels if at least one node in the loop is reachable
-      const hasReachableNodes = nodes.some((nodeId: string) => reachableBlocks.has(nodeId))
-      if (!hasReachableNodes) {
+      if (!this.hasReachableNodes(loopNodes, reachableBlocks)) {
         logger.debug('Skipping sentinel creation for unreachable loop', { loopId })
         continue
       }
 
-      this.createSentinelNodes(dag, loopId, nodes)
+      this.createSentinelPair(dag, loopId)
     }
   }
 
-  private createSentinelNodes(dag: DAG, loopId: string, nodes: string[]): void {
-    const sentinelStartId = `loop-${loopId}-sentinel-start`
-    const sentinelEndId = `loop-${loopId}-sentinel-end`
+  /**
+   * Check if loop has at least one reachable node
+   */
+  private hasReachableNodes(loopNodes: string[], reachableBlocks: Set<string>): boolean {
+    return loopNodes.some((nodeId) => reachableBlocks.has(nodeId))
+  }
 
-    // Create sentinel_start node
-    dag.nodes.set(sentinelStartId, {
-      id: sentinelStartId,
-      block: {
-        id: sentinelStartId,
-        enabled: true,
-        metadata: {
-          id: 'sentinel_start',
-          name: `Loop Start (${loopId})`,
-          loopId,
-        },
-        config: { params: {} },
-      } as any,
-      incomingEdges: new Set(),
-      outgoingEdges: new Map(),
-      metadata: {
-        isSentinel: true,
-        sentinelType: 'start',
-        loopId,
-      },
-    })
+  /**
+   * Create start and end sentinel nodes for a loop
+   */
+  private createSentinelPair(dag: DAG, loopId: string): void {
+    const startId = buildSentinelStartId(loopId)
+    const endId = buildSentinelEndId(loopId)
 
-    // Create sentinel_end node
-    dag.nodes.set(sentinelEndId, {
-      id: sentinelEndId,
-      block: {
-        id: sentinelEndId,
-        enabled: true,
-        metadata: {
-          id: 'sentinel_end',
-          name: `Loop End (${loopId})`,
-          loopId,
-        },
-        config: { params: {} },
-      } as any,
-      incomingEdges: new Set(),
-      outgoingEdges: new Map(),
-      metadata: {
-        isSentinel: true,
-        sentinelType: 'end',
-        loopId,
-      },
-    })
-
-    logger.debug('Created sentinel nodes for loop', {
+    dag.nodes.set(startId, this.createSentinelNode({
+      id: startId,
       loopId,
-      sentinelStartId,
-      sentinelEndId,
-      loopNodes: nodes,
+      sentinelType: LOOP.SENTINEL.START_TYPE,
+      blockType: BlockType.SENTINEL_START,
+      name: `Loop Start (${loopId})`,
+    }))
+
+    dag.nodes.set(endId, this.createSentinelNode({
+      id: endId,
+      loopId,
+      sentinelType: LOOP.SENTINEL.END_TYPE,
+      blockType: BlockType.SENTINEL_END,
+      name: `Loop End (${loopId})`,
+    }))
+
+    logger.debug('Created sentinel pair for loop', {
+      loopId,
+      startId,
+      endId,
     })
   }
-}
 
+  /**
+   * Create a sentinel node with specified configuration
+   */
+  private createSentinelNode(config: {
+    id: string
+    loopId: string
+    sentinelType: SentinelType
+    blockType: BlockType
+    name: string
+  }): DAGNode {
+    return {
+      id: config.id,
+      block: {
+        id: config.id,
+        enabled: true,
+        metadata: {
+          id: config.blockType,
+          name: config.name,
+          loopId: config.loopId,
+        },
+        config: { params: {} },
+      } as any, // SerializedBlock type - sentinels don't match exact schema
+      incomingEdges: new Set(),
+      outgoingEdges: new Map(),
+      metadata: {
+        isSentinel: true,
+        sentinelType: config.sentinelType,
+        loopId: config.loopId,
+      },
+    }
+  }
+}

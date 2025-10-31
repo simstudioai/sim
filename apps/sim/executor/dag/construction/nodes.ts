@@ -1,22 +1,38 @@
 /**
  * NodeConstructor
  * 
- * Constructs DAG nodes for blocks in the workflow.
- * Handles:
- * - Regular blocks (1:1 mapping)
- * - Parallel blocks (expands into N branches: blockId₍0₎, blockId₍1₎, etc.)
- * - Loop blocks (preserves original IDs, marked with loop metadata)
+ * Creates DAG nodes for blocks in the workflow:
+ * - Regular blocks → 1:1 mapping
+ * - Parallel blocks → Expanded into N branches (blockId₍0₎, blockId₍1₎, etc.)
+ * - Loop blocks → Regular nodes with loop metadata
  */
 
 import { createLogger } from '@/lib/logs/console/logger'
-import type { SerializedWorkflow } from '@/serializer/types'
-import type { DAG } from '../builder'
+import type { SerializedWorkflow, SerializedBlock, SerializedLoop, SerializedParallel } from '@/serializer/types'
+import type { DAG, DAGNode } from '../builder'
+import { 
+  BlockType, 
+  PARALLEL, 
+  REFERENCE, 
+  isMetadataOnlyBlockType,
+} from '@/executor/consts'
+import { 
+  parseDistributionItems, 
+  calculateBranchCount, 
+  buildBranchNodeId 
+} from '@/executor/utils/subflow-utils'
 
 const logger = createLogger('NodeConstructor')
 
+interface ParallelExpansion {
+  parallelId: string
+  branchCount: number
+  distributionItems: any[]
+}
+
 export class NodeConstructor {
   /**
-   * Create all DAG nodes
+   * Create all DAG nodes from workflow blocks
    */
   execute(
     workflow: SerializedWorkflow,
@@ -26,26 +42,13 @@ export class NodeConstructor {
     const blocksInLoops = new Set<string>()
     const blocksInParallels = new Set<string>()
 
-    // Determine which blocks are in loops vs parallels
     this.categorizeBlocks(dag, reachableBlocks, blocksInLoops, blocksInParallels)
 
-    // Create nodes for each block
     for (const block of workflow.blocks) {
-      if (!block.enabled) continue
-
-      // Skip unreachable blocks
-      if (!reachableBlocks.has(block.id)) {
-        logger.debug('Skipping unreachable block:', block.id)
+      if (!this.shouldProcessBlock(block, reachableBlocks)) {
         continue
       }
 
-      // Skip loop and parallel blocks - they're metadata only, not executable nodes
-      if (block.metadata?.id === 'loop' || block.metadata?.id === 'parallel') {
-        logger.debug('Skipping loop/parallel block (metadata only):', block.id)
-        continue
-      }
-
-      // Check if this block is in a parallel
       const parallelId = this.findParallelForBlock(block.id, dag)
 
       if (parallelId) {
@@ -59,7 +62,31 @@ export class NodeConstructor {
   }
 
   /**
-   * Categorize blocks into loops and parallels
+   * Check if block should be processed
+   */
+  private shouldProcessBlock(block: SerializedBlock, reachableBlocks: Set<string>): boolean {
+    if (!block.enabled) {
+      return false
+    }
+
+    if (!reachableBlocks.has(block.id)) {
+      logger.debug('Skipping unreachable block', { blockId: block.id })
+      return false
+    }
+
+    if (isMetadataOnlyBlockType(block.metadata?.id)) {
+      logger.debug('Skipping metadata-only block', { 
+        blockId: block.id, 
+        blockType: block.metadata?.id 
+      })
+      return false
+    }
+
+    return true
+  }
+
+  /**
+   * Categorize blocks as belonging to loops or parallels
    */
   private categorizeBlocks(
     dag: DAG,
@@ -67,16 +94,37 @@ export class NodeConstructor {
     blocksInLoops: Set<string>,
     blocksInParallels: Set<string>
   ): void {
-    for (const [loopId, loopConfig] of dag.loopConfigs) {
-      for (const nodeId of (loopConfig as any).nodes || []) {
+    this.categorizeLoopBlocks(dag, reachableBlocks, blocksInLoops)
+    this.categorizeParallelBlocks(dag, reachableBlocks, blocksInParallels)
+  }
+
+  /**
+   * Categorize blocks belonging to loops
+   */
+  private categorizeLoopBlocks(
+    dag: DAG,
+    reachableBlocks: Set<string>,
+    blocksInLoops: Set<string>
+  ): void {
+    for (const [, loopConfig] of dag.loopConfigs) {
+      for (const nodeId of loopConfig.nodes) {
         if (reachableBlocks.has(nodeId)) {
           blocksInLoops.add(nodeId)
         }
       }
     }
+  }
 
-    for (const [parallelId, parallelConfig] of dag.parallelConfigs) {
-      for (const nodeId of (parallelConfig as any).nodes || []) {
+  /**
+   * Categorize blocks belonging to parallels
+   */
+  private categorizeParallelBlocks(
+    dag: DAG,
+    reachableBlocks: Set<string>,
+    blocksInParallels: Set<string>
+  ): void {
+    for (const [, parallelConfig] of dag.parallelConfigs) {
+      for (const nodeId of parallelConfig.nodes) {
         if (reachableBlocks.has(nodeId)) {
           blocksInParallels.add(nodeId)
         }
@@ -85,75 +133,76 @@ export class NodeConstructor {
   }
 
   /**
-   * Create parallel branch nodes (expand into N branches)
+   * Create parallel branch nodes (1 block → N nodes)
    */
-  private createParallelBranchNodes(block: any, parallelId: string, dag: DAG): void {
-    const parallelConfig = dag.parallelConfigs.get(parallelId) as any
+  private createParallelBranchNodes(block: SerializedBlock, parallelId: string, dag: DAG): void {
+    const expansion = this.calculateParallelExpansion(parallelId, dag)
 
-    logger.debug('Expanding parallel:', {
-      parallelId,
-      config: parallelConfig,
+    logger.debug('Creating parallel branches', {
+      blockId: block.id,
+      parallelId: expansion.parallelId,
+      branchCount: expansion.branchCount,
     })
 
-    let distributionItems = parallelConfig.distributionItems || parallelConfig.distribution || []
-
-    // Parse if string
-    if (typeof distributionItems === 'string' && !distributionItems.startsWith('<')) {
-      try {
-        distributionItems = JSON.parse(distributionItems.replace(/'/g, '"'))
-      } catch (e) {
-        logger.error('Failed to parse parallel distribution:', distributionItems)
-        distributionItems = []
-      }
-    }
-
-    // Calculate branch count
-    let count = parallelConfig.parallelCount || parallelConfig.count || 1
-    if (parallelConfig.parallelType === 'collection' && Array.isArray(distributionItems)) {
-      count = distributionItems.length
-    }
-
-    logger.debug('Creating parallel branches:', {
-      parallelId,
-      count,
-      parsedDistributionItems: distributionItems,
-      distributionItemsLength: Array.isArray(distributionItems) ? distributionItems.length : 0,
-    })
-
-    // Create a node for each branch
-    for (let branchIndex = 0; branchIndex < count; branchIndex++) {
-      const branchNodeId = `${block.id}₍${branchIndex}₎`
-
-      dag.nodes.set(branchNodeId, {
-        id: branchNodeId,
-        block: { ...block },
-        incomingEdges: new Set(),
-        outgoingEdges: new Map(),
-        metadata: {
-          isParallelBranch: true,
-          branchIndex,
-          branchTotal: count,
-          distributionItem: distributionItems[branchIndex],
-        },
-      })
+    for (let branchIndex = 0; branchIndex < expansion.branchCount; branchIndex++) {
+      const branchNode = this.createParallelBranchNode(
+        block,
+        branchIndex,
+        expansion
+      )
+      dag.nodes.set(branchNode.id, branchNode)
     }
   }
 
   /**
-   * Create regular or loop node
+   * Calculate how many branches to create for a parallel
    */
-  private createRegularOrLoopNode(block: any, blocksInLoops: Set<string>, dag: DAG): void {
-    const isLoopNode = blocksInLoops.has(block.id)
-    let loopId: string | undefined
-
-    if (isLoopNode) {
-      for (const [lid, lconfig] of dag.loopConfigs) {
-        if ((lconfig as any).nodes.includes(block.id)) {
-          loopId = lid
-          break
-        }
-      }
+  private calculateParallelExpansion(parallelId: string, dag: DAG): ParallelExpansion {
+    const config = dag.parallelConfigs.get(parallelId)
+    if (!config) {
+      throw new Error(`Parallel config not found: ${parallelId}`)
     }
+
+    const distributionItems = parseDistributionItems(config)
+    const branchCount = calculateBranchCount(config, distributionItems)
+
+    return {
+      parallelId,
+      branchCount,
+      distributionItems,
+    }
+  }
+
+  /**
+   * Create a single parallel branch node
+   */
+  private createParallelBranchNode(
+    baseBlock: SerializedBlock,
+    branchIndex: number,
+    expansion: ParallelExpansion
+  ): DAGNode {
+    const branchNodeId = buildBranchNodeId(baseBlock.id, branchIndex)
+
+    return {
+      id: branchNodeId,
+      block: { ...baseBlock },
+      incomingEdges: new Set(),
+      outgoingEdges: new Map(),
+      metadata: {
+        isParallelBranch: true,
+        branchIndex,
+        branchTotal: expansion.branchCount,
+        distributionItem: expansion.distributionItems[branchIndex],
+      },
+    }
+  }
+
+  /**
+   * Create regular node or loop node
+   */
+  private createRegularOrLoopNode(block: SerializedBlock, blocksInLoops: Set<string>, dag: DAG): void {
+    const isLoopNode = blocksInLoops.has(block.id)
+    const loopId = isLoopNode ? this.findLoopIdForBlock(block.id, dag) : undefined
 
     dag.nodes.set(block.id, {
       id: block.id,
@@ -168,15 +217,28 @@ export class NodeConstructor {
   }
 
   /**
+   * Find which loop a block belongs to
+   */
+  private findLoopIdForBlock(blockId: string, dag: DAG): string | undefined {
+    for (const [loopId, loopConfig] of dag.loopConfigs) {
+      if (loopConfig.nodes.includes(blockId)) {
+        return loopId
+      }
+    }
+    return undefined
+  }
+
+  /**
    * Find which parallel a block belongs to
    */
   private findParallelForBlock(blockId: string, dag: DAG): string | null {
     for (const [parallelId, parallelConfig] of dag.parallelConfigs) {
-      if ((parallelConfig as any).nodes.includes(blockId)) {
+      if (parallelConfig.nodes.includes(blockId)) {
         return parallelId
       }
     }
     return null
   }
 }
+
 

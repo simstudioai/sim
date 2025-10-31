@@ -1,36 +1,37 @@
 /**
  * PathConstructor
  * 
- * Constructs the set of reachable paths from the trigger/start block using BFS traversal.
- * Uses ONLY the actual workflow connections (single source of truth).
- * Loop/parallel configs are just metadata - connections determine structure.
+ * Finds all blocks reachable from the workflow trigger using BFS traversal.
+ * Uses actual connections as single source of truth (not loop/parallel metadata).
  */
 
 import { createLogger } from '@/lib/logs/console/logger'
-import type { SerializedWorkflow } from '@/serializer/types'
+import type { SerializedWorkflow, SerializedBlock } from '@/serializer/types'
+import { 
+  TRIGGER_BLOCK_TYPES, 
+  METADATA_ONLY_BLOCK_TYPES,
+  isTriggerBlockType,
+  isMetadataOnlyBlockType,
+} from '@/executor/consts'
 
 const logger = createLogger('PathConstructor')
 
 export class PathConstructor {
   /**
-   * Find all blocks reachable from trigger using actual connections
+   * Find all blocks reachable from the workflow trigger
    */
   execute(workflow: SerializedWorkflow, startBlockId?: string): Set<string> {
-    // Find the trigger block
     const triggerBlockId = this.findTriggerBlock(workflow, startBlockId)
 
     if (!triggerBlockId) {
-      logger.warn('No trigger block found, including all enabled blocks')
-      return new Set(workflow.blocks.filter((b) => b.enabled).map((b) => b.id))
+      logger.warn('No trigger block found, including all enabled blocks as fallback')
+      return this.getAllEnabledBlocks(workflow)
     }
 
-    logger.debug('Starting reachability traversal from trigger block', { triggerBlockId })
+    logger.debug('Starting reachability traversal', { triggerBlockId })
 
-    // Build adjacency map from ACTUAL connections only
     const adjacency = this.buildAdjacencyMap(workflow)
-
-    // Perform BFS traversal
-    const reachable = this.bfsTraversal(triggerBlockId, adjacency)
+    const reachable = this.performBFS(triggerBlockId, adjacency)
 
     logger.debug('Reachability analysis complete', {
       triggerBlockId,
@@ -42,52 +43,63 @@ export class PathConstructor {
   }
 
   /**
-   * Find a trigger block in the workflow
+   * Find the trigger block to start traversal from
    */
   private findTriggerBlock(workflow: SerializedWorkflow, startBlockId?: string): string | undefined {
-    // Use provided startBlockId if it's a valid trigger
     if (startBlockId) {
-      const triggerBlock = workflow.blocks.find((b) => b.id === startBlockId)
-      const blockType = triggerBlock?.metadata?.id
-      const isTrigger =
-        blockType === 'start_trigger' || blockType === 'starter' || blockType === 'trigger'
-
-      if (isTrigger) {
+      const block = workflow.blocks.find((b) => b.id === startBlockId)
+      if (block && this.isTriggerBlock(block)) {
         return startBlockId
-      } else {
-        logger.warn('Provided startBlockId is not a trigger block, finding trigger automatically', {
-          startBlockId,
-          blockType,
-        })
       }
+      
+      logger.warn('Provided startBlockId is not a trigger, searching for trigger', {
+        startBlockId,
+        blockType: block?.metadata?.id,
+      })
     }
 
-    // First priority: Find an explicit trigger block
+    // Priority 1: Find explicit trigger block
+    const explicitTrigger = this.findExplicitTrigger(workflow)
+    if (explicitTrigger) {
+      return explicitTrigger
+    }
+
+    // Priority 2: Find block with no incoming connections
+    const rootBlock = this.findRootBlock(workflow)
+    if (rootBlock) {
+      return rootBlock
+    }
+
+    return undefined
+  }
+
+  /**
+   * Find a block marked as a trigger
+   */
+  private findExplicitTrigger(workflow: SerializedWorkflow): string | undefined {
     for (const block of workflow.blocks) {
-      const blockType = block.metadata?.id
-      if (
-        block.enabled &&
-        (blockType === 'start_trigger' || blockType === 'starter' || blockType === 'trigger')
-      ) {
-        logger.debug('Found trigger block', { blockId: block.id, blockType })
+      if (block.enabled && this.isTriggerBlock(block)) {
+        logger.debug('Found explicit trigger block', { 
+          blockId: block.id, 
+          blockType: block.metadata?.id 
+        })
         return block.id
       }
     }
+    return undefined
+  }
 
-    // Second priority: Find a block with no incoming connections
+  /**
+   * Find a block with no incoming connections (root of workflow)
+   */
+  private findRootBlock(workflow: SerializedWorkflow): string | undefined {
     const hasIncoming = new Set(workflow.connections.map((c) => c.target))
 
     for (const block of workflow.blocks) {
-      const blockType = block.metadata?.id
-      if (
-        !hasIncoming.has(block.id) &&
-        block.enabled &&
-        blockType !== 'loop' &&
-        blockType !== 'parallel'
-      ) {
-        logger.debug('Found block with no incoming connections', {
+      if (!hasIncoming.has(block.id) && block.enabled && !isMetadataOnlyBlockType(block.metadata?.id)) {
+        logger.debug('Found root block (no incoming connections)', {
           blockId: block.id,
-          blockType,
+          blockType: block.metadata?.id,
         })
         return block.id
       }
@@ -97,20 +109,32 @@ export class PathConstructor {
   }
 
   /**
-   * Build adjacency map from ACTUAL workflow connections
-   * No assumptions about loop/parallel structure - just follow the connections!
+   * Check if a block is a trigger type
+   */
+  private isTriggerBlock(block: SerializedBlock): boolean {
+    return isTriggerBlockType(block.metadata?.id)
+  }
+
+  /**
+   * Fallback: Get all enabled blocks when no trigger is found
+   */
+  private getAllEnabledBlocks(workflow: SerializedWorkflow): Set<string> {
+    return new Set(workflow.blocks.filter((b) => b.enabled).map((b) => b.id))
+  }
+
+  /**
+   * Build adjacency map from workflow connections
    */
   private buildAdjacencyMap(workflow: SerializedWorkflow): Map<string, string[]> {
     const adjacency = new Map<string, string[]>()
 
-    for (const conn of workflow.connections) {
-      if (!adjacency.has(conn.source)) {
-        adjacency.set(conn.source, [])
-      }
-      adjacency.get(conn.source)!.push(conn.target)
+    for (const connection of workflow.connections) {
+      const neighbors = adjacency.get(connection.source) ?? []
+      neighbors.push(connection.target)
+      adjacency.set(connection.source, neighbors)
     }
 
-    logger.debug('Built adjacency map from connections', {
+    logger.debug('Built adjacency map', {
       nodeCount: adjacency.size,
       connectionCount: workflow.connections.length,
     })
@@ -121,19 +145,20 @@ export class PathConstructor {
   /**
    * Perform BFS traversal to find all reachable blocks
    */
-  private bfsTraversal(startBlockId: string, adjacency: Map<string, string[]>): Set<string> {
-    const reachable = new Set<string>()
+  private performBFS(startBlockId: string, adjacency: Map<string, string[]>): Set<string> {
+    const reachable = new Set<string>([startBlockId])
     const queue = [startBlockId]
-    reachable.add(startBlockId)
 
     while (queue.length > 0) {
-      const current = queue.shift()!
-      const neighbors = adjacency.get(current) || []
+      const currentBlockId = queue.shift()
+      if (!currentBlockId) break
 
-      for (const neighbor of neighbors) {
-        if (!reachable.has(neighbor)) {
-          reachable.add(neighbor)
-          queue.push(neighbor)
+      const neighbors = adjacency.get(currentBlockId) ?? []
+
+      for (const neighborId of neighbors) {
+        if (!reachable.has(neighborId)) {
+          reachable.add(neighborId)
+          queue.push(neighborId)
         }
       }
     }
@@ -141,7 +166,6 @@ export class PathConstructor {
     logger.debug('BFS traversal complete', {
       startBlockId,
       reachableCount: reachable.size,
-      reachableBlocks: Array.from(reachable),
     })
 
     return reachable
