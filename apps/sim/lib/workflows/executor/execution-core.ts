@@ -3,6 +3,7 @@
  * This is the SINGLE source of truth for workflow execution
  */
 
+import type { Edge } from 'reactflow'
 import { z } from 'zod'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { createLogger } from '@/lib/logs/console/logger'
@@ -14,6 +15,7 @@ import {
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/db-helpers'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
+import { filterEdgesFromTriggerBlocks } from '@/app/workspace/[workspaceId]/w/[workflowId]/lib/workflow-execution-utils'
 import { Executor } from '@/executor' // Now exports DAGExecutor
 import type { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
@@ -141,7 +143,7 @@ export async function executeWorkflowCore(
 
     // Load workflow state based on trigger type
     let blocks
-    let edges
+    let edges: Edge[]
     let loops
     let parallels
 
@@ -256,10 +258,13 @@ export async function executeWorkflowCore(
 
     const workflowVariables = (workflow.variables as Record<string, any>) || {}
 
+    // Filter out edges between trigger blocks - triggers are independent entry points
+    const filteredEdges = filterEdgesFromTriggerBlocks(mergedStates, edges)
+
     // Serialize workflow
     const serializedWorkflow = new Serializer().serializeWorkflow(
       mergedStates,
-      edges,
+      filteredEdges,
       loops,
       parallels,
       true

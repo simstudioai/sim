@@ -31,18 +31,18 @@ export class PathConstructor {
       if (!block) {
         logger.error('Provided triggerBlockId not found in workflow', {
           triggerBlockId,
-          availableBlocks: workflow.blocks.map(b => ({ id: b.id, type: b.metadata?.id })),
+          availableBlocks: workflow.blocks.map((b) => ({ id: b.id, type: b.metadata?.id })),
         })
         throw new Error(`Trigger block not found: ${triggerBlockId}`)
       }
-      
+
       logger.debug('Using explicitly provided trigger block', {
         triggerBlockId,
         blockType: block.metadata?.id,
       })
       return triggerBlockId
     }
-    
+
     const explicitTrigger = this.findExplicitTrigger(workflow)
     if (explicitTrigger) {
       return explicitTrigger
@@ -109,7 +109,7 @@ export class PathConstructor {
   private performBFS(triggerBlockId: string, adjacency: Map<string, string[]>): Set<string> {
     const reachable = new Set<string>([triggerBlockId])
     const queue = [triggerBlockId]
-    
+
     logger.debug('Starting BFS traversal', {
       triggerBlockId,
       adjacencyMapSize: adjacency.size,
@@ -118,18 +118,18 @@ export class PathConstructor {
         targets,
       })),
     })
-    
+
     while (queue.length > 0) {
       const currentBlockId = queue.shift()
       if (!currentBlockId) break
-      
+
       const neighbors = adjacency.get(currentBlockId) ?? []
       logger.debug('BFS processing node', {
         currentBlockId,
         neighbors,
         neighborCount: neighbors.length,
       })
-      
+
       for (const neighborId of neighbors) {
         if (!reachable.has(neighborId)) {
           logger.debug('BFS found new reachable node', {
@@ -141,7 +141,7 @@ export class PathConstructor {
         }
       }
     }
-    
+
     logger.debug('BFS traversal complete', {
       triggerBlockId,
       reachableCount: reachable.size,

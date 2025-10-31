@@ -4,11 +4,6 @@ import { createLogger } from '@/lib/logs/console/logger'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import { resolveStartCandidates, StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers'
-<<<<<<< HEAD
-=======
-import type { BlockOutput } from '@/blocks/types'
-import { Executor } from '@/executor'
->>>>>>> origin/improvement/sim-294
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { Serializer, WorkflowValidationError } from '@/serializer'

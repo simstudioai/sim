@@ -38,41 +38,6 @@ function applyInputFormatFields(
   return outputs
 }
 
-type InputFormatField = { name?: string; type?: string | undefined | null }
-
-function normalizeInputFormatValue(inputFormatValue: any): InputFormatField[] {
-  if (
-    inputFormatValue === null ||
-    inputFormatValue === undefined ||
-    (Array.isArray(inputFormatValue) && inputFormatValue.length === 0)
-  ) {
-    return []
-  }
-
-  if (!Array.isArray(inputFormatValue)) {
-    return []
-  }
-
-  return inputFormatValue.filter((field) => field && typeof field === 'object')
-}
-
-function applyInputFormatFields(
-  inputFormat: InputFormatField[],
-  outputs: Record<string, any>
-): Record<string, any> {
-  for (const field of inputFormat) {
-    const fieldName = field?.name?.trim()
-    if (!fieldName) continue
-
-    outputs[fieldName] = {
-      type: (field?.type || 'any') as any,
-      description: `Field from input format`,
-    }
-  }
-
-  return outputs
-}
-
 /**
  * Get the effective outputs for a block, including dynamic outputs from inputFormat
  * and trigger outputs for blocks in trigger mode

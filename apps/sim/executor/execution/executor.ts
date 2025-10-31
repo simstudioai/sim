@@ -2,7 +2,11 @@ import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockOutput } from '@/blocks/types'
 import { createBlockHandlers } from '@/executor/handlers/registry'
 import type { ExecutionContext, ExecutionResult } from '@/executor/types'
-import { buildStartBlockOutput, resolveExecutorStartBlock, buildResolutionFromBlock } from '@/executor/utils/start-block'
+import {
+  buildResolutionFromBlock,
+  buildStartBlockOutput,
+  resolveExecutorStartBlock,
+} from '@/executor/utils/start-block'
 import type { SerializedWorkflow } from '@/serializer/types'
 import { DAGBuilder } from '../dag/builder'
 import { LoopOrchestrator } from '../orchestrators/loop'
@@ -123,18 +127,18 @@ export class DAGExecutor {
 
   private initializeStarterBlock(context: ExecutionContext, triggerBlockId?: string): void {
     let startResolution: ReturnType<typeof resolveExecutorStartBlock> | null = null
-    
+
     if (triggerBlockId) {
-      const triggerBlock = this.workflow.blocks.find(b => b.id === triggerBlockId)
+      const triggerBlock = this.workflow.blocks.find((b) => b.id === triggerBlockId)
       if (!triggerBlock) {
         logger.error('Specified trigger block not found in workflow', {
           triggerBlockId,
         })
         throw new Error(`Trigger block not found: ${triggerBlockId}`)
       }
-      
+
       startResolution = buildResolutionFromBlock(triggerBlock)
-      
+
       if (!startResolution) {
         logger.debug('Creating generic resolution for trigger block', {
           triggerBlockId,
@@ -151,7 +155,7 @@ export class DAGExecutor {
         execution: 'manual',
         isChildWorkflow: false,
       })
-      
+
       if (!startResolution?.block) {
         logger.warn('No start block found in workflow')
         return

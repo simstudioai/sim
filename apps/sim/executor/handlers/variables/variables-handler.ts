@@ -29,13 +29,8 @@ export class VariablesBlockHandler implements BlockHandler {
     })
 
     try {
-<<<<<<< HEAD
       if (!ctx.workflowVariables) {
         ctx.workflowVariables = {}
-=======
-      if (!context.workflowVariables) {
-        context.workflowVariables = {}
->>>>>>> origin/improvement/sim-294
       }
 
       const assignments = this.parseAssignments(inputs.variables)

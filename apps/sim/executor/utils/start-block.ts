@@ -138,29 +138,17 @@ function coerceValue(type: string | null | undefined, value: unknown): unknown {
   switch (type) {
     case 'string':
       return typeof value === 'string' ? value : String(value)
-<<<<<<< HEAD
-
-=======
->>>>>>> origin/improvement/sim-294
     case 'number': {
       if (typeof value === 'number') return value
       const parsed = Number(value)
       return Number.isNaN(parsed) ? value : parsed
     }
-<<<<<<< HEAD
-
-=======
->>>>>>> origin/improvement/sim-294
     case 'boolean': {
       if (typeof value === 'boolean') return value
       if (value === 'true' || value === '1' || value === 1) return true
       if (value === 'false' || value === '0' || value === 0) return false
       return value
     }
-<<<<<<< HEAD
-
-=======
->>>>>>> origin/improvement/sim-294
     case 'object':
     case 'array': {
       if (typeof value === 'string') {
@@ -173,10 +161,6 @@ function coerceValue(type: string | null | undefined, value: unknown): unknown {
       }
       return value
     }
-<<<<<<< HEAD
-
-=======
->>>>>>> origin/improvement/sim-294
     default:
       return value
   }
@@ -240,10 +224,6 @@ function getRawInputCandidate(workflowInput: unknown): unknown {
   if (isPlainObject(workflowInput) && Object.hasOwn(workflowInput, 'input')) {
     return workflowInput.input
   }
-<<<<<<< HEAD
-
-=======
->>>>>>> origin/improvement/sim-294
   return workflowInput
 }
 
@@ -265,18 +245,10 @@ function getFilesFromWorkflowInput(workflowInput: unknown): UserFile[] | undefin
   if (!isPlainObject(workflowInput)) {
     return undefined
   }
-<<<<<<< HEAD
-
-=======
->>>>>>> origin/improvement/sim-294
   const files = workflowInput.files
   if (Array.isArray(files) && files.every(isUserFile)) {
     return files
   }
-<<<<<<< HEAD
-
-=======
->>>>>>> origin/improvement/sim-294
   return undefined
 }
 
@@ -288,10 +260,6 @@ function mergeFilesIntoOutput(
   if (files) {
     output.files = files
   }
-<<<<<<< HEAD
-
-=======
->>>>>>> origin/improvement/sim-294
   return output
 }
 
@@ -312,10 +280,6 @@ function buildUnifiedStartOutput(workflowInput: unknown): NormalizedBlockOutput 
   if (!Object.hasOwn(output, 'input')) {
     output.input = ''
   }
-<<<<<<< HEAD
-
-=======
->>>>>>> origin/improvement/sim-294
   if (!Object.hasOwn(output, 'conversationId')) {
     output.conversationId = ''
   }
@@ -423,7 +387,6 @@ export function buildStartBlockOutput(options: StartBlockOutputOptions): Normali
   switch (resolution.path) {
     case StartBlockPath.UNIFIED:
       return buildUnifiedStartOutput(workflowInput)
-<<<<<<< HEAD
 
     case StartBlockPath.SPLIT_API:
     case StartBlockPath.SPLIT_INPUT:
@@ -435,25 +398,12 @@ export function buildStartBlockOutput(options: StartBlockOutputOptions): Normali
     case StartBlockPath.SPLIT_MANUAL:
       return buildManualTriggerOutput(finalInput, workflowInput)
 
-=======
-    case StartBlockPath.SPLIT_API:
-    case StartBlockPath.SPLIT_INPUT:
-      return buildApiOrInputOutput(finalInput, workflowInput)
-    case StartBlockPath.SPLIT_CHAT:
-      return buildChatOutput(workflowInput)
-    case StartBlockPath.SPLIT_MANUAL:
-      return buildManualTriggerOutput(finalInput, workflowInput)
->>>>>>> origin/improvement/sim-294
     case StartBlockPath.LEGACY_STARTER:
       return buildLegacyStarterOutput(
         finalInput,
         workflowInput,
         getLegacyStarterMode({ subBlocks: extractSubBlocks(resolution.block) })
       )
-<<<<<<< HEAD
-
-=======
->>>>>>> origin/improvement/sim-294
     default:
       return buildManualTriggerOutput(finalInput, workflowInput)
   }
