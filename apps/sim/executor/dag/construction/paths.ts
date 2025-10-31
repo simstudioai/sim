@@ -26,8 +26,6 @@ export class PathConstructor {
     workflow: SerializedWorkflow,
     triggerBlockId?: string
   ): string | undefined {
-    // If a specific trigger block ID is provided, use it directly
-    // This allows webhooks, schedules, and other entry points to start execution
     if (triggerBlockId) {
       const block = workflow.blocks.find((b) => b.id === triggerBlockId)
       if (!block) {
