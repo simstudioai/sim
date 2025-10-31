@@ -1,5 +1,4 @@
 import { sso } from '@better-auth/sso'
-import { stripe } from '@better-auth/stripe'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { betterAuth } from 'better-auth'
@@ -15,7 +14,6 @@ import {
 } from 'better-auth/plugins'
 import { and, eq } from 'drizzle-orm'
 import { headers } from 'next/headers'
-import Stripe from 'stripe'
 import {
   getEmailSubject,
   renderInvitationEmail,
@@ -45,18 +43,20 @@ import { isBillingEnabled, isEmailVerificationEnabled } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { SSO_TRUSTED_PROVIDERS } from './sso/consts'
+import { loops } from './auth/plugins/loops'
+import { requireLoopsClient, hasValidLoopsCredentials } from '@/lib/billing/loops-client'
 
 const logger = createLogger('Auth')
 
-// Only initialize Stripe if the key is provided
-// This allows local development without a Stripe account
-const validStripeKey = env.STRIPE_SECRET_KEY
-
-let stripeClient = null
-if (validStripeKey) {
-  stripeClient = new Stripe(env.STRIPE_SECRET_KEY || '', {
-    apiVersion: '2025-08-27.basil',
-  })
+// Only initialize Loops if the key is provided
+// This allows local development without a Loops account
+let loopsClient: ReturnType<typeof requireLoopsClient> | null = null
+if (hasValidLoopsCredentials()) {
+  try {
+    loopsClient = requireLoopsClient()
+  } catch (error) {
+    logger.warn('Failed to initialize Loops client', { error })
+  }
 }
 
 export const auth = betterAuth({
@@ -93,6 +93,23 @@ export const auth = betterAuth({
               userId: user.id,
               error,
             })
+          }
+
+          // Handle Loops customer creation if billing is enabled
+          if (isBillingEnabled && loopsClient && hasValidLoopsCredentials()) {
+            try {
+              logger.info('[onCustomerCreate] Loops customer created', {
+                loopsCustomerId: user.id,
+                userId: user.id,
+              })
+              // Loops uses externalCustomerId, so we use the user ID directly
+              // No explicit customer creation needed - handled on first checkout
+            } catch (error) {
+              logger.error('[onCustomerCreate] Failed to handle Loops customer creation', {
+                userId: user.id,
+                error,
+              })
+            }
           }
         },
       },
@@ -1272,58 +1289,21 @@ export const auth = betterAuth({
     }),
     // Include SSO plugin when enabled
     ...(env.SSO_ENABLED ? [sso()] : []),
-    // Only include the Stripe plugin when billing is enabled
-    ...(isBillingEnabled && stripeClient
+    // Only include the Loops plugin when billing is enabled
+    ...(isBillingEnabled && loopsClient
       ? [
-          stripe({
-            stripeClient,
-            stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET || '',
-            createCustomerOnSignUp: true,
-            onCustomerCreate: async ({ stripeCustomer, user }) => {
-              logger.info('[onCustomerCreate] Stripe customer created', {
-                stripeCustomerId: stripeCustomer.id,
-                userId: user.id,
-              })
-            },
-            subscription: {
-              enabled: true,
-              plans: getPlans(),
-              authorizeReference: async ({ user, referenceId }) => {
-                return await authorizeSubscriptionReference(user.id, referenceId)
-              },
-              getCheckoutSessionParams: async ({ plan, subscription }) => {
-                if (plan.name === 'team') {
-                  return {
-                    params: {
-                      allow_promotion_codes: true,
-                      line_items: [
-                        {
-                          price: plan.priceId,
-                          quantity: subscription?.seats || 1,
-                          adjustable_quantity: {
-                            enabled: true,
-                            minimum: 1,
-                            maximum: 50,
-                          },
-                        },
-                      ],
-                    },
-                  }
+          (() => {
+            // Define subscription handlers that can be referenced in onEvent
+            const subscriptionHandlers = {
+              onSubscriptionComplete: async (data: {
+                subscription: {
+                  id: string
+                  referenceId: string
+                  plan: string | null
+                  status: string
                 }
-
-                return {
-                  params: {
-                    allow_promotion_codes: true,
-                  },
-                }
-              },
-              onSubscriptionComplete: async ({
-                subscription,
-              }: {
-                event: Stripe.Event
-                stripeSubscription: Stripe.Subscription
-                subscription: any
               }) => {
+                const subscription = data.subscription
                 logger.info('[onSubscriptionComplete] Subscription created', {
                   subscriptionId: subscription.id,
                   referenceId: subscription.referenceId,
@@ -1331,18 +1311,32 @@ export const auth = betterAuth({
                   status: subscription.status,
                 })
 
-                await handleSubscriptionCreated(subscription)
+                // Handle null plan - default to 'free' if null
+                const subscriptionWithPlan = {
+                  ...subscription,
+                  plan: subscription.plan || 'free',
+                }
 
-                await syncSubscriptionUsageLimits(subscription)
+                await handleSubscriptionCreated({
+                  id: subscription.id,
+                  referenceId: subscription.referenceId,
+                  plan: subscriptionWithPlan.plan,
+                  status: subscription.status,
+                })
 
-                await sendPlanWelcomeEmail(subscription)
+                await syncSubscriptionUsageLimits(subscriptionWithPlan)
+
+                await sendPlanWelcomeEmail(subscriptionWithPlan)
               },
-              onSubscriptionUpdate: async ({
-                subscription,
-              }: {
-                event: Stripe.Event
-                subscription: any
+              onSubscriptionUpdate: async (data: {
+                subscription: {
+                  id: string
+                  referenceId: string
+                  plan: string | null
+                  status: string
+                }
               }) => {
+                const subscription = data.subscription
                 logger.info('[onSubscriptionUpdate] Subscription updated', {
                   subscriptionId: subscription.id,
                   status: subscription.status,
@@ -1350,7 +1344,12 @@ export const auth = betterAuth({
                 })
 
                 try {
-                  await syncSubscriptionUsageLimits(subscription)
+                  // Handle null plan - default to 'free' if null
+                  const subscriptionWithPlan = {
+                    ...subscription,
+                    plan: subscription.plan || 'free',
+                  }
+                  await syncSubscriptionUsageLimits(subscriptionWithPlan)
                 } catch (error) {
                   logger.error('[onSubscriptionUpdate] Failed to sync usage limits', {
                     subscriptionId: subscription.id,
@@ -1359,23 +1358,44 @@ export const auth = betterAuth({
                   })
                 }
               },
-              onSubscriptionDeleted: async ({
-                subscription,
-              }: {
-                event: Stripe.Event
-                stripeSubscription: Stripe.Subscription
-                subscription: any
+              onSubscriptionDeleted: async (data: {
+                subscription: {
+                  id: string
+                  referenceId: string
+                  plan: string | null
+                  status: string
+                }
               }) => {
+                const subscription = data.subscription
                 logger.info('[onSubscriptionDeleted] Subscription deleted', {
                   subscriptionId: subscription.id,
                   referenceId: subscription.referenceId,
                 })
 
                 try {
-                  await handleSubscriptionDeleted(subscription)
+                  // Fetch full subscription details from database to get payment provider IDs
+                  const fullSubscription = await db
+                    .select()
+                    .from(schema.subscription)
+                    .where(eq(schema.subscription.id, subscription.id))
+                    .limit(1)
+
+                  if (fullSubscription.length === 0) {
+                    logger.error('[onSubscriptionDeleted] Subscription not found in database', {
+                      subscriptionId: subscription.id,
+                    })
+                    return
+                  }
+
+                  await handleSubscriptionDeleted(fullSubscription[0])
 
                   // Reset usage limits to free tier
-                  await syncSubscriptionUsageLimits(subscription)
+                  // Handle null plan - default to 'free' if null
+                  const subscriptionWithPlan = {
+                    ...subscription,
+                    plan: subscription.plan || 'free',
+                  }
+                  await syncSubscriptionUsageLimits(subscriptionWithPlan)
 
                   logger.info('[onSubscriptionDeleted] Reset usage limits to free tier', {
                     subscriptionId: subscription.id,
@@ -1389,54 +1409,95 @@ export const auth = betterAuth({
                   })
                 }
               },
-            },
-            onEvent: async (event: Stripe.Event) => {
-              logger.info('[onEvent] Received Stripe webhook', {
-                eventId: event.id,
-                eventType: event.type,
-              })
+            }
 
-              try {
-                switch (event.type) {
-                  case 'invoice.payment_succeeded': {
-                    await handleInvoicePaymentSucceeded(event)
-                    break
+            return loops({
+              loopsClient,
+              loopsWebhookSecret: env.LOOPS_WEBHOOK_SECRET || '',
+              createCustomerOnSignUp: true,
+              onCustomerCreate: async ({ loopsCustomerId, user }) => {
+                logger.info('[onCustomerCreate] Loops customer created', {
+                  loopsCustomerId,
+                  userId: user.id,
+                })
+              },
+              subscription: {
+                enabled: true,
+                plans: getPlans(),
+                authorizeReference: async ({ user, referenceId }) => {
+                  return await authorizeSubscriptionReference(user.id, referenceId)
+                },
+                getCheckoutSessionParams: async ({ plan, subscription }) => {
+                  if (plan.name === 'team') {
+                    return {
+                      params: {
+                        metadata: {
+                          seats: (subscription?.seats || 1).toString(),
+                        } as Record<string, string>,
+                      },
+                    }
                   }
-                  case 'invoice.payment_failed': {
-                    await handleInvoicePaymentFailed(event)
-                    break
+
+                  return {
+                    params: {
+                      metadata: {} as Record<string, string>,
+                    },
                   }
-                  case 'invoice.finalized': {
-                    await handleInvoiceFinalized(event)
-                    break
+                },
+                onSubscriptionComplete: subscriptionHandlers.onSubscriptionComplete,
+                onSubscriptionUpdate: subscriptionHandlers.onSubscriptionUpdate,
+                onSubscriptionDeleted: subscriptionHandlers.onSubscriptionDeleted,
+              },
+              onEvent: async (event) => {
+                logger.info('[onEvent] Received Loops webhook', {
+                  eventId: event.id,
+                  eventType: event.type,
+                })
+
+                try {
+                  // Map Loops event types to our handlers
+                  // Note: Loops events may differ from Stripe events
+                  switch (event.type) {
+                    case 'checkout.session.completed':
+                      // Handle completed checkout - subscription creation
+                      if (event.data?.subscription) {
+                        await subscriptionHandlers.onSubscriptionComplete({
+                          subscription: {
+                            id: event.data.subscription.id,
+                            referenceId: event.data.subscription.metadata?.referenceId || '',
+                            plan: event.data.subscription.metadata?.plan || null,
+                            status: event.data.subscription.status || 'active',
+                          },
+                        })
+                      }
+                      break
+                    case 'checkout.session.expired':
+                      // Handle expired checkout
+                      break
+                    // Add more Loops-specific event types as needed
+                    default:
+                      logger.info('[onEvent] Ignoring unsupported webhook event', {
+                        eventId: event.id,
+                        eventType: event.type,
+                      })
+                      break
                   }
-                  case 'customer.subscription.created': {
-                    await handleManualEnterpriseSubscription(event)
-                    break
-                  }
-                  // Note: customer.subscription.deleted is handled by better-auth's onSubscriptionDeleted callback above
-                  default:
-                    logger.info('[onEvent] Ignoring unsupported webhook event', {
-                      eventId: event.id,
-                      eventType: event.type,
-                    })
-                    break
+
+                  logger.info('[onEvent] Successfully processed webhook', {
+                    eventId: event.id,
+                    eventType: event.type,
+                  })
+                } catch (error) {
+                  logger.error('[onEvent] Failed to process webhook', {
+                    eventId: event.id,
+                    eventType: event.type,
+                    error,
+                  })
+                  throw error
                 }
-
-                logger.info('[onEvent] Successfully processed webhook', {
-                  eventId: event.id,
-                  eventType: event.type,
-                })
-              } catch (error) {
-                logger.error('[onEvent] Failed to process webhook', {
-                  eventId: event.id,
-                  eventType: event.type,
-                  error,
-                })
-                throw error
-              }
-            },
-          }),
+              },
+            })
+          })(),
           organization({
             allowUserToCreateOrganization: async (user) => {
               const dbSubscriptions = await db

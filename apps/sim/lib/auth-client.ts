@@ -1,6 +1,6 @@
 import { useContext } from 'react'
 import { ssoClient } from '@better-auth/sso/client'
-import { stripeClient } from '@better-auth/stripe/client'
+import { loopsClient } from '@/lib/auth/plugins/loops-client'
 import {
   customSessionClient,
   emailOTPClient,
@@ -22,7 +22,7 @@ export const client = createAuthClient({
     customSessionClient<typeof auth>(),
     ...(isBillingEnabled
       ? [
-          stripeClient({
+          loopsClient({
             subscription: true, // Enable subscription management
           }),
         ]

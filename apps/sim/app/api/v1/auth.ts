@@ -33,11 +33,20 @@ export async function authenticateV1Request(request: NextRequest): Promise<AuthR
       }
     }
 
-    await updateApiKeyLastUsed(result.keyId!)
+    // Validate required fields from successful authentication
+    if (!result.keyId || !result.userId) {
+      logger.error('API key authentication succeeded but missing required fields', { result })
+      return {
+        authenticated: false,
+        error: 'Authentication failed',
+      }
+    }
+
+    await updateApiKeyLastUsed(result.keyId)
 
     return {
       authenticated: true,
-      userId: result.userId!,
+      userId: result.userId,
       workspaceId: result.workspaceId,
       keyType: result.keyType,
     }

@@ -3,7 +3,8 @@ import { subscription as subscriptionTable, user } from '@sim/db/schema'
 import { and, eq, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { requireStripeClient } from '@/lib/billing/stripe-client'
+import { getLoopsClient } from '@/lib/billing/loops-client'
+import { getStripeClient } from '@/lib/billing/stripe-client'
 import { createLogger } from '@/lib/logs/console/logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 
@@ -23,9 +24,12 @@ export async function POST(request: NextRequest) {
     const organizationId: string | undefined = body?.organizationId || undefined
     const returnUrl: string = body?.returnUrl || `${getBaseUrl()}/workspace?billing=updated`
 
-    const stripe = requireStripeClient()
+    // Try Loops first (primary), fall back to Stripe for backward compatibility
+    const loopsClient = getLoopsClient()
+    const stripeClient = getStripeClient()
 
-    let stripeCustomerId: string | null = null
+    let customerId: string | null = null
+    let customerIdField: 'loopsCustomerId' | 'stripeCustomerId' = 'loopsCustomerId'
 
     if (context === 'organization') {
       if (!organizationId) {
@@ -33,7 +37,10 @@ export async function POST(request: NextRequest) {
       }
 
       const rows = await db
-        .select({ customer: subscriptionTable.stripeCustomerId })
+        .select({
+          loopsCustomer: subscriptionTable.loopsCustomerId,
+          stripeCustomer: subscriptionTable.stripeCustomerId,
+        })
         .from(subscriptionTable)
         .where(
           and(
@@ -46,32 +53,78 @@ export async function POST(request: NextRequest) {
         )
         .limit(1)
 
-      stripeCustomerId = rows.length > 0 ? rows[0].customer || null : null
+      if (rows.length > 0) {
+        // Prefer Loops customer ID
+        customerId = rows[0].loopsCustomer || rows[0].stripeCustomer || null
+        customerIdField = rows[0].loopsCustomer ? 'loopsCustomerId' : 'stripeCustomerId'
+      }
     } else {
       const rows = await db
-        .select({ customer: user.stripeCustomerId })
+        .select({
+          loopsCustomer: user.loopsCustomerId,
+          stripeCustomer: user.stripeCustomerId,
+        })
         .from(user)
         .where(eq(user.id, session.user.id))
         .limit(1)
 
-      stripeCustomerId = rows.length > 0 ? rows[0].customer || null : null
+      if (rows.length > 0) {
+        // Prefer Loops customer ID
+        customerId = rows[0].loopsCustomer || rows[0].stripeCustomer || null
+        customerIdField = rows[0].loopsCustomer ? 'loopsCustomerId' : 'stripeCustomerId'
+      }
     }
 
-    if (!stripeCustomerId) {
-      logger.error('Stripe customer not found for portal session', {
+    if (!customerId) {
+      logger.error('No customer found for portal session', {
         context,
         organizationId,
         userId: session.user.id,
       })
-      return NextResponse.json({ error: 'Stripe customer not found' }, { status: 404 })
+      return NextResponse.json({ error: 'No billing customer found' }, { status: 404 })
     }
 
-    const portal = await stripe.billingPortal.sessions.create({
-      customer: stripeCustomerId,
-      return_url: returnUrl,
-    })
+    // Use Loops portal if Loops customer exists and client is available
+    if (customerIdField === 'loopsCustomerId' && loopsClient) {
+      try {
+        // Check if Loops SDK supports customer portal
+        // If not available, redirect to a custom billing management page
+        logger.info('Loops customer portal not yet implemented, redirecting to billing page', {
+          customerId,
+          userId: session.user.id,
+        })
 
-    return NextResponse.json({ url: portal.url })
+        // For now, redirect to the billing settings page within the app
+        // You can implement a custom billing management UI here
+        return NextResponse.json({
+          url: `${getBaseUrl()}/workspace/settings/billing?return=${encodeURIComponent(returnUrl)}`,
+        })
+      } catch (error) {
+        logger.error('Failed to create Loops portal session', { error })
+        return NextResponse.json(
+          { error: 'Failed to create billing portal session' },
+          { status: 500 }
+        )
+      }
+    }
+
+    // Fall back to Stripe portal for backward compatibility
+    if (customerIdField === 'stripeCustomerId' && stripeClient) {
+      const portal = await stripeClient.billingPortal.sessions.create({
+        customer: customerId,
+        return_url: returnUrl,
+      })
+
+      return NextResponse.json({ url: portal.url })
+    }
+
+    // No billing provider available
+    logger.error('No billing provider available for portal session', {
+      customerIdField,
+      hasLoopsClient: !!loopsClient,
+      hasStripeClient: !!stripeClient,
+    })
+    return NextResponse.json({ error: 'Billing portal not available' }, { status: 503 })
   } catch (error) {
     logger.error('Failed to create billing portal session', { error })
     return NextResponse.json({ error: 'Failed to create billing portal session' }, { status: 500 })
