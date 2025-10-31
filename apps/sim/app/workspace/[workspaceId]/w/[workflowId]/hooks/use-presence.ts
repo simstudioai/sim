@@ -9,7 +9,7 @@ interface SocketPresenceUser {
   userId: string
   userName: string
   avatarUrl?: string | null
-  cursor?: { x: number; y: number }
+  cursor?: { x: number; y: number } | null
   selection?: { type: 'block' | 'edge' | 'none'; id?: string }
 }
 
