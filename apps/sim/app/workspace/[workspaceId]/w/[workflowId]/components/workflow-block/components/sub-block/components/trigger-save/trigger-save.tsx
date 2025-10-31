@@ -19,6 +19,7 @@ import { useTriggerConfigAggregation } from '@/hooks/use-trigger-config-aggregat
 import { useWebhookManagement } from '@/hooks/use-webhook-management'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { getTrigger, isTriggerValid } from '@/triggers'
+import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/consts'
 
 const logger = createLogger('TriggerSave')
 
@@ -48,9 +49,20 @@ export function TriggerSave({
   const [isGeneratingTestUrl, setIsGeneratingTestUrl] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
 
+  const effectiveTriggerId = useMemo(() => {
+    if (triggerId && isTriggerValid(triggerId)) {
+      return triggerId
+    }
+    const selectedTriggerId = useSubBlockStore.getState().getValue(blockId, 'selectedTriggerId')
+    if (typeof selectedTriggerId === 'string' && isTriggerValid(selectedTriggerId)) {
+      return selectedTriggerId
+    }
+    return triggerId
+  }, [blockId, triggerId])
+
   const { webhookId, saveConfig, deleteConfig, isLoading } = useWebhookManagement({
     blockId,
-    triggerId,
+    triggerId: effectiveTriggerId,
     isPreview,
   })
 
@@ -59,7 +71,8 @@ export function TriggerSave({
     state.getValue(blockId, 'triggerCredentials')
   )
 
-  const triggerDef = triggerId && isTriggerValid(triggerId) ? getTrigger(triggerId) : null
+  const triggerDef =
+    effectiveTriggerId && isTriggerValid(effectiveTriggerId) ? getTrigger(effectiveTriggerId) : null
 
   const hasWebhookUrlDisplay =
     triggerDef?.subBlocks.some((sb) => sb.id === 'webhookUrlDisplay') ?? false
@@ -75,7 +88,9 @@ export function TriggerSave({
       const missingFields: string[] = []
 
       triggerDef.subBlocks
-        .filter((sb) => sb.required && sb.mode === 'trigger')
+        .filter(
+          (sb) => sb.required && sb.mode === 'trigger' && !SYSTEM_SUBBLOCK_IDS.includes(sb.id)
+        )
         .forEach((subBlock) => {
           if (subBlock.id === 'triggerCredentials') {
             if (!triggerCredentials) {
@@ -100,7 +115,7 @@ export function TriggerSave({
   const requiredSubBlockIds = useMemo(() => {
     if (!triggerDef) return []
     return triggerDef.subBlocks
-      .filter((sb) => sb.required && sb.mode === 'trigger')
+      .filter((sb) => sb.required && sb.mode === 'trigger' && !SYSTEM_SUBBLOCK_IDS.includes(sb.id))
       .map((sb) => sb.id)
   }, [triggerDef])
 
@@ -145,7 +160,7 @@ export function TriggerSave({
     }
 
     validationTimeoutRef.current = setTimeout(() => {
-      const aggregatedConfig = useTriggerConfigAggregation(blockId, triggerId)
+      const aggregatedConfig = useTriggerConfigAggregation(blockId, effectiveTriggerId)
 
       if (aggregatedConfig) {
         useSubBlockStore.getState().setValue(blockId, 'triggerConfig', aggregatedConfig)
@@ -158,14 +173,17 @@ export function TriggerSave({
       if (validation.valid) {
         setErrorMessage(null)
         setSaveStatus('idle')
-        logger.debug('Error cleared after validation passed', { blockId, triggerId })
+        logger.debug('Error cleared after validation passed', {
+          blockId,
+          triggerId: effectiveTriggerId,
+        })
       } else {
         const newErrorMessage = `Missing required fields: ${validation.missingFields.join(', ')}`
         setErrorMessage((prev) => {
           if (prev !== newErrorMessage) {
             logger.debug('Error message updated', {
               blockId,
-              triggerId,
+              triggerId: effectiveTriggerId,
               missingFields: validation.missingFields,
             })
             return newErrorMessage
@@ -182,7 +200,14 @@ export function TriggerSave({
         clearTimeout(validationTimeoutRef.current)
       }
     }
-  }, [blockId, triggerId, triggerDef, requiredSubBlockValues, saveStatus, validateRequiredFields])
+  }, [
+    blockId,
+    effectiveTriggerId,
+    triggerDef,
+    requiredSubBlockValues,
+    saveStatus,
+    validateRequiredFields,
+  ])
 
   const handleSave = async () => {
     if (isPreview || disabled) return
@@ -191,11 +216,15 @@ export function TriggerSave({
     setErrorMessage(null)
 
     try {
-      const aggregatedConfig = useTriggerConfigAggregation(blockId, triggerId)
+      const aggregatedConfig = useTriggerConfigAggregation(blockId, effectiveTriggerId)
 
       if (aggregatedConfig) {
         useSubBlockStore.getState().setValue(blockId, 'triggerConfig', aggregatedConfig)
-        logger.debug('Stored aggregated trigger config', { blockId, triggerId, aggregatedConfig })
+        logger.debug('Stored aggregated trigger config', {
+          blockId,
+          triggerId: effectiveTriggerId,
+          aggregatedConfig,
+        })
       }
 
       const configToValidate = aggregatedConfig ?? triggerConfig
@@ -218,7 +247,7 @@ export function TriggerSave({
 
         logger.info('Trigger configuration saved successfully', {
           blockId,
-          triggerId,
+          triggerId: effectiveTriggerId,
           hasWebhookId: !!webhookId,
         })
       } else {
@@ -287,7 +316,7 @@ export function TriggerSave({
 
         logger.info('Trigger configuration deleted successfully', {
           blockId,
-          triggerId,
+          triggerId: effectiveTriggerId,
         })
       } else {
         setDeleteStatus('idle')
