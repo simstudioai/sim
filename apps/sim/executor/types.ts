@@ -73,6 +73,9 @@ export interface BlockLog {
   output?: any // Output data from successful execution
   input?: any // Input data for the block execution
   error?: string // Error message if execution failed
+  loopId?: string // Loop ID if this block is part of a loop
+  parallelId?: string // Parallel ID if this block is part of a parallel
+  iterationIndex?: number // Iteration number for loop/parallel blocks
 }
 
 /**

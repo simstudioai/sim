@@ -44,35 +44,39 @@ export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }:
     }
   }, [containerWidth])
 
-  if (!traceSpans || traceSpans.length === 0) {
-    return <div className='text-muted-foreground text-sm'>No trace data available</div>
-  }
+  const workflowStartTime = useMemo(() => {
+    if (!traceSpans || traceSpans.length === 0) return 0
+    return traceSpans.reduce((earliest, span) => {
+      const startTime = new Date(span.startTime).getTime()
+      return startTime < earliest ? startTime : earliest
+    }, Number.POSITIVE_INFINITY)
+  }, [traceSpans])
 
-  const workflowStartTime = traceSpans.reduce((earliest, span) => {
-    const startTime = new Date(span.startTime).getTime()
-    return startTime < earliest ? startTime : earliest
-  }, Number.POSITIVE_INFINITY)
-
-  const workflowEndTime = traceSpans.reduce((latest, span) => {
-    const endTime = span.endTime ? new Date(span.endTime).getTime() : 0
-    return endTime > latest ? endTime : latest
-  }, 0)
+  const workflowEndTime = useMemo(() => {
+    if (!traceSpans || traceSpans.length === 0) return 0
+    return traceSpans.reduce((latest, span) => {
+      const endTime = span.endTime ? new Date(span.endTime).getTime() : 0
+      return endTime > latest ? endTime : latest
+    }, 0)
+  }, [traceSpans])
 
   const actualTotalDuration = workflowEndTime - workflowStartTime
 
-  const handleSpanToggle = (spanId: string, expanded: boolean, hasSubItems: boolean) => {
-    const newExpandedSpans = new Set(expandedSpans)
-    if (expanded) {
-      newExpandedSpans.add(spanId)
-    } else {
-      newExpandedSpans.delete(spanId)
-    }
-    setExpandedSpans(newExpandedSpans)
+  const handleSpanToggle = useCallback((spanId: string, expanded: boolean, hasSubItems: boolean) => {
+    setExpandedSpans(prev => {
+      const newExpandedSpans = new Set(prev)
+      if (expanded) {
+        newExpandedSpans.add(spanId)
+      } else {
+        newExpandedSpans.delete(spanId)
+      }
+      return newExpandedSpans
+    })
 
     if (onExpansionChange && hasSubItems) {
-      onExpansionChange(newExpandedSpans.size > 0)
+      onExpansionChange(expandedSpans.has(spanId) ? false : true)
     }
-  }
+  }, [onExpansionChange, expandedSpans])
 
   const availableTypes = useMemo(() => {
     const set = new Set<string>()
@@ -189,6 +193,11 @@ export function TraceSpans({ traceSpans, totalDuration = 0, onExpansionChange }:
     setContainerWidth(el.clientWidth)
     return () => ro.disconnect()
   }, [])
+
+  // Early return after all hooks are declared to comply with React's Rules of Hooks
+  if (!traceSpans || traceSpans.length === 0) {
+    return <div className='text-muted-foreground text-sm'>No trace data available</div>
+  }
 
   return (
     <div className='w-full'>

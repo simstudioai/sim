@@ -9,6 +9,7 @@ import type {
 import type { SerializedBlock } from '@/serializer/types'
 import type { DAGNode } from '../dag/builder'
 import type { VariableResolver } from '../variables/resolver'
+import type { ExecutionState } from './state'
 import type { ContextExtensions } from './types'
 
 const logger = createLogger('BlockExecutor')
@@ -20,7 +21,8 @@ export class BlockExecutor {
   constructor(
     private blockHandlers: BlockHandler[],
     private resolver: VariableResolver,
-    private contextExtensions: ContextExtensions
+    private contextExtensions: ContextExtensions,
+    private state?: ExecutionState
   ) {}
 
   async execute(
@@ -38,9 +40,9 @@ export class BlockExecutor {
 
     let blockLog: BlockLog | undefined
     if (!isSentinel) {
-      blockLog = this.createBlockLog(node.id, block)
+      blockLog = this.createBlockLog(node.id, block, node, context)
       context.blockLogs.push(blockLog)
-      this.callOnBlockStart(node.id, block)
+      this.callOnBlockStart(node.id, block, node, context)
     }
 
     const startTime = Date.now()
@@ -64,7 +66,7 @@ export class BlockExecutor {
       })
 
       if (!isSentinel) {
-        this.callOnBlockComplete(node.id, block, normalizedOutput, duration)
+        this.callOnBlockComplete(node.id, block, node, normalizedOutput, duration, context)
       }
 
       return normalizedOutput
@@ -95,16 +97,8 @@ export class BlockExecutor {
         error: errorMessage,
       })
 
-      if (!isSentinel && this.contextExtensions.onBlockComplete) {
-        await this.contextExtensions.onBlockComplete(
-          node.id,
-          block.metadata?.name || node.id,
-          block.metadata?.id || FALLBACK_VALUE.BLOCK_TYPE,
-          {
-            output: errorOutput,
-            executionTime: duration,
-          }
-        )
+      if (!isSentinel) {
+        this.callOnBlockComplete(node.id, block, node, errorOutput, duration, context)
       }
 
       throw error
@@ -115,15 +109,61 @@ export class BlockExecutor {
     return this.blockHandlers.find((h) => h.canHandle(block))
   }
 
-  private createBlockLog(blockId: string, block: SerializedBlock): BlockLog {
+  private createBlockLog(
+    blockId: string,
+    block: SerializedBlock,
+    node?: DAGNode,
+    context?: ExecutionContext
+  ): BlockLog {
+    let blockName = block.metadata?.name || blockId
+    let loopId: string | undefined
+    let parallelId: string | undefined
+    let iterationIndex: number | undefined
+    
+    // Add iteration suffix for loop/parallel blocks to enable grouping in trace spans
+    if (node?.metadata) {
+      if (node.metadata.branchIndex !== undefined && node.metadata.parallelId) {
+        // Parallel iteration
+        blockName = `${blockName} (iteration ${node.metadata.branchIndex})`
+        iterationIndex = node.metadata.branchIndex
+        parallelId = node.metadata.parallelId
+        logger.debug('Added parallel iteration suffix', { 
+          blockId, 
+          parallelId,
+          branchIndex: node.metadata.branchIndex, 
+          blockName 
+        })
+      } else if (node.metadata.isLoopNode && node.metadata.loopId && this.state) {
+        // Loop iteration - get current iteration from state
+        loopId = node.metadata.loopId
+        const loopScope = this.state.getLoopScope(loopId)
+        if (loopScope && loopScope.iteration !== undefined) {
+          // Use the current iteration (already 0-based)
+          blockName = `${blockName} (iteration ${loopScope.iteration})`
+          iterationIndex = loopScope.iteration
+          logger.debug('Added loop iteration suffix', { 
+            blockId, 
+            loopId, 
+            iteration: loopScope.iteration, 
+            blockName 
+          })
+        } else {
+          logger.warn('Loop scope not found for block', { blockId, loopId })
+        }
+      }
+    }
+    
     return {
       blockId,
-      blockName: block.metadata?.name || blockId,
+      blockName,
       blockType: block.metadata?.id || FALLBACK_VALUE.BLOCK_TYPE,
       startedAt: new Date().toISOString(),
       endedAt: '',
       durationMs: 0,
       success: false,
+      loopId,
+      parallelId,
+      iterationIndex,
     }
   }
 
@@ -139,8 +179,21 @@ export class BlockExecutor {
     return { result: output }
   }
 
-  private callOnBlockStart(blockId: string, block: SerializedBlock): void {
-    const blockName = block.metadata?.name || blockId
+  private callOnBlockStart(blockId: string, block: SerializedBlock, node: DAGNode, context: ExecutionContext): void {
+    let blockName = block.metadata?.name || blockId
+    
+    // Add iteration suffix for streaming callbacks (same logic as BlockLog)
+    if (node?.metadata) {
+      if (node.metadata.branchIndex !== undefined) {
+        blockName = `${blockName} (iteration ${node.metadata.branchIndex})`
+      } else if (node.metadata.isLoopNode && node.metadata.loopId && this.state) {
+        const loopScope = this.state.getLoopScope(node.metadata.loopId)
+        if (loopScope && loopScope.iteration !== undefined) {
+          blockName = `${blockName} (iteration ${loopScope.iteration})`
+        }
+      }
+    }
+    
     const blockType = block.metadata?.id || FALLBACK_VALUE.BLOCK_TYPE
 
     if (this.contextExtensions.onBlockStart) {
@@ -151,10 +204,25 @@ export class BlockExecutor {
   private callOnBlockComplete(
     blockId: string,
     block: SerializedBlock,
+    node: DAGNode,
     output: NormalizedBlockOutput,
-    duration: number
+    duration: number,
+    context: ExecutionContext
   ): void {
-    const blockName = block.metadata?.name || blockId
+    let blockName = block.metadata?.name || blockId
+    
+    // Add iteration suffix for streaming callbacks (same logic as BlockLog)
+    if (node?.metadata) {
+      if (node.metadata.branchIndex !== undefined) {
+        blockName = `${blockName} (iteration ${node.metadata.branchIndex})`
+      } else if (node.metadata.isLoopNode && node.metadata.loopId && this.state) {
+        const loopScope = this.state.getLoopScope(node.metadata.loopId)
+        if (loopScope && loopScope.iteration !== undefined) {
+          blockName = `${blockName} (iteration ${loopScope.iteration})`
+        }
+      }
+    }
+    
     const blockType = block.metadata?.id || FALLBACK_VALUE.BLOCK_TYPE
 
     if (this.contextExtensions.onBlockComplete) {

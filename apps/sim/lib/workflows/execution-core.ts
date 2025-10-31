@@ -336,12 +336,18 @@ export async function executeWorkflowCore(
   } catch (error: any) {
     logger.error(`[${requestId}] Execution failed:`, error)
 
-    await loggingSession.safeComplete({
+    // Extract execution result from error if available
+    const executionResult = (error as any)?.executionResult
+    const { traceSpans } = executionResult ? buildTraceSpans(executionResult) : { traceSpans: [] }
+
+    await loggingSession.safeCompleteWithError({
       endedAt: new Date().toISOString(),
-      totalDurationMs: 0,
-      finalOutput: {},
-      traceSpans: [],
-      workflowInput: processedInput,
+      totalDurationMs: executionResult?.metadata?.duration || 0,
+      error: {
+        message: error.message || 'Execution failed',
+        stackTrace: error.stack,
+      },
+      traceSpans,
     })
 
     throw error

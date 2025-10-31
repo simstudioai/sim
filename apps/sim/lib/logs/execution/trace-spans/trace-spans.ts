@@ -110,6 +110,9 @@ export function buildTraceSpans(result: ExecutionResult): {
       blockId: log.blockId,
       input: log.input || {},
       output: output,
+      ...(log.loopId && { loopId: log.loopId }),
+      ...(log.parallelId && { parallelId: log.parallelId }),
+      ...(log.iterationIndex !== undefined && { iterationIndex: log.iterationIndex }),
     }
 
     if (log.output?.providerTiming) {
@@ -490,27 +493,47 @@ function groupIterationBlocks(spans: TraceSpan[]): TraceSpan[] {
         let containerId = 'unknown'
         let containerName = 'Unknown'
 
-        if (span.blockId?.includes('_parallel_')) {
-          const parallelMatch = span.blockId.match(/_parallel_([^_]+)_iteration_/)
-          if (parallelMatch) {
-            containerType = 'parallel'
-            containerId = parallelMatch[1]
+        // Use the loopId/parallelId from the span metadata (set during execution)
+        if (span.parallelId) {
+          containerType = 'parallel'
+          containerId = span.parallelId
 
-            const parallelBlock = normalSpans.find(
-              (s) => s.blockId === containerId && s.type === 'parallel'
-            )
-            containerName = parallelBlock?.name || `Parallel ${containerId}`
-          }
-        } else {
+          const parallelBlock = normalSpans.find(
+            (s) => s.blockId === containerId && s.type === 'parallel'
+          )
+          containerName = parallelBlock?.name || `Parallel ${containerId}`
+        } else if (span.loopId) {
           containerType = 'loop'
+          containerId = span.loopId
 
-          const loopBlock = normalSpans.find((s) => s.type === 'loop')
-          if (loopBlock) {
-            containerId = loopBlock.blockId || 'loop-1'
-            containerName = loopBlock.name || `Loop ${loopBlock.blockId || '1'}`
+          const loopBlock = normalSpans.find(
+            (s) => s.blockId === containerId && s.type === 'loop'
+          )
+          containerName = loopBlock?.name || `Loop ${loopBlock?.blockId || containerId}`
+        } else {
+          // Fallback to old logic if metadata is missing
+          if (span.blockId?.includes('_parallel_')) {
+            const parallelMatch = span.blockId.match(/_parallel_([^_]+)_iteration_/)
+            if (parallelMatch) {
+              containerType = 'parallel'
+              containerId = parallelMatch[1]
+
+              const parallelBlock = normalSpans.find(
+                (s) => s.blockId === containerId && s.type === 'parallel'
+              )
+              containerName = parallelBlock?.name || `Parallel ${containerId}`
+            }
           } else {
-            containerId = 'loop-1'
-            containerName = 'Loop 1'
+            containerType = 'loop'
+            // This was the bug - it would find ANY loop, not the specific one
+            const loopBlock = normalSpans.find((s) => s.type === 'loop')
+            if (loopBlock) {
+              containerId = loopBlock.blockId || 'loop-1'
+              containerName = loopBlock.name || `Loop ${loopBlock.blockId || '1'}`
+            } else {
+              containerId = 'loop-1'
+              containerName = 'Loop 1'
+            }
           }
         }
 

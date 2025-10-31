@@ -543,9 +543,7 @@ export function useWorkflowExecution() {
 
                 const { encodeSSE } = await import('@/lib/utils')
                 controller.enqueue(encodeSSE({ event: 'final', data: result }))
-                persistLogs(executionId, result).catch((err) =>
-                  logger.error('Error persisting logs:', err)
-                )
+                // Note: Logs are already persisted server-side via execution-core.ts
               }
             } catch (error: any) {
               // Create a proper error result for logging
@@ -564,11 +562,6 @@ export function useWorkflowExecution() {
               // Send the error as final event so downstream handlers can treat it uniformly
               const { encodeSSE } = await import('@/lib/utils')
               controller.enqueue(encodeSSE({ event: 'final', data: errorResult }))
-
-              // Persist the error to logs so it shows up in the logs page
-              persistLogs(executionId, errorResult).catch((err) =>
-                logger.error('Error persisting error logs:', err)
-              )
 
               // Do not error the controller to allow consumers to process the final event
             } finally {
@@ -611,16 +604,11 @@ export function useWorkflowExecution() {
             ;(result.metadata as any).source = 'chat'
           }
 
-          persistLogs(executionId, result).catch((err) => {
-            logger.error('Error persisting logs:', { error: err })
-          })
         }
         return result
       } catch (error: any) {
         const errorResult = handleExecutionError(error, { executionId })
-        persistLogs(executionId, errorResult).catch((err) => {
-          logger.error('Error persisting logs:', { error: err })
-        })
+        // Note: Error logs are already persisted server-side via execution-core.ts
         return errorResult
       }
     },
