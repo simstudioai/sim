@@ -115,8 +115,11 @@ export const useCustomToolsStore = create<CustomToolsStore>()(
             throw new ApiError(data.error || 'Failed to create tool', response.status)
           }
 
-          // Refetch tools to get the created tool with its ID
-          await get().fetchTools(workspaceId)
+          if (!data.data || !Array.isArray(data.data)) {
+            throw new Error('Invalid API response: missing tools data')
+          }
+
+          set({ tools: data.data, isLoading: false })
 
           const createdTool = get().tools.find((t) => t.title === tool.title)
           if (!createdTool) {
@@ -165,8 +168,11 @@ export const useCustomToolsStore = create<CustomToolsStore>()(
             throw new ApiError(data.error || 'Failed to update tool', response.status)
           }
 
-          // Refetch tools to get updated data
-          await get().fetchTools(workspaceId)
+          if (!data.data || !Array.isArray(data.data)) {
+            throw new Error('Invalid API response: missing tools data')
+          }
+
+          set({ tools: data.data, isLoading: false })
 
           logger.info(`Updated custom tool: ${id}`)
         } catch (error) {

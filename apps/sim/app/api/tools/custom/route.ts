@@ -219,8 +219,9 @@ export async function POST(req: NextRequest) {
           }
 
           // Create new tool
+          const newToolId = tool.id || crypto.randomUUID()
           await tx.insert(customTools).values({
-            id: tool.id || crypto.randomUUID(),
+            id: newToolId,
             workspaceId,
             userId,
             title: tool.title,
@@ -231,7 +232,13 @@ export async function POST(req: NextRequest) {
           })
         }
 
-        return NextResponse.json({ success: true })
+        // Fetch and return the created/updated tools
+        const resultTools = await tx
+          .select()
+          .from(customTools)
+          .where(eq(customTools.workspaceId, workspaceId))
+
+        return NextResponse.json({ success: true, data: resultTools })
       })
     } catch (validationError) {
       if (validationError instanceof z.ZodError) {
