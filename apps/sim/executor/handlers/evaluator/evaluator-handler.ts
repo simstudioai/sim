@@ -18,9 +18,9 @@ export class EvaluatorBlockHandler implements BlockHandler {
   }
 
   async execute(
+    ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: Record<string, any>,
-    context: ExecutionContext
+    inputs: Record<string, any>
   ): Promise<BlockOutput> {
     const model = inputs.model || EVALUATOR.DEFAULT_MODEL
     const providerId = getProviderFromModel(model)
@@ -97,7 +97,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
         ]),
         temperature: inputs.temperature || EVALUATOR.DEFAULT_TEMPERATURE,
         apiKey: inputs.apiKey,
-        workflowId: context.workflowId,
+        workflowId: ctx.workflowId,
       }
 
       const response = await fetch(url.toString(), {

@@ -24,9 +24,9 @@ export class BlockExecutor {
   ) {}
 
   async execute(
+    ctx: ExecutionContext,
     node: DAGNode,
-    block: SerializedBlock,
-    context: ExecutionContext
+    block: SerializedBlock
   ): Promise<NormalizedBlockOutput> {
     const handler = this.findHandler(block)
     if (!handler) {
@@ -35,7 +35,7 @@ export class BlockExecutor {
 
     let resolvedInputs: Record<string, any>
     try {
-      resolvedInputs = this.resolver.resolveInputs(block.config.params, node.id, context, block)
+      resolvedInputs = this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
     } catch (error) {
       resolvedInputs = {}
     }
@@ -44,15 +44,15 @@ export class BlockExecutor {
 
     let blockLog: BlockLog | undefined
     if (!isSentinel) {
-      blockLog = this.createBlockLog(node.id, block, node, context)
-      context.blockLogs.push(blockLog)
-      this.callOnBlockStart(node.id, block, node, context)
+      blockLog = this.createBlockLog(ctx, node.id, block, node)
+      ctx.blockLogs.push(blockLog)
+      this.callOnBlockStart(ctx, node, block)
     }
 
     const startTime = Date.now()
 
     try {
-      const output = await handler.execute(block, resolvedInputs, context)
+      const output = await handler.execute(ctx, block, resolvedInputs)
       const normalizedOutput = this.normalizeOutput(output)
       const duration = Date.now() - startTime
 
@@ -63,14 +63,14 @@ export class BlockExecutor {
         blockLog.output = normalizedOutput
       }
 
-      context.blockStates.set(node.id, {
+      ctx.blockStates.set(node.id, {
         output: normalizedOutput,
         executed: true,
         executionTime: duration,
       })
 
       if (!isSentinel) {
-        this.callOnBlockComplete(node.id, block, node, resolvedInputs, normalizedOutput, duration, context)
+        this.callOnBlockComplete(ctx, node, block, resolvedInputs, normalizedOutput, duration)
       }
 
       return normalizedOutput
@@ -89,7 +89,7 @@ export class BlockExecutor {
         error: errorMessage,
       }
 
-      context.blockStates.set(node.id, {
+      ctx.blockStates.set(node.id, {
         output: errorOutput,
         executed: true,
         executionTime: duration,
@@ -102,7 +102,7 @@ export class BlockExecutor {
       })
 
       if (!isSentinel) {
-        this.callOnBlockComplete(node.id, block, node, resolvedInputs, errorOutput, duration, context)
+        this.callOnBlockComplete(ctx, node, block, resolvedInputs, errorOutput, duration)
       }
 
       throw error
@@ -114,10 +114,10 @@ export class BlockExecutor {
   }
 
   private createBlockLog(
+    ctx: ExecutionContext,
     blockId: string,
     block: SerializedBlock,
-    node?: DAGNode,
-    context?: ExecutionContext
+    node: DAGNode
   ): BlockLog {
     let blockName = block.metadata?.name || blockId
     let loopId: string | undefined
@@ -179,7 +179,8 @@ export class BlockExecutor {
     return { result: output }
   }
 
-  private callOnBlockStart(blockId: string, block: SerializedBlock, node: DAGNode, context: ExecutionContext): void {
+  private callOnBlockStart(ctx: ExecutionContext, node: DAGNode, block: SerializedBlock): void {
+    const blockId = node.id
     const blockName = block.metadata?.name || blockId
     const blockType = block.metadata?.id || DEFAULTS.BLOCK_TYPE
 
@@ -191,26 +192,31 @@ export class BlockExecutor {
   }
 
   private callOnBlockComplete(
-    blockId: string,
-    block: SerializedBlock,
+    ctx: ExecutionContext,
     node: DAGNode,
+    block: SerializedBlock,
     input: Record<string, any>,
     output: NormalizedBlockOutput,
-    duration: number,
-    context: ExecutionContext
+    duration: number
   ): void {
-
+    const blockId = node.id
     const blockName = block.metadata?.name || blockId
     const blockType = block.metadata?.id || DEFAULTS.BLOCK_TYPE
 
     const iterationContext = this.getIterationContext(node)
 
     if (this.contextExtensions.onBlockComplete) {
-      this.contextExtensions.onBlockComplete(blockId, blockName, blockType, {
-        input,
-        output,
-        executionTime: duration,
-      }, iterationContext)
+      this.contextExtensions.onBlockComplete(
+        blockId,
+        blockName,
+        blockType,
+        {
+          input,
+          output,
+          executionTime: duration,
+        },
+        iterationContext
+      )
     }
   }
 

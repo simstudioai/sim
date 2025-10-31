@@ -1,7 +1,7 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import type { BlockOutput } from '@/blocks/types'
-import { BlockType } from '@/executor/consts'
-import type { BlockHandler } from '@/executor/types'
+import { BlockType, HTTP } from '@/executor/consts'
+import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('ResponseBlockHandler')
@@ -19,7 +19,7 @@ export class ResponseBlockHandler implements BlockHandler {
     return block.metadata?.id === BlockType.RESPONSE
   }
 
-  async execute(block: SerializedBlock, inputs: Record<string, any>): Promise<BlockOutput> {
+  async execute(ctx: ExecutionContext, block: SerializedBlock, inputs: Record<string, any>): Promise<BlockOutput> {
     logger.info(`Executing response block: ${block.id}`)
 
     try {
@@ -48,8 +48,8 @@ export class ResponseBlockHandler implements BlockHandler {
             error: 'Response block execution failed',
             message: error.message || 'Unknown error',
           },
-          status: 500,
-          headers: { 'Content-Type': 'application/json' },
+          status: HTTP.STATUS.SERVER_ERROR,
+          headers: { 'Content-Type': HTTP.CONTENT_TYPE.JSON },
         },
       }
     }
@@ -247,10 +247,10 @@ export class ResponseBlockHandler implements BlockHandler {
   }
 
   private parseStatus(status?: string): number {
-    if (!status) return 200
+    if (!status) return HTTP.STATUS.OK
     const parsed = Number(status)
     if (Number.isNaN(parsed) || parsed < 100 || parsed > 599) {
-      return 200
+      return HTTP.STATUS.OK
     }
     return parsed
   }
@@ -261,7 +261,7 @@ export class ResponseBlockHandler implements BlockHandler {
       cells: { Key: string; Value: string }
     }[]
   ): Record<string, string> {
-    const defaultHeaders = { 'Content-Type': 'application/json' }
+    const defaultHeaders = { 'Content-Type': HTTP.CONTENT_TYPE.JSON }
     if (!headers) return defaultHeaders
 
     const headerObj = headers.reduce((acc: Record<string, string>, header) => {

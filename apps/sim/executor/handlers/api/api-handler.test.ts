@@ -97,7 +97,7 @@ describe('ApiBlockHandler', () => {
 
     mockExecuteTool.mockResolvedValue({ success: true, output: { data: 'Success' } })
 
-    const result = await handler.execute(mockBlock, inputs, mockContext)
+    const result = await handler.execute(mockContext, mockBlock, inputs)
 
     expect(mockGetTool).toHaveBeenCalledWith('http_request')
     expect(mockExecuteTool).toHaveBeenCalledWith(
@@ -122,7 +122,7 @@ describe('ApiBlockHandler', () => {
 
     const expectedOutput = { data: null, status: 200, headers: {} }
 
-    const result = await handler.execute(mockBlock, inputs, mockContext)
+    const result = await handler.execute(mockContext, mockBlock, inputs)
 
     expect(mockGetTool).toHaveBeenCalledWith('http_request')
     expect(mockExecuteTool).not.toHaveBeenCalled()
@@ -132,7 +132,7 @@ describe('ApiBlockHandler', () => {
   it('should throw error for invalid URL format (no protocol)', async () => {
     const inputs = { url: 'example.com/api' }
 
-    await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
+    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
       'Invalid URL: "example.com/api" - URL must include protocol (try "https://example.com/api")'
     )
     expect(mockExecuteTool).not.toHaveBeenCalled()
@@ -141,7 +141,7 @@ describe('ApiBlockHandler', () => {
   it('should throw error for generally invalid URL format', async () => {
     const inputs = { url: 'htp:/invalid-url' }
 
-    await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
+    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
       /^Invalid URL: "htp:\/invalid-url" - URL must include protocol/
     )
     expect(mockExecuteTool).not.toHaveBeenCalled()
@@ -154,7 +154,7 @@ describe('ApiBlockHandler', () => {
     }
     const expectedParsedBody = { key: 'value', nested: { num: 1 } }
 
-    await handler.execute(mockBlock, inputs, mockContext)
+    await handler.execute(mockContext, mockBlock, inputs)
 
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'http_request',
@@ -171,7 +171,7 @@ describe('ApiBlockHandler', () => {
       body: 'This is plain text',
     }
 
-    await handler.execute(mockBlock, inputs, mockContext)
+    await handler.execute(mockContext, mockBlock, inputs)
 
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'http_request',
@@ -188,7 +188,7 @@ describe('ApiBlockHandler', () => {
       body: null,
     }
 
-    await handler.execute(mockBlock, inputs, mockContext)
+    await handler.execute(mockContext, mockBlock, inputs)
 
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'http_request',
@@ -211,7 +211,7 @@ describe('ApiBlockHandler', () => {
       error: 'Resource not found',
     })
 
-    await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
+    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
       'HTTP Request failed: URL: https://example.com/notfound | Method: GET | Error: Resource not found | Status: 404 | Status text: Not Found - The requested resource was not found'
     )
     expect(mockExecuteTool).toHaveBeenCalled()
@@ -223,7 +223,7 @@ describe('ApiBlockHandler', () => {
     // Override mock to return undefined for this test
     mockGetTool.mockImplementation(() => undefined)
 
-    await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
+    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
       'Tool not found: http_request'
     )
     expect(mockExecuteTool).not.toHaveBeenCalled()
@@ -236,7 +236,7 @@ describe('ApiBlockHandler', () => {
       error: 'Request failed due to CORS policy',
     })
 
-    await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
+    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
       /CORS policy prevented the request, try using a proxy or server-side request/
     )
   })
@@ -245,7 +245,7 @@ describe('ApiBlockHandler', () => {
     const inputs = { url: 'https://unreachable.local' }
     mockExecuteTool.mockResolvedValue({ success: false, error: 'Failed to fetch' })
 
-    await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
+    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
       /Network error, check if the URL is accessible and if you have internet connectivity/
     )
   })

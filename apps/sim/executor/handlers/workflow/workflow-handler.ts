@@ -37,9 +37,9 @@ export class WorkflowBlockHandler implements BlockHandler {
   }
 
   async execute(
+    ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: Record<string, any>,
-    context: ExecutionContext
+    inputs: Record<string, any>
   ): Promise<BlockOutput | StreamingExecution> {
     logger.info(`Executing workflow block: ${block.id}`)
 
@@ -50,13 +50,12 @@ export class WorkflowBlockHandler implements BlockHandler {
     }
 
     try {
-      const currentDepth = (context.workflowId?.split('_sub_').length || 1) - 1
+      const currentDepth = (ctx.workflowId?.split('_sub_').length || 1) - 1
       if (currentDepth >= DEFAULTS.MAX_WORKFLOW_DEPTH) {
         throw new Error(`Maximum workflow nesting depth of ${DEFAULTS.MAX_WORKFLOW_DEPTH} exceeded`)
       }
 
-      // In deployed contexts, enforce that child workflow has an active deployment
-      if (context.isDeployedContext) {
+      if (ctx.isDeployedContext) {
         const hasActiveDeployment = await this.checkChildDeployment(workflowId)
         if (!hasActiveDeployment) {
           throw new Error(
@@ -65,8 +64,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         }
       }
 
-      // Load the child workflow
-      const childWorkflow = context.isDeployedContext
+      const childWorkflow = ctx.isDeployedContext
         ? await this.loadChildWorkflowDeployed(workflowId)
         : await this.loadChildWorkflow(workflowId)
 
@@ -97,15 +95,14 @@ export class WorkflowBlockHandler implements BlockHandler {
         childWorkflowInput = inputs.input
       }
 
-      // Execute child workflow inline
       const subExecutor = new Executor({
         workflow: childWorkflow.serializedState,
         workflowInput: childWorkflowInput,
-        envVarValues: context.environmentVariables,
+        envVarValues: ctx.environmentVariables,
         workflowVariables: childWorkflow.variables || {},
         contextExtensions: {
           isChildExecution: true,
-          isDeployedContext: context.isDeployedContext === true,
+          isDeployedContext: ctx.isDeployedContext === true,
         },
       })
 
@@ -119,7 +116,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       const childTraceSpans = this.captureChildWorkflowLogs(
         executionResult,
         childWorkflowName,
-        context
+        ctx
       )
 
       const mappedResult = this.mapChildOutputToParent(

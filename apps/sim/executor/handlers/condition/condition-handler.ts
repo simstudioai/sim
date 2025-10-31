@@ -12,21 +12,21 @@ const logger = createLogger('ConditionBlockHandler')
  * Returns true if condition is met, false otherwise
  */
 export async function evaluateConditionExpression(
+  ctx: ExecutionContext,
   conditionExpression: string,
-  context: ExecutionContext,
   block: SerializedBlock,
   resolver: any,
   providedEvalContext?: Record<string, any>
 ): Promise<boolean> {
   const evalContext = providedEvalContext || {
-    ...(context.loopItems.get(block.id) || {}),
+    ...(ctx.loopItems.get(block.id) || {}),
   }
 
   let resolvedConditionValue = conditionExpression
   try {
     if (resolver) {
       const resolvedVars = resolver.resolveVariableReferences(conditionExpression, block)
-      const resolvedRefs = resolver.resolveBlockReferences(resolvedVars, context, block)
+      const resolvedRefs = resolver.resolveBlockReferences(resolvedVars, ctx, block)
       resolvedConditionValue = resolver.resolveEnvVariables(resolvedRefs)
       logger.info(
         `Resolved condition: from "${conditionExpression}" to "${resolvedConditionValue}"`
@@ -75,9 +75,9 @@ export class ConditionBlockHandler implements BlockHandler {
   }
 
   async execute(
+    ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: Record<string, any>,
-    context: ExecutionContext
+    inputs: Record<string, any>
   ): Promise<BlockOutput> {
     logger.info(`Executing condition block: ${block.id}`, {
       rawConditionsInput: inputs.conditions,
@@ -85,13 +85,13 @@ export class ConditionBlockHandler implements BlockHandler {
 
     const conditions = this.parseConditions(inputs.conditions)
 
-    const sourceBlockId = context.workflow?.connections.find(
+    const sourceBlockId = ctx.workflow?.connections.find(
       (conn) => conn.target === block.id
     )?.source
-    const evalContext = this.buildEvaluationContext(context, block.id, sourceBlockId)
-    const sourceOutput = sourceBlockId ? context.blockStates.get(sourceBlockId)?.output : null
+    const evalContext = this.buildEvaluationContext(ctx, block.id, sourceBlockId)
+    const sourceOutput = sourceBlockId ? ctx.blockStates.get(sourceBlockId)?.output : null
 
-    const outgoingConnections = context.workflow?.connections.filter(
+    const outgoingConnections = ctx.workflow?.connections.filter(
       (conn) => conn.source === block.id
     )
 
@@ -99,11 +99,11 @@ export class ConditionBlockHandler implements BlockHandler {
       conditions,
       outgoingConnections || [],
       evalContext,
-      context,
+      ctx,
       block
     )
 
-    const targetBlock = context.workflow?.blocks.find((b) => b.id === selectedConnection?.target)
+    const targetBlock = ctx.workflow?.blocks.find((b) => b.id === selectedConnection?.target)
     if (!targetBlock) {
       throw new Error(`Target block ${selectedConnection?.target} not found`)
     }
@@ -112,8 +112,8 @@ export class ConditionBlockHandler implements BlockHandler {
       `Condition block ${block.id} selected path: ${selectedCondition.title} (${selectedCondition.id}) -> ${targetBlock.metadata?.name || targetBlock.id}`
     )
 
-    const decisionKey = context.currentVirtualBlockId || block.id
-    context.decisions.condition.set(decisionKey, selectedCondition.id)
+    const decisionKey = ctx.currentVirtualBlockId || block.id
+    ctx.decisions.condition.set(decisionKey, selectedCondition.id)
 
     return {
       ...((sourceOutput as any) || {}),
@@ -140,16 +140,16 @@ export class ConditionBlockHandler implements BlockHandler {
   }
 
   private buildEvaluationContext(
-    context: ExecutionContext,
+    ctx: ExecutionContext,
     blockId: string,
     sourceBlockId?: string
   ): Record<string, any> {
     let evalContext: Record<string, any> = {
-      ...(context.loopItems.get(blockId) || {}),
+      ...(ctx.loopItems.get(blockId) || {}),
     }
 
     if (sourceBlockId) {
-      const sourceOutput = context.blockStates.get(sourceBlockId)?.output
+      const sourceOutput = ctx.blockStates.get(sourceBlockId)?.output
       if (sourceOutput && typeof sourceOutput === 'object' && sourceOutput !== null) {
         evalContext = {
           ...evalContext,
@@ -166,7 +166,7 @@ export class ConditionBlockHandler implements BlockHandler {
     conditions: Array<{ id: string; title: string; value: string }>,
     outgoingConnections: Array<{ source: string; target: string; sourceHandle?: string }>,
     evalContext: Record<string, any>,
-    context: ExecutionContext,
+    ctx: ExecutionContext,
     block: SerializedBlock
   ): Promise<{
     selectedConnection: { target: string; sourceHandle?: string }
@@ -184,8 +184,8 @@ export class ConditionBlockHandler implements BlockHandler {
       const conditionValueString = String(condition.value || '')
       try {
         const conditionMet = await evaluateConditionExpression(
+          ctx,
           conditionValueString,
-          context,
           block,
           this.resolver,
           evalContext

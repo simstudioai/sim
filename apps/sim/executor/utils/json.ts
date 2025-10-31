@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console/logger'
-import { PARSING } from '@/executor/consts'
+import { EVALUATOR, PARSING } from '@/executor/consts'
 
 const logger = createLogger('JSONUtils')
 
@@ -34,7 +34,7 @@ export function normalizeJSONString(value: string): string {
 
 export function stringifyJSON(value: any, indent?: number): string {
   try {
-    return JSON.stringify(value, null, indent ?? PARSING.JSON_INDENT)
+    return JSON.stringify(value, null, indent ?? EVALUATOR.JSON_INDENT)
   } catch (error) {
     logger.warn('Failed to stringify value, returning string representation', { error })
     return String(value)

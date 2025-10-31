@@ -18,15 +18,15 @@ export class FunctionBlockHandler implements BlockHandler {
   }
 
   async execute(
+    ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: Record<string, any>,
-    context: ExecutionContext
+    inputs: Record<string, any>
   ): Promise<any> {
     const codeContent = Array.isArray(inputs.code)
       ? inputs.code.map((c: { content: string }) => c.content).join('\n')
       : inputs.code
 
-    const { blockData, blockNameMapping } = collectBlockData(context)
+    const { blockData, blockNameMapping } = collectBlockData(ctx)
 
     const result = await executeTool(
       'function_execute',
@@ -35,18 +35,18 @@ export class FunctionBlockHandler implements BlockHandler {
         language: inputs.language || DEFAULT_CODE_LANGUAGE,
         useLocalVM: !inputs.remoteExecution,
         timeout: inputs.timeout || DEFAULT_EXECUTION_TIMEOUT_MS,
-        envVars: context.environmentVariables || {},
-        workflowVariables: context.workflowVariables || {},
+        envVars: ctx.environmentVariables || {},
+        workflowVariables: ctx.workflowVariables || {},
         blockData,
         blockNameMapping,
         _context: {
-          workflowId: context.workflowId,
-          workspaceId: context.workspaceId,
+          workflowId: ctx.workflowId,
+          workspaceId: ctx.workspaceId,
         },
       },
       false,
       false,
-      context
+      ctx
     )
 
     if (!result.success) {

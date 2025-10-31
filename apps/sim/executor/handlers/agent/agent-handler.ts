@@ -30,31 +30,31 @@ export class AgentBlockHandler implements BlockHandler {
   }
 
   async execute(
+    ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: AgentInputs,
-    context: ExecutionContext
+    inputs: AgentInputs
   ): Promise<BlockOutput | StreamingExecution> {
     logger.info(`Executing agent block: ${block.id}`)
 
     const responseFormat = this.parseResponseFormat(inputs.responseFormat)
     const model = inputs.model || AGENT.DEFAULT_MODEL
     const providerId = getProviderFromModel(model)
-    const formattedTools = await this.formatTools(inputs.tools || [], context)
-    const streamingConfig = this.getStreamingConfig(block, context)
+    const formattedTools = await this.formatTools(ctx, inputs.tools || [])
+    const streamingConfig = this.getStreamingConfig(ctx, block)
     const messages = this.buildMessages(inputs)
 
     const providerRequest = this.buildProviderRequest({
+      ctx,
       providerId,
       model,
       messages,
       inputs,
       formattedTools,
       responseFormat,
-      context,
       streaming: streamingConfig.shouldUseStreaming ?? false,
     })
 
-    return this.executeProviderRequest(providerRequest, block, responseFormat, context)
+    return this.executeProviderRequest(ctx, providerRequest, block, responseFormat)
   }
 
   private parseResponseFormat(responseFormat?: string | object): any {
@@ -109,7 +109,7 @@ export class AgentBlockHandler implements BlockHandler {
     return undefined
   }
 
-  private async formatTools(inputTools: ToolInput[], context: ExecutionContext): Promise<any[]> {
+  private async formatTools(ctx: ExecutionContext, inputTools: ToolInput[]): Promise<any[]> {
     if (!Array.isArray(inputTools)) return []
 
     const tools = await Promise.all(
@@ -121,12 +121,12 @@ export class AgentBlockHandler implements BlockHandler {
         .map(async (tool) => {
           try {
             if (tool.type === 'custom-tool' && tool.schema) {
-              return await this.createCustomTool(tool, context)
+              return await this.createCustomTool(ctx, tool)
             }
             if (tool.type === 'mcp') {
-              return await this.createMcpTool(tool, context)
+              return await this.createMcpTool(ctx, tool)
             }
-            return this.transformBlockTool(tool, context)
+            return this.transformBlockTool(ctx, tool)
           } catch (error) {
             logger.error(`[AgentHandler] Error creating tool:`, { tool, error })
             return null
@@ -141,7 +141,7 @@ export class AgentBlockHandler implements BlockHandler {
     return filteredTools
   }
 
-  private async createCustomTool(tool: ToolInput, context: ExecutionContext): Promise<any> {
+  private async createCustomTool(ctx: ExecutionContext, tool: ToolInput): Promise<any> {
     const userProvidedParams = tool.params || {}
 
     const { filterSchemaForLLM, mergeToolParameters } = await import('@/tools/params')
@@ -167,7 +167,7 @@ export class AgentBlockHandler implements BlockHandler {
         const mergedParams = mergeToolParameters(userProvidedParams, callParams)
 
         // Collect block outputs for tag resolution
-        const { blockData, blockNameMapping } = collectBlockData(context)
+        const { blockData, blockNameMapping } = collectBlockData(ctx)
 
         const result = await executeTool(
           'function_execute',
@@ -175,19 +175,19 @@ export class AgentBlockHandler implements BlockHandler {
             code: tool.code,
             ...mergedParams,
             timeout: tool.timeout ?? AGENT.DEFAULT_FUNCTION_TIMEOUT,
-            envVars: context.environmentVariables || {},
-            workflowVariables: context.workflowVariables || {},
+            envVars: ctx.environmentVariables || {},
+            workflowVariables: ctx.workflowVariables || {},
             blockData,
             blockNameMapping,
             isCustomTool: true,
             _context: {
-              workflowId: context.workflowId,
-              workspaceId: context.workspaceId,
+              workflowId: ctx.workflowId,
+              workspaceId: ctx.workspaceId,
             },
           },
           false,
           false,
-          context
+          ctx
         )
 
         if (!result.success) {
@@ -200,7 +200,7 @@ export class AgentBlockHandler implements BlockHandler {
     return base
   }
 
-  private async createMcpTool(tool: ToolInput, context: ExecutionContext): Promise<any> {
+  private async createMcpTool(ctx: ExecutionContext, tool: ToolInput): Promise<any> {
     const { serverId, toolName, ...userProvidedParams } = tool.params || {}
 
     if (!serverId || !toolName) {
@@ -209,18 +209,18 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     try {
-      if (!context.workspaceId) {
+      if (!ctx.workspaceId) {
         throw new Error('workspaceId is required for MCP tool discovery')
       }
-      if (!context.workflowId) {
+      if (!ctx.workflowId) {
         throw new Error('workflowId is required for internal JWT authentication')
       }
 
       const headers = await buildAuthHeaders()
       const url = buildAPIUrl('/api/mcp/tools/discover', {
         serverId,
-        workspaceId: context.workspaceId,
-        workflowId: context.workflowId,
+        workspaceId: ctx.workspaceId,
+        workflowId: ctx.workflowId,
       })
 
       const response = await fetch(url.toString(), {
@@ -269,8 +269,8 @@ export class AgentBlockHandler implements BlockHandler {
               serverId,
               toolName,
               arguments: callParams,
-              workspaceId: context.workspaceId,
-              workflowId: context.workflowId,
+              workspaceId: ctx.workspaceId,
+              workflowId: ctx.workflowId,
             }),
           })
 
@@ -303,11 +303,11 @@ export class AgentBlockHandler implements BlockHandler {
     }
   }
 
-  private async transformBlockTool(tool: ToolInput, context: ExecutionContext) {
+  private async transformBlockTool(ctx: ExecutionContext, tool: ToolInput) {
     const transformedTool = await transformBlockTool(tool, {
       selectedOperation: tool.operation,
       getAllBlocks,
-      getToolAsync: (toolId: string) => getToolAsync(toolId, context.workflowId),
+      getToolAsync: (toolId: string) => getToolAsync(toolId, ctx.workflowId),
       getTool,
     })
 
@@ -317,9 +317,9 @@ export class AgentBlockHandler implements BlockHandler {
     return transformedTool
   }
 
-  private getStreamingConfig(block: SerializedBlock, context: ExecutionContext): StreamingConfig {
+  private getStreamingConfig(ctx: ExecutionContext, block: SerializedBlock): StreamingConfig {
     const isBlockSelectedForOutput =
-      context.selectedOutputs?.some((outputId) => {
+      ctx.selectedOutputs?.some((outputId) => {
         if (outputId === block.id) return true
         const firstUnderscoreIndex = outputId.indexOf('_')
         return (
@@ -327,8 +327,8 @@ export class AgentBlockHandler implements BlockHandler {
         )
       }) ?? false
 
-    const hasOutgoingConnections = context.edges?.some((edge) => edge.source === block.id) ?? false
-    const shouldUseStreaming = Boolean(context.stream) && isBlockSelectedForOutput
+    const hasOutgoingConnections = ctx.edges?.some((edge) => edge.source === block.id) ?? false
+    const shouldUseStreaming = Boolean(ctx.stream) && isBlockSelectedForOutput
 
     return { shouldUseStreaming, isBlockSelectedForOutput, hasOutgoingConnections }
   }
@@ -432,29 +432,29 @@ export class AgentBlockHandler implements BlockHandler {
   }
 
   private buildProviderRequest(config: {
+    ctx: ExecutionContext
     providerId: string
     model: string
     messages: Message[] | undefined
     inputs: AgentInputs
     formattedTools: any[]
     responseFormat: any
-    context: ExecutionContext
     streaming: boolean
   }) {
     const {
+      ctx,
       providerId,
       model,
       messages,
       inputs,
       formattedTools,
       responseFormat,
-      context,
       streaming,
     } = config
 
     const validMessages = this.validateMessages(messages)
 
-    const { blockData, blockNameMapping } = collectBlockData(context)
+    const { blockData, blockNameMapping } = collectBlockData(ctx)
 
     return {
       provider: providerId,
@@ -468,12 +468,12 @@ export class AgentBlockHandler implements BlockHandler {
       azureEndpoint: inputs.azureEndpoint,
       azureApiVersion: inputs.azureApiVersion,
       responseFormat,
-      workflowId: context.workflowId,
-      workspaceId: context.workspaceId,
+      workflowId: ctx.workflowId,
+      workspaceId: ctx.workspaceId,
       stream: streaming,
       messages,
-      environmentVariables: context.environmentVariables || {},
-      workflowVariables: context.workflowVariables || {},
+      environmentVariables: ctx.environmentVariables || {},
+      workflowVariables: ctx.workflowVariables || {},
       blockData,
       blockNameMapping,
       reasoningEffort: inputs.reasoningEffort,
@@ -498,10 +498,10 @@ export class AgentBlockHandler implements BlockHandler {
   }
 
   private async executeProviderRequest(
+    ctx: ExecutionContext,
     providerRequest: any,
     block: SerializedBlock,
-    responseFormat: any,
-    context: ExecutionContext
+    responseFormat: any
   ): Promise<BlockOutput | StreamingExecution> {
     const providerId = providerRequest.provider
     const model = providerRequest.model
@@ -512,40 +512,40 @@ export class AgentBlockHandler implements BlockHandler {
 
       if (!isBrowser) {
         return this.executeServerSide(
+          ctx,
           providerRequest,
           providerId,
           model,
           block,
           responseFormat,
-          context,
           providerStartTime
         )
       }
       return this.executeBrowserSide(
+        ctx,
         providerRequest,
         block,
         responseFormat,
-        context,
         providerStartTime
       )
     } catch (error) {
-      this.handleExecutionError(error, providerStartTime, providerId, model, context, block)
+      this.handleExecutionError(error, providerStartTime, providerId, model, ctx, block)
       throw error
     }
   }
 
   private async executeServerSide(
+    ctx: ExecutionContext,
     providerRequest: any,
     providerId: string,
     model: string,
     block: SerializedBlock,
     responseFormat: any,
-    context: ExecutionContext,
     providerStartTime: number
   ) {
     const finalApiKey = this.getApiKey(providerId, model, providerRequest.apiKey)
 
-    const { blockData, blockNameMapping } = collectBlockData(context)
+    const { blockData, blockNameMapping } = collectBlockData(ctx)
 
     const response = await executeProviderRequest(providerId, {
       model,
@@ -562,21 +562,21 @@ export class AgentBlockHandler implements BlockHandler {
       workspaceId: providerRequest.workspaceId,
       stream: providerRequest.stream,
       messages: 'messages' in providerRequest ? providerRequest.messages : undefined,
-      environmentVariables: context.environmentVariables || {},
-      workflowVariables: context.workflowVariables || {},
+      environmentVariables: ctx.environmentVariables || {},
+      workflowVariables: ctx.workflowVariables || {},
       blockData,
       blockNameMapping,
     })
 
-    this.logExecutionSuccess(providerId, model, context, block, providerStartTime, response)
+    this.logExecutionSuccess(providerId, model, ctx, block, providerStartTime, response)
     return this.processProviderResponse(response, block, responseFormat)
   }
 
   private async executeBrowserSide(
+    ctx: ExecutionContext,
     providerRequest: any,
     block: SerializedBlock,
     responseFormat: any,
-    context: ExecutionContext,
     providerStartTime: number
   ) {
     logger.info('Using HTTP provider request (browser environment)')
@@ -597,7 +597,7 @@ export class AgentBlockHandler implements BlockHandler {
     this.logExecutionSuccess(
       providerRequest.provider,
       providerRequest.model,
-      context,
+      ctx,
       block,
       providerStartTime,
       'HTTP response'
@@ -667,7 +667,7 @@ export class AgentBlockHandler implements BlockHandler {
   private logExecutionSuccess(
     provider: string,
     model: string,
-    context: ExecutionContext,
+    ctx: ExecutionContext,
     block: SerializedBlock,
     startTime: number,
     response: any
@@ -683,7 +683,7 @@ export class AgentBlockHandler implements BlockHandler {
     logger.info('Provider request completed successfully', {
       provider,
       model,
-      workflowId: context.workflowId,
+      workflowId: ctx.workflowId,
       blockId: block.id,
       executionTime,
       responseType,
@@ -695,7 +695,7 @@ export class AgentBlockHandler implements BlockHandler {
     startTime: number,
     provider: string,
     model: string,
-    context: ExecutionContext,
+    ctx: ExecutionContext,
     block: SerializedBlock
   ) {
     const executionTime = Date.now() - startTime
@@ -705,14 +705,14 @@ export class AgentBlockHandler implements BlockHandler {
       executionTime,
       provider,
       model,
-      workflowId: context.workflowId,
+      workflowId: ctx.workflowId,
       blockId: block.id,
     })
 
     if (!(error instanceof Error)) return
 
     logger.error('Provider request error details', {
-      workflowId: context.workflowId,
+      workflowId: ctx.workflowId,
       blockId: block.id,
       errorName: error.name,
       errorMessage: error.message,

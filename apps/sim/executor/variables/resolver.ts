@@ -30,9 +30,9 @@ export class VariableResolver {
   }
 
   resolveInputs(
-    params: Record<string, any>,
+    ctx: ExecutionContext,
     currentNodeId: string,
-    context: ExecutionContext,
+    params: Record<string, any>,
     block?: SerializedBlock
   ): Record<string, any> {
     if (!params) {
@@ -40,24 +40,24 @@ export class VariableResolver {
     }
     const resolved: Record<string, any> = {}
     for (const [key, value] of Object.entries(params)) {
-      resolved[key] = this.resolveValue(value, currentNodeId, context, undefined, block)
+      resolved[key] = this.resolveValue(ctx, currentNodeId, value, undefined, block)
     }
     return resolved
   }
 
   resolveSingleReference(
-    reference: string,
+    ctx: ExecutionContext,
     currentNodeId: string,
-    context: ExecutionContext,
+    reference: string,
     loopScope?: LoopScope
   ): any {
-    return this.resolveValue(reference, currentNodeId, context, loopScope)
+    return this.resolveValue(ctx, currentNodeId, reference, loopScope)
   }
 
   private resolveValue(
-    value: any,
+    ctx: ExecutionContext,
     currentNodeId: string,
-    context: ExecutionContext,
+    value: any,
     loopScope?: LoopScope,
     block?: SerializedBlock
   ): any {
@@ -66,34 +66,34 @@ export class VariableResolver {
     }
 
     if (Array.isArray(value)) {
-      return value.map((v) => this.resolveValue(v, currentNodeId, context, loopScope, block))
+      return value.map((v) => this.resolveValue(ctx, currentNodeId, v, loopScope, block))
     }
 
     if (typeof value === 'object') {
       return Object.entries(value).reduce(
         (acc, [key, val]) => ({
           ...acc,
-          [key]: this.resolveValue(val, currentNodeId, context, loopScope, block),
+          [key]: this.resolveValue(ctx, currentNodeId, val, loopScope, block),
         }),
         {}
       )
     }
 
     if (typeof value === 'string') {
-      return this.resolveTemplate(value, currentNodeId, context, loopScope, block)
+      return this.resolveTemplate(ctx, currentNodeId, value, loopScope, block)
     }
     return value
   }
   private resolveTemplate(
-    template: string,
+    ctx: ExecutionContext,
     currentNodeId: string,
-    context: ExecutionContext,
+    template: string,
     loopScope?: LoopScope,
     block?: SerializedBlock
   ): string {
     let result = template
     const resolutionContext: ResolutionContext = {
-      executionContext: context,
+      executionContext: ctx,
       executionState: this.state,
       currentNodeId,
       loopScope,

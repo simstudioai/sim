@@ -244,18 +244,10 @@ export interface BlockHandler {
    */
   canHandle(block: SerializedBlock): boolean
 
-  /**
-   * Executes the block with the given inputs and context.
-   *
-   * @param block - Block to execute
-   * @param inputs - Resolved input parameters
-   * @param context - Current execution context
-   * @returns Block execution output or StreamingExecution for streaming
-   */
   execute(
+    ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: Record<string, any>,
-    context: ExecutionContext
+    inputs: Record<string, any>
   ): Promise<BlockOutput | StreamingExecution>
 }
 

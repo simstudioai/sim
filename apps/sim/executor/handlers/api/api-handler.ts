@@ -17,9 +17,9 @@ export class ApiBlockHandler implements BlockHandler {
   }
 
   async execute(
+    ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: Record<string, any>,
-    context: ExecutionContext
+    inputs: Record<string, any>
   ): Promise<any> {
     const tool = getTool(block.config.tool)
     if (!tool) {
@@ -81,13 +81,13 @@ export class ApiBlockHandler implements BlockHandler {
         {
           ...processedInputs,
           _context: {
-            workflowId: context.workflowId,
-            workspaceId: context.workspaceId,
+            workflowId: ctx.workflowId,
+            workspaceId: ctx.workspaceId,
           },
         },
-        false, // skipProxy
-        false, // skipPostProcess
-        context // execution context for file processing
+        false,
+        false,
+        ctx
       )
 
       if (!result.success) {

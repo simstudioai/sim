@@ -20,11 +20,11 @@ export class RouterBlockHandler implements BlockHandler {
   }
 
   async execute(
+    ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: Record<string, any>,
-    context: ExecutionContext
+    inputs: Record<string, any>
   ): Promise<BlockOutput> {
-    const targetBlocks = this.getTargetBlocks(block, context)
+    const targetBlocks = this.getTargetBlocks(ctx, block)
 
     const routerConfig = {
       prompt: inputs.prompt,
@@ -38,7 +38,6 @@ export class RouterBlockHandler implements BlockHandler {
     try {
       const url = new URL('/api/providers', getBaseUrl())
 
-      // Create the provider request with proper message formatting
       const messages = [{ role: 'user', content: routerConfig.prompt }]
       const systemPrompt = generateRouterPrompt(routerConfig.prompt, targetBlocks)
       const providerRequest = {
@@ -48,7 +47,7 @@ export class RouterBlockHandler implements BlockHandler {
         context: JSON.stringify(messages),
         temperature: ROUTER.INFERENCE_TEMPERATURE,
         apiKey: routerConfig.apiKey,
-        workflowId: context.workflowId,
+        workflowId: ctx.workflowId,
       }
 
       const response = await fetch(url.toString(), {
@@ -126,16 +125,15 @@ export class RouterBlockHandler implements BlockHandler {
     }
   }
 
-  private getTargetBlocks(block: SerializedBlock, context: ExecutionContext) {
-    return context.workflow?.connections
+  private getTargetBlocks(ctx: ExecutionContext, block: SerializedBlock) {
+    return ctx.workflow?.connections
       .filter((conn) => conn.source === block.id)
       .map((conn) => {
-        const targetBlock = context.workflow?.blocks.find((b) => b.id === conn.target)
+        const targetBlock = ctx.workflow?.blocks.find((b) => b.id === conn.target)
         if (!targetBlock) {
           throw new Error(`Target block ${conn.target} not found`)
         }
 
-        // Extract system prompt for agent blocks
         let systemPrompt = ''
         if (isAgentBlockType(targetBlock.metadata?.id)) {
           systemPrompt =
@@ -155,7 +153,7 @@ export class RouterBlockHandler implements BlockHandler {
             ...targetBlock.config.params,
             systemPrompt: systemPrompt,
           },
-          currentState: context.blockStates.get(targetBlock.id)?.output,
+          currentState: ctx.blockStates.get(targetBlock.id)?.output,
         }
       })
   }

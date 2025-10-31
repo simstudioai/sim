@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console/logger'
 import { EDGE } from '@/executor/consts'
-import type { NormalizedBlockOutput } from '@/executor/types'
+import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import { extractBaseBlockId } from '@/executor/utils/subflow-utils'
 import type { DAG, DAGNode } from '../dag/builder'
 import type { BlockExecutor } from '../execution/block-executor'
@@ -44,7 +44,7 @@ export class NodeExecutionOrchestrator {
     const loopId = node.metadata.loopId
     if (loopId && !this.loopOrchestrator.getLoopScope(loopId)) {
       logger.debug('Initializing loop scope before first execution', { loopId, nodeId })
-      this.loopOrchestrator.initializeLoopScope(loopId, context)
+      this.loopOrchestrator.initializeLoopScope(context, loopId)
     }
 
     if (loopId && !this.loopOrchestrator.shouldExecuteLoopNode(nodeId, loopId, context)) {
@@ -72,7 +72,7 @@ export class NodeExecutionOrchestrator {
     }
 
     logger.debug('Executing node', { nodeId, blockType: node.block.metadata?.id })
-    const output = await this.blockExecutor.execute(node, node.block, context)
+    const output = await this.blockExecutor.execute(context, node, node.block)
     const isFinalOutput = node.outgoingEdges.size === 0
     return {
       nodeId,
@@ -96,7 +96,7 @@ export class NodeExecutionOrchestrator {
         return { shouldExit: true, selectedRoute: EDGE.LOOP_EXIT }
       }
 
-      const continuationResult = this.loopOrchestrator.evaluateLoopContinuation(loopId, context)
+      const continuationResult = this.loopOrchestrator.evaluateLoopContinuation(context, loopId)
       logger.debug('Loop continuation evaluated', {
         loopId,
         shouldContinue: continuationResult.shouldContinue,
@@ -150,7 +150,7 @@ export class NodeExecutionOrchestrator {
       this.handleRegularNodeCompletion(node, output, context)
     } else if (loopId) {
       logger.debug('Handling loop node', { nodeId: node.id, loopId })
-      this.handleLoopNodeCompletion(node, output, loopId)
+      this.handleLoopNodeCompletion(node, output, loopId, context)
     } else if (isParallelBranch) {
       const parallelId = this.findParallelIdForNode(node.id)
       if (parallelId) {
@@ -168,9 +168,10 @@ export class NodeExecutionOrchestrator {
   private handleLoopNodeCompletion(
     node: DAGNode,
     output: NormalizedBlockOutput,
-    loopId: string
+    loopId: string,
+    context: ExecutionContext
   ): void {
-    this.loopOrchestrator.storeLoopNodeOutput(loopId, node.id, output)
+    this.loopOrchestrator.storeLoopNodeOutput(context, loopId, node.id, output)
     this.state.setBlockOutput(node.id, output)
   }
 
