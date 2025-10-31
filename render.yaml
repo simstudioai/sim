@@ -1,0 +1,124 @@
+services:
+  # PostgreSQL Database with pgvector extension
+  - type: pserv
+    name: simstudio-db
+    env: docker
+    plan: standard
+    region: oregon
+    dockerfilePath: ./docker/db.Dockerfile
+    dockerContext: ./docker
+    envVars:
+      - key: POSTGRES_USER
+        value: postgres
+      - key: POSTGRES_PASSWORD
+        generateValue: true
+      - key: POSTGRES_DB
+        value: simstudio
+    disk:
+      name: simstudio-db-data
+      mountPath: /var/lib/postgresql/data
+      sizeGB: 10
+    healthCheckPath: /
+
+  # Database Migrations Service (runs once on deploy)
+  - type: worker
+    name: simstudio-migrations
+    env: docker
+    dockerfilePath: ./docker/app.Dockerfile
+    dockerContext: .
+    dockerCommand: cd packages/db && bun run db:migrate
+    plan: starter
+    region: oregon
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: simstudio-db
+          property: connectionString
+
+  # Main Sim Studio Application
+  - type: web
+    name: simstudio-app
+    env: docker
+    dockerfilePath: ./docker/app.Dockerfile
+    dockerContext: .
+    dockerCommand: cd apps/sim && bun run start
+    plan: standard
+    region: oregon
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: simstudio-db
+          property: connectionString
+      - key: BETTER_AUTH_URL
+        fromService:
+          type: web
+          name: simstudio-app
+          property: host
+      - key: NEXT_PUBLIC_APP_URL
+        fromService:
+          type: web
+          name: simstudio-app
+          property: host
+      - key: BETTER_AUTH_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      - key: SOCKET_SERVER_URL
+        fromService:
+          type: web
+          name: simstudio-realtime
+          property: host
+      - key: NEXT_PUBLIC_SOCKET_URL
+        fromService:
+          type: web
+          name: simstudio-realtime
+          property: host
+      - key: COPILOT_API_KEY
+        sync: false
+      - key: SIM_AGENT_API_URL
+        sync: false
+      - key: OLLAMA_URL
+        sync: false
+
+  # Realtime Socket Server
+  - type: web
+    name: simstudio-realtime
+    env: docker
+    dockerfilePath: ./docker/realtime.Dockerfile
+    dockerContext: .
+    plan: starter
+    region: oregon
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: simstudio-db
+          property: connectionString
+      - key: NEXT_PUBLIC_APP_URL
+        fromService:
+          type: web
+          name: simstudio-app
+          property: host
+      - key: BETTER_AUTH_URL
+        fromService:
+          type: web
+          name: simstudio-app
+          property: host
+      - key: BETTER_AUTH_SECRET
+        fromService:
+          type: web
+          name: simstudio-app
+          envVarKey: BETTER_AUTH_SECRET
+
+databases:
+  - name: simstudio-db
+    databaseName: simstudio
+    user: postgres
+    plan: starter
+    region: oregon
+    # Note: Render PostgreSQL databases don't support custom Dockerfiles
+    # You'll need to manually enable the pgvector extension after creation
+    # Run: CREATE EXTENSION IF NOT EXISTS vector;
