@@ -10,7 +10,6 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
   // Force light mode for certain pages
   const forcedTheme =
     pathname === '/' ||
-    pathname === '/homepage' ||
     pathname.startsWith('/login') ||
     pathname.startsWith('/signup') ||
     pathname.startsWith('/sso') ||
@@ -18,6 +17,7 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
     pathname.startsWith('/privacy') ||
     pathname.startsWith('/invite') ||
     pathname.startsWith('/verify') ||
+    pathname.startsWith('/careers') ||
     pathname.startsWith('/changelog') ||
     pathname.startsWith('/chat') ||
     pathname.startsWith('/blog')

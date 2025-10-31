@@ -25,7 +25,8 @@ const BlockDataSchema = z.object({
   height: z.number().optional(),
   collection: z.unknown().optional(),
   count: z.number().optional(),
-  loopType: z.enum(['for', 'forEach']).optional(),
+  loopType: z.enum(['for', 'forEach', 'while', 'doWhile']).optional(),
+  whileCondition: z.string().optional(),
   parallelType: z.enum(['collection', 'count']).optional(),
   type: z.string().optional(),
 })
@@ -78,8 +79,9 @@ const LoopSchema = z.object({
   id: z.string(),
   nodes: z.array(z.string()),
   iterations: z.number(),
-  loopType: z.enum(['for', 'forEach']),
+  loopType: z.enum(['for', 'forEach', 'while', 'doWhile']),
   forEachItems: z.union([z.array(z.any()), z.record(z.any()), z.string()]).optional(),
+  whileCondition: z.string().optional(),
 })
 
 const ParallelSchema = z.object({

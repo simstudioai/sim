@@ -198,7 +198,7 @@ export function SettingsNavigation({
   })
 
   const handleHomepageClick = () => {
-    window.location.href = '/homepage'
+    window.location.href = '/?from=settings'
   }
 
   return (

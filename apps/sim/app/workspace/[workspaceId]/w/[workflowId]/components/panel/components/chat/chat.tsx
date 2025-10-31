@@ -794,6 +794,7 @@ export function Chat({ chatMessage, setChatMessage }: ChatProps) {
                 id='chat-file-input'
                 type='file'
                 multiple
+                accept='.pdf,.csv,.doc,.docx,.txt,.md,.xlsx,.xls,.html,.htm,.pptx,.ppt,.json,.xml,.rtf,image/*'
                 onChange={(e) => {
                   const files = e.target.files
                   if (!files) return

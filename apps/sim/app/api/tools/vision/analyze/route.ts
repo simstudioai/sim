@@ -2,7 +2,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { createLogger } from '@/lib/logs/console/logger'
-import { downloadFileFromStorage, processSingleFileToUserFile } from '@/lib/uploads/file-processing'
+import {
+  downloadFileFromStorage,
+  processSingleFileToUserFile,
+} from '@/lib/uploads/utils/file-processing'
 import { generateRequestId } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'

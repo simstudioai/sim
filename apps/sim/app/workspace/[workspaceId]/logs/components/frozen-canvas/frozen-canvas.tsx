@@ -266,7 +266,9 @@ function PinnedLogs({
                 <ChevronLeft className='h-4 w-4' />
               </button>
               <span className='px-2 text-muted-foreground text-xs'>
-                {currentIterationIndex + 1} / {iterationInfo.totalIterations}
+                {iterationInfo.totalIterations !== undefined
+                  ? `${currentIterationIndex + 1} / ${iterationInfo.totalIterations}`
+                  : `${currentIterationIndex + 1}`}
               </span>
               <button
                 onClick={goToNextIteration}

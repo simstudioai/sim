@@ -11,6 +11,11 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console/logger'
+import {
+  commandListClass,
+  dropdownContentClass,
+  filterButtonClass,
+} from '@/app/workspace/[workspaceId]/knowledge/components/shared'
 import { useKnowledgeStore } from '@/stores/knowledge/store'
 
 const logger = createLogger('WorkspaceSelector')
@@ -132,53 +137,65 @@ export function WorkspaceSelector({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
-            variant='ghost'
+            variant='outline'
             size='sm'
             disabled={disabled || isLoading || isUpdating}
-            className='h-8 gap-1 px-2 text-muted-foreground text-xs hover:text-foreground'
+            className={filterButtonClass}
           >
-            <span className='max-w-[120px] truncate'>
+            <span className='truncate'>
               {isLoading
                 ? 'Loading...'
                 : isUpdating
                   ? 'Updating...'
                   : currentWorkspace?.name || 'No workspace'}
             </span>
-            <ChevronDown className='h-3 w-3' />
+            <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align='end' className='w-48'>
-          {/* No workspace option */}
-          <DropdownMenuItem
-            onClick={() => handleWorkspaceChange(null)}
-            className='flex items-center justify-between'
-          >
-            <span className='text-muted-foreground'>No workspace</span>
-            {!currentWorkspaceId && <Check className='h-4 w-4' />}
-          </DropdownMenuItem>
-
-          {/* Available workspaces */}
-          {workspaces.map((workspace) => (
+        <DropdownMenuContent
+          align='end'
+          side='bottom'
+          avoidCollisions={false}
+          sideOffset={4}
+          className={dropdownContentClass}
+        >
+          <div className={`${commandListClass} py-1`}>
+            {/* No workspace option */}
             <DropdownMenuItem
-              key={workspace.id}
-              onClick={() => handleWorkspaceChange(workspace.id)}
-              className='flex items-center justify-between'
+              onClick={() => handleWorkspaceChange(null)}
+              className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
             >
-              <div className='flex flex-col'>
-                <span>{workspace.name}</span>
-                <span className='text-muted-foreground text-xs capitalize'>
-                  {workspace.permissions}
-                </span>
-              </div>
-              {currentWorkspaceId === workspace.id && <Check className='h-4 w-4' />}
+              <span className='text-muted-foreground'>No workspace</span>
+              {!currentWorkspaceId && <Check className='h-4 w-4 text-muted-foreground' />}
             </DropdownMenuItem>
-          ))}
 
-          {workspaces.length === 0 && !isLoading && (
-            <DropdownMenuItem disabled>
-              <span className='text-muted-foreground text-xs'>No workspaces with write access</span>
-            </DropdownMenuItem>
-          )}
+            {/* Available workspaces */}
+            {workspaces.map((workspace) => (
+              <DropdownMenuItem
+                key={workspace.id}
+                onClick={() => handleWorkspaceChange(workspace.id)}
+                className='flex cursor-pointer items-center justify-between rounded-md px-3 py-2 font-[380] text-card-foreground text-sm hover:bg-secondary/50 focus:bg-secondary/50'
+              >
+                <div className='flex flex-col'>
+                  <span>{workspace.name}</span>
+                  <span className='text-muted-foreground text-xs capitalize'>
+                    {workspace.permissions}
+                  </span>
+                </div>
+                {currentWorkspaceId === workspace.id && (
+                  <Check className='h-4 w-4 text-muted-foreground' />
+                )}
+              </DropdownMenuItem>
+            ))}
+
+            {workspaces.length === 0 && !isLoading && (
+              <DropdownMenuItem disabled className='px-3 py-2'>
+                <span className='text-muted-foreground text-xs'>
+                  No workspaces with write access
+                </span>
+              </DropdownMenuItem>
+            )}
+          </div>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

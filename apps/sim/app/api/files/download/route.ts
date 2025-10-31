@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getPresignedUrl, getPresignedUrlWithConfig, isUsingCloudStorage } from '@/lib/uploads'
-import { BLOB_EXECUTION_FILES_CONFIG, S3_EXECUTION_FILES_CONFIG } from '@/lib/uploads/setup'
+import type { StorageContext } from '@/lib/uploads/core/config-resolver'
+import { generatePresignedDownloadUrl, hasCloudStorage } from '@/lib/uploads/core/storage-service'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { createErrorResponse } from '@/app/api/files/utils'
 
@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { key, name, storageProvider, bucketName, isExecutionFile } = body
+    const { key, name, isExecutionFile, context } = body
 
     if (!key) {
       return createErrorResponse(new Error('File key is required'), 400)
@@ -20,53 +20,22 @@ export async function POST(request: NextRequest) {
 
     logger.info(`Generating download URL for file: ${name || key}`)
 
-    if (isUsingCloudStorage()) {
-      // Generate a fresh 5-minute presigned URL for cloud storage
+    let storageContext: StorageContext = context || 'general'
+
+    if (isExecutionFile && !context) {
+      storageContext = 'execution'
+      logger.info(`Using execution context for file: ${key}`)
+    }
+
+    if (hasCloudStorage()) {
       try {
-        let downloadUrl: string
+        const downloadUrl = await generatePresignedDownloadUrl(
+          key,
+          storageContext,
+          5 * 60 // 5 minutes
+        )
 
-        // Use execution files storage if flagged as execution file
-        if (isExecutionFile) {
-          logger.info(`Using execution files storage for file: ${key}`)
-          downloadUrl = await getPresignedUrlWithConfig(
-            key,
-            {
-              bucket: S3_EXECUTION_FILES_CONFIG.bucket,
-              region: S3_EXECUTION_FILES_CONFIG.region,
-            },
-            5 * 60 // 5 minutes
-          )
-        } else if (storageProvider && (storageProvider === 's3' || storageProvider === 'blob')) {
-          // Use explicitly specified storage provider (legacy support)
-          logger.info(`Using specified storage provider '${storageProvider}' for file: ${key}`)
-
-          if (storageProvider === 's3') {
-            downloadUrl = await getPresignedUrlWithConfig(
-              key,
-              {
-                bucket: bucketName || S3_EXECUTION_FILES_CONFIG.bucket,
-                region: S3_EXECUTION_FILES_CONFIG.region,
-              },
-              5 * 60 // 5 minutes
-            )
-          } else {
-            // blob
-            downloadUrl = await getPresignedUrlWithConfig(
-              key,
-              {
-                accountName: BLOB_EXECUTION_FILES_CONFIG.accountName,
-                accountKey: BLOB_EXECUTION_FILES_CONFIG.accountKey,
-                connectionString: BLOB_EXECUTION_FILES_CONFIG.connectionString,
-                containerName: bucketName || BLOB_EXECUTION_FILES_CONFIG.containerName,
-              },
-              5 * 60 // 5 minutes
-            )
-          }
-        } else {
-          // Use default storage (regular uploads)
-          logger.info(`Using default storage for file: ${key}`)
-          downloadUrl = await getPresignedUrl(key, 5 * 60) // 5 minutes
-        }
+        logger.info(`Generated download URL for ${storageContext} file: ${key}`)
 
         return NextResponse.json({
           downloadUrl,
@@ -81,12 +50,13 @@ export async function POST(request: NextRequest) {
         )
       }
     } else {
-      // For local storage, return the direct path
-      const downloadUrl = `${getBaseUrl()}/api/files/serve/${key}`
+      const downloadUrl = `${getBaseUrl()}/api/files/serve/${encodeURIComponent(key)}?context=${storageContext}`
+
+      logger.info(`Using local storage path for file: ${key}`)
 
       return NextResponse.json({
         downloadUrl,
-        expiresIn: null, // Local URLs don't expire
+        expiresIn: null,
         fileName: name || key.split('/').pop() || 'download',
       })
     }

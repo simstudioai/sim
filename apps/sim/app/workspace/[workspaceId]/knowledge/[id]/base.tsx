@@ -708,32 +708,30 @@ export function KnowledgeBase({
           <div className='flex-1 overflow-auto'>
             <div className='px-6 pb-6'>
               {/* Search and Filters Section */}
-              <div className='mb-4 space-y-3 pt-1'>
-                <div className='flex items-center justify-between'>
-                  <SearchInput
-                    value={searchQuery}
-                    onChange={handleSearchChange}
-                    placeholder='Search documents...'
-                    isLoading={isLoadingDocuments}
-                  />
+              <div className='mb-4 flex items-center justify-between pt-1'>
+                <SearchInput
+                  value={searchQuery}
+                  onChange={handleSearchChange}
+                  placeholder='Search documents...'
+                  isLoading={isLoadingDocuments}
+                />
 
-                  <div className='flex items-center gap-3'>
-                    {/* Add Documents Button */}
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <PrimaryButton
-                          onClick={handleAddDocuments}
-                          disabled={userPermissions.canEdit !== true}
-                        >
-                          <Plus className='h-3.5 w-3.5' />
-                          Add Documents
-                        </PrimaryButton>
-                      </TooltipTrigger>
-                      {userPermissions.canEdit !== true && (
-                        <TooltipContent>Write permission required to add documents</TooltipContent>
-                      )}
-                    </Tooltip>
-                  </div>
+                <div className='flex items-center gap-2'>
+                  {/* Add Documents Button */}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <PrimaryButton
+                        onClick={handleAddDocuments}
+                        disabled={userPermissions.canEdit !== true}
+                      >
+                        <Plus className='h-3.5 w-3.5' />
+                        Add Documents
+                      </PrimaryButton>
+                    </TooltipTrigger>
+                    {userPermissions.canEdit !== true && (
+                      <TooltipContent>Write permission required to add documents</TooltipContent>
+                    )}
+                  </Tooltip>
                 </div>
               </div>
 

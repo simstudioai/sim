@@ -65,31 +65,33 @@ export function useProfilePictureUpload({
 
         logger.info('Presigned URL response:', presignedData)
 
-        const uploadHeaders: Record<string, string> = {
-          'Content-Type': file.type,
+        if (presignedData.directUploadSupported && presignedData.presignedUrl) {
+          const uploadHeaders: Record<string, string> = {
+            'Content-Type': file.type,
+          }
+
+          if (presignedData.uploadHeaders) {
+            Object.assign(uploadHeaders, presignedData.uploadHeaders)
+          }
+
+          const uploadResponse = await fetch(presignedData.presignedUrl, {
+            method: 'PUT',
+            body: file,
+            headers: uploadHeaders,
+          })
+
+          logger.info(`Upload response status: ${uploadResponse.status}`)
+
+          if (!uploadResponse.ok) {
+            const responseText = await uploadResponse.text()
+            logger.error(`Direct upload failed: ${uploadResponse.status} - ${responseText}`)
+            throw new Error(`Direct upload failed: ${uploadResponse.status} - ${responseText}`)
+          }
+
+          const publicUrl = presignedData.fileInfo.path
+          logger.info(`Profile picture uploaded successfully via direct upload: ${publicUrl}`)
+          return publicUrl
         }
-
-        if (presignedData.uploadHeaders) {
-          Object.assign(uploadHeaders, presignedData.uploadHeaders)
-        }
-
-        const uploadResponse = await fetch(presignedData.uploadUrl, {
-          method: 'PUT',
-          body: file,
-          headers: uploadHeaders,
-        })
-
-        logger.info(`Upload response status: ${uploadResponse.status}`)
-
-        if (!uploadResponse.ok) {
-          const responseText = await uploadResponse.text()
-          logger.error(`Direct upload failed: ${uploadResponse.status} - ${responseText}`)
-          throw new Error(`Direct upload failed: ${uploadResponse.status} - ${responseText}`)
-        }
-
-        const publicUrl = presignedData.fileInfo.path
-        logger.info(`Profile picture uploaded successfully via direct upload: ${publicUrl}`)
-        return publicUrl
       }
 
       const formData = new FormData()

@@ -35,6 +35,7 @@ import {
   TimeInput,
   ToolInput,
   TriggerConfig,
+  VariablesInput,
   WebhookConfig,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/components/sub-block/components'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -470,6 +471,19 @@ export const SubBlock = memo(
               isPreview={isPreview}
               previewValue={previewValue}
               disabled={isDisabled}
+              isConnecting={isConnecting}
+            />
+          )
+        }
+        case 'variables-input': {
+          return (
+            <VariablesInput
+              blockId={blockId}
+              subBlockId={config.id}
+              isPreview={isPreview}
+              previewValue={previewValue}
+              disabled={isDisabled}
+              isConnecting={isConnecting}
             />
           )
         }

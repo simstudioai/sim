@@ -50,7 +50,7 @@ In Sim ermöglicht die OneDrive-Integration Ihren Agenten die direkte Interaktio
 
 ## Nutzungsanweisungen
 
-Integriert OneDrive in den Workflow. Kann Dateien erstellen, hochladen und auflisten. Erfordert OAuth.
+OneDrive in den Workflow integrieren. Kann Text- und Excel-Dateien erstellen, Dateien hochladen und Dateien auflisten.
 
 ## Tools
 
@@ -63,10 +63,11 @@ Eine Datei auf OneDrive hochladen
 | Parameter | Typ | Erforderlich | Beschreibung |
 | --------- | ---- | -------- | ----------- |
 | `fileName` | string | Ja | Der Name der hochzuladenden Datei |
-| `file` | file | Nein | Die hochzuladende Datei (binär) |
-| `content` | string | Nein | Der hochzuladende Textinhalt (falls keine Datei bereitgestellt wird) |
-| `folderSelector` | string | Nein | Wählen Sie den Ordner aus, in den die Datei hochgeladen werden soll |
-| `manualFolderId` | string | Nein | Manuell eingegebene Ordner-ID (erweiterter Modus) |
+| `file` | file | Nein | Die hochzuladende Datei \(binär\) |
+| `content` | string | Nein | Der hochzuladende Textinhalt \(falls keine Datei bereitgestellt wird\) |
+| `mimeType` | string | Nein | Der MIME-Typ der zu erstellenden Datei \(z.B. text/plain für .txt, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet für .xlsx\) |
+| `folderSelector` | string | Nein | Ordner auswählen, in den die Datei hochgeladen werden soll |
+| `manualFolderId` | string | Nein | Manuell eingegebene Ordner-ID \(erweiterter Modus\) |
 
 #### Ausgabe
 

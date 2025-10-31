@@ -1,8 +1,12 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console/logger'
-import { getStorageProvider, isUsingCloudStorage } from '@/lib/uploads'
-import { BLOB_KB_CONFIG } from '@/lib/uploads/setup'
+import {
+  getStorageConfig,
+  getStorageProvider,
+  isUsingCloudStorage,
+  type StorageContext,
+} from '@/lib/uploads'
 
 const logger = createLogger('MultipartUploadAPI')
 
@@ -10,12 +14,14 @@ interface InitiateMultipartRequest {
   fileName: string
   contentType: string
   fileSize: number
+  context?: StorageContext
 }
 
 interface GetPartUrlsRequest {
   uploadId: string
   key: string
   partNumbers: number[]
+  context?: StorageContext
 }
 
 export async function POST(request: NextRequest) {
@@ -39,10 +45,12 @@ export async function POST(request: NextRequest) {
     switch (action) {
       case 'initiate': {
         const data: InitiateMultipartRequest = await request.json()
-        const { fileName, contentType, fileSize } = data
+        const { fileName, contentType, fileSize, context = 'knowledge-base' } = data
+
+        const config = getStorageConfig(context)
 
         if (storageProvider === 's3') {
-          const { initiateS3MultipartUpload } = await import('@/lib/uploads/s3/s3-client')
+          const { initiateS3MultipartUpload } = await import('@/lib/uploads/providers/s3/s3-client')
 
           const result = await initiateS3MultipartUpload({
             fileName,
@@ -50,7 +58,9 @@ export async function POST(request: NextRequest) {
             fileSize,
           })
 
-          logger.info(`Initiated S3 multipart upload for ${fileName}: ${result.uploadId}`)
+          logger.info(
+            `Initiated S3 multipart upload for ${fileName} (context: ${context}): ${result.uploadId}`
+          )
 
           return NextResponse.json({
             uploadId: result.uploadId,
@@ -58,21 +68,25 @@ export async function POST(request: NextRequest) {
           })
         }
         if (storageProvider === 'blob') {
-          const { initiateMultipartUpload } = await import('@/lib/uploads/blob/blob-client')
+          const { initiateMultipartUpload } = await import(
+            '@/lib/uploads/providers/blob/blob-client'
+          )
 
           const result = await initiateMultipartUpload({
             fileName,
             contentType,
             fileSize,
             customConfig: {
-              containerName: BLOB_KB_CONFIG.containerName,
-              accountName: BLOB_KB_CONFIG.accountName,
-              accountKey: BLOB_KB_CONFIG.accountKey,
-              connectionString: BLOB_KB_CONFIG.connectionString,
+              containerName: config.containerName!,
+              accountName: config.accountName!,
+              accountKey: config.accountKey,
+              connectionString: config.connectionString,
             },
           })
 
-          logger.info(`Initiated Azure multipart upload for ${fileName}: ${result.uploadId}`)
+          logger.info(
+            `Initiated Azure multipart upload for ${fileName} (context: ${context}): ${result.uploadId}`
+          )
 
           return NextResponse.json({
             uploadId: result.uploadId,
@@ -88,23 +102,25 @@ export async function POST(request: NextRequest) {
 
       case 'get-part-urls': {
         const data: GetPartUrlsRequest = await request.json()
-        const { uploadId, key, partNumbers } = data
+        const { uploadId, key, partNumbers, context = 'knowledge-base' } = data
+
+        const config = getStorageConfig(context)
 
         if (storageProvider === 's3') {
-          const { getS3MultipartPartUrls } = await import('@/lib/uploads/s3/s3-client')
+          const { getS3MultipartPartUrls } = await import('@/lib/uploads/providers/s3/s3-client')
 
           const presignedUrls = await getS3MultipartPartUrls(key, uploadId, partNumbers)
 
           return NextResponse.json({ presignedUrls })
         }
         if (storageProvider === 'blob') {
-          const { getMultipartPartUrls } = await import('@/lib/uploads/blob/blob-client')
+          const { getMultipartPartUrls } = await import('@/lib/uploads/providers/blob/blob-client')
 
           const presignedUrls = await getMultipartPartUrls(key, uploadId, partNumbers, {
-            containerName: BLOB_KB_CONFIG.containerName,
-            accountName: BLOB_KB_CONFIG.accountName,
-            accountKey: BLOB_KB_CONFIG.accountKey,
-            connectionString: BLOB_KB_CONFIG.connectionString,
+            containerName: config.containerName!,
+            accountName: config.accountName!,
+            accountKey: config.accountKey,
+            connectionString: config.connectionString,
           })
 
           return NextResponse.json({ presignedUrls })
@@ -118,15 +134,19 @@ export async function POST(request: NextRequest) {
 
       case 'complete': {
         const data = await request.json()
+        const context: StorageContext = data.context || 'knowledge-base'
 
-        // Handle batch completion
+        const config = getStorageConfig(context)
+
         if ('uploads' in data) {
           const results = await Promise.all(
             data.uploads.map(async (upload: any) => {
               const { uploadId, key } = upload
 
               if (storageProvider === 's3') {
-                const { completeS3MultipartUpload } = await import('@/lib/uploads/s3/s3-client')
+                const { completeS3MultipartUpload } = await import(
+                  '@/lib/uploads/providers/s3/s3-client'
+                )
                 const parts = upload.parts // S3 format: { ETag, PartNumber }
 
                 const result = await completeS3MultipartUpload(key, uploadId, parts)
@@ -139,14 +159,16 @@ export async function POST(request: NextRequest) {
                 }
               }
               if (storageProvider === 'blob') {
-                const { completeMultipartUpload } = await import('@/lib/uploads/blob/blob-client')
+                const { completeMultipartUpload } = await import(
+                  '@/lib/uploads/providers/blob/blob-client'
+                )
                 const parts = upload.parts // Azure format: { blockId, partNumber }
 
                 const result = await completeMultipartUpload(key, uploadId, parts, {
-                  containerName: BLOB_KB_CONFIG.containerName,
-                  accountName: BLOB_KB_CONFIG.accountName,
-                  accountKey: BLOB_KB_CONFIG.accountKey,
-                  connectionString: BLOB_KB_CONFIG.connectionString,
+                  containerName: config.containerName!,
+                  accountName: config.accountName!,
+                  accountKey: config.accountKey,
+                  connectionString: config.connectionString,
                 })
 
                 return {
@@ -161,19 +183,18 @@ export async function POST(request: NextRequest) {
             })
           )
 
-          logger.info(`Completed ${data.uploads.length} multipart uploads`)
+          logger.info(`Completed ${data.uploads.length} multipart uploads (context: ${context})`)
           return NextResponse.json({ results })
         }
 
-        // Handle single completion
         const { uploadId, key, parts } = data
 
         if (storageProvider === 's3') {
-          const { completeS3MultipartUpload } = await import('@/lib/uploads/s3/s3-client')
+          const { completeS3MultipartUpload } = await import('@/lib/uploads/providers/s3/s3-client')
 
           const result = await completeS3MultipartUpload(key, uploadId, parts)
 
-          logger.info(`Completed S3 multipart upload for key ${key}`)
+          logger.info(`Completed S3 multipart upload for key ${key} (context: ${context})`)
 
           return NextResponse.json({
             success: true,
@@ -183,16 +204,18 @@ export async function POST(request: NextRequest) {
           })
         }
         if (storageProvider === 'blob') {
-          const { completeMultipartUpload } = await import('@/lib/uploads/blob/blob-client')
+          const { completeMultipartUpload } = await import(
+            '@/lib/uploads/providers/blob/blob-client'
+          )
 
           const result = await completeMultipartUpload(key, uploadId, parts, {
-            containerName: BLOB_KB_CONFIG.containerName,
-            accountName: BLOB_KB_CONFIG.accountName,
-            accountKey: BLOB_KB_CONFIG.accountKey,
-            connectionString: BLOB_KB_CONFIG.connectionString,
+            containerName: config.containerName!,
+            accountName: config.accountName!,
+            accountKey: config.accountKey,
+            connectionString: config.connectionString,
           })
 
-          logger.info(`Completed Azure multipart upload for key ${key}`)
+          logger.info(`Completed Azure multipart upload for key ${key} (context: ${context})`)
 
           return NextResponse.json({
             success: true,
@@ -210,25 +233,27 @@ export async function POST(request: NextRequest) {
 
       case 'abort': {
         const data = await request.json()
-        const { uploadId, key } = data
+        const { uploadId, key, context = 'knowledge-base' } = data
+
+        const config = getStorageConfig(context as StorageContext)
 
         if (storageProvider === 's3') {
-          const { abortS3MultipartUpload } = await import('@/lib/uploads/s3/s3-client')
+          const { abortS3MultipartUpload } = await import('@/lib/uploads/providers/s3/s3-client')
 
           await abortS3MultipartUpload(key, uploadId)
 
-          logger.info(`Aborted S3 multipart upload for key ${key}`)
+          logger.info(`Aborted S3 multipart upload for key ${key} (context: ${context})`)
         } else if (storageProvider === 'blob') {
-          const { abortMultipartUpload } = await import('@/lib/uploads/blob/blob-client')
+          const { abortMultipartUpload } = await import('@/lib/uploads/providers/blob/blob-client')
 
           await abortMultipartUpload(key, uploadId, {
-            containerName: BLOB_KB_CONFIG.containerName,
-            accountName: BLOB_KB_CONFIG.accountName,
-            accountKey: BLOB_KB_CONFIG.accountKey,
-            connectionString: BLOB_KB_CONFIG.connectionString,
+            containerName: config.containerName!,
+            accountName: config.accountName!,
+            accountKey: config.accountKey,
+            connectionString: config.connectionString,
           })
 
-          logger.info(`Aborted Azure multipart upload for key ${key}`)
+          logger.info(`Aborted Azure multipart upload for key ${key} (context: ${context})`)
         } else {
           return NextResponse.json(
             { error: `Unsupported storage provider: ${storageProvider}` },

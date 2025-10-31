@@ -6,9 +6,8 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { StructuredData } from '@/components/structured-data'
 import { CodeBlock } from '@/components/ui/code-block'
+import { CopyPageButton } from '@/components/ui/copy-page-button'
 import { source } from '@/lib/source'
-
-export const dynamic = 'force-dynamic'
 
 export default async function Page(props: { params: Promise<{ slug?: string[]; lang: string }> }) {
   const params = await props.params
@@ -193,8 +192,19 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
           component: <CustomFooter />,
         }}
       >
-        <DocsTitle>{page.data.title}</DocsTitle>
-        <DocsDescription>{page.data.description}</DocsDescription>
+        <div className='relative'>
+          <div className='absolute top-1 right-0'>
+            <CopyPageButton
+              content={`# ${page.data.title}
+
+${page.data.description || ''}
+
+${page.data.content || ''}`}
+            />
+          </div>
+          <DocsTitle>{page.data.title}</DocsTitle>
+          <DocsDescription>{page.data.description}</DocsDescription>
+        </div>
         <DocsBody>
           <MDX
             components={{

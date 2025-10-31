@@ -118,10 +118,22 @@ describe('File Serve API Route', () => {
   })
 
   it('should serve cloud file by downloading and proxying', async () => {
+    const downloadFileMock = vi.fn().mockResolvedValue(Buffer.from('test cloud file content'))
+
     vi.doMock('@/lib/uploads', () => ({
-      downloadFile: vi.fn().mockResolvedValue(Buffer.from('test cloud file content')),
-      getPresignedUrl: vi.fn().mockResolvedValue('https://example-s3.com/presigned-url'),
+      StorageService: {
+        downloadFile: downloadFileMock,
+        generatePresignedDownloadUrl: vi
+          .fn()
+          .mockResolvedValue('https://example-s3.com/presigned-url'),
+        hasCloudStorage: vi.fn().mockReturnValue(true),
+      },
       isUsingCloudStorage: vi.fn().mockReturnValue(true),
+    }))
+
+    vi.doMock('@/lib/uploads/core/storage-service', () => ({
+      downloadFile: downloadFileMock,
+      hasCloudStorage: vi.fn().mockReturnValue(true),
     }))
 
     vi.doMock('@/lib/uploads/setup', () => ({
@@ -170,8 +182,10 @@ describe('File Serve API Route', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toBe('image/png')
 
-    const uploads = await import('@/lib/uploads')
-    expect(uploads.downloadFile).toHaveBeenCalledWith('1234567890-image.png')
+    expect(downloadFileMock).toHaveBeenCalledWith({
+      key: '1234567890-image.png',
+      context: 'general',
+    })
   })
 
   it('should return 404 when file not found', async () => {
@@ -236,7 +250,7 @@ describe('File Serve API Route', () => {
           getContentType: () => test.contentType,
           findLocalFile: () => `/test/uploads/file.${test.ext}`,
           createFileResponse: (obj: { buffer: Buffer; contentType: string; filename: string }) =>
-            new Response(obj.buffer, {
+            new Response(obj.buffer as any, {
               status: 200,
               headers: {
                 'Content-Type': obj.contentType,

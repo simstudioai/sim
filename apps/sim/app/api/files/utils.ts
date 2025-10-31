@@ -2,7 +2,7 @@ import { existsSync } from 'fs'
 import { join, resolve, sep } from 'path'
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console/logger'
-import { UPLOAD_DIR } from '@/lib/uploads/setup'
+import { UPLOAD_DIR } from '@/lib/uploads/core/setup'
 
 const logger = createLogger('FilesUtils')
 

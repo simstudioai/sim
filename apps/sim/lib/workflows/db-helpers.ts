@@ -180,10 +180,14 @@ export async function loadWorkflowFromNormalizedTables(
           iterations:
             typeof (config as Loop).iterations === 'number' ? (config as Loop).iterations : 1,
           loopType:
-            (config as Loop).loopType === 'for' || (config as Loop).loopType === 'forEach'
+            (config as Loop).loopType === 'for' ||
+            (config as Loop).loopType === 'forEach' ||
+            (config as Loop).loopType === 'while' ||
+            (config as Loop).loopType === 'doWhile'
               ? (config as Loop).loopType
               : 'for',
           forEachItems: (config as Loop).forEachItems ?? '',
+          whileCondition: (config as Loop).whileCondition ?? undefined,
         }
         loops[subflow.id] = loop
       } else if (subflow.type === SUBFLOW_TYPES.PARALLEL) {

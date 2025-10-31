@@ -11,6 +11,8 @@
     "parallel",
     "response",
     "router",
+    "variables",
+    "wait",
     "workflow"
   ]
 }

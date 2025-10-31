@@ -233,21 +233,29 @@ export function ApiKeys({ onOpenChange, registerCloseHandler }: ApiKeysProps) {
         ? `/api/workspaces/${workspaceId}/api-keys/${deleteKey.id}`
         : `/api/users/me/api-keys/${deleteKey.id}`
 
+      if (isWorkspaceKey) {
+        setWorkspaceKeys((prev) => prev.filter((k) => k.id !== deleteKey.id))
+      } else {
+        setPersonalKeys((prev) => prev.filter((k) => k.id !== deleteKey.id))
+        setConflicts((prev) => prev.filter((name) => name !== deleteKey.name))
+      }
+
+      setShowDeleteDialog(false)
+      setDeleteKey(null)
+      setDeleteConfirmationName('')
+
       const response = await fetch(url, {
         method: 'DELETE',
       })
 
-      if (response.ok) {
-        fetchApiKeys()
-        setShowDeleteDialog(false)
-        setDeleteKey(null)
-        setDeleteConfirmationName('')
-      } else {
+      if (!response.ok) {
         const errorData = await response.json()
         logger.error('Failed to delete API key:', errorData)
+        fetchApiKeys()
       }
     } catch (error) {
       logger.error('Error deleting API key:', { error })
+      fetchApiKeys()
     }
   }
 

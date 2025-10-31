@@ -415,53 +415,47 @@ export function ApiKeySelector({
       </AlertDialog>
 
       {/* New Key Dialog */}
-      <AlertDialog open={showNewKeyDialog} onOpenChange={setShowNewKeyDialog}>
+      <AlertDialog
+        open={showNewKeyDialog}
+        onOpenChange={(open) => {
+          setShowNewKeyDialog(open)
+          if (!open) {
+            setNewKey(null)
+            setCopySuccess(false)
+            if (justCreatedKeyId) {
+              onChange(justCreatedKeyId)
+              setJustCreatedKeyId(null)
+            }
+          }
+        }}
+      >
         <AlertDialogContent className='rounded-[10px] sm:max-w-md'>
           <AlertDialogHeader>
-            <AlertDialogTitle>API Key Created Successfully</AlertDialogTitle>
+            <AlertDialogTitle>Your API key has been created</AlertDialogTitle>
             <AlertDialogDescription>
-              Your new API key has been created. Make sure to copy it now as you won't be able to
-              see it again.
+              This is the only time you will see your API key.{' '}
+              <span className='font-semibold'>Copy it now and store it securely.</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
 
-          <div className='space-y-2 py-2'>
-            <Label htmlFor='created-key'>API Key</Label>
-            <div className='flex gap-2'>
-              <Input
-                id='created-key'
-                value={newKey?.key || ''}
-                readOnly
-                className='font-mono text-sm'
-              />
+          {newKey && (
+            <div className='relative'>
+              <div className='flex h-9 items-center rounded-[6px] border-none bg-muted px-3 pr-10'>
+                <code className='flex-1 truncate font-mono text-foreground text-sm'>
+                  {newKey.key}
+                </code>
+              </div>
               <Button
-                type='button'
-                variant='outline'
+                variant='ghost'
                 size='icon'
+                className='-translate-y-1/2 absolute top-1/2 right-1 h-7 w-7 rounded-[4px] text-muted-foreground hover:bg-muted hover:text-foreground'
                 onClick={handleCopyKey}
-                className='flex-shrink-0'
               >
-                {copySuccess ? <Check className='h-4 w-4' /> : <Copy className='h-4 w-4' />}
+                {copySuccess ? <Check className='h-3.5 w-3.5' /> : <Copy className='h-3.5 w-3.5' />}
+                <span className='sr-only'>Copy to clipboard</span>
               </Button>
             </div>
-          </div>
-
-          <AlertDialogFooter>
-            <AlertDialogAction
-              onClick={() => {
-                setShowNewKeyDialog(false)
-                setNewKey(null)
-                setCopySuccess(false)
-                // Auto-select the newly created key
-                if (justCreatedKeyId) {
-                  onChange(justCreatedKeyId)
-                  setJustCreatedKeyId(null)
-                }
-              }}
-            >
-              Done
-            </AlertDialogAction>
-          </AlertDialogFooter>
+          )}
         </AlertDialogContent>
       </AlertDialog>
     </>

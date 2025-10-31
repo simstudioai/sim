@@ -9,7 +9,7 @@ import { Image } from '@/components/ui/image'
 
 循环块是 Sim 中的一个容器块，它允许您通过重复执行一组块来创建迭代工作流。循环使您的工作流能够进行迭代处理。
 
-循环块支持两种类型的迭代：
+循环块支持四种类型的迭代：
 
 <Callout type="info">
   循环块是容器节点，可以在其中包含其他块。根据您的配置，循环中的块将多次执行。
@@ -21,13 +21,13 @@ import { Image } from '@/components/ui/image'
 
 <Steps>
   <Step>
-    <strong>迭代集合</strong>：逐项处理数组或对象
+    <strong>遍历集合</strong>：逐一处理数组或对象中的项目
   </Step>
   <Step>
-    <strong>重复操作</strong>：执行固定次数的块
+    <strong>重复操作</strong>：执行块固定次数
   </Step>
   <Step>
-    <strong>顺序处理</strong>：按顺序迭代处理数据转换
+    <strong>基于条件循环</strong>：在满足或直到满足条件时继续执行
   </Step>
   <Step>
     <strong>汇总结果</strong>：收集所有循环迭代的输出
@@ -47,23 +47,23 @@ import { Image } from '@/components/ui/image'
 
 ### 循环类型
 
-选择两种循环类型之一：
+选择四种循环类型之一：
 
-<Tabs items={['For 循环', 'ForEach 循环']}>
+<Tabs items={['For Loop', 'ForEach Loop', 'While Loop', 'Do-While Loop']}>
   <Tab>
-    **For 循环（迭代次数）** - 一种执行固定次数的数字循环：
+    **For 循环（迭代）** - 一个执行固定次数的数字循环：
     
     <div className="flex justify-center">
       <Image
         src="/static/blocks/loop-1.png"
-        alt="具有迭代次数的 For 循环"
+        alt="带有迭代的 For 循环"
         width={500}
         height={400}
         className="my-6"
       />
     </div>
     
-    当您需要重复操作特定次数时使用此选项。
+    当需要重复操作特定次数时使用此方法。
     
 
     ```
@@ -100,11 +100,63 @@ import { Image } from '@/components/ui/image'
     ```
 
   </Tab>
+  <Tab>
+    **While 循环（基于条件）** - 当条件为真时继续执行：
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-3.png"
+        alt="带有条件的 While 循环"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    当需要循环直到满足特定条件时使用此方法。条件在每次迭代**之前**检查。
+    
+
+    ```
+    Example: While <variable.i> < 10
+    - Check condition → Execute if true
+    - Inside loop: Increment <variable.i>
+    - Inside loop: Variables assigns i = <variable.i> + 1
+    - Check condition → Execute if true
+    - Check condition → Exit if false
+    ```
+
+  </Tab>
+  <Tab>
+    **Do-While 循环（基于条件）** - 至少执行一次，然后在条件为真时继续：
+    
+    <div className="flex justify-center">
+      <Image
+        src="/static/blocks/loop-3.png"
+        alt="带有条件的 Do-While 循环"
+        width={500}
+        height={400}
+        className="my-6"
+      />
+    </div>
+    
+    当需要至少执行一次，然后循环直到满足条件时使用此方法。条件在每次迭代**之后**检查。
+    
+
+    ```
+    Example: Do-while <variable.i> < 10
+    - Execute blocks
+    - Inside loop: Increment <variable.i>
+    - Inside loop: Variables assigns i = <variable.i> + 1
+    - Check condition → Continue if true
+    - Check condition → Exit if false
+    ```
+
+  </Tab>
 </Tabs>
 
 ## 如何使用循环
 
-### 创建循环
+### 创建一个循环
 
 1. 从工具栏中拖动一个循环块到画布上
 2. 配置循环类型和参数
@@ -113,9 +165,9 @@ import { Image } from '@/components/ui/image'
 
 ### 访问结果
 
-循环完成后，您可以访问聚合结果：
+循环完成后，您可以访问汇总结果：
 
-- **`<loop.results>`**：来自所有循环迭代的结果数组
+- **`<loop.results>`**：所有循环迭代的结果数组
 
 ## 示例用例
 
@@ -143,21 +195,34 @@ import { Image } from '@/components/ui/image'
   </ol>
 </div>
 
+### 使用 While 循环的计数器
+
+<div className="mb-4 rounded-md border p-4">
+  <h4 className="font-medium">场景：使用基于计数器的循环处理项目</h4>
+  <ol className="list-decimal pl-5 text-sm">
+    <li>初始化工作流变量：`i = 0`</li>
+    <li>While 循环条件：`<variable.i>` \< 10</li>
+    <li>循环内：代理处理索引为 `<variable.i>` 的项目</li>
+    <li>循环内：变量递增 `i = <variable.i> + 1`</li>
+    <li>循环在 i 小于 10 时继续</li>
+  </ol>
+</div>
+
 ## 高级功能
 
 ### 限制
 
 <Callout type="warning">
   容器块（循环和并行）不能嵌套在彼此内部。这意味着：
-  - 您不能将一个循环块放入另一个循环块中
-  - 您不能将一个并行块放入循环块中
+  - 您不能将循环块放入另一个循环块中
+  - 您不能将并行块放入循环块中
   - 您不能将任何容器块放入另一个容器块中
   
-  如果需要多维迭代，请考虑重构您的工作流程以使用顺序循环或分阶段处理数据。
+  如果您需要多维迭代，请考虑重构您的工作流以使用顺序循环或分阶段处理数据。
 </Callout>
 
 <Callout type="info">
-  循环是按顺序执行的，而不是并行执行。如果需要并发执行，请改用 Parallel 块。
+  循环是按顺序执行的，而不是并行执行。如果您需要并发执行，请改用并行块。
 </Callout>
 
 ## 输入和输出
@@ -166,13 +231,16 @@ import { Image } from '@/components/ui/image'
   <Tab>
     <ul className="list-disc space-y-2 pl-6">
       <li>
-        <strong>循环类型</strong>：选择 'for' 或 'forEach'
+        <strong>循环类型</strong>：选择 'for'、'forEach'、'while' 或 'doWhile'
       </li>
       <li>
         <strong>迭代次数</strong>：执行的次数（适用于 for 循环）
       </li>
       <li>
         <strong>集合</strong>：要迭代的数组或对象（适用于 forEach 循环）
+      </li>
+      <li>
+        <strong>条件</strong>：要评估的布尔表达式（适用于 while/do-while 循环）
       </li>
     </ul>
   </Tab>
@@ -198,7 +266,7 @@ import { Image } from '@/components/ui/image'
         <strong>结构</strong>：结果保持迭代顺序
       </li>
       <li>
-        <strong>访问</strong>：可在循环后的块中使用
+        <strong>访问</strong>：在循环后的块中可用
       </li>
     </ul>
   </Tab>
@@ -206,6 +274,6 @@ import { Image } from '@/components/ui/image'
 
 ## 最佳实践
 
-- **设置合理的限制**：保持迭代次数在合理范围内，以避免长时间执行
+- **设置合理的限制**：保持迭代次数在合理范围内，以避免长时间的执行
 - **对集合使用 ForEach**：在处理数组或对象时，使用 ForEach 而不是 For 循环
 - **优雅地处理错误**：考虑在循环中添加错误处理，以实现更健壮的工作流

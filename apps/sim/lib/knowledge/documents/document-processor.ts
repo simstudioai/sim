@@ -3,13 +3,7 @@ import { env } from '@/lib/env'
 import { parseBuffer, parseFile } from '@/lib/file-parsers'
 import { retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 import { createLogger } from '@/lib/logs/console/logger'
-import {
-  type CustomStorageConfig,
-  getPresignedUrlWithConfig,
-  getStorageProvider,
-  uploadFile,
-} from '@/lib/uploads'
-import { BLOB_KB_CONFIG, S3_KB_CONFIG } from '@/lib/uploads/setup'
+import { StorageService } from '@/lib/uploads'
 import { mistralParserTool } from '@/tools/mistral/parser'
 
 const logger = createLogger('DocumentProcessor')
@@ -43,21 +37,6 @@ type OCRRequestBody = {
 type AzureOCRResponse = {
   pages?: OCRPage[]
   [key: string]: unknown
-}
-
-const getKBConfig = (): CustomStorageConfig => {
-  const provider = getStorageProvider()
-  return provider === 'blob'
-    ? {
-        containerName: BLOB_KB_CONFIG.containerName,
-        accountName: BLOB_KB_CONFIG.accountName,
-        accountKey: BLOB_KB_CONFIG.accountKey,
-        connectionString: BLOB_KB_CONFIG.connectionString,
-      }
-    : {
-        bucket: S3_KB_CONFIG.bucket,
-        region: S3_KB_CONFIG.region,
-      }
 }
 
 class APIError extends Error {
@@ -189,13 +168,21 @@ async function handleFileForOCR(fileUrl: string, filename: string, mimeType: str
   logger.info(`Uploading "${filename}" to cloud storage for OCR`)
 
   const buffer = await downloadFileWithTimeout(fileUrl)
-  const kbConfig = getKBConfig()
-
-  validateCloudConfig(kbConfig)
 
   try {
-    const cloudResult = await uploadFile(buffer, filename, mimeType, kbConfig)
-    const httpsUrl = await getPresignedUrlWithConfig(cloudResult.key, kbConfig, 900)
+    const cloudResult = await StorageService.uploadFile({
+      file: buffer,
+      fileName: filename,
+      contentType: mimeType,
+      context: 'knowledge-base',
+    })
+
+    const httpsUrl = await StorageService.generatePresignedDownloadUrl(
+      cloudResult.key,
+      'knowledge-base',
+      900 // 15 minutes
+    )
+
     logger.info(`Successfully uploaded for OCR: ${cloudResult.key}`)
     return { httpsUrl, cloudUrl: httpsUrl }
   } catch (uploadError) {
@@ -248,25 +235,6 @@ async function downloadFileForBase64(fileUrl: string): Promise<Buffer> {
   }
   const fs = await import('fs/promises')
   return fs.readFile(fileUrl)
-}
-
-function validateCloudConfig(kbConfig: CustomStorageConfig) {
-  const provider = getStorageProvider()
-
-  if (provider === 'blob') {
-    if (
-      !kbConfig.containerName ||
-      (!kbConfig.connectionString && (!kbConfig.accountName || !kbConfig.accountKey))
-    ) {
-      throw new Error(
-        'Azure Blob configuration missing. Set AZURE_CONNECTION_STRING or AZURE_ACCOUNT_NAME + AZURE_ACCOUNT_KEY + AZURE_KB_CONTAINER_NAME'
-      )
-    }
-  } else {
-    if (!kbConfig.bucket || !kbConfig.region) {
-      throw new Error('S3 configuration missing. Set AWS_REGION and S3_KB_BUCKET_NAME')
-    }
-  }
 }
 
 function processOCRContent(result: OCRResult, filename: string): string {
